@@ -1,0 +1,43 @@
+# Build outputs
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio / Rider / MSBuild
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.cache
+*.pdb
+*.opendb
+*.VC.db
+*.VC.VC.opendb
+
+# Test / coverage artifacts
+TestResults/
+coverage/
+coverage.*
+*.coverage
+*.coveragexml
+
+# Publish / packaging outputs
+publish/
+artifacts/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local settings
+appsettings.Local.json
+*.local.json
+
+# NuGet
+packages/
+*.nupkg
+
