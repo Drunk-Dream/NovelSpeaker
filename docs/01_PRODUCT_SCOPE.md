@@ -41,12 +41,13 @@
 - 支持 POST Form。
 - 支持自定义 Header。
 - 支持自定义 Body。
-- 支持 Cookie。
+- 支持会话内 Cookie。
+- 支持只读 LoginInfo 输入。
 - 支持请求超时和重试。
 - 支持规则级限流。
 - 支持 `speakText` 和 `speakSpeed`。
 - 支持 `{{ ... }}` JavaScript 表达式。
-- 支持基础 Legado 兼容辅助函数。
+- 支持少量白名单 Legado 风格兼容辅助函数。
 - 检查 HTTP 状态码和响应 Content-Type。
 
 ### 播放
@@ -99,6 +100,10 @@
 
 ## 明确推迟
 
+- Cookie 持久化。
+- Windows 本地 TTS 回退。
+- `jsLib`。
+- 复杂 `source.get/put` 状态语义。
 - WebView 登录。
 - 在线书源。
 - 云同步。

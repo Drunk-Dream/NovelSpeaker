@@ -2,9 +2,31 @@
 
 ## 目标
 
-第一版实现一个“Legado 风格”的 HTTP TTS 规则引擎。
+第一版实现一个“Legado 风格常见 HTTP TTS 规则”的兼容子集。
 
 目标不是百分之百复制 Legado，而是支持最常见、最有价值的规则能力，使用户能够导入现有规则或以类似格式创建新规则。
+
+第一版承诺的兼容边界：
+
+- GET
+- POST JSON
+- POST Form
+- 自定义 Header 和 Body
+- 会话内 Cookie
+- 只读 LoginInfo 输入
+- `speakText`
+- `speakSpeed`
+- `{{ ... }}` 表达式
+- 少量白名单兼容辅助函数
+
+第一版明确不承诺：
+
+- Cookie 持久化
+- `jsLib`
+- 动态登录 UI
+- WebView 登录
+- 复杂 `source.get/put` 可变状态语义
+- 兼容所有社区规则
 
 ## 建议规则模型
 
@@ -39,11 +61,28 @@ public sealed class HttpTtsRule
 }
 ```
 
+上面的 `HttpTtsRule` 更适合作为导入后持久化的规则模型。
+
 并非所有字段都必须在第一版执行。未实现字段必须：
 
 - 保留导入值。
 - 在规则详情中标记为“当前版本不支持”。
 - 不得静默忽略并假装兼容。
+
+运行时应再规范化为内部模型，例如：
+
+```csharp
+public sealed record NormalizedHttpTtsRule(
+    long RuleId,
+    string Name,
+    RequestTemplate Template,
+    string? DeclaredContentType,
+    string? ConcurrentRate,
+    bool EnableSessionCookieJar,
+    IReadOnlyList<string> UnsupportedFields);
+```
+
+播放链路、缓存键和 HTTP 执行只依赖规范化后的运行时模型，不直接理解导入 JSON 的原始细节。
 
 ## 规则上下文
 
@@ -63,6 +102,11 @@ public sealed record TtsRuleContext(
 - `loginInfo`
 - 当前时间戳
 - 随机数函数
+
+说明：
+
+- `loginInfo` 是显式输入，只读。
+- `source` 在第一版应作为只读兼容外观对象，不暴露任意可变状态。
 
 ## 模板格式
 
@@ -119,8 +163,6 @@ java.sha256Encode(value)
 ```javascript
 source.getLoginInfo()
 source.getLoginInfoMap()
-source.get(key)
-source.put(key, value)
 ```
 
 ```javascript
@@ -139,6 +181,11 @@ cookie.set(url, value)
 - 任意环境变量读取。
 - 无限循环。
 - 跨规则共享可变全局状态。
+
+第一版建议：
+
+- `source.getLoginInfo()` / `source.getLoginInfoMap()` 若实现，仅作为 `loginInfo` 的只读兼容别名。
+- `source.get(key)` / `source.put(key, value)` 推迟，不在 MVP 承诺范围内。
 
 ## 请求规则
 
@@ -213,8 +260,9 @@ public sealed record ParsedTtsRequest(
 - 相同规则共享 Cookie。
 - 不同规则默认隔离。
 - 用户可以清除单条规则 Cookie。
+- 第一版仅在应用运行期间保存 Cookie。
 - Cookie 不写入普通日志。
-- 若持久化，必须放在受保护的数据存储中。
+- 若未来持久化，必须放在受保护的数据存储中。
 
 ## 限流
 
@@ -299,17 +347,20 @@ SHA256(
 | POST JSON | 支持 |
 | POST Form | 支持 |
 | 自定义 Header | 支持 |
-| Cookie | 支持 |
+| 会话内 Cookie | 支持 |
+| Cookie 持久化 | 不支持 |
+| LoginInfo 只读输入 | 支持 |
 | `speakText` | 支持 |
 | `speakSpeed` | 支持 |
 | JavaScript 表达式 | 支持 |
 | 基础 `java` 辅助函数 | 支持 |
-| `source.getLoginInfoMap()` | 支持 |
+| `source.getLoginInfoMap()` | 可作为只读兼容别名 |
+| `source.get/put` 可变状态 | 不支持 |
 | 请求限流 | 支持 |
 | 自动重试 | 支持 |
 | WebView 登录 | 不支持 |
 | WebSocket | 不支持 |
 | 完整 `java.ajax` | 不支持 |
-| 任意外部 JS 库 | 推迟 |
+| `jsLib` | 推迟 |
 | 动态登录 UI | 推迟 |
 | DOM 和浏览器对象 | 不支持 |

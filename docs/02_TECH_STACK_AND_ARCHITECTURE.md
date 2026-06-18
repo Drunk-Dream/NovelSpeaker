@@ -72,11 +72,14 @@ Novel Import
 ├─ ChapterSplitter
 └─ TextSegmenter
 
-TTS Rule Engine
+TTS Rules
 ├─ RuleImporter
+├─ RuleCompatibilityAnalyzer
+├─ RuleNormalizer
 ├─ TemplateEvaluator
 ├─ JavaScriptEvaluator
-├─ RequestRuleParser
+├─ RequestTemplateParser
+├─ RequestBuilder
 ├─ RateLimiter
 ├─ CookieStore
 ├─ HttpExecutor
@@ -85,7 +88,9 @@ TTS Rule Engine
 Playback
 ├─ PlaybackCoordinator
 ├─ PlaybackSession
-├─ AudioPrefetcher
+├─ PlaybackAudioProvider
+├─ PrefetchScheduler
+├─ ProgressService
 ├─ AudioCache
 └─ AudioPlayer
 
@@ -127,9 +132,12 @@ src/NovelSpeaker.Infrastructure/
 │  └─ FileStorage/
 ├─ Speech/
 │  ├─ Rules/
+│  │  ├─ Import/
+│  │  ├─ Normalization/
+│  │  └─ Compatibility/
 │  ├─ Scripting/
 │  ├─ Http/
-│  └─ Compatibility/
+│  └─ Cookies/
 ├─ Audio/
 ├─ Persistence/
 ├─ Security/
@@ -163,11 +171,20 @@ public interface ITextSegmenter
 ```
 
 ```csharp
-public interface IHttpTtsRuleEngine
+public interface ITtsRequestCompiler
 {
-    Task<TtsAudioResult> SynthesizeAsync(
-        HttpTtsRule rule,
+    Task<ParsedTtsRequest> CompileAsync(
+        NormalizedHttpTtsRule rule,
         TtsRuleContext context,
+        CancellationToken cancellationToken);
+}
+```
+
+```csharp
+public interface IHttpTtsExecutor
+{
+    Task<TtsAudioResult> ExecuteAsync(
+        ParsedTtsRequest request,
         CancellationToken cancellationToken);
 }
 ```
@@ -205,6 +222,12 @@ public interface IAudioPlayer : IAsyncDisposable
 }
 ```
 
+说明：
+
+- `HttpTtsRule` 或等价持久化模型负责保存导入 JSON 和用户配置。
+- `NormalizedHttpTtsRule` 是运行时使用的内部模型，裁剪到当前版本真正支持的能力。
+- 播放链路只依赖规范化模型和 `ParsedTtsRequest`，不直接理解导入 JSON 的边缘语法。
+
 ## 播放层核心对象
 
 `PlaybackCoordinator` 是应用层服务，不属于 ViewModel。
@@ -212,22 +235,27 @@ public interface IAudioPlayer : IAsyncDisposable
 它负责：
 
 - 创建和销毁播放会话。
-- 计算当前章节和段落。
-- 查询缓存。
-- 请求在线 TTS。
-- 将音频交给播放器。
-- 启动后续段落预取。
-- 自动推进。
-- 保存进度。
+- 接收播放、暂停、停止、跳章和跳段命令。
+- 串行化状态变更。
+- 协调当前段解析、音频提供、预取调度和进度保存。
 - 汇总用户可见状态。
 
 它不负责：
 
 - 直接读写 WPF 控件。
 - 解析 TTS 规则文本。
+- 直接拼装 HTTP 请求。
 - 执行 SQL。
 - 直接计算章节正则。
 - 保存 API 密钥明文。
+- 独自承担所有缓存、预取和恢复细节。
+
+建议协作者边界：
+
+- `PlaybackAudioProvider`：负责“缓存命中或在线生成当前段音频”。
+- `PrefetchScheduler`：负责预取窗口、去重和会话取消。
+- `ProgressService`：负责保存和恢复阅读进度。
+- `IAudioPlayer`：只负责本地音频加载、播放、暂停和停止。
 
 ## 依赖注入生命周期
 
@@ -242,12 +270,13 @@ public interface IAudioPlayer : IAsyncDisposable
   - AudioPlayer
 - 瞬态或轻量单例：
   - Parser
-  - RuleEvaluator
+  - RuleNormalizer
+  - RequestCompiler
   - Repository
 - 每次播放会话创建：
   - `PlaybackSession`
   - CancellationTokenSource
-  - Prefetch queue
+  - `PrefetchScheduler`
 
 ## 不建议引入
 
