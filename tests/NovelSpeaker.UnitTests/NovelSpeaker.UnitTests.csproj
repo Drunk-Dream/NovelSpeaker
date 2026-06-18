@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\NovelSpeaker.Domain\NovelSpeaker.Domain.csproj" />
+    <ProjectReference Include="..\..\src\NovelSpeaker.Application\NovelSpeaker.Application.csproj" />
+    <ProjectReference Include="..\..\src\NovelSpeaker.Infrastructure\NovelSpeaker.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\NovelSpeaker.App\NovelSpeaker.App.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+</Project>

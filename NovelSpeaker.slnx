@@ -1,5 +1,11 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/NovelSpeaker.App/NovelSpeaker.App.csproj" />
+    <Project Path="src/NovelSpeaker.Application/NovelSpeaker.Application.csproj" />
+    <Project Path="src/NovelSpeaker.Domain/NovelSpeaker.Domain.csproj" />
+    <Project Path="src/NovelSpeaker.Infrastructure/NovelSpeaker.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NovelSpeaker.UnitTests/NovelSpeaker.UnitTests.csproj" />
   </Folder>
 </Solution>
