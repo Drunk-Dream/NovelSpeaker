@@ -4,15 +4,15 @@
 
 ## Epic A：工程基础
 
-- [ ] 创建 .NET 10 WPF 解决方案。
-- [ ] 建立 Domain、Application、Infrastructure、App 和 Tests。
-- [ ] 配置 CommunityToolkit.Mvvm。
-- [ ] 配置依赖注入。
-- [ ] 配置 Microsoft.Extensions.Logging。
-- [ ] 建立应用数据目录服务。
-- [ ] 配置 Nullable 和分析器。
-- [ ] 建立数据库迁移基础设施。
-- [ ] 添加 CI 构建和测试。
+- [x] 创建 .NET 10 WPF 解决方案。
+- [x] 建立 Domain、Application、Infrastructure、App 和 Tests。
+- [x] 配置 CommunityToolkit.Mvvm。
+- [x] 配置依赖注入。
+- [x] 配置 Microsoft.Extensions.Logging。
+- [x] 建立应用数据目录服务。
+- [x] 配置 Nullable 和分析器。
+- [x] 建立数据库迁移基础设施。
+- [x] 添加 CI 构建和测试。
 
 ## Epic B：小说导入
 
