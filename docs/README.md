@@ -1,0 +1,56 @@
+# NovelSpeaker 项目上下文
+
+本目录用于向 Codex、Claude Code 等 AI 编程 Agent 提供稳定、可重复读取的项目上下文。
+
+项目目标是开发一个轻量、简洁、可快速迭代的 Windows 小说听书应用。第一版以本地 TXT 小说和兼容 Legado 风格的 HTTP 在线 TTS 规则为核心，不实现完整阅读器、在线书源或云端书库。
+
+## 建议阅读顺序
+
+1. `AGENTS.md`
+2. `00_PROJECT_BRIEF.md`
+3. `01_PRODUCT_SCOPE.md`
+4. `02_TECH_STACK_AND_ARCHITECTURE.md`
+5. `03_HTTP_TTS_COMPATIBILITY.md`
+6. `04_PLAYBACK_PIPELINE.md`
+7. `05_DATA_AND_PERSISTENCE.md`
+8. `06_UI_AND_USER_FLOWS.md`
+9. `07_DEVELOPMENT_MILESTONES.md`
+10. `08_TESTING_AND_QUALITY.md`
+11. `09_ENGINEERING_CONVENTIONS.md`
+12. `10_DECISIONS_RISKS_OPEN_QUESTIONS.md`
+13. `11_TASK_BACKLOG.md`
+
+## 项目核心原则
+
+- 首先完成稳定的“导入小说 → 在线合成 → 连续播放 → 恢复进度”闭环。
+- 在线 TTS 使用可导入、可编辑的 HTTP 规则，不绑定单一云服务商。
+- 播放调度、TTS 请求、缓存、文本解析和 UI 必须解耦。
+- 第一版只支持 TXT，不为了未来功能提前建立复杂框架。
+- 优先实现完整段落音频下载后播放，不在第一版实现真正流式音频播放。
+- 从第一天开始支持取消、超时、限流、缓存、错误恢复和进度持久化。
+- 参考 Legado 的设计思想，但独立实现，不直接复制其 GPL 代码。
+
+## 预期技术栈
+
+- C#
+- .NET 10
+- WPF
+- CommunityToolkit.Mvvm
+- Microsoft.Data.Sqlite
+- Jint
+- NAudio
+- xUnit
+
+## MVP 交付标准
+
+用户能够：
+
+1. 导入一本常见编码的 TXT 小说。
+2. 查看自动识别的章节。
+3. 导入或新建一个 HTTP TTS 规则。
+4. 测试规则并试听。
+5. 选择章节开始在线朗读。
+6. 暂停、继续、切换段落和章节。
+7. 在下次启动时恢复进度。
+8. 使用已经缓存的音频再次播放。
+9. 在在线 TTS 失败时获得明确错误提示。
