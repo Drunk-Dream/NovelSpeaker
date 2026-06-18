@@ -36,8 +36,8 @@ Desktop.ini
 # Local settings
 appsettings.Local.json
 *.local.json
+.superpowers/
 
 # NuGet
 packages/
 *.nupkg
-
