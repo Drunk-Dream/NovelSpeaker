@@ -7,6 +7,7 @@ public interface IAppDataDirectoryProvider
 {
     string RootDirectoryPath { get; }
     string DatabasePath { get; }
+    string SettingsPath { get; }
     string BooksDirectoryPath { get; }
     string CacheDirectoryPath { get; }
     string LogsDirectoryPath { get; }

@@ -19,6 +19,7 @@ public sealed class LocalAppDataDirectoryProvider : IAppDataDirectoryProvider
     {
         RootDirectoryPath = rootDirectoryPath;
         DatabasePath = Path.Combine(rootDirectoryPath, "app.db");
+        SettingsPath = Path.Combine(rootDirectoryPath, "settings.json");
         BooksDirectoryPath = Path.Combine(rootDirectoryPath, "Books");
         CacheDirectoryPath = Path.Combine(rootDirectoryPath, "Cache");
         LogsDirectoryPath = Path.Combine(rootDirectoryPath, "Logs");
@@ -26,6 +27,7 @@ public sealed class LocalAppDataDirectoryProvider : IAppDataDirectoryProvider
 
     public string RootDirectoryPath { get; }
     public string DatabasePath { get; }
+    public string SettingsPath { get; }
     public string BooksDirectoryPath { get; }
     public string CacheDirectoryPath { get; }
     public string LogsDirectoryPath { get; }

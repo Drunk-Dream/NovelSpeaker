@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.Infrastructure.DependencyInjection;
@@ -31,6 +32,10 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAppDataDirectoryProvider>(provider.GetRequiredService<IAppDataDirectoryProvider>());
                 Assert.IsAssignableFrom<IDatabaseInitializer>(provider.GetRequiredService<IDatabaseInitializer>());
                 Assert.IsAssignableFrom<IChapterRuleRepository>(provider.GetRequiredService<IChapterRuleRepository>());
+                Assert.IsAssignableFrom<IAppSettingsStore>(provider.GetRequiredService<IAppSettingsStore>());
+                Assert.IsAssignableFrom<ITextSegmentationOptionsProvider>(
+                    provider.GetRequiredService<ITextSegmentationOptionsProvider>());
+                Assert.IsAssignableFrom<ITextSegmenter>(provider.GetRequiredService<ITextSegmenter>());
                 Assert.IsType<MainWindow>(provider.GetRequiredService<MainWindow>());
             }
             catch (Exception exception)
