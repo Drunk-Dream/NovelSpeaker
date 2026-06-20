@@ -1,0 +1,41 @@
+using Microsoft.Data.Sqlite;
+using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Infrastructure.FileSystem;
+using NovelSpeaker.Infrastructure.Persistence;
+using Xunit;
+
+namespace NovelSpeaker.UnitTests.Books;
+
+public sealed class BookImportRepositoryTests
+{
+    [Fact]
+    public async Task SaveAsync_rolls_back_when_a_chapter_insert_breaks_the_unique_index()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new LocalAppDataDirectoryProvider(root);
+        var factory = new SqliteConnectionFactory(directories);
+        var runner = new SqliteMigrationRunner(factory);
+        var seederRepository = new ChapterRuleRepository(factory);
+        var seeder = new DefaultChapterRuleSeeder(seederRepository);
+        var initializer = new StartupDatabaseInitializer(directories, runner, seeder);
+        await initializer.InitializeAsync(CancellationToken.None);
+
+        var repository = new BookImportRepository(factory);
+        var now = DateTime.UtcNow.ToString("O");
+        var book = new Book("book-1", "书名", null, "demo.txt", "stored.txt", "hash-1", "utf-8", now, now);
+        Chapter[] chapters =
+        [
+            new("c-1", "book-1", 0, "第一章", "正文甲", 0, 3),
+            new("c-2", "book-1", 0, "第二章", "正文乙", 10, 3)
+        ];
+
+        await Assert.ThrowsAsync<SqliteException>(() => repository.SaveAsync(book, chapters, CancellationToken.None));
+
+        await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
+        var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM Books;";
+        var count = Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
+
+        Assert.Equal(0, count);
+    }
+}
