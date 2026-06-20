@@ -1,0 +1,29 @@
+<UserControl x:Class="NovelSpeaker.App.Views.ChapterRulesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Margin="0,0,0,16">
+            <TextBlock FontSize="26" FontWeight="SemiBold" Text="章节规则" />
+            <TextBlock Margin="0,8,0,0" Text="{Binding StatusMessage}" />
+            <Button Width="160" Margin="0,12,0,0" Content="导入默认规则" Click="ImportDefaultsButton_OnClick" />
+            <TextBlock Margin="0,12,0,0" Text="首版至少支持新增、修改、删除、启用/禁用与排序调整。" />
+        </StackPanel>
+
+        <DataGrid Grid.Row="1"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  ItemsSource="{Binding Rules}">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="160" />
+                <DataGridTextColumn Header="模式" Binding="{Binding Pattern}" Width="*" />
+                <DataGridCheckBoxColumn Header="启用" Binding="{Binding IsEnabled}" Width="80" />
+                <DataGridTextColumn Header="排序" Binding="{Binding SortOrder}" Width="80" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
+</UserControl>

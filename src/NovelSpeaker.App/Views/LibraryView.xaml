@@ -1,0 +1,71 @@
+<UserControl x:Class="NovelSpeaker.App.Views.LibraryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock FontSize="28" FontWeight="SemiBold" Text="书库" />
+            <TextBlock Margin="0,10,0,0" Text="{Binding StatusMessage}" />
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Margin="0,20,0,20"
+                Padding="24"
+                Background="#FFF6ECD8"
+                BorderBrush="#FFD9BA84"
+                BorderThickness="1"
+                CornerRadius="8"
+                AllowDrop="True"
+                DragEnter="ImportBorder_OnDragEnter"
+                Drop="ImportBorder_OnDrop">
+            <StackPanel>
+                <Button Width="180" HorizontalAlignment="Left" Content="导入小说" Click="ImportButton_OnClick" />
+                <TextBlock Margin="0,12,0,0" Text="把 TXT 文件拖到这里，或使用上面的按钮选择文件。" />
+                <Border Margin="0,16,0,0"
+                        Padding="16"
+                        Background="#FFFFFBF4"
+                        CornerRadius="8"
+                        Visibility="{Binding IsEncodingPreviewVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold" Text="编码预览" />
+                        <TextBox Margin="0,12,0,12"
+                                 Height="160"
+                                 AcceptsReturn="True"
+                                 IsReadOnly="True"
+                                 TextWrapping="Wrap"
+                                 Text="{Binding PreviewText}" />
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox Width="160"
+                                      SelectedValuePath="Content"
+                                      SelectedValue="{Binding SelectedEncoding}">
+                                <ComboBoxItem Content="utf-8" />
+                                <ComboBoxItem Content="gb18030" />
+                            </ComboBox>
+                            <Button Margin="12,0,0,0" Content="按此编码重试" Click="RetryEncodingButton_OnClick" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <DataGrid Grid.Row="2"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  ItemsSource="{Binding Books}">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="书名" Binding="{Binding Title}" Width="2*" />
+                <DataGridTextColumn Header="作者" Binding="{Binding Author}" Width="*" />
+                <DataGridTextColumn Header="当前章节" Binding="{Binding CurrentChapterTitle}" Width="2*" />
+                <DataGridTextColumn Header="导入时间" Binding="{Binding ImportedAt}" Width="*" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
+</UserControl>

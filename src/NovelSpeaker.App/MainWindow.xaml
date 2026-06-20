@@ -1,18 +1,41 @@
 ﻿<Window x:Class="NovelSpeaker.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d"
-        Title="NovelSpeaker" Height="320" Width="640">
-    <Grid Margin="24">
-        <StackPanel>
-            <TextBlock FontSize="24"
-                       FontWeight="SemiBold"
-                       Text="{Binding StatusText}" />
-            <TextBlock Margin="0,16,0,0"
-                       TextWrapping="Wrap"
-                       Text="{Binding DataDirectoryText}" />
-        </StackPanel>
+        Title="NovelSpeaker"
+        Height="760"
+        Width="1180">
+    <Grid Background="#FFF5F2EA">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Padding="24" Background="#FFF0E5D1">
+            <StackPanel Orientation="Horizontal">
+                <Button Margin="0,0,12,0" Content="书库" Click="LibraryButton_OnClick" />
+                <Button Margin="0,0,12,0" Content="播放" Click="PlayerButton_OnClick" />
+                <Button Margin="0,0,12,0" Content="规则" Click="RulesButton_OnClick" />
+                <Button Content="设置" Click="SettingsButton_OnClick" />
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Margin="24" Padding="24" Background="White" CornerRadius="8">
+            <ContentControl Content="{Binding CurrentPage}" />
+        </Border>
+
+        <Border Grid.Row="2" Padding="20" Background="#FF1D3557">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Foreground="White" FontSize="16" FontWeight="SemiBold" Text="未开始播放" />
+                    <TextBlock Foreground="#FFD8E2EC" Text="导入后即可在这里看到当前书籍、章节与播放控制。" />
+                </StackPanel>
+                <Button Grid.Column="1" MinWidth="120" Padding="20,10" Content="播放 / 暂停" />
+            </Grid>
+        </Border>
     </Grid>
 </Window>

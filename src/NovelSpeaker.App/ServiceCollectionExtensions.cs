@@ -10,6 +10,10 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddNovelSpeakerDesktop(this IServiceCollection services)
     {
+        services.AddSingleton<LibraryViewModel>();
+        services.AddSingleton<PlayerViewModel>();
+        services.AddSingleton<SettingsViewModel>();
+        services.AddSingleton<ChapterRulesViewModel>();
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<MainWindow>();
         return services;
