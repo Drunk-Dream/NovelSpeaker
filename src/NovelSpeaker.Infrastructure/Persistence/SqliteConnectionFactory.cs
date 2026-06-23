@@ -13,6 +13,7 @@ public sealed class SqliteConnectionFactory : ISqliteConnectionFactory
     public SqliteConnectionFactory(IAppDataDirectoryProvider directories)
     {
         _directories = directories;
+        SqliteRuntimeInitializer.EnsureInitialized();
     }
 
     public async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
