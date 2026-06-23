@@ -33,7 +33,15 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        _serviceProvider?.Dispose();
+        if (_serviceProvider is IAsyncDisposable asyncDisposable)
+        {
+            asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
+        else
+        {
+            _serviceProvider?.Dispose();
+        }
+
         base.OnExit(e);
     }
 }
