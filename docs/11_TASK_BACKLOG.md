@@ -44,17 +44,17 @@
 
 ## Epic D：本地音频播放
 
-- [ ] 定义 `IAudioPlayer`。
-- [ ] 定义最小 `PlaybackCoordinator`。
-- [ ] 定义 `PlaybackSnapshot`。
-- [ ] 实现 NAudio 播放器。
-- [ ] 支持 MP3。
-- [ ] 支持 WAV。
-- [ ] 实现播放、暂停和停止。
-- [ ] 实现完成事件。
-- [ ] 实现失败事件。
-- [ ] 实现音频位置读取和恢复。
-- [ ] 添加 FakeAudioPlayer。
+- [x] 定义 `IAudioPlayer`。
+- [x] 定义最小 `PlaybackCoordinator`。
+- [x] 定义 `PlaybackSnapshot`。
+- [x] 实现 NAudio 播放器。
+- [x] 支持 MP3。
+- [x] 支持 WAV。
+- [x] 实现播放、暂停和停止。
+- [x] 实现完成事件。
+- [x] 实现失败事件。
+- [x] 实现音频位置读取和恢复。
+- [x] 添加 FakeAudioPlayer。
 
 ## Epic E：规则模型和导入
 
