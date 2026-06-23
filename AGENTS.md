@@ -76,6 +76,10 @@
 
 ## 完成任务后的最低检查
 
+当前环境的 `dotnet` 可执行文件路径为 `"/mnt/c/Program Files/dotnet//dotnet.exe"`。
+
+若 shell 中未将 `dotnet` 加入 `PATH`，执行下列检查时应显式使用该路径。
+
 ```powershell
 dotnet format --verify-no-changes
 dotnet build -c Release
