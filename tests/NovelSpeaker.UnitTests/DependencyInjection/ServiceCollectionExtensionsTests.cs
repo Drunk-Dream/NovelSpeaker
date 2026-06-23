@@ -1,8 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App;
+using NovelSpeaker.App.Playback;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using Xunit;
@@ -25,18 +27,28 @@ public sealed class ServiceCollectionExtensionsTests
                 services.AddNovelSpeakerInfrastructure();
                 services.AddNovelSpeakerDesktop();
 
-                using var provider = services.BuildServiceProvider();
-
-                Assert.IsType<MainWindowViewModel>(provider.GetRequiredService<MainWindowViewModel>());
-                Assert.IsType<ChapterRulesViewModel>(provider.GetRequiredService<ChapterRulesViewModel>());
-                Assert.IsAssignableFrom<IAppDataDirectoryProvider>(provider.GetRequiredService<IAppDataDirectoryProvider>());
-                Assert.IsAssignableFrom<IDatabaseInitializer>(provider.GetRequiredService<IDatabaseInitializer>());
-                Assert.IsAssignableFrom<IChapterRuleRepository>(provider.GetRequiredService<IChapterRuleRepository>());
-                Assert.IsAssignableFrom<IAppSettingsStore>(provider.GetRequiredService<IAppSettingsStore>());
-                Assert.IsAssignableFrom<ITextSegmentationOptionsProvider>(
-                    provider.GetRequiredService<ITextSegmentationOptionsProvider>());
-                Assert.IsAssignableFrom<ITextSegmenter>(provider.GetRequiredService<ITextSegmenter>());
-                Assert.IsType<MainWindow>(provider.GetRequiredService<MainWindow>());
+                var provider = services.BuildServiceProvider();
+                try
+                {
+                    Assert.IsType<MainWindowViewModel>(provider.GetRequiredService<MainWindowViewModel>());
+                    Assert.IsType<ChapterRulesViewModel>(provider.GetRequiredService<ChapterRulesViewModel>());
+                    Assert.IsAssignableFrom<IAppDataDirectoryProvider>(provider.GetRequiredService<IAppDataDirectoryProvider>());
+                    Assert.IsAssignableFrom<IDatabaseInitializer>(provider.GetRequiredService<IDatabaseInitializer>());
+                    Assert.IsAssignableFrom<IChapterRuleRepository>(provider.GetRequiredService<IChapterRuleRepository>());
+                    Assert.IsAssignableFrom<IAppSettingsStore>(provider.GetRequiredService<IAppSettingsStore>());
+                    Assert.IsAssignableFrom<ITextSegmentationOptionsProvider>(
+                        provider.GetRequiredService<ITextSegmentationOptionsProvider>());
+                    Assert.IsAssignableFrom<ITextSegmenter>(provider.GetRequiredService<ITextSegmenter>());
+                    Assert.IsAssignableFrom<IAudioPlayer>(provider.GetRequiredService<IAudioPlayer>());
+                    Assert.IsAssignableFrom<IPlaybackCoordinator>(provider.GetRequiredService<IPlaybackCoordinator>());
+                    Assert.IsAssignableFrom<IPlaybackDemoRequestFactory>(
+                        provider.GetRequiredService<IPlaybackDemoRequestFactory>());
+                    Assert.IsType<MainWindow>(provider.GetRequiredService<MainWindow>());
+                }
+                finally
+                {
+                    provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                }
             }
             catch (Exception exception)
             {
