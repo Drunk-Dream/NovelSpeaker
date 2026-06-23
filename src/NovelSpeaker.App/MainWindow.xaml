@@ -29,12 +29,29 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Foreground="White" FontSize="16" FontWeight="SemiBold" Text="未开始播放" />
-                    <TextBlock Foreground="#FFD8E2EC" Text="导入后即可在这里看到当前书籍、章节与播放控制。" />
+                    <TextBlock Foreground="White"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Text="{Binding Player.CurrentTitle}" />
+                    <TextBlock Foreground="#FFD8E2EC"
+                               Text="{Binding Player.StatusText}" />
+                    <TextBlock Foreground="#FFBFD3E6"
+                               Text="{Binding Player.DetailText}" />
                 </StackPanel>
-                <Button Grid.Column="1" MinWidth="120" Padding="20,10" Content="播放 / 暂停" />
+                <Button Grid.Column="1"
+                        MinWidth="120"
+                        Margin="0,0,12,0"
+                        Padding="20,10"
+                        Command="{Binding Player.TogglePlayPauseCommand}"
+                        Content="{Binding Player.PrimaryActionText}" />
+                <Button Grid.Column="2"
+                        MinWidth="100"
+                        Padding="20,10"
+                        Command="{Binding Player.StopCommand}"
+                        Content="停止" />
             </Grid>
         </Border>
     </Grid>

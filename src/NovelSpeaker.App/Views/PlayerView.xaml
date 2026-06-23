@@ -2,9 +2,61 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Grid>
-        <TextBlock FontSize="28"
-                   FontWeight="SemiBold"
-                   TextWrapping="Wrap"
-                   Text="{Binding Headline}" />
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock FontSize="28"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       Text="{Binding Headline}" />
+            <TextBlock Margin="0,12,0,0"
+                       FontSize="22"
+                       FontWeight="SemiBold"
+                       Text="{Binding CurrentTitle}" />
+            <TextBlock Margin="0,8,0,0"
+                       FontSize="16"
+                       Foreground="#FF1D3557"
+                       Text="{Binding StatusText}" />
+            <TextBlock Margin="0,4,0,0"
+                       Foreground="#FF4A5568"
+                       TextWrapping="Wrap"
+                       Text="{Binding DetailText}" />
+            <TextBlock Margin="0,8,0,0"
+                       Foreground="#FFB3261E"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       Text="{Binding ErrorText}" />
+        </StackPanel>
+
+        <WrapPanel Grid.Row="2" Margin="0,24,0,0">
+            <Button Margin="0,0,12,12"
+                    Padding="18,10"
+                    Command="{Binding PlayDemoWavCommand}"
+                    Content="播放 WAV 演示" />
+            <Button Margin="0,0,12,12"
+                    Padding="18,10"
+                    Command="{Binding PlayDemoMp3Command}"
+                    Content="播放 MP3 演示" />
+            <Button Margin="0,0,12,12"
+                    Padding="18,10"
+                    Command="{Binding PlayCorruptDemoCommand}"
+                    Content="播放损坏样本" />
+        </WrapPanel>
+
+        <StackPanel Grid.Row="3" Margin="0,12,0,0" Orientation="Horizontal">
+            <Button Margin="0,0,12,0"
+                    Padding="22,10"
+                    Command="{Binding TogglePlayPauseCommand}"
+                    Content="{Binding PrimaryActionText}" />
+            <Button Padding="22,10"
+                    Command="{Binding StopCommand}"
+                    Content="停止" />
+        </StackPanel>
     </Grid>
 </UserControl>
