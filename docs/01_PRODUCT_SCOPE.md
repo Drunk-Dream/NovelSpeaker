@@ -36,6 +36,7 @@
 - 导入规则 JSON 数组。
 - 新建、编辑、删除、启用和禁用规则。
 - 规则测试和试听。
+- 必须兼容目标 HTTP TTS 后端接口语义，并尽量直接复用 Legado 风格朗读规则；若规则格式不完全兼容，可允许本地调整后接入同一后端。
 - 支持 GET。
 - 支持 POST JSON。
 - 支持 POST Form。
@@ -48,6 +49,7 @@
 - 支持 `speakText` 和 `speakSpeed`。
 - 支持 `{{ ... }}` JavaScript 表达式。
 - 支持少量白名单 Legado 风格兼容辅助函数。
+- 不引入额外 Java 桥接服务或本地代理进程。
 - 检查 HTTP 状态码和响应 Content-Type。
 
 ### 播放
