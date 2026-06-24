@@ -11,9 +11,4 @@ public interface ITemplateEvaluator
         NormalizedTemplate template,
         TtsRuleContext context,
         CancellationToken cancellationToken);
-
-    Task<TtsRequestPreview> CreatePreviewAsync(
-        HttpTtsRule rule,
-        TtsRuleContext context,
-        CancellationToken cancellationToken);
 }
