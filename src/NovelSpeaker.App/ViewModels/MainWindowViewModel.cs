@@ -10,19 +10,19 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public MainWindowViewModel(
         LibraryViewModel libraryViewModel,
         PlayerViewModel playerViewModel,
-        ChapterRulesViewModel chapterRulesViewModel,
+        TtsRulesViewModel ttsRulesViewModel,
         SettingsViewModel settingsViewModel)
     {
         Library = libraryViewModel;
         Player = playerViewModel;
-        Rules = chapterRulesViewModel;
+        Rules = ttsRulesViewModel;
         Settings = settingsViewModel;
         CurrentPage = Library;
     }
 
     public LibraryViewModel Library { get; }
     public PlayerViewModel Player { get; }
-    public ChapterRulesViewModel Rules { get; }
+    public TtsRulesViewModel Rules { get; }
     public SettingsViewModel Settings { get; }
 
     [ObservableProperty]

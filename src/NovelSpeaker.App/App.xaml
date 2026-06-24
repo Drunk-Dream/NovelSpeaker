@@ -13,6 +13,9 @@
         <DataTemplate DataType="{x:Type viewModels:SettingsViewModel}">
             <views:SettingsView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type viewModels:TtsRulesViewModel}">
+            <views:TtsRulesView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type viewModels:ChapterRulesViewModel}">
             <views:ChapterRulesView />
         </DataTemplate>

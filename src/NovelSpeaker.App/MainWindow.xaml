@@ -40,6 +40,8 @@
                                Text="{Binding Player.StatusText}" />
                     <TextBlock Foreground="#FFBFD3E6"
                                Text="{Binding Player.DetailText}" />
+                    <TextBlock Foreground="#FFBFD3E6"
+                               Text="{Binding Rules.CurrentRuleDisplayText}" />
                 </StackPanel>
                 <Button Grid.Column="1"
                         MinWidth="120"

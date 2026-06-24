@@ -16,6 +16,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<PlayerViewModel>();
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<ChapterRulesViewModel>();
+        services.AddSingleton<TtsRulesViewModel>();
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<MainWindow>();
         return services;
