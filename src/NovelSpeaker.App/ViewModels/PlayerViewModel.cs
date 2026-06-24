@@ -1,37 +1,51 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.App.Playback;
+using NovelSpeaker.Application.Speech;
 
 namespace NovelSpeaker.App.ViewModels;
 
 public sealed partial class PlayerViewModel : ObservableObject
 {
     private readonly IPlaybackCoordinator _playbackCoordinator;
-    private readonly IPlaybackDemoRequestFactory _demoRequestFactory;
-    private PlaybackRequest? _lastSelectedRequest;
+    private readonly IBookCatalogService _bookCatalogService;
+    private readonly ITtsRuleLibraryService _ruleLibraryService;
 
     public PlayerViewModel(
         IPlaybackCoordinator playbackCoordinator,
-        IPlaybackDemoRequestFactory demoRequestFactory)
+        IBookCatalogService bookCatalogService,
+        ITtsRuleLibraryService ruleLibraryService)
     {
         _playbackCoordinator = playbackCoordinator;
-        _demoRequestFactory = demoRequestFactory;
+        _bookCatalogService = bookCatalogService;
+        _ruleLibraryService = ruleLibraryService;
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
         _playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
     }
 
+    public ObservableCollection<LibraryBookItemViewModel> Books { get; } = [];
+
+    public ObservableCollection<PlayerRuleItemViewModel> Rules { get; } = [];
+
     [ObservableProperty]
-    private string headline = "使用内置演示音频验证本地播放链路。";
+    private string headline = "选择书籍、规则与语速，然后开始真实播放。";
 
     [ObservableProperty]
     private string currentTitle = "未开始播放";
 
     [ObservableProperty]
-    private string statusText = "准备播放本地音频。";
+    private string currentChapterTitle = "尚未定位章节";
 
     [ObservableProperty]
-    private string detailText = "可先播放内置 WAV，再切到 MP3 或损坏样本验证错误处理。";
+    private string currentRuleText = "当前规则：未选择规则";
+
+    [ObservableProperty]
+    private string statusText = "请选择一本书并开始播放。";
+
+    [ObservableProperty]
+    private string detailText = "播放页会展示当前章节、段落位置、规则与错误恢复入口。";
 
     [ObservableProperty]
     private string errorText = string.Empty;
@@ -43,6 +57,12 @@ public sealed partial class PlayerViewModel : ObservableObject
     private bool isFaulted;
 
     [ObservableProperty]
+    private bool canRetryCurrentSegment;
+
+    [ObservableProperty]
+    private bool canSkipCurrentSegment;
+
+    [ObservableProperty]
     private PlaybackState currentPlaybackState = PlaybackState.Idle;
 
     [ObservableProperty]
@@ -51,50 +71,157 @@ public sealed partial class PlayerViewModel : ObservableObject
     [ObservableProperty]
     private long durationMilliseconds;
 
-    [RelayCommand]
-    private async Task PlayDemoWavAsync(CancellationToken cancellationToken)
+    [ObservableProperty]
+    private LibraryBookItemViewModel? selectedBook;
+
+    [ObservableProperty]
+    private PlayerRuleItemViewModel? selectedRule;
+
+    [ObservableProperty]
+    private int speakSpeed = 10;
+
+    public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        _lastSelectedRequest = _demoRequestFactory.CreateWavDemoRequest();
-        await _playbackCoordinator.StartAsync(_lastSelectedRequest, cancellationToken);
+        var books = await _bookCatalogService.GetBooksAsync(cancellationToken);
+        Books.Clear();
+        foreach (var book in books)
+        {
+            Books.Add(new LibraryBookItemViewModel(
+                book.Id,
+                book.Title,
+                book.Author,
+                book.CurrentChapterTitle,
+                book.ImportedAt));
+        }
+
+        var rules = await _ruleLibraryService.GetRulesAsync(cancellationToken);
+        Rules.Clear();
+        foreach (var rule in rules)
+        {
+            Rules.Add(new PlayerRuleItemViewModel(rule.Id, rule.Name, rule.IsEnabled, rule.IsSelected));
+        }
+
+        SelectedBook = CurrentSnapshotBookId() is { } snapshotBookId
+            ? Books.FirstOrDefault(book => book.Id == snapshotBookId) ?? Books.FirstOrDefault()
+            : SelectedBook is not null
+                ? Books.FirstOrDefault(book => book.Id == SelectedBook.Id) ?? Books.FirstOrDefault()
+                : Books.FirstOrDefault();
+
+        SelectedRule = _playbackCoordinator.CurrentSnapshot.RuleId is { } ruleId
+            ? Rules.FirstOrDefault(rule => rule.Id == ruleId) ?? Rules.FirstOrDefault(rule => rule.IsSelected)
+            : Rules.FirstOrDefault(rule => rule.IsSelected);
     }
 
     [RelayCommand]
-    private async Task PlayDemoMp3Async(CancellationToken cancellationToken)
+    private async Task StartSelectedBookAsync(CancellationToken cancellationToken)
     {
-        _lastSelectedRequest = _demoRequestFactory.CreateMp3DemoRequest();
-        await _playbackCoordinator.StartAsync(_lastSelectedRequest, cancellationToken);
-    }
+        if (SelectedBook is null)
+        {
+            StatusText = "请先选择一本书。";
+            return;
+        }
 
-    [RelayCommand]
-    private async Task PlayCorruptDemoAsync(CancellationToken cancellationToken)
-    {
-        _lastSelectedRequest = _demoRequestFactory.CreateCorruptDemoRequest();
-        await _playbackCoordinator.StartAsync(_lastSelectedRequest, cancellationToken);
+        await _playbackCoordinator.StartAsync(
+            new PlaybackStartRequest(
+                SelectedBook.Id,
+                null,
+                null,
+                null,
+                SpeakSpeed),
+            cancellationToken);
     }
 
     [RelayCommand]
     private async Task TogglePlayPauseAsync(CancellationToken cancellationToken)
     {
-        if (CurrentPlaybackState == global::NovelSpeaker.Application.Playback.PlaybackState.Playing)
+        if (CurrentPlaybackState == PlaybackState.Playing)
         {
             await _playbackCoordinator.PauseAsync(cancellationToken);
             return;
         }
 
-        if (CurrentPlaybackState == global::NovelSpeaker.Application.Playback.PlaybackState.Paused)
+        if (CurrentPlaybackState == PlaybackState.Paused)
         {
             await _playbackCoordinator.ResumeAsync(cancellationToken);
             return;
         }
 
-        _lastSelectedRequest ??= _demoRequestFactory.CreateWavDemoRequest();
-        await _playbackCoordinator.StartAsync(_lastSelectedRequest, cancellationToken);
+        var snapshot = _playbackCoordinator.CurrentSnapshot;
+        if (!string.IsNullOrWhiteSpace(snapshot.BookId))
+        {
+            await _playbackCoordinator.StartAsync(
+                new PlaybackStartRequest(
+                    snapshot.BookId!,
+                    snapshot.ChapterIndex,
+                    snapshot.SegmentIndex,
+                    null,
+                    SpeakSpeed),
+                cancellationToken);
+            return;
+        }
+
+        await StartSelectedBookAsync(cancellationToken);
     }
 
     [RelayCommand]
-    private async Task StopAsync(CancellationToken cancellationToken)
+    private Task StopAsync(CancellationToken cancellationToken)
     {
-        await _playbackCoordinator.StopAsync(cancellationToken);
+        return _playbackCoordinator.StopAsync(cancellationToken);
+    }
+
+    [RelayCommand]
+    private Task PreviousSegmentAsync(CancellationToken cancellationToken)
+    {
+        return _playbackCoordinator.PreviousSegmentAsync(cancellationToken);
+    }
+
+    [RelayCommand]
+    private Task NextSegmentAsync(CancellationToken cancellationToken)
+    {
+        return _playbackCoordinator.NextSegmentAsync(cancellationToken);
+    }
+
+    [RelayCommand]
+    private Task PreviousChapterAsync(CancellationToken cancellationToken)
+    {
+        return _playbackCoordinator.PreviousChapterAsync(cancellationToken);
+    }
+
+    [RelayCommand]
+    private Task NextChapterAsync(CancellationToken cancellationToken)
+    {
+        return _playbackCoordinator.NextChapterAsync(cancellationToken);
+    }
+
+    [RelayCommand]
+    private Task RetryCurrentSegmentAsync(CancellationToken cancellationToken)
+    {
+        return _playbackCoordinator.RetryCurrentSegmentAsync(cancellationToken);
+    }
+
+    [RelayCommand]
+    private Task SkipCurrentSegmentAsync(CancellationToken cancellationToken)
+    {
+        return _playbackCoordinator.SkipCurrentSegmentAsync(cancellationToken);
+    }
+
+    [RelayCommand]
+    private async Task ApplySelectedRuleAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedRule is null)
+        {
+            StatusText = "请先选择一条规则。";
+            return;
+        }
+
+        await _playbackCoordinator.ChangeRuleAsync(SelectedRule.Id, cancellationToken);
+        await LoadAsync(cancellationToken);
+    }
+
+    [RelayCommand]
+    private Task ApplySpeakSpeedAsync(CancellationToken cancellationToken)
+    {
+        return _playbackCoordinator.ChangeSpeedAsync(SpeakSpeed, cancellationToken);
     }
 
     private void OnSnapshotChanged(object? sender, PlaybackSnapshot snapshot)
@@ -105,26 +232,52 @@ public sealed partial class PlayerViewModel : ObservableObject
     private void ApplySnapshot(PlaybackSnapshot snapshot)
     {
         CurrentPlaybackState = snapshot.State;
-        CurrentTitle = string.IsNullOrWhiteSpace(snapshot.DisplayTitle) ? "未开始播放" : snapshot.DisplayTitle;
+        CurrentTitle = string.IsNullOrWhiteSpace(snapshot.BookTitle) ? "未开始播放" : snapshot.BookTitle;
+        CurrentChapterTitle = string.IsNullOrWhiteSpace(snapshot.ChapterTitle)
+            ? "尚未定位章节"
+            : $"{snapshot.ChapterTitle}";
+        CurrentRuleText = string.IsNullOrWhiteSpace(snapshot.RuleName)
+            ? "当前规则：未选择规则"
+            : $"当前规则：{snapshot.RuleName}";
         PositionMilliseconds = snapshot.PositionMilliseconds;
         DurationMilliseconds = snapshot.DurationMilliseconds;
-        IsFaulted = snapshot.State == global::NovelSpeaker.Application.Playback.PlaybackState.Faulted;
-        ErrorText = IsFaulted ? snapshot.Message ?? "本地音频播放失败。" : string.Empty;
+        IsFaulted = snapshot.State == PlaybackState.Faulted;
+        CanRetryCurrentSegment = snapshot.CanRetry;
+        CanSkipCurrentSegment = snapshot.CanSkip;
+        ErrorText = IsFaulted ? snapshot.Message ?? "播放失败。" : string.Empty;
         StatusText = BuildStatusText(snapshot);
         DetailText = BuildDetailText(snapshot);
         PrimaryActionText = snapshot.State == PlaybackState.Playing ? "暂停" : "播放";
+        SpeakSpeed = snapshot.SpeakSpeed <= 0 ? SpeakSpeed : snapshot.SpeakSpeed;
+
+        if (!string.IsNullOrWhiteSpace(snapshot.BookId))
+        {
+            SelectedBook = Books.FirstOrDefault(book => book.Id == snapshot.BookId) ?? SelectedBook;
+        }
+
+        if (snapshot.RuleId is not null)
+        {
+            SelectedRule = Rules.FirstOrDefault(rule => rule.Id == snapshot.RuleId.Value) ?? SelectedRule;
+        }
+    }
+
+    private string? CurrentSnapshotBookId()
+    {
+        return string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId)
+            ? null
+            : _playbackCoordinator.CurrentSnapshot.BookId;
     }
 
     private static string BuildStatusText(PlaybackSnapshot snapshot)
     {
         return snapshot.State switch
         {
-            PlaybackState.Preparing => "正在准备音频",
-            PlaybackState.Buffering => "正在缓冲音频",
+            PlaybackState.Preparing => "正在准备播放会话",
+            PlaybackState.Buffering => "正在加载当前段音频",
             PlaybackState.Playing => "正在播放",
             PlaybackState.Paused => "已暂停",
             PlaybackState.Stopped => "已停止",
-            PlaybackState.Recovering => "正在恢复",
+            PlaybackState.Recovering => "正在恢复当前段",
             PlaybackState.Faulted => "播放失败",
             _ => "待机中"
         };
@@ -139,9 +292,10 @@ public sealed partial class PlayerViewModel : ObservableObject
 
         if (snapshot.DurationMilliseconds <= 0)
         {
-            return "可先播放内置 WAV，再切到 MP3 或损坏样本验证错误处理。";
+            return "选择一本书并开始播放后，这里会显示段落位置、规则和错误恢复信息。";
         }
 
-        return $"位置 {snapshot.PositionMilliseconds} ms / {snapshot.DurationMilliseconds} ms";
+        var cacheText = snapshot.IsUsingCache ? "缓存命中" : "在线生成";
+        return $"第 {snapshot.ChapterIndex + 1} 章，第 {snapshot.SegmentIndex + 1}/{Math.Max(snapshot.SegmentCount, 1)} 段 · {cacheText} · {snapshot.PositionMilliseconds} / {snapshot.DurationMilliseconds} ms";
     }
 }

@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using NovelSpeaker.App.Playback;
 using NovelSpeaker.App.ViewModels;
 
 namespace NovelSpeaker.App;
@@ -11,7 +10,6 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddNovelSpeakerDesktop(this IServiceCollection services)
     {
-        services.AddSingleton<IPlaybackDemoRequestFactory, PlaybackDemoRequestFactory>();
         services.AddSingleton<LibraryViewModel>();
         services.AddSingleton<PlayerViewModel>();
         services.AddSingleton<SettingsViewModel>();

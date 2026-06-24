@@ -41,7 +41,7 @@
                     <TextBlock Foreground="#FFBFD3E6"
                                Text="{Binding Player.DetailText}" />
                     <TextBlock Foreground="#FFBFD3E6"
-                               Text="{Binding Rules.CurrentRuleDisplayText}" />
+                               Text="{Binding Player.CurrentRuleText}" />
                 </StackPanel>
                 <Button Grid.Column="1"
                         MinWidth="120"

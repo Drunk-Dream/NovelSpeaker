@@ -1,6 +1,8 @@
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.App.Playback;
+using NovelSpeaker.Application.Speech;
 using NovelSpeaker.App.ViewModels;
+using NovelSpeaker.Domain.Speech;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.ViewModels;
@@ -12,33 +14,48 @@ public sealed class PlayerViewModelTests
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Playing,
-            "内置演示 WAV",
-            "demo-book",
+            "book-1",
+            "示例小说",
             0,
-            0,
+            "第一章 开始",
+            1,
+            4,
+            5,
+            "默认规则",
+            12,
             200,
             700,
             null,
+            false,
+            false,
             false));
 
-        var viewModel = new PlayerViewModel(coordinator, new FakePlaybackDemoRequestFactory());
+        var viewModel = new PlayerViewModel(
+            coordinator,
+            new FakeBookCatalogService([]),
+            new FakeTtsRuleLibraryService([]));
 
-        Assert.Equal("内置演示 WAV", viewModel.CurrentTitle);
+        Assert.Equal("示例小说", viewModel.CurrentTitle);
         Assert.Equal("正在播放", viewModel.StatusText);
-        Assert.Equal("位置 200 ms / 700 ms", viewModel.DetailText);
+        Assert.Equal("第 1 章，第 2/4 段 · 在线生成 · 200 / 700 ms", viewModel.DetailText);
         Assert.Equal("暂停", viewModel.PrimaryActionText);
     }
 
     [Fact]
-    public async Task PlayDemoMp3Command_starts_demo_request()
+    public async Task StartSelectedBookCommand_starts_selected_book()
     {
         var coordinator = new FakePlaybackCoordinator();
-        var viewModel = new PlayerViewModel(coordinator, new FakePlaybackDemoRequestFactory());
+        var viewModel = new PlayerViewModel(
+            coordinator,
+            new FakeBookCatalogService([new BookSummary("book-1", "示例小说", null, "第一章 开始", "2026-06-24")]),
+            new FakeTtsRuleLibraryService([new TtsRuleSummary(5, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]));
 
-        await viewModel.PlayDemoMp3Command.ExecuteAsync(null);
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.StartSelectedBookCommand.ExecuteAsync(null);
 
-        Assert.NotNull(coordinator.LastStartedRequest);
-        Assert.Equal("内置演示 MP3", coordinator.LastStartedRequest!.DisplayTitle);
+        Assert.NotNull(coordinator.LastStartRequest);
+        Assert.Equal("book-1", coordinator.LastStartRequest!.BookId);
+        Assert.Equal(10, coordinator.LastStartRequest.SpeakSpeedOverride);
     }
 
     [Fact]
@@ -46,16 +63,26 @@ public sealed class PlayerViewModelTests
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Playing,
-            "内置演示 WAV",
-            "demo-book",
+            "book-1",
+            "示例小说",
             0,
+            "第一章 开始",
             0,
+            2,
+            5,
+            "默认规则",
+            10,
             0,
             700,
             null,
+            false,
+            false,
             false));
 
-        var viewModel = new PlayerViewModel(coordinator, new FakePlaybackDemoRequestFactory());
+        var viewModel = new PlayerViewModel(
+            coordinator,
+            new FakeBookCatalogService([]),
+            new FakeTtsRuleLibraryService([]));
 
         await viewModel.TogglePlayPauseCommand.ExecuteAsync(null);
 
@@ -63,26 +90,55 @@ public sealed class PlayerViewModelTests
     }
 
     [Fact]
+    public async Task ApplySelectedRuleCommand_calls_change_rule_on_coordinator()
+    {
+        var coordinator = new FakePlaybackCoordinator();
+        var viewModel = new PlayerViewModel(
+            coordinator,
+            new FakeBookCatalogService([]),
+            new FakeTtsRuleLibraryService([new TtsRuleSummary(9, "备用规则", true, false, null, TtsRuleCompatibilityStatus.Compatible, [])]));
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.SelectedRule = viewModel.Rules.Single();
+
+        await viewModel.ApplySelectedRuleCommand.ExecuteAsync(null);
+
+        Assert.Equal(9, coordinator.LastChangedRuleId);
+    }
+
+    [Fact]
     public void SnapshotChanged_updates_error_projection()
     {
         var coordinator = new FakePlaybackCoordinator();
-        var viewModel = new PlayerViewModel(coordinator, new FakePlaybackDemoRequestFactory());
+        var viewModel = new PlayerViewModel(
+            coordinator,
+            new FakeBookCatalogService([]),
+            new FakeTtsRuleLibraryService([]));
 
         coordinator.Publish(new PlaybackSnapshot(
             PlaybackState.Faulted,
-            "损坏演示音频",
-            "demo-book",
+            "book-1",
+            "示例小说",
             0,
+            "第一章 开始",
             2,
+            4,
+            5,
+            "默认规则",
+            10,
             0,
             0,
-            "音频解码失败，请更换音频文件后重试。",
-            false));
+            "音频解码失败，请重试当前段。",
+            false,
+            true,
+            true));
 
         Assert.True(viewModel.IsFaulted);
+        Assert.True(viewModel.CanRetryCurrentSegment);
+        Assert.True(viewModel.CanSkipCurrentSegment);
         Assert.Equal("播放失败", viewModel.StatusText);
-        Assert.Equal("音频解码失败，请更换音频文件后重试。", viewModel.ErrorText);
-        Assert.Equal("音频解码失败，请更换音频文件后重试。", viewModel.DetailText);
+        Assert.Equal("音频解码失败，请重试当前段。", viewModel.ErrorText);
+        Assert.Equal("音频解码失败，请重试当前段。", viewModel.DetailText);
     }
 
     private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
@@ -99,31 +155,34 @@ public sealed class PlayerViewModelTests
 
         public PlaybackSnapshot CurrentSnapshot { get; private set; }
 
-        public PlaybackRequest? LastStartedRequest { get; private set; }
+        public PlaybackStartRequest? LastStartRequest { get; private set; }
+
+        public long? LastChangedRuleId { get; private set; }
 
         public int PauseCallCount { get; private set; }
 
         public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 
-        public Task StartAsync(PlaybackRequest request, CancellationToken cancellationToken)
+        public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken)
         {
-            LastStartedRequest = request;
+            LastStartRequest = request;
             Publish(new PlaybackSnapshot(
                 PlaybackState.Playing,
-                request.DisplayTitle,
                 request.BookId,
-                request.ChapterIndex,
-                request.SegmentIndex,
-                request.ResumePositionMilliseconds,
+                "示例小说",
+                request.ChapterIndex ?? 0,
+                "第一章 开始",
+                request.SegmentIndex ?? 0,
+                3,
+                5,
+                "默认规则",
+                request.SpeakSpeedOverride ?? 10,
+                request.ResumePositionMilliseconds ?? 0,
                 800,
                 null,
-                request.IsUsingCache));
-            return Task.CompletedTask;
-        }
-
-        public Task ResumeAsync(CancellationToken cancellationToken)
-        {
-            Publish(CurrentSnapshot with { State = PlaybackState.Playing });
+                false,
+                false,
+                false));
             return Task.CompletedTask;
         }
 
@@ -134,27 +193,44 @@ public sealed class PlayerViewModelTests
             return Task.CompletedTask;
         }
 
+        public Task ResumeAsync(CancellationToken cancellationToken)
+        {
+            Publish(CurrentSnapshot with { State = PlaybackState.Playing });
+            return Task.CompletedTask;
+        }
+
         public Task StopAsync(CancellationToken cancellationToken)
         {
             Publish(CurrentSnapshot with
             {
                 State = PlaybackState.Stopped,
                 PositionMilliseconds = 0,
-                Message = "已停止本地音频播放。"
+                Message = "已停止当前播放。"
             });
             return Task.CompletedTask;
         }
 
-        public Task SeekAsync(long positionMilliseconds, CancellationToken cancellationToken)
+        public Task NextSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PreviousSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task NextChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PreviousChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken)
         {
-            Publish(CurrentSnapshot with { PositionMilliseconds = positionMilliseconds });
+            LastChangedRuleId = ruleId;
+            Publish(CurrentSnapshot with { RuleId = ruleId });
             return Task.CompletedTask;
         }
 
-        public ValueTask DisposeAsync()
+        public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken)
         {
-            return ValueTask.CompletedTask;
+            Publish(CurrentSnapshot with { SpeakSpeed = speakSpeed });
+            return Task.CompletedTask;
         }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public void Publish(PlaybackSnapshot snapshot)
         {
@@ -163,10 +239,63 @@ public sealed class PlayerViewModelTests
         }
     }
 
-    private sealed class FakePlaybackDemoRequestFactory : IPlaybackDemoRequestFactory
+    private sealed class FakeBookCatalogService : IBookCatalogService
     {
-        public PlaybackRequest CreateWavDemoRequest() => new("demo.wav", "内置演示 WAV", "demo-book", 0, 0, 0, false);
-        public PlaybackRequest CreateMp3DemoRequest() => new("demo.mp3", "内置演示 MP3", "demo-book", 0, 1, 0, false);
-        public PlaybackRequest CreateCorruptDemoRequest() => new("broken.mp3", "损坏演示音频", "demo-book", 0, 2, 0, false);
+        private readonly IReadOnlyList<BookSummary> _books;
+
+        public FakeBookCatalogService(IReadOnlyList<BookSummary> books)
+        {
+            _books = books;
+        }
+
+        public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(_books);
+        }
+    }
+
+    private sealed class FakeTtsRuleLibraryService : ITtsRuleLibraryService
+    {
+        private readonly IReadOnlyList<TtsRuleSummary> _rules;
+
+        public FakeTtsRuleLibraryService(IReadOnlyList<TtsRuleSummary> rules)
+        {
+            _rules = rules;
+        }
+
+        public Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(_rules);
+        }
+
+        public Task<TtsRuleImportPreview> CreateImportPreviewAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task SelectRuleAsync(long? ruleId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
     }
 }
