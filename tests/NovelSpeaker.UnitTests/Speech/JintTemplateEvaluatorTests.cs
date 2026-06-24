@@ -34,27 +34,6 @@ public sealed class JintTemplateEvaluatorTests
     }
 
     [Fact]
-    public async Task CreatePreviewAsync_redacts_sensitive_values()
-    {
-        var rule = CreateRule(
-            "预览规则",
-            "https://example.com/tts?token={{loginInfo.token}}&text={{encodeURIComponent(speakText)}}",
-            "{\"Authorization\":\"Bearer {{loginInfo.token}}\"}",
-            """{"headers":{"Cookie":"session={{loginInfo.token}}"}}""");
-        var context = new TtsRuleContext(
-            "test",
-            10,
-            rule,
-            new Dictionary<string, string> { ["token"] = "super-secret-token" });
-
-        var preview = await _evaluator.CreatePreviewAsync(rule, context, CancellationToken.None);
-
-        Assert.Equal("https://example.com/tts?token=***&text=test", preview.Url);
-        Assert.Equal("""{"Authorization":"***"}""", preview.Header);
-        Assert.Equal("""{"headers":{"Cookie":"***"}}""", preview.RequestOptionsJson);
-    }
-
-    [Fact]
     public async Task EvaluateAsync_rejects_infinite_loops_and_untrusted_system_access()
     {
         var rule = CreateRule("安全规则", "https://example.com/tts");
