@@ -25,6 +25,7 @@
 - `speakSpeed`
 - `{{ ... }}` 表达式
 - 少量白名单兼容辅助函数
+- 规则页临时试听输入与脱敏请求预览
 
 第一版明确不承诺：
 
@@ -34,6 +35,7 @@
 - WebView 登录
 - 复杂 `source.get/put` 可变状态语义
 - 零改动兼容所有社区规则
+- 测试态 `loginInfo` 的安全持久化
 
 ## 建议规则模型
 
@@ -245,6 +247,15 @@ public sealed record ParsedTtsRequest(
     int RetryCount);
 ```
 
+第一版 `requestOptions` 只识别：
+
+- `method`
+- `headers`
+- `body`
+- `timeoutMs`
+
+出现其他字段时应明确报为规则不兼容，而不是静默忽略。
+
 ## Header 处理
 
 支持来源：
@@ -268,6 +279,8 @@ public sealed record ParsedTtsRequest(
 - Cookie
 - Set-Cookie
 
+规则页中的请求预览也必须遵守同样的脱敏边界。
+
 ## Cookie
 
 第一版建议使用每条规则独立的 CookieContainer。
@@ -278,6 +291,7 @@ public sealed record ParsedTtsRequest(
 - 第一版仅在应用运行期间保存 Cookie。
 - Cookie 不写入普通日志。
 - 若未来持久化，必须放在受保护的数据存储中。
+- 规则页应允许用户清除单条规则的运行期 Cookie。
 
 ## 限流
 
