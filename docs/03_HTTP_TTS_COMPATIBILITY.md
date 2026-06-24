@@ -68,7 +68,8 @@ public sealed class HttpTtsRule
 }
 ```
 
-上面的 `HttpTtsRule` 更适合作为导入后持久化的规则模型。
+上面的 `HttpTtsRule` 更适合作为导入并转换后的持久化规则模型。
+第一版中，Legado 规则只作为导入来源；成功导入后，数据库与导出都以 NovelSpeaker 自有规则 JSON 为准，而不是长期保留原始导入 JSON。
 
 并非所有字段都必须在第一版执行。未实现字段必须：
 

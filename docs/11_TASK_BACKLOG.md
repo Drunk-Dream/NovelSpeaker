@@ -85,7 +85,7 @@
 - [x] 定义 `HttpTtsRule`。
 - [x] 定义规范化运行时规则模型。
 - [x] 建立 TTS 规则数据库表。
-- [x] 保存原始 JSON。
+- [x] 保存本应用规范规则 JSON。
 - [x] 导入单对象。
 - [x] 导入数组。
 - [x] 从文件导入。
@@ -101,25 +101,25 @@
 
 ## Epic F：模板求值和兼容 JavaScript 外观
 
-- [ ] 定义 `TtsRuleContext`。
-- [ ] 实现 `{{ ... }}` 扫描器。
-- [ ] 集成 Jint。
-- [ ] 禁止 CLR 访问。
-- [ ] 设置执行限制。
-- [ ] 暴露 `speakText`。
-- [ ] 暴露 `speakSpeed`。
-- [ ] 暴露只读 `loginInfo`。
-- [ ] 暴露只读 `source` 兼容外观。
-- [ ] 暴露 `encodeURI`。
-- [ ] 暴露 `encodeURIComponent`。
-- [ ] 暴露 JSON、Math 和 Date。
-- [ ] 实现基础 `java` 兼容对象，作为 Jint 内白名单辅助函数外观。
-- [ ] 明确 `java` 兼容对象为进程内实现，不引入额外 Java 运行时、本地桥接服务或代理进程。
-- [ ] 实现 `source.getLoginInfo()`。
-- [ ] 实现 `source.getLoginInfoMap()`。
-- [ ] 验证常见 Legado 模板片段可直接求值；若个别规则不兼容，优先保证可表达相同后端请求。
-- [ ] 为模板求值增加脱敏请求预览模型。
-- [ ] 添加无限循环、超大分配和越权访问安全测试。
+- [x] 定义 `TtsRuleContext`。
+- [x] 实现 `{{ ... }}` 扫描器。
+- [x] 集成 Jint。
+- [x] 禁止 CLR 访问。
+- [x] 设置执行限制。
+- [x] 暴露 `speakText`。
+- [x] 暴露 `speakSpeed`。
+- [x] 暴露只读 `loginInfo`。
+- [x] 暴露只读 `source` 兼容外观。
+- [x] 暴露 `encodeURI`。
+- [x] 暴露 `encodeURIComponent`。
+- [x] 暴露 JSON、Math 和 Date。
+- [x] 实现基础 `java` 兼容对象，作为 Jint 内白名单辅助函数外观。
+- [x] 明确 `java` 兼容对象为进程内实现，不引入额外 Java 运行时、本地桥接服务或代理进程。
+- [x] 实现 `source.getLoginInfo()`。
+- [x] 实现 `source.getLoginInfoMap()`。
+- [x] 验证常见 Legado 模板片段可直接求值；若个别规则不兼容，优先保证可表达相同后端请求。
+- [x] 为模板求值增加脱敏请求预览模型。
+- [x] 添加无限循环、超大分配和越权访问安全测试。
 
 ## Epic G：HTTP TTS
 

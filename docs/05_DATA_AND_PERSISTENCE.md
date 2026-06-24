@@ -74,7 +74,8 @@ CreatedAt TEXT NOT NULL
 UpdatedAt TEXT NOT NULL
 ```
 
-保存原始 JSON 有利于兼容未来字段。应用可同时维护反序列化模型。
+`RuleJson` 保存的是 NovelSpeaker 自有规则 JSON，而不是导入源的原始 Legado JSON。
+Legado 规则只作为导入输入，导入成功后系统内部统一以转换后的规范规则作为唯一持久化和导出格式。
 
 ### AudioCacheEntries
 
