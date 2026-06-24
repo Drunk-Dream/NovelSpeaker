@@ -4,12 +4,12 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.Playback;
 
-public sealed class PlaybackCoordinatorTests
+public sealed class LocalAudioPlaybackCoordinatorTests
 {
     [Fact]
     public void CurrentSnapshot_is_idle_by_default()
     {
-        var coordinator = new PlaybackCoordinator(new FakeAudioPlayer());
+        var coordinator = new LocalAudioPlaybackCoordinator(new FakeAudioPlayer());
 
         Assert.Equal(PlaybackState.Idle, coordinator.CurrentSnapshot.State);
         Assert.Equal("准备播放本地音频。", coordinator.CurrentSnapshot.Message);
@@ -20,7 +20,7 @@ public sealed class PlaybackCoordinatorTests
     {
         var player = new FakeAudioPlayer();
         player.SetDuration(TimeSpan.FromMilliseconds(2400));
-        await using var coordinator = new PlaybackCoordinator(player);
+        await using var coordinator = new LocalAudioPlaybackCoordinator(player);
 
         await coordinator.StartAsync(CreateRequest("内置演示 WAV", 300), CancellationToken.None);
 
@@ -38,7 +38,7 @@ public sealed class PlaybackCoordinatorTests
     {
         var player = new FakeAudioPlayer();
         player.SetDuration(TimeSpan.FromMilliseconds(2000));
-        await using var coordinator = new PlaybackCoordinator(player);
+        await using var coordinator = new LocalAudioPlaybackCoordinator(player);
 
         await coordinator.StartAsync(CreateRequest("内置演示 WAV"), CancellationToken.None);
         player.SetPosition(TimeSpan.FromMilliseconds(750));
@@ -60,7 +60,7 @@ public sealed class PlaybackCoordinatorTests
     {
         var player = new FakeAudioPlayer();
         player.SetDuration(TimeSpan.FromMilliseconds(900));
-        await using var coordinator = new PlaybackCoordinator(player);
+        await using var coordinator = new LocalAudioPlaybackCoordinator(player);
 
         await coordinator.StartAsync(CreateRequest("内置演示 WAV"), CancellationToken.None);
         await coordinator.SeekAsync(1200, CancellationToken.None);
@@ -72,7 +72,7 @@ public sealed class PlaybackCoordinatorTests
     public async Task StartAsync_ignores_stale_completion_from_previous_subscription()
     {
         var player = new FakeAudioPlayer();
-        await using var coordinator = new PlaybackCoordinator(player);
+        await using var coordinator = new LocalAudioPlaybackCoordinator(player);
 
         await coordinator.StartAsync(CreateRequest("第一次请求"), CancellationToken.None);
         var firstSubscriptionIndex = player.CompletedSubscriptionCount - 1;
@@ -90,7 +90,7 @@ public sealed class PlaybackCoordinatorTests
     public async Task Playback_failed_event_moves_snapshot_to_faulted()
     {
         var player = new FakeAudioPlayer();
-        await using var coordinator = new PlaybackCoordinator(player);
+        await using var coordinator = new LocalAudioPlaybackCoordinator(player);
 
         await coordinator.StartAsync(CreateRequest("损坏音频"), CancellationToken.None);
         player.SetPosition(TimeSpan.FromMilliseconds(120));
@@ -102,12 +102,12 @@ public sealed class PlaybackCoordinatorTests
         Assert.Equal("音频解码失败，请更换音频文件后重试。", coordinator.CurrentSnapshot.Message);
     }
 
-    private static PlaybackRequest CreateRequest(
+    private static LocalAudioPlaybackRequest CreateRequest(
         string title,
         long resumePositionMilliseconds = 0,
         int segmentIndex = 0)
     {
-        return new PlaybackRequest(
+        return new LocalAudioPlaybackRequest(
             "demo.wav",
             title,
             "demo-book",

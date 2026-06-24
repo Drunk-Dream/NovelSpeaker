@@ -30,7 +30,14 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<SqliteMigrationRunner>();
         services.AddSingleton<IAudioPlayer, NaudioAudioPlayer>();
         services.AddSingleton<IAudioPlayerFactory, NaudioAudioPlayerFactory>();
+        services.AddSingleton<ILocalAudioPlaybackCoordinator, LocalAudioPlaybackCoordinator>();
         services.AddSingleton<IPlaybackCoordinator, PlaybackCoordinator>();
+        services.AddSingleton<IBookPlaybackContentService, BookPlaybackContentService>();
+        services.AddSingleton<ISelectedTtsRuleProvider, SelectedTtsRuleProvider>();
+        services.AddSingleton<IPlaybackAudioProvider, PlaybackAudioProvider>();
+        services.AddSingleton<IAudioCache, NoOpAudioCache>();
+        services.AddSingleton<IPrefetchScheduler, NoOpPrefetchScheduler>();
+        services.AddSingleton<IReadingProgressStore, NoOpReadingProgressStore>();
         services.AddSingleton<ITextSegmenter, TextSegmenter>();
         services.AddSingleton<IChapterRuleRepository, ChapterRuleRepository>();
         services.AddSingleton<ITtsRuleRepository, TtsRuleRepository>();

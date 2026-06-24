@@ -4,7 +4,6 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App;
-using NovelSpeaker.App.Playback;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using Xunit;
@@ -43,9 +42,14 @@ public sealed class ServiceCollectionExtensionsTests
                         provider.GetRequiredService<ITextSegmentationOptionsProvider>());
                     Assert.IsAssignableFrom<ITextSegmenter>(provider.GetRequiredService<ITextSegmenter>());
                     Assert.IsAssignableFrom<IAudioPlayer>(provider.GetRequiredService<IAudioPlayer>());
+                    Assert.IsAssignableFrom<ILocalAudioPlaybackCoordinator>(provider.GetRequiredService<ILocalAudioPlaybackCoordinator>());
                     Assert.IsAssignableFrom<IPlaybackCoordinator>(provider.GetRequiredService<IPlaybackCoordinator>());
-                    Assert.IsAssignableFrom<IPlaybackDemoRequestFactory>(
-                        provider.GetRequiredService<IPlaybackDemoRequestFactory>());
+                    Assert.IsAssignableFrom<IBookPlaybackContentService>(provider.GetRequiredService<IBookPlaybackContentService>());
+                    Assert.IsAssignableFrom<ISelectedTtsRuleProvider>(provider.GetRequiredService<ISelectedTtsRuleProvider>());
+                    Assert.IsAssignableFrom<IPlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
+                    Assert.IsAssignableFrom<IAudioCache>(provider.GetRequiredService<IAudioCache>());
+                    Assert.IsAssignableFrom<IPrefetchScheduler>(provider.GetRequiredService<IPrefetchScheduler>());
+                    Assert.IsAssignableFrom<IReadingProgressStore>(provider.GetRequiredService<IReadingProgressStore>());
                     Assert.IsType<MainWindow>(provider.GetRequiredService<MainWindow>());
                 }
                 finally

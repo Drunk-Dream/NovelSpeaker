@@ -3,29 +3,33 @@ using NovelSpeaker.Application.Playback;
 namespace NovelSpeaker.Infrastructure.Playback;
 
 /// <summary>
-/// Coordinates one local audio player and exposes serialized playback snapshots.
+/// Coordinates one local audio player and exposes serialized low-level playback snapshots.
 /// </summary>
-public sealed class PlaybackCoordinator : IPlaybackCoordinator
+public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinator
 {
     private readonly IAudioPlayer _audioPlayer;
     private readonly SemaphoreSlim _mutex = new(1, 1);
-    private PlaybackRequest? _currentRequest;
-    private PlaybackSnapshot _currentSnapshot = PlaybackSnapshot.Idle;
+    private LocalAudioPlaybackRequest? _currentRequest;
+    private LocalAudioPlaybackSnapshot _currentSnapshot = LocalAudioPlaybackSnapshot.Idle;
     private long _sessionVersion;
     private bool _disposed;
     private EventHandler? _playbackCompletedHandler;
     private EventHandler<PlaybackErrorEventArgs>? _playbackFailedHandler;
 
-    public PlaybackCoordinator(IAudioPlayer audioPlayer)
+    public LocalAudioPlaybackCoordinator(IAudioPlayer audioPlayer)
     {
         _audioPlayer = audioPlayer;
     }
 
-    public PlaybackSnapshot CurrentSnapshot => _currentSnapshot;
+    public LocalAudioPlaybackSnapshot CurrentSnapshot => _currentSnapshot;
 
-    public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
+    public event EventHandler<LocalAudioPlaybackSnapshot>? SnapshotChanged;
 
-    public async Task StartAsync(PlaybackRequest request, CancellationToken cancellationToken)
+    public event EventHandler? PlaybackCompleted;
+
+    public event EventHandler<PlaybackErrorEventArgs>? PlaybackFailed;
+
+    public async Task StartAsync(LocalAudioPlaybackRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         ThrowIfDisposed();
@@ -136,7 +140,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         {
             if (_currentRequest is null)
             {
-                PublishSnapshot(PlaybackSnapshot.Idle);
+                PublishSnapshot(LocalAudioPlaybackSnapshot.Idle);
                 return;
             }
 
@@ -179,7 +183,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         _disposed = true;
         DetachPlayerHandlers();
         await _audioPlayer.DisposeAsync();
-        _mutex.Dispose();
     }
 
     private void AttachPlayerHandlers(long sessionVersion)
@@ -222,6 +225,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             }
 
             PublishSnapshotFromPlayer(PlaybackState.Stopped, "当前音频已播放完成。");
+            PlaybackCompleted?.Invoke(this, EventArgs.Empty);
         }
         finally
         {
@@ -245,6 +249,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             }
 
             PublishFailure(error);
+            PlaybackFailed?.Invoke(this, error);
         }
         finally
         {
@@ -256,7 +261,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     {
         if (_currentRequest is null)
         {
-            PublishSnapshot(PlaybackSnapshot.Idle with
+            PublishSnapshot(LocalAudioPlaybackSnapshot.Idle with
             {
                 State = PlaybackState.Faulted,
                 Message = error.Message
@@ -280,7 +285,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     {
         if (_currentRequest is null)
         {
-            PublishSnapshot(PlaybackSnapshot.Idle);
+            PublishSnapshot(LocalAudioPlaybackSnapshot.Idle);
             return;
         }
 
@@ -296,13 +301,13 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             _currentRequest.IsUsingCache));
     }
 
-    private void PublishSnapshot(PlaybackSnapshot snapshot)
+    private void PublishSnapshot(LocalAudioPlaybackSnapshot snapshot)
     {
         _currentSnapshot = snapshot;
         SnapshotChanged?.Invoke(this, snapshot);
     }
 
-    private static PlaybackSnapshot CreateSnapshot(
+    private static LocalAudioPlaybackSnapshot CreateSnapshot(
         PlaybackState state,
         string? displayTitle,
         string? bookId,
@@ -313,7 +318,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         string? message,
         bool isUsingCache)
     {
-        return new PlaybackSnapshot(
+        return new LocalAudioPlaybackSnapshot(
             state,
             displayTitle,
             bookId,
