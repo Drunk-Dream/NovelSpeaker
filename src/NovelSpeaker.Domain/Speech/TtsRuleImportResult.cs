@@ -1,0 +1,9 @@
+namespace NovelSpeaker.Domain.Speech;
+
+/// <summary>
+/// Summarizes the persisted outcome of a confirmed rule import.
+/// </summary>
+public sealed record TtsRuleImportResult(
+    int ImportedCount,
+    int SkippedCount,
+    int TotalCount);

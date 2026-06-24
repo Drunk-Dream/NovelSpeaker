@@ -7,12 +7,14 @@ namespace NovelSpeaker.Domain.Settings;
 /// </summary>
 public sealed record AppSettings(
     bool EnableLongParagraphSplitting,
-    int LongParagraphThreshold)
+    int LongParagraphThreshold,
+    long? SelectedTtsRuleId = null)
 {
     public static AppSettings Default { get; } =
         new(
             TextSegmentationOptions.Default.EnableLongParagraphSplitting,
-            TextSegmentationOptions.Default.LongParagraphThreshold);
+            TextSegmentationOptions.Default.LongParagraphThreshold,
+            null);
 
     public TextSegmentationOptions ToTextSegmentationOptions()
     {
