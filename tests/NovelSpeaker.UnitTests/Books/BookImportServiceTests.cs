@@ -17,10 +17,10 @@ public sealed class BookImportServiceTests
         var rules = new FakeChapterRuleRepository([
             new ChapterRule("rule-1", "章节", @"^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$", 10, true, "now", "now")
         ]);
-        var splitter = new FakeChapterSplitter([new BookImportChapter(0, "第一章 开始", "正文", 6, 2)]);
+        var splitter = new FakeChapterSplitter([new BookImportChapter(0, 0, "第一章 开始", "正文", 6, 2)]);
         var service = new BookImportService(analyzer, normalizer, hasher, duplicates, rules, splitter, new FakeBookFileStore(), new FakeBookImportRepository());
 
-        var analysis = await service.AnalyzeAsync("demo.txt", null, CancellationToken.None);
+        var analysis = await service.AnalyzeAsync(new BookImportRequest("demo.txt", null), progress: null, CancellationToken.None);
 
         Assert.Equal(BookImportAnalysisStatus.Failed, analysis.Status);
         Assert.Equal(BookImportFailureReason.DuplicateBook, analysis.FailureReason);
@@ -53,20 +53,82 @@ public sealed class BookImportServiceTests
             BookImportFailureReason.NoValidChapters,
             null);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CommitAsync(analysis, CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CommitAsync(analysis, progress: null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_passes_manual_encoding_override_to_text_analyzer()
+    {
+        var analyzer = new FakeTextFileAnalyzer(new TextFileAnalysis("utf-16le", "preview", "第一章 开始\n正文"));
+        var service = new BookImportService(
+            analyzer,
+            new FakeTextNormalizer("第一章 开始\n正文"),
+            new FakeContentHasher("hash"),
+            new FakeDuplicateDetector(null),
+            new FakeChapterRuleRepository([]),
+            new FakeChapterSplitter([new BookImportChapter(0, 0, "全文", "正文", 0, 2)]),
+            new FakeBookFileStore(),
+            new FakeBookImportRepository());
+
+        var analysis = await service.AnalyzeAsync(new BookImportRequest("demo.txt", "utf-16le"), progress: null, CancellationToken.None);
+
+        Assert.Equal("utf-16le", analyzer.LastRequest?.EncodingOverride);
+        Assert.Equal(BookImportAnalysisStatus.ReadyToCommit, analysis.Status);
+    }
+
+    [Fact]
+    public async Task CommitAsync_sets_last_import_time_and_preserves_sort_order()
+    {
+        var repository = new CapturingBookImportRepository();
+        var service = new BookImportService(
+            new FakeTextFileAnalyzer(new TextFileAnalysis("utf-8", "preview", "第一章 开始\n正文")),
+            new FakeTextNormalizer("第一章 开始\n正文"),
+            new FakeContentHasher("hash"),
+            new FakeDuplicateDetector(null),
+            new FakeChapterRuleRepository([]),
+            new FakeChapterSplitter([]),
+            new FakeBookFileStore(),
+            repository);
+
+        var analysis = new BookImportAnalysis(
+            BookImportAnalysisStatus.ReadyToCommit,
+            "demo.txt",
+            "demo.txt",
+            "demo",
+            "utf-8",
+            "preview",
+            "第一章 开始\n正文",
+            "hash",
+            [new BookImportChapter(0, 42, "第一章 开始", "正文", 6, 2)],
+            null,
+            null);
+
+        await service.CommitAsync(analysis, progress: null, CancellationToken.None);
+
+        Assert.NotNull(repository.SavedBook);
+        Assert.NotNull(repository.SavedChapters);
+        Assert.Equal(repository.SavedBook!.ImportedAt, repository.SavedBook.LastImportedAt);
+        Assert.Null(repository.SavedBook.LastPlayedAt);
+        Assert.Single(repository.SavedChapters!);
+        Assert.Equal(42, repository.SavedChapters[0].SortOrder);
     }
 
     private sealed class FakeTextFileAnalyzer : ITextFileAnalyzer
     {
         private readonly TextFileAnalysis _result;
+        public BookImportRequest? LastRequest { get; private set; }
 
         public FakeTextFileAnalyzer(TextFileAnalysis result)
         {
             _result = result;
         }
 
-        public Task<TextFileAnalysis> AnalyzeAsync(string filePath, string? encodingName, CancellationToken cancellationToken)
+        public Task<TextFileAnalysis> AnalyzeAsync(
+            BookImportRequest request,
+            IProgress<BookImportProgress>? progress,
+            CancellationToken cancellationToken)
         {
+            LastRequest = request;
             return Task.FromResult(_result);
         }
     }
@@ -92,7 +154,10 @@ public sealed class BookImportServiceTests
             _hash = hash;
         }
 
-        public Task<string> ComputeFileHashAsync(string filePath, CancellationToken cancellationToken)
+        public Task<string> ComputeFileHashAsync(
+            string filePath,
+            IProgress<BookImportProgress>? progress,
+            CancellationToken cancellationToken)
         {
             return Task.FromResult(_hash);
         }
@@ -144,7 +209,11 @@ public sealed class BookImportServiceTests
 
     private sealed class FakeBookFileStore : IBookFileStore
     {
-        public Task<BookFileCopyHandle> PrepareCopyAsync(string sourceFilePath, string bookId, CancellationToken cancellationToken)
+        public Task<BookFileCopyHandle> PrepareCopyAsync(
+            string sourceFilePath,
+            string bookId,
+            IProgress<BookImportProgress>? progress,
+            CancellationToken cancellationToken)
         {
             return Task.FromResult(new BookFileCopyHandle($"Books/{bookId}/original.txt", $"Books/{bookId}/original.txt.tmp"));
         }
@@ -157,5 +226,18 @@ public sealed class BookImportServiceTests
     private sealed class FakeBookImportRepository : IBookImportRepository
     {
         public Task SaveAsync(Book book, IReadOnlyList<Chapter> chapters, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class CapturingBookImportRepository : IBookImportRepository
+    {
+        public Book? SavedBook { get; private set; }
+        public IReadOnlyList<Chapter>? SavedChapters { get; private set; }
+
+        public Task SaveAsync(Book book, IReadOnlyList<Chapter> chapters, CancellationToken cancellationToken)
+        {
+            SavedBook = book;
+            SavedChapters = chapters;
+            return Task.CompletedTask;
+        }
     }
 }

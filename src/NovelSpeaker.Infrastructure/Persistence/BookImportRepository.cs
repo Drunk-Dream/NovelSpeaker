@@ -28,8 +28,8 @@ public sealed class BookImportRepository : IBookImportRepository
             bookCommand.Transaction = transaction;
             bookCommand.CommandText =
                 """
-                INSERT INTO Books (Id, Title, Author, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, UpdatedAt)
-                VALUES ($id, $title, $author, $originalFileName, $storedFilePath, $sourceHash, $encoding, $importedAt, $updatedAt);
+                INSERT INTO Books (Id, Title, Author, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, LastImportedAt, LastPlayedAt, UpdatedAt)
+                VALUES ($id, $title, $author, $originalFileName, $storedFilePath, $sourceHash, $encoding, $importedAt, $lastImportedAt, $lastPlayedAt, $updatedAt);
                 """;
             bookCommand.Parameters.AddWithValue("$id", book.Id);
             bookCommand.Parameters.AddWithValue("$title", book.Title);
@@ -39,6 +39,8 @@ public sealed class BookImportRepository : IBookImportRepository
             bookCommand.Parameters.AddWithValue("$sourceHash", book.SourceHash);
             bookCommand.Parameters.AddWithValue("$encoding", book.Encoding);
             bookCommand.Parameters.AddWithValue("$importedAt", book.ImportedAt);
+            bookCommand.Parameters.AddWithValue("$lastImportedAt", book.LastImportedAt);
+            bookCommand.Parameters.AddWithValue("$lastPlayedAt", (object?)book.LastPlayedAt ?? DBNull.Value);
             bookCommand.Parameters.AddWithValue("$updatedAt", book.UpdatedAt);
             await bookCommand.ExecuteNonQueryAsync(cancellationToken);
 
@@ -48,12 +50,13 @@ public sealed class BookImportRepository : IBookImportRepository
                 chapterCommand.Transaction = transaction;
                 chapterCommand.CommandText =
                     """
-                    INSERT INTO Chapters (Id, BookId, ChapterIndex, Title, Content, StartOffset, Length)
-                    VALUES ($id, $bookId, $chapterIndex, $title, $content, $startOffset, $length);
+                    INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, Content, StartOffset, Length)
+                    VALUES ($id, $bookId, $chapterIndex, $sortOrder, $title, $content, $startOffset, $length);
                     """;
                 chapterCommand.Parameters.AddWithValue("$id", chapter.Id);
                 chapterCommand.Parameters.AddWithValue("$bookId", chapter.BookId);
                 chapterCommand.Parameters.AddWithValue("$chapterIndex", chapter.ChapterIndex);
+                chapterCommand.Parameters.AddWithValue("$sortOrder", chapter.SortOrder);
                 chapterCommand.Parameters.AddWithValue("$title", chapter.Title);
                 chapterCommand.Parameters.AddWithValue("$content", chapter.Content);
                 chapterCommand.Parameters.AddWithValue("$startOffset", chapter.StartOffset);

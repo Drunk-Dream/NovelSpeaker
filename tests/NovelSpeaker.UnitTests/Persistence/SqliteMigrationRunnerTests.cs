@@ -37,7 +37,7 @@ public sealed class SqliteMigrationRunnerTests
         var version = Convert.ToInt32(await versionCommand.ExecuteScalarAsync(CancellationToken.None));
 
         Assert.Equal(5, tableCount);
-        Assert.Equal(2, version);
+        Assert.Equal(3, version);
     }
 
     [Fact]
@@ -80,6 +80,82 @@ public sealed class SqliteMigrationRunnerTests
         command.CommandText = "SELECT MAX(Version) FROM SchemaVersion;";
 
         var version = Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
-        Assert.Equal(2, version);
+        Assert.Equal(3, version);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_upgrades_existing_version_2_schema_with_new_columns()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new LocalAppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        await using (var connection = new SqliteConnection($"Data Source={directories.DatabasePath}"))
+        {
+            await connection.OpenAsync(CancellationToken.None);
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                CREATE TABLE SchemaVersion (
+                    Version INTEGER NOT NULL PRIMARY KEY
+                );
+                INSERT INTO SchemaVersion (Version) VALUES (2);
+
+                CREATE TABLE Books (
+                    Id TEXT NOT NULL PRIMARY KEY,
+                    Title TEXT NOT NULL,
+                    Author TEXT NULL,
+                    OriginalFileName TEXT NOT NULL,
+                    StoredFilePath TEXT NOT NULL,
+                    SourceHash TEXT NOT NULL,
+                    Encoding TEXT NOT NULL,
+                    ImportedAt TEXT NOT NULL,
+                    UpdatedAt TEXT NOT NULL
+                );
+
+                CREATE TABLE Chapters (
+                    Id TEXT NOT NULL PRIMARY KEY,
+                    BookId TEXT NOT NULL,
+                    ChapterIndex INTEGER NOT NULL,
+                    SortOrder INTEGER NOT NULL DEFAULT 0,
+                    Title TEXT NOT NULL,
+                    Content TEXT NOT NULL,
+                    StartOffset INTEGER NOT NULL,
+                    Length INTEGER NOT NULL
+                );
+
+                CREATE TABLE ChapterRules (
+                    Id TEXT NOT NULL PRIMARY KEY,
+                    Name TEXT NOT NULL,
+                    Pattern TEXT NOT NULL,
+                    SortOrder INTEGER NOT NULL,
+                    IsEnabled INTEGER NOT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    UpdatedAt TEXT NOT NULL
+                );
+                """;
+
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        var factory = new SqliteConnectionFactory(directories);
+        var runner = new SqliteMigrationRunner(factory);
+        var repository = new ChapterRuleRepository(factory);
+        var seeder = new DefaultChapterRuleSeeder(repository);
+        var initializer = new StartupDatabaseInitializer(directories, runner, seeder);
+
+        await initializer.InitializeAsync(CancellationToken.None);
+
+        await using var upgradedConnection = await factory.OpenConnectionAsync(CancellationToken.None);
+        var pragma = upgradedConnection.CreateCommand();
+        pragma.CommandText = "PRAGMA table_info(Books);";
+        await using var reader = await pragma.ExecuteReaderAsync(CancellationToken.None);
+        var columns = new List<string>();
+        while (await reader.ReadAsync(CancellationToken.None))
+        {
+            columns.Add(reader.GetString(1));
+        }
+
+        Assert.Contains("LastImportedAt", columns);
+        Assert.Contains("LastPlayedAt", columns);
     }
 }

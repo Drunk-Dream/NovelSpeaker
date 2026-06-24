@@ -7,6 +7,7 @@ public sealed record Chapter(
     string Id,
     string BookId,
     int ChapterIndex,
+    int SortOrder,
     string Title,
     string Content,
     int StartOffset,

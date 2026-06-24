@@ -28,7 +28,7 @@ public sealed class BookCatalogService : IBookCatalogService
                        (SELECT Title
                         FROM Chapters c
                         WHERE c.BookId = b.Id
-                        ORDER BY c.ChapterIndex
+                        ORDER BY c.SortOrder, c.ChapterIndex
                         LIMIT 1),
                        '未开始') AS CurrentChapterTitle,
                    b.ImportedAt

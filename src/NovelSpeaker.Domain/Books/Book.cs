@@ -12,4 +12,6 @@ public sealed record Book(
     string SourceHash,
     string Encoding,
     string ImportedAt,
+    string LastImportedAt,
+    string? LastPlayedAt,
     string UpdatedAt);

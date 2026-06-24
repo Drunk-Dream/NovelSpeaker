@@ -6,11 +6,12 @@ namespace NovelSpeaker.Application.Books;
 public interface IBookImportService
 {
     Task<BookImportAnalysis> AnalyzeAsync(
-        string filePath,
-        string? encodingName,
+        BookImportRequest request,
+        IProgress<BookImportProgress>? progress,
         CancellationToken cancellationToken);
 
     Task<BookImportResult> CommitAsync(
         BookImportAnalysis analysis,
+        IProgress<BookImportProgress>? progress,
         CancellationToken cancellationToken);
 }

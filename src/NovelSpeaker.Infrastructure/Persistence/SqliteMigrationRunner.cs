@@ -44,6 +44,7 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
                 Id TEXT NOT NULL PRIMARY KEY,
                 BookId TEXT NOT NULL,
                 ChapterIndex INTEGER NOT NULL,
+                SortOrder INTEGER NOT NULL DEFAULT 0,
                 Title TEXT NOT NULL,
                 Content TEXT NOT NULL,
                 StartOffset INTEGER NOT NULL CHECK(StartOffset >= 0),
@@ -64,6 +65,19 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
 
             CREATE INDEX IX_ChapterRules_SortOrder
                 ON ChapterRules(SortOrder);
+            """),
+        new(
+            3,
+            """
+            ALTER TABLE Books ADD COLUMN LastImportedAt TEXT NULL;
+            ALTER TABLE Books ADD COLUMN LastPlayedAt TEXT NULL;
+            UPDATE Books
+            SET LastImportedAt = ImportedAt
+            WHERE LastImportedAt IS NULL;
+
+            UPDATE Chapters
+            SET SortOrder = ChapterIndex
+            WHERE SortOrder = 0;
             """)
     ];
 

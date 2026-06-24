@@ -57,4 +57,20 @@ public partial class LibraryView : UserControl
             await viewModel.RetryWithEncodingCommand.ExecuteAsync(null);
         }
     }
+
+    private async void ConfirmImportButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is LibraryViewModel viewModel)
+        {
+            await viewModel.ConfirmImportCommand.ExecuteAsync(null);
+        }
+    }
+
+    private void CancelImportButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is LibraryViewModel viewModel)
+        {
+            viewModel.CancelImportCommand.Execute(null);
+        }
+    }
 }

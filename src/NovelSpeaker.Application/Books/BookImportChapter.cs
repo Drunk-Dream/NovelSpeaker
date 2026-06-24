@@ -5,6 +5,7 @@ namespace NovelSpeaker.Application.Books;
 /// </summary>
 public sealed record BookImportChapter(
     int ChapterIndex,
+    int SortOrder,
     string Title,
     string Content,
     int StartOffset,

@@ -15,7 +15,11 @@ public sealed class BookFileStore : IBookFileStore
         _directories = directories;
     }
 
-    public async Task<BookFileCopyHandle> PrepareCopyAsync(string sourceFilePath, string bookId, CancellationToken cancellationToken)
+    public async Task<BookFileCopyHandle> PrepareCopyAsync(
+        string sourceFilePath,
+        string bookId,
+        IProgress<BookImportProgress>? progress,
+        CancellationToken cancellationToken)
     {
         var directory = Path.Combine(_directories.BooksDirectoryPath, bookId);
         Directory.CreateDirectory(directory);
@@ -25,7 +29,27 @@ public sealed class BookFileStore : IBookFileStore
 
         await using var source = File.OpenRead(sourceFilePath);
         await using var destination = File.Create(temporaryPath);
-        await source.CopyToAsync(destination, cancellationToken);
+        var buffer = new byte[81920];
+        long bytesProcessed = 0;
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+            if (read == 0)
+            {
+                break;
+            }
+
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            bytesProcessed += read;
+            progress?.Report(new BookImportProgress(
+                BookImportPhase.CopyingSourceFile,
+                bytesProcessed,
+                source.Length,
+                source.Length == 0,
+                "正在保存原始 TXT 文件。"));
+        }
 
         return new BookFileCopyHandle(finalPath, temporaryPath);
     }

@@ -13,6 +13,7 @@ public sealed class TextSegmenterTests
             "chapter-1",
             "book-1",
             0,
+            0,
             "第一章",
             "这一段很短，不需要拆分。",
             0,
@@ -41,6 +42,7 @@ public sealed class TextSegmenterTests
             "chapter-1",
             "book-1",
             0,
+            0,
             "第一章",
             "第一段。\n第二段。\n\n第三段。",
             0,
@@ -64,7 +66,7 @@ public sealed class TextSegmenterTests
     public void Segment_keeps_long_paragraph_unchanged_when_splitting_is_disabled()
     {
         var text = string.Concat(Enumerable.Repeat("这是一句很长的话。", 40));
-        var chapter = new Chapter("chapter-2", "book-1", 0, "第一章", text, 0, text.Length);
+        var chapter = new Chapter("chapter-2", "book-1", 0, 0, "第一章", text, 0, text.Length);
         var options = new TextSegmentationOptions(false, 50);
         ITextSegmenter segmenter = new Infrastructure.Books.Parsing.TextSegmenter();
 
@@ -81,7 +83,7 @@ public sealed class TextSegmenterTests
             Enumerable.Repeat("这是第一句。", 12)
                 .Concat(Enumerable.Repeat("这是第二句！", 12))
                 .Concat(Enumerable.Repeat("这是第三句？", 12)));
-        var chapter = new Chapter("chapter-3", "book-1", 0, "第一章", text, 0, text.Length);
+        var chapter = new Chapter("chapter-3", "book-1", 0, 0, "第一章", text, 0, text.Length);
         var options = new TextSegmentationOptions(true, 60);
         ITextSegmenter segmenter = new Infrastructure.Books.Parsing.TextSegmenter();
 
@@ -99,7 +101,7 @@ public sealed class TextSegmenterTests
     public void Segment_hard_cuts_a_long_line_without_supported_sentence_punctuation()
     {
         var text = new string('长', 140);
-        var chapter = new Chapter("chapter-4", "book-1", 0, "第一章", text, 0, text.Length);
+        var chapter = new Chapter("chapter-4", "book-1", 0, 0, "第一章", text, 0, text.Length);
         var options = new TextSegmentationOptions(true, 50);
         ITextSegmenter segmenter = new Infrastructure.Books.Parsing.TextSegmenter();
 

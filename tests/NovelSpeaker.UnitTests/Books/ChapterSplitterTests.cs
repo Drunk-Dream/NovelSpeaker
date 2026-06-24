@@ -21,6 +21,7 @@ public sealed class ChapterSplitterTests
 
         Assert.Equal(2, chapters.Count);
         Assert.Equal("第一章 开始", chapters[0].Title);
+        Assert.Equal(0, chapters[0].SortOrder);
         Assert.Equal("正文甲\n", chapters[0].Content);
         Assert.Equal(7, chapters[0].StartOffset);
         Assert.Equal("第二章 继续", chapters[1].Title);
@@ -39,6 +40,36 @@ public sealed class ChapterSplitterTests
 
         var chapters = splitter.Split(text, rules);
 
-        Assert.Empty(chapters);
+        Assert.Single(chapters);
+        Assert.Equal("全文", chapters[0].Title);
+        Assert.Equal(text, chapters[0].Content);
+    }
+
+    [Fact]
+    public void Split_collapses_extra_whitespace_in_titles()
+    {
+        ChapterRule[] rules =
+        [
+            new ChapterRule("1", "章节", @"^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$", 10, true, "now", "now")
+        ];
+
+        var text = "  第一章   开始  \n正文甲\n";
+        var splitter = new ChapterSplitter();
+
+        var chapters = splitter.Split(text, rules);
+
+        Assert.Single(chapters);
+        Assert.Equal("第一章 开始", chapters[0].Title);
+    }
+
+    [Fact]
+    public void Split_falls_back_to_single_chapter_when_no_titles_match()
+    {
+        var splitter = new ChapterSplitter();
+        var chapters = splitter.Split("没有章节标题，只有正文。", []);
+
+        Assert.Single(chapters);
+        Assert.Equal("全文", chapters[0].Title);
+        Assert.Equal(0, chapters[0].SortOrder);
     }
 }

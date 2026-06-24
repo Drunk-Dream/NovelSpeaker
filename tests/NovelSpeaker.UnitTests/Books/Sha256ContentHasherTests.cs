@@ -12,7 +12,7 @@ public sealed class Sha256ContentHasherTests
         await File.WriteAllTextAsync(filePath, "hash me");
 
         var hasher = new Sha256ContentHasher();
-        var hash = await hasher.ComputeFileHashAsync(filePath, CancellationToken.None);
+        var hash = await hasher.ComputeFileHashAsync(filePath, progress: null, CancellationToken.None);
 
         Assert.Equal("eb201af5aaf0d60629d3d2a61e466cfc0fedb517add831ecac5235e1daa963d6", hash);
     }

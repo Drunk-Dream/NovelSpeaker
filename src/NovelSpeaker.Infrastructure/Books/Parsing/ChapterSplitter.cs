@@ -9,9 +9,11 @@ namespace NovelSpeaker.Infrastructure.Books.Parsing;
 /// </summary>
 public sealed class ChapterSplitter : IChapterSplitter
 {
+    private static readonly Regex MultiWhitespace = new(@"\s+", RegexOptions.CultureInvariant);
+
     public IReadOnlyList<BookImportChapter> Split(string normalizedText, IReadOnlyList<ChapterRule> rules)
     {
-        if (string.IsNullOrWhiteSpace(normalizedText) || rules.Count == 0)
+        if (string.IsNullOrWhiteSpace(normalizedText))
         {
             return [];
         }
@@ -25,7 +27,7 @@ public sealed class ChapterSplitter : IChapterSplitter
             var matchedRule = orderedRules.FirstOrDefault(rule => Regex.IsMatch(line, rule.Pattern, RegexOptions.CultureInvariant));
             if (matchedRule is not null)
             {
-                markers.Add((lineStart, lineStart + line.Length + 1, line.Trim()));
+                markers.Add((lineStart, lineStart + line.Length + 1, CleanTitle(line)));
             }
 
             lineStart += line.Length + 1;
@@ -33,7 +35,16 @@ public sealed class ChapterSplitter : IChapterSplitter
 
         if (markers.Count == 0)
         {
-            return [];
+            return
+            [
+                new BookImportChapter(
+                    0,
+                    0,
+                    "全文",
+                    normalizedText,
+                    0,
+                    normalizedText.Length)
+            ];
         }
 
         var chapters = new List<BookImportChapter>();
@@ -55,12 +66,33 @@ public sealed class ChapterSplitter : IChapterSplitter
 
             chapters.Add(new BookImportChapter(
                 chapters.Count,
+                current.TitleOffset,
                 current.Title,
                 content,
                 current.ContentOffset,
                 content.Length));
         }
 
+        if (chapters.Count == 0)
+        {
+            return
+            [
+                new BookImportChapter(
+                    0,
+                    0,
+                    "全文",
+                    normalizedText,
+                    0,
+                    normalizedText.Length)
+            ];
+        }
+
         return chapters;
+    }
+
+    private static string CleanTitle(string title)
+    {
+        var trimmed = title.Trim();
+        return MultiWhitespace.Replace(trimmed, " ");
     }
 }

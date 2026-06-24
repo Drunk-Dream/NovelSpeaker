@@ -17,7 +17,7 @@ public sealed class BookFileStoreTests
         await File.WriteAllTextAsync(sourceFile, "测试正文");
 
         var store = new BookFileStore(directories);
-        var handle = await store.PrepareCopyAsync(sourceFile, "book-1", CancellationToken.None);
+        var handle = await store.PrepareCopyAsync(sourceFile, "book-1", progress: null, CancellationToken.None);
         await store.FinalizeAsync(handle, CancellationToken.None);
 
         Assert.True(File.Exists(handle.FinalPath));

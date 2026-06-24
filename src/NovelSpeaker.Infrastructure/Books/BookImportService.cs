@@ -39,24 +39,24 @@ public sealed class BookImportService : IBookImportService
     }
 
     public async Task<BookImportAnalysis> AnalyzeAsync(
-        string filePath,
-        string? encodingName,
+        BookImportRequest request,
+        IProgress<BookImportProgress>? progress,
         CancellationToken cancellationToken)
     {
         try
         {
-            var analyzedText = await _textFileAnalyzer.AnalyzeAsync(filePath, encodingName, cancellationToken);
+            var analyzedText = await _textFileAnalyzer.AnalyzeAsync(request, progress, cancellationToken);
             var normalizedText = _textNormalizer.Normalize(analyzedText.RawText);
-            var sourceHash = await _contentHasher.ComputeFileHashAsync(filePath, cancellationToken);
+            var sourceHash = await _contentHasher.ComputeFileHashAsync(request.FilePath, progress, cancellationToken);
             var existingBookId = await _duplicateDetector.FindExistingBookIdAsync(sourceHash, cancellationToken);
 
             if (existingBookId is not null)
             {
                 return new BookImportAnalysis(
                     BookImportAnalysisStatus.Failed,
-                    filePath,
-                    Path.GetFileName(filePath),
-                    Path.GetFileNameWithoutExtension(filePath),
+                    request.FilePath,
+                    Path.GetFileName(request.FilePath),
+                    Path.GetFileNameWithoutExtension(request.FilePath),
                     analyzedText.EncodingName,
                     analyzedText.PreviewText,
                     normalizedText,
@@ -66,16 +66,23 @@ public sealed class BookImportService : IBookImportService
                     existingBookId);
             }
 
+            progress?.Report(new BookImportProgress(
+                BookImportPhase.SplittingChapters,
+                0,
+                0,
+                true,
+                "正在识别章节。"));
+
             var rules = await _chapterRuleRepository.GetEnabledAsync(cancellationToken);
             var chapters = _chapterSplitter.Split(normalizedText, rules);
 
-            if (chapters.Count == 0)
+            if (string.IsNullOrWhiteSpace(normalizedText) || chapters.Count == 0)
             {
                 return new BookImportAnalysis(
                     BookImportAnalysisStatus.Failed,
-                    filePath,
-                    Path.GetFileName(filePath),
-                    Path.GetFileNameWithoutExtension(filePath),
+                    request.FilePath,
+                    Path.GetFileName(request.FilePath),
+                    Path.GetFileNameWithoutExtension(request.FilePath),
                     analyzedText.EncodingName,
                     analyzedText.PreviewText,
                     normalizedText,
@@ -87,9 +94,9 @@ public sealed class BookImportService : IBookImportService
 
             return new BookImportAnalysis(
                 BookImportAnalysisStatus.ReadyToCommit,
-                filePath,
-                Path.GetFileName(filePath),
-                Path.GetFileNameWithoutExtension(filePath),
+                request.FilePath,
+                Path.GetFileName(request.FilePath),
+                Path.GetFileNameWithoutExtension(request.FilePath),
                 analyzedText.EncodingName,
                 analyzedText.PreviewText,
                 normalizedText,
@@ -102,9 +109,9 @@ public sealed class BookImportService : IBookImportService
         {
             return new BookImportAnalysis(
                 BookImportAnalysisStatus.Failed,
-                filePath,
-                Path.GetFileName(filePath),
-                Path.GetFileNameWithoutExtension(filePath),
+                request.FilePath,
+                Path.GetFileName(request.FilePath),
+                Path.GetFileNameWithoutExtension(request.FilePath),
                 "unknown",
                 string.Empty,
                 string.Empty,
@@ -117,9 +124,9 @@ public sealed class BookImportService : IBookImportService
         {
             return new BookImportAnalysis(
                 BookImportAnalysisStatus.Failed,
-                filePath,
-                Path.GetFileName(filePath),
-                Path.GetFileNameWithoutExtension(filePath),
+                request.FilePath,
+                Path.GetFileName(request.FilePath),
+                Path.GetFileNameWithoutExtension(request.FilePath),
                 "unknown",
                 string.Empty,
                 string.Empty,
@@ -130,7 +137,10 @@ public sealed class BookImportService : IBookImportService
         }
     }
 
-    public async Task<BookImportResult> CommitAsync(BookImportAnalysis analysis, CancellationToken cancellationToken)
+    public async Task<BookImportResult> CommitAsync(
+        BookImportAnalysis analysis,
+        IProgress<BookImportProgress>? progress,
+        CancellationToken cancellationToken)
     {
         if (analysis.Status != BookImportAnalysisStatus.ReadyToCommit)
         {
@@ -138,7 +148,7 @@ public sealed class BookImportService : IBookImportService
         }
 
         var bookId = Guid.NewGuid().ToString();
-        var copyHandle = await _bookFileStore.PrepareCopyAsync(analysis.OriginalFilePath, bookId, cancellationToken);
+        var copyHandle = await _bookFileStore.PrepareCopyAsync(analysis.OriginalFilePath, bookId, progress, cancellationToken);
         var now = DateTime.UtcNow.ToString("O");
 
         var book = new Book(
@@ -150,6 +160,8 @@ public sealed class BookImportService : IBookImportService
             analysis.SourceHash,
             analysis.DetectedEncoding,
             now,
+            now,
+            null,
             now);
 
         var chapters = analysis.Chapters
@@ -157,6 +169,7 @@ public sealed class BookImportService : IBookImportService
                 Guid.NewGuid().ToString(),
                 bookId,
                 chapter.ChapterIndex,
+                chapter.SortOrder,
                 chapter.Title,
                 chapter.Content,
                 chapter.StartOffset,
@@ -165,8 +178,20 @@ public sealed class BookImportService : IBookImportService
 
         try
         {
+            progress?.Report(new BookImportProgress(
+                BookImportPhase.SavingBook,
+                0,
+                0,
+                true,
+                "正在写入书籍和章节数据。"));
             await _bookImportRepository.SaveAsync(book, chapters, cancellationToken);
             await _bookFileStore.FinalizeAsync(copyHandle, cancellationToken);
+            progress?.Report(new BookImportProgress(
+                BookImportPhase.Completed,
+                0,
+                0,
+                true,
+                "导入完成。"));
         }
         catch
         {

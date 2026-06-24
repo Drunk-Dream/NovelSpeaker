@@ -5,5 +5,8 @@ namespace NovelSpeaker.Application.Books;
 /// </summary>
 public interface IContentHasher
 {
-    Task<string> ComputeFileHashAsync(string filePath, CancellationToken cancellationToken);
+    Task<string> ComputeFileHashAsync(
+        string filePath,
+        IProgress<BookImportProgress>? progress,
+        CancellationToken cancellationToken);
 }

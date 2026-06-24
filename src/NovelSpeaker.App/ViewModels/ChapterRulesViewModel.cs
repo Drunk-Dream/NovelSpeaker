@@ -17,7 +17,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         _repository = repository;
     }
 
-    public ObservableCollection<ChapterRule> Rules { get; } = [];
+    public ObservableCollection<ChapterRuleDraft> Rules { get; } = [];
 
     [ObservableProperty]
     private string statusMessage = "在这里管理导入时使用的章节规则。";
@@ -28,7 +28,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         Rules.Clear();
         foreach (var rule in rules)
         {
-            Rules.Add(rule);
+            Rules.Add(Map(rule));
         }
     }
 
@@ -39,9 +39,16 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         StatusMessage = "默认规则已导入。";
     }
 
-    public async Task SaveRuleAsync(ChapterRule rule, CancellationToken cancellationToken)
+    public async Task SaveRuleAsync(ChapterRuleDraft rule, CancellationToken cancellationToken)
     {
-        await _repository.SaveAsync(rule, cancellationToken);
+        await _repository.SaveAsync(new ChapterRule(
+            rule.Id,
+            rule.Name,
+            rule.Pattern,
+            rule.SortOrder,
+            rule.IsEnabled,
+            DateTime.UtcNow.ToString("O"),
+            DateTime.UtcNow.ToString("O")), cancellationToken);
         await LoadAsync(cancellationToken);
         StatusMessage = $"已保存规则：{rule.Name}";
     }
@@ -52,4 +59,12 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         await LoadAsync(cancellationToken);
         StatusMessage = "规则已删除。";
     }
+
+    private static ChapterRuleDraft Map(ChapterRule rule) =>
+        new(
+            rule.Id,
+            rule.Name,
+            rule.Pattern,
+            rule.SortOrder,
+            rule.IsEnabled);
 }

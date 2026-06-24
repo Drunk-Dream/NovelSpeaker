@@ -6,7 +6,7 @@ namespace NovelSpeaker.Application.Books;
 public interface ITextFileAnalyzer
 {
     Task<TextFileAnalysis> AnalyzeAsync(
-        string filePath,
-        string? encodingName,
+        BookImportRequest request,
+        IProgress<BookImportProgress>? progress,
         CancellationToken cancellationToken);
 }

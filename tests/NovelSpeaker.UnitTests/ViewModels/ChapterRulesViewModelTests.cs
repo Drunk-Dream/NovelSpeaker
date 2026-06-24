@@ -19,6 +19,7 @@ public sealed class ChapterRulesViewModelTests
         await viewModel.ImportDefaultsAsync(CancellationToken.None);
 
         Assert.True(viewModel.Rules.Count >= 1);
+        Assert.All(viewModel.Rules, rule => Assert.False(string.IsNullOrWhiteSpace(rule.Pattern)));
         Assert.Equal("默认规则已导入。", viewModel.StatusMessage);
     }
 
