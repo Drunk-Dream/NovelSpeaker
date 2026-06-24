@@ -51,7 +51,8 @@ public sealed class JsonAppSettingsStore :
             ? AppSettings.Default
             : settings with
             {
-                LongParagraphThreshold = settings.ToTextSegmentationOptions().LongParagraphThreshold
+                LongParagraphThreshold = settings.ToTextSegmentationOptions().LongParagraphThreshold,
+                SelectedTtsRuleId = settings.SelectedTtsRuleId
             };
     }
 
@@ -62,7 +63,8 @@ public sealed class JsonAppSettingsStore :
 
         var normalized = settings with
         {
-            LongParagraphThreshold = settings.ToTextSegmentationOptions().LongParagraphThreshold
+            LongParagraphThreshold = settings.ToTextSegmentationOptions().LongParagraphThreshold,
+            SelectedTtsRuleId = settings.SelectedTtsRuleId
         };
 
         await using var stream = File.Create(_directories.SettingsPath);

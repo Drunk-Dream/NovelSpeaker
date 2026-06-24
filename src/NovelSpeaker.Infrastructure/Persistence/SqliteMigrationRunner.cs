@@ -78,6 +78,21 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
             UPDATE Chapters
             SET SortOrder = ChapterIndex
             WHERE SortOrder = 0;
+            """),
+        new(
+            4,
+            """
+            CREATE TABLE HttpTtsRules (
+                Id INTEGER NOT NULL PRIMARY KEY,
+                Name TEXT NOT NULL,
+                RuleJson TEXT NOT NULL,
+                IsEnabled INTEGER NOT NULL,
+                CompatibilityStatus INTEGER NOT NULL,
+                UnsupportedFieldsJson TEXT NOT NULL,
+                LastUsedAt TEXT NULL,
+                CreatedAt TEXT NOT NULL,
+                UpdatedAt TEXT NOT NULL
+            );
             """)
     ];
 
