@@ -21,10 +21,7 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                null,
                 false,
-                null,
-                null,
                 null,
                 """{"name":"现有规则","url":"https://example.com/old"}""",
                 true,
@@ -35,7 +32,7 @@ public sealed class TtsRuleLibraryServiceTests
                 "updated")
         ]);
         var settingsStore = new FakeAppSettingsStore(AppSettings.Default);
-        var service = new TtsRuleLibraryService(repository, settingsStore);
+        var service = new TtsRuleLibraryService(repository, settingsStore, new LegadoRuleConverter());
 
         var preview = await service.CreateImportPreviewAsync(
             """
@@ -53,16 +50,16 @@ public sealed class TtsRuleLibraryServiceTests
         Assert.True(preview.Items[0].IsDuplicate);
         Assert.True(preview.Items[1].CanImport);
         Assert.True(preview.Items[1].HasSameNameConflict);
-        Assert.Equal(TtsRuleCompatibilityStatus.NeedsManualAdjustment, preview.Items[2].CompatibilityStatus);
+        Assert.Equal(TtsRuleCompatibilityStatus.CompatibleWithWarnings, preview.Items[2].CompatibilityStatus);
         Assert.Equal(["jsLib"], preview.Items[2].UnsupportedFields);
     }
 
     [Fact]
-    public async Task ImportAsync_persists_importable_items_and_preserves_raw_json_for_export()
+    public async Task ImportAsync_persists_importable_items_and_exports_canonical_rule_json()
     {
         var repository = new FakeTtsRuleRepository([]);
         var settingsStore = new FakeAppSettingsStore(AppSettings.Default);
-        var service = new TtsRuleLibraryService(repository, settingsStore);
+        var service = new TtsRuleLibraryService(repository, settingsStore, new LegadoRuleConverter());
         const string jsonText = """{"name":"新规则","url":"https://example.com/tts","header":{"X-Test":"1"}}""";
 
         var preview = await service.CreateImportPreviewAsync(jsonText, "file.json", CancellationToken.None);
@@ -72,7 +69,8 @@ public sealed class TtsRuleLibraryServiceTests
 
         Assert.Equal(1, result.ImportedCount);
         Assert.Equal(0, result.SkippedCount);
-        Assert.Equal(jsonText, exportedJson);
+        Assert.NotEqual(jsonText, exportedJson);
+        Assert.Equal("""{"name":"新规则","url":"https://example.com/tts","header":"{\"X-Test\":\"1\"}"}""", exportedJson);
     }
 
     [Fact]
@@ -87,10 +85,7 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                null,
                 false,
-                null,
-                null,
                 null,
                 """{"name":"当前规则","url":"https://example.com/tts"}""",
                 true,
@@ -101,7 +96,7 @@ public sealed class TtsRuleLibraryServiceTests
                 "updated")
         ]);
         var settingsStore = new FakeAppSettingsStore(AppSettings.Default);
-        var service = new TtsRuleLibraryService(repository, settingsStore);
+        var service = new TtsRuleLibraryService(repository, settingsStore, new LegadoRuleConverter());
 
         await service.SelectRuleAsync(5, CancellationToken.None);
         var summaries = await service.GetRulesAsync(CancellationToken.None);
@@ -123,10 +118,7 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                null,
                 false,
-                null,
-                null,
                 null,
                 """{"name":"当前规则","url":"https://example.com/tts"}""",
                 true,
@@ -137,7 +129,7 @@ public sealed class TtsRuleLibraryServiceTests
                 "updated")
         ]);
         var settingsStore = new FakeAppSettingsStore(AppSettings.Default with { SelectedTtsRuleId = 9 });
-        var service = new TtsRuleLibraryService(repository, settingsStore);
+        var service = new TtsRuleLibraryService(repository, settingsStore, new LegadoRuleConverter());
 
         await service.SetRuleEnabledAsync(9, false, CancellationToken.None);
         Assert.Null(settingsStore.Current.SelectedTtsRuleId);

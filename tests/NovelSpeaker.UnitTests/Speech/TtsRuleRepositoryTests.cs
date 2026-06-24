@@ -21,18 +21,15 @@ public sealed class TtsRuleRepositoryTests
             "audio/mpeg",
             "2/1000",
             "{\"Authorization\":\"Bearer demo\"}",
-            null,
-            null,
+            """{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"}""",
             false,
-            null,
-            "console.log('nope')",
             12345,
             """
-            {"name":"示例规则","url":"https://example.com/tts?text={{speakText}}","contentType":"audio/mpeg","jsLib":"console.log('nope')","lastUpdateTime":12345}
+            {"name":"示例规则","url":"https://example.com/tts?text={{speakText}}","contentType":"audio/mpeg","concurrentRate":"2/1000","header":"{\"Authorization\":\"Bearer demo\"}","requestOptions":{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"},"lastUpdateTime":12345}
             """,
             true,
-            TtsRuleCompatibilityStatus.NeedsManualAdjustment,
-            ["jsLib"],
+            TtsRuleCompatibilityStatus.CompatibleWithWarnings,
+            ["loginUrl"],
             utcNow,
             utcNow,
             utcNow), CancellationToken.None);
@@ -42,10 +39,11 @@ public sealed class TtsRuleRepositoryTests
         Assert.NotNull(stored);
         Assert.Equal("示例规则", stored!.Name);
         Assert.Equal("https://example.com/tts?text={{speakText}}", stored.Url);
-        Assert.Equal(TtsRuleCompatibilityStatus.NeedsManualAdjustment, stored.CompatibilityStatus);
-        Assert.Equal(["jsLib"], stored.UnsupportedFields);
+        Assert.Equal(TtsRuleCompatibilityStatus.CompatibleWithWarnings, stored.CompatibilityStatus);
+        Assert.Equal(["loginUrl"], stored.UnsupportedFields);
         Assert.Equal(12345, stored.LastUpdateTime);
         Assert.Equal(utcNow, stored.LastUsedAt);
+        Assert.Equal("""{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"}""", stored.RequestOptionsJson);
     }
 
     [Fact]
@@ -61,10 +59,7 @@ public sealed class TtsRuleRepositoryTests
             null,
             null,
             null,
-            null,
             false,
-            null,
-            null,
             null,
             """{"name":"规则 A","url":"https://example.com/a"}""",
             true,
@@ -81,13 +76,10 @@ public sealed class TtsRuleRepositoryTests
             null,
             null,
             null,
-            null,
-            null,
+            """{"method":"POST"}""",
             false,
             null,
-            null,
-            null,
-            """{"name":"规则 A 已更新","url":"https://example.com/a2"}""",
+            """{"name":"规则 A 已更新","url":"https://example.com/a2","requestOptions":{"method":"POST"}}""",
             false,
             TtsRuleCompatibilityStatus.CompatibleWithWarnings,
             ["customField"],
@@ -103,6 +95,7 @@ public sealed class TtsRuleRepositoryTests
         Assert.False(stored.IsEnabled);
         Assert.Equal(TtsRuleCompatibilityStatus.CompatibleWithWarnings, stored.CompatibilityStatus);
         Assert.Equal(["customField"], stored.UnsupportedFields);
+        Assert.Equal("""{"method":"POST"}""", stored.RequestOptionsJson);
     }
 
     [Fact]
@@ -118,10 +111,7 @@ public sealed class TtsRuleRepositoryTests
             null,
             null,
             null,
-            null,
             false,
-            null,
-            null,
             null,
             """{"name":"待删除规则","url":"https://example.com/delete"}""",
             true,

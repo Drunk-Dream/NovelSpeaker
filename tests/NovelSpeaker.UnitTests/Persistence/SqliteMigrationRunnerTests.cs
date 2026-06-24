@@ -37,7 +37,7 @@ public sealed class SqliteMigrationRunnerTests
         var version = Convert.ToInt32(await versionCommand.ExecuteScalarAsync(CancellationToken.None));
 
         Assert.Equal(6, tableCount);
-        Assert.Equal(4, version);
+        Assert.Equal(5, version);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class SqliteMigrationRunnerTests
         command.CommandText = "SELECT MAX(Version) FROM SchemaVersion;";
 
         var version = Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
-        Assert.Equal(4, version);
+        Assert.Equal(5, version);
     }
 
     [Fact]
