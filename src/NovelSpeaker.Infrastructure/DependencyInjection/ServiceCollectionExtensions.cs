@@ -12,6 +12,7 @@ using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Playback;
 using NovelSpeaker.Infrastructure.Settings;
 using NovelSpeaker.Infrastructure.Speech.Rules;
+using NovelSpeaker.Infrastructure.Speech.Scripting;
 using NovelSpeaker.Application.Speech;
 
 namespace NovelSpeaker.Infrastructure.DependencyInjection;
@@ -31,6 +32,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITextSegmenter, TextSegmenter>();
         services.AddSingleton<IChapterRuleRepository, ChapterRuleRepository>();
         services.AddSingleton<ITtsRuleRepository, TtsRuleRepository>();
+        services.AddSingleton<ITtsRuleConverter, LegadoRuleConverter>();
+        services.AddSingleton<ITemplateEvaluator, JintTemplateEvaluator>();
         services.AddSingleton<ITtsRuleLibraryService, TtsRuleLibraryService>();
         services.AddSingleton<ITextFileAnalyzer, TextFileAnalyzer>();
         services.AddSingleton<ITextNormalizer, TextNormalizer>();

@@ -4,6 +4,7 @@
     <ProjectReference Include="..\NovelSpeaker.Domain\NovelSpeaker.Domain.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Jint" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
