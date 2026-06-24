@@ -4,6 +4,11 @@
 
 播放逻辑是项目中最重要的业务逻辑。
 
+第一版实现采用两层协调结构：
+
+- `ILocalAudioPlaybackCoordinator`：只负责单个本地音频文件的加载、播放、暂停、停止、定位和本地解码错误。
+- `IPlaybackCoordinator`：面向书籍、章节、段落、规则和会话，负责状态机、导航、自动推进、旧结果隔离和 UI 快照。
+
 在线 TTS 不只是一次 HTTP 请求。必须统一处理：
 
 - 当前播放位置。
@@ -60,7 +65,11 @@ public sealed class PlaybackSession : IAsyncDisposable
 {
     public Guid SessionId { get; }
     public CancellationToken CancellationToken { get; }
-    public BookPosition Position { get; set; }
+    public string BookId { get; }
+    public int ChapterIndex { get; set; }
+    public int SegmentIndex { get; set; }
+    public long RuleId { get; set; }
+    public int SpeakSpeed { get; set; }
 }
 ```
 
@@ -70,6 +79,8 @@ public sealed class PlaybackSession : IAsyncDisposable
 
 ```text
 Resolve current segment
+  ↓
+Resolve selected rule and speak speed
   ↓
 Build cache key
   ↓
@@ -199,16 +210,44 @@ public sealed record BookPosition(
 - 可使用 `SemaphoreSlim` 或内部命令队列保护状态。
 - 不在多个事件回调中直接同时推进段落。
 
-## 建议事件
+## UI 快照
 
 ```csharp
 public sealed record PlaybackSnapshot(
     PlaybackState State,
-    Guid? BookId,
+    string? BookId,
+    string? BookTitle,
     int ChapterIndex,
+    string? ChapterTitle,
     int SegmentIndex,
+    int SegmentCount,
+    long? RuleId,
+    string? RuleName,
+    int SpeakSpeed,
+    long PositionMilliseconds,
+    long DurationMilliseconds,
     string? Message,
-    bool IsUsingCache);
+    bool IsUsingCache,
+    bool CanRetry,
+    bool CanSkip);
 ```
 
 ViewModel 订阅快照，而不是直接读取多个可变服务字段。
+
+## 当前实现边界
+
+Epic H 当前已落地：
+
+- 上层 `PlaybackCoordinator`。
+- 下层 `ILocalAudioPlaybackCoordinator`。
+- 运行时章节分段读取。
+- 当前规则解析。
+- 在线 TTS 播放闭环。
+- 重试、跳过、跨章和语速/规则切换。
+
+仍保留为后续 Epic 的能力：
+
+- 持久化缓存及 LRU。
+- 真正的预取调度和去重。
+- 阅读进度恢复。
+- 限流与 `Retry-After` 协同。
