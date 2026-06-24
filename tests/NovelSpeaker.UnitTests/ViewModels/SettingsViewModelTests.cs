@@ -36,26 +36,65 @@ public sealed class SettingsViewModelTests
         Assert.Equal(25, store.LastSavedSettings.LongParagraphThreshold);
     }
 
+    [Fact]
+    public async Task ToggleChapterRulesAsync_loads_chapter_rules_when_panel_is_opened()
+    {
+        var store = new FakeAppSettingsStore(AppSettings.Default);
+        var chapterRepository = new FakeChapterRuleRepository();
+        var chapterRulesViewModel = new ChapterRulesViewModel(chapterRepository);
+        var viewModel = new SettingsViewModel(store, chapterRulesViewModel);
+
+        await viewModel.ToggleChapterRulesCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsChapterRulesVisible);
+        Assert.Equal(1, chapterRepository.GetAllCallCount);
+    }
+
     private sealed class FakeAppSettingsStore : IAppSettingsStore
     {
-        private readonly AppSettings _loadedSettings;
-
         public FakeAppSettingsStore(AppSettings loadedSettings)
         {
-            _loadedSettings = loadedSettings;
+            CurrentSettings = loadedSettings;
         }
+
+        public AppSettings CurrentSettings { get; private set; }
 
         public AppSettings? LastSavedSettings { get; private set; }
 
         public Task<AppSettings> LoadAsync(CancellationToken cancellationToken)
         {
-            return Task.FromResult(_loadedSettings);
+            return Task.FromResult(CurrentSettings);
         }
 
         public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
         {
             LastSavedSettings = settings;
+            CurrentSettings = settings;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class FakeChapterRuleRepository : Application.Books.IChapterRuleRepository
+    {
+        public int GetAllCallCount { get; private set; }
+
+        public Task<IReadOnlyList<Domain.Books.ChapterRule>> GetAllAsync(CancellationToken cancellationToken)
+        {
+            GetAllCallCount++;
+            return Task.FromResult<IReadOnlyList<Domain.Books.ChapterRule>>([]);
+        }
+
+        public Task<IReadOnlyList<Domain.Books.ChapterRule>> GetEnabledAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<Domain.Books.ChapterRule>>([]);
+        }
+
+        public Task SaveAsync(Domain.Books.ChapterRule rule, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task DeleteAsync(string ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task MoveAsync(string ruleId, int newSortOrder, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<int> ImportDefaultsAsync(CancellationToken cancellationToken) => Task.FromResult(0);
     }
 }

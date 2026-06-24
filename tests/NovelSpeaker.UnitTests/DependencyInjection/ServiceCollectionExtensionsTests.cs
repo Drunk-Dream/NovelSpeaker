@@ -32,9 +32,12 @@ public sealed class ServiceCollectionExtensionsTests
                 {
                     Assert.IsType<MainWindowViewModel>(provider.GetRequiredService<MainWindowViewModel>());
                     Assert.IsType<ChapterRulesViewModel>(provider.GetRequiredService<ChapterRulesViewModel>());
+                    Assert.IsType<TtsRulesViewModel>(provider.GetRequiredService<TtsRulesViewModel>());
                     Assert.IsAssignableFrom<IAppDataDirectoryProvider>(provider.GetRequiredService<IAppDataDirectoryProvider>());
                     Assert.IsAssignableFrom<IDatabaseInitializer>(provider.GetRequiredService<IDatabaseInitializer>());
                     Assert.IsAssignableFrom<IChapterRuleRepository>(provider.GetRequiredService<IChapterRuleRepository>());
+                    Assert.IsAssignableFrom<NovelSpeaker.Application.Speech.ITtsRuleRepository>(
+                        provider.GetRequiredService<NovelSpeaker.Application.Speech.ITtsRuleRepository>());
                     Assert.IsAssignableFrom<IAppSettingsStore>(provider.GetRequiredService<IAppSettingsStore>());
                     Assert.IsAssignableFrom<ITextSegmentationOptionsProvider>(
                         provider.GetRequiredService<ITextSegmentationOptionsProvider>());

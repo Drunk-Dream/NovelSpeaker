@@ -1,4 +1,5 @@
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Settings;
 using Xunit;
@@ -39,5 +40,19 @@ public sealed class JsonAppSettingsStoreTests
 
         Assert.False(reloaded.EnableLongParagraphSplitting);
         Assert.Equal(50, reloaded.LongParagraphThreshold);
+    }
+
+    [Fact]
+    public async Task SaveAsync_persists_selected_tts_rule_id()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new LocalAppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new JsonAppSettingsStore(directories);
+
+        await store.SaveAsync(AppSettings.Default with { SelectedTtsRuleId = 42 }, CancellationToken.None);
+        var reloaded = await store.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(42, reloaded.SelectedTtsRuleId);
     }
 }
