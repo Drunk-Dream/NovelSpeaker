@@ -1,0 +1,5 @@
+{
+  "name": "POST Form Sample",
+  "url": "https://example.com/tts,{\"method\":\"POST\",\"headers\":{\"Content-Type\":\"application/x-www-form-urlencoded\"},\"body\":\"text={{encodeURIComponent(speakText)}}&speed={{speakSpeed}}\"}",
+  "contentType": "audio/wav"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "GET Sample",
+  "url": "https://example.com/tts?text={{encodeURIComponent(speakText)}}&speed={{speakSpeed}}",
+  "contentType": "audio/wav"
+}

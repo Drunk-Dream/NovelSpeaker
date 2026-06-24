@@ -1,0 +1,5 @@
+{
+  "name": "POST JSON Sample",
+  "url": "https://example.com/tts,{\"method\":\"POST\",\"headers\":{\"Content-Type\":\"application/json\"},\"body\":\"{\\\"text\\\":\\\"{{speakText}}\\\",\\\"speed\\\":{{speakSpeed}}}\"}",
+  "contentType": "audio/mpeg"
+}
