@@ -87,6 +87,51 @@ public sealed class NaudioAudioPlayerTests
         await Assert.ThrowsAnyAsync<Exception>(() => player.LoadAsync(PlaybackTestAudio.CorruptMp3Path, CancellationToken.None));
 
         Assert.NotNull(captured);
+        Assert.Equal(PlaybackStatus.Faulted, player.State);
         Assert.Contains(captured!.Kind, new[] { PlaybackErrorKind.UnsupportedFormat, PlaybackErrorKind.AudioDecode, PlaybackErrorKind.Unknown });
+    }
+
+    [Fact]
+    public async Task Extremely_short_wav_loads_and_raises_completion_once()
+    {
+        var wavePlayer = new FakeWavePlayer();
+        await using var player = new NaudioAudioPlayer(() => wavePlayer);
+        var filePath = CreateShortWaveFile();
+        var completionCount = 0;
+        player.PlaybackCompleted += (_, _) => completionCount++;
+
+        await player.LoadAsync(filePath, CancellationToken.None);
+        player.Seek(player.Duration);
+        player.Play();
+        wavePlayer.RaisePlaybackStopped();
+
+        Assert.Equal(1, completionCount);
+        Assert.Equal(PlaybackStatus.Stopped, player.State);
+    }
+
+    [Fact]
+    public async Task Stop_can_be_called_repeatedly_without_raising_completion()
+    {
+        var wavePlayer = new FakeWavePlayer();
+        await using var player = new NaudioAudioPlayer(() => wavePlayer);
+        var completionCount = 0;
+        player.PlaybackCompleted += (_, _) => completionCount++;
+
+        await player.LoadAsync(PlaybackTestAudio.DemoWavPath, CancellationToken.None);
+        player.Play();
+        player.Stop();
+        player.Stop();
+
+        Assert.Equal(PlaybackStatus.Stopped, player.State);
+        Assert.Equal(TimeSpan.Zero, player.Position);
+        Assert.Equal(0, completionCount);
+    }
+
+    private static string CreateShortWaveFile()
+    {
+        var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.wav");
+        using var writer = new WaveFileWriter(filePath, new WaveFormat(8000, 16, 1));
+        writer.WriteSample(0.1f);
+        return filePath;
     }
 }
