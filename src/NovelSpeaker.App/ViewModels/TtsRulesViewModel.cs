@@ -13,11 +13,16 @@ namespace NovelSpeaker.App.ViewModels;
 public sealed partial class TtsRulesViewModel : ObservableObject
 {
     private readonly ITtsRuleLibraryService _ruleLibraryService;
+    private readonly ITtsRuleTestService _ruleTestService;
     private TtsRuleImportPreview? _pendingPreview;
+    private CancellationTokenSource? _testOperationCts;
 
-    public TtsRulesViewModel(ITtsRuleLibraryService ruleLibraryService)
+    public TtsRulesViewModel(
+        ITtsRuleLibraryService ruleLibraryService,
+        ITtsRuleTestService ruleTestService)
     {
         _ruleLibraryService = ruleLibraryService;
+        _ruleTestService = ruleTestService;
     }
 
     public ObservableCollection<TtsRuleSummary> Rules { get; } = [];
@@ -26,6 +31,9 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
     [ObservableProperty]
     private string statusMessage = "在这里管理 HTTP TTS 规则。";
+
+    [ObservableProperty]
+    private string testStatusMessage = "请选择一条规则，生成请求预览或开始试听。";
 
     [ObservableProperty]
     private bool isPreviewVisible;
@@ -38,6 +46,45 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
     [ObservableProperty]
     private string currentRuleDisplayText = "当前规则：未选择规则";
+
+    [ObservableProperty]
+    private string testSpeakText = "你好，欢迎试听。";
+
+    [ObservableProperty]
+    private int testSpeakSpeed = 10;
+
+    [ObservableProperty]
+    private string loginInfoText = string.Empty;
+
+    [ObservableProperty]
+    private bool isTestBusy;
+
+    [ObservableProperty]
+    private bool hasTestPreview;
+
+    [ObservableProperty]
+    private string previewMethodText = "未生成";
+
+    [ObservableProperty]
+    private string previewUrlText = "未生成";
+
+    [ObservableProperty]
+    private string previewHeadersText = "无";
+
+    [ObservableProperty]
+    private string previewBodyText = "无";
+
+    [ObservableProperty]
+    private string previewDeclaredContentTypeText = "未声明";
+
+    [ObservableProperty]
+    private string previewWarningsText = "无";
+
+    [ObservableProperty]
+    private string lastResponseStatusText = "尚未执行试听。";
+
+    [ObservableProperty]
+    private string lastResponseDetailText = string.Empty;
 
     [ObservableProperty]
     private TtsRuleSummary? selectedRule;
@@ -158,6 +205,89 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         await _ruleLibraryService.DeleteRuleAsync(rule.Id, cancellationToken);
         await LoadAsync(cancellationToken);
         StatusMessage = $"已删除规则：{rule.Name}";
+        if (SelectedRule is null)
+        {
+            ClearTestProjection();
+        }
+    }
+
+    [RelayCommand]
+    private async Task GeneratePreviewAsync(CancellationToken cancellationToken)
+    {
+        if (!TryCreateTestInput(out var input))
+        {
+            return;
+        }
+
+        using var linkedCts = BeginTestOperation(cancellationToken);
+        try
+        {
+            var result = await _ruleTestService.CreatePreviewAsync(input, linkedCts.Token);
+            ApplyTestPreview(result.Preview, result.Warnings);
+            TestStatusMessage = result.Message;
+            LastResponseStatusText = result.IsSuccess ? "请求预览已更新。" : "请求预览生成失败。";
+            LastResponseDetailText = result.ErrorKind is null
+                ? string.Empty
+                : $"错误类型：{result.ErrorKind}";
+        }
+        catch (OperationCanceledException)
+        {
+            TestStatusMessage = "已取消当前请求预览。";
+        }
+        finally
+        {
+            EndTestOperation(linkedCts);
+        }
+    }
+
+    [RelayCommand]
+    private async Task TestSelectedRuleAsync(CancellationToken cancellationToken)
+    {
+        if (!TryCreateTestInput(out var input))
+        {
+            return;
+        }
+
+        using var linkedCts = BeginTestOperation(cancellationToken);
+        try
+        {
+            var result = await _ruleTestService.TestAsync(input, linkedCts.Token);
+            ApplyTestPreview(result.Preview, result.Warnings);
+            TestStatusMessage = result.Message;
+            LastResponseStatusText = BuildResponseStatusText(result);
+            LastResponseDetailText = BuildResponseDetailText(result);
+        }
+        catch (OperationCanceledException)
+        {
+            TestStatusMessage = "已取消当前试听请求。";
+            LastResponseStatusText = "试听已取消。";
+        }
+        finally
+        {
+            EndTestOperation(linkedCts);
+        }
+    }
+
+    [RelayCommand]
+    private void CancelTest()
+    {
+        _testOperationCts?.Cancel();
+        TestStatusMessage = "正在取消当前请求。";
+    }
+
+    [RelayCommand]
+    private async Task ClearRuleCookiesAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedRule is null)
+        {
+            TestStatusMessage = "请先选择一条规则，再清除该规则的 Cookie。";
+            return;
+        }
+
+        await _ruleTestService.ClearRuleCookiesAsync(SelectedRule.Id, cancellationToken);
+        TestStatusMessage = $"已清除规则 Cookie：{SelectedRule.Name}";
+        LastResponseStatusText = "该规则的会话 Cookie 已清空。";
+        LastResponseDetailText = string.Empty;
     }
 
     private void ApplyPreview(TtsRuleImportPreview preview)
@@ -183,5 +313,161 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         PreviewSourceDescription = string.Empty;
         PreviewStatusMessage = string.Empty;
         IsPreviewVisible = false;
+    }
+
+    partial void OnSelectedRuleChanged(TtsRuleSummary? value)
+    {
+        ClearTestProjection();
+        if (value is null)
+        {
+            TestStatusMessage = "请选择一条规则，生成请求预览或开始试听。";
+        }
+        else
+        {
+            TestStatusMessage = $"当前已选择规则：{value.Name}";
+        }
+    }
+
+    private bool TryCreateTestInput(out TtsRuleTestInput input)
+    {
+        input = default!;
+        if (SelectedRule is null)
+        {
+            TestStatusMessage = "请先选择一条规则。";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(TestSpeakText))
+        {
+            TestStatusMessage = "试听文本不能为空。";
+            return false;
+        }
+
+        if (!TryParseLoginInfo(out var loginInfo, out var errorMessage))
+        {
+            TestStatusMessage = errorMessage;
+            return false;
+        }
+
+        input = new TtsRuleTestInput(
+            SelectedRule.Id,
+            TestSpeakText,
+            TestSpeakSpeed,
+            loginInfo);
+        return true;
+    }
+
+    private bool TryParseLoginInfo(
+        out IReadOnlyDictionary<string, string> loginInfo,
+        out string errorMessage)
+    {
+        var parsed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rawLine in LoginInfoText.Split(["\r\n", "\n"], StringSplitOptions.None))
+        {
+            var line = rawLine.Trim();
+            if (line.Length == 0)
+            {
+                continue;
+            }
+
+            var separatorIndex = line.IndexOf('=', StringComparison.Ordinal);
+            if (separatorIndex <= 0)
+            {
+                loginInfo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                errorMessage = "临时登录信息需按每行 key=value 的格式输入。";
+                return false;
+            }
+
+            var key = line[..separatorIndex].Trim();
+            var value = line[(separatorIndex + 1)..].Trim();
+            parsed[key] = value;
+        }
+
+        loginInfo = parsed;
+        errorMessage = string.Empty;
+        return true;
+    }
+
+    private CancellationTokenSource BeginTestOperation(CancellationToken cancellationToken)
+    {
+        _testOperationCts?.Cancel();
+        _testOperationCts?.Dispose();
+        _testOperationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        IsTestBusy = true;
+        return _testOperationCts;
+    }
+
+    private void EndTestOperation(CancellationTokenSource linkedCts)
+    {
+        if (ReferenceEquals(_testOperationCts, linkedCts))
+        {
+            _testOperationCts = null;
+        }
+
+        linkedCts.Dispose();
+        IsTestBusy = false;
+    }
+
+    private void ApplyTestPreview(TtsRequestPreview? preview, IReadOnlyList<string> warnings)
+    {
+        HasTestPreview = preview is not null;
+        PreviewMethodText = preview?.Method ?? "未生成";
+        PreviewUrlText = preview?.Url ?? "未生成";
+        PreviewHeadersText = string.IsNullOrWhiteSpace(preview?.HeadersJson) ? "无" : preview.HeadersJson;
+        PreviewBodyText = string.IsNullOrWhiteSpace(preview?.BodyPreview) ? "无" : preview.BodyPreview;
+        PreviewDeclaredContentTypeText = string.IsNullOrWhiteSpace(preview?.DeclaredContentType) ? "未声明" : preview.DeclaredContentType;
+        PreviewWarningsText = warnings.Count == 0 ? "无" : string.Join(Environment.NewLine, warnings);
+    }
+
+    private void ClearTestProjection()
+    {
+        HasTestPreview = false;
+        PreviewMethodText = "未生成";
+        PreviewUrlText = "未生成";
+        PreviewHeadersText = "无";
+        PreviewBodyText = "无";
+        PreviewDeclaredContentTypeText = "未声明";
+        PreviewWarningsText = "无";
+        LastResponseStatusText = "尚未执行试听。";
+        LastResponseDetailText = string.Empty;
+    }
+
+    private static string BuildResponseStatusText(TtsRuleTestResult result)
+    {
+        if (result.IsSuccess)
+        {
+            return $"试听成功，HTTP {result.StatusCode}";
+        }
+
+        if (result.StatusCode is null)
+        {
+            return result.ErrorKind is null ? "试听失败。" : $"试听失败：{result.ErrorKind}";
+        }
+
+        return result.ErrorKind is null
+            ? $"试听失败，HTTP {result.StatusCode}"
+            : $"试听失败：{result.ErrorKind} / HTTP {result.StatusCode}";
+    }
+
+    private static string BuildResponseDetailText(TtsRuleTestResult result)
+    {
+        var details = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(result.ResponseContentType))
+        {
+            details.Add($"Content-Type：{result.ResponseContentType}");
+        }
+
+        if (result.RetryAfter is not null)
+        {
+            details.Add($"Retry-After：{result.RetryAfter.Value.TotalSeconds:0.#} 秒");
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.ResponseSummary))
+        {
+            details.Add(result.ResponseSummary);
+        }
+
+        return details.Count == 0 ? string.Empty : string.Join(Environment.NewLine, details);
     }
 }
