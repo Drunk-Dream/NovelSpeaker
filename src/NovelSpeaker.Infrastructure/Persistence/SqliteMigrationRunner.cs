@@ -1,5 +1,7 @@
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Abstractions;
+using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Infrastructure.Speech.Rules;
 
 namespace NovelSpeaker.Infrastructure.Persistence;
 
@@ -93,6 +95,11 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
                 CreatedAt TEXT NOT NULL,
                 UpdatedAt TEXT NOT NULL
             );
+            """),
+        new(
+            5,
+            """
+            SELECT 1;
             """)
     ];
 
@@ -126,6 +133,52 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
             await versionCommand.ExecuteNonQueryAsync(cancellationToken);
 
             await transaction.CommitAsync(cancellationToken);
+        }
+
+        if (currentVersion < 5)
+        {
+            await UpgradeStoredTtsRulesAsync(connection, cancellationToken);
+        }
+    }
+
+    private static async Task UpgradeStoredTtsRulesAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        var select = connection.CreateCommand();
+        select.CommandText = "SELECT Id, Name, RuleJson FROM HttpTtsRules;";
+
+        await using var reader = await select.ExecuteReaderAsync(cancellationToken);
+        var rules = new List<(long Id, string Name, string RuleJson)>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            rules.Add((reader.GetInt64(0), reader.GetString(1), reader.GetString(2)));
+        }
+
+        foreach (var rule in rules)
+        {
+            var metadata = RuleJsonMetadata.Parse(rule.RuleJson);
+            var convertedRule = new NovelSpeaker.Domain.Speech.HttpTtsRule(
+                rule.Id,
+                rule.Name,
+                metadata.Url,
+                metadata.ContentType,
+                metadata.ConcurrentRate,
+                metadata.Header,
+                metadata.RequestOptionsJson,
+                metadata.EnabledCookieJar,
+                metadata.LastUpdateTime,
+                string.Empty,
+                true,
+                TtsRuleCompatibilityStatus.Compatible,
+                [],
+                null,
+                string.Empty,
+                string.Empty);
+
+            var update = connection.CreateCommand();
+            update.CommandText = "UPDATE HttpTtsRules SET RuleJson = $ruleJson WHERE Id = $id;";
+            update.Parameters.AddWithValue("$id", rule.Id);
+            update.Parameters.AddWithValue("$ruleJson", NovelSpeakerRuleJsonSerializer.Serialize(convertedRule));
+            await update.ExecuteNonQueryAsync(cancellationToken);
         }
     }
 

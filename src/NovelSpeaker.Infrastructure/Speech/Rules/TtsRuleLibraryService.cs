@@ -11,6 +11,7 @@ namespace NovelSpeaker.Infrastructure.Speech.Rules;
 /// </summary>
 public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
 {
+    private readonly ITtsRuleConverter _ruleConverter;
     public async Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken)
     {
         var rules = await _repository.GetAllAsync(cancellationToken);
@@ -184,68 +185,43 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
     private readonly ITtsRuleRepository _repository;
     private readonly IAppSettingsStore _settingsStore;
 
-    public TtsRuleLibraryService(ITtsRuleRepository repository, IAppSettingsStore settingsStore)
+    public TtsRuleLibraryService(
+        ITtsRuleRepository repository,
+        IAppSettingsStore settingsStore,
+        ITtsRuleConverter ruleConverter)
     {
         _repository = repository;
         _settingsStore = settingsStore;
+        _ruleConverter = ruleConverter;
     }
 
-    private static TtsRuleImportItem CreateImportItem(JsonElement element, int index, IReadOnlyList<HttpTtsRule> existingRules)
+    private TtsRuleImportItem CreateImportItem(JsonElement element, int index, IReadOnlyList<HttpTtsRule> existingRules)
     {
-        var name = ReadOptionalString(element, "name");
-        var url = ReadOptionalString(element, "url");
-        var ruleJson = element.GetRawText();
+        var conversion = _ruleConverter.Convert(element);
+        var candidateRule = conversion.CandidateRule;
+        var ruleJson = candidateRule.RuleJson;
         var exactDuplicate = existingRules.Any(rule => string.Equals(rule.RuleJson, ruleJson, StringComparison.Ordinal));
-        var sameNameConflict = !string.IsNullOrWhiteSpace(name) &&
-                               existingRules.Any(rule => string.Equals(rule.Name, name, StringComparison.OrdinalIgnoreCase)) &&
+        var sameNameConflict = !string.IsNullOrWhiteSpace(candidateRule.Name) &&
+                               existingRules.Any(rule => string.Equals(rule.Name, candidateRule.Name, StringComparison.OrdinalIgnoreCase)) &&
                                !exactDuplicate;
-
-        var missingFields = new List<string>();
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            missingFields.Add("name");
-        }
-
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            missingFields.Add("url");
-        }
-
-        var (compatibilityStatus, unsupportedFields) = TtsRuleCompatibilityAnalyzer.Analyze(element);
-        var canImport = missingFields.Count == 0 && !exactDuplicate;
-        var statusMessage = BuildStatusMessage(missingFields, exactDuplicate, sameNameConflict, compatibilityStatus, unsupportedFields);
-        var utcNow = DateTime.UtcNow.ToString("O");
+        var canImport = conversion.CanImport && !exactDuplicate;
+        var statusMessage = BuildStatusMessage(conversion, exactDuplicate, sameNameConflict);
 
         return new TtsRuleImportItem(
             index,
-            string.IsNullOrWhiteSpace(name) ? $"未命名规则 #{index + 1}" : name!,
-            url ?? string.Empty,
-            compatibilityStatus,
-            unsupportedFields,
+            string.IsNullOrWhiteSpace(candidateRule.Name) ? $"未命名规则 #{index + 1}" : candidateRule.Name,
+            candidateRule.Url,
+            conversion.CompatibilityStatus,
+            conversion.UnsupportedFields,
             canImport,
             exactDuplicate,
             sameNameConflict,
             statusMessage,
-            new HttpTtsRule(
-                0,
-                name ?? string.Empty,
-                url ?? string.Empty,
-                ReadOptionalString(element, "contentType"),
-                ReadOptionalString(element, "concurrentRate"),
-                ReadOptionalString(element, "header"),
-                ReadOptionalString(element, "loginUrl"),
-                ReadOptionalString(element, "loginUi"),
-                ReadOptionalBoolean(element, "enabledCookieJar"),
-                ReadOptionalString(element, "loginCheckJs"),
-                ReadOptionalString(element, "jsLib"),
-                ReadOptionalInt64(element, "lastUpdateTime"),
-                ruleJson,
-                ReadOptionalBoolean(element, "isEnabled", defaultValue: true),
-                compatibilityStatus,
-                unsupportedFields,
-                null,
-                utcNow,
-                utcNow));
+            candidateRule with
+            {
+                CompatibilityStatus = conversion.CompatibilityStatus,
+                UnsupportedFields = conversion.UnsupportedFields
+            });
     }
 
     private static TtsRuleImportItem CreateInvalidItem(int index, string statusMessage)
@@ -270,10 +246,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
                 null,
                 null,
                 null,
-                null,
                 false,
-                null,
-                null,
                 null,
                 "{}",
                 false,
@@ -285,17 +258,10 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
     }
 
     private static string BuildStatusMessage(
-        IReadOnlyList<string> missingFields,
+        TtsRuleConversionResult conversion,
         bool exactDuplicate,
-        bool sameNameConflict,
-        TtsRuleCompatibilityStatus compatibilityStatus,
-        IReadOnlyList<string> unsupportedFields)
+        bool sameNameConflict)
     {
-        if (missingFields.Count > 0)
-        {
-            return $"缺少必需字段：{string.Join("、", missingFields)}。";
-        }
-
         if (exactDuplicate)
         {
             return "与现有规则完全相同，将跳过导入。";
@@ -306,78 +272,16 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             return "名称与现有规则重复，但内容不同，将作为新规则导入。";
         }
 
-        return compatibilityStatus switch
+        if (conversion.BlockingIssues.Count > 0)
+        {
+            return string.Join(" ", conversion.BlockingIssues);
+        }
+
+        return conversion.CompatibilityStatus switch
         {
             TtsRuleCompatibilityStatus.Compatible => "可直接导入。",
-            TtsRuleCompatibilityStatus.CompatibleWithWarnings => $"可导入，但包含未支持字段：{string.Join("、", unsupportedFields)}。",
-            _ => $"可保存，但后续可能需要手动调整：{string.Join("、", unsupportedFields)}。"
+            TtsRuleCompatibilityStatus.CompatibleWithWarnings => $"可导入，但包含未支持字段：{string.Join("、", conversion.UnsupportedFields)}。",
+            _ => "当前规则无法转换为本应用规则。"
         };
-    }
-
-    private static string? ReadOptionalString(JsonElement root, string propertyName)
-    {
-        foreach (var property in root.EnumerateObject())
-        {
-            if (!string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            return property.Value.ValueKind switch
-            {
-                JsonValueKind.Null => null,
-                JsonValueKind.String => property.Value.GetString(),
-                JsonValueKind.True => bool.TrueString,
-                JsonValueKind.False => bool.FalseString,
-                _ => property.Value.GetRawText()
-            };
-        }
-
-        return null;
-    }
-
-    private static bool ReadOptionalBoolean(JsonElement root, string propertyName, bool defaultValue = false)
-    {
-        foreach (var property in root.EnumerateObject())
-        {
-            if (!string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            return property.Value.ValueKind switch
-            {
-                JsonValueKind.True => true,
-                JsonValueKind.False => false,
-                JsonValueKind.String when bool.TryParse(property.Value.GetString(), out var parsed) => parsed,
-                _ => defaultValue
-            };
-        }
-
-        return defaultValue;
-    }
-
-    private static long? ReadOptionalInt64(JsonElement root, string propertyName)
-    {
-        foreach (var property in root.EnumerateObject())
-        {
-            if (!string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetInt64(out var number))
-            {
-                return number;
-            }
-
-            if (property.Value.ValueKind == JsonValueKind.String &&
-                long.TryParse(property.Value.GetString(), out var parsed))
-            {
-                return parsed;
-            }
-        }
-
-        return null;
     }
 }

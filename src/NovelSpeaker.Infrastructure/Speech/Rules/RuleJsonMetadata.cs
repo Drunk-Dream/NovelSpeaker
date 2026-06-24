@@ -7,11 +7,8 @@ internal sealed record RuleJsonMetadata(
     string? ContentType,
     string? ConcurrentRate,
     string? Header,
-    string? LoginUrl,
-    string? LoginUi,
+    string? RequestOptionsJson,
     bool EnabledCookieJar,
-    string? LoginCheckJs,
-    string? JsLib,
     long? LastUpdateTime)
 {
     public static RuleJsonMetadata Parse(string ruleJson)
@@ -24,11 +21,8 @@ internal sealed record RuleJsonMetadata(
             ReadOptionalString(root, "contentType"),
             ReadOptionalString(root, "concurrentRate"),
             ReadOptionalString(root, "header"),
-            ReadOptionalString(root, "loginUrl"),
-            ReadOptionalString(root, "loginUi"),
+            ReadOptionalJson(root, "requestOptions"),
             ReadOptionalBoolean(root, "enabledCookieJar"),
-            ReadOptionalString(root, "loginCheckJs"),
-            ReadOptionalString(root, "jsLib"),
             ReadOptionalInt64(root, "lastUpdateTime"));
     }
 
@@ -49,6 +43,13 @@ internal sealed record RuleJsonMetadata(
             JsonValueKind.Object or JsonValueKind.Array => value.GetRawText(),
             _ => value.ToString()
         };
+    }
+
+    private static string? ReadOptionalJson(JsonElement root, string propertyName)
+    {
+        return TryGetProperty(root, propertyName, out var value)
+            ? value.GetRawText()
+            : null;
     }
 
     private static bool ReadOptionalBoolean(JsonElement root, string propertyName)
