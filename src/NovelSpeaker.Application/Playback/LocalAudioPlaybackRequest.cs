@@ -1,9 +1,9 @@
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
-/// Describes a single local audio item that should be loaded into the playback pipeline.
+/// Describes a single local audio file that should be loaded into the low-level playback pipeline.
 /// </summary>
-public sealed record PlaybackRequest(
+public sealed record LocalAudioPlaybackRequest(
     string FilePath,
     string DisplayTitle,
     string? BookId,

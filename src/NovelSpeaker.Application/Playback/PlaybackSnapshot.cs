@@ -1,27 +1,41 @@
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
-/// Represents the current, UI-facing playback snapshot.
+/// Represents the current UI-facing view of the active book playback session.
 /// </summary>
 public sealed record PlaybackSnapshot(
     PlaybackState State,
-    string? DisplayTitle,
     string? BookId,
+    string? BookTitle,
     int ChapterIndex,
+    string? ChapterTitle,
     int SegmentIndex,
+    int SegmentCount,
+    long? RuleId,
+    string? RuleName,
+    int SpeakSpeed,
     long PositionMilliseconds,
     long DurationMilliseconds,
     string? Message,
-    bool IsUsingCache)
+    bool IsUsingCache,
+    bool CanRetry,
+    bool CanSkip)
 {
     public static PlaybackSnapshot Idle { get; } = new(
         PlaybackState.Idle,
         null,
         null,
         0,
+        null,
         0,
         0,
+        null,
+        null,
+        10,
         0,
-        "准备播放本地音频。",
+        0,
+        "请选择一本书并开始播放。",
+        false,
+        false,
         false);
 }
