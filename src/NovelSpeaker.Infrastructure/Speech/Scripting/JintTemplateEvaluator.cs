@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Jint;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Domain.Speech;
@@ -24,26 +23,6 @@ public sealed partial class JintTemplateEvaluator : ITemplateEvaluator
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(EvaluateCore(template, context, cancellationToken));
-    }
-
-    public async Task<TtsRequestPreview> CreatePreviewAsync(
-        HttpTtsRule rule,
-        TtsRuleContext context,
-        CancellationToken cancellationToken)
-    {
-        var normalizedRule = rule.ToNormalizedRule();
-        var url = await EvaluateAsync(normalizedRule.UrlTemplate, context, cancellationToken);
-        var header = normalizedRule.HeaderTemplate is null
-            ? null
-            : await EvaluateAsync(normalizedRule.HeaderTemplate, context, cancellationToken);
-        var requestOptions = normalizedRule.RequestOptionsTemplate is null
-            ? null
-            : await EvaluateAsync(normalizedRule.RequestOptionsTemplate, context, cancellationToken);
-
-        return new TtsRequestPreview(
-            RedactUrl(url),
-            RedactJsonLikeText(header),
-            RedactJsonLikeText(requestOptions));
     }
 
     private static string EvaluateCore(
@@ -144,105 +123,4 @@ public sealed partial class JintTemplateEvaluator : ITemplateEvaluator
     {
         return value is null ? "null" : JsonSerializer.Serialize(value);
     }
-
-    private static string RedactUrl(string url)
-    {
-        var separatorIndex = url.IndexOf('?', StringComparison.Ordinal);
-        if (separatorIndex < 0 || separatorIndex == url.Length - 1)
-        {
-            return RedactBearerTokens(url);
-        }
-
-        var prefix = url[..(separatorIndex + 1)];
-        var query = url[(separatorIndex + 1)..];
-        var redactedPairs = query
-            .Split('&', StringSplitOptions.RemoveEmptyEntries)
-            .Select(pair =>
-            {
-                var equalsIndex = pair.IndexOf('=', StringComparison.Ordinal);
-                if (equalsIndex < 0)
-                {
-                    return pair;
-                }
-
-                var key = pair[..equalsIndex];
-                return IsSensitiveKey(key)
-                    ? $"{key}=***"
-                    : pair;
-            });
-
-        return RedactBearerTokens(prefix + string.Join("&", redactedPairs));
-    }
-
-    private static string? RedactJsonLikeText(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return value;
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(value);
-            using var stream = new MemoryStream();
-            using var writer = new Utf8JsonWriter(stream);
-            WriteRedactedElement(writer, null, document.RootElement);
-            writer.Flush();
-            return Encoding.UTF8.GetString(stream.ToArray());
-        }
-        catch (JsonException)
-        {
-            return RedactBearerTokens(value);
-        }
-    }
-
-    private static void WriteRedactedElement(Utf8JsonWriter writer, string? propertyName, JsonElement element)
-    {
-        switch (element.ValueKind)
-        {
-            case JsonValueKind.Object:
-                writer.WriteStartObject();
-                foreach (var property in element.EnumerateObject())
-                {
-                    writer.WritePropertyName(property.Name);
-                    WriteRedactedElement(writer, property.Name, property.Value);
-                }
-
-                writer.WriteEndObject();
-                break;
-            case JsonValueKind.Array:
-                writer.WriteStartArray();
-                foreach (var item in element.EnumerateArray())
-                {
-                    WriteRedactedElement(writer, propertyName, item);
-                }
-
-                writer.WriteEndArray();
-                break;
-            case JsonValueKind.String when propertyName is not null && IsSensitiveKey(propertyName):
-                writer.WriteStringValue("***");
-                break;
-            default:
-                element.WriteTo(writer);
-                break;
-        }
-    }
-
-    private static bool IsSensitiveKey(string key)
-    {
-        return key.Contains("authorization", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("cookie", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("token", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("secret", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("password", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("login", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string RedactBearerTokens(string input)
-    {
-        return BearerPattern().Replace(input, "$1***");
-    }
-
-    [GeneratedRegex("(Bearer\\s+)[^\\s\"&]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex BearerPattern();
 }
