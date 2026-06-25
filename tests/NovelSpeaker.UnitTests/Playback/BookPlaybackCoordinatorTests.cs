@@ -246,6 +246,62 @@ public sealed class BookPlaybackCoordinatorTests
     }
 
     [Fact]
+    public async Task PreviousSegmentAsync_double_tap_while_playing_stops_intermediate_segment_before_buffering()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var audioProvider = new FakePlaybackAudioProvider();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            audioProvider: audioProvider,
+            book: CreateThreeSegmentBook());
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", 0, 2, null, 10), CancellationToken.None);
+        await coordinator.PreviousSegmentAsync(CancellationToken.None);
+        Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
+
+        var pendingAudio = audioProvider.EnqueuePendingSuccess("audio-delayed-previous.mp3");
+        var secondPreviousTask = coordinator.PreviousSegmentAsync(CancellationToken.None);
+
+        await WaitForAsync(() => audioProvider.Requests.Count == 3);
+        Assert.False(localCoordinator.TryRaiseCompleted());
+
+        pendingAudio.CompleteSuccess();
+        await secondPreviousTask;
+
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+    }
+
+    [Fact]
+    public async Task PreviousSegmentAsync_double_tap_after_pausing_stops_intermediate_segment_before_buffering()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var audioProvider = new FakePlaybackAudioProvider();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            audioProvider: audioProvider,
+            book: CreateThreeSegmentBook());
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", 0, 2, null, 10), CancellationToken.None);
+        await coordinator.PauseAsync(CancellationToken.None);
+
+        await coordinator.PreviousSegmentAsync(CancellationToken.None);
+        Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
+
+        var pendingAudio = audioProvider.EnqueuePendingSuccess("audio-delayed-previous-paused.mp3");
+        var secondPreviousTask = coordinator.PreviousSegmentAsync(CancellationToken.None);
+
+        await WaitForAsync(() => audioProvider.Requests.Count == 3);
+        Assert.False(localCoordinator.TryRaiseCompleted());
+
+        pendingAudio.CompleteSuccess();
+        await secondPreviousTask;
+
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+    }
+
+    [Fact]
     public async Task DisposeAsync_saves_current_progress_before_releasing_session()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
@@ -310,6 +366,23 @@ public sealed class BookPlaybackCoordinatorTests
                     1,
                     "第二章 延续",
                     [new SpeechSegment(0, 6, 6, "第二章 第一段", "第二章 第一段")])
+            ]);
+    }
+
+    private static PlaybackBookContent CreateThreeSegmentBook()
+    {
+        return new PlaybackBookContent(
+            "book-1",
+            "示例小说",
+            [
+                new PlaybackChapterContent(
+                    0,
+                    "第一章 开始",
+                    [
+                        new SpeechSegment(0, 0, 6, "第一段", "第一段"),
+                        new SpeechSegment(1, 6, 6, "第二段", "第二段"),
+                        new SpeechSegment(2, 12, 6, "第三段", "第三段")
+                    ])
             ]);
     }
 
@@ -437,7 +510,7 @@ public sealed class BookPlaybackCoordinatorTests
 
     private sealed class FakePlaybackAudioProvider : IPlaybackAudioProvider
     {
-        private readonly Queue<PlaybackAudioResult> _results = [];
+        private readonly Queue<Func<Task<PlaybackAudioResult>>> _results = [];
 
         public List<PlaybackAudioRequest> Requests { get; } = [];
 
@@ -445,15 +518,22 @@ public sealed class BookPlaybackCoordinatorTests
 
         public void EnqueueFailure(TtsErrorKind kind, string message)
         {
-            _results.Enqueue(new PlaybackAudioResult(
+            _results.Enqueue(() => Task.FromResult(new PlaybackAudioResult(
                 null,
                 false,
-                new TtsExecutionFailure(kind, message, null, null, null, null)));
+                new TtsExecutionFailure(kind, message, null, null, null, null))));
         }
 
         public void EnqueueSuccess(string filePath)
         {
-            _results.Enqueue(new PlaybackAudioResult(filePath, false, null));
+            _results.Enqueue(() => Task.FromResult(new PlaybackAudioResult(filePath, false, null)));
+        }
+
+        public PendingAudioResult EnqueuePendingSuccess(string filePath)
+        {
+            var completionSource = new TaskCompletionSource<PlaybackAudioResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _results.Enqueue(() => completionSource.Task);
+            return new PendingAudioResult(completionSource, filePath);
         }
 
         public Task<PlaybackAudioResult> GetAudioAsync(PlaybackAudioRequest request, CancellationToken cancellationToken)
@@ -461,7 +541,7 @@ public sealed class BookPlaybackCoordinatorTests
             Requests.Add(request);
             if (_results.Count > 0)
             {
-                return Task.FromResult(_results.Dequeue());
+                return _results.Dequeue().Invoke();
             }
 
             return Task.FromResult(new PlaybackAudioResult($"audio-{Requests.Count}.mp3", false, null));
@@ -472,6 +552,23 @@ public sealed class BookPlaybackCoordinatorTests
             InvalidateCallCount++;
             return Task.CompletedTask;
         }
+
+        public sealed class PendingAudioResult
+        {
+            private readonly TaskCompletionSource<PlaybackAudioResult> _completionSource;
+            private readonly string _filePath;
+
+            public PendingAudioResult(TaskCompletionSource<PlaybackAudioResult> completionSource, string filePath)
+            {
+                _completionSource = completionSource;
+                _filePath = filePath;
+            }
+
+            public void CompleteSuccess()
+            {
+                _completionSource.TrySetResult(new PlaybackAudioResult(_filePath, false, null));
+            }
+        }
     }
 
     private sealed class FakeLocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinator
@@ -479,6 +576,8 @@ public sealed class BookPlaybackCoordinatorTests
         public LocalAudioPlaybackSnapshot CurrentSnapshot { get; private set; } = LocalAudioPlaybackSnapshot.Idle;
 
         public LocalAudioPlaybackRequest? LastStartedRequest { get; private set; }
+
+        public int StopCallCount { get; private set; }
 
         public event EventHandler<LocalAudioPlaybackSnapshot>? SnapshotChanged;
 
@@ -519,6 +618,7 @@ public sealed class BookPlaybackCoordinatorTests
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
+            StopCallCount++;
             CurrentSnapshot = CurrentSnapshot with
             {
                 State = PlaybackState.Stopped,
@@ -543,6 +643,17 @@ public sealed class BookPlaybackCoordinatorTests
         public void RaiseCompleted()
         {
             PlaybackCompleted?.Invoke(this, EventArgs.Empty);
+        }
+
+        public bool TryRaiseCompleted()
+        {
+            if (CurrentSnapshot.State != PlaybackState.Playing)
+            {
+                return false;
+            }
+
+            RaiseCompleted();
+            return true;
         }
 
         public void RaiseFailed(PlaybackErrorKind kind, string message)

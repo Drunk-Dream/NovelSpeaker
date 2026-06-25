@@ -538,6 +538,11 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                 _currentSession,
                 _localAudioPlaybackCoordinator.CurrentSnapshot.PositionMilliseconds,
                 cancellationToken).ConfigureAwait(false);
+
+            // Stop the currently loaded local audio before we buffer a replacement segment.
+            // Otherwise the old/intermediate segment can finish and advance the new session.
+            await _localAudioPlaybackCoordinator.StopAsync(cancellationToken).ConfigureAwait(false);
+            ClearProtectedPlaybackFile();
         }
 
         await _prefetchScheduler.CancelAsync(_currentSession?.SessionId ?? Guid.Empty, cancellationToken);
