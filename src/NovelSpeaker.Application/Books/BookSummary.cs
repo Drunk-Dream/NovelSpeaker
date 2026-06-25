@@ -8,4 +8,5 @@ public sealed record BookSummary(
     string Title,
     string? Author,
     string CurrentChapterTitle,
-    string ImportedAt);
+    string ImportedAt,
+    string? LastPlayedAt = null);
