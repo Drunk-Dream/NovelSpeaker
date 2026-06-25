@@ -45,7 +45,7 @@ public sealed class JsonAppSettingsStore :
         var settings = await JsonSerializer.DeserializeAsync<AppSettings>(
             stream,
             SerializerOptions,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
 
         return settings is null
             ? AppSettings.Default
@@ -59,7 +59,7 @@ public sealed class JsonAppSettingsStore :
     public async Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await _directories.EnsureCreatedAsync(cancellationToken);
+        await _directories.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
 
         var normalized = settings with
         {
@@ -68,6 +68,6 @@ public sealed class JsonAppSettingsStore :
         };
 
         await using var stream = File.Create(_directories.SettingsPath);
-        await JsonSerializer.SerializeAsync(stream, normalized, SerializerOptions, cancellationToken);
+        await JsonSerializer.SerializeAsync(stream, normalized, SerializerOptions, cancellationToken).ConfigureAwait(false);
     }
 }
