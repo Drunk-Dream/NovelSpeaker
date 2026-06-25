@@ -11,6 +11,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -20,6 +21,50 @@
                    Text="设置" />
 
         <StackPanel Grid.Row="1"
+                    Margin="0,20,0,0">
+            <TextBlock FontSize="18"
+                       FontWeight="SemiBold"
+                       Text="播放" />
+            <StackPanel Margin="0,12,0,0"
+                        Orientation="Horizontal">
+                <TextBlock VerticalAlignment="Center"
+                           Text="默认语速" />
+                <TextBox Width="120"
+                         Margin="12,0,0,0"
+                         Text="{Binding DefaultSpeakSpeed, UpdateSourceTrigger=PropertyChanged}" />
+            </StackPanel>
+
+            <StackPanel Margin="0,12,0,0"
+                        Orientation="Horizontal">
+                <TextBlock VerticalAlignment="Center"
+                           Text="预取段落数" />
+                <TextBox Width="120"
+                         Margin="12,0,0,0"
+                         Text="{Binding PrefetchCount, UpdateSourceTrigger=PropertyChanged}" />
+            </StackPanel>
+
+            <StackPanel Margin="0,12,0,0"
+                        Orientation="Horizontal">
+                <TextBlock VerticalAlignment="Center"
+                           Text="日志级别" />
+                <ComboBox Width="180"
+                          Margin="12,0,0,0"
+                          ItemsSource="{Binding AvailableLogLevels}"
+                          SelectedItem="{Binding SelectedLogLevel}" />
+            </StackPanel>
+
+            <StackPanel Margin="0,12,0,0"
+                        Orientation="Horizontal">
+                <TextBlock VerticalAlignment="Center"
+                           Text="主题" />
+                <ComboBox Width="180"
+                          Margin="12,0,0,0"
+                          ItemsSource="{Binding AvailableThemes}"
+                          SelectedItem="{Binding SelectedTheme}" />
+            </StackPanel>
+        </StackPanel>
+
+        <StackPanel Grid.Row="2"
                     Margin="0,20,0,0">
             <TextBlock FontSize="18"
                        FontWeight="SemiBold"
@@ -44,19 +89,19 @@
                     Content="章节规则管理" />
         </StackPanel>
 
-        <Button Grid.Row="2"
+        <Button Grid.Row="3"
                 Width="120"
                 Margin="0,20,0,0"
                 HorizontalAlignment="Left"
                 Command="{Binding SaveCommand}"
                 Content="保存设置" />
 
-        <TextBlock Grid.Row="3"
+        <TextBlock Grid.Row="4"
                    Margin="0,16,0,0"
                    Foreground="#5C6470"
                    Text="{Binding StatusMessage}" />
 
-        <Border Grid.Row="4"
+        <Border Grid.Row="5"
                 Margin="0,20,0,0"
                 Padding="12"
                 Background="#FFF8F5EC"

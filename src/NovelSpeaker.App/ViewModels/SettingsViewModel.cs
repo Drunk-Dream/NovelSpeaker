@@ -15,6 +15,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         ChapterRules = chapterRulesViewModel;
     }
 
+    public IReadOnlyList<string> AvailableLogLevels => AppSettings.SupportedLogLevels;
+
+    public IReadOnlyList<string> AvailableThemes => AppSettings.SupportedThemes;
+
     public ChapterRulesViewModel? ChapterRules { get; }
 
     [ObservableProperty]
@@ -24,7 +28,19 @@ public sealed partial class SettingsViewModel : ObservableObject
     private int longParagraphThreshold;
 
     [ObservableProperty]
-    private string statusMessage = "在这里配置导入与文本分段偏好。";
+    private int defaultSpeakSpeed = AppSettings.DefaultSpeakSpeedValue;
+
+    [ObservableProperty]
+    private int prefetchCount = AppSettings.DefaultPrefetchCountValue;
+
+    [ObservableProperty]
+    private string selectedLogLevel = AppSettings.DefaultLogLevel;
+
+    [ObservableProperty]
+    private string selectedTheme = AppSettings.DefaultTheme;
+
+    [ObservableProperty]
+    private string statusMessage = "在这里配置播放、导入与文本分段偏好。";
 
     [ObservableProperty]
     private bool isChapterRulesVisible;
@@ -34,6 +50,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         var settings = await _settingsStore.LoadAsync(cancellationToken);
         EnableLongParagraphSplitting = settings.EnableLongParagraphSplitting;
         LongParagraphThreshold = settings.LongParagraphThreshold;
+        DefaultSpeakSpeed = settings.DefaultSpeakSpeed;
+        PrefetchCount = settings.PrefetchCount;
+        SelectedLogLevel = settings.LogLevel;
+        SelectedTheme = settings.Theme;
 
         if (IsChapterRulesVisible && ChapterRules is not null)
         {
@@ -48,14 +68,22 @@ public sealed partial class SettingsViewModel : ObservableObject
         var settings = currentSettings with
         {
             EnableLongParagraphSplitting = EnableLongParagraphSplitting,
-            LongParagraphThreshold = LongParagraphThreshold
+            LongParagraphThreshold = LongParagraphThreshold,
+            DefaultSpeakSpeed = DefaultSpeakSpeed,
+            PrefetchCount = PrefetchCount,
+            LogLevel = SelectedLogLevel,
+            Theme = SelectedTheme
         };
 
         await _settingsStore.SaveAsync(settings, cancellationToken);
         var normalized = await _settingsStore.LoadAsync(cancellationToken);
         EnableLongParagraphSplitting = normalized.EnableLongParagraphSplitting;
         LongParagraphThreshold = normalized.LongParagraphThreshold;
-        StatusMessage = "文本分段设置已保存。";
+        DefaultSpeakSpeed = normalized.DefaultSpeakSpeed;
+        PrefetchCount = normalized.PrefetchCount;
+        SelectedLogLevel = normalized.LogLevel;
+        SelectedTheme = normalized.Theme;
+        StatusMessage = "设置已保存。";
     }
 
     [RelayCommand]

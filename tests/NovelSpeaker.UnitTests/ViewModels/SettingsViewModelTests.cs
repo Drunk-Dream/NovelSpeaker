@@ -10,13 +10,17 @@ public sealed class SettingsViewModelTests
     [Fact]
     public async Task LoadAsync_populates_segmentation_settings_from_store()
     {
-        var store = new FakeAppSettingsStore(new AppSettings(false, 120));
+        var store = new FakeAppSettingsStore(new AppSettings(false, 120, 14, 3, "Warning", "Dark"));
         var viewModel = new SettingsViewModel(store);
 
         await viewModel.LoadAsync(CancellationToken.None);
 
         Assert.False(viewModel.EnableLongParagraphSplitting);
         Assert.Equal(120, viewModel.LongParagraphThreshold);
+        Assert.Equal(14, viewModel.DefaultSpeakSpeed);
+        Assert.Equal(3, viewModel.PrefetchCount);
+        Assert.Equal("Warning", viewModel.SelectedLogLevel);
+        Assert.Equal("Dark", viewModel.SelectedTheme);
     }
 
     [Fact]
@@ -26,7 +30,11 @@ public sealed class SettingsViewModelTests
         var viewModel = new SettingsViewModel(store)
         {
             EnableLongParagraphSplitting = false,
-            LongParagraphThreshold = 25
+            LongParagraphThreshold = 25,
+            DefaultSpeakSpeed = 16,
+            PrefetchCount = -1,
+            SelectedLogLevel = "Error",
+            SelectedTheme = "Light"
         };
 
         await viewModel.SaveAsync(CancellationToken.None);
@@ -34,6 +42,11 @@ public sealed class SettingsViewModelTests
         Assert.NotNull(store.LastSavedSettings);
         Assert.False(store.LastSavedSettings!.EnableLongParagraphSplitting);
         Assert.Equal(25, store.LastSavedSettings.LongParagraphThreshold);
+        Assert.Equal(16, store.LastSavedSettings.DefaultSpeakSpeed);
+        Assert.Equal(-1, store.LastSavedSettings.PrefetchCount);
+        Assert.Equal("Error", store.LastSavedSettings.LogLevel);
+        Assert.Equal("Light", store.LastSavedSettings.Theme);
+        Assert.Equal(2, viewModel.PrefetchCount);
     }
 
     [Fact]
@@ -54,7 +67,7 @@ public sealed class SettingsViewModelTests
     {
         public FakeAppSettingsStore(AppSettings loadedSettings)
         {
-            CurrentSettings = loadedSettings;
+            CurrentSettings = loadedSettings.Normalize();
         }
 
         public AppSettings CurrentSettings { get; private set; }
@@ -69,7 +82,7 @@ public sealed class SettingsViewModelTests
         public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
         {
             LastSavedSettings = settings;
-            CurrentSettings = settings;
+            CurrentSettings = settings.Normalize();
             return Task.CompletedTask;
         }
     }
