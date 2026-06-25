@@ -47,13 +47,7 @@ public sealed class JsonAppSettingsStore :
             SerializerOptions,
             cancellationToken).ConfigureAwait(false);
 
-        return settings is null
-            ? AppSettings.Default
-            : settings with
-            {
-                LongParagraphThreshold = settings.ToTextSegmentationOptions().LongParagraphThreshold,
-                SelectedTtsRuleId = settings.SelectedTtsRuleId
-            };
+        return (settings ?? AppSettings.Default).Normalize();
     }
 
     public async Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
@@ -61,11 +55,7 @@ public sealed class JsonAppSettingsStore :
         cancellationToken.ThrowIfCancellationRequested();
         await _directories.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
 
-        var normalized = settings with
-        {
-            LongParagraphThreshold = settings.ToTextSegmentationOptions().LongParagraphThreshold,
-            SelectedTtsRuleId = settings.SelectedTtsRuleId
-        };
+        var normalized = settings.Normalize();
 
         await using var stream = File.Create(_directories.SettingsPath);
         await JsonSerializer.SerializeAsync(stream, normalized, SerializerOptions, cancellationToken).ConfigureAwait(false);

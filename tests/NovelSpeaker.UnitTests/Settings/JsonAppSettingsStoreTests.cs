@@ -19,6 +19,10 @@ public sealed class JsonAppSettingsStoreTests
 
         Assert.True(settings.EnableLongParagraphSplitting);
         Assert.Equal(300, settings.LongParagraphThreshold);
+        Assert.Equal(10, settings.DefaultSpeakSpeed);
+        Assert.Equal(2, settings.PrefetchCount);
+        Assert.Equal("Information", settings.LogLevel);
+        Assert.Equal("System", settings.Theme);
     }
 
     [Fact]
@@ -54,6 +58,36 @@ public sealed class JsonAppSettingsStoreTests
         var reloaded = await store.LoadAsync(CancellationToken.None);
 
         Assert.Equal(42, reloaded.SelectedTtsRuleId);
+    }
+
+    [Fact]
+    public async Task LoadAsync_normalizes_invalid_new_setting_values()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new LocalAppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        await File.WriteAllTextAsync(
+            directories.SettingsPath,
+            """
+            {
+              "EnableLongParagraphSplitting": true,
+              "LongParagraphThreshold": 40,
+              "DefaultSpeakSpeed": 0,
+              "PrefetchCount": -5,
+              "LogLevel": "Verbose",
+              "Theme": "Blue"
+            }
+            """,
+            CancellationToken.None);
+        var store = new JsonAppSettingsStore(directories);
+
+        var settings = await store.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(50, settings.LongParagraphThreshold);
+        Assert.Equal(10, settings.DefaultSpeakSpeed);
+        Assert.Equal(2, settings.PrefetchCount);
+        Assert.Equal("Information", settings.LogLevel);
+        Assert.Equal("System", settings.Theme);
     }
 
     [Fact]
