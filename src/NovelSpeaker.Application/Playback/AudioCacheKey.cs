@@ -6,8 +6,14 @@ namespace NovelSpeaker.Application.Playback;
 /// <summary>
 /// Represents the future-stable cache identity for one generated playback audio item.
 /// </summary>
-public sealed record AudioCacheKey(string Value)
+public sealed record AudioCacheKey(string Value, string FileNameBase)
 {
+    public const string CurrentVersion = "v1";
+
+    public string Version => CurrentVersion;
+
+    public string Shard => FileNameBase[..Math.Min(2, FileNameBase.Length)];
+
     public static AudioCacheKey FromPlayback(
         string bookId,
         int chapterIndex,
@@ -18,6 +24,7 @@ public sealed record AudioCacheKey(string Value)
     {
         var raw = $"{bookId}|{chapterIndex}|{segmentIndex}|{ruleId}|{speakSpeed}|{speechText}";
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
-        return new AudioCacheKey(Convert.ToHexString(bytes).ToLowerInvariant());
+        var hash = Convert.ToHexString(bytes).ToLowerInvariant();
+        return new AudioCacheKey($"{CurrentVersion}:{hash}", hash);
     }
 }
