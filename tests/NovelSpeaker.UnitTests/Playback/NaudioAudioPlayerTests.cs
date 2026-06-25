@@ -63,6 +63,22 @@ public sealed class NaudioAudioPlayerTests
     }
 
     [Fact]
+    public async Task PlaybackStopped_before_exact_end_still_raises_completion_event()
+    {
+        var wavePlayer = new FakeWavePlayer();
+        await using var player = new NaudioAudioPlayer(() => wavePlayer);
+        var completed = false;
+        player.PlaybackCompleted += (_, _) => completed = true;
+
+        await player.LoadAsync(PlaybackTestAudio.DemoMp3Path, CancellationToken.None);
+        player.Play();
+        wavePlayer.RaisePlaybackStopped();
+
+        Assert.True(completed);
+        Assert.Equal(PlaybackStatus.Stopped, player.State);
+    }
+
+    [Fact]
     public async Task LoadAsync_raises_failed_event_for_missing_file()
     {
         var wavePlayer = new FakeWavePlayer();

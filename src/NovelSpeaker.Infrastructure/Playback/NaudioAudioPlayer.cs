@@ -193,11 +193,11 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
             return;
         }
 
-        if (IsAtEnd())
-        {
-            State = PlaybackStatus.Stopped;
-            PlaybackCompleted?.Invoke(this, EventArgs.Empty);
-        }
+        // WaveOutEvent may report the stop callback slightly before CurrentTime reaches TotalTime,
+        // especially for compressed formats like MP3. Once a non-suppressed stop arrives without
+        // an exception, treat it as natural completion so higher layers can advance playback.
+        State = PlaybackStatus.Stopped;
+        PlaybackCompleted?.Invoke(this, EventArgs.Empty);
     }
 
     private TimeSpan GetNormalizedPosition()
