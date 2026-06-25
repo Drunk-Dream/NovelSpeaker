@@ -6,4 +6,8 @@ namespace NovelSpeaker.Application.Playback;
 public interface IReadingProgressStore
 {
     Task SaveAsync(PlaybackProgressUpdate progress, CancellationToken cancellationToken);
+
+    Task<ReadingProgressEntry?> GetAsync(string bookId, CancellationToken cancellationToken);
+
+    Task<ReadingProgressEntry?> GetMostRecentAsync(CancellationToken cancellationToken);
 }

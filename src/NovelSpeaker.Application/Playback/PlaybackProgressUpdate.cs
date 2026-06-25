@@ -7,4 +7,5 @@ public sealed record PlaybackProgressUpdate(
     string BookId,
     int ChapterIndex,
     int SegmentIndex,
+    int CharacterOffset,
     long AudioPositionMilliseconds);
