@@ -17,16 +17,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
         var rules = await _repository.GetAllAsync(cancellationToken);
         var settings = await _settingsStore.LoadAsync(cancellationToken);
 
-        return rules
-            .Select(rule => new TtsRuleSummary(
-                rule.Id,
-                rule.Name,
-                rule.IsEnabled,
-                settings.SelectedTtsRuleId == rule.Id && rule.IsEnabled,
-                rule.LastUsedAt,
-                rule.CompatibilityStatus,
-                rule.UnsupportedFields))
-            .ToArray();
+        return rules.Select(rule => ToSummary(rule, settings.SelectedTtsRuleId)).ToArray();
     }
 
     public async Task<TtsRuleImportPreview> CreateImportPreviewAsync(
@@ -51,30 +42,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             }
 
             var existingRules = await _repository.GetAllAsync(cancellationToken);
-            var items = new List<TtsRuleImportItem>();
-            var index = 0;
-
-            if (root.ValueKind == JsonValueKind.Object)
-            {
-                items.Add(CreateImportItem(root, index, existingRules));
-            }
-            else
-            {
-                foreach (var element in root.EnumerateArray())
-                {
-                    if (element.ValueKind != JsonValueKind.Object)
-                    {
-                        items.Add(CreateInvalidItem(index, "规则数组中的每一项都必须是对象。"));
-                        index++;
-                        continue;
-                    }
-
-                    items.Add(CreateImportItem(element, index, existingRules));
-                    index++;
-                }
-            }
-
-            return new TtsRuleImportPreview(sourceDescription, items, null);
+            return new TtsRuleImportPreview(sourceDescription, CreateImportItems(root, existingRules), null);
         }
         catch (JsonException)
         {
@@ -97,18 +65,13 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!item.CanImport || existingRules.Any(rule => string.Equals(rule.RuleJson, item.CandidateRule.RuleJson, StringComparison.Ordinal)))
+            if (!item.CanImport || IsExactDuplicate(existingRules, item))
             {
                 skippedCount++;
                 continue;
             }
 
-            var utcNow = DateTime.UtcNow.ToString("O");
-            await _repository.SaveAsync(item.CandidateRule with
-            {
-                CreatedAt = utcNow,
-                UpdatedAt = utcNow
-            }, cancellationToken);
+            await SaveImportedRuleAsync(item.CandidateRule, cancellationToken);
             existingRules.Add(item.CandidateRule);
             importedCount++;
         }
@@ -126,8 +89,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
     {
         if (ruleId is null)
         {
-            var settings = await _settingsStore.LoadAsync(cancellationToken);
-            await _settingsStore.SaveAsync(settings with { SelectedTtsRuleId = null }, cancellationToken);
+            await UpdateSelectedRuleAsync(null, cancellationToken);
             return;
         }
 
@@ -140,8 +102,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
         var utcNow = DateTime.UtcNow.ToString("O");
         await _repository.SaveAsync(rule with { LastUsedAt = utcNow, UpdatedAt = utcNow }, cancellationToken);
 
-        var currentSettings = await _settingsStore.LoadAsync(cancellationToken);
-        await _settingsStore.SaveAsync(currentSettings with { SelectedTtsRuleId = rule.Id }, cancellationToken);
+        await UpdateSelectedRuleAsync(rule.Id, cancellationToken);
     }
 
     public async Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken)
@@ -164,22 +125,14 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             return;
         }
 
-        var settings = await _settingsStore.LoadAsync(cancellationToken);
-        if (settings.SelectedTtsRuleId == ruleId)
-        {
-            await _settingsStore.SaveAsync(settings with { SelectedTtsRuleId = null }, cancellationToken);
-        }
+        await ClearSelectedRuleIfNeededAsync(ruleId, cancellationToken);
     }
 
     public async Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken)
     {
         await _repository.DeleteAsync(ruleId, cancellationToken);
 
-        var settings = await _settingsStore.LoadAsync(cancellationToken);
-        if (settings.SelectedTtsRuleId == ruleId)
-        {
-            await _settingsStore.SaveAsync(settings with { SelectedTtsRuleId = null }, cancellationToken);
-        }
+        await ClearSelectedRuleIfNeededAsync(ruleId, cancellationToken);
     }
 
     private readonly ITtsRuleRepository _repository;
@@ -283,5 +236,74 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             TtsRuleCompatibilityStatus.CompatibleWithWarnings => $"可导入，但包含未支持字段：{string.Join("、", conversion.UnsupportedFields)}。",
             _ => "当前规则无法转换为本应用规则。"
         };
+    }
+
+    private static TtsRuleSummary ToSummary(HttpTtsRule rule, long? selectedRuleId)
+    {
+        return new TtsRuleSummary(
+            rule.Id,
+            rule.Name,
+            rule.IsEnabled,
+            selectedRuleId == rule.Id && rule.IsEnabled,
+            rule.LastUsedAt,
+            rule.CompatibilityStatus,
+            rule.UnsupportedFields);
+    }
+
+    private List<TtsRuleImportItem> CreateImportItems(JsonElement root, IReadOnlyList<HttpTtsRule> existingRules)
+    {
+        var items = new List<TtsRuleImportItem>();
+        var index = 0;
+
+        if (root.ValueKind == JsonValueKind.Object)
+        {
+            items.Add(CreateImportItem(root, index, existingRules));
+            return items;
+        }
+
+        foreach (var element in root.EnumerateArray())
+        {
+            if (element.ValueKind != JsonValueKind.Object)
+            {
+                items.Add(CreateInvalidItem(index, "规则数组中的每一项都必须是对象。"));
+                index++;
+                continue;
+            }
+
+            items.Add(CreateImportItem(element, index, existingRules));
+            index++;
+        }
+
+        return items;
+    }
+
+    private static bool IsExactDuplicate(IReadOnlyList<HttpTtsRule> existingRules, TtsRuleImportItem item)
+    {
+        return existingRules.Any(rule => string.Equals(rule.RuleJson, item.CandidateRule.RuleJson, StringComparison.Ordinal));
+    }
+
+    private Task SaveImportedRuleAsync(HttpTtsRule rule, CancellationToken cancellationToken)
+    {
+        var utcNow = DateTime.UtcNow.ToString("O");
+        return _repository.SaveAsync(rule with
+        {
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        }, cancellationToken);
+    }
+
+    private async Task UpdateSelectedRuleAsync(long? ruleId, CancellationToken cancellationToken)
+    {
+        var settings = await _settingsStore.LoadAsync(cancellationToken);
+        await _settingsStore.SaveAsync(settings with { SelectedTtsRuleId = ruleId }, cancellationToken);
+    }
+
+    private async Task ClearSelectedRuleIfNeededAsync(long ruleId, CancellationToken cancellationToken)
+    {
+        var settings = await _settingsStore.LoadAsync(cancellationToken);
+        if (settings.SelectedTtsRuleId == ruleId)
+        {
+            await _settingsStore.SaveAsync(settings with { SelectedTtsRuleId = null }, cancellationToken);
+        }
     }
 }

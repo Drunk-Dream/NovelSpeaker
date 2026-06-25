@@ -56,34 +56,14 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
         var normalizedHeader = NormalizeTemplate(ReadOptionalString(ruleElement, "header"), "header", blockingIssues);
         var normalizedRequestOptions = NormalizeTemplate(split.RequestOptionsJson, "requestOptions", blockingIssues);
 
-        var utcNow = DateTime.UtcNow.ToString("O");
-        var candidateRule = new HttpTtsRule(
-            0,
-            name ?? string.Empty,
-            normalizedUrl ?? string.Empty,
-            ReadOptionalString(ruleElement, "contentType"),
-            ReadOptionalString(ruleElement, "concurrentRate"),
+        var candidateRule = CreateCandidateRule(
+            ruleElement,
+            name,
+            normalizedUrl,
             normalizedHeader,
             normalizedRequestOptions,
-            ReadOptionalBoolean(ruleElement, "enabledCookieJar"),
-            ReadOptionalInt64(ruleElement, "lastUpdateTime"),
-            string.Empty,
-            ReadOptionalBoolean(ruleElement, "isEnabled", defaultValue: true),
-            TtsRuleCompatibilityStatus.Compatible,
-            unsupportedFields,
-            null,
-            utcNow,
-            utcNow);
-
-        candidateRule = candidateRule with
-        {
-            RuleJson = NovelSpeakerRuleJsonSerializer.Serialize(candidateRule),
-            CompatibilityStatus = blockingIssues.Count > 0
-                ? TtsRuleCompatibilityStatus.NeedsManualAdjustment
-                : unsupportedFields.Length == 0
-                    ? TtsRuleCompatibilityStatus.Compatible
-                    : TtsRuleCompatibilityStatus.CompatibleWithWarnings
-        };
+            unsupportedFields);
+        candidateRule = ApplyCompatibilityStatus(candidateRule, blockingIssues, unsupportedFields);
 
         return new TtsRuleConversionResult(candidateRule, unsupportedFields, blockingIssues);
     }
@@ -249,6 +229,50 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
         }
 
         return null;
+    }
+
+    private static HttpTtsRule CreateCandidateRule(
+        JsonElement ruleElement,
+        string? name,
+        string? normalizedUrl,
+        string? normalizedHeader,
+        string? normalizedRequestOptions,
+        IReadOnlyList<string> unsupportedFields)
+    {
+        var utcNow = DateTime.UtcNow.ToString("O");
+        return new HttpTtsRule(
+            0,
+            name ?? string.Empty,
+            normalizedUrl ?? string.Empty,
+            ReadOptionalString(ruleElement, "contentType"),
+            ReadOptionalString(ruleElement, "concurrentRate"),
+            normalizedHeader,
+            normalizedRequestOptions,
+            ReadOptionalBoolean(ruleElement, "enabledCookieJar"),
+            ReadOptionalInt64(ruleElement, "lastUpdateTime"),
+            string.Empty,
+            ReadOptionalBoolean(ruleElement, "isEnabled", defaultValue: true),
+            TtsRuleCompatibilityStatus.Compatible,
+            unsupportedFields,
+            null,
+            utcNow,
+            utcNow);
+    }
+
+    private static HttpTtsRule ApplyCompatibilityStatus(
+        HttpTtsRule candidateRule,
+        IReadOnlyList<string> blockingIssues,
+        IReadOnlyList<string> unsupportedFields)
+    {
+        return candidateRule with
+        {
+            RuleJson = NovelSpeakerRuleJsonSerializer.Serialize(candidateRule),
+            CompatibilityStatus = blockingIssues.Count > 0
+                ? TtsRuleCompatibilityStatus.NeedsManualAdjustment
+                : unsupportedFields.Count == 0
+                    ? TtsRuleCompatibilityStatus.Compatible
+                    : TtsRuleCompatibilityStatus.CompatibleWithWarnings
+        };
     }
 
     [GeneratedRegex(@"\bcookie\s*\.", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
