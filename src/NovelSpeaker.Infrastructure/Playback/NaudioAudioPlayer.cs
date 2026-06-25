@@ -13,7 +13,9 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
     private readonly Func<IWavePlayer> _wavePlayerFactory;
     private AudioFileReader? _audioFileReader;
     private IWavePlayer? _wavePlayer;
-    private bool _suppressStoppedEvent;
+    private EventHandler<StoppedEventArgs>? _playbackStoppedHandler;
+    private long _playbackGeneration;
+    private long? _suppressedPlaybackGeneration;
     private bool _disposed;
 
     public NaudioAudioPlayer()
@@ -99,7 +101,7 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
             return;
         }
 
-        _suppressStoppedEvent = true;
+        _suppressedPlaybackGeneration = _playbackGeneration;
         _wavePlayer.Stop();
         _audioFileReader.CurrentTime = TimeSpan.Zero;
         State = PlaybackStatus.Stopped;
@@ -138,7 +140,12 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
 
         if (_wavePlayer is not null)
         {
-            _wavePlayer.PlaybackStopped -= OnPlaybackStopped;
+            if (_playbackStoppedHandler is not null)
+            {
+                _wavePlayer.PlaybackStopped -= _playbackStoppedHandler;
+                _playbackStoppedHandler = null;
+            }
+
             _wavePlayer.Dispose();
             _wavePlayer = null;
         }
@@ -159,24 +166,36 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
 
         if (_wavePlayer is not null)
         {
-            _wavePlayer.PlaybackStopped -= OnPlaybackStopped;
+            if (_playbackStoppedHandler is not null)
+            {
+                _wavePlayer.PlaybackStopped -= _playbackStoppedHandler;
+                _playbackStoppedHandler = null;
+            }
+
             _wavePlayer.Dispose();
             _wavePlayer = null;
         }
 
         _audioFileReader?.Dispose();
         _audioFileReader = new AudioFileReader(filePath);
-        _suppressStoppedEvent = false;
+        _playbackGeneration++;
         _wavePlayer = _wavePlayerFactory();
         _wavePlayer.Init(_audioFileReader);
-        _wavePlayer.PlaybackStopped += OnPlaybackStopped;
+        var generation = _playbackGeneration;
+        _playbackStoppedHandler = (_, e) => OnPlaybackStopped(generation, e);
+        _wavePlayer.PlaybackStopped += _playbackStoppedHandler;
     }
 
-    private void OnPlaybackStopped(object? sender, StoppedEventArgs e)
+    private void OnPlaybackStopped(long generation, StoppedEventArgs e)
     {
-        if (_suppressStoppedEvent)
+        if (generation != _playbackGeneration)
         {
-            _suppressStoppedEvent = false;
+            return;
+        }
+
+        if (_suppressedPlaybackGeneration == generation)
+        {
+            _suppressedPlaybackGeneration = null;
             return;
         }
 

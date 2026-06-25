@@ -143,11 +143,47 @@ public sealed class NaudioAudioPlayerTests
         Assert.Equal(0, completionCount);
     }
 
+    [Fact]
+    public async Task Stale_stop_callback_from_previous_wave_player_is_ignored_after_loading_next_audio()
+    {
+        var factory = new FakeWavePlayerFactory();
+        await using var player = new NaudioAudioPlayer(factory.Create);
+        var completionCount = 0;
+        player.PlaybackCompleted += (_, _) => completionCount++;
+
+        await player.LoadAsync(PlaybackTestAudio.DemoWavPath, CancellationToken.None);
+        player.Play();
+
+        var firstWavePlayer = factory.CreatedPlayers[0];
+        var capturedHandlers = firstWavePlayer.CapturePlaybackStoppedHandlers();
+
+        player.Stop();
+        await player.LoadAsync(PlaybackTestAudio.DemoMp3Path, CancellationToken.None);
+        player.Play();
+
+        firstWavePlayer.RaiseCapturedPlaybackStopped(capturedHandlers);
+
+        Assert.Equal(PlaybackStatus.Playing, player.State);
+        Assert.Equal(0, completionCount);
+    }
+
     private static string CreateShortWaveFile()
     {
         var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.wav");
         using var writer = new WaveFileWriter(filePath, new WaveFormat(8000, 16, 1));
         writer.WriteSample(0.1f);
         return filePath;
+    }
+
+    private sealed class FakeWavePlayerFactory
+    {
+        public List<FakeWavePlayer> CreatedPlayers { get; } = [];
+
+        public IWavePlayer Create()
+        {
+            var player = new FakeWavePlayer();
+            CreatedPlayers.Add(player);
+            return player;
+        }
     }
 }
