@@ -145,7 +145,13 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             return;
         }
 
-        var startPosition = ResolveStartPosition(book, request.ChapterIndex, request.SegmentIndex);
+        var startPosition = await ResolvePlayablePositionAsync(
+            book,
+            request.ChapterIndex,
+            request.SegmentIndex,
+            searchDirection: 1,
+            preferLastSegmentWhenSearchingBackward: false,
+            cancellationToken);
         if (startPosition is null)
         {
             PublishSnapshot(new PlaybackSnapshot(
@@ -168,6 +174,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             return;
         }
 
+        book = startPosition.Value.Book;
         _currentBook = book;
         var selectedRule = await _selectedRuleProvider.GetSelectedRuleAsync(cancellationToken);
         if (selectedRule is null)
@@ -280,14 +287,19 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         }
 
         var currentPosition = GetCurrentPosition();
-        var target = FindRelativeSegment(_currentBook, currentPosition.ChapterIndex, currentPosition.SegmentIndex, delta);
+        var target = await ResolveRelativeSegmentAsync(
+            _currentBook,
+            currentPosition.ChapterIndex,
+            currentPosition.SegmentIndex,
+            delta,
+            cancellationToken);
         if (target is null)
         {
             return;
         }
 
         await StartNewSessionAsync(
-            _currentBook,
+            target.Value.Book,
             target.Value.ChapterIndex,
             target.Value.SegmentIndex,
             0,
@@ -306,16 +318,28 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         }
 
         var currentPosition = GetCurrentPosition();
-        var target = FindRelativeChapter(_currentBook, currentPosition.ChapterIndex, delta);
+        var targetChapterIndex = FindRelativeChapterIndex(_currentBook, currentPosition.ChapterIndex, delta);
+        if (targetChapterIndex is null)
+        {
+            return;
+        }
+
+        var target = await ResolvePlayablePositionAsync(
+            _currentBook,
+            targetChapterIndex.Value,
+            0,
+            delta >= 0 ? 1 : -1,
+            preferLastSegmentWhenSearchingBackward: false,
+            cancellationToken);
         if (target is null)
         {
             return;
         }
 
         await StartNewSessionAsync(
-            _currentBook,
+            target.Value.Book,
             target.Value.ChapterIndex,
-            0,
+            target.Value.SegmentIndex,
             0,
             _currentRule,
             GetCurrentSpeakSpeed(),
@@ -341,7 +365,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
 
         var currentPosition = GetCurrentPosition();
         await StartNewSessionAsync(
-            _currentBook,
+            await EnsureChapterLoadedAsync(_currentBook, currentPosition.ChapterIndex, cancellationToken),
             currentPosition.ChapterIndex,
             currentPosition.SegmentIndex,
             0,
@@ -360,7 +384,12 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         }
 
         var currentPosition = GetCurrentPosition();
-        var next = FindRelativeSegment(_currentBook, currentPosition.ChapterIndex, currentPosition.SegmentIndex, 1);
+        var next = await ResolveRelativeSegmentAsync(
+            _currentBook,
+            currentPosition.ChapterIndex,
+            currentPosition.SegmentIndex,
+            1,
+            cancellationToken);
         if (next is null)
         {
             await StopCoreAsync(cancellationToken);
@@ -372,7 +401,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         }
 
         await StartNewSessionAsync(
-            _currentBook,
+            next.Value.Book,
             next.Value.ChapterIndex,
             next.Value.SegmentIndex,
             0,
@@ -411,7 +440,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
 
         var currentPosition = GetCurrentPosition();
         await StartNewSessionAsync(
-            _currentBook,
+            await EnsureChapterLoadedAsync(_currentBook, currentPosition.ChapterIndex, cancellationToken),
             currentPosition.ChapterIndex,
             currentPosition.SegmentIndex,
             0,
@@ -437,7 +466,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
 
         var currentPosition = GetCurrentPosition();
         await StartNewSessionAsync(
-            _currentBook,
+            await EnsureChapterLoadedAsync(_currentBook, currentPosition.ChapterIndex, cancellationToken),
             currentPosition.ChapterIndex,
             currentPosition.SegmentIndex,
             0,
@@ -502,6 +531,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             return;
         }
 
+        _currentBook = await EnsureChapterLoadedAsync(_currentBook, session.ChapterIndex, cancellationToken);
         var chapter = GetChapter(_currentBook, session.ChapterIndex);
         if (chapter is null)
         {
@@ -649,18 +679,20 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         }
 
         var requests = new List<PlaybackAudioRequest>();
-        var next = FindRelativeSegment(_currentBook, session.ChapterIndex, session.SegmentIndex, 1);
-        if (next is not null)
+        var chapter = GetChapter(_currentBook, session.ChapterIndex);
+        if (chapter is null)
         {
-            AddPrefetchRequest(requests, session, next.Value.ChapterIndex, next.Value.SegmentIndex);
+            return;
         }
 
-        var afterNext = next is null
-            ? null
-            : FindRelativeSegment(_currentBook, next.Value.ChapterIndex, next.Value.SegmentIndex, 1);
-        if (afterNext is not null)
+        if (session.SegmentIndex + 1 < chapter.Segments.Count)
         {
-            AddPrefetchRequest(requests, session, afterNext.Value.ChapterIndex, afterNext.Value.SegmentIndex);
+            AddPrefetchRequest(requests, session, chapter.ChapterIndex, session.SegmentIndex + 1);
+        }
+
+        if (session.SegmentIndex + 2 < chapter.Segments.Count)
+        {
+            AddPrefetchRequest(requests, session, chapter.ChapterIndex, session.SegmentIndex + 2);
         }
 
         await _prefetchScheduler.ScheduleAsync(session.SessionId, requests, cancellationToken);
@@ -700,7 +732,12 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                 return;
             }
 
-            var next = FindRelativeSegment(_currentBook, _currentSession.ChapterIndex, _currentSession.SegmentIndex, 1);
+            var next = await ResolveRelativeSegmentAsync(
+                _currentBook,
+                _currentSession.ChapterIndex,
+                _currentSession.SegmentIndex,
+                1,
+                CancellationToken.None);
             if (next is null)
             {
                 await SaveProgressAsync(_currentSession, _localAudioPlaybackCoordinator.CurrentSnapshot.DurationMilliseconds, CancellationToken.None);
@@ -723,6 +760,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                 _localAudioPlaybackCoordinator.CurrentSnapshot.DurationMilliseconds,
                 CancellationToken.None);
 
+            _currentBook = next.Value.Book;
             _currentSession.ChapterIndex = next.Value.ChapterIndex;
             _currentSession.SegmentIndex = next.Value.SegmentIndex;
             await PlayCurrentSegmentAsync(_currentSession, 0, forceInvalidate: false, CancellationToken.None);
@@ -876,94 +914,205 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
 
     private static bool HasNextSegment(PlaybackBookContent book, int chapterIndex, int segmentIndex)
     {
-        return FindRelativeSegment(book, chapterIndex, segmentIndex, 1) is not null;
+        var chapter = GetChapter(book, chapterIndex);
+        if (chapter is not null && segmentIndex + 1 < chapter.Segments.Count)
+        {
+            return true;
+        }
+
+        return FindRelativeChapterIndex(book, chapterIndex, 1) is not null;
     }
 
-    private static (PlaybackChapterContent Chapter, int ChapterIndex, int SegmentIndex)? ResolveStartPosition(
+    private async Task<(PlaybackBookContent Book, PlaybackChapterContent Chapter, int ChapterIndex, int SegmentIndex)?> ResolvePlayablePositionAsync(
         PlaybackBookContent book,
         int? preferredChapterIndex,
-        int? preferredSegmentIndex)
+        int? preferredSegmentIndex,
+        int searchDirection,
+        bool preferLastSegmentWhenSearchingBackward,
+        CancellationToken cancellationToken)
     {
         var orderedChapters = book.Chapters.OrderBy(chapter => chapter.ChapterIndex).ToArray();
-        foreach (var chapter in orderedChapters)
+        if (orderedChapters.Length == 0)
         {
-            if (chapter.Segments.Count == 0)
+            return null;
+        }
+
+        var index = ResolveChapterSearchStartIndex(orderedChapters, preferredChapterIndex, searchDirection);
+        if (index < 0)
+        {
+            return null;
+        }
+
+        while (index >= 0 && index < orderedChapters.Length)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var chapterIndex = orderedChapters[index].ChapterIndex;
+            book = await EnsureChapterLoadedAsync(book, chapterIndex, cancellationToken);
+            var chapter = GetChapter(book, chapterIndex);
+            if (chapter is not null && chapter.Segments.Count > 0)
             {
-                continue;
+                var segmentIndex = ResolveSegmentIndex(
+                    chapter,
+                    preferredChapterIndex,
+                    preferredSegmentIndex,
+                    searchDirection,
+                    preferLastSegmentWhenSearchingBackward);
+                return (book, chapter, chapter.ChapterIndex, segmentIndex);
             }
 
-            if (preferredChapterIndex is null)
-            {
-                return (chapter, chapter.ChapterIndex, 0);
-            }
-
-            if (chapter.ChapterIndex < preferredChapterIndex.Value)
-            {
-                continue;
-            }
-
-            if (chapter.ChapterIndex == preferredChapterIndex.Value)
-            {
-                var segmentIndex = preferredSegmentIndex is >= 0 and < int.MaxValue
-                    ? Math.Min(preferredSegmentIndex.Value, chapter.Segments.Count - 1)
-                    : 0;
-                return (chapter, chapter.ChapterIndex, segmentIndex);
-            }
-
-            return (chapter, chapter.ChapterIndex, 0);
+            index += searchDirection >= 0 ? 1 : -1;
         }
 
         return null;
     }
 
-    private static (int ChapterIndex, int SegmentIndex)? FindRelativeSegment(
+    private async Task<(PlaybackBookContent Book, int ChapterIndex, int SegmentIndex)?> ResolveRelativeSegmentAsync(
         PlaybackBookContent book,
         int chapterIndex,
         int segmentIndex,
-        int delta)
+        int delta,
+        CancellationToken cancellationToken)
     {
         if (delta == 0)
         {
-            return (chapterIndex, segmentIndex);
+            return (book, chapterIndex, segmentIndex);
         }
 
-        var flatSegments = book.Chapters
-            .OrderBy(chapter => chapter.ChapterIndex)
-            .SelectMany(chapter => chapter.Segments.Select(segment => (chapter.ChapterIndex, segment.SegmentIndex)))
-            .ToArray();
-
-        var currentIndex = Array.FindIndex(flatSegments, item => item.ChapterIndex == chapterIndex && item.SegmentIndex == segmentIndex);
-        if (currentIndex < 0)
+        book = await EnsureChapterLoadedAsync(book, chapterIndex, cancellationToken);
+        var chapter = GetChapter(book, chapterIndex);
+        if (chapter is null || chapter.Segments.Count == 0)
         {
-            return flatSegments.Length == 0 ? null : flatSegments[0];
+            return null;
         }
 
-        var targetIndex = currentIndex + delta;
-        return targetIndex < 0 || targetIndex >= flatSegments.Length
+        var targetSegmentIndex = segmentIndex + delta;
+        if (targetSegmentIndex >= 0 && targetSegmentIndex < chapter.Segments.Count)
+        {
+            return (book, chapterIndex, targetSegmentIndex);
+        }
+
+        var targetChapterIndex = FindRelativeChapterIndex(book, chapterIndex, delta > 0 ? 1 : -1);
+        if (targetChapterIndex is null)
+        {
+            return null;
+        }
+
+        var target = await ResolvePlayablePositionAsync(
+            book,
+            targetChapterIndex.Value,
+            preferredSegmentIndex: null,
+            searchDirection: delta > 0 ? 1 : -1,
+            preferLastSegmentWhenSearchingBackward: delta < 0,
+            cancellationToken);
+        return target is null
             ? null
-            : flatSegments[targetIndex];
+            : (target.Value.Book, target.Value.ChapterIndex, target.Value.SegmentIndex);
     }
 
-    private static (int ChapterIndex, int SegmentIndex)? FindRelativeChapter(
+    private static int? FindRelativeChapterIndex(
         PlaybackBookContent book,
         int chapterIndex,
         int delta)
     {
         var chapters = book.Chapters
-            .Where(chapter => chapter.Segments.Count > 0)
             .OrderBy(chapter => chapter.ChapterIndex)
             .ToArray();
 
         var currentIndex = Array.FindIndex(chapters, chapter => chapter.ChapterIndex == chapterIndex);
         if (currentIndex < 0)
         {
-            return chapters.Length == 0 ? null : (chapters[0].ChapterIndex, 0);
+            return chapters.Length == 0 ? null : chapters[0].ChapterIndex;
         }
 
         var targetIndex = currentIndex + delta;
         return targetIndex < 0 || targetIndex >= chapters.Length
             ? null
-            : (chapters[targetIndex].ChapterIndex, 0);
+            : chapters[targetIndex].ChapterIndex;
+    }
+
+    private async Task<PlaybackBookContent> EnsureChapterLoadedAsync(
+        PlaybackBookContent book,
+        int chapterIndex,
+        CancellationToken cancellationToken)
+    {
+        var existing = GetChapter(book, chapterIndex);
+        if (existing is null || existing.Segments.Count > 0)
+        {
+            return book;
+        }
+
+        var loadedChapter = await _bookContentService.GetChapterAsync(book.BookId, chapterIndex, cancellationToken);
+        return loadedChapter is null
+            ? book
+            : ReplaceChapter(book, loadedChapter);
+    }
+
+    private static PlaybackBookContent ReplaceChapter(PlaybackBookContent book, PlaybackChapterContent chapter)
+    {
+        var chapters = book.Chapters
+            .Select(existing => existing.ChapterIndex == chapter.ChapterIndex ? chapter : existing)
+            .ToArray();
+
+        return book with { Chapters = chapters };
+    }
+
+    private static int ResolveChapterSearchStartIndex(
+        IReadOnlyList<PlaybackChapterContent> chapters,
+        int? preferredChapterIndex,
+        int searchDirection)
+    {
+        if (chapters.Count == 0)
+        {
+            return -1;
+        }
+
+        if (preferredChapterIndex is null)
+        {
+            return searchDirection >= 0 ? 0 : chapters.Count - 1;
+        }
+
+        if (searchDirection >= 0)
+        {
+            for (var index = 0; index < chapters.Count; index++)
+            {
+                if (chapters[index].ChapterIndex >= preferredChapterIndex.Value)
+                {
+                    return index;
+                }
+            }
+
+            return -1;
+        }
+
+        for (var index = chapters.Count - 1; index >= 0; index--)
+        {
+            if (chapters[index].ChapterIndex <= preferredChapterIndex.Value)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static int ResolveSegmentIndex(
+        PlaybackChapterContent chapter,
+        int? preferredChapterIndex,
+        int? preferredSegmentIndex,
+        int searchDirection,
+        bool preferLastSegmentWhenSearchingBackward)
+    {
+        if (preferredChapterIndex == chapter.ChapterIndex && preferredSegmentIndex is >= 0 and < int.MaxValue)
+        {
+            return Math.Min(preferredSegmentIndex.Value, chapter.Segments.Count - 1);
+        }
+
+        if (searchDirection < 0 && preferLastSegmentWhenSearchingBackward)
+        {
+            return chapter.Segments.Count - 1;
+        }
+
+        return 0;
     }
 
     private bool IsSessionCurrent(Guid sessionId)

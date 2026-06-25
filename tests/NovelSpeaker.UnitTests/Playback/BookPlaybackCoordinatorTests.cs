@@ -271,7 +271,28 @@ public sealed class BookPlaybackCoordinatorTests
 
         public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
         {
-            return Task.FromResult(bookId == _book.BookId ? _book : null);
+            if (bookId != _book.BookId)
+            {
+                return Task.FromResult<PlaybackBookContent?>(null);
+            }
+
+            var metadataOnly = new PlaybackBookContent(
+                _book.BookId,
+                _book.BookTitle,
+                _book.Chapters
+                    .Select(chapter => new PlaybackChapterContent(chapter.ChapterIndex, chapter.Title, []))
+                    .ToArray());
+            return Task.FromResult<PlaybackBookContent?>(metadataOnly);
+        }
+
+        public Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
+        {
+            if (bookId != _book.BookId)
+            {
+                return Task.FromResult<PlaybackChapterContent?>(null);
+            }
+
+            return Task.FromResult<PlaybackChapterContent?>(_book.Chapters.FirstOrDefault(chapter => chapter.ChapterIndex == chapterIndex));
         }
     }
 
