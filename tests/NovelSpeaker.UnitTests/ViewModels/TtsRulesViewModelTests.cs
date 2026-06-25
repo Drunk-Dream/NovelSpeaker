@@ -73,6 +73,30 @@ public sealed class TtsRulesViewModelTests
     }
 
     [Fact]
+    public async Task LoadAsync_preserves_selected_rule_when_rules_refresh()
+    {
+        var libraryService = new MutableTtsRuleLibraryService(
+            [
+                new TtsRuleSummary(1, "规则一", true, false, null, TtsRuleCompatibilityStatus.Compatible, []),
+                new TtsRuleSummary(2, "规则二", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])
+            ]);
+        var viewModel = new TtsRulesViewModel(libraryService, new FakeTtsRuleTestService());
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.SelectedRule = viewModel.Rules[1];
+
+        libraryService.Rules = [
+            new TtsRuleSummary(2, "规则二", true, true, null, TtsRuleCompatibilityStatus.Compatible, []),
+            new TtsRuleSummary(1, "规则一", true, false, null, TtsRuleCompatibilityStatus.Compatible, [])
+        ];
+
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(2, viewModel.SelectedRule?.Id);
+        Assert.Equal("当前规则：规则二", viewModel.CurrentRuleDisplayText);
+    }
+
+    [Fact]
     public async Task GeneratePreviewAsync_projects_preview_and_redacts_details()
     {
         var ruleSummary = new TtsRuleSummary(3, "测试规则", true, false, null, TtsRuleCompatibilityStatus.Compatible, []);
@@ -187,6 +211,39 @@ public sealed class TtsRulesViewModelTests
         {
             ImportCallCount++;
             return Task.FromResult(new TtsRuleImportResult(1, 0, preview.Items.Count));
+        }
+
+        public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+
+        public Task SelectRuleAsync(long? ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class MutableTtsRuleLibraryService : ITtsRuleLibraryService
+    {
+        public MutableTtsRuleLibraryService(IReadOnlyList<TtsRuleSummary> rules)
+        {
+            Rules = rules;
+        }
+
+        public IReadOnlyList<TtsRuleSummary> Rules { get; set; }
+
+        public Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(Rules);
+        }
+
+        public Task<TtsRuleImportPreview> CreateImportPreviewAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new TtsRuleImportPreview(sourceDescription, [], null));
+        }
+
+        public Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new TtsRuleImportResult(0, 0, 0));
         }
 
         public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken) => Task.FromResult<string?>(null);

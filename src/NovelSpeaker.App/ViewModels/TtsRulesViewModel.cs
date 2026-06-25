@@ -92,15 +92,13 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
         var rules = await _ruleLibraryService.GetRulesAsync(cancellationToken);
-        Rules.Clear();
-        foreach (var rule in rules)
-        {
-            Rules.Add(rule);
-        }
+        Rules.ReplaceWith(rules, rule => rule);
 
-        SelectedRule = SelectedRule is null
-            ? Rules.FirstOrDefault(rule => rule.IsSelected)
-            : Rules.FirstOrDefault(rule => rule.Id == SelectedRule.Id) ?? Rules.FirstOrDefault(rule => rule.IsSelected);
+        SelectedRule = Rules.SelectByKeyOrFallback(
+            SelectedRule?.Id,
+            rule => rule.Id,
+            SelectedRule,
+            rule => rule.IsSelected);
 
         CurrentRuleDisplayText = Rules.FirstOrDefault(rule => rule.IsSelected) is { } selected
             ? $"当前规则：{selected.Name}"
@@ -214,58 +212,38 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     [RelayCommand]
     private async Task GeneratePreviewAsync(CancellationToken cancellationToken)
     {
-        if (!TryCreateTestInput(out var input))
-        {
-            return;
-        }
-
-        using var linkedCts = BeginTestOperation(cancellationToken);
-        try
-        {
-            var result = await _ruleTestService.CreatePreviewAsync(input, linkedCts.Token);
-            ApplyTestPreview(result.Preview, result.Warnings);
-            TestStatusMessage = result.Message;
-            LastResponseStatusText = result.IsSuccess ? "请求预览已更新。" : "请求预览生成失败。";
-            LastResponseDetailText = result.ErrorKind is null
-                ? string.Empty
-                : $"错误类型：{result.ErrorKind}";
-        }
-        catch (OperationCanceledException)
-        {
-            TestStatusMessage = "已取消当前请求预览。";
-        }
-        finally
-        {
-            EndTestOperation(linkedCts);
-        }
+        await ExecuteTestOperationAsync(
+            cancellationToken,
+            "已取消当前请求预览。",
+            async (input, token) =>
+            {
+                var result = await _ruleTestService.CreatePreviewAsync(input, token);
+                return (
+                    result.Preview,
+                    result.Warnings,
+                    result.Message,
+                    result.IsSuccess ? "请求预览已更新。" : "请求预览生成失败。",
+                    result.ErrorKind is null ? string.Empty : $"错误类型：{result.ErrorKind}");
+            });
     }
 
     [RelayCommand]
     private async Task TestSelectedRuleAsync(CancellationToken cancellationToken)
     {
-        if (!TryCreateTestInput(out var input))
-        {
-            return;
-        }
-
-        using var linkedCts = BeginTestOperation(cancellationToken);
-        try
-        {
-            var result = await _ruleTestService.TestAsync(input, linkedCts.Token);
-            ApplyTestPreview(result.Preview, result.Warnings);
-            TestStatusMessage = result.Message;
-            LastResponseStatusText = BuildResponseStatusText(result);
-            LastResponseDetailText = BuildResponseDetailText(result);
-        }
-        catch (OperationCanceledException)
-        {
-            TestStatusMessage = "已取消当前试听请求。";
-            LastResponseStatusText = "试听已取消。";
-        }
-        finally
-        {
-            EndTestOperation(linkedCts);
-        }
+        await ExecuteTestOperationAsync(
+            cancellationToken,
+            "已取消当前试听请求。",
+            async (input, token) =>
+            {
+                var result = await _ruleTestService.TestAsync(input, token);
+                return (
+                    result.Preview,
+                    result.Warnings,
+                    result.Message,
+                    BuildResponseStatusText(result),
+                    BuildResponseDetailText(result));
+            },
+            "试听已取消。");
     }
 
     [RelayCommand]
@@ -293,11 +271,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     private void ApplyPreview(TtsRuleImportPreview preview)
     {
         _pendingPreview = preview;
-        PreviewItems.Clear();
-        foreach (var item in preview.Items)
-        {
-            PreviewItems.Add(item);
-        }
+        PreviewItems.ReplaceWith(preview.Items, item => item);
 
         PreviewSourceDescription = preview.SourceDescription;
         IsPreviewVisible = true;
@@ -397,6 +371,45 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         return _testOperationCts;
     }
 
+    private async Task ExecuteTestOperationAsync(
+        CancellationToken cancellationToken,
+        string canceledStatusMessage,
+        Func<TtsRuleTestInput, CancellationToken, Task<(
+            TtsRequestPreview? Preview,
+            IReadOnlyList<string> Warnings,
+            string StatusMessage,
+            string ResponseStatusText,
+            string ResponseDetailText)>> operation,
+        string? canceledResponseStatusText = null)
+    {
+        if (!TryCreateTestInput(out var input))
+        {
+            return;
+        }
+
+        using var linkedCts = BeginTestOperation(cancellationToken);
+        try
+        {
+            var result = await operation(input, linkedCts.Token);
+            ApplyTestPreview(result.Preview, result.Warnings);
+            TestStatusMessage = result.StatusMessage;
+            LastResponseStatusText = result.ResponseStatusText;
+            LastResponseDetailText = result.ResponseDetailText;
+        }
+        catch (OperationCanceledException)
+        {
+            TestStatusMessage = canceledStatusMessage;
+            if (canceledResponseStatusText is not null)
+            {
+                LastResponseStatusText = canceledResponseStatusText;
+            }
+        }
+        finally
+        {
+            EndTestOperation(linkedCts);
+        }
+    }
+
     private void EndTestOperation(CancellationTokenSource linkedCts)
     {
         if (ReferenceEquals(_testOperationCts, linkedCts))
@@ -404,7 +417,6 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             _testOperationCts = null;
         }
 
-        linkedCts.Dispose();
         IsTestBusy = false;
     }
 
