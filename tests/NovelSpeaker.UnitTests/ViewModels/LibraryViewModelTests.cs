@@ -147,5 +147,10 @@ public sealed class LibraryViewModelTests
         {
             return Task.FromResult(_books);
         }
+
+        public Task<ContinueListeningSummary?> GetContinueListeningAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult<ContinueListeningSummary?>(null);
+        }
     }
 }

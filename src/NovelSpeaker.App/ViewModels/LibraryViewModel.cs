@@ -66,7 +66,8 @@ public sealed partial class LibraryViewModel : ObservableObject
                 book.Title,
                 book.Author,
                 book.CurrentChapterTitle,
-                book.ImportedAt));
+                book.ImportedAt,
+                book.LastPlayedAt));
         }
     }
 
