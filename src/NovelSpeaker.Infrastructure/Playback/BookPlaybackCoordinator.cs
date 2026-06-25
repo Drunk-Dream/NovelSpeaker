@@ -115,17 +115,34 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
 
     public async ValueTask DisposeAsync()
     {
-        if (_disposed)
+        await _mutex.WaitAsync().ConfigureAwait(false);
+        try
         {
-            return;
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (_currentSession is not null)
+            {
+                await SaveProgressAsync(
+                    _currentSession,
+                    _localAudioPlaybackCoordinator.CurrentSnapshot.PositionMilliseconds,
+                    CancellationToken.None).ConfigureAwait(false);
+            }
+
+            _disposed = true;
+            _localAudioPlaybackCoordinator.SnapshotChanged -= OnLocalSnapshotChanged;
+            _localAudioPlaybackCoordinator.PlaybackCompleted -= OnLocalPlaybackCompleted;
+            _localAudioPlaybackCoordinator.PlaybackFailed -= OnLocalPlaybackFailed;
+            await DisposeSessionAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _mutex.Release();
         }
 
-        _disposed = true;
-        _localAudioPlaybackCoordinator.SnapshotChanged -= OnLocalSnapshotChanged;
-        _localAudioPlaybackCoordinator.PlaybackCompleted -= OnLocalPlaybackCompleted;
-        _localAudioPlaybackCoordinator.PlaybackFailed -= OnLocalPlaybackFailed;
-        await DisposeSessionAsync();
-        await _localAudioPlaybackCoordinator.DisposeAsync();
+        await _localAudioPlaybackCoordinator.DisposeAsync().ConfigureAwait(false);
     }
 
     private async Task StartCoreAsync(PlaybackStartRequest request, CancellationToken cancellationToken)
@@ -145,13 +162,36 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             return;
         }
 
-        var startPosition = await ResolvePlayablePositionAsync(
+        var hasExplicitPosition = request.ChapterIndex is not null || request.SegmentIndex is not null;
+        var resumePositionMilliseconds = request.ResumePositionMilliseconds ?? 0;
+        (PlaybackBookContent Book, PlaybackChapterContent Chapter, int ChapterIndex, int SegmentIndex)? startPosition = null;
+
+        if (!hasExplicitPosition)
+        {
+            var savedProgress = await _readingProgressStore.GetAsync(request.BookId, cancellationToken).ConfigureAwait(false);
+            if (savedProgress is not null)
+            {
+                var restoredPosition = await ResolveRestoredPositionAsync(book, savedProgress, cancellationToken).ConfigureAwait(false);
+                if (restoredPosition is not null)
+                {
+                    book = restoredPosition.Value.Book;
+                    startPosition = (
+                        restoredPosition.Value.Book,
+                        restoredPosition.Value.Chapter,
+                        restoredPosition.Value.ChapterIndex,
+                        restoredPosition.Value.SegmentIndex);
+                    resumePositionMilliseconds = request.ResumePositionMilliseconds ?? restoredPosition.Value.ResumePositionMilliseconds;
+                }
+            }
+        }
+
+        startPosition ??= await ResolvePlayablePositionAsync(
             book,
             request.ChapterIndex,
             request.SegmentIndex,
             searchDirection: 1,
             preferLastSegmentWhenSearchingBackward: false,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
         if (startPosition is null)
         {
             PublishSnapshot(new PlaybackSnapshot(
@@ -188,7 +228,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             book,
             startPosition.Value.ChapterIndex,
             startPosition.Value.SegmentIndex,
-            request.ResumePositionMilliseconds ?? 0,
+            resumePositionMilliseconds,
             selectedRule,
             speakSpeed,
             forceInvalidate: false,
@@ -486,6 +526,14 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         bool forceInvalidate,
         CancellationToken cancellationToken)
     {
+        if (_currentSession is not null)
+        {
+            await SaveProgressAsync(
+                _currentSession,
+                _localAudioPlaybackCoordinator.CurrentSnapshot.PositionMilliseconds,
+                cancellationToken).ConfigureAwait(false);
+        }
+
         await _prefetchScheduler.CancelAsync(_currentSession?.SessionId ?? Guid.Empty, cancellationToken);
         await DisposeSessionAsync();
 
@@ -966,6 +1014,36 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         return null;
     }
 
+    private async Task<(PlaybackBookContent Book, PlaybackChapterContent Chapter, int ChapterIndex, int SegmentIndex, long ResumePositionMilliseconds)?> ResolveRestoredPositionAsync(
+        PlaybackBookContent book,
+        ReadingProgressEntry progress,
+        CancellationToken cancellationToken)
+    {
+        book = await EnsureChapterLoadedAsync(book, progress.ChapterIndex, cancellationToken).ConfigureAwait(false);
+        var chapter = GetChapter(book, progress.ChapterIndex);
+        if (chapter is not null && chapter.Segments.Count > 0)
+        {
+            if (progress.SegmentIndex >= 0 && progress.SegmentIndex < chapter.Segments.Count)
+            {
+                return (book, chapter, chapter.ChapterIndex, progress.SegmentIndex, progress.AudioPositionMilliseconds);
+            }
+
+            var remappedSegmentIndex = FindClosestSegmentIndex(chapter, progress.CharacterOffset);
+            return (book, chapter, chapter.ChapterIndex, remappedSegmentIndex, 0);
+        }
+
+        var fallback = await ResolvePlayablePositionAsync(
+            book,
+            progress.ChapterIndex,
+            progress.SegmentIndex,
+            searchDirection: 1,
+            preferLastSegmentWhenSearchingBackward: false,
+            cancellationToken).ConfigureAwait(false);
+        return fallback is null
+            ? null
+            : (fallback.Value.Book, fallback.Value.Chapter, fallback.Value.ChapterIndex, fallback.Value.SegmentIndex, 0);
+    }
+
     private async Task<(PlaybackBookContent Book, int ChapterIndex, int SegmentIndex)?> ResolveRelativeSegmentAsync(
         PlaybackBookContent book,
         int chapterIndex,
@@ -1115,6 +1193,30 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         return 0;
     }
 
+    private static int FindClosestSegmentIndex(PlaybackChapterContent chapter, int characterOffset)
+    {
+        var bestIndex = 0;
+        var bestDistance = int.MaxValue;
+
+        for (var index = 0; index < chapter.Segments.Count; index++)
+        {
+            var segment = chapter.Segments[index];
+            if (characterOffset >= segment.StartOffset && characterOffset < segment.StartOffset + segment.Length)
+            {
+                return index;
+            }
+
+            var distance = Math.Abs(segment.StartOffset - characterOffset);
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                bestIndex = index;
+            }
+        }
+
+        return bestIndex;
+    }
+
     private bool IsSessionCurrent(Guid sessionId)
     {
         return _currentSession is not null && _currentSession.SessionId == sessionId;
@@ -1127,8 +1229,22 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                 session.BookId,
                 session.ChapterIndex,
                 session.SegmentIndex,
+                GetCharacterOffset(session),
                 positionMilliseconds),
             cancellationToken);
+    }
+
+    private int GetCharacterOffset(PlaybackSession session)
+    {
+        var chapter = _currentBook is null
+            ? null
+            : GetChapter(_currentBook, session.ChapterIndex);
+        if (chapter is null || session.SegmentIndex < 0 || session.SegmentIndex >= chapter.Segments.Count)
+        {
+            return 0;
+        }
+
+        return chapter.Segments[session.SegmentIndex].StartOffset;
     }
 
     private async Task DisposeSessionAsync()

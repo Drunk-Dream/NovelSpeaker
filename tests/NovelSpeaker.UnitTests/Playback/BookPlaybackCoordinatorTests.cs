@@ -66,7 +66,8 @@ public sealed class BookPlaybackCoordinatorTests
     public async Task Pause_and_resume_keep_current_session()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        await using var coordinator = CreateCoordinator(localCoordinator);
+        var readingProgressStore = new FakeReadingProgressStore();
+        await using var coordinator = CreateCoordinator(localCoordinator, readingProgressStore: readingProgressStore);
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
         localCoordinator.SetPosition(420);
@@ -74,6 +75,7 @@ public sealed class BookPlaybackCoordinatorTests
         await coordinator.PauseAsync(CancellationToken.None);
         Assert.Equal(PlaybackState.Paused, coordinator.CurrentSnapshot.State);
         Assert.Equal(420, coordinator.CurrentSnapshot.PositionMilliseconds);
+        Assert.Equal(420, Assert.Single(readingProgressStore.SavedProgress).AudioPositionMilliseconds);
 
         await coordinator.ResumeAsync(CancellationToken.None);
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
@@ -173,19 +175,107 @@ public sealed class BookPlaybackCoordinatorTests
         Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
     }
 
+    [Fact]
+    public async Task StartAsync_without_explicit_position_restores_saved_progress()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var readingProgressStore = new FakeReadingProgressStore
+        {
+            StoredProgress = new ReadingProgressEntry("book-1", 0, 1, 6, 333, "2026-06-25T00:00:00.0000000Z")
+        };
+        await using var coordinator = CreateCoordinator(localCoordinator, readingProgressStore: readingProgressStore);
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+
+        Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(333, localCoordinator.LastStartedRequest?.ResumePositionMilliseconds);
+    }
+
+    [Fact]
+    public async Task StartAsync_with_explicit_position_ignores_saved_progress()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var readingProgressStore = new FakeReadingProgressStore
+        {
+            StoredProgress = new ReadingProgressEntry("book-1", 0, 1, 6, 333, "2026-06-25T00:00:00.0000000Z")
+        };
+        await using var coordinator = CreateCoordinator(localCoordinator, readingProgressStore: readingProgressStore);
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", 0, 0, null, 10), CancellationToken.None);
+
+        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(0, localCoordinator.LastStartedRequest?.ResumePositionMilliseconds);
+    }
+
+    [Fact]
+    public async Task StartAsync_remaps_saved_progress_by_character_offset_when_segment_index_is_missing()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var readingProgressStore = new FakeReadingProgressStore
+        {
+            StoredProgress = new ReadingProgressEntry("book-1", 0, 8, 6, 333, "2026-06-25T00:00:00.0000000Z")
+        };
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            readingProgressStore: readingProgressStore,
+            book: CreateRemappedBook());
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+
+        Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(0, localCoordinator.LastStartedRequest?.ResumePositionMilliseconds);
+    }
+
+    [Fact]
+    public async Task NextSegmentAsync_saves_previous_progress_before_switching_segments()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var readingProgressStore = new FakeReadingProgressStore();
+        await using var coordinator = CreateCoordinator(localCoordinator, readingProgressStore: readingProgressStore);
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        localCoordinator.SetPosition(240);
+
+        await coordinator.NextSegmentAsync(CancellationToken.None);
+
+        var saved = Assert.Single(readingProgressStore.SavedProgress);
+        Assert.Equal(0, saved.SegmentIndex);
+        Assert.Equal(0, saved.CharacterOffset);
+        Assert.Equal(240, saved.AudioPositionMilliseconds);
+        Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_saves_current_progress_before_releasing_session()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var readingProgressStore = new FakeReadingProgressStore();
+        var coordinator = CreateCoordinator(localCoordinator, readingProgressStore: readingProgressStore);
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        localCoordinator.SetPosition(512);
+
+        await coordinator.DisposeAsync();
+
+        var saved = Assert.Single(readingProgressStore.SavedProgress);
+        Assert.Equal(512, saved.AudioPositionMilliseconds);
+        Assert.Equal(0, saved.CharacterOffset);
+    }
+
     private static PlaybackCoordinator CreateCoordinator(
         FakeLocalAudioPlaybackCoordinator localCoordinator,
         FakeBookPlaybackContentService? bookContentService = null,
         FakeSelectedTtsRuleProvider? selectedRuleProvider = null,
         FakePlaybackAudioProvider? audioProvider = null,
-        PlaybackBookContent? book = null)
+        PlaybackBookContent? book = null,
+        FakeReadingProgressStore? readingProgressStore = null)
     {
         return new PlaybackCoordinator(
             bookContentService ?? new FakeBookPlaybackContentService(book ?? CreateBook()),
             selectedRuleProvider ?? new FakeSelectedTtsRuleProvider(CreateRuleSelection(1, "默认规则")),
             audioProvider ?? new FakePlaybackAudioProvider(),
             localCoordinator,
-            new FakeReadingProgressStore(),
+            readingProgressStore ?? new FakeReadingProgressStore(),
             new FakePrefetchScheduler());
     }
 
@@ -219,6 +309,22 @@ public sealed class BookPlaybackCoordinatorTests
                     1,
                     "第二章 延续",
                     [new SpeechSegment(0, 6, 6, "第二章 第一段", "第二章 第一段")])
+            ]);
+    }
+
+    private static PlaybackBookContent CreateRemappedBook()
+    {
+        return new PlaybackBookContent(
+            "book-1",
+            "示例小说",
+            [
+                new PlaybackChapterContent(
+                    0,
+                    "第一章 开始",
+                    [
+                        new SpeechSegment(0, 0, 3, "甲段", "甲段"),
+                        new SpeechSegment(1, 6, 3, "乙段", "乙段")
+                    ])
             ]);
     }
 
@@ -454,10 +560,32 @@ public sealed class BookPlaybackCoordinatorTests
     {
         public List<PlaybackProgressUpdate> SavedProgress { get; } = [];
 
+        public ReadingProgressEntry? StoredProgress { get; set; }
+
         public Task SaveAsync(PlaybackProgressUpdate progress, CancellationToken cancellationToken)
         {
             SavedProgress.Add(progress);
+            StoredProgress = new ReadingProgressEntry(
+                progress.BookId,
+                progress.ChapterIndex,
+                progress.SegmentIndex,
+                progress.CharacterOffset,
+                progress.AudioPositionMilliseconds,
+                DateTime.UtcNow.ToString("O"));
             return Task.CompletedTask;
+        }
+
+        public Task<ReadingProgressEntry?> GetAsync(string bookId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(
+                StoredProgress is not null && string.Equals(StoredProgress.BookId, bookId, StringComparison.Ordinal)
+                    ? StoredProgress
+                    : null);
+        }
+
+        public Task<ReadingProgressEntry?> GetMostRecentAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(StoredProgress);
         }
     }
 
