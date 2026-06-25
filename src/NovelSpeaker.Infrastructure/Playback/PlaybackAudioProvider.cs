@@ -66,7 +66,16 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
             return new PlaybackAudioResult(null, false, execution.Failure);
         }
 
-        var stored = await _audioCache.StoreAsync(cacheKey, execution.Audio!.FilePath, cancellationToken);
+        var stored = await _audioCache.StoreAsync(
+            new AudioCacheWriteRequest(
+                cacheKey,
+                request.BookId,
+                request.ChapterIndex,
+                request.SegmentIndex,
+                request.RuleId,
+                execution.Audio!.FilePath,
+                execution.Audio.ResponseContentType),
+            cancellationToken);
         return new PlaybackAudioResult(stored.FilePath, false, null);
     }
 

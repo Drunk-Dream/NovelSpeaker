@@ -113,6 +113,30 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
                 UpdatedAt TEXT NOT NULL,
                 FOREIGN KEY(BookId) REFERENCES Books(Id) ON DELETE CASCADE
             );
+            """),
+        new(
+            7,
+            """
+            CREATE TABLE AudioCacheEntries (
+                CacheKey TEXT NOT NULL PRIMARY KEY,
+                BookId TEXT NOT NULL,
+                ChapterIndex INTEGER NOT NULL,
+                SegmentIndex INTEGER NOT NULL,
+                RuleId INTEGER NOT NULL,
+                FilePath TEXT NOT NULL,
+                ContentType TEXT NULL,
+                FileSize INTEGER NOT NULL CHECK(FileSize >= 0),
+                DurationMilliseconds INTEGER NULL,
+                CreatedAt TEXT NOT NULL,
+                LastAccessedAt TEXT NOT NULL,
+                Status INTEGER NOT NULL
+            );
+
+            CREATE INDEX IX_AudioCacheEntries_BookId_ChapterIndex
+                ON AudioCacheEntries(BookId, ChapterIndex);
+
+            CREATE INDEX IX_AudioCacheEntries_LastAccessedAt
+                ON AudioCacheEntries(LastAccessedAt);
             """)
     ];
 

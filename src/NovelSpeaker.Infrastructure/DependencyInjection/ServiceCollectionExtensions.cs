@@ -35,7 +35,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IBookPlaybackContentService, BookPlaybackContentService>();
         services.AddSingleton<ISelectedTtsRuleProvider, SelectedTtsRuleProvider>();
         services.AddSingleton<IPlaybackAudioProvider, PlaybackAudioProvider>();
-        services.AddSingleton<IAudioCache, NoOpAudioCache>();
+        services.AddSingleton(AudioCacheOptions.Default);
+        services.AddSingleton<IAudioCacheProtectionRegistry, AudioCacheProtectionRegistry>();
+        services.AddSingleton<SqliteAudioCache>();
+        services.AddSingleton<IAudioCache>(serviceProvider => serviceProvider.GetRequiredService<SqliteAudioCache>());
+        services.AddSingleton<IAudioCacheManagementService>(serviceProvider => serviceProvider.GetRequiredService<SqliteAudioCache>());
         services.AddSingleton<IPrefetchScheduler, NoOpPrefetchScheduler>();
         services.AddSingleton<IReadingProgressStore, SqliteReadingProgressStore>();
         services.AddSingleton<ITextSegmenter, TextSegmenter>();
