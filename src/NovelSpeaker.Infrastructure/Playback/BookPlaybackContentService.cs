@@ -6,7 +6,7 @@ using NovelSpeaker.Domain.Books;
 namespace NovelSpeaker.Infrastructure.Playback;
 
 /// <summary>
-/// Loads persisted books and computes playback-ready speech segments on demand.
+/// Loads playback book metadata first and segments individual chapters only when playback needs them.
 /// </summary>
 public sealed class BookPlaybackContentService : IBookPlaybackContentService
 {
@@ -28,7 +28,7 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
 
-        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken);
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         var bookCommand = connection.CreateCommand();
         bookCommand.CommandText =
@@ -40,9 +40,9 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
         bookCommand.Parameters.AddWithValue("$id", bookId);
 
         string? title = null;
-        await using (var bookReader = await bookCommand.ExecuteReaderAsync(cancellationToken))
+        await using (var bookReader = await bookCommand.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
         {
-            if (!await bookReader.ReadAsync(cancellationToken))
+            if (!await bookReader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
                 return null;
             }
@@ -53,7 +53,7 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
         var chapterCommand = connection.CreateCommand();
         chapterCommand.CommandText =
             """
-            SELECT Id, BookId, ChapterIndex, SortOrder, Title, Content, StartOffset, Length
+            SELECT ChapterIndex, Title
             FROM Chapters
             WHERE BookId = $bookId
             ORDER BY SortOrder, ChapterIndex;
@@ -61,28 +61,62 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
         chapterCommand.Parameters.AddWithValue("$bookId", bookId);
 
         var chapters = new List<PlaybackChapterContent>();
-        var options = _optionsProvider.GetCurrent();
-
-        await using var chapterReader = await chapterCommand.ExecuteReaderAsync(cancellationToken);
-        while (await chapterReader.ReadAsync(cancellationToken))
+        await using var chapterReader = await chapterCommand.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await chapterReader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            var chapter = new Chapter(
-                chapterReader.GetString(0),
-                chapterReader.GetString(1),
-                chapterReader.GetInt32(2),
-                chapterReader.GetInt32(3),
-                chapterReader.GetString(4),
-                chapterReader.GetString(5),
-                chapterReader.GetInt32(6),
-                chapterReader.GetInt32(7));
-
-            var segments = _textSegmenter.Segment(chapter, options);
             chapters.Add(new PlaybackChapterContent(
-                chapter.ChapterIndex,
-                chapter.Title,
-                segments));
+                chapterReader.GetInt32(0),
+                chapterReader.GetString(1),
+                []));
         }
 
         return new PlaybackBookContent(bookId, title!, chapters);
+    }
+
+    public async Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+        var chapterCommand = connection.CreateCommand();
+        chapterCommand.CommandText =
+            """
+            SELECT Id, BookId, ChapterIndex, SortOrder, Title, Content, StartOffset, Length
+            FROM Chapters
+            WHERE BookId = $bookId AND ChapterIndex = $chapterIndex
+            ORDER BY SortOrder, ChapterIndex
+            LIMIT 1;
+            """;
+        chapterCommand.Parameters.AddWithValue("$bookId", bookId);
+        chapterCommand.Parameters.AddWithValue("$chapterIndex", chapterIndex);
+
+        await using var chapterReader = await chapterCommand.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (!await chapterReader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        var chapter = new Chapter(
+            chapterReader.GetString(0),
+            chapterReader.GetString(1),
+            chapterReader.GetInt32(2),
+            chapterReader.GetInt32(3),
+            chapterReader.GetString(4),
+            chapterReader.GetString(5),
+            chapterReader.GetInt32(6),
+            chapterReader.GetInt32(7));
+        var options = _optionsProvider.GetCurrent();
+
+        var segments = await Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return _textSegmenter.Segment(chapter, options);
+        }, cancellationToken).ConfigureAwait(false);
+
+        return new PlaybackChapterContent(
+            chapter.ChapterIndex,
+            chapter.Title,
+            segments);
     }
 }
