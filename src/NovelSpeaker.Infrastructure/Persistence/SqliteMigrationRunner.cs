@@ -100,6 +100,19 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
             5,
             """
             SELECT 1;
+            """),
+        new(
+            6,
+            """
+            CREATE TABLE ReadingProgress (
+                BookId TEXT NOT NULL PRIMARY KEY,
+                ChapterIndex INTEGER NOT NULL,
+                SegmentIndex INTEGER NOT NULL,
+                CharacterOffset INTEGER NOT NULL,
+                AudioPositionMilliseconds INTEGER NOT NULL,
+                UpdatedAt TEXT NOT NULL,
+                FOREIGN KEY(BookId) REFERENCES Books(Id) ON DELETE CASCADE
+            );
             """)
     ];
 

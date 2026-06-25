@@ -37,7 +37,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPlaybackAudioProvider, PlaybackAudioProvider>();
         services.AddSingleton<IAudioCache, NoOpAudioCache>();
         services.AddSingleton<IPrefetchScheduler, NoOpPrefetchScheduler>();
-        services.AddSingleton<IReadingProgressStore, NoOpReadingProgressStore>();
+        services.AddSingleton<IReadingProgressStore, SqliteReadingProgressStore>();
         services.AddSingleton<ITextSegmenter, TextSegmenter>();
         services.AddSingleton<IChapterRuleRepository, ChapterRuleRepository>();
         services.AddSingleton<ITtsRuleRepository, TtsRuleRepository>();
