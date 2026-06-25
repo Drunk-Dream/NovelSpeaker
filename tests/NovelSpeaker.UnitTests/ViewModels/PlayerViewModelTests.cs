@@ -113,6 +113,43 @@ public sealed class PlayerViewModelTests
     }
 
     [Fact]
+    public async Task LoadAsync_preserves_current_selections_when_lists_refresh()
+    {
+        var coordinator = new FakePlaybackCoordinator();
+        var catalogService = new MutableBookCatalogService([
+            new BookSummary("book-1", "示例小说一", null, "第一章", "2026-06-24"),
+            new BookSummary("book-2", "示例小说二", null, "第二章", "2026-06-24")
+        ]);
+        var ruleService = new MutableTtsRuleLibraryService([
+            new TtsRuleSummary(1, "规则一", true, false, null, TtsRuleCompatibilityStatus.Compatible, []),
+            new TtsRuleSummary(2, "规则二", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])
+        ]);
+        var viewModel = new PlayerViewModel(
+            coordinator,
+            catalogService,
+            ruleService,
+            new FakeAppSettingsStore(AppSettings.Default));
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.SelectedBook = viewModel.Books[1];
+        viewModel.SelectedRule = viewModel.Rules[1];
+
+        catalogService.Books = [
+            new BookSummary("book-2", "示例小说二", null, "第二章", "2026-06-25"),
+            new BookSummary("book-1", "示例小说一", null, "第一章", "2026-06-25")
+        ];
+        ruleService.Rules = [
+            new TtsRuleSummary(2, "规则二", true, true, null, TtsRuleCompatibilityStatus.Compatible, []),
+            new TtsRuleSummary(1, "规则一", true, false, null, TtsRuleCompatibilityStatus.Compatible, [])
+        ];
+
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        Assert.Equal("book-2", viewModel.SelectedBook?.Id);
+        Assert.Equal(2, viewModel.SelectedRule?.Id);
+    }
+
+    [Fact]
     public void SnapshotChanged_updates_error_projection()
     {
         var coordinator = new FakePlaybackCoordinator();
@@ -266,6 +303,26 @@ public sealed class PlayerViewModelTests
         }
     }
 
+    private sealed class MutableBookCatalogService : IBookCatalogService
+    {
+        public MutableBookCatalogService(IReadOnlyList<BookSummary> books)
+        {
+            Books = books;
+        }
+
+        public IReadOnlyList<BookSummary> Books { get; set; }
+
+        public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(Books);
+        }
+
+        public Task<ContinueListeningSummary?> GetContinueListeningAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult<ContinueListeningSummary?>(null);
+        }
+    }
+
     private sealed class FakeAppSettingsStore : IAppSettingsStore
     {
         public FakeAppSettingsStore(AppSettings settings)
@@ -296,6 +353,51 @@ public sealed class PlayerViewModelTests
         public Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult(_rules);
+        }
+
+        public Task<TtsRuleImportPreview> CreateImportPreviewAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task SelectRuleAsync(long? ruleId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class MutableTtsRuleLibraryService : ITtsRuleLibraryService
+    {
+        public MutableTtsRuleLibraryService(IReadOnlyList<TtsRuleSummary> rules)
+        {
+            Rules = rules;
+        }
+
+        public IReadOnlyList<TtsRuleSummary> Rules { get; set; }
+
+        public Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(Rules);
         }
 
         public Task<TtsRuleImportPreview> CreateImportPreviewAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken)

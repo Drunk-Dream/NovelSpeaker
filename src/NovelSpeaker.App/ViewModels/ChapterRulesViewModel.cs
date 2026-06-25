@@ -25,11 +25,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
         var rules = await _repository.GetAllAsync(cancellationToken);
-        Rules.Clear();
-        foreach (var rule in rules)
-        {
-            Rules.Add(Map(rule));
-        }
+        Rules.ReplaceWith(rules, Map);
     }
 
     public async Task ImportDefaultsAsync(CancellationToken cancellationToken)
@@ -41,14 +37,15 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
 
     public async Task SaveRuleAsync(ChapterRuleDraft rule, CancellationToken cancellationToken)
     {
+        var utcNow = DateTime.UtcNow.ToString("O");
         await _repository.SaveAsync(new ChapterRule(
             rule.Id,
             rule.Name,
             rule.Pattern,
             rule.SortOrder,
             rule.IsEnabled,
-            DateTime.UtcNow.ToString("O"),
-            DateTime.UtcNow.ToString("O")), cancellationToken);
+            utcNow,
+            utcNow), cancellationToken);
         await LoadAsync(cancellationToken);
         StatusMessage = $"已保存规则：{rule.Name}";
     }

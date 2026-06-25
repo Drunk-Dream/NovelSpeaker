@@ -57,18 +57,13 @@ public sealed partial class LibraryViewModel : ObservableObject
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
         var books = await _bookCatalogService.GetBooksAsync(cancellationToken);
-        Books.Clear();
-
-        foreach (var book in books)
-        {
-            Books.Add(new LibraryBookItemViewModel(
-                book.Id,
-                book.Title,
-                book.Author,
-                book.CurrentChapterTitle,
-                book.ImportedAt,
-                book.LastPlayedAt));
-        }
+        Books.ReplaceWith(books, book => new LibraryBookItemViewModel(
+            book.Id,
+            book.Title,
+            book.Author,
+            book.CurrentChapterTitle,
+            book.ImportedAt,
+            book.LastPlayedAt));
     }
 
     public async Task ImportFileAsync(string filePath, CancellationToken cancellationToken)

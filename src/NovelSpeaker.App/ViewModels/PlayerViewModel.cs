@@ -88,36 +88,30 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         var settings = await _settingsStore.LoadAsync(cancellationToken);
         var books = await _bookCatalogService.GetBooksAsync(cancellationToken);
-        Books.Clear();
-        foreach (var book in books)
-        {
-            Books.Add(new LibraryBookItemViewModel(
-                book.Id,
-                book.Title,
-                book.Author,
-                book.CurrentChapterTitle,
-                book.ImportedAt,
-                book.LastPlayedAt));
-        }
+        Books.ReplaceWith(books, book => new LibraryBookItemViewModel(
+            book.Id,
+            book.Title,
+            book.Author,
+            book.CurrentChapterTitle,
+            book.ImportedAt,
+            book.LastPlayedAt));
 
         var rules = await _ruleLibraryService.GetRulesAsync(cancellationToken);
-        Rules.Clear();
-        foreach (var rule in rules)
-        {
-            Rules.Add(new PlayerRuleItemViewModel(rule.Id, rule.Name, rule.IsEnabled, rule.IsSelected));
-        }
+        Rules.ReplaceWith(rules, rule => new PlayerRuleItemViewModel(rule.Id, rule.Name, rule.IsEnabled, rule.IsSelected));
 
-        SelectedBook = CurrentSnapshotBookId() is { } snapshotBookId
-            ? Books.FirstOrDefault(book => book.Id == snapshotBookId) ?? Books.FirstOrDefault()
-            : SelectedBook is not null
-                ? Books.FirstOrDefault(book => book.Id == SelectedBook.Id) ?? Books.FirstOrDefault()
-                : Books.FirstOrDefault();
+        var snapshot = _playbackCoordinator.CurrentSnapshot;
+        SelectedBook = Books.SelectByKeyOrFallback(
+            snapshot.BookId,
+            book => book.Id,
+            SelectedBook);
 
-        SelectedRule = _playbackCoordinator.CurrentSnapshot.RuleId is { } ruleId
-            ? Rules.FirstOrDefault(rule => rule.Id == ruleId) ?? Rules.FirstOrDefault(rule => rule.IsSelected)
-            : Rules.FirstOrDefault(rule => rule.IsSelected);
+        SelectedRule = Rules.SelectByKeyOrFallback(
+            snapshot.RuleId,
+            rule => rule.Id,
+            SelectedRule,
+            rule => rule.IsSelected);
 
-        if (string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId))
+        if (string.IsNullOrWhiteSpace(snapshot.BookId))
         {
             SpeakSpeed = settings.DefaultSpeakSpeed;
         }
@@ -263,20 +257,17 @@ public sealed partial class PlayerViewModel : ObservableObject
 
         if (!string.IsNullOrWhiteSpace(snapshot.BookId))
         {
-            SelectedBook = Books.FirstOrDefault(book => book.Id == snapshot.BookId) ?? SelectedBook;
+            SelectedBook = Books.SelectByKeyOrFallback(snapshot.BookId, book => book.Id, SelectedBook);
         }
 
         if (snapshot.RuleId is not null)
         {
-            SelectedRule = Rules.FirstOrDefault(rule => rule.Id == snapshot.RuleId.Value) ?? SelectedRule;
+            SelectedRule = Rules.SelectByKeyOrFallback(
+                snapshot.RuleId,
+                rule => rule.Id,
+                SelectedRule,
+                rule => rule.IsSelected);
         }
-    }
-
-    private string? CurrentSnapshotBookId()
-    {
-        return string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId)
-            ? null
-            : _playbackCoordinator.CurrentSnapshot.BookId;
     }
 
     private static string BuildStatusText(PlaybackSnapshot snapshot)
