@@ -15,6 +15,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     private readonly IBookPlaybackContentService _bookContentService;
     private readonly ISelectedTtsRuleProvider _selectedRuleProvider;
     private readonly IPlaybackAudioProvider _audioProvider;
+    private readonly IAudioCacheProtectionRegistry _audioCacheProtectionRegistry;
     private readonly ILocalAudioPlaybackCoordinator _localAudioPlaybackCoordinator;
     private readonly IReadingProgressStore _readingProgressStore;
     private readonly IPrefetchScheduler _prefetchScheduler;
@@ -24,6 +25,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     private PlaybackBookContent? _currentBook;
     private PlaybackSession? _currentSession;
     private SelectedPlaybackRule? _currentRule;
+    private IDisposable? _currentAudioProtection;
     private TtsErrorKind? _lastFailureKind;
     private string? _lastRecoveredCorruptSegmentKey;
     private bool _disposed;
@@ -32,6 +34,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         IBookPlaybackContentService bookContentService,
         ISelectedTtsRuleProvider selectedRuleProvider,
         IPlaybackAudioProvider audioProvider,
+        IAudioCacheProtectionRegistry audioCacheProtectionRegistry,
         ILocalAudioPlaybackCoordinator localAudioPlaybackCoordinator,
         IReadingProgressStore readingProgressStore,
         IPrefetchScheduler prefetchScheduler)
@@ -39,6 +42,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         _bookContentService = bookContentService;
         _selectedRuleProvider = selectedRuleProvider;
         _audioProvider = audioProvider;
+        _audioCacheProtectionRegistry = audioCacheProtectionRegistry;
         _localAudioPlaybackCoordinator = localAudioPlaybackCoordinator;
         _readingProgressStore = readingProgressStore;
         _prefetchScheduler = prefetchScheduler;
@@ -136,6 +140,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             _localAudioPlaybackCoordinator.PlaybackCompleted -= OnLocalPlaybackCompleted;
             _localAudioPlaybackCoordinator.PlaybackFailed -= OnLocalPlaybackFailed;
             await DisposeSessionAsync().ConfigureAwait(false);
+            ClearProtectedPlaybackFile();
         }
         finally
         {
@@ -306,6 +311,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         await SaveProgressAsync(session, _localAudioPlaybackCoordinator.CurrentSnapshot.PositionMilliseconds, cancellationToken);
         await _prefetchScheduler.CancelAsync(session.SessionId, cancellationToken);
         await DisposeSessionAsync();
+        ClearProtectedPlaybackFile();
 
         PublishSnapshot(_currentSnapshot with
         {
@@ -642,6 +648,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         session.ConsecutiveSegmentFailureCount = 0;
         _lastFailureKind = null;
         _lastRecoveredCorruptSegmentKey = null;
+        ReplaceProtectedPlaybackFile(audio.FilePath);
 
         await _localAudioPlaybackCoordinator.StartAsync(
             new LocalAudioPlaybackRequest(
@@ -660,6 +667,11 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         }
 
         var local = _localAudioPlaybackCoordinator.CurrentSnapshot;
+        if (local.State is PlaybackState.Faulted or PlaybackState.Stopped)
+        {
+            ClearProtectedPlaybackFile();
+        }
+
         PublishSnapshot(BuildSnapshot(
             local.State,
             _currentBook,
@@ -1257,6 +1269,21 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         _currentSession.Cancel();
         await _currentSession.DisposeAsync();
         _currentSession = null;
+    }
+
+    private void ReplaceProtectedPlaybackFile(string? filePath)
+    {
+        ClearProtectedPlaybackFile();
+        if (!string.IsNullOrWhiteSpace(filePath))
+        {
+            _currentAudioProtection = _audioCacheProtectionRegistry.Protect(filePath);
+        }
+    }
+
+    private void ClearProtectedPlaybackFile()
+    {
+        _currentAudioProtection?.Dispose();
+        _currentAudioProtection = null;
     }
 
     private async Task RunSerializedAsync(Func<CancellationToken, Task> action, CancellationToken cancellationToken)

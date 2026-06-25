@@ -3,9 +3,9 @@ using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Abstractions;
+using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using NovelSpeaker.Infrastructure.FileSystem;
-using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.App.ViewModels;
 
 namespace NovelSpeaker.App;
@@ -79,19 +79,16 @@ public partial class App : System.Windows.Application
         await ReportStartupStageAsync("storage", "正在初始化应用数据目录。", "正在准备数据库和本地目录。");
         await directories.EnsureCreatedAsync(CancellationToken.None);
 
-        await ReportStartupStageAsync("database-migrations", "正在运行数据库迁移。", "正在确保本地数据库可用。");
-        var migrationRunner = _serviceProvider.GetRequiredService<SqliteMigrationRunner>();
-        await migrationRunner.InitializeAsync(CancellationToken.None);
-
-        await ReportStartupStageAsync("chapter-rule-seeding", "正在导入默认章节规则。", "首次启动时会写入内置章节规则。");
-        var chapterRuleSeeder = _serviceProvider.GetRequiredService<DefaultChapterRuleSeeder>();
-        await chapterRuleSeeder.SeedAsync(CancellationToken.None);
+        await ReportStartupStageAsync("database-initialization", "正在初始化数据库。", "正在运行数据库迁移并准备默认数据。");
+        var initializer = _serviceProvider.GetRequiredService<IDatabaseInitializer>();
+        await initializer.InitializeAsync(CancellationToken.None);
 
         await ReportStartupStageAsync("shell", "正在创建主窗口。", "启动完成后将进入书库首页。");
         var window = _serviceProvider.GetRequiredService<MainWindow>();
         _startupStatusWindow?.Close();
         _startupStatusWindow = null;
         window.Show();
+        StartBackgroundCacheMaintenance();
     }
 
     private async Task ReportStartupStageAsync(string stage, string status, string detail)
@@ -122,6 +119,28 @@ public partial class App : System.Windows.Application
             MessageBoxImage.Error);
 
         Shutdown(-1);
+    }
+
+    private void StartBackgroundCacheMaintenance()
+    {
+        if (_serviceProvider is null)
+        {
+            return;
+        }
+
+        var cacheManagement = _serviceProvider.GetRequiredService<IAudioCacheManagementService>();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await cacheManagement.RunMaintenanceAsync(CancellationToken.None);
+                _startupDiagnostics?.RecordStage("audio-cache-maintenance", "后台音频缓存维护完成。");
+            }
+            catch (Exception exception)
+            {
+                _startupDiagnostics?.RecordFailure("audio-cache-maintenance-failed", "后台音频缓存维护失败。", exception);
+            }
+        });
     }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
