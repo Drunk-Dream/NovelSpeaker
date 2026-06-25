@@ -1,7 +1,9 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.App.ViewModels;
+using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using Xunit;
 
@@ -33,7 +35,8 @@ public sealed class PlayerViewModelTests
         var viewModel = new PlayerViewModel(
             coordinator,
             new FakeBookCatalogService([]),
-            new FakeTtsRuleLibraryService([]));
+            new FakeTtsRuleLibraryService([]),
+            new FakeAppSettingsStore(AppSettings.Default));
 
         Assert.Equal("示例小说", viewModel.CurrentTitle);
         Assert.Equal("正在播放", viewModel.StatusText);
@@ -48,7 +51,8 @@ public sealed class PlayerViewModelTests
         var viewModel = new PlayerViewModel(
             coordinator,
             new FakeBookCatalogService([new BookSummary("book-1", "示例小说", null, "第一章 开始", "2026-06-24")]),
-            new FakeTtsRuleLibraryService([new TtsRuleSummary(5, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]));
+            new FakeTtsRuleLibraryService([new TtsRuleSummary(5, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]),
+            new FakeAppSettingsStore(AppSettings.Default));
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.StartSelectedBookCommand.ExecuteAsync(null);
@@ -82,7 +86,8 @@ public sealed class PlayerViewModelTests
         var viewModel = new PlayerViewModel(
             coordinator,
             new FakeBookCatalogService([]),
-            new FakeTtsRuleLibraryService([]));
+            new FakeTtsRuleLibraryService([]),
+            new FakeAppSettingsStore(AppSettings.Default));
 
         await viewModel.TogglePlayPauseCommand.ExecuteAsync(null);
 
@@ -96,7 +101,8 @@ public sealed class PlayerViewModelTests
         var viewModel = new PlayerViewModel(
             coordinator,
             new FakeBookCatalogService([]),
-            new FakeTtsRuleLibraryService([new TtsRuleSummary(9, "备用规则", true, false, null, TtsRuleCompatibilityStatus.Compatible, [])]));
+            new FakeTtsRuleLibraryService([new TtsRuleSummary(9, "备用规则", true, false, null, TtsRuleCompatibilityStatus.Compatible, [])]),
+            new FakeAppSettingsStore(AppSettings.Default));
 
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SelectedRule = viewModel.Rules.Single();
@@ -113,7 +119,8 @@ public sealed class PlayerViewModelTests
         var viewModel = new PlayerViewModel(
             coordinator,
             new FakeBookCatalogService([]),
-            new FakeTtsRuleLibraryService([]));
+            new FakeTtsRuleLibraryService([]),
+            new FakeAppSettingsStore(AppSettings.Default));
 
         coordinator.Publish(new PlaybackSnapshot(
             PlaybackState.Faulted,
@@ -251,6 +258,29 @@ public sealed class PlayerViewModelTests
         public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult(_books);
+        }
+
+        public Task<ContinueListeningSummary?> GetContinueListeningAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult<ContinueListeningSummary?>(null);
+        }
+    }
+
+    private sealed class FakeAppSettingsStore : IAppSettingsStore
+    {
+        public FakeAppSettingsStore(AppSettings settings)
+        {
+            Settings = settings;
+        }
+
+        public AppSettings Settings { get; private set; }
+
+        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(Settings);
+
+        public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
+        {
+            Settings = settings;
+            return Task.CompletedTask;
         }
     }
 

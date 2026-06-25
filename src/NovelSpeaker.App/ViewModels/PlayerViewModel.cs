@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 
 namespace NovelSpeaker.App.ViewModels;
@@ -12,15 +13,18 @@ public sealed partial class PlayerViewModel : ObservableObject
     private readonly IPlaybackCoordinator _playbackCoordinator;
     private readonly IBookCatalogService _bookCatalogService;
     private readonly ITtsRuleLibraryService _ruleLibraryService;
+    private readonly IAppSettingsStore _settingsStore;
 
     public PlayerViewModel(
         IPlaybackCoordinator playbackCoordinator,
         IBookCatalogService bookCatalogService,
-        ITtsRuleLibraryService ruleLibraryService)
+        ITtsRuleLibraryService ruleLibraryService,
+        IAppSettingsStore settingsStore)
     {
         _playbackCoordinator = playbackCoordinator;
         _bookCatalogService = bookCatalogService;
         _ruleLibraryService = ruleLibraryService;
+        _settingsStore = settingsStore;
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
         _playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
     }
@@ -82,6 +86,7 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
+        var settings = await _settingsStore.LoadAsync(cancellationToken);
         var books = await _bookCatalogService.GetBooksAsync(cancellationToken);
         Books.Clear();
         foreach (var book in books)
@@ -91,7 +96,8 @@ public sealed partial class PlayerViewModel : ObservableObject
                 book.Title,
                 book.Author,
                 book.CurrentChapterTitle,
-                book.ImportedAt));
+                book.ImportedAt,
+                book.LastPlayedAt));
         }
 
         var rules = await _ruleLibraryService.GetRulesAsync(cancellationToken);
@@ -110,6 +116,11 @@ public sealed partial class PlayerViewModel : ObservableObject
         SelectedRule = _playbackCoordinator.CurrentSnapshot.RuleId is { } ruleId
             ? Rules.FirstOrDefault(rule => rule.Id == ruleId) ?? Rules.FirstOrDefault(rule => rule.IsSelected)
             : Rules.FirstOrDefault(rule => rule.IsSelected);
+
+        if (string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId))
+        {
+            SpeakSpeed = settings.DefaultSpeakSpeed;
+        }
     }
 
     [RelayCommand]
