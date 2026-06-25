@@ -274,6 +274,7 @@ public sealed class BookPlaybackCoordinatorTests
             bookContentService ?? new FakeBookPlaybackContentService(book ?? CreateBook()),
             selectedRuleProvider ?? new FakeSelectedTtsRuleProvider(CreateRuleSelection(1, "默认规则")),
             audioProvider ?? new FakePlaybackAudioProvider(),
+            new AudioCacheProtectionRegistry(),
             localCoordinator,
             readingProgressStore ?? new FakeReadingProgressStore(),
             new FakePrefetchScheduler());
