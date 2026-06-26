@@ -39,7 +39,9 @@ public sealed class BookPlaybackCoordinatorTests
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
         localCoordinator.RaiseCompleted();
 
-        await WaitForAsync(() => coordinator.CurrentSnapshot.SegmentIndex == 1);
+        await WaitForAsync(() =>
+            coordinator.CurrentSnapshot.SegmentIndex == 1 &&
+            coordinator.CurrentSnapshot.State == PlaybackState.Playing);
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
         Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
     }
