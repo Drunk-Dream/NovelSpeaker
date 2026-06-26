@@ -26,6 +26,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddNovelSpeakerInfrastructure(this IServiceCollection services)
     {
         services.AddSingleton<IAppDataDirectoryProvider, LocalAppDataDirectoryProvider>();
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ISqliteConnectionFactory, SqliteConnectionFactory>();
         services.AddSingleton<SqliteMigrationRunner>();
         services.AddSingleton<IAudioPlayer, NaudioAudioPlayer>();
@@ -40,7 +41,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<SqliteAudioCache>();
         services.AddSingleton<IAudioCache>(serviceProvider => serviceProvider.GetRequiredService<SqliteAudioCache>());
         services.AddSingleton<IAudioCacheManagementService>(serviceProvider => serviceProvider.GetRequiredService<SqliteAudioCache>());
-        services.AddSingleton<IPrefetchScheduler, NoOpPrefetchScheduler>();
+        services.AddSingleton<IPrefetchScheduler, PrefetchScheduler>();
         services.AddSingleton<IReadingProgressStore, SqliteReadingProgressStore>();
         services.AddSingleton<ITextSegmenter, TextSegmenter>();
         services.AddSingleton<IChapterRuleRepository, ChapterRuleRepository>();
@@ -48,6 +49,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITtsRuleConverter, LegadoRuleConverter>();
         services.AddSingleton<ITemplateEvaluator, JintTemplateEvaluator>();
         services.AddSingleton<ITtsRequestCompiler, TtsRequestCompiler>();
+        services.AddSingleton<ITtsRateLimiter, TtsRateLimiter>();
         services.AddSingleton<IHttpTtsClient, HttpTtsClient>();
         services.AddSingleton<ITtsRuleTestService, TtsRuleTestService>();
         services.AddSingleton<ITtsRuleLibraryService, TtsRuleLibraryService>();

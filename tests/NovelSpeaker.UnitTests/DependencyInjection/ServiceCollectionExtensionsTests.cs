@@ -3,6 +3,7 @@ using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Speech;
 using NovelSpeaker.App;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.Infrastructure.DependencyInjection;
@@ -47,11 +48,13 @@ public sealed class ServiceCollectionExtensionsTests
                     Assert.IsAssignableFrom<IBookPlaybackContentService>(provider.GetRequiredService<IBookPlaybackContentService>());
                     Assert.IsAssignableFrom<ISelectedTtsRuleProvider>(provider.GetRequiredService<ISelectedTtsRuleProvider>());
                     Assert.IsAssignableFrom<IPlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
+                    Assert.IsAssignableFrom<ITtsRateLimiter>(provider.GetRequiredService<ITtsRateLimiter>());
                     Assert.IsAssignableFrom<IAudioCache>(provider.GetRequiredService<IAudioCache>());
                     Assert.IsAssignableFrom<IAudioCacheManagementService>(provider.GetRequiredService<IAudioCacheManagementService>());
                     Assert.IsAssignableFrom<IAudioCacheProtectionRegistry>(provider.GetRequiredService<IAudioCacheProtectionRegistry>());
                     Assert.IsAssignableFrom<IPrefetchScheduler>(provider.GetRequiredService<IPrefetchScheduler>());
                     Assert.IsAssignableFrom<IReadingProgressStore>(provider.GetRequiredService<IReadingProgressStore>());
+                    Assert.IsAssignableFrom<TimeProvider>(provider.GetRequiredService<TimeProvider>());
                     Assert.IsType<MainWindow>(provider.GetRequiredService<MainWindow>());
                 }
                 finally
