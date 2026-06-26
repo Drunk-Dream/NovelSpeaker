@@ -141,6 +141,131 @@ public sealed class TtsRuleLibraryServiceTests
         Assert.Empty(repository.Rules);
     }
 
+    [Fact]
+    public async Task GetEditorAsync_and_SaveEditorAsync_roundtrip_structured_request_options()
+    {
+        var utcNow = DateTime.UtcNow.ToString("O");
+        var repository = new FakeTtsRuleRepository([
+            new HttpTtsRule(
+                12,
+                "可编辑规则",
+                "https://example.com/tts",
+                "audio/mpeg",
+                "2/1000",
+                """{"Authorization":"Bearer demo"}""",
+                """{"method":"POST","headers":{"X-Test":"1"},"body":{"text":"{{speakText}}"},"timeoutMs":5000}""",
+                true,
+                123,
+                """{"name":"可编辑规则","url":"https://example.com/tts","contentType":"audio/mpeg","concurrentRate":"2/1000","header":"{\"Authorization\":\"Bearer demo\"}","requestOptions":{"method":"POST","headers":{"X-Test":"1"},"body":{"text":"{{speakText}}"},"timeoutMs":5000},"enabledCookieJar":true,"lastUpdateTime":123}""",
+                true,
+                TtsRuleCompatibilityStatus.Compatible,
+                [],
+                utcNow,
+                utcNow,
+                utcNow)
+        ]);
+        var service = new TtsRuleLibraryService(repository, new FakeAppSettingsStore(AppSettings.Default), new LegadoRuleConverter());
+
+        var editor = await service.GetEditorAsync(12, CancellationToken.None);
+        var saved = await service.SaveEditorAsync(editor! with
+        {
+            Name = "已更新规则",
+            RequestOptions = editor.RequestOptions with
+            {
+                TimeoutMs = 8000
+            },
+            RawRuleJson = string.Empty
+        }, CancellationToken.None);
+
+        Assert.NotNull(editor);
+        Assert.Equal("POST", editor!.RequestOptions.Method);
+        Assert.Single(editor.RequestOptions.Headers);
+        Assert.Equal("已更新规则", saved.Name);
+        Assert.Contains(@"""timeoutMs"":8000", saved.RequestOptionsJson);
+    }
+
+    [Fact]
+    public async Task ValidateEditorAsync_rejects_raw_json_mismatch()
+    {
+        var service = new TtsRuleLibraryService(
+            new FakeTtsRuleRepository([]),
+            new FakeAppSettingsStore(AppSettings.Default),
+            new LegadoRuleConverter());
+        var editor = new TtsRuleEditorModel(
+            null,
+            "规则 A",
+            true,
+            "https://example.com/tts",
+            null,
+            null,
+            false,
+            null,
+            [],
+            new TtsRuleRequestOptionsEditor(null, [], null, null),
+            """{"name":"别的规则","url":"https://example.com/tts"}""",
+            TtsRuleCompatibilityStatus.Compatible,
+            []);
+
+        var validation = await service.ValidateEditorAsync(editor, CancellationToken.None);
+
+        Assert.False(validation.IsValid);
+        Assert.Contains(validation.Errors, error => error.Contains("不一致", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ApplyRuleMutationAsync_switches_to_replacement_when_disabling_current_rule()
+    {
+        var repository = new FakeTtsRuleRepository([
+            new HttpTtsRule(
+                1,
+                "当前规则",
+                "https://example.com/a",
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                """{"name":"当前规则","url":"https://example.com/a"}""",
+                true,
+                TtsRuleCompatibilityStatus.Compatible,
+                [],
+                null,
+                "created",
+                "updated"),
+            new HttpTtsRule(
+                2,
+                "替代规则",
+                "https://example.com/b",
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                """{"name":"替代规则","url":"https://example.com/b"}""",
+                true,
+                TtsRuleCompatibilityStatus.Compatible,
+                [],
+                null,
+                "created",
+                "updated")
+        ]);
+        var settingsStore = new FakeAppSettingsStore(AppSettings.Default with { SelectedTtsRuleId = 1 });
+        var service = new TtsRuleLibraryService(repository, settingsStore, new LegadoRuleConverter());
+
+        var protection = await service.GetRuleProtectionAsync(1, TtsRuleMutationAction.Disable, CancellationToken.None);
+        var result = await service.ApplyRuleMutationAsync(
+            new TtsRuleMutationDecision(1, TtsRuleMutationAction.Disable, 2, false),
+            CancellationToken.None);
+
+        Assert.False(protection.CanApplyDirectly);
+        Assert.Single(protection.ReplacementCandidates);
+        Assert.Equal(2, result.SelectedRuleId);
+        Assert.Equal(2, settingsStore.Current.SelectedTtsRuleId);
+        Assert.False(repository.Rules.Single(rule => rule.Id == 1).IsEnabled);
+    }
+
     private sealed class FakeAppSettingsStore : IAppSettingsStore
     {
         public FakeAppSettingsStore(AppSettings current)

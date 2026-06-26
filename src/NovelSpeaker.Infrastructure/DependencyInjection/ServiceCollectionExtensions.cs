@@ -45,6 +45,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IReadingProgressStore, SqliteReadingProgressStore>();
         services.AddSingleton<ITextSegmenter, TextSegmenter>();
         services.AddSingleton<IChapterRuleRepository, ChapterRuleRepository>();
+        services.AddSingleton<IChapterRuleManagementService, ChapterRuleManagementService>();
         services.AddSingleton<ITtsRuleRepository, TtsRuleRepository>();
         services.AddSingleton<ITtsRuleConverter, LegadoRuleConverter>();
         services.AddSingleton<ITemplateEvaluator, JintTemplateEvaluator>();
@@ -60,6 +61,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IBookDuplicateDetector, BookDuplicateDetector>();
         services.AddSingleton<IBookImportRepository, BookImportRepository>();
         services.AddSingleton<IBookCatalogService, BookCatalogService>();
+        services.AddSingleton<IBookManagementService, BookManagementService>();
         services.AddSingleton<IBookFileStore, BookFileStore>();
         services.AddSingleton<IBookImportService, BookImportService>();
         services.AddSingleton<JsonAppSettingsStore>();

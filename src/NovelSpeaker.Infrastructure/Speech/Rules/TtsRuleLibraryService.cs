@@ -12,6 +12,8 @@ namespace NovelSpeaker.Infrastructure.Speech.Rules;
 public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
 {
     private readonly ITtsRuleConverter _ruleConverter;
+    private static readonly JsonSerializerOptions SerializerOptions = new();
+
     public async Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken)
     {
         var rules = await _repository.GetAllAsync(cancellationToken);
@@ -83,6 +85,176 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
     {
         var rule = await _repository.GetByIdAsync(ruleId, cancellationToken);
         return rule?.RuleJson;
+    }
+
+    public async Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken)
+    {
+        var rule = await _repository.GetByIdAsync(ruleId, cancellationToken);
+        return rule is null ? null : ToEditor(rule);
+    }
+
+    public async Task<TtsRuleValidationResult> ValidateEditorAsync(
+        TtsRuleEditorModel editor,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(editor);
+
+        var existingRule = editor.Id is > 0
+            ? await _repository.GetByIdAsync(editor.Id.Value, cancellationToken)
+            : null;
+
+        var errors = new List<string>();
+        var normalizedEditor = NormalizeEditor(editor);
+
+        ValidateNameAndUrl(normalizedEditor, errors);
+        ValidateHeaders(normalizedEditor.Headers, "Header", errors);
+        ValidateRequestOptions(normalizedEditor.RequestOptions, errors);
+
+        var normalizedRule = BuildRuleFromEditor(normalizedEditor, existingRule);
+        normalizedRule = normalizedRule with
+        {
+            RuleJson = NovelSpeakerRuleJsonSerializer.Serialize(normalizedRule)
+        };
+
+        if (!string.IsNullOrWhiteSpace(normalizedEditor.RawRuleJson))
+        {
+            try
+            {
+                var canonicalRawJson = CanonicalizeRawRuleJson(normalizedEditor.RawRuleJson, normalizedRule);
+                if (!string.Equals(canonicalRawJson, normalizedRule.RuleJson, StringComparison.Ordinal))
+                {
+                    errors.Add("原始 JSON 与结构化字段不一致。");
+                }
+            }
+            catch (JsonException exception)
+            {
+                errors.Add($"原始 JSON 不是有效的 JSON 对象：{exception.Message}");
+            }
+            catch (InvalidOperationException exception)
+            {
+                errors.Add(exception.Message);
+            }
+        }
+
+        normalizedEditor = normalizedEditor with
+        {
+            RawRuleJson = normalizedRule.RuleJson
+        };
+
+        return new TtsRuleValidationResult(errors.Count == 0, errors, normalizedEditor);
+    }
+
+    public async Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken)
+    {
+        var validation = await ValidateEditorAsync(editor, cancellationToken);
+        if (!validation.IsValid)
+        {
+            throw new InvalidOperationException(string.Join(" ", validation.Errors));
+        }
+
+        var existingRule = validation.NormalizedModel.Id is > 0
+            ? await _repository.GetByIdAsync(validation.NormalizedModel.Id.Value, cancellationToken)
+            : null;
+        var rule = BuildRuleFromEditor(validation.NormalizedModel, existingRule);
+        rule = rule with
+        {
+            RuleJson = validation.NormalizedModel.RawRuleJson
+        };
+
+        var ruleId = await _repository.SaveAsync(rule, cancellationToken);
+        return (await _repository.GetByIdAsync(ruleId, cancellationToken))!;
+    }
+
+    public async Task<TtsRuleProtectionInfo> GetRuleProtectionAsync(
+        long ruleId,
+        TtsRuleMutationAction action,
+        CancellationToken cancellationToken)
+    {
+        var settings = await _settingsStore.LoadAsync(cancellationToken);
+        var isCurrentRule = settings.SelectedTtsRuleId == ruleId;
+        var rules = await GetRulesAsync(cancellationToken);
+        var replacementCandidates = rules
+            .Where(rule => rule.Id != ruleId && rule.IsEnabled)
+            .ToArray();
+
+        return new TtsRuleProtectionInfo(
+            ruleId,
+            action,
+            isCurrentRule,
+            !isCurrentRule,
+            isCurrentRule && replacementCandidates.Length == 0,
+            replacementCandidates);
+    }
+
+    public async Task<TtsRuleMutationResult> ApplyRuleMutationAsync(
+        TtsRuleMutationDecision decision,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(decision);
+
+        var protection = await GetRuleProtectionAsync(decision.RuleId, decision.Action, cancellationToken);
+        if (protection.IsCurrentRule && !protection.CanApplyDirectly)
+        {
+            if (decision.ReplacementRuleId is not null)
+            {
+                var replacementRule = await _repository.GetByIdAsync(decision.ReplacementRuleId.Value, cancellationToken);
+                if (replacementRule is null || !replacementRule.IsEnabled || replacementRule.Id == decision.RuleId)
+                {
+                    throw new InvalidOperationException("必须选择另一条已启用规则作为替代规则。");
+                }
+            }
+            else if (!decision.ClearSelectedRule || !protection.CanClearSelectedRule)
+            {
+                throw new InvalidOperationException("当前规则需要先选择替代规则，或在无替代规则时明确清空当前规则。");
+            }
+        }
+
+        switch (decision.Action)
+        {
+            case TtsRuleMutationAction.Disable:
+                {
+                    var rule = await _repository.GetByIdAsync(decision.RuleId, cancellationToken);
+                    if (rule is null)
+                    {
+                        throw new InvalidOperationException("未找到要禁用的规则。");
+                    }
+
+                    var utcNow = DateTime.UtcNow.ToString("O");
+                    await _repository.SaveAsync(rule with
+                    {
+                        IsEnabled = false,
+                        UpdatedAt = utcNow
+                    }, cancellationToken);
+                    break;
+                }
+            case TtsRuleMutationAction.Delete:
+                await _repository.DeleteAsync(decision.RuleId, cancellationToken);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(decision), decision.Action, null);
+        }
+
+        if (decision.ReplacementRuleId is not null)
+        {
+            await SelectRuleAsync(decision.ReplacementRuleId, cancellationToken);
+            return new TtsRuleMutationResult(
+                decision.RuleId,
+                decision.Action,
+                decision.ReplacementRuleId,
+                false);
+        }
+
+        if (protection.IsCurrentRule)
+        {
+            await UpdateSelectedRuleAsync(null, cancellationToken);
+        }
+
+        var settings = await _settingsStore.LoadAsync(cancellationToken);
+        return new TtsRuleMutationResult(
+            decision.RuleId,
+            decision.Action,
+            settings.SelectedTtsRuleId,
+            protection.IsCurrentRule && settings.SelectedTtsRuleId is null);
     }
 
     public async Task SelectRuleAsync(long? ruleId, CancellationToken cancellationToken)
@@ -248,6 +420,448 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             rule.LastUsedAt,
             rule.CompatibilityStatus,
             rule.UnsupportedFields);
+    }
+
+    private static TtsRuleEditorModel ToEditor(HttpTtsRule rule)
+    {
+        return new TtsRuleEditorModel(
+            rule.Id,
+            rule.Name,
+            rule.IsEnabled,
+            rule.Url,
+            rule.ContentType,
+            rule.ConcurrentRate,
+            rule.EnabledCookieJar,
+            rule.LastUpdateTime,
+            ParseKeyValueJson(rule.Header),
+            ParseRequestOptions(rule.RequestOptionsJson),
+            rule.RuleJson,
+            rule.CompatibilityStatus,
+            rule.UnsupportedFields);
+    }
+
+    private static TtsRuleEditorModel NormalizeEditor(TtsRuleEditorModel editor)
+    {
+        return editor with
+        {
+            Name = editor.Name.Trim(),
+            Url = editor.Url.Trim(),
+            ContentType = NormalizeOptionalText(editor.ContentType),
+            ConcurrentRate = NormalizeOptionalText(editor.ConcurrentRate),
+            Headers = editor.Headers
+                .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))
+                .Select(entry => new TtsRuleEditorKeyValue(entry.Key.Trim(), entry.Value))
+                .ToArray(),
+            RequestOptions = editor.RequestOptions with
+            {
+                Method = NormalizeOptionalText(editor.RequestOptions.Method)?.ToUpperInvariant(),
+                Body = NormalizeOptionalText(editor.RequestOptions.Body),
+                Headers = editor.RequestOptions.Headers
+                    .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))
+                    .Select(entry => new TtsRuleEditorKeyValue(entry.Key.Trim(), entry.Value))
+                    .ToArray()
+            },
+            RawRuleJson = editor.RawRuleJson.Trim()
+        };
+    }
+
+    private static string? NormalizeOptionalText(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static void ValidateNameAndUrl(TtsRuleEditorModel editor, List<string> errors)
+    {
+        if (string.IsNullOrWhiteSpace(editor.Name))
+        {
+            errors.Add("规则名称不能为空。");
+        }
+
+        if (string.IsNullOrWhiteSpace(editor.Url))
+        {
+            errors.Add("规则 URL 不能为空。");
+        }
+        else
+        {
+            TryValidateTemplate(editor.Url, "URL", errors);
+        }
+
+        if (!string.IsNullOrWhiteSpace(editor.ConcurrentRate) &&
+            !System.Text.RegularExpressions.Regex.IsMatch(editor.ConcurrentRate, @"^\d+/\d+$"))
+        {
+            errors.Add("并发限制必须使用类似 2/1000 的格式。");
+        }
+    }
+
+    private static void ValidateHeaders(
+        IReadOnlyList<TtsRuleEditorKeyValue> headers,
+        string fieldName,
+        List<string> errors)
+    {
+        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var header in headers)
+        {
+            if (string.IsNullOrWhiteSpace(header.Key))
+            {
+                errors.Add($"{fieldName} 中存在空键名。");
+                continue;
+            }
+
+            if (!seenKeys.Add(header.Key))
+            {
+                errors.Add($"{fieldName} 中存在重复键：{header.Key}");
+            }
+
+            TryValidateTemplate(header.Value, $"{fieldName} {header.Key}", errors);
+        }
+    }
+
+    private static void ValidateRequestOptions(TtsRuleRequestOptionsEditor requestOptions, List<string> errors)
+    {
+        ValidateHeaders(requestOptions.Headers, "requestOptions.headers", errors);
+
+        if (requestOptions.Method is not null && requestOptions.Method is not ("GET" or "POST"))
+        {
+            errors.Add("requestOptions.method 仅支持 GET 或 POST。");
+        }
+
+        if (requestOptions.TimeoutMs is <= 0 or > 300000)
+        {
+            errors.Add("requestOptions.timeoutMs 必须在 1 到 300000 之间。");
+        }
+
+        if (requestOptions.Method == "GET" && !string.IsNullOrWhiteSpace(requestOptions.Body))
+        {
+            errors.Add("GET 请求不能携带 body。");
+        }
+
+        if (!string.IsNullOrWhiteSpace(requestOptions.Body))
+        {
+            TryValidateTemplate(requestOptions.Body, "requestOptions.body", errors);
+        }
+    }
+
+    private static void TryValidateTemplate(string? value, string fieldName, List<string> errors)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        try
+        {
+            NormalizedTemplate.Parse(value);
+        }
+        catch (FormatException exception)
+        {
+            errors.Add($"{fieldName} 模板格式无效：{exception.Message}");
+        }
+    }
+
+    private static HttpTtsRule BuildRuleFromEditor(TtsRuleEditorModel editor, HttpTtsRule? existingRule)
+    {
+        var headerJson = SerializeKeyValueJson(editor.Headers);
+        var requestOptionsJson = SerializeRequestOptions(editor.RequestOptions);
+        var utcNow = DateTime.UtcNow.ToString("O");
+
+        var rule = new HttpTtsRule(
+            editor.Id ?? 0,
+            editor.Name,
+            editor.Url,
+            editor.ContentType,
+            editor.ConcurrentRate,
+            headerJson,
+            requestOptionsJson,
+            editor.EnabledCookieJar,
+            editor.LastUpdateTime,
+            string.Empty,
+            editor.IsEnabled,
+            editor.CompatibilityStatus,
+            editor.UnsupportedFields,
+            existingRule?.LastUsedAt,
+            existingRule?.CreatedAt ?? utcNow,
+            utcNow);
+
+        return rule with
+        {
+            RuleJson = NovelSpeakerRuleJsonSerializer.Serialize(rule)
+        };
+    }
+
+    private static IReadOnlyList<TtsRuleEditorKeyValue> ParseKeyValueJson(string? jsonText)
+    {
+        if (string.IsNullOrWhiteSpace(jsonText))
+        {
+            return [];
+        }
+
+        using var document = JsonDocument.Parse(jsonText);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            return [];
+        }
+
+        return document.RootElement
+            .EnumerateObject()
+            .Select(property => new TtsRuleEditorKeyValue(
+                property.Name,
+                property.Value.ValueKind == JsonValueKind.String
+                    ? property.Value.GetString() ?? string.Empty
+                    : property.Value.GetRawText()))
+            .ToArray();
+    }
+
+    private static string? SerializeKeyValueJson(IReadOnlyList<TtsRuleEditorKeyValue> entries)
+    {
+        if (entries.Count == 0)
+        {
+            return null;
+        }
+
+        var dictionary = entries.ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.OrdinalIgnoreCase);
+        return JsonSerializer.Serialize(dictionary, SerializerOptions);
+    }
+
+    private static TtsRuleRequestOptionsEditor ParseRequestOptions(string? requestOptionsJson)
+    {
+        if (string.IsNullOrWhiteSpace(requestOptionsJson))
+        {
+            return new TtsRuleRequestOptionsEditor(null, [], null, null);
+        }
+
+        using var document = JsonDocument.Parse(requestOptionsJson);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            return new TtsRuleRequestOptionsEditor(null, [], null, null);
+        }
+
+        string? method = null;
+        List<TtsRuleEditorKeyValue> headers = [];
+        string? body = null;
+        int? timeoutMs = null;
+
+        foreach (var property in document.RootElement.EnumerateObject())
+        {
+            switch (property.Name)
+            {
+                case "method":
+                    method = property.Value.ValueKind == JsonValueKind.String
+                        ? property.Value.GetString()
+                        : property.Value.GetRawText();
+                    break;
+                case "headers":
+                    headers = ParseHeadersElement(property.Value).ToList();
+                    break;
+                case "body":
+                    body = property.Value.ValueKind == JsonValueKind.String
+                        ? property.Value.GetString()
+                        : property.Value.GetRawText();
+                    break;
+                case "timeoutMs":
+                    timeoutMs = property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetInt32(out var parsed)
+                        ? parsed
+                        : property.Value.ValueKind == JsonValueKind.String && int.TryParse(property.Value.GetString(), out parsed)
+                            ? parsed
+                            : null;
+                    break;
+            }
+        }
+
+        return new TtsRuleRequestOptionsEditor(method, headers, body, timeoutMs);
+    }
+
+    private static IReadOnlyList<TtsRuleEditorKeyValue> ParseHeadersElement(JsonElement value)
+    {
+        return value.ValueKind switch
+        {
+            JsonValueKind.Object => value.EnumerateObject()
+                .Select(property => new TtsRuleEditorKeyValue(
+                    property.Name,
+                    property.Value.ValueKind == JsonValueKind.String
+                        ? property.Value.GetString() ?? string.Empty
+                        : property.Value.GetRawText()))
+                .ToArray(),
+            JsonValueKind.String => ParseKeyValueJson(value.GetString()),
+            _ => []
+        };
+    }
+
+    private static string? SerializeRequestOptions(TtsRuleRequestOptionsEditor requestOptions)
+    {
+        var hasMethod = !string.IsNullOrWhiteSpace(requestOptions.Method);
+        var hasHeaders = requestOptions.Headers.Count > 0;
+        var hasBody = !string.IsNullOrWhiteSpace(requestOptions.Body);
+        var hasTimeout = requestOptions.TimeoutMs is not null;
+
+        if (!hasMethod && !hasHeaders && !hasBody && !hasTimeout)
+        {
+            return null;
+        }
+
+        using var stream = new MemoryStream();
+        using var writer = new Utf8JsonWriter(stream);
+
+        writer.WriteStartObject();
+        if (hasMethod)
+        {
+            writer.WriteString("method", requestOptions.Method);
+        }
+
+        if (hasHeaders)
+        {
+            writer.WritePropertyName("headers");
+            writer.WriteStartObject();
+            foreach (var header in requestOptions.Headers)
+            {
+                writer.WriteString(header.Key, header.Value);
+            }
+
+            writer.WriteEndObject();
+        }
+
+        if (hasBody)
+        {
+            writer.WritePropertyName("body");
+            WriteJsonLikeValue(writer, requestOptions.Body!);
+        }
+
+        if (hasTimeout)
+        {
+            writer.WriteNumber("timeoutMs", requestOptions.TimeoutMs!.Value);
+        }
+
+        writer.WriteEndObject();
+        writer.Flush();
+        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static void WriteJsonLikeValue(Utf8JsonWriter writer, string text)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(text);
+            document.RootElement.WriteTo(writer);
+        }
+        catch (JsonException)
+        {
+            writer.WriteStringValue(text);
+        }
+    }
+
+    private static string CanonicalizeRawRuleJson(string rawRuleJson, HttpTtsRule baselineRule)
+    {
+        using var document = JsonDocument.Parse(rawRuleJson);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidOperationException("原始 JSON 必须是对象。");
+        }
+
+        var root = document.RootElement;
+        var rawRule = new HttpTtsRule(
+            baselineRule.Id,
+            ReadOptionalString(root, "name") ?? string.Empty,
+            ReadOptionalString(root, "url") ?? string.Empty,
+            ReadOptionalString(root, "contentType"),
+            ReadOptionalString(root, "concurrentRate"),
+            ReadJsonOrString(root, "header"),
+            ReadOptionalJson(root, "requestOptions"),
+            ReadOptionalBoolean(root, "enabledCookieJar"),
+            ReadOptionalInt64(root, "lastUpdateTime"),
+            string.Empty,
+            baselineRule.IsEnabled,
+            baselineRule.CompatibilityStatus,
+            baselineRule.UnsupportedFields,
+            baselineRule.LastUsedAt,
+            baselineRule.CreatedAt,
+            baselineRule.UpdatedAt);
+
+        return NovelSpeakerRuleJsonSerializer.Serialize(rawRule);
+    }
+
+    private static string? ReadOptionalString(JsonElement root, string propertyName)
+    {
+        return TryGetProperty(root, propertyName, out var value)
+            ? value.ValueKind switch
+            {
+                JsonValueKind.Null => null,
+                JsonValueKind.String => value.GetString(),
+                JsonValueKind.True => bool.TrueString,
+                JsonValueKind.False => bool.FalseString,
+                _ => value.GetRawText()
+            }
+            : null;
+    }
+
+    private static string? ReadJsonOrString(JsonElement root, string propertyName)
+    {
+        if (!TryGetProperty(root, propertyName, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.Object => value.GetRawText(),
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Null => null,
+            _ => value.GetRawText()
+        };
+    }
+
+    private static string? ReadOptionalJson(JsonElement root, string propertyName)
+    {
+        return TryGetProperty(root, propertyName, out var value)
+            ? value.GetRawText()
+            : null;
+    }
+
+    private static bool ReadOptionalBoolean(JsonElement root, string propertyName)
+    {
+        if (!TryGetProperty(root, propertyName, out var value))
+        {
+            return false;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.String when bool.TryParse(value.GetString(), out var parsed) => parsed,
+            _ => false
+        };
+    }
+
+    private static long? ReadOptionalInt64(JsonElement root, string propertyName)
+    {
+        if (!TryGetProperty(root, propertyName, out var value))
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var parsedNumber))
+        {
+            return parsedNumber;
+        }
+
+        return value.ValueKind == JsonValueKind.String &&
+               long.TryParse(value.GetString(), out var parsedString)
+            ? parsedString
+            : null;
+    }
+
+    private static bool TryGetProperty(JsonElement root, string propertyName, out JsonElement value)
+    {
+        foreach (var property in root.EnumerateObject())
+        {
+            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
     }
 
     private List<TtsRuleImportItem> CreateImportItems(JsonElement root, IReadOnlyList<HttpTtsRule> existingRules)

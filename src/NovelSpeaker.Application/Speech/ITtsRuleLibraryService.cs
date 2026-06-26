@@ -18,6 +18,21 @@ public interface ITtsRuleLibraryService
 
     Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken);
 
+    Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken);
+
+    Task<TtsRuleValidationResult> ValidateEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken);
+
+    Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken);
+
+    Task<TtsRuleProtectionInfo> GetRuleProtectionAsync(
+        long ruleId,
+        TtsRuleMutationAction action,
+        CancellationToken cancellationToken);
+
+    Task<TtsRuleMutationResult> ApplyRuleMutationAsync(
+        TtsRuleMutationDecision decision,
+        CancellationToken cancellationToken);
+
     Task SelectRuleAsync(long? ruleId, CancellationToken cancellationToken);
 
     Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken);
