@@ -2,6 +2,8 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Playback;
+using NovelSpeaker.Infrastructure.Speech.Http;
+using NovelSpeaker.UnitTests.Common;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Playback;
@@ -18,63 +20,138 @@ public sealed class PlaybackAudioProviderTests
         };
         var compiler = new FakeTtsRequestCompiler();
         var httpClient = new FakeHttpTtsClient();
-        var provider = new PlaybackAudioProvider(compiler, httpClient, cache);
+        var rateLimiter = new CountingRateLimiter();
+        var provider = new PlaybackAudioProvider(compiler, httpClient, cache, rateLimiter);
 
-        var result = await provider.GetAudioAsync(request, CancellationToken.None);
+        var result = await provider.GetAudioAsync(
+            request,
+            PlaybackAudioPriority.Current,
+            null,
+            CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.True(result.IsUsingCache);
         Assert.Equal("cached.mp3", result.FilePath);
         Assert.Equal(0, compiler.CallCount);
         Assert.Equal(0, httpClient.ExecuteCallCount);
+        Assert.Equal(0, rateLimiter.WaitCallCount);
     }
 
     [Fact]
-    public async Task GetAudioAsync_executes_http_tts_and_stores_audio_on_cache_miss()
+    public async Task GetAudioAsync_deduplicates_same_cache_key_between_prefetch_and_current()
     {
         var request = CreatePlaybackRequest();
         var compiler = new FakeTtsRequestCompiler
         {
             CompilationResult = CreateSuccessfulCompilationResult()
         };
-        var httpClient = new FakeHttpTtsClient
-        {
-            ExecutionResult = new TtsHttpExecutionResult(
-                new TtsAudioResponse(CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), 200, "audio/mpeg", "mp3"),
-                null)
-        };
-        var cache = new FakeAudioCache();
-        var provider = new PlaybackAudioProvider(compiler, httpClient, cache);
+        var httpClient = new FakeHttpTtsClient();
+        var pending = httpClient.EnqueuePendingSuccess();
+        var provider = new PlaybackAudioProvider(
+            compiler,
+            httpClient,
+            new FakeAudioCache(),
+            new CountingRateLimiter());
 
-        var result = await provider.GetAudioAsync(request, CancellationToken.None);
+        var prefetchTask = provider.GetAudioAsync(
+            request,
+            PlaybackAudioPriority.Prefetch,
+            null,
+            CancellationToken.None);
+        await WaitForAsync(() => httpClient.ExecuteCallCount == 1);
 
-        Assert.True(result.IsSuccess);
-        Assert.False(result.IsUsingCache);
-        Assert.NotNull(cache.StoredRequest);
-        Assert.Equal(request.BookId, cache.StoredRequest!.BookId);
-        Assert.Equal(request.ChapterIndex, cache.StoredRequest.ChapterIndex);
-        Assert.Equal(request.SegmentIndex, cache.StoredRequest.SegmentIndex);
-        Assert.Equal(request.RuleId, cache.StoredRequest.RuleId);
-        Assert.Equal("audio/mpeg", cache.StoredRequest.ContentType);
-        Assert.Equal(cache.StoredResult!.FilePath, result.FilePath);
+        var currentTask = provider.GetAudioAsync(
+            request,
+            PlaybackAudioPriority.Current,
+            null,
+            CancellationToken.None);
+
+        pending.CompleteSuccess();
+
+        var prefetchResult = await prefetchTask;
+        var currentResult = await currentTask;
+
+        Assert.True(prefetchResult.IsSuccess);
+        Assert.True(currentResult.IsSuccess);
+        Assert.Equal(1, httpClient.ExecuteCallCount);
     }
 
     [Fact]
-    public async Task InvalidateAsync_uses_the_same_cache_identity_as_get_audio()
+    public async Task GetAudioAsync_current_request_preempts_different_prefetch_request()
     {
-        var request = CreatePlaybackRequest();
-        var cache = new FakeAudioCache();
-        var provider = new PlaybackAudioProvider(new FakeTtsRequestCompiler(), new FakeHttpTtsClient(), cache);
+        var firstRequest = CreatePlaybackRequest(segmentIndex: 0, speechText: "第一段");
+        var secondRequest = CreatePlaybackRequest(segmentIndex: 1, speechText: "第二段");
+        var httpClient = new FakeHttpTtsClient();
+        var cancelledExecution = httpClient.EnqueuePendingSuccess();
+        httpClient.EnqueueSuccess();
+        var provider = new PlaybackAudioProvider(
+            new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
+            httpClient,
+            new FakeAudioCache(),
+            new CountingRateLimiter());
 
-        await provider.InvalidateAsync(request, CancellationToken.None);
+        var prefetchTask = provider.GetAudioAsync(
+            firstRequest,
+            PlaybackAudioPriority.Prefetch,
+            null,
+            CancellationToken.None);
+        await WaitForAsync(() => httpClient.ExecuteCallCount == 1);
+        await WaitForAsync(() => cancelledExecution.CancellationToken.IsCancellationRequested == false);
 
-        Assert.Equal(AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段"), cache.InvalidatedKey);
+        var currentTask = provider.GetAudioAsync(
+            secondRequest,
+            PlaybackAudioPriority.Current,
+            null,
+            CancellationToken.None);
+
+        await WaitForAsync(() => cancelledExecution.CancellationToken.IsCancellationRequested);
+        cancelledExecution.TrySetCancelled();
+        var currentResult = await currentTask;
+        var prefetchResult = await prefetchTask;
+
+        Assert.True(currentResult.IsSuccess);
+        Assert.False(prefetchResult.IsSuccess);
+        Assert.Equal(TtsErrorKind.Cancelled, prefetchResult.Failure!.Kind);
+        Assert.Equal(2, httpClient.ExecuteCallCount);
     }
 
-    private static PlaybackAudioRequest CreatePlaybackRequest()
+    [Fact]
+    public async Task GetAudioAsync_retries_429_with_retry_after_for_current_segment()
     {
-        var rule = CreateRule();
-        return new PlaybackAudioRequest(
+        var timeProvider = new ManualTimeProvider();
+        var request = CreatePlaybackRequest();
+        var httpClient = new FakeHttpTtsClient();
+        httpClient.EnqueueRateLimited(TimeSpan.FromSeconds(2));
+        httpClient.EnqueueSuccess();
+        var provider = new PlaybackAudioProvider(
+            new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
+            httpClient,
+            new FakeAudioCache(),
+            new TtsRateLimiter(timeProvider));
+        var progressMessages = new List<string>();
+
+        var resultTask = provider.GetAudioAsync(
+            request,
+            PlaybackAudioPriority.Current,
+            progress => progressMessages.Add(progress.Message),
+            CancellationToken.None);
+
+        await WaitForAsync(() => httpClient.ExecuteCallCount == 1);
+        await AssertPendingAsync(resultTask);
+
+        timeProvider.Advance(TimeSpan.FromSeconds(2));
+        var result = await resultTask;
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(progressMessages, message => message.Contains("正在等待", StringComparison.Ordinal));
+        Assert.Equal(2, httpClient.ExecuteCallCount);
+    }
+
+    [Fact]
+    public async Task GetAudioAsync_returns_invalid_rule_when_concurrent_rate_is_invalid()
+    {
+        var rule = CreateRule(concurrentRate: "not-a-rate");
+        var request = new PlaybackAudioRequest(
             "book-1",
             0,
             0,
@@ -84,16 +161,65 @@ public sealed class PlaybackAudioProviderTests
             rule.ToNormalizedRule(),
             10,
             Guid.NewGuid());
+        var httpClient = new FakeHttpTtsClient();
+        var provider = new PlaybackAudioProvider(
+            new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
+            httpClient,
+            new FakeAudioCache(),
+            new TtsRateLimiter(TimeProvider.System));
+
+        var result = await provider.GetAudioAsync(
+            request,
+            PlaybackAudioPriority.Current,
+            null,
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(TtsErrorKind.InvalidRule, result.Failure!.Kind);
+        Assert.Equal(0, httpClient.ExecuteCallCount);
     }
 
-    private static HttpTtsRule CreateRule()
+    [Fact]
+    public async Task InvalidateAsync_uses_the_same_cache_identity_as_get_audio()
+    {
+        var request = CreatePlaybackRequest();
+        var cache = new FakeAudioCache();
+        var provider = new PlaybackAudioProvider(
+            new FakeTtsRequestCompiler(),
+            new FakeHttpTtsClient(),
+            cache,
+            new CountingRateLimiter());
+
+        await provider.InvalidateAsync(request, CancellationToken.None);
+
+        Assert.Equal(AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段"), cache.InvalidatedKey);
+    }
+
+    private static PlaybackAudioRequest CreatePlaybackRequest(
+        int segmentIndex = 0,
+        string speechText = "第一段")
+    {
+        var rule = CreateRule();
+        return new PlaybackAudioRequest(
+            "book-1",
+            0,
+            segmentIndex,
+            speechText,
+            rule.Id,
+            rule,
+            rule.ToNormalizedRule(),
+            10,
+            Guid.NewGuid());
+    }
+
+    private static HttpTtsRule CreateRule(string? concurrentRate = null)
     {
         return new HttpTtsRule(
             1,
             "默认规则",
             "https://example.com/tts?text={{encodeURIComponent(speakText)}}&speed={{speakSpeed}}",
             "audio/mpeg",
-            null,
+            concurrentRate,
             null,
             null,
             false,
@@ -129,6 +255,27 @@ public sealed class PlaybackAudioProviderTests
         var tempPath = Path.Combine(Path.GetTempPath(), $"{Path.GetRandomFileName()}{extension}");
         File.Copy(sourcePath, tempPath, overwrite: true);
         return tempPath;
+    }
+
+    private static async Task WaitForAsync(Func<bool> condition)
+    {
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            if (condition())
+            {
+                return;
+            }
+
+            await Task.Delay(10);
+        }
+
+        Assert.True(condition(), "Timed out while waiting for the provider state to change.");
+    }
+
+    private static async Task AssertPendingAsync(Task task)
+    {
+        await Task.Yield();
+        Assert.False(task.IsCompleted);
     }
 
     private sealed class FakeAudioCache : IAudioCache
@@ -177,22 +324,104 @@ public sealed class PlaybackAudioProviderTests
         }
     }
 
+    private sealed class CountingRateLimiter : ITtsRateLimiter
+    {
+        public int WaitCallCount { get; private set; }
+
+        public int RetryAfterCallCount { get; private set; }
+
+        public Task WaitAsync(long ruleId, string? concurrentRate, CancellationToken cancellationToken)
+        {
+            WaitCallCount++;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public void ApplyRetryAfter(long ruleId, TimeSpan retryAfter)
+        {
+            RetryAfterCallCount++;
+        }
+    }
+
     private sealed class FakeHttpTtsClient : IHttpTtsClient
     {
+        private readonly Queue<Func<CancellationToken, Task<TtsHttpExecutionResult>>> _results = [];
+
         public int ExecuteCallCount { get; private set; }
 
-        public TtsHttpExecutionResult ExecutionResult { get; set; } =
-            new(new TtsAudioResponse(CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), 200, "audio/mpeg", "mp3"), null);
+        public PendingHttpResult EnqueuePendingSuccess()
+        {
+            var completionSource = new TaskCompletionSource<TtsHttpExecutionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var pending = new PendingHttpResult(completionSource);
+            _results.Enqueue(cancellationToken =>
+            {
+                pending.CancellationToken = cancellationToken;
+                cancellationToken.Register(static state => ((PendingHttpResult)state!).TrySetCancelled(), pending);
+                return completionSource.Task;
+            });
+            return pending;
+        }
+
+        public void EnqueueSuccess()
+        {
+            _results.Enqueue(_ => Task.FromResult(new TtsHttpExecutionResult(
+                new TtsAudioResponse(CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), 200, "audio/mpeg", "mp3"),
+                null)));
+        }
+
+        public void EnqueueRateLimited(TimeSpan retryAfter)
+        {
+            _results.Enqueue(_ => Task.FromResult(new TtsHttpExecutionResult(
+                null,
+                new TtsExecutionFailure(
+                    TtsErrorKind.RateLimited,
+                    "请求过于频繁，服务暂时限流。",
+                    429,
+                    "slow down",
+                    "text/plain",
+                    retryAfter))));
+        }
 
         public Task<TtsHttpExecutionResult> ExecuteAsync(ParsedTtsRequest request, CancellationToken cancellationToken)
         {
             ExecuteCallCount++;
-            return Task.FromResult(ExecutionResult);
+            if (_results.Count > 0)
+            {
+                return _results.Dequeue().Invoke(cancellationToken);
+            }
+
+            return Task.FromResult(new TtsHttpExecutionResult(
+                new TtsAudioResponse(CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), 200, "audio/mpeg", "mp3"),
+                null));
         }
 
         public Task ClearRuleCookiesAsync(long ruleId, CancellationToken cancellationToken)
         {
             return Task.CompletedTask;
+        }
+
+        public sealed class PendingHttpResult
+        {
+            private readonly TaskCompletionSource<TtsHttpExecutionResult> _completionSource;
+
+            public PendingHttpResult(TaskCompletionSource<TtsHttpExecutionResult> completionSource)
+            {
+                _completionSource = completionSource;
+            }
+
+            public CancellationToken CancellationToken { get; set; }
+
+            public void CompleteSuccess()
+            {
+                _completionSource.TrySetResult(new TtsHttpExecutionResult(
+                    new TtsAudioResponse(CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), 200, "audio/mpeg", "mp3"),
+                    null));
+            }
+
+            public void TrySetCancelled()
+            {
+                _completionSource.TrySetCanceled(CancellationToken);
+            }
         }
     }
 }
