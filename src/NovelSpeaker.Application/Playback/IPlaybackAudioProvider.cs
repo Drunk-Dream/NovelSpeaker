@@ -5,7 +5,11 @@ namespace NovelSpeaker.Application.Playback;
 /// </summary>
 public interface IPlaybackAudioProvider
 {
-    Task<PlaybackAudioResult> GetAudioAsync(PlaybackAudioRequest request, CancellationToken cancellationToken);
+    Task<PlaybackAudioResult> GetAudioAsync(
+        PlaybackAudioRequest request,
+        PlaybackAudioPriority priority,
+        Action<PlaybackAudioProgress>? progressCallback,
+        CancellationToken cancellationToken);
 
     Task InvalidateAsync(PlaybackAudioRequest request, CancellationToken cancellationToken);
 }
