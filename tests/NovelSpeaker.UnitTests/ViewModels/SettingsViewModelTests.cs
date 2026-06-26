@@ -18,7 +18,7 @@ public sealed class SettingsViewModelTests
         Assert.False(viewModel.EnableLongParagraphSplitting);
         Assert.Equal(120, viewModel.LongParagraphThreshold);
         Assert.Equal(14, viewModel.DefaultSpeakSpeed);
-        Assert.Equal(3, viewModel.PrefetchCount);
+        Assert.Equal(2, viewModel.PrefetchCount);
         Assert.Equal("Warning", viewModel.SelectedLogLevel);
         Assert.Equal("Dark", viewModel.SelectedTheme);
     }

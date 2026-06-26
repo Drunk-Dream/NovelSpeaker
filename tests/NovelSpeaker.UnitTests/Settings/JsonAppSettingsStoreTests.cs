@@ -91,6 +91,32 @@ public sealed class JsonAppSettingsStoreTests
     }
 
     [Fact]
+    public async Task LoadAsync_caps_prefetch_count_to_supported_range()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new LocalAppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        await File.WriteAllTextAsync(
+            directories.SettingsPath,
+            """
+            {
+              "EnableLongParagraphSplitting": true,
+              "LongParagraphThreshold": 300,
+              "DefaultSpeakSpeed": 10,
+              "PrefetchCount": 9,
+              "LogLevel": "Information",
+              "Theme": "System"
+            }
+            """,
+            CancellationToken.None);
+        var store = new JsonAppSettingsStore(directories);
+
+        var settings = await store.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(2, settings.PrefetchCount);
+    }
+
+    [Fact]
     public async Task GetCurrent_does_not_resume_on_the_callers_synchronization_context()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());

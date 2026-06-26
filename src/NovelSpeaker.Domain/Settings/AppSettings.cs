@@ -50,7 +50,9 @@ public sealed record AppSettings(
             EnableLongParagraphSplitting = segmentation.EnableLongParagraphSplitting,
             LongParagraphThreshold = segmentation.LongParagraphThreshold,
             DefaultSpeakSpeed = DefaultSpeakSpeed <= 0 ? DefaultSpeakSpeedValue : DefaultSpeakSpeed,
-            PrefetchCount = PrefetchCount < 0 ? DefaultPrefetchCountValue : PrefetchCount,
+            PrefetchCount = PrefetchCount < 0
+                ? DefaultPrefetchCountValue
+                : Math.Min(PrefetchCount, DefaultPrefetchCountValue),
             LogLevel = NormalizeOption(LogLevel, SupportedLogLevels, DefaultLogLevel),
             Theme = NormalizeOption(Theme, SupportedThemes, DefaultTheme)
         };
