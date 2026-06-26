@@ -230,6 +230,18 @@ public sealed class PlayerViewModelTests
             return Task.CompletedTask;
         }
 
+        public Task OpenPausedAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken)
+        {
+            Publish(CurrentSnapshot with
+            {
+                State = PlaybackState.Paused,
+                BookId = request.BookId,
+                ChapterIndex = request.ChapterIndex ?? 0,
+                SegmentIndex = request.SegmentIndex ?? 0
+            });
+            return Task.CompletedTask;
+        }
+
         public Task PauseAsync(CancellationToken cancellationToken)
         {
             PauseCallCount++;
@@ -250,6 +262,36 @@ public sealed class PlayerViewModelTests
                 State = PlaybackState.Stopped,
                 PositionMilliseconds = 0,
                 Message = "已停止当前播放。"
+            });
+            return Task.CompletedTask;
+        }
+
+        public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken)
+        {
+            Publish(CurrentSnapshot with
+            {
+                ChapterIndex = target.ChapterIndex,
+                SegmentIndex = target.SegmentIndex
+            });
+            return Task.CompletedTask;
+        }
+
+        public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken)
+        {
+            Publish(CurrentSnapshot with
+            {
+                ChapterIndex = chapterIndex,
+                SegmentIndex = 0
+            });
+            return Task.CompletedTask;
+        }
+
+        public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken)
+        {
+            Publish(CurrentSnapshot with
+            {
+                ChapterIndex = chapterIndex,
+                SegmentIndex = segmentIndex
             });
             return Task.CompletedTask;
         }
@@ -370,6 +412,31 @@ public sealed class PlayerViewModelTests
             throw new NotSupportedException();
         }
 
+        public Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<TtsRuleValidationResult> ValidateEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<TtsRuleProtectionInfo> GetRuleProtectionAsync(long ruleId, TtsRuleMutationAction action, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<TtsRuleMutationResult> ApplyRuleMutationAsync(TtsRuleMutationDecision decision, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
         public Task SelectRuleAsync(long? ruleId, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
@@ -411,6 +478,31 @@ public sealed class PlayerViewModelTests
         }
 
         public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<TtsRuleValidationResult> ValidateEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<TtsRuleProtectionInfo> GetRuleProtectionAsync(long ruleId, TtsRuleMutationAction action, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<TtsRuleMutationResult> ApplyRuleMutationAsync(TtsRuleMutationDecision decision, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
