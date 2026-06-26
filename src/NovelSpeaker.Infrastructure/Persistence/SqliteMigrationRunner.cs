@@ -1,7 +1,5 @@
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Abstractions;
-using NovelSpeaker.Domain.Speech;
-using NovelSpeaker.Infrastructure.Speech.Rules;
 
 namespace NovelSpeaker.Infrastructure.Persistence;
 
@@ -15,18 +13,11 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
         new(
             1,
             """
-            CREATE TABLE IF NOT EXISTS SchemaVersion (
-                Version INTEGER NOT NULL PRIMARY KEY
-            );
-
-            CREATE TABLE IF NOT EXISTS AppMetadata (
+            CREATE TABLE AppMetadata (
                 Key TEXT NOT NULL PRIMARY KEY,
                 Value TEXT NULL
             );
-            """),
-        new(
-            2,
-            """
+
             CREATE TABLE Books (
                 Id TEXT NOT NULL PRIMARY KEY,
                 Title TEXT NOT NULL,
@@ -36,7 +27,9 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
                 SourceHash TEXT NOT NULL,
                 Encoding TEXT NOT NULL,
                 ImportedAt TEXT NOT NULL,
-                UpdatedAt TEXT NOT NULL
+                UpdatedAt TEXT NOT NULL,
+                LastImportedAt TEXT NULL,
+                LastPlayedAt TEXT NULL
             );
 
             CREATE UNIQUE INDEX IX_Books_SourceHash
@@ -67,23 +60,7 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
 
             CREATE INDEX IX_ChapterRules_SortOrder
                 ON ChapterRules(SortOrder);
-            """),
-        new(
-            3,
-            """
-            ALTER TABLE Books ADD COLUMN LastImportedAt TEXT NULL;
-            ALTER TABLE Books ADD COLUMN LastPlayedAt TEXT NULL;
-            UPDATE Books
-            SET LastImportedAt = ImportedAt
-            WHERE LastImportedAt IS NULL;
 
-            UPDATE Chapters
-            SET SortOrder = ChapterIndex
-            WHERE SortOrder = 0;
-            """),
-        new(
-            4,
-            """
             CREATE TABLE HttpTtsRules (
                 Id INTEGER NOT NULL PRIMARY KEY,
                 Name TEXT NOT NULL,
@@ -95,15 +72,7 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
                 CreatedAt TEXT NOT NULL,
                 UpdatedAt TEXT NOT NULL
             );
-            """),
-        new(
-            5,
-            """
-            SELECT 1;
-            """),
-        new(
-            6,
-            """
+
             CREATE TABLE ReadingProgress (
                 BookId TEXT NOT NULL PRIMARY KEY,
                 ChapterIndex INTEGER NOT NULL,
@@ -113,10 +82,7 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
                 UpdatedAt TEXT NOT NULL,
                 FOREIGN KEY(BookId) REFERENCES Books(Id) ON DELETE CASCADE
             );
-            """),
-        new(
-            7,
-            """
+
             CREATE TABLE AudioCacheEntries (
                 CacheKey TEXT NOT NULL PRIMARY KEY,
                 BookId TEXT NOT NULL,
@@ -170,52 +136,6 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
             await versionCommand.ExecuteNonQueryAsync(cancellationToken);
 
             await transaction.CommitAsync(cancellationToken);
-        }
-
-        if (currentVersion < 5)
-        {
-            await UpgradeStoredTtsRulesAsync(connection, cancellationToken);
-        }
-    }
-
-    private static async Task UpgradeStoredTtsRulesAsync(SqliteConnection connection, CancellationToken cancellationToken)
-    {
-        var select = connection.CreateCommand();
-        select.CommandText = "SELECT Id, Name, RuleJson FROM HttpTtsRules;";
-
-        await using var reader = await select.ExecuteReaderAsync(cancellationToken);
-        var rules = new List<(long Id, string Name, string RuleJson)>();
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            rules.Add((reader.GetInt64(0), reader.GetString(1), reader.GetString(2)));
-        }
-
-        foreach (var rule in rules)
-        {
-            var metadata = RuleJsonMetadata.Parse(rule.RuleJson);
-            var convertedRule = new NovelSpeaker.Domain.Speech.HttpTtsRule(
-                rule.Id,
-                rule.Name,
-                metadata.Url,
-                metadata.ContentType,
-                metadata.ConcurrentRate,
-                metadata.Header,
-                metadata.RequestOptionsJson,
-                metadata.EnabledCookieJar,
-                metadata.LastUpdateTime,
-                string.Empty,
-                true,
-                TtsRuleCompatibilityStatus.Compatible,
-                [],
-                null,
-                string.Empty,
-                string.Empty);
-
-            var update = connection.CreateCommand();
-            update.CommandText = "UPDATE HttpTtsRules SET RuleJson = $ruleJson WHERE Id = $id;";
-            update.Parameters.AddWithValue("$id", rule.Id);
-            update.Parameters.AddWithValue("$ruleJson", NovelSpeakerRuleJsonSerializer.Serialize(convertedRule));
-            await update.ExecuteNonQueryAsync(cancellationToken);
         }
     }
 
