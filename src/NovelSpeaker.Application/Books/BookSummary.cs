@@ -9,4 +9,9 @@ public sealed record BookSummary(
     string? Author,
     string CurrentChapterTitle,
     string ImportedAt,
-    string? LastPlayedAt = null);
+    string? LastPlayedAt = null,
+    int TotalChapterCount = 0,
+    int? CurrentChapterIndex = null,
+    int RemainingChapterCount = 0,
+    double OverallProgress = 0,
+    bool HasReadingProgress = false);
