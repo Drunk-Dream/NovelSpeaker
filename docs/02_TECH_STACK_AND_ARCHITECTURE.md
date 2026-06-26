@@ -6,7 +6,8 @@
 |---|---|
 | 语言 | C# |
 | 运行时 | .NET 10 |
-| UI | WPF |
+| UI 框架 | WPF |
+| UI 组件与主题 | Wpf.Ui 4.x |
 | MVVM | CommunityToolkit.Mvvm |
 | 数据库 | SQLite |
 | SQLite 驱动 | Microsoft.Data.Sqlite |
@@ -18,12 +19,13 @@
 | Mock | NSubstitute 或 Moq，二选一 |
 | JSON | System.Text.Json |
 
-## 为什么选择 WPF
+## 为什么选择 WPF 与 Wpf.Ui
 
 - 项目仅面向 Windows。
-- 界面规模较小。
-- 开发速度和稳定性优先于最新视觉体系。
-- 便于与 .NET、SQLite、Jint、NAudio 集成。
+- WPF 与现有 .NET、SQLite、Jint、NAudio 和 MVVM 架构兼容，不需要重写后端。
+- Wpf.Ui 提供 FluentWindow、NavigationView、SymbolIcon、ContentDialog、Snackbar 和主题管理，能够替换原生 WPF 的陈旧默认外观。
+- 支持 Windows 10/11；Windows 11 可启用 Mica，Windows 10 自动使用普通主题背景。
+- UI 视觉依赖 Wpf.Ui，但业务层不得依赖其类型，便于测试和后续替换。
 - 不需要 WebView 和前后端双技术栈。
 
 ## 建议解决方案结构
@@ -108,8 +110,12 @@ Persistence
 src/NovelSpeaker.App/
 ├─ App.xaml
 ├─ Bootstrap/
+├─ Navigation/
+├─ Dialogs/
 ├─ Views/
 ├─ ViewModels/
+├─ Controls/
+├─ Behaviors/
 ├─ Converters/
 └─ Resources/
 
@@ -143,6 +149,16 @@ src/NovelSpeaker.Infrastructure/
 ├─ Security/
 └─ Logging/
 ```
+
+
+## UI 架构边界
+
+- `MainWindow` 只承载 Wpf.Ui 壳层、一级导航和页面宿主。
+- 页面导航通过 App 层的导航服务完成，ViewModel 不直接创建 View。
+- 文件选择、对话框、Snackbar 和打开数据目录等系统交互通过可替换服务封装。
+- 书库、播放、规则和设置 ViewModel 只依赖 Application 抽象。
+- 自动滚动的视觉定位属于 View/Behavior；播放状态和跳转语义属于 Application/Playback。
+- 不允许在 code-behind 中执行 SQL、文件删除、HTTP 请求或播放状态协调。
 
 ## 核心接口建议
 
