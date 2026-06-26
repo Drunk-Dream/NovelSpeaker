@@ -10,9 +10,13 @@ public interface IPlaybackCoordinator : IAsyncDisposable
     event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 
     Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken);
+    Task OpenPausedAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken);
     Task PauseAsync(CancellationToken cancellationToken);
     Task ResumeAsync(CancellationToken cancellationToken);
     Task StopAsync(CancellationToken cancellationToken);
+    Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken);
+    Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken);
+    Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken);
     Task NextSegmentAsync(CancellationToken cancellationToken);
     Task PreviousSegmentAsync(CancellationToken cancellationToken);
     Task NextChapterAsync(CancellationToken cancellationToken);

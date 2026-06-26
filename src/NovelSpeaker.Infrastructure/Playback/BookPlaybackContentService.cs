@@ -33,13 +33,14 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
         var bookCommand = connection.CreateCommand();
         bookCommand.CommandText =
             """
-            SELECT Id, Title
+            SELECT Id, Title, Author
             FROM Books
             WHERE Id = $id;
             """;
         bookCommand.Parameters.AddWithValue("$id", bookId);
 
         string? title = null;
+        string? author = null;
         await using (var bookReader = await bookCommand.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
         {
             if (!await bookReader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -48,6 +49,7 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
             }
 
             title = bookReader.GetString(1);
+            author = bookReader.IsDBNull(2) ? null : bookReader.GetString(2);
         }
 
         var chapterCommand = connection.CreateCommand();
@@ -70,7 +72,7 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
                 []));
         }
 
-        return new PlaybackBookContent(bookId, title!, chapters);
+        return new PlaybackBookContent(bookId, title!, chapters, author);
     }
 
     public async Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)

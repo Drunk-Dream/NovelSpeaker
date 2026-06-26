@@ -8,7 +8,8 @@ namespace NovelSpeaker.Application.Playback;
 public sealed record PlaybackBookContent(
     string BookId,
     string BookTitle,
-    IReadOnlyList<PlaybackChapterContent> Chapters);
+    IReadOnlyList<PlaybackChapterContent> Chapters,
+    string? BookAuthor = null);
 
 /// <summary>
 /// Represents one playback-ready chapter.

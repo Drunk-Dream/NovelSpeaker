@@ -19,7 +19,9 @@ public sealed record PlaybackSnapshot(
     string? Message,
     bool IsUsingCache,
     bool CanRetry,
-    bool CanSkip)
+    bool CanSkip,
+    string? BookAuthor = null,
+    bool HasAvailableRule = true)
 {
     public static PlaybackSnapshot Idle { get; } = new(
         PlaybackState.Idle,
@@ -37,5 +39,7 @@ public sealed record PlaybackSnapshot(
         "请选择一本书并开始播放。",
         false,
         false,
-        false);
+        false,
+        null,
+        true);
 }

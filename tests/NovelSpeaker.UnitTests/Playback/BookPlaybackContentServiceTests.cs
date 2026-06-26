@@ -71,7 +71,8 @@ public sealed class BookPlaybackContentServiceTests
             """
             CREATE TABLE Books (
                 Id TEXT NOT NULL PRIMARY KEY,
-                Title TEXT NOT NULL
+                Title TEXT NOT NULL,
+                Author TEXT NULL
             );
             """;
         createBooks.ExecuteNonQuery();
@@ -93,7 +94,7 @@ public sealed class BookPlaybackContentServiceTests
         createChapters.ExecuteNonQuery();
 
         using var insertBook = connection.CreateCommand();
-        insertBook.CommandText = "INSERT INTO Books (Id, Title) VALUES ('book-1', '示例小说');";
+        insertBook.CommandText = "INSERT INTO Books (Id, Title, Author) VALUES ('book-1', '示例小说', NULL);";
         insertBook.ExecuteNonQuery();
 
         using var insertChapter = connection.CreateCommand();

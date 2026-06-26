@@ -42,6 +42,10 @@ public sealed class PlaybackSession : IAsyncDisposable
 
     public int SpeakSpeed { get; set; }
 
+    public long ResumePositionMilliseconds { get; set; }
+
+    public bool HasLoadedAudio { get; set; }
+
     public int ConsecutiveSegmentFailureCount { get; set; }
 
     public void Cancel()
