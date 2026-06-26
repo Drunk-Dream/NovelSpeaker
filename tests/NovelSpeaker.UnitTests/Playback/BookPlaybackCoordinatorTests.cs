@@ -1,5 +1,7 @@
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Playback;
 using Xunit;
@@ -62,6 +64,44 @@ public sealed class BookPlaybackCoordinatorTests
         Assert.Equal("全书播放完成。", coordinator.CurrentSnapshot.Message);
     }
 
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1, 1)]
+    [InlineData(2, 2)]
+    public async Task StartAsync_uses_settings_prefetch_count(int configuredPrefetchCount, int expectedRequests)
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var prefetchScheduler = new FakePrefetchScheduler();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            book: CreateThreeSegmentBook(),
+            prefetchScheduler: prefetchScheduler,
+            appSettingsStore: new FakeAppSettingsStore(AppSettings.Default with { PrefetchCount = configuredPrefetchCount }));
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+
+        var scheduleCall = Assert.Single(prefetchScheduler.ScheduleCalls);
+        Assert.Equal(expectedRequests, scheduleCall.Requests.Count);
+    }
+
+    [Fact]
+    public async Task StartAsync_prefetches_across_chapter_boundary()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var prefetchScheduler = new FakePrefetchScheduler();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            book: CreateTwoChapterBook(),
+            prefetchScheduler: prefetchScheduler,
+            appSettingsStore: new FakeAppSettingsStore(AppSettings.Default with { PrefetchCount = 1 }));
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+
+        var request = Assert.Single(Assert.Single(prefetchScheduler.ScheduleCalls).Requests);
+        Assert.Equal(1, request.ChapterIndex);
+        Assert.Equal(0, request.SegmentIndex);
+    }
+
     [Fact]
     public async Task Pause_and_resume_keep_current_session()
     {
@@ -79,6 +119,25 @@ public sealed class BookPlaybackCoordinatorTests
 
         await coordinator.ResumeAsync(CancellationToken.None);
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+    }
+
+    [Fact]
+    public async Task PauseAsync_reduces_prefetch_window_to_one_segment()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var prefetchScheduler = new FakePrefetchScheduler();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            book: CreateThreeSegmentBook(),
+            prefetchScheduler: prefetchScheduler,
+            appSettingsStore: new FakeAppSettingsStore(AppSettings.Default with { PrefetchCount = 2 }));
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        await coordinator.PauseAsync(CancellationToken.None);
+
+        Assert.Equal(2, prefetchScheduler.ScheduleCalls.Count);
+        Assert.Equal(2, prefetchScheduler.ScheduleCalls[0].Requests.Count);
+        Assert.Single(prefetchScheduler.ScheduleCalls[1].Requests);
     }
 
     [Fact]
@@ -160,14 +219,17 @@ public sealed class BookPlaybackCoordinatorTests
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var selectedRuleProvider = new FakeSelectedTtsRuleProvider(CreateRuleSelection(1, "默认规则"));
         selectedRuleProvider.RegisterSelectable(CreateRuleSelection(2, "备用规则"));
+        var prefetchScheduler = new FakePrefetchScheduler();
         await using var coordinator = CreateCoordinator(
             localCoordinator,
-            selectedRuleProvider: selectedRuleProvider);
+            selectedRuleProvider: selectedRuleProvider,
+            prefetchScheduler: prefetchScheduler);
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
         await coordinator.ChangeRuleAsync(2, CancellationToken.None);
 
         Assert.Equal("备用规则", coordinator.CurrentSnapshot.RuleName);
+        Assert.NotEmpty(prefetchScheduler.CancelledSessions);
 
         await coordinator.ChangeSpeedAsync(16, CancellationToken.None);
 
@@ -318,13 +380,33 @@ public sealed class BookPlaybackCoordinatorTests
         Assert.Equal(0, saved.CharacterOffset);
     }
 
+    [Fact]
+    public async Task StopAsync_cancels_active_prefetch_session()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var prefetchScheduler = new FakePrefetchScheduler();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            book: CreateThreeSegmentBook(),
+            prefetchScheduler: prefetchScheduler);
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        var sessionId = Assert.Single(prefetchScheduler.ScheduleCalls).SessionId;
+
+        await coordinator.StopAsync(CancellationToken.None);
+
+        Assert.Contains(sessionId, prefetchScheduler.CancelledSessions);
+    }
+
     private static PlaybackCoordinator CreateCoordinator(
         FakeLocalAudioPlaybackCoordinator localCoordinator,
         FakeBookPlaybackContentService? bookContentService = null,
         FakeSelectedTtsRuleProvider? selectedRuleProvider = null,
         FakePlaybackAudioProvider? audioProvider = null,
         PlaybackBookContent? book = null,
-        FakeReadingProgressStore? readingProgressStore = null)
+        FakeReadingProgressStore? readingProgressStore = null,
+        FakePrefetchScheduler? prefetchScheduler = null,
+        FakeAppSettingsStore? appSettingsStore = null)
     {
         return new PlaybackCoordinator(
             bookContentService ?? new FakeBookPlaybackContentService(book ?? CreateBook()),
@@ -333,7 +415,8 @@ public sealed class BookPlaybackCoordinatorTests
             new AudioCacheProtectionRegistry(),
             localCoordinator,
             readingProgressStore ?? new FakeReadingProgressStore(),
-            new FakePrefetchScheduler());
+            prefetchScheduler ?? new FakePrefetchScheduler(),
+            appSettingsStore ?? new FakeAppSettingsStore(AppSettings.Default));
     }
 
     private static PlaybackBookContent CreateBook()
@@ -536,7 +619,11 @@ public sealed class BookPlaybackCoordinatorTests
             return new PendingAudioResult(completionSource, filePath);
         }
 
-        public Task<PlaybackAudioResult> GetAudioAsync(PlaybackAudioRequest request, CancellationToken cancellationToken)
+        public Task<PlaybackAudioResult> GetAudioAsync(
+            PlaybackAudioRequest request,
+            PlaybackAudioPriority priority,
+            Action<PlaybackAudioProgress>? progressCallback,
+            CancellationToken cancellationToken)
         {
             Requests.Add(request);
             if (_results.Count > 0)
@@ -703,19 +790,40 @@ public sealed class BookPlaybackCoordinatorTests
 
     private sealed class FakePrefetchScheduler : IPrefetchScheduler
     {
-        public List<(Guid SessionId, int RequestCount)> ScheduleCalls { get; } = [];
+        public List<(Guid SessionId, IReadOnlyList<PlaybackAudioRequest> Requests)> ScheduleCalls { get; } = [];
 
         public List<Guid> CancelledSessions { get; } = [];
 
         public Task ScheduleAsync(Guid sessionId, IReadOnlyList<PlaybackAudioRequest> requests, CancellationToken cancellationToken)
         {
-            ScheduleCalls.Add((sessionId, requests.Count));
+            ScheduleCalls.Add((sessionId, requests.ToArray()));
             return Task.CompletedTask;
         }
 
         public Task CancelAsync(Guid sessionId, CancellationToken cancellationToken)
         {
             CancelledSessions.Add(sessionId);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeAppSettingsStore : IAppSettingsStore
+    {
+        public FakeAppSettingsStore(AppSettings settings)
+        {
+            Settings = settings;
+        }
+
+        public AppSettings Settings { get; private set; }
+
+        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(Settings);
+        }
+
+        public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
+        {
+            Settings = settings;
             return Task.CompletedTask;
         }
     }

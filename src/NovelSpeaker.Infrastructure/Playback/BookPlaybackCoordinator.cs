@@ -1,5 +1,7 @@
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 
 namespace NovelSpeaker.Infrastructure.Playback;
@@ -19,6 +21,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     private readonly ILocalAudioPlaybackCoordinator _localAudioPlaybackCoordinator;
     private readonly IReadingProgressStore _readingProgressStore;
     private readonly IPrefetchScheduler _prefetchScheduler;
+    private readonly IAppSettingsStore _appSettingsStore;
     private readonly SemaphoreSlim _mutex = new(1, 1);
 
     private PlaybackSnapshot _currentSnapshot = PlaybackSnapshot.Idle;
@@ -37,7 +40,8 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         IAudioCacheProtectionRegistry audioCacheProtectionRegistry,
         ILocalAudioPlaybackCoordinator localAudioPlaybackCoordinator,
         IReadingProgressStore readingProgressStore,
-        IPrefetchScheduler prefetchScheduler)
+        IPrefetchScheduler prefetchScheduler,
+        IAppSettingsStore appSettingsStore)
     {
         _bookContentService = bookContentService;
         _selectedRuleProvider = selectedRuleProvider;
@@ -46,6 +50,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         _localAudioPlaybackCoordinator = localAudioPlaybackCoordinator;
         _readingProgressStore = readingProgressStore;
         _prefetchScheduler = prefetchScheduler;
+        _appSettingsStore = appSettingsStore;
 
         _localAudioPlaybackCoordinator.SnapshotChanged += OnLocalSnapshotChanged;
         _localAudioPlaybackCoordinator.PlaybackCompleted += OnLocalPlaybackCompleted;
@@ -266,6 +271,8 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                 false,
                 false));
         }
+
+        await RefreshPrefetchWindowAsync(_currentSession, maxCountOverride: 1, cancellationToken);
         await SaveProgressAsync(_currentSession, _localAudioPlaybackCoordinator.CurrentSnapshot.PositionMilliseconds, cancellationToken);
     }
 
@@ -295,6 +302,8 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                 false,
                 false));
         }
+
+        await RefreshPrefetchWindowAsync(_currentSession, maxCountOverride: null, cancellationToken);
     }
 
     private async Task StopCoreAsync(CancellationToken cancellationToken)
@@ -638,7 +647,31 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             await _audioProvider.InvalidateAsync(audioRequest, linkedCts.Token);
         }
 
-        var audio = await _audioProvider.GetAudioAsync(audioRequest, linkedCts.Token);
+        var audio = await _audioProvider.GetAudioAsync(
+            audioRequest,
+            PlaybackAudioPriority.Current,
+            progress =>
+            {
+                if (!IsSessionCurrent(session.SessionId) || _currentBook is null || _currentRule is null)
+                {
+                    return;
+                }
+
+                PublishSnapshot(BuildSnapshot(
+                    PlaybackState.Buffering,
+                    _currentBook,
+                    chapter.ChapterIndex,
+                    session.SegmentIndex,
+                    _currentRule,
+                    session.SpeakSpeed,
+                    0,
+                    0,
+                    progress.Message,
+                    false,
+                    false,
+                    false));
+            },
+            linkedCts.Token);
         if (!IsSessionCurrent(session.SessionId))
         {
             return;
@@ -691,7 +724,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             false,
             false));
 
-        await SchedulePrefetchAsync(session, linkedCts.Token);
+        await RefreshPrefetchWindowAsync(session, maxCountOverride: null, linkedCts.Token);
     }
 
     private void HandleSegmentFailure(TtsExecutionFailure failure, bool canSkip)
@@ -736,48 +769,74 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         });
     }
 
-    private async Task SchedulePrefetchAsync(PlaybackSession session, CancellationToken cancellationToken)
+    private async Task RefreshPrefetchWindowAsync(
+        PlaybackSession session,
+        int? maxCountOverride,
+        CancellationToken cancellationToken)
     {
         if (_currentBook is null || _currentRule is null)
         {
+            return;
+        }
+
+        var prefetchCount = await GetPrefetchCountAsync(maxCountOverride, cancellationToken).ConfigureAwait(false);
+        if (prefetchCount <= 0)
+        {
+            await _prefetchScheduler.ScheduleAsync(session.SessionId, Array.Empty<PlaybackAudioRequest>(), cancellationToken).ConfigureAwait(false);
             return;
         }
 
         var requests = new List<PlaybackAudioRequest>();
-        var chapter = GetChapter(_currentBook, session.ChapterIndex);
-        if (chapter is null)
+        var book = _currentBook;
+        var chapterIndex = session.ChapterIndex;
+        var segmentIndex = session.SegmentIndex;
+        for (var index = 0; index < prefetchCount; index++)
         {
-            return;
+            var next = await ResolveRelativeSegmentAsync(
+                book,
+                chapterIndex,
+                segmentIndex,
+                1,
+                cancellationToken).ConfigureAwait(false);
+            if (next is null)
+            {
+                break;
+            }
+
+            book = next.Value.Book;
+            chapterIndex = next.Value.ChapterIndex;
+            segmentIndex = next.Value.SegmentIndex;
+            AddPrefetchRequest(book, requests, session, chapterIndex, segmentIndex);
         }
 
-        if (session.SegmentIndex + 1 < chapter.Segments.Count)
+        if (IsSessionCurrent(session.SessionId))
         {
-            AddPrefetchRequest(requests, session, chapter.ChapterIndex, session.SegmentIndex + 1);
+            _currentBook = book;
         }
 
-        if (session.SegmentIndex + 2 < chapter.Segments.Count)
-        {
-            AddPrefetchRequest(requests, session, chapter.ChapterIndex, session.SegmentIndex + 2);
-        }
-
-        await _prefetchScheduler.ScheduleAsync(session.SessionId, requests, cancellationToken);
+        await _prefetchScheduler.ScheduleAsync(session.SessionId, requests, cancellationToken).ConfigureAwait(false);
     }
 
-    private void AddPrefetchRequest(List<PlaybackAudioRequest> requests, PlaybackSession session, int chapterIndex, int segmentIndex)
+    private void AddPrefetchRequest(
+        PlaybackBookContent book,
+        List<PlaybackAudioRequest> requests,
+        PlaybackSession session,
+        int chapterIndex,
+        int segmentIndex)
     {
-        if (_currentBook is null || _currentRule is null)
+        if (_currentRule is null)
         {
             return;
         }
 
-        var chapter = GetChapter(_currentBook, chapterIndex);
+        var chapter = GetChapter(book, chapterIndex);
         if (chapter is null || segmentIndex < 0 || segmentIndex >= chapter.Segments.Count)
         {
             return;
         }
 
         requests.Add(new PlaybackAudioRequest(
-            _currentBook.BookId,
+            book.BookId,
             chapterIndex,
             segmentIndex,
             chapter.Segments[segmentIndex].SpeechText,
@@ -965,6 +1024,15 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     private static int NormalizeSpeakSpeed(int speakSpeed)
     {
         return speakSpeed <= 0 ? DefaultSpeakSpeed : speakSpeed;
+    }
+
+    private async Task<int> GetPrefetchCountAsync(int? maxCountOverride, CancellationToken cancellationToken)
+    {
+        var settings = await _appSettingsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var prefetchCount = Math.Clamp(settings.PrefetchCount, 0, AppSettings.DefaultPrefetchCountValue);
+        return maxCountOverride is null
+            ? prefetchCount
+            : Math.Min(prefetchCount, maxCountOverride.Value);
     }
 
     private static PlaybackChapterContent? GetChapter(PlaybackBookContent book, int chapterIndex)
