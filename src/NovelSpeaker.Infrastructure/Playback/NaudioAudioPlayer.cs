@@ -1,4 +1,5 @@
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using NovelSpeaker.Application.Playback;
 using PlaybackStatus = NovelSpeaker.Application.Playback.PlaybackState;
 
@@ -10,12 +11,15 @@ namespace NovelSpeaker.Infrastructure.Playback;
 public sealed class NaudioAudioPlayer : IAudioPlayer
 {
     private static readonly TimeSpan EndOfStreamTolerance = TimeSpan.FromMilliseconds(1);
+    private const int PlaybackSampleRate = 44100;
+    private const int PlaybackChannels = 2;
+
     private readonly Func<IWavePlayer> _wavePlayerFactory;
+    private readonly SwitchingWaveProvider _switchingWaveProvider = new(new WaveFormat(PlaybackSampleRate, 16, PlaybackChannels));
     private AudioFileReader? _audioFileReader;
     private IWavePlayer? _wavePlayer;
     private EventHandler<StoppedEventArgs>? _playbackStoppedHandler;
-    private long _playbackGeneration;
-    private long? _suppressedPlaybackGeneration;
+    private bool _suppressNextPlaybackStopped;
     private bool _disposed;
 
     public NaudioAudioPlayer()
@@ -101,8 +105,7 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
             return;
         }
 
-        _suppressedPlaybackGeneration = _playbackGeneration;
-        _wavePlayer.Stop();
+        StopWavePlayerIfActive();
         _audioFileReader.CurrentTime = TimeSpan.Zero;
         State = PlaybackStatus.Stopped;
     }
@@ -150,6 +153,7 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
             _wavePlayer = null;
         }
 
+        _switchingWaveProvider.SetSource(null);
         _audioFileReader?.Dispose();
         _audioFileReader = null;
 
@@ -164,38 +168,55 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
             throw new FileNotFoundException("Audio file was not found.", filePath);
         }
 
-        if (_wavePlayer is not null)
-        {
-            if (_playbackStoppedHandler is not null)
-            {
-                _wavePlayer.PlaybackStopped -= _playbackStoppedHandler;
-                _playbackStoppedHandler = null;
-            }
+        EnsureWavePlayerInitialized();
 
-            _wavePlayer.Dispose();
-            _wavePlayer = null;
-        }
+        var reader = new AudioFileReader(filePath);
+        var playbackProvider = CreatePlaybackProvider(reader);
+        var previousReader = _audioFileReader;
 
-        _audioFileReader?.Dispose();
-        _audioFileReader = new AudioFileReader(filePath);
-        _playbackGeneration++;
-        _wavePlayer = _wavePlayerFactory();
-        _wavePlayer.Init(_audioFileReader);
-        var generation = _playbackGeneration;
-        _playbackStoppedHandler = (_, e) => OnPlaybackStopped(generation, e);
-        _wavePlayer.PlaybackStopped += _playbackStoppedHandler;
+        StopWavePlayerIfActive();
+
+        _switchingWaveProvider.SetSource(playbackProvider);
+        _audioFileReader = reader;
+        previousReader?.Dispose();
     }
 
-    private void OnPlaybackStopped(long generation, StoppedEventArgs e)
+    private void EnsureWavePlayerInitialized()
     {
-        if (generation != _playbackGeneration)
+        if (_wavePlayer is not null)
         {
             return;
         }
 
-        if (_suppressedPlaybackGeneration == generation)
+        _wavePlayer = _wavePlayerFactory();
+        _wavePlayer.Init(_switchingWaveProvider);
+        _playbackStoppedHandler = (_, e) => OnPlaybackStopped(e);
+        _wavePlayer.PlaybackStopped += _playbackStoppedHandler;
+    }
+
+    private static IWaveProvider CreatePlaybackProvider(AudioFileReader reader)
+    {
+        ISampleProvider sampleProvider = reader;
+        sampleProvider = sampleProvider.WaveFormat.Channels switch
         {
-            _suppressedPlaybackGeneration = null;
+            1 => new MonoToStereoSampleProvider(sampleProvider),
+            2 => sampleProvider,
+            _ => throw new InvalidOperationException($"Unsupported audio channel count: {sampleProvider.WaveFormat.Channels}.")
+        };
+
+        if (sampleProvider.WaveFormat.SampleRate != PlaybackSampleRate)
+        {
+            sampleProvider = new WdlResamplingSampleProvider(sampleProvider, PlaybackSampleRate);
+        }
+
+        return sampleProvider.ToWaveProvider16();
+    }
+
+    private void OnPlaybackStopped(StoppedEventArgs e)
+    {
+        if (_suppressNextPlaybackStopped)
+        {
+            _suppressNextPlaybackStopped = false;
             return;
         }
 
@@ -243,5 +264,46 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+
+    private void StopWavePlayerIfActive()
+    {
+        if (_wavePlayer is null || _wavePlayer.PlaybackState == NAudio.Wave.PlaybackState.Stopped)
+        {
+            return;
+        }
+
+        _suppressNextPlaybackStopped = true;
+        _wavePlayer.Stop();
+    }
+
+    private sealed class SwitchingWaveProvider : IWaveProvider
+    {
+        private readonly object _gate = new();
+        private readonly WaveFormat _waveFormat;
+        private IWaveProvider? _source;
+
+        public SwitchingWaveProvider(WaveFormat waveFormat)
+        {
+            _waveFormat = waveFormat;
+        }
+
+        public WaveFormat WaveFormat => _waveFormat;
+
+        public int Read(byte[] buffer, int offset, int count)
+        {
+            lock (_gate)
+            {
+                return _source?.Read(buffer, offset, count) ?? 0;
+            }
+        }
+
+        public void SetSource(IWaveProvider? source)
+        {
+            lock (_gate)
+            {
+                _source = source;
+            }
+        }
     }
 }

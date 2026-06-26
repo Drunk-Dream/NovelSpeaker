@@ -37,8 +37,12 @@ internal sealed class FakeWavePlayer : IWavePlayer
 
     public void Stop()
     {
+        var wasStopped = PlaybackState == PlaybackState.Stopped;
         PlaybackState = PlaybackState.Stopped;
-        _playbackStopped?.Invoke(this, new StoppedEventArgs());
+        if (!wasStopped)
+        {
+            _playbackStopped?.Invoke(this, new StoppedEventArgs());
+        }
     }
 
     public void RaisePlaybackStopped(Exception? exception = null)

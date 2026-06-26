@@ -22,6 +22,8 @@ public sealed class NaudioAudioPlayerTests
         Assert.Equal(PlaybackStatus.Stopped, player.State);
         Assert.True(player.Duration > TimeSpan.Zero);
         Assert.NotNull(wavePlayer.WaveProvider);
+        Assert.Equal(44100, wavePlayer.OutputWaveFormat?.SampleRate);
+        Assert.Equal(2, wavePlayer.OutputWaveFormat?.Channels);
     }
 
     [Fact]
@@ -144,27 +146,38 @@ public sealed class NaudioAudioPlayerTests
     }
 
     [Fact]
-    public async Task Stale_stop_callback_from_previous_wave_player_is_ignored_after_loading_next_audio()
+    public async Task Loading_next_audio_reuses_existing_output_device()
     {
         var factory = new FakeWavePlayerFactory();
         await using var player = new NaudioAudioPlayer(factory.Create);
+
+        await player.LoadAsync(PlaybackTestAudio.DemoWavPath, CancellationToken.None);
+        player.Play();
+        await player.LoadAsync(PlaybackTestAudio.DemoMp3Path, CancellationToken.None);
+        player.Play();
+
+        Assert.Single(factory.CreatedPlayers);
+        Assert.Equal(PlaybackStatus.Playing, player.State);
+    }
+
+    [Fact]
+    public async Task Suppressed_stop_during_reload_does_not_raise_completion_for_next_audio()
+    {
+        var wavePlayer = new FakeWavePlayer();
+        await using var player = new NaudioAudioPlayer(() => wavePlayer);
         var completionCount = 0;
         player.PlaybackCompleted += (_, _) => completionCount++;
 
         await player.LoadAsync(PlaybackTestAudio.DemoWavPath, CancellationToken.None);
         player.Play();
-
-        var firstWavePlayer = factory.CreatedPlayers[0];
-        var capturedHandlers = firstWavePlayer.CapturePlaybackStoppedHandlers();
-
-        player.Stop();
         await player.LoadAsync(PlaybackTestAudio.DemoMp3Path, CancellationToken.None);
         player.Play();
 
-        firstWavePlayer.RaiseCapturedPlaybackStopped(capturedHandlers);
-
-        Assert.Equal(PlaybackStatus.Playing, player.State);
         Assert.Equal(0, completionCount);
+        wavePlayer.RaisePlaybackStopped();
+
+        Assert.Equal(1, completionCount);
+        Assert.Equal(PlaybackStatus.Stopped, player.State);
     }
 
     private static string CreateShortWaveFile()
