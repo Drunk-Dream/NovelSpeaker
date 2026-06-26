@@ -14,16 +14,17 @@ namespace NovelSpeaker.Infrastructure.Speech.Http;
 public sealed class HttpTtsClient : IHttpTtsClient, IDisposable
 {
     private const int MaxTransientRetries = 2;
-    private const int Max429Retries = 1;
     private const int MaxErrorBodyBytes = 4096;
     private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(30);
     private readonly ConcurrentDictionary<long, HttpClient> _clients = new();
     private readonly string _tempDirectoryPath;
+    private readonly TimeProvider _timeProvider;
     private bool _disposed;
 
-    public HttpTtsClient(IAppDataDirectoryProvider directories)
+    public HttpTtsClient(IAppDataDirectoryProvider directories, TimeProvider? timeProvider = null)
     {
         _tempDirectoryPath = Path.Combine(directories.CacheDirectoryPath, "RuleTests");
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<TtsHttpExecutionResult> ExecuteAsync(
@@ -34,8 +35,6 @@ public sealed class HttpTtsClient : IHttpTtsClient, IDisposable
         Directory.CreateDirectory(_tempDirectoryPath);
 
         var transientRetriesRemaining = MaxTransientRetries;
-        var rateLimitedRetriesRemaining = Max429Retries;
-
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -64,14 +63,7 @@ public sealed class HttpTtsClient : IHttpTtsClient, IDisposable
 
                 if ((int)response.StatusCode == 429)
                 {
-                    var retryAfter = ParseRetryAfter(response.Headers.RetryAfter);
-                    if (rateLimitedRetriesRemaining > 0 && retryAfter is not null)
-                    {
-                        rateLimitedRetriesRemaining--;
-                        await Task.Delay(retryAfter.Value, cancellationToken);
-                        continue;
-                    }
-
+                    var retryAfter = ParseRetryAfter(response.Headers.RetryAfter, _timeProvider);
                     return Failure(
                         TtsErrorKind.RateLimited,
                         "请求过于频繁，服务暂时限流。",
@@ -336,7 +328,7 @@ public sealed class HttpTtsClient : IHttpTtsClient, IDisposable
         return SensitiveDataRedactor.RedactJsonLikeText(summary);
     }
 
-    private static TimeSpan? ParseRetryAfter(RetryConditionHeaderValue? retryAfter)
+    private static TimeSpan? ParseRetryAfter(RetryConditionHeaderValue? retryAfter, TimeProvider timeProvider)
     {
         if (retryAfter?.Delta is { } delta)
         {
@@ -345,7 +337,7 @@ public sealed class HttpTtsClient : IHttpTtsClient, IDisposable
 
         if (retryAfter?.Date is { } date)
         {
-            var remaining = date - DateTimeOffset.UtcNow;
+            var remaining = date - timeProvider.GetUtcNow();
             if (remaining <= TimeSpan.Zero)
             {
                 return TimeSpan.Zero;

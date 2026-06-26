@@ -23,7 +23,7 @@ public sealed class HttpTtsClientTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_retries_rate_limited_requests_once()
+    public async Task ExecuteAsync_returns_retry_after_for_rate_limited_requests()
     {
         await using var server = new LocalHttpTtsTestServer();
         using var client = CreateClient();
@@ -32,8 +32,10 @@ public sealed class HttpTtsClientTests
             CreateRequest(1, new Uri(server.BaseUri, "rate-limited")),
             CancellationToken.None);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(2, server.GetRequestCount("/rate-limited"));
+        Assert.False(result.IsSuccess);
+        Assert.Equal(TtsErrorKind.RateLimited, result.Failure!.Kind);
+        Assert.Equal(TimeSpan.Zero, result.Failure.RetryAfter);
+        Assert.Equal(1, server.GetRequestCount("/rate-limited"));
     }
 
     [Fact]
