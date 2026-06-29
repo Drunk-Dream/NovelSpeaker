@@ -12,6 +12,7 @@ namespace NovelSpeaker.Infrastructure.Settings;
 /// </summary>
 public sealed class JsonAppSettingsStore :
     IAppSettingsStore,
+    IBookFileNameTemplateProvider,
     ITextSegmentationOptionsProvider
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -30,6 +31,12 @@ public sealed class JsonAppSettingsStore :
     {
         var settings = LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
         return settings.ToTextSegmentationOptions();
+    }
+
+    public async Task<string> GetCurrentTemplateAsync(CancellationToken cancellationToken)
+    {
+        var settings = await LoadAsync(cancellationToken).ConfigureAwait(false);
+        return settings.BookFileNameTemplate!;
     }
 
     public async Task<AppSettings> LoadAsync(CancellationToken cancellationToken)

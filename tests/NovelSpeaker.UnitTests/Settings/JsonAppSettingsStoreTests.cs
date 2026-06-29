@@ -23,6 +23,7 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal(2, settings.PrefetchCount);
         Assert.Equal("Information", settings.LogLevel);
         Assert.Equal("System", settings.Theme);
+        Assert.Equal(AppSettings.DefaultBookFileNameTemplate, settings.BookFileNameTemplate);
     }
 
     [Fact]
@@ -61,6 +62,38 @@ public sealed class JsonAppSettingsStoreTests
     }
 
     [Fact]
+    public async Task SaveAsync_persists_custom_file_name_template()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new LocalAppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new JsonAppSettingsStore(directories);
+
+        await store.SaveAsync(
+            AppSettings.Default with { BookFileNameTemplate = "《{{name}}》 - {{author}}" },
+            CancellationToken.None);
+        var reloaded = await store.LoadAsync(CancellationToken.None);
+
+        Assert.Equal("《{{name}}》 - {{author}}", reloaded.BookFileNameTemplate);
+    }
+
+    [Fact]
+    public async Task SaveAsync_preserves_empty_file_name_template()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new LocalAppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new JsonAppSettingsStore(directories);
+
+        await store.SaveAsync(
+            AppSettings.Default with { BookFileNameTemplate = "   " },
+            CancellationToken.None);
+        var reloaded = await store.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(string.Empty, reloaded.BookFileNameTemplate);
+    }
+
+    [Fact]
     public async Task LoadAsync_normalizes_invalid_new_setting_values()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -75,7 +108,8 @@ public sealed class JsonAppSettingsStoreTests
               "DefaultSpeakSpeed": 0,
               "PrefetchCount": -5,
               "LogLevel": "Verbose",
-              "Theme": "Blue"
+              "Theme": "Blue",
+              "BookFileNameTemplate": null
             }
             """,
             CancellationToken.None);
@@ -88,6 +122,7 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal(2, settings.PrefetchCount);
         Assert.Equal("Information", settings.LogLevel);
         Assert.Equal("System", settings.Theme);
+        Assert.Equal(AppSettings.DefaultBookFileNameTemplate, settings.BookFileNameTemplate);
     }
 
     [Fact]

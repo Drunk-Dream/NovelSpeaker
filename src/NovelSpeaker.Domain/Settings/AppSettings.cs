@@ -12,12 +12,14 @@ public sealed record AppSettings(
     int PrefetchCount = 2,
     string LogLevel = "Information",
     string Theme = "System",
+    string? BookFileNameTemplate = "{{name}} 作者：{{author}}",
     long? SelectedTtsRuleId = null)
 {
     public const int DefaultSpeakSpeedValue = 10;
     public const int DefaultPrefetchCountValue = 2;
     public const string DefaultLogLevel = "Information";
     public const string DefaultTheme = "System";
+    public const string DefaultBookFileNameTemplate = "{{name}} 作者：{{author}}";
 
     public static IReadOnlyList<string> SupportedLogLevels { get; } =
         ["Trace", "Debug", "Information", "Warning", "Error", "Critical"];
@@ -33,6 +35,7 @@ public sealed record AppSettings(
             DefaultPrefetchCountValue,
             DefaultLogLevel,
             DefaultTheme,
+            DefaultBookFileNameTemplate,
             null);
 
     public TextSegmentationOptions ToTextSegmentationOptions()
@@ -54,8 +57,19 @@ public sealed record AppSettings(
                 ? DefaultPrefetchCountValue
                 : Math.Min(PrefetchCount, DefaultPrefetchCountValue),
             LogLevel = NormalizeOption(LogLevel, SupportedLogLevels, DefaultLogLevel),
-            Theme = NormalizeOption(Theme, SupportedThemes, DefaultTheme)
+            Theme = NormalizeOption(Theme, SupportedThemes, DefaultTheme),
+            BookFileNameTemplate = NormalizeFileNameTemplate(BookFileNameTemplate)
         };
+    }
+
+    private static string NormalizeFileNameTemplate(string? value)
+    {
+        if (value is null)
+        {
+            return DefaultBookFileNameTemplate;
+        }
+
+        return value.Trim();
     }
 
     private static string NormalizeOption(string? value, IReadOnlyList<string> supportedValues, string defaultValue)
