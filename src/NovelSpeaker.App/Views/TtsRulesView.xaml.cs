@@ -10,15 +10,6 @@ public partial class TtsRulesView : UserControl
     public TtsRulesView()
     {
         InitializeComponent();
-        Loaded += OnLoaded;
-    }
-
-    private async void OnLoaded(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is TtsRulesViewModel viewModel)
-        {
-            await viewModel.LoadAsync(CancellationToken.None);
-        }
     }
 
     private async void ImportFromFileButton_OnClick(object sender, RoutedEventArgs e)

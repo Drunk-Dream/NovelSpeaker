@@ -9,13 +9,9 @@
         </Grid.ColumnDefinitions>
 
         <Border Padding="20"
-                Background="#FFF8F1E4"
-                BorderBrush="#FFE2D2B6"
-                BorderThickness="1"
-                CornerRadius="10">
+                Style="{StaticResource CardBorderStyle}">
             <StackPanel>
-                <TextBlock FontSize="28"
-                           FontWeight="SemiBold"
+                <TextBlock Style="{StaticResource PageTitleTextBlockStyle}"
                            TextWrapping="Wrap"
                            Text="{Binding Headline}" />
                 <TextBlock Margin="0,16,0,0"
@@ -66,24 +62,22 @@
             <TextBlock Margin="0,10,0,0"
                        FontSize="18"
                        FontWeight="SemiBold"
-                       Foreground="#FF1D3557"
                        TextWrapping="Wrap"
                        Text="{Binding CurrentChapterTitle}" />
             <TextBlock Margin="0,8,0,0"
                        FontSize="16"
-                       Foreground="#FF415A77"
+                       Style="{StaticResource SecondaryTextBlockStyle}"
                        TextWrapping="Wrap"
                        Text="{Binding CurrentRuleText}" />
             <TextBlock Margin="0,8,0,0"
                        FontSize="16"
-                       Foreground="#FF1D3557"
                        Text="{Binding StatusText}" />
             <TextBlock Margin="0,6,0,0"
-                       Foreground="#FF4A5568"
+                       Style="{StaticResource SecondaryTextBlockStyle}"
                        TextWrapping="Wrap"
                        Text="{Binding DetailText}" />
             <TextBlock Margin="0,8,0,0"
-                       Foreground="#FFB3261E"
+                       Foreground="{StaticResource DangerBrush}"
                        FontWeight="SemiBold"
                        TextWrapping="Wrap"
                        Text="{Binding ErrorText}" />

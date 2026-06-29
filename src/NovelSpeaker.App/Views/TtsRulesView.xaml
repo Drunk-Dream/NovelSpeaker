@@ -9,11 +9,10 @@
                   CanContentScroll="False">
         <StackPanel>
             <StackPanel>
-                <TextBlock FontSize="26" FontWeight="SemiBold" Text="TTS 规则" />
+                <TextBlock Style="{StaticResource PageTitleTextBlockStyle}" Text="TTS 规则" />
                 <TextBlock Margin="0,8,0,0" Text="{Binding StatusMessage}" />
                 <TextBlock Margin="0,8,0,0"
                            FontWeight="SemiBold"
-                           Foreground="#FF1D3557"
                            Text="{Binding CurrentRuleDisplayText}" />
                 <WrapPanel Margin="0,12,0,0">
                     <Button Margin="0,0,12,12" Padding="18,10" Content="从文件导入" Click="ImportFromFileButton_OnClick" />
@@ -24,15 +23,13 @@
 
             <Border Margin="0,12,0,16"
                     Padding="16"
-                    Background="#FFF7F3E8"
-                    CornerRadius="8"
+                    Style="{StaticResource CardBorderStyle}"
                     Visibility="{Binding IsPreviewVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel>
-                    <TextBlock FontSize="18"
-                               FontWeight="SemiBold"
+                    <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
                                Text="导入预览" />
                     <TextBlock Margin="0,8,0,0"
-                               Foreground="#FF4A5568"
+                               Style="{StaticResource SecondaryTextBlockStyle}"
                                Text="{Binding PreviewSourceDescription}" />
                     <TextBlock Margin="0,8,0,0"
                                TextWrapping="Wrap"
@@ -65,14 +62,12 @@
 
             <Border Margin="0,0,0,16"
                     Padding="16"
-                    Background="#FFF1F5F9"
-                    CornerRadius="8">
+                    Style="{StaticResource CardBorderStyle}">
                 <StackPanel>
-                    <TextBlock FontSize="18"
-                               FontWeight="SemiBold"
+                    <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
                                Text="规则试听" />
                     <TextBlock Margin="0,8,0,0"
-                               Foreground="#FF4A5568"
+                               Style="{StaticResource SecondaryTextBlockStyle}"
                                Text="{Binding TestStatusMessage}" />
 
                     <Grid Margin="0,12,0,0">
@@ -94,7 +89,7 @@
                                        FontWeight="SemiBold"
                                        Text="临时登录信息" />
                             <TextBlock Margin="0,6,0,0"
-                                       Foreground="#FF64748B"
+                                       Style="{StaticResource SecondaryTextBlockStyle}"
                                        Text="每行一个 key=value，仅用于当前规则页测试，不会持久化。" />
                             <TextBox Margin="0,6,0,0"
                                      MinHeight="90"

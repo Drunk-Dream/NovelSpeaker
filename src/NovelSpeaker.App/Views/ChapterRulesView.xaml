@@ -8,7 +8,7 @@
         </Grid.RowDefinitions>
 
         <StackPanel Margin="0,0,0,16">
-            <TextBlock FontSize="26" FontWeight="SemiBold" Text="章节规则" />
+            <TextBlock Style="{StaticResource PageTitleTextBlockStyle}" Text="章节规则" />
             <TextBlock Margin="0,8,0,0" Text="{Binding StatusMessage}" />
             <Button Width="160" Margin="0,12,0,0" Content="导入默认规则" Click="ImportDefaultsButton_OnClick" />
             <TextBlock Margin="0,12,0,0" Text="首版至少支持新增、修改、删除、启用/禁用与排序调整。" />

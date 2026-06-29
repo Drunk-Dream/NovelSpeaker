@@ -1,25 +1,25 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.App.Navigation;
 using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.App.ViewModels;
 
 public sealed partial class SettingsViewModel : ObservableObject
 {
+    private readonly IAppNavigationService _navigationService;
     private readonly IAppSettingsStore _settingsStore;
 
-    public SettingsViewModel(IAppSettingsStore settingsStore, ChapterRulesViewModel? chapterRulesViewModel = null)
+    public SettingsViewModel(IAppSettingsStore settingsStore, IAppNavigationService navigationService)
     {
         _settingsStore = settingsStore;
-        ChapterRules = chapterRulesViewModel;
+        _navigationService = navigationService;
     }
 
     public IReadOnlyList<string> AvailableLogLevels => AppSettings.SupportedLogLevels;
 
     public IReadOnlyList<string> AvailableThemes => AppSettings.SupportedThemes;
-
-    public ChapterRulesViewModel? ChapterRules { get; }
 
     [ObservableProperty]
     private bool enableLongParagraphSplitting;
@@ -45,9 +45,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string statusMessage = "在这里配置播放、导入与文本分段偏好。";
 
-    [ObservableProperty]
-    private bool isChapterRulesVisible;
-
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
         var settings = await _settingsStore.LoadAsync(cancellationToken);
@@ -58,11 +55,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         SelectedLogLevel = settings.LogLevel;
         SelectedTheme = settings.Theme;
         BookFileNameTemplate = settings.BookFileNameTemplate!;
-
-        if (IsChapterRulesVisible && ChapterRules is not null)
-        {
-            await ChapterRules.LoadAsync(cancellationToken);
-        }
     }
 
     [RelayCommand]
@@ -93,12 +85,20 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public async Task ToggleChapterRulesAsync(CancellationToken cancellationToken)
+    private void OpenTtsRules()
     {
-        IsChapterRulesVisible = !IsChapterRulesVisible;
-        if (IsChapterRulesVisible && ChapterRules is not null)
-        {
-            await ChapterRules.LoadAsync(cancellationToken);
-        }
+        _navigationService.NavigateToSettings(SettingsSection.TtsRules);
+    }
+
+    [RelayCommand]
+    private void OpenChapterRules()
+    {
+        _navigationService.NavigateToSettings(SettingsSection.ChapterRules);
+    }
+
+    [RelayCommand]
+    private void OpenCacheManagement()
+    {
+        _navigationService.NavigateToSettings(SettingsSection.CacheManagement);
     }
 }
