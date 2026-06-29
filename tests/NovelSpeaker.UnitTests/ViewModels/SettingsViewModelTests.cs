@@ -1,7 +1,9 @@
 using NovelSpeaker.Application.Settings;
-using NovelSpeaker.App.Navigation;
+using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.Domain.Settings;
+using Wpf.Ui;
+using Wpf.Ui.Controls;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.ViewModels;
@@ -55,14 +57,15 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
-    public void OpenChapterRulesCommand_navigates_to_chapter_rules_section()
+    public void OpenChapterRulesCommand_navigates_to_chapter_rules_page()
     {
         var navigationService = new FakeNavigationService();
         var viewModel = new SettingsViewModel(new FakeAppSettingsStore(AppSettings.Default), navigationService);
 
         viewModel.OpenChapterRulesCommand.Execute(null);
 
-        Assert.Equal(SettingsSection.ChapterRules, navigationService.LastSettingsSection);
+        Assert.Equal(typeof(ChapterRulesPage), navigationService.LastNavigationPageType);
+        Assert.True(navigationService.LastUsedHierarchyNavigation);
     }
 
     private sealed class FakeAppSettingsStore : IAppSettingsStore
@@ -89,30 +92,71 @@ public sealed class SettingsViewModelTests
         }
     }
 
-    private sealed class FakeNavigationService : IAppNavigationService
+    private sealed class FakeNavigationService : INavigationService
     {
-        public AppNavigationEntry CurrentEntry { get; private set; } = AppNavigationEntry.CreatePrimary(AppPrimaryDestination.Library);
+        public Type? LastNavigationPageType { get; private set; }
 
-        public bool CanGoBack => false;
+        public object? LastNavigationData { get; private set; }
 
-        public SettingsSection? LastSettingsSection { get; private set; }
+        public bool LastUsedHierarchyNavigation { get; private set; }
 
-        public event EventHandler<AppNavigationChangedEventArgs>? CurrentEntryChanged;
+        public INavigationView? NavigationControl { get; private set; }
 
-        public bool NavigateToPrimary(AppPrimaryDestination destination) => true;
-
-        public bool NavigateToSettings(SettingsSection section)
+        public INavigationView GetNavigationControl()
         {
-            LastSettingsSection = section;
-            CurrentEntry = AppNavigationEntry.CreateSettings(section);
-            CurrentEntryChanged?.Invoke(this, new AppNavigationChangedEventArgs(CurrentEntry));
+            return NavigationControl!;
+        }
+
+        public bool GoBack()
+        {
+            return false;
+        }
+
+        public bool Navigate(Type pageType)
+        {
+            LastNavigationPageType = pageType;
+            LastNavigationData = null;
+            LastUsedHierarchyNavigation = false;
             return true;
         }
 
-        public bool NavigateToPlayer(PlayerNavigationRequest request) => true;
+        public bool Navigate(Type pageType, object? dataContext)
+        {
+            LastNavigationPageType = pageType;
+            LastNavigationData = dataContext;
+            LastUsedHierarchyNavigation = false;
+            return true;
+        }
 
-        public bool NavigateToBookDetails(BookDetailsNavigationRequest request) => true;
+        public bool Navigate(string pageIdOrTargetTag)
+        {
+            return true;
+        }
 
-        public bool GoBack() => false;
+        public bool Navigate(string pageIdOrTargetTag, object? dataContext)
+        {
+            return true;
+        }
+
+        public bool NavigateWithHierarchy(Type pageType)
+        {
+            LastNavigationPageType = pageType;
+            LastNavigationData = null;
+            LastUsedHierarchyNavigation = true;
+            return true;
+        }
+
+        public bool NavigateWithHierarchy(Type pageType, object? dataContext)
+        {
+            LastNavigationPageType = pageType;
+            LastNavigationData = dataContext;
+            LastUsedHierarchyNavigation = true;
+            return true;
+        }
+
+        public void SetNavigationControl(INavigationView navigation)
+        {
+            NavigationControl = navigation;
+        }
     }
 }
