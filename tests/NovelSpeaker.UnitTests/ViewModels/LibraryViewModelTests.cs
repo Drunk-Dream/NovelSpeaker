@@ -21,7 +21,9 @@ public sealed class LibraryViewModelTests
                 "hash",
                 [new BookImportChapter(0, 0, "第一章 开始", 6, 2)],
                 null,
-                null),
+                null,
+                "魔性沧月",
+                true),
             new BookImportResult("book-1", "demo", 1));
 
         var catalogService = new FakeBookCatalogService([
@@ -36,6 +38,9 @@ public sealed class LibraryViewModelTests
         Assert.True(viewModel.CanConfirmImport);
         Assert.True(viewModel.IsEncodingPreviewVisible);
         Assert.Equal("preview", viewModel.PreviewText);
+        Assert.Equal("demo", viewModel.SuggestedTitle);
+        Assert.Equal("魔性沧月", viewModel.SuggestedAuthor);
+        Assert.True(viewModel.IsFileNameTemplateMatched);
         Assert.Equal(0, importService.CommitCallCount);
     }
 
@@ -54,7 +59,9 @@ public sealed class LibraryViewModelTests
                 "hash",
                 [new BookImportChapter(0, 0, "第一章 开始", 6, 2)],
                 null,
-                null),
+                null,
+                "魔性沧月",
+                true),
             new BookImportResult("book-1", "demo", 1));
 
         var catalogService = new FakeBookCatalogService([
@@ -88,7 +95,9 @@ public sealed class LibraryViewModelTests
                 "hash",
                 [new BookImportChapter(0, 0, "第一章 开始", 6, 2)],
                 null,
-                null),
+                null,
+                null,
+                false),
             new BookImportResult("book-1", "demo", 1));
 
         var viewModel = new LibraryViewModel(importService, new FakeBookCatalogService([]));
@@ -99,6 +108,9 @@ public sealed class LibraryViewModelTests
 
         Assert.Equal("utf-16le", importService.Requests.Last().EncodingOverride);
         Assert.Equal("预览已准备好，可以确认导入。", viewModel.ImportProgressText);
+        Assert.False(viewModel.IsFileNameTemplateMatched);
+        Assert.Equal("demo", viewModel.SuggestedTitle);
+        Assert.Null(viewModel.SuggestedAuthor);
     }
 
     private sealed class FakeBookImportService : IBookImportService

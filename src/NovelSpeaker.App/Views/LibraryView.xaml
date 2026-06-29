@@ -61,6 +61,53 @@
                         Visibility="{Binding IsEncodingPreviewVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel>
                         <TextBlock FontWeight="SemiBold" Text="导入预览" />
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="80" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0"
+                                       VerticalAlignment="Center"
+                                       Text="书名" />
+                            <TextBox Grid.Row="0"
+                                     Grid.Column="1"
+                                     IsReadOnly="True"
+                                     Text="{Binding SuggestedTitle}" />
+
+                            <TextBlock Grid.Row="1"
+                                       Grid.Column="0"
+                                       Margin="0,8,0,0"
+                                       VerticalAlignment="Center"
+                                       Text="作者" />
+                            <TextBox Grid.Row="1"
+                                     Grid.Column="1"
+                                     Margin="0,8,0,0"
+                                     IsReadOnly="True"
+                                     Text="{Binding SuggestedAuthor}" />
+
+                            <TextBlock Grid.Row="2"
+                                       Grid.ColumnSpan="2"
+                                       Margin="0,8,0,0"
+                                       Foreground="#8A5A1B"
+                                       Text="未匹配文件名模板，已回退为文件名书名。">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsFileNameTemplateMatched}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                         <TextBox Margin="0,12,0,12"
                                  Height="160"
                                  AcceptsReturn="True"

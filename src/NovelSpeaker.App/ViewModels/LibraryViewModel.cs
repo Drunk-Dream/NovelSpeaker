@@ -52,6 +52,15 @@ public sealed partial class LibraryViewModel : ObservableObject
     [ObservableProperty]
     private string importProgressText = string.Empty;
 
+    [ObservableProperty]
+    private string suggestedTitle = string.Empty;
+
+    [ObservableProperty]
+    private string? suggestedAuthor;
+
+    [ObservableProperty]
+    private bool isFileNameTemplateMatched;
+
     public string? LastImportedPath { get; private set; }
 
     public async Task LoadAsync(CancellationToken cancellationToken)
@@ -152,6 +161,9 @@ public sealed partial class LibraryViewModel : ObservableObject
     private void ApplyAnalysis(BookImportAnalysis analysis)
     {
         PreviewText = analysis.PreviewText;
+        SuggestedTitle = analysis.SuggestedTitle;
+        SuggestedAuthor = analysis.SuggestedAuthor;
+        IsFileNameTemplateMatched = analysis.IsFileNameTemplateMatched;
         IsEncodingPreviewVisible = !string.IsNullOrWhiteSpace(analysis.PreviewText) ||
             analysis.FailureReason == BookImportFailureReason.UnsupportedEncoding;
 
@@ -186,6 +198,9 @@ public sealed partial class LibraryViewModel : ObservableObject
         CanConfirmImport = false;
         IsEncodingPreviewVisible = false;
         PreviewText = string.Empty;
+        SuggestedTitle = string.Empty;
+        SuggestedAuthor = null;
+        IsFileNameTemplateMatched = false;
         ImportProgressPercent = 0;
         ImportProgressText = string.Empty;
     }
