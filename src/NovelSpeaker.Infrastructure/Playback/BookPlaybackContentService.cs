@@ -1,7 +1,6 @@
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Domain.Books;
 
 namespace NovelSpeaker.Infrastructure.Playback;
 
@@ -11,15 +10,18 @@ namespace NovelSpeaker.Infrastructure.Playback;
 public sealed class BookPlaybackContentService : IBookPlaybackContentService
 {
     private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly IBookContentReader _bookContentReader;
     private readonly ITextSegmenter _textSegmenter;
     private readonly ITextSegmentationOptionsProvider _optionsProvider;
 
     public BookPlaybackContentService(
         ISqliteConnectionFactory connectionFactory,
+        IBookContentReader bookContentReader,
         ITextSegmenter textSegmenter,
         ITextSegmentationOptionsProvider optionsProvider)
     {
         _connectionFactory = connectionFactory;
+        _bookContentReader = bookContentReader;
         _textSegmenter = textSegmenter;
         _optionsProvider = optionsProvider;
     }
@@ -84,10 +86,12 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
         var chapterCommand = connection.CreateCommand();
         chapterCommand.CommandText =
             """
-            SELECT Id, BookId, ChapterIndex, SortOrder, Title, Content, StartOffset, Length
-            FROM Chapters
-            WHERE BookId = $bookId AND ChapterIndex = $chapterIndex
-            ORDER BY SortOrder, ChapterIndex
+            SELECT c.ChapterIndex, c.Title, b.StoredFilePath, c.StartOffset, c.Length
+            FROM Chapters c
+            INNER JOIN Books b
+                ON b.Id = c.BookId
+            WHERE c.BookId = $bookId AND c.ChapterIndex = $chapterIndex
+            ORDER BY c.SortOrder, c.ChapterIndex
             LIMIT 1;
             """;
         chapterCommand.Parameters.AddWithValue("$bookId", bookId);
@@ -99,26 +103,27 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
             return null;
         }
 
-        var chapter = new Chapter(
-            chapterReader.GetString(0),
-            chapterReader.GetString(1),
-            chapterReader.GetInt32(2),
-            chapterReader.GetInt32(3),
-            chapterReader.GetString(4),
-            chapterReader.GetString(5),
-            chapterReader.GetInt32(6),
-            chapterReader.GetInt32(7));
+        var resolvedChapterIndex = chapterReader.GetInt32(0);
+        var title = chapterReader.GetString(1);
+        var storedFilePath = chapterReader.GetString(2);
+        var startOffset = chapterReader.GetInt32(3);
+        var length = chapterReader.GetInt32(4);
+        var chapterText = await _bookContentReader.ReadChapterTextAsync(
+            storedFilePath,
+            startOffset,
+            length,
+            cancellationToken).ConfigureAwait(false);
         var options = _optionsProvider.GetCurrent();
 
         var segments = await Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return _textSegmenter.Segment(chapter, options);
+            return _textSegmenter.Segment(chapterText, options);
         }, cancellationToken).ConfigureAwait(false);
 
         return new PlaybackChapterContent(
-            chapter.ChapterIndex,
-            chapter.Title,
+            resolvedChapterIndex,
+            title,
             segments);
     }
 }

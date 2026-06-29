@@ -64,8 +64,8 @@ public sealed class BookCatalogServiceTests
         await repository.SaveAsync(
             new Book(bookId, $"书籍 {bookId}", null, $"{bookId}.txt", $"{bookId}.txt", $"{bookId}-hash", "utf-8", now, now, null, now),
             [
-                new Chapter($"{bookId}-chapter-1", bookId, 0, 0, firstChapterTitle, "正文甲", 0, 3),
-                new Chapter($"{bookId}-chapter-2", bookId, 1, 1, secondChapterTitle, "正文乙", 4, 3)
+                new Chapter($"{bookId}-chapter-1", bookId, 0, 0, firstChapterTitle, 0, 3),
+                new Chapter($"{bookId}-chapter-2", bookId, 1, 1, secondChapterTitle, 4, 3)
             ],
             CancellationToken.None);
     }

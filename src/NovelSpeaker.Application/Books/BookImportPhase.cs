@@ -8,7 +8,7 @@ public enum BookImportPhase
     DetectingEncoding,
     HashingContent,
     SplittingChapters,
-    CopyingSourceFile,
+    WritingContentFile,
     SavingBook,
     Completed
 }

@@ -50,15 +50,14 @@ public sealed class BookImportRepository : IBookImportRepository
                 chapterCommand.Transaction = transaction;
                 chapterCommand.CommandText =
                     """
-                    INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, Content, StartOffset, Length)
-                    VALUES ($id, $bookId, $chapterIndex, $sortOrder, $title, $content, $startOffset, $length);
+                    INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
+                    VALUES ($id, $bookId, $chapterIndex, $sortOrder, $title, $startOffset, $length);
                     """;
                 chapterCommand.Parameters.AddWithValue("$id", chapter.Id);
                 chapterCommand.Parameters.AddWithValue("$bookId", chapter.BookId);
                 chapterCommand.Parameters.AddWithValue("$chapterIndex", chapter.ChapterIndex);
                 chapterCommand.Parameters.AddWithValue("$sortOrder", chapter.SortOrder);
                 chapterCommand.Parameters.AddWithValue("$title", chapter.Title);
-                chapterCommand.Parameters.AddWithValue("$content", chapter.Content);
                 chapterCommand.Parameters.AddWithValue("$startOffset", chapter.StartOffset);
                 chapterCommand.Parameters.AddWithValue("$length", chapter.Length);
                 await chapterCommand.ExecuteNonQueryAsync(cancellationToken);

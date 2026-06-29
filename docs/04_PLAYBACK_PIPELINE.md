@@ -80,6 +80,8 @@ public sealed class PlaybackSession : IAsyncDisposable
 ```text
 Resolve current segment
   ↓
+Load chapter text from Books.StoredFilePath using chapter StartOffset/Length
+  ↓
 Resolve selected rule and speak speed
   ↓
 Build cache key
@@ -201,6 +203,8 @@ public sealed record BookPosition(
 - 应用进入异常恢复前。
 
 `CharacterOffset` 用于文本变化或重新分段后的近似恢复。第一版可主要依赖章节和段落索引。
+
+章节正文来源于导入时保存的规范化 `content.txt`，播放阶段不会从 SQLite 读取整章正文。
 
 ## 线程模型
 

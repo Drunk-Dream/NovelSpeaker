@@ -115,8 +115,8 @@ public sealed class BookManagementServiceTests
     {
         var storedDirectory = Path.Combine(fixture.Directories.BooksDirectoryPath, bookId);
         Directory.CreateDirectory(storedDirectory);
-        var storedFilePath = Path.Combine(storedDirectory, "original.txt");
-        await File.WriteAllTextAsync(storedFilePath, "第一章\n正文\n第二章\n正文", CancellationToken.None);
+        var storedFilePath = Path.Combine(storedDirectory, "content.txt");
+        await File.WriteAllTextAsync(storedFilePath, "第一章 第一段第二章 第一段", CancellationToken.None);
 
         var repository = new BookImportRepository(fixture.Factory);
         var now = DateTime.UtcNow.ToString("O");
@@ -134,8 +134,8 @@ public sealed class BookManagementServiceTests
                 null,
                 now),
             [
-                new Domain.Books.Chapter($"{bookId}-chapter-1", bookId, 0, 0, "第一章", "第一章 第一段", 0, 6),
-                new Domain.Books.Chapter($"{bookId}-chapter-2", bookId, 1, 1, "第二章", "第二章 第一段", 7, 7)
+                new Domain.Books.Chapter($"{bookId}-chapter-1", bookId, 0, 0, "第一章", 0, 6),
+                new Domain.Books.Chapter($"{bookId}-chapter-2", bookId, 1, 1, "第二章", 6, 6)
             ],
             CancellationToken.None);
 

@@ -112,8 +112,14 @@ public partial class App : System.Windows.Application
         _startupStatusWindow?.Close();
         _startupStatusWindow = null;
 
+        var message = exception switch
+        {
+            Infrastructure.Persistence.IncompatibleDatabaseSchemaException incompatible => incompatible.Message,
+            _ => "应用启动失败。请稍后重试，或检查本地数据目录和日志文件。"
+        };
+
         MessageBox.Show(
-            "应用启动失败。请稍后重试，或检查本地数据目录和日志文件。",
+            message,
             "NovelSpeaker 启动失败",
             MessageBoxButton.OK,
             MessageBoxImage.Error);

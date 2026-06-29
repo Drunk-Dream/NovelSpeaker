@@ -5,8 +5,8 @@ namespace NovelSpeaker.Application.Books;
 /// </summary>
 public interface IBookFileStore
 {
-    Task<BookFileCopyHandle> PrepareCopyAsync(
-        string sourceFilePath,
+    Task<BookFileCopyHandle> StageNormalizedTextAsync(
+        string normalizedText,
         string bookId,
         IProgress<BookImportProgress>? progress,
         CancellationToken cancellationToken);

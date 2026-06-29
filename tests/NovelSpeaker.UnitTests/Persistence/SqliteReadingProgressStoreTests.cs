@@ -69,7 +69,7 @@ public sealed class SqliteReadingProgressStoreTests
             var now = DateTime.UtcNow.ToString("O");
             await bookRepository.SaveAsync(
                 new Book(bookId, $"书籍 {bookId}", null, $"{bookId}.txt", $"{bookId}.txt", $"{bookId}-hash", "utf-8", now, now, null, now),
-                [new Chapter($"{bookId}-chapter-1", bookId, 0, 0, "第一章", "第一段\n第二段", 0, 7)],
+                [new Chapter($"{bookId}-chapter-1", bookId, 0, 0, "第一章", 0, 7)],
                 CancellationToken.None);
         }
 

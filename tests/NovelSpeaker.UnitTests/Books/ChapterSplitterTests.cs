@@ -22,8 +22,8 @@ public sealed class ChapterSplitterTests
         Assert.Equal(2, chapters.Count);
         Assert.Equal("第一章 开始", chapters[0].Title);
         Assert.Equal(0, chapters[0].SortOrder);
-        Assert.Equal("正文甲\n", chapters[0].Content);
         Assert.Equal(7, chapters[0].StartOffset);
+        Assert.Equal("正文甲\n".Length, chapters[0].Length);
         Assert.Equal("第二章 继续", chapters[1].Title);
     }
 
@@ -42,7 +42,8 @@ public sealed class ChapterSplitterTests
 
         Assert.Single(chapters);
         Assert.Equal("全文", chapters[0].Title);
-        Assert.Equal(text, chapters[0].Content);
+        Assert.Equal(0, chapters[0].StartOffset);
+        Assert.Equal(text.Length, chapters[0].Length);
     }
 
     [Fact]

@@ -148,7 +148,7 @@ public sealed class BookImportService : IBookImportService
         }
 
         var bookId = Guid.NewGuid().ToString();
-        var copyHandle = await _bookFileStore.PrepareCopyAsync(analysis.OriginalFilePath, bookId, progress, cancellationToken);
+        var copyHandle = await _bookFileStore.StageNormalizedTextAsync(analysis.NormalizedText, bookId, progress, cancellationToken);
         var now = DateTime.UtcNow.ToString("O");
 
         var book = new Book(
@@ -171,7 +171,6 @@ public sealed class BookImportService : IBookImportService
                 chapter.ChapterIndex,
                 chapter.SortOrder,
                 chapter.Title,
-                chapter.Content,
                 chapter.StartOffset,
                 chapter.Length))
             .ToArray();

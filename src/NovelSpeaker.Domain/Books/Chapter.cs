@@ -9,6 +9,5 @@ public sealed record Chapter(
     int ChapterIndex,
     int SortOrder,
     string Title,
-    string Content,
     int StartOffset,
     int Length);

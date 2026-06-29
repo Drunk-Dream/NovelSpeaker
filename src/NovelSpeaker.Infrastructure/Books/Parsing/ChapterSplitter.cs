@@ -41,7 +41,6 @@ public sealed class ChapterSplitter : IChapterSplitter
                     0,
                     0,
                     "全文",
-                    normalizedText,
                     0,
                     normalizedText.Length)
             ];
@@ -68,9 +67,8 @@ public sealed class ChapterSplitter : IChapterSplitter
                 chapters.Count,
                 current.TitleOffset,
                 current.Title,
-                content,
                 current.ContentOffset,
-                content.Length));
+                contentLength));
         }
 
         if (chapters.Count == 0)
@@ -81,7 +79,6 @@ public sealed class ChapterSplitter : IChapterSplitter
                     0,
                     0,
                     "全文",
-                    normalizedText,
                     0,
                     normalizedText.Length)
             ];

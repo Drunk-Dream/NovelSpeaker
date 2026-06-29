@@ -10,7 +10,7 @@
 ├─ settings.json
 ├─ Books\
 │  └─ <book-id>\
-│     └─ original.txt
+│     └─ content.txt
 ├─ Cache\
 │  └─ Tts\
 │     ├─ ab\
@@ -34,7 +34,11 @@ SourceHash TEXT NOT NULL
 Encoding TEXT NOT NULL
 ImportedAt TEXT NOT NULL
 UpdatedAt TEXT NOT NULL
+LastImportedAt TEXT NULL
+LastPlayedAt TEXT NULL
 ```
+
+`StoredFilePath` 指向该书规范化后的 UTF-8 正文文件 `content.txt`。
 
 ### Chapters
 
@@ -42,14 +46,14 @@ UpdatedAt TEXT NOT NULL
 Id TEXT PRIMARY KEY
 BookId TEXT NOT NULL
 ChapterIndex INTEGER NOT NULL
+SortOrder INTEGER NOT NULL
 Title TEXT NOT NULL
-Content TEXT NOT NULL
 StartOffset INTEGER NOT NULL
 Length INTEGER NOT NULL
 UNIQUE(BookId, ChapterIndex)
 ```
 
-第一版可将章节正文直接存 SQLite。若后期遇到超大文件性能问题，再考虑单独内容文件。
+章节正文不再存入 SQLite。`StartOffset` 和 `Length` 基于 `content.txt` 中规范化后的全文字符偏移。
 
 ### ReadingProgress
 
@@ -141,15 +145,17 @@ public interface ISecretStore
 6. 计算源文件 SHA-256。
 7. 检查重复。
 8. 解析章节。
-9. 在事务中写入 Books 和 Chapters。
-10. 复制原始文件。
+9. 将规范化后的全文写入 `Books/<book-id>/content.txt`。
+10. 在事务中写入 Books 和 Chapters 元数据。
 11. 导入失败时回滚数据库和临时文件。
+
+当前版本不兼容旧的 `SchemaVersion = 1` 本地库。升级到该版本前，需要删除 `%LocalAppData%\NovelSpeaker` 数据目录并重新导入书籍。
 
 ## 文本分段
 
 不建议保存每个段落为数据库记录。
 
-打开章节时动态生成：
+打开章节时，先根据 `StoredFilePath + StartOffset + Length` 从 `content.txt` 切出章节正文，再动态生成：
 
 ```csharp
 public sealed record SpeechSegment(
@@ -210,9 +216,7 @@ public sealed record SpeechSegment(
 
 ```text
 SchemaVersion
-1 → initial schema
-2 → add cache duration
-3 → add rule raw JSON
+2 → file-backed chapter content metadata schema
 ```
 
 不需要第一版引入复杂 ORM。可以使用原始 SQL 和小型映射层。

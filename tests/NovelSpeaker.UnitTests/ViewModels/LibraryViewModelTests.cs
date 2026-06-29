@@ -19,7 +19,7 @@ public sealed class LibraryViewModelTests
                 "preview",
                 "第一章 开始\n正文",
                 "hash",
-                [new BookImportChapter(0, 0, "第一章 开始", "正文", 6, 2)],
+                [new BookImportChapter(0, 0, "第一章 开始", 6, 2)],
                 null,
                 null),
             new BookImportResult("book-1", "demo", 1));
@@ -52,7 +52,7 @@ public sealed class LibraryViewModelTests
                 "preview",
                 "第一章 开始\n正文",
                 "hash",
-                [new BookImportChapter(0, 0, "第一章 开始", "正文", 6, 2)],
+                [new BookImportChapter(0, 0, "第一章 开始", 6, 2)],
                 null,
                 null),
             new BookImportResult("book-1", "demo", 1));
@@ -86,7 +86,7 @@ public sealed class LibraryViewModelTests
                 "preview",
                 "第一章 开始\n正文",
                 "hash",
-                [new BookImportChapter(0, 0, "第一章 开始", "正文", 6, 2)],
+                [new BookImportChapter(0, 0, "第一章 开始", 6, 2)],
                 null,
                 null),
             new BookImportResult("book-1", "demo", 1));

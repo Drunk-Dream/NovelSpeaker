@@ -5,22 +5,22 @@ using NovelSpeaker.Domain.Books;
 namespace NovelSpeaker.Infrastructure.Books.Parsing;
 
 /// <summary>
-/// Splits chapter content into newline-based natural paragraphs and optionally subdivides long paragraphs.
+/// Splits chapter text into newline-based natural paragraphs and optionally subdivides long paragraphs.
 /// </summary>
 public sealed class TextSegmenter : ITextSegmenter
 {
     private static readonly SearchValues<char> SentenceTerminators = SearchValues.Create("。！？");
 
-    public IReadOnlyList<SpeechSegment> Segment(Chapter chapter, TextSegmentationOptions options)
+    public IReadOnlyList<SpeechSegment> Segment(string chapterText, TextSegmentationOptions options)
     {
-        if (string.IsNullOrWhiteSpace(chapter.Content))
+        if (string.IsNullOrWhiteSpace(chapterText))
         {
             return [];
         }
 
         var normalizedOptions = options.Normalize();
         var segments = new List<SpeechSegment>();
-        var content = chapter.Content;
+        var content = chapterText;
         var segmentIndex = 0;
         var lineStart = 0;
 

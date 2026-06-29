@@ -17,7 +17,7 @@ public sealed class BookImportServiceTests
         var rules = new FakeChapterRuleRepository([
             new ChapterRule("rule-1", "章节", @"^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$", 10, true, "now", "now")
         ]);
-        var splitter = new FakeChapterSplitter([new BookImportChapter(0, 0, "第一章 开始", "正文", 6, 2)]);
+        var splitter = new FakeChapterSplitter([new BookImportChapter(0, 0, "第一章 开始", 6, 2)]);
         var service = new BookImportService(analyzer, normalizer, hasher, duplicates, rules, splitter, new FakeBookFileStore(), new FakeBookImportRepository());
 
         var analysis = await service.AnalyzeAsync(new BookImportRequest("demo.txt", null), progress: null, CancellationToken.None);
@@ -66,7 +66,7 @@ public sealed class BookImportServiceTests
             new FakeContentHasher("hash"),
             new FakeDuplicateDetector(null),
             new FakeChapterRuleRepository([]),
-            new FakeChapterSplitter([new BookImportChapter(0, 0, "全文", "正文", 0, 2)]),
+            new FakeChapterSplitter([new BookImportChapter(0, 0, "全文", 0, 2)]),
             new FakeBookFileStore(),
             new FakeBookImportRepository());
 
@@ -80,6 +80,7 @@ public sealed class BookImportServiceTests
     public async Task CommitAsync_sets_last_import_time_and_preserves_sort_order()
     {
         var repository = new CapturingBookImportRepository();
+        var fileStore = new FakeBookFileStore();
         var service = new BookImportService(
             new FakeTextFileAnalyzer(new TextFileAnalysis("utf-8", "preview", "第一章 开始\n正文")),
             new FakeTextNormalizer("第一章 开始\n正文"),
@@ -87,7 +88,7 @@ public sealed class BookImportServiceTests
             new FakeDuplicateDetector(null),
             new FakeChapterRuleRepository([]),
             new FakeChapterSplitter([]),
-            new FakeBookFileStore(),
+            fileStore,
             repository);
 
         var analysis = new BookImportAnalysis(
@@ -99,7 +100,7 @@ public sealed class BookImportServiceTests
             "preview",
             "第一章 开始\n正文",
             "hash",
-            [new BookImportChapter(0, 42, "第一章 开始", "正文", 6, 2)],
+            [new BookImportChapter(0, 42, "第一章 开始", 6, 2)],
             null,
             null);
 
@@ -107,10 +108,13 @@ public sealed class BookImportServiceTests
 
         Assert.NotNull(repository.SavedBook);
         Assert.NotNull(repository.SavedChapters);
+        Assert.Equal("第一章 开始\n正文", fileStore.LastNormalizedText);
         Assert.Equal(repository.SavedBook!.ImportedAt, repository.SavedBook.LastImportedAt);
         Assert.Null(repository.SavedBook.LastPlayedAt);
         Assert.Single(repository.SavedChapters!);
         Assert.Equal(42, repository.SavedChapters[0].SortOrder);
+        Assert.Equal(6, repository.SavedChapters[0].StartOffset);
+        Assert.Equal(2, repository.SavedChapters[0].Length);
     }
 
     private sealed class FakeTextFileAnalyzer : ITextFileAnalyzer
@@ -209,13 +213,16 @@ public sealed class BookImportServiceTests
 
     private sealed class FakeBookFileStore : IBookFileStore
     {
-        public Task<BookFileCopyHandle> PrepareCopyAsync(
-            string sourceFilePath,
+        public string? LastNormalizedText { get; private set; }
+
+        public Task<BookFileCopyHandle> StageNormalizedTextAsync(
+            string normalizedText,
             string bookId,
             IProgress<BookImportProgress>? progress,
             CancellationToken cancellationToken)
         {
-            return Task.FromResult(new BookFileCopyHandle($"Books/{bookId}/original.txt", $"Books/{bookId}/original.txt.tmp"));
+            LastNormalizedText = normalizedText;
+            return Task.FromResult(new BookFileCopyHandle($"Books/{bookId}/content.txt", $"Books/{bookId}/content.txt.tmp"));
         }
 
         public Task FinalizeAsync(BookFileCopyHandle copyHandle, CancellationToken cancellationToken) => Task.CompletedTask;

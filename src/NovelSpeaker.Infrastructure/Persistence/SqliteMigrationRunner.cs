@@ -8,10 +8,12 @@ namespace NovelSpeaker.Infrastructure.Persistence;
 /// </summary>
 public sealed class SqliteMigrationRunner : IDatabaseInitializer
 {
+    private const int MinimumSupportedVersion = 2;
+    private const int CurrentSchemaVersion = 2;
     private static readonly SqliteMigration[] Migrations =
     [
         new(
-            1,
+            2,
             """
             CREATE TABLE AppMetadata (
                 Key TEXT NOT NULL PRIMARY KEY,
@@ -41,7 +43,6 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
                 ChapterIndex INTEGER NOT NULL,
                 SortOrder INTEGER NOT NULL DEFAULT 0,
                 Title TEXT NOT NULL,
-                Content TEXT NOT NULL,
                 StartOffset INTEGER NOT NULL CHECK(StartOffset >= 0),
                 Length INTEGER NOT NULL CHECK(Length > 0),
                 FOREIGN KEY(BookId) REFERENCES Books(Id) ON DELETE CASCADE,
@@ -119,6 +120,10 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
         await EnsureMigrationTableAsync(connection, cancellationToken);
 
         var currentVersion = await GetCurrentVersionAsync(connection, cancellationToken);
+        if (currentVersion > 0 && currentVersion < MinimumSupportedVersion)
+        {
+            throw new IncompatibleDatabaseSchemaException(currentVersion, CurrentSchemaVersion);
+        }
 
         foreach (var migration in Migrations.Where(migration => migration.Version > currentVersion))
         {

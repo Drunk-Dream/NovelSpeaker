@@ -58,6 +58,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITextNormalizer, TextNormalizer>();
         services.AddSingleton<IContentHasher, Sha256ContentHasher>();
         services.AddSingleton<IChapterSplitter, ChapterSplitter>();
+        services.AddSingleton<IBookContentReader, BookContentReader>();
         services.AddSingleton<IBookDuplicateDetector, BookDuplicateDetector>();
         services.AddSingleton<IBookImportRepository, BookImportRepository>();
         services.AddSingleton<IBookCatalogService, BookCatalogService>();

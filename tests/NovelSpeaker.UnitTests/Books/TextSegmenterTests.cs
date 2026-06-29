@@ -9,15 +9,7 @@ public sealed class TextSegmenterTests
     [Fact]
     public void Segment_returns_single_segment_for_short_single_line_paragraph()
     {
-        var chapter = new Chapter(
-            "chapter-1",
-            "book-1",
-            0,
-            0,
-            "第一章",
-            "这一段很短，不需要拆分。",
-            0,
-            "这一段很短，不需要拆分。".Length);
+        const string chapterText = "这一段很短，不需要拆分。";
 
         var options = new TextSegmentationOptions(
             EnableLongParagraphSplitting: true,
@@ -25,33 +17,25 @@ public sealed class TextSegmenterTests
 
         ITextSegmenter segmenter = new Infrastructure.Books.Parsing.TextSegmenter();
 
-        var segments = segmenter.Segment(chapter, options);
+        var segments = segmenter.Segment(chapterText, options);
 
         Assert.Single(segments);
         Assert.Equal(0, segments[0].SegmentIndex);
         Assert.Equal(0, segments[0].StartOffset);
-        Assert.Equal(chapter.Content.Length, segments[0].Length);
-        Assert.Equal(chapter.Content, segments[0].DisplayText);
-        Assert.Equal(chapter.Content, segments[0].SpeechText);
+        Assert.Equal(chapterText.Length, segments[0].Length);
+        Assert.Equal(chapterText, segments[0].DisplayText);
+        Assert.Equal(chapterText, segments[0].SpeechText);
     }
 
     [Fact]
     public void Segment_splits_each_non_blank_line_into_a_natural_paragraph_segment()
     {
-        var chapter = new Chapter(
-            "chapter-1",
-            "book-1",
-            0,
-            0,
-            "第一章",
-            "第一段。\n第二段。\n\n第三段。",
-            0,
-            "第一段。\n第二段。\n\n第三段。".Length);
+        const string chapterText = "第一段。\n第二段。\n\n第三段。";
 
         var options = TextSegmentationOptions.Default;
         ITextSegmenter segmenter = new Infrastructure.Books.Parsing.TextSegmenter();
 
-        var segments = segmenter.Segment(chapter, options);
+        var segments = segmenter.Segment(chapterText, options);
 
         Assert.Equal(3, segments.Count);
         Assert.Equal("第一段。", segments[0].DisplayText);
@@ -66,11 +50,10 @@ public sealed class TextSegmenterTests
     public void Segment_keeps_long_paragraph_unchanged_when_splitting_is_disabled()
     {
         var text = string.Concat(Enumerable.Repeat("这是一句很长的话。", 40));
-        var chapter = new Chapter("chapter-2", "book-1", 0, 0, "第一章", text, 0, text.Length);
         var options = new TextSegmentationOptions(false, 50);
         ITextSegmenter segmenter = new Infrastructure.Books.Parsing.TextSegmenter();
 
-        var segments = segmenter.Segment(chapter, options);
+        var segments = segmenter.Segment(text, options);
 
         Assert.Single(segments);
         Assert.Equal(text, segments[0].DisplayText);
@@ -83,11 +66,10 @@ public sealed class TextSegmenterTests
             Enumerable.Repeat("这是第一句。", 12)
                 .Concat(Enumerable.Repeat("这是第二句！", 12))
                 .Concat(Enumerable.Repeat("这是第三句？", 12)));
-        var chapter = new Chapter("chapter-3", "book-1", 0, 0, "第一章", text, 0, text.Length);
         var options = new TextSegmentationOptions(true, 60);
         ITextSegmenter segmenter = new Infrastructure.Books.Parsing.TextSegmenter();
 
-        var segments = segmenter.Segment(chapter, options);
+        var segments = segmenter.Segment(text, options);
 
         Assert.True(segments.Count > 1);
         Assert.All(
@@ -101,11 +83,10 @@ public sealed class TextSegmenterTests
     public void Segment_hard_cuts_a_long_line_without_supported_sentence_punctuation()
     {
         var text = new string('长', 140);
-        var chapter = new Chapter("chapter-4", "book-1", 0, 0, "第一章", text, 0, text.Length);
         var options = new TextSegmentationOptions(true, 50);
         ITextSegmenter segmenter = new Infrastructure.Books.Parsing.TextSegmenter();
 
-        var segments = segmenter.Segment(chapter, options);
+        var segments = segmenter.Segment(text, options);
 
         Assert.Equal(3, segments.Count);
         Assert.Equal(50, segments[0].Length);

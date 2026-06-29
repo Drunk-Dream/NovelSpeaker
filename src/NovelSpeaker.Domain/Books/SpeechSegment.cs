@@ -1,7 +1,7 @@
 namespace NovelSpeaker.Domain.Books;
 
 /// <summary>
-/// Represents one runtime speech unit mapped to a range in <see cref="Chapter.Content"/>.
+/// Represents one runtime speech unit mapped to a range in one chapter text.
 /// </summary>
 public sealed record SpeechSegment(
     int SegmentIndex,

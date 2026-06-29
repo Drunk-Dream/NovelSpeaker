@@ -21,12 +21,12 @@
 
 本次设计完成后，Epic C 的实现应满足以下目标：
 
-- 新增 `ITextSegmenter`，把单个 `Chapter` 动态转换为有序的 `SpeechSegment` 列表。
+- 新增 `ITextSegmenter`，把单个章节正文字符串动态转换为有序的 `SpeechSegment` 列表。
 - 默认保留自然段结构，不对普通长度段落做额外拆分。
 - 支持“超长自然段拆分”作为全局可配置能力。
 - 支持“拆分阈值”作为全局可配置项。
 - 第一版 `SpeechSegment` 同时暴露 `DisplayText` 和 `SpeechText`，但默认内容一致。
-- 每个分段保留基于 `Chapter.Content` 的字符范围，服务后续正文高亮和进度恢复。
+- 每个分段保留基于章节正文字符串的字符范围，服务后续正文高亮和进度恢复。
 - 为中文小说常见边界情况提供稳定单元测试。
 
 ## 非目标
@@ -51,7 +51,7 @@
 - 当自然段长度大于阈值时，优先按 `。！？` 断句。
 - 当缺少可用断句点时，允许硬切作为兜底。
 - 第一版 `DisplayText == SpeechText`。
-- 字符范围基于 `Chapter.Content`，不基于未来可能变化的 `SpeechText`。
+- 字符范围基于章节正文字符串，不基于未来可能变化的 `SpeechText`。
 
 ## 方案比较
 
@@ -59,7 +59,7 @@
 
 ### 方案 A：轻量规则型，推荐
 
-对外提供一个简单的 `ITextSegmenter`，输入 `Chapter` 和分段设置，输出 `SpeechSegment[]`。内部按自然段扫描、超长判断、句级拆分和硬切兜底逐步处理。
+对外提供一个简单的 `ITextSegmenter`，输入章节正文字符串和分段设置，输出 `SpeechSegment[]`。内部按自然段扫描、超长判断、句级拆分和硬切兜底逐步处理。
 
 优点：
 
@@ -112,7 +112,7 @@
 
 职责：
 
-- 接收单个 `Chapter`。
+- 接收单个章节正文字符串。
 - 根据当前分段设置生成按顺序排列的 `SpeechSegment` 列表。
 
 不负责：
@@ -128,7 +128,7 @@
 public interface ITextSegmenter
 {
     IReadOnlyList<SpeechSegment> Segment(
-        Chapter chapter,
+        string chapterText,
         TextSegmentationOptions options);
 }
 ```
@@ -196,7 +196,7 @@ public sealed record SpeechSegment(
 约束：
 
 - `SegmentIndex` 在单章内从 `0` 连续递增。
-- `StartOffset` 与 `Length` 始终基于 `Chapter.Content`。
+- `StartOffset` 与 `Length` 始终基于章节正文字符串。
 - 第一版 `DisplayText` 与 `SpeechText` 默认相同。
 
 ## 数据流
@@ -204,7 +204,7 @@ public sealed record SpeechSegment(
 分段链路建议如下：
 
 ```text
-Chapter.Content
+ChapterText
   ↓
 NaturalParagraphScanner
   ↓
@@ -230,7 +230,7 @@ SpeechSegment[]
 - 每个换行后的文本块都视为一个自然段。
 - 纯空白段不生成 `SpeechSegment`。
 - 自然段内部原文保持不改写。
-- 必须保留每个自然段在 `Chapter.Content` 中的 `StartOffset` 和 `Length`。
+- 必须保留每个自然段在章节正文字符串中的 `StartOffset` 和 `Length`。
 - 连续空行会形成空文本块，但这些空块会被直接跳过。
 
 设计原因：

@@ -7,7 +7,7 @@ namespace NovelSpeaker.UnitTests.Persistence;
 public sealed class SqliteMigrationRunnerTests
 {
     [Fact]
-    public async Task InitializeAsync_creates_current_schema_as_version_1()
+    public async Task InitializeAsync_creates_current_schema_as_version_2()
     {
         var factory = await CreateInitializedFactoryAsync();
 
@@ -28,11 +28,11 @@ public sealed class SqliteMigrationRunnerTests
         var version = Convert.ToInt32(await versionCommand.ExecuteScalarAsync(CancellationToken.None));
 
         Assert.Equal(8, tableCount);
-        Assert.Equal(1, version);
+        Assert.Equal(2, version);
     }
 
     [Fact]
-    public async Task InitializeAsync_creates_latest_book_columns_and_audio_cache_indexes()
+    public async Task InitializeAsync_creates_latest_book_columns_audio_cache_indexes_and_chapter_schema()
     {
         var factory = await CreateInitializedFactoryAsync();
 
@@ -49,6 +49,17 @@ public sealed class SqliteMigrationRunnerTests
 
         Assert.Contains("LastImportedAt", columns);
         Assert.Contains("LastPlayedAt", columns);
+
+        var chapterPragma = connection.CreateCommand();
+        chapterPragma.CommandText = "PRAGMA table_info(Chapters);";
+        await using var chapterReader = await chapterPragma.ExecuteReaderAsync(CancellationToken.None);
+        var chapterColumns = new List<string>();
+        while (await chapterReader.ReadAsync(CancellationToken.None))
+        {
+            chapterColumns.Add(chapterReader.GetString(1));
+        }
+
+        Assert.DoesNotContain("Content", chapterColumns);
 
         var indexCommand = connection.CreateCommand();
         indexCommand.CommandText =
@@ -82,7 +93,39 @@ public sealed class SqliteMigrationRunnerTests
         command.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
 
         var version = Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
-        Assert.Equal(1, version);
+        Assert.Equal(2, version);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_rejects_unsupported_version_1_database()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new LocalAppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+
+        await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={directories.DatabasePath}"))
+        {
+            await connection.OpenAsync(CancellationToken.None);
+
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                CREATE TABLE SchemaVersion (
+                    Version INTEGER NOT NULL PRIMARY KEY
+                );
+
+                INSERT INTO SchemaVersion (Version) VALUES (1);
+                """;
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        var factory = new SqliteConnectionFactory(directories);
+        var runner = new SqliteMigrationRunner(factory);
+
+        var exception = await Assert.ThrowsAsync<IncompatibleDatabaseSchemaException>(
+            () => runner.InitializeAsync(CancellationToken.None));
+        Assert.Equal(1, exception.DetectedVersion);
+        Assert.Equal(2, exception.RequiredVersion);
     }
 
     private static async Task<SqliteConnectionFactory> CreateInitializedFactoryAsync()

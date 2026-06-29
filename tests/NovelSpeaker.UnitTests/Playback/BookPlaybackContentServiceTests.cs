@@ -3,6 +3,7 @@ using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Infrastructure.Books.FileStorage;
 using NovelSpeaker.Infrastructure.Playback;
 using Xunit;
 
@@ -13,10 +14,11 @@ public sealed class BookPlaybackContentServiceTests
     [Fact]
     public async Task GetBookAsync_does_not_resume_on_the_callers_synchronization_context()
     {
-        using var database = CreateDatabase();
+        using var database = CreateDatabase(createContentFile: false);
 
         var service = new BookPlaybackContentService(
             new DelayedSqliteConnectionFactory(database.ConnectionString),
+            new BookContentReader(),
             new Infrastructure.Books.Parsing.TextSegmenter(),
             new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default));
 
@@ -43,26 +45,40 @@ public sealed class BookPlaybackContentServiceTests
     }
 
     [Fact]
-    public async Task GetChapterAsync_returns_segmented_current_chapter_only()
+    public async Task GetChapterAsync_reads_from_content_file_and_segments_relative_to_chapter_text()
     {
-        using var database = CreateDatabase();
+        using var database = CreateDatabase(createContentFile: true);
 
         var service = new BookPlaybackContentService(
             new DelayedSqliteConnectionFactory(database.ConnectionString),
+            new BookContentReader(),
             new Infrastructure.Books.Parsing.TextSegmenter(),
             new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default));
 
         var chapter = await service.GetChapterAsync("book-1", 0, CancellationToken.None);
 
         Assert.NotNull(chapter);
-        Assert.Single(chapter!.Segments);
+        Assert.Equal("第一章", chapter!.Title);
+        Assert.Equal(2, chapter.Segments.Count);
         Assert.Equal("第一段。", chapter.Segments[0].SpeechText);
+        Assert.Equal(0, chapter.Segments[0].StartOffset);
+        Assert.Equal("第二段。", chapter.Segments[1].SpeechText);
+        Assert.Equal(5, chapter.Segments[1].StartOffset);
     }
 
-    private static TestDatabase CreateDatabase()
+    private static TestDatabase CreateDatabase(bool createContentFile)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"{Path.GetRandomFileName()}.db");
-        var connectionString = $"Data Source={path}";
+        var directory = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(directory);
+        var databasePath = Path.Combine(directory, "playback.db");
+        var contentPath = Path.Combine(directory, "content.txt");
+
+        if (createContentFile)
+        {
+            File.WriteAllText(contentPath, "前言。第一段。\n第二段。");
+        }
+
+        var connectionString = $"Data Source={databasePath}";
         using var connection = new SqliteConnection(connectionString);
         connection.Open();
 
@@ -72,7 +88,8 @@ public sealed class BookPlaybackContentServiceTests
             CREATE TABLE Books (
                 Id TEXT NOT NULL PRIMARY KEY,
                 Title TEXT NOT NULL,
-                Author TEXT NULL
+                Author TEXT NULL,
+                StoredFilePath TEXT NOT NULL
             );
             """;
         createBooks.ExecuteNonQuery();
@@ -86,7 +103,6 @@ public sealed class BookPlaybackContentServiceTests
                 ChapterIndex INTEGER NOT NULL,
                 SortOrder INTEGER NOT NULL,
                 Title TEXT NOT NULL,
-                Content TEXT NOT NULL,
                 StartOffset INTEGER NOT NULL,
                 Length INTEGER NOT NULL
             );
@@ -94,18 +110,19 @@ public sealed class BookPlaybackContentServiceTests
         createChapters.ExecuteNonQuery();
 
         using var insertBook = connection.CreateCommand();
-        insertBook.CommandText = "INSERT INTO Books (Id, Title, Author) VALUES ('book-1', '示例小说', NULL);";
+        insertBook.CommandText = "INSERT INTO Books (Id, Title, Author, StoredFilePath) VALUES ('book-1', '示例小说', NULL, $storedFilePath);";
+        insertBook.Parameters.AddWithValue("$storedFilePath", createContentFile ? contentPath : Path.Combine(directory, "missing-content.txt"));
         insertBook.ExecuteNonQuery();
 
         using var insertChapter = connection.CreateCommand();
         insertChapter.CommandText =
             """
-            INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, Content, StartOffset, Length)
-            VALUES ('chapter-1', 'book-1', 0, 0, '第一章', '第一段。', 0, 4);
+            INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
+            VALUES ('chapter-1', 'book-1', 0, 0, '第一章', 3, 9);
             """;
         insertChapter.ExecuteNonQuery();
 
-        return new TestDatabase(path, connectionString);
+        return new TestDatabase(directory, connectionString);
     }
 
     private sealed class DelayedSqliteConnectionFactory : ISqliteConnectionFactory
@@ -157,11 +174,11 @@ public sealed class BookPlaybackContentServiceTests
 
     private sealed class TestDatabase : IDisposable
     {
-        private readonly string _path;
+        private readonly string _directory;
 
-        public TestDatabase(string path, string connectionString)
+        public TestDatabase(string directory, string connectionString)
         {
-            _path = path;
+            _directory = directory;
             ConnectionString = connectionString;
         }
 
@@ -171,9 +188,9 @@ public sealed class BookPlaybackContentServiceTests
         {
             try
             {
-                if (File.Exists(_path))
+                if (Directory.Exists(_directory))
                 {
-                    File.Delete(_path);
+                    Directory.Delete(_directory, recursive: true);
                 }
             }
             catch (IOException)
