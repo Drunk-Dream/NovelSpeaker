@@ -1,35 +1,40 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using NovelSpeaker.App.Navigation;
 
 namespace NovelSpeaker.App.ViewModels;
 
 /// <summary>
-/// Hosts the top-level pages for the desktop shell.
+/// Projects shell-level navigation state for the main window.
 /// </summary>
 public sealed partial class MainWindowViewModel : ObservableObject
 {
-    public MainWindowViewModel(
-        LibraryViewModel libraryViewModel,
-        PlayerViewModel playerViewModel,
-        TtsRulesViewModel ttsRulesViewModel,
-        SettingsViewModel settingsViewModel)
+    private readonly IAppNavigationService _navigationService;
+
+    public MainWindowViewModel(IAppNavigationService navigationService)
     {
-        Library = libraryViewModel;
-        Player = playerViewModel;
-        Rules = ttsRulesViewModel;
-        Settings = settingsViewModel;
-        CurrentPage = Library;
+        _navigationService = navigationService;
+        _navigationService.CurrentEntryChanged += OnCurrentEntryChanged;
+        ApplyNavigationState(_navigationService.CurrentEntry);
     }
 
-    public LibraryViewModel Library { get; }
-    public PlayerViewModel Player { get; }
-    public TtsRulesViewModel Rules { get; }
-    public SettingsViewModel Settings { get; }
+    [ObservableProperty]
+    private AppPrimaryDestination selectedPrimaryDestination;
 
     [ObservableProperty]
-    private object currentPage;
+    private bool canGoBack;
 
-    public void ShowLibrary() => CurrentPage = Library;
-    public void ShowPlayer() => CurrentPage = Player;
-    public void ShowRules() => CurrentPage = Rules;
-    public void ShowSettings() => CurrentPage = Settings;
+    [ObservableProperty]
+    private bool isPlaybackShortcutVisible;
+
+    private void OnCurrentEntryChanged(object? sender, AppNavigationChangedEventArgs e)
+    {
+        ApplyNavigationState(e.Entry);
+    }
+
+    private void ApplyNavigationState(AppNavigationEntry entry)
+    {
+        SelectedPrimaryDestination = entry.PrimaryDestination;
+        CanGoBack = _navigationService.CanGoBack;
+        IsPlaybackShortcutVisible = false;
+    }
 }

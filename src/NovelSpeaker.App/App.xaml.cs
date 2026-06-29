@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Infrastructure.DependencyInjection;
+using NovelSpeaker.App.Theming;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.App.ViewModels;
 
@@ -83,8 +84,13 @@ public partial class App : System.Windows.Application
         var initializer = _serviceProvider.GetRequiredService<IDatabaseInitializer>();
         await initializer.InitializeAsync(CancellationToken.None);
 
+        await ReportStartupStageAsync("theme", "正在应用界面主题。", "正在根据设置准备浅色、深色或系统主题。");
+        var themeCoordinator = _serviceProvider.GetRequiredService<AppThemeStartupCoordinator>();
+        await themeCoordinator.ApplyAsync(CancellationToken.None);
+
         await ReportStartupStageAsync("shell", "正在创建主窗口。", "启动完成后将进入书库首页。");
         var window = _serviceProvider.GetRequiredService<MainWindow>();
+        MainWindow = window;
         _startupStatusWindow?.Close();
         _startupStatusWindow = null;
         window.Show();

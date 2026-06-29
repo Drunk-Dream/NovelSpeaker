@@ -1,0 +1,35 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="ThemeWindowBackgroundBrush" Color="#FFF5F7FB" />
+    <SolidColorBrush x:Key="ThemePageBackgroundBrush" Color="#FFF8FAFC" />
+    <SolidColorBrush x:Key="ThemeCardBackgroundBrush" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="ThemeCardBorderBrush" Color="#FFD7DFEA" />
+    <SolidColorBrush x:Key="ThemePrimaryTextBrush" Color="#FF0F172A" />
+    <SolidColorBrush x:Key="ThemeSecondaryTextBrush" Color="#FF475569" />
+    <SolidColorBrush x:Key="ThemeAccentBrush" Color="#FF2563EB" />
+
+    <SolidColorBrush x:Key="DangerBrush" Color="#FFB3261E" />
+
+    <Style x:Key="PageTitleTextBlockStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="28" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource ThemePrimaryTextBrush}" />
+    </Style>
+
+    <Style x:Key="SectionTitleTextBlockStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource ThemePrimaryTextBrush}" />
+    </Style>
+
+    <Style x:Key="SecondaryTextBlockStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource ThemeSecondaryTextBrush}" />
+    </Style>
+
+    <Style x:Key="CardBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource ThemeCardBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource ThemeCardBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
+    </Style>
+</ResourceDictionary>

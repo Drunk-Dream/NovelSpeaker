@@ -8,6 +8,7 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+    <PackageReference Include="wpf-ui" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Assets\Audio\*.*">

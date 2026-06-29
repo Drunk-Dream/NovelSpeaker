@@ -1,23 +1,15 @@
 ﻿<Application x:Class="NovelSpeaker.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:viewModels="clr-namespace:NovelSpeaker.App.ViewModels"
-             xmlns:views="clr-namespace:NovelSpeaker.App.Views">
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
     <Application.Resources>
-        <DataTemplate DataType="{x:Type viewModels:LibraryViewModel}">
-            <views:LibraryView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type viewModels:PlayerViewModel}">
-            <views:PlayerView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type viewModels:SettingsViewModel}">
-            <views:SettingsView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type viewModels:TtsRulesViewModel}">
-            <views:TtsRulesView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type viewModels:ChapterRulesViewModel}">
-            <views:ChapterRulesView />
-        </DataTemplate>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ui:ThemesDictionary Theme="System" />
+                <ui:ControlsDictionary />
+                <ResourceDictionary Source="Resources/DesignTokens.xaml" />
+                <ResourceDictionary Source="Resources/SemanticStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>
