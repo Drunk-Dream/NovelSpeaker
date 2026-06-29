@@ -1,13 +1,15 @@
 using NovelSpeaker.App.Navigation;
+using Wpf.Ui;
+using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Pages;
 
-public partial class BookDetailsPage : System.Windows.Controls.Page, IAppNavigationPage, System.ComponentModel.INotifyPropertyChanged
+public partial class BookDetailsPage : System.Windows.Controls.Page, INavigationAware, System.ComponentModel.INotifyPropertyChanged
 {
-    private readonly IAppNavigationService _navigationService;
+    private readonly INavigationService _navigationService;
     private string _placeholderText = "当前版本仅建立书籍详情页导航壳，详细内容将在后续任务实现。";
 
-    public BookDetailsPage(IAppNavigationService navigationService)
+    public BookDetailsPage(INavigationService navigationService)
     {
         _navigationService = navigationService;
         InitializeComponent();
@@ -33,17 +35,23 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, IAppNavigat
 
     public BookDetailsNavigationRequest? LastRequest { get; private set; }
 
-    public Task OnNavigatedToAsync(AppNavigationEntry entry, CancellationToken cancellationToken)
+    public Task OnNavigatedToAsync()
     {
-        LastRequest = entry.Parameter as BookDetailsNavigationRequest;
+        LastRequest = DataContext as BookDetailsNavigationRequest;
         PlaceholderText = LastRequest is null
             ? "当前版本仅建立书籍详情页导航壳，详细内容将在后续任务实现。"
             : $"已接收书籍详情导航参数，BookId: {LastRequest.BookId}";
+        DataContext = this;
+        return Task.CompletedTask;
+    }
+
+    public Task OnNavigatedFromAsync()
+    {
         return Task.CompletedTask;
     }
 
     private void BackButton_OnClick(object sender, System.Windows.RoutedEventArgs e)
     {
-        _navigationService.GoBack();
+        _ = _navigationService.GoBack();
     }
 }

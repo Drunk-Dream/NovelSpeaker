@@ -1,35 +1,42 @@
-using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.ViewModels;
+using Wpf.Ui;
+using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Pages;
 
-public partial class TtsRulesPage : System.Windows.Controls.Page, IAppNavigationPage
+public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAware, INavigableView<TtsRulesViewModel>
 {
-    private readonly IAppNavigationService _navigationService;
-    private readonly TtsRulesViewModel _viewModel;
+    private readonly INavigationService _navigationService;
     private bool _hasLoaded;
 
-    public TtsRulesPage(IAppNavigationService navigationService, TtsRulesViewModel viewModel)
+    public TtsRulesPage(INavigationService navigationService, TtsRulesViewModel viewModel)
     {
         _navigationService = navigationService;
-        _viewModel = viewModel;
+        ViewModel = viewModel;
         InitializeComponent();
-        TtsRulesView.DataContext = viewModel;
+        TtsRulesView.DataContext = ViewModel;
     }
 
-    public async Task OnNavigatedToAsync(AppNavigationEntry entry, CancellationToken cancellationToken)
+    public TtsRulesViewModel ViewModel { get; }
+
+    public async Task OnNavigatedToAsync()
     {
         if (_hasLoaded)
         {
             return;
         }
 
-        await _viewModel.LoadAsync(cancellationToken);
+        await ViewModel.LoadAsync(CancellationToken.None);
         _hasLoaded = true;
+    }
+
+    public Task OnNavigatedFromAsync()
+    {
+        return Task.CompletedTask;
     }
 
     private void BackButton_OnClick(object sender, System.Windows.RoutedEventArgs e)
     {
-        _navigationService.GoBack();
+        _ = _navigationService.GoBack();
     }
 }

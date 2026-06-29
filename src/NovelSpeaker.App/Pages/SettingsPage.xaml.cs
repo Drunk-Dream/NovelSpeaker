@@ -1,28 +1,35 @@
-using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.ViewModels;
+using Wpf.Ui;
+using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Pages;
 
-public partial class SettingsPage : System.Windows.Controls.Page, IAppNavigationPage
+public partial class SettingsPage : System.Windows.Controls.Page, INavigationAware, INavigableView<SettingsViewModel>
 {
-    private readonly SettingsViewModel _viewModel;
     private bool _hasLoaded;
 
     public SettingsPage(SettingsViewModel viewModel)
     {
-        _viewModel = viewModel;
+        ViewModel = viewModel;
         InitializeComponent();
-        SettingsView.DataContext = viewModel;
+        SettingsView.DataContext = ViewModel;
     }
 
-    public async Task OnNavigatedToAsync(AppNavigationEntry entry, CancellationToken cancellationToken)
+    public SettingsViewModel ViewModel { get; }
+
+    public async Task OnNavigatedToAsync()
     {
         if (_hasLoaded)
         {
             return;
         }
 
-        await _viewModel.LoadAsync(cancellationToken);
+        await ViewModel.LoadAsync(CancellationToken.None);
         _hasLoaded = true;
+    }
+
+    public Task OnNavigatedFromAsync()
+    {
+        return Task.CompletedTask;
     }
 }

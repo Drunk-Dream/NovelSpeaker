@@ -1,35 +1,42 @@
-using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.ViewModels;
+using Wpf.Ui;
+using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Pages;
 
-public partial class ChapterRulesPage : System.Windows.Controls.Page, IAppNavigationPage
+public partial class ChapterRulesPage : System.Windows.Controls.Page, INavigationAware, INavigableView<ChapterRulesViewModel>
 {
-    private readonly IAppNavigationService _navigationService;
-    private readonly ChapterRulesViewModel _viewModel;
+    private readonly INavigationService _navigationService;
     private bool _hasLoaded;
 
-    public ChapterRulesPage(IAppNavigationService navigationService, ChapterRulesViewModel viewModel)
+    public ChapterRulesPage(INavigationService navigationService, ChapterRulesViewModel viewModel)
     {
         _navigationService = navigationService;
-        _viewModel = viewModel;
+        ViewModel = viewModel;
         InitializeComponent();
-        ChapterRulesView.DataContext = viewModel;
+        ChapterRulesView.DataContext = ViewModel;
     }
 
-    public async Task OnNavigatedToAsync(AppNavigationEntry entry, CancellationToken cancellationToken)
+    public ChapterRulesViewModel ViewModel { get; }
+
+    public async Task OnNavigatedToAsync()
     {
         if (_hasLoaded)
         {
             return;
         }
 
-        await _viewModel.LoadAsync(cancellationToken);
+        await ViewModel.LoadAsync(CancellationToken.None);
         _hasLoaded = true;
+    }
+
+    public Task OnNavigatedFromAsync()
+    {
+        return Task.CompletedTask;
     }
 
     private void BackButton_OnClick(object sender, System.Windows.RoutedEventArgs e)
     {
-        _navigationService.GoBack();
+        _ = _navigationService.GoBack();
     }
 }

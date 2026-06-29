@@ -1,17 +1,18 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Settings;
-using NovelSpeaker.App.Navigation;
+using NovelSpeaker.App.Pages;
 using NovelSpeaker.Domain.Settings;
+using Wpf.Ui;
 
 namespace NovelSpeaker.App.ViewModels;
 
 public sealed partial class SettingsViewModel : ObservableObject
 {
-    private readonly IAppNavigationService _navigationService;
+    private readonly INavigationService _navigationService;
     private readonly IAppSettingsStore _settingsStore;
 
-    public SettingsViewModel(IAppSettingsStore settingsStore, IAppNavigationService navigationService)
+    public SettingsViewModel(IAppSettingsStore settingsStore, INavigationService navigationService)
     {
         _settingsStore = settingsStore;
         _navigationService = navigationService;
@@ -87,18 +88,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void OpenTtsRules()
     {
-        _navigationService.NavigateToSettings(SettingsSection.TtsRules);
+        _navigationService.NavigateWithHierarchy(typeof(TtsRulesPage));
     }
 
     [RelayCommand]
     private void OpenChapterRules()
     {
-        _navigationService.NavigateToSettings(SettingsSection.ChapterRules);
+        _navigationService.NavigateWithHierarchy(typeof(ChapterRulesPage));
     }
 
     [RelayCommand]
     private void OpenCacheManagement()
     {
-        _navigationService.NavigateToSettings(SettingsSection.CacheManagement);
+        _navigationService.NavigateWithHierarchy(typeof(CacheManagementPage));
     }
 }

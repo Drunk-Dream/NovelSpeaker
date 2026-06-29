@@ -1,24 +1,30 @@
-using NovelSpeaker.App.Navigation;
+using Wpf.Ui;
+using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Pages;
 
-public partial class CacheManagementPage : System.Windows.Controls.Page, IAppNavigationPage
+public partial class CacheManagementPage : System.Windows.Controls.Page, INavigationAware
 {
-    private readonly IAppNavigationService _navigationService;
+    private readonly INavigationService _navigationService;
 
-    public CacheManagementPage(IAppNavigationService navigationService)
+    public CacheManagementPage(INavigationService navigationService)
     {
         _navigationService = navigationService;
         InitializeComponent();
     }
 
-    public Task OnNavigatedToAsync(AppNavigationEntry entry, CancellationToken cancellationToken)
+    public Task OnNavigatedToAsync()
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task OnNavigatedFromAsync()
     {
         return Task.CompletedTask;
     }
 
     private void BackButton_OnClick(object sender, System.Windows.RoutedEventArgs e)
     {
-        _navigationService.GoBack();
+        _ = _navigationService.GoBack();
     }
 }

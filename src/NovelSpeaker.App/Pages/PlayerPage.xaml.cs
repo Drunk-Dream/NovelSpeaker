@@ -1,39 +1,47 @@
 using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.ViewModels;
+using Wpf.Ui;
+using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Pages;
 
-public partial class PlayerPage : System.Windows.Controls.Page, IAppNavigationPage
+public partial class PlayerPage : System.Windows.Controls.Page, INavigationAware, INavigableView<PlayerViewModel>
 {
-    private readonly IAppNavigationService _navigationService;
-    private readonly PlayerViewModel _viewModel;
+    private readonly INavigationService _navigationService;
     private bool _hasLoaded;
 
-    public PlayerPage(IAppNavigationService navigationService, PlayerViewModel viewModel)
+    public PlayerPage(INavigationService navigationService, PlayerViewModel viewModel)
     {
         _navigationService = navigationService;
-        _viewModel = viewModel;
+        ViewModel = viewModel;
         InitializeComponent();
-        PlayerView.DataContext = viewModel;
+        PlayerView.DataContext = ViewModel;
     }
+
+    public PlayerViewModel ViewModel { get; }
 
     public PlayerNavigationRequest? LastRequest { get; private set; }
 
-    public async Task OnNavigatedToAsync(AppNavigationEntry entry, CancellationToken cancellationToken)
+    public async Task OnNavigatedToAsync()
     {
-        LastRequest = entry.Parameter as PlayerNavigationRequest;
+        LastRequest = DataContext as PlayerNavigationRequest;
 
         if (_hasLoaded)
         {
             return;
         }
 
-        await _viewModel.LoadAsync(cancellationToken);
+        await ViewModel.LoadAsync(CancellationToken.None);
         _hasLoaded = true;
+    }
+
+    public Task OnNavigatedFromAsync()
+    {
+        return Task.CompletedTask;
     }
 
     private void BackButton_OnClick(object sender, System.Windows.RoutedEventArgs e)
     {
-        _navigationService.GoBack();
+        _ = _navigationService.GoBack();
     }
 }

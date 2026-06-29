@@ -1,28 +1,35 @@
-using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.ViewModels;
+using Wpf.Ui;
+using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Pages;
 
-public partial class LibraryPage : System.Windows.Controls.Page, IAppNavigationPage
+public partial class LibraryPage : System.Windows.Controls.Page, INavigationAware, INavigableView<LibraryViewModel>
 {
-    private readonly LibraryViewModel _viewModel;
     private bool _hasLoaded;
 
     public LibraryPage(LibraryViewModel viewModel)
     {
-        _viewModel = viewModel;
+        ViewModel = viewModel;
         InitializeComponent();
-        LibraryView.DataContext = viewModel;
+        LibraryView.DataContext = ViewModel;
     }
 
-    public async Task OnNavigatedToAsync(AppNavigationEntry entry, CancellationToken cancellationToken)
+    public LibraryViewModel ViewModel { get; }
+
+    public async Task OnNavigatedToAsync()
     {
         if (_hasLoaded)
         {
             return;
         }
 
-        await _viewModel.LoadAsync(cancellationToken);
+        await ViewModel.LoadAsync(CancellationToken.None);
         _hasLoaded = true;
+    }
+
+    public Task OnNavigatedFromAsync()
+    {
+        return Task.CompletedTask;
     }
 }
