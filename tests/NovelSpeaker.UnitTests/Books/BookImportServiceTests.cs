@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Infrastructure.Books;
 using Xunit;
@@ -18,7 +19,17 @@ public sealed class BookImportServiceTests
             new ChapterRule("rule-1", "章节", @"^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$", 10, true, "now", "now")
         ]);
         var splitter = new FakeChapterSplitter([new BookImportChapter(0, 0, "第一章 开始", 6, 2)]);
-        var service = new BookImportService(analyzer, normalizer, hasher, duplicates, rules, splitter, new FakeBookFileStore(), new FakeBookImportRepository());
+        var service = new BookImportService(
+            analyzer,
+            normalizer,
+            hasher,
+            duplicates,
+            rules,
+            splitter,
+            new FakeBookFileStore(),
+            new FakeBookImportRepository(),
+            new FakeBookFileNameTemplateProvider("{{name}} 作者：{{author}}"),
+            new BookFileNameMetadataParser());
 
         var analysis = await service.AnalyzeAsync(new BookImportRequest("demo.txt", null), progress: null, CancellationToken.None);
 
@@ -38,7 +49,9 @@ public sealed class BookImportServiceTests
             new FakeChapterRuleRepository([]),
             new FakeChapterSplitter([]),
             new FakeBookFileStore(),
-            new FakeBookImportRepository());
+            new FakeBookImportRepository(),
+            new FakeBookFileNameTemplateProvider("{{name}} 作者：{{author}}"),
+            new BookFileNameMetadataParser());
 
         var analysis = new BookImportAnalysis(
             BookImportAnalysisStatus.Failed,
@@ -68,12 +81,64 @@ public sealed class BookImportServiceTests
             new FakeChapterRuleRepository([]),
             new FakeChapterSplitter([new BookImportChapter(0, 0, "全文", 0, 2)]),
             new FakeBookFileStore(),
-            new FakeBookImportRepository());
+            new FakeBookImportRepository(),
+            new FakeBookFileNameTemplateProvider("{{name}} 作者：{{author}}"),
+            new BookFileNameMetadataParser());
 
         var analysis = await service.AnalyzeAsync(new BookImportRequest("demo.txt", "utf-16le"), progress: null, CancellationToken.None);
 
         Assert.Equal("utf-16le", analyzer.LastRequest?.EncodingOverride);
         Assert.Equal(BookImportAnalysisStatus.ReadyToCommit, analysis.Status);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_uses_template_metadata_when_match_succeeds()
+    {
+        var service = new BookImportService(
+            new FakeTextFileAnalyzer(new TextFileAnalysis("utf-8", "preview", "第一章 开始\n正文")),
+            new FakeTextNormalizer("第一章 开始\n正文"),
+            new FakeContentHasher("hash"),
+            new FakeDuplicateDetector(null),
+            new FakeChapterRuleRepository([]),
+            new FakeChapterSplitter([new BookImportChapter(0, 0, "全文", 0, 2)]),
+            new FakeBookFileStore(),
+            new FakeBookImportRepository(),
+            new FakeBookFileNameTemplateProvider("{{name}} 作者：{{author}}"),
+            new BookFileNameMetadataParser());
+
+        var analysis = await service.AnalyzeAsync(
+            new BookImportRequest("信息全知者 作者：魔性沧月.txt", null),
+            progress: null,
+            CancellationToken.None);
+
+        Assert.Equal("信息全知者", analysis.SuggestedTitle);
+        Assert.Equal("魔性沧月", analysis.SuggestedAuthor);
+        Assert.True(analysis.IsFileNameTemplateMatched);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_falls_back_to_file_name_when_template_does_not_match()
+    {
+        var service = new BookImportService(
+            new FakeTextFileAnalyzer(new TextFileAnalysis("utf-8", "preview", "第一章 开始\n正文")),
+            new FakeTextNormalizer("第一章 开始\n正文"),
+            new FakeContentHasher("hash"),
+            new FakeDuplicateDetector(null),
+            new FakeChapterRuleRepository([]),
+            new FakeChapterSplitter([new BookImportChapter(0, 0, "全文", 0, 2)]),
+            new FakeBookFileStore(),
+            new FakeBookImportRepository(),
+            new FakeBookFileNameTemplateProvider("{{name}} 作者：{{author}}"),
+            new BookFileNameMetadataParser());
+
+        var analysis = await service.AnalyzeAsync(
+            new BookImportRequest("信息全知者-魔性沧月.txt", null),
+            progress: null,
+            CancellationToken.None);
+
+        Assert.Equal("信息全知者-魔性沧月", analysis.SuggestedTitle);
+        Assert.Null(analysis.SuggestedAuthor);
+        Assert.False(analysis.IsFileNameTemplateMatched);
     }
 
     [Fact]
@@ -89,7 +154,9 @@ public sealed class BookImportServiceTests
             new FakeChapterRuleRepository([]),
             new FakeChapterSplitter([]),
             fileStore,
-            repository);
+            repository,
+            new FakeBookFileNameTemplateProvider("{{name}} 作者：{{author}}"),
+            new BookFileNameMetadataParser());
 
         var analysis = new BookImportAnalysis(
             BookImportAnalysisStatus.ReadyToCommit,
@@ -102,7 +169,9 @@ public sealed class BookImportServiceTests
             "hash",
             [new BookImportChapter(0, 42, "第一章 开始", 6, 2)],
             null,
-            null);
+            null,
+            "魔性沧月",
+            true);
 
         await service.CommitAsync(analysis, progress: null, CancellationToken.None);
 
@@ -111,6 +180,7 @@ public sealed class BookImportServiceTests
         Assert.Equal("第一章 开始\n正文", fileStore.LastNormalizedText);
         Assert.Equal(repository.SavedBook!.ImportedAt, repository.SavedBook.LastImportedAt);
         Assert.Null(repository.SavedBook.LastPlayedAt);
+        Assert.Equal("魔性沧月", repository.SavedBook.Author);
         Assert.Single(repository.SavedChapters!);
         Assert.Equal(42, repository.SavedChapters[0].SortOrder);
         Assert.Equal(6, repository.SavedChapters[0].StartOffset);
@@ -233,6 +303,21 @@ public sealed class BookImportServiceTests
     private sealed class FakeBookImportRepository : IBookImportRepository
     {
         public Task SaveAsync(Book book, IReadOnlyList<Chapter> chapters, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeBookFileNameTemplateProvider : IBookFileNameTemplateProvider
+    {
+        private readonly string _template;
+
+        public FakeBookFileNameTemplateProvider(string template)
+        {
+            _template = template;
+        }
+
+        public Task<string> GetCurrentTemplateAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(_template);
+        }
     }
 
     private sealed class CapturingBookImportRepository : IBookImportRepository

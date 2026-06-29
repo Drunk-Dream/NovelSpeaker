@@ -14,4 +14,6 @@ public sealed record BookImportAnalysis(
     string SourceHash,
     IReadOnlyList<BookImportChapter> Chapters,
     BookImportFailureReason? FailureReason,
-    string? ExistingBookId);
+    string? ExistingBookId,
+    string? SuggestedAuthor = null,
+    bool IsFileNameTemplateMatched = false);

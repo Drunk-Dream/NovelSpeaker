@@ -1,5 +1,6 @@
 using System.Text;
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
 
 namespace NovelSpeaker.Infrastructure.Books;
@@ -17,6 +18,8 @@ public sealed class BookImportService : IBookImportService
     private readonly IChapterSplitter _chapterSplitter;
     private readonly IBookFileStore _bookFileStore;
     private readonly IBookImportRepository _bookImportRepository;
+    private readonly IBookFileNameTemplateProvider _bookFileNameTemplateProvider;
+    private readonly BookFileNameMetadataParser _bookFileNameMetadataParser;
 
     public BookImportService(
         ITextFileAnalyzer textFileAnalyzer,
@@ -26,7 +29,9 @@ public sealed class BookImportService : IBookImportService
         IChapterRuleRepository chapterRuleRepository,
         IChapterSplitter chapterSplitter,
         IBookFileStore bookFileStore,
-        IBookImportRepository bookImportRepository)
+        IBookImportRepository bookImportRepository,
+        IBookFileNameTemplateProvider bookFileNameTemplateProvider,
+        BookFileNameMetadataParser bookFileNameMetadataParser)
     {
         _textFileAnalyzer = textFileAnalyzer;
         _textNormalizer = textNormalizer;
@@ -36,6 +41,8 @@ public sealed class BookImportService : IBookImportService
         _chapterSplitter = chapterSplitter;
         _bookFileStore = bookFileStore;
         _bookImportRepository = bookImportRepository;
+        _bookFileNameTemplateProvider = bookFileNameTemplateProvider;
+        _bookFileNameMetadataParser = bookFileNameMetadataParser;
     }
 
     public async Task<BookImportAnalysis> AnalyzeAsync(
@@ -43,6 +50,12 @@ public sealed class BookImportService : IBookImportService
         IProgress<BookImportProgress>? progress,
         CancellationToken cancellationToken)
     {
+        var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(request.FilePath);
+        var fileNameTemplate = await _bookFileNameTemplateProvider
+            .GetCurrentTemplateAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var metadata = _bookFileNameMetadataParser.Parse(fileNameWithoutExtension, fileNameTemplate);
+
         try
         {
             var analyzedText = await _textFileAnalyzer.AnalyzeAsync(request, progress, cancellationToken);
@@ -56,14 +69,16 @@ public sealed class BookImportService : IBookImportService
                     BookImportAnalysisStatus.Failed,
                     request.FilePath,
                     Path.GetFileName(request.FilePath),
-                    Path.GetFileNameWithoutExtension(request.FilePath),
+                    metadata.SuggestedTitle,
                     analyzedText.EncodingName,
                     analyzedText.PreviewText,
                     normalizedText,
                     sourceHash,
                     [],
                     BookImportFailureReason.DuplicateBook,
-                    existingBookId);
+                    existingBookId,
+                    metadata.SuggestedAuthor,
+                    metadata.IsMatched);
             }
 
             progress?.Report(new BookImportProgress(
@@ -82,28 +97,32 @@ public sealed class BookImportService : IBookImportService
                     BookImportAnalysisStatus.Failed,
                     request.FilePath,
                     Path.GetFileName(request.FilePath),
-                    Path.GetFileNameWithoutExtension(request.FilePath),
+                    metadata.SuggestedTitle,
                     analyzedText.EncodingName,
                     analyzedText.PreviewText,
                     normalizedText,
                     sourceHash,
                     [],
                     BookImportFailureReason.NoValidChapters,
-                    null);
+                    null,
+                    metadata.SuggestedAuthor,
+                    metadata.IsMatched);
             }
 
             return new BookImportAnalysis(
                 BookImportAnalysisStatus.ReadyToCommit,
                 request.FilePath,
                 Path.GetFileName(request.FilePath),
-                Path.GetFileNameWithoutExtension(request.FilePath),
+                metadata.SuggestedTitle,
                 analyzedText.EncodingName,
                 analyzedText.PreviewText,
                 normalizedText,
                 sourceHash,
                 chapters,
                 null,
-                null);
+                null,
+                metadata.SuggestedAuthor,
+                metadata.IsMatched);
         }
         catch (DecoderFallbackException)
         {
@@ -111,14 +130,16 @@ public sealed class BookImportService : IBookImportService
                 BookImportAnalysisStatus.Failed,
                 request.FilePath,
                 Path.GetFileName(request.FilePath),
-                Path.GetFileNameWithoutExtension(request.FilePath),
+                metadata.SuggestedTitle,
                 "unknown",
                 string.Empty,
                 string.Empty,
                 string.Empty,
                 [],
                 BookImportFailureReason.UnsupportedEncoding,
-                null);
+                null,
+                metadata.SuggestedAuthor,
+                metadata.IsMatched);
         }
         catch (IOException)
         {
@@ -126,14 +147,16 @@ public sealed class BookImportService : IBookImportService
                 BookImportAnalysisStatus.Failed,
                 request.FilePath,
                 Path.GetFileName(request.FilePath),
-                Path.GetFileNameWithoutExtension(request.FilePath),
+                metadata.SuggestedTitle,
                 "unknown",
                 string.Empty,
                 string.Empty,
                 string.Empty,
                 [],
                 BookImportFailureReason.FileReadFailed,
-                null);
+                null,
+                metadata.SuggestedAuthor,
+                metadata.IsMatched);
         }
     }
 
@@ -154,7 +177,7 @@ public sealed class BookImportService : IBookImportService
         var book = new Book(
             bookId,
             analysis.SuggestedTitle,
-            null,
+            analysis.SuggestedAuthor,
             analysis.OriginalFileName,
             copyHandle.FinalPath,
             analysis.SourceHash,
