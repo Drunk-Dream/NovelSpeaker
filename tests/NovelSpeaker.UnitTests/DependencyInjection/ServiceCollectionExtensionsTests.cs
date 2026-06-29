@@ -39,6 +39,8 @@ public sealed class ServiceCollectionExtensionsTests
                     Assert.IsAssignableFrom<NovelSpeaker.Application.Speech.ITtsRuleRepository>(
                         provider.GetRequiredService<NovelSpeaker.Application.Speech.ITtsRuleRepository>());
                     Assert.IsAssignableFrom<IAppSettingsStore>(provider.GetRequiredService<IAppSettingsStore>());
+                    Assert.IsAssignableFrom<IBookFileNameTemplateProvider>(
+                        provider.GetRequiredService<IBookFileNameTemplateProvider>());
                     Assert.IsAssignableFrom<ITextSegmentationOptionsProvider>(
                         provider.GetRequiredService<ITextSegmentationOptionsProvider>());
                     Assert.IsAssignableFrom<ITextSegmenter>(provider.GetRequiredService<ITextSegmenter>());
