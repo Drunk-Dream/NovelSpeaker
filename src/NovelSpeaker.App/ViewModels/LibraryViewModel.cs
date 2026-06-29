@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.App.Feedback;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -12,15 +13,21 @@ public sealed partial class LibraryViewModel : ObservableObject
 {
     private readonly IBookImportService _bookImportService;
     private readonly IBookCatalogService _bookCatalogService;
+    private readonly IExceptionProjector _exceptionProjector;
+    private readonly IAppNotificationService _notificationService;
     private BookImportAnalysis? _pendingAnalysis;
     private CancellationTokenSource? _activeImportCancellationTokenSource;
 
     public LibraryViewModel(
         IBookImportService bookImportService,
-        IBookCatalogService bookCatalogService)
+        IBookCatalogService bookCatalogService,
+        IAppNotificationService notificationService,
+        IExceptionProjector exceptionProjector)
     {
         _bookImportService = bookImportService;
         _bookCatalogService = bookCatalogService;
+        _notificationService = notificationService;
+        _exceptionProjector = exceptionProjector;
     }
 
     public ObservableCollection<LibraryBookItemViewModel> Books { get; } = [];
@@ -106,7 +113,8 @@ public sealed partial class LibraryViewModel : ObservableObject
                 var result = await _bookImportService.CommitAsync(_pendingAnalysis, progress, linkedToken);
                 await LoadAsync(linkedToken);
                 ClearPendingAnalysis();
-                StatusMessage = $"导入成功：{result.Title}";
+                StatusMessage = "导入完成，可以继续导入其他小说。";
+                _notificationService.ShowSuccess("导入成功", $"已导入《{result.Title}》。");
             },
             cancellationToken);
     }
@@ -148,6 +156,15 @@ public sealed partial class LibraryViewModel : ObservableObject
         {
             StatusMessage = "导入已取消。";
             ImportProgressText = "已取消当前导入任务。";
+        }
+        catch (Exception exception)
+        {
+            var projected = _exceptionProjector.Project(exception);
+            StatusMessage = projected.UserMessage;
+            if (!projected.IsSilent)
+            {
+                ShowProjectedNotification(projected);
+            }
         }
         finally
         {
@@ -226,6 +243,22 @@ public sealed partial class LibraryViewModel : ObservableObject
         public void Report(T value)
         {
             _callback(value);
+        }
+    }
+
+    private void ShowProjectedNotification(ProjectedUiError projected)
+    {
+        switch (projected.Severity)
+        {
+            case UiMessageSeverity.Warning:
+                _notificationService.ShowWarning("导入失败", projected.UserMessage);
+                break;
+            case UiMessageSeverity.Error:
+                _notificationService.ShowError("导入失败", projected.UserMessage);
+                break;
+            default:
+                _notificationService.ShowSuccess("导入提示", projected.UserMessage);
+                break;
         }
     }
 }

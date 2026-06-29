@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.ViewModels;
 using Xunit;
 
@@ -30,7 +31,8 @@ public sealed class LibraryViewModelTests
             new BookSummary("book-1", "demo", null, "第一章 开始", DateTime.UtcNow.ToString("O"))
         ]);
 
-        var viewModel = new LibraryViewModel(importService, catalogService);
+        var notifications = new FakeNotificationService();
+        var viewModel = new LibraryViewModel(importService, catalogService, notifications, new ExceptionProjector());
 
         await viewModel.ImportFileAsync("C:\\books\\demo.txt", CancellationToken.None);
 
@@ -68,16 +70,18 @@ public sealed class LibraryViewModelTests
             new BookSummary("book-1", "demo", null, "第一章 开始", DateTime.UtcNow.ToString("O"))
         ]);
 
-        var viewModel = new LibraryViewModel(importService, catalogService);
+        var notifications = new FakeNotificationService();
+        var viewModel = new LibraryViewModel(importService, catalogService, notifications, new ExceptionProjector());
         await viewModel.ImportFileAsync("C:\\books\\demo.txt", CancellationToken.None);
 
         await viewModel.ConfirmImportCommand.ExecuteAsync(null);
 
         Assert.Single(viewModel.Books);
         Assert.Equal("demo", viewModel.Books[0].Title);
-        Assert.Equal("导入成功：demo", viewModel.StatusMessage);
+        Assert.Equal("导入完成，可以继续导入其他小说。", viewModel.StatusMessage);
         Assert.Equal(1, importService.CommitCallCount);
         Assert.False(viewModel.CanConfirmImport);
+        Assert.Equal("导入成功", notifications.LastTitle);
     }
 
     [Fact]
@@ -100,7 +104,7 @@ public sealed class LibraryViewModelTests
                 false),
             new BookImportResult("book-1", "demo", 1));
 
-        var viewModel = new LibraryViewModel(importService, new FakeBookCatalogService([]));
+        var viewModel = new LibraryViewModel(importService, new FakeBookCatalogService([]), new FakeNotificationService(), new ExceptionProjector());
         await viewModel.ImportFileAsync("C:\\books\\demo.txt", CancellationToken.None);
         viewModel.SelectedEncoding = "utf-16le";
 
@@ -163,6 +167,31 @@ public sealed class LibraryViewModelTests
         public Task<ContinueListeningSummary?> GetContinueListeningAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult<ContinueListeningSummary?>(null);
+        }
+    }
+
+    private sealed class FakeNotificationService : IAppNotificationService
+    {
+        public string? LastTitle { get; private set; }
+
+        public string? LastMessage { get; private set; }
+
+        public void ShowSuccess(string title, string message)
+        {
+            LastTitle = title;
+            LastMessage = message;
+        }
+
+        public void ShowWarning(string title, string message)
+        {
+            LastTitle = title;
+            LastMessage = message;
+        }
+
+        public void ShowError(string title, string message)
+        {
+            LastTitle = title;
+            LastMessage = message;
         }
     }
 }

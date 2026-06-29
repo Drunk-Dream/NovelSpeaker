@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.Domain.Speech;
 using Xunit;
@@ -28,7 +29,7 @@ public sealed class TtsRulesViewModelTests
                         CreateRule("示例规则", "https://example.com/tts"))
                 ],
                 null));
-        var viewModel = new TtsRulesViewModel(libraryService, new FakeTtsRuleTestService());
+        var viewModel = new TtsRulesViewModel(libraryService, new FakeTtsRuleTestService(), new FakeNotificationService(), new ExceptionProjector());
 
         await viewModel.ImportJsonTextAsync("""{"name":"示例规则","url":"https://example.com/tts"}""", "剪贴板", CancellationToken.None);
 
@@ -61,7 +62,8 @@ public sealed class TtsRulesViewModelTests
                         CreateRule("现有规则", "https://example.com/tts"))
                 ],
                 null));
-        var viewModel = new TtsRulesViewModel(libraryService, new FakeTtsRuleTestService());
+        var notifications = new FakeNotificationService();
+        var viewModel = new TtsRulesViewModel(libraryService, new FakeTtsRuleTestService(), notifications, new ExceptionProjector());
         await viewModel.ImportJsonTextAsync("""{"name":"现有规则","url":"https://example.com/tts"}""", "file.json", CancellationToken.None);
 
         await viewModel.ConfirmImportCommand.ExecuteAsync(null);
@@ -70,6 +72,7 @@ public sealed class TtsRulesViewModelTests
         Assert.False(viewModel.IsPreviewVisible);
         Assert.Single(viewModel.Rules);
         Assert.Equal("当前规则：现有规则", viewModel.CurrentRuleDisplayText);
+        Assert.Equal("规则导入完成", notifications.LastTitle);
     }
 
     [Fact]
@@ -80,7 +83,7 @@ public sealed class TtsRulesViewModelTests
                 new TtsRuleSummary(1, "规则一", true, false, null, TtsRuleCompatibilityStatus.Compatible, []),
                 new TtsRuleSummary(2, "规则二", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])
             ]);
-        var viewModel = new TtsRulesViewModel(libraryService, new FakeTtsRuleTestService());
+        var viewModel = new TtsRulesViewModel(libraryService, new FakeTtsRuleTestService(), new FakeNotificationService(), new ExceptionProjector());
 
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SelectedRule = viewModel.Rules[1];
@@ -115,7 +118,9 @@ public sealed class TtsRulesViewModelTests
                         "audio/wav"),
                     [],
                     null)
-            });
+            },
+            new FakeNotificationService(),
+            new ExceptionProjector());
 
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SelectedRule = ruleSummary;
@@ -150,7 +155,9 @@ public sealed class TtsRulesViewModelTests
                     "application/json",
                     """{"message":"slow down"}""",
                     TimeSpan.FromSeconds(5))
-            });
+            },
+            new FakeNotificationService(),
+            new ExceptionProjector());
 
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SelectedRule = ruleSummary;
@@ -245,6 +252,31 @@ public sealed class TtsRulesViewModelTests
         public Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeNotificationService : IAppNotificationService
+    {
+        public string? LastTitle { get; private set; }
+
+        public string? LastMessage { get; private set; }
+
+        public void ShowSuccess(string title, string message)
+        {
+            LastTitle = title;
+            LastMessage = message;
+        }
+
+        public void ShowWarning(string title, string message)
+        {
+            LastTitle = title;
+            LastMessage = message;
+        }
+
+        public void ShowError(string title, string message)
+        {
+            LastTitle = title;
+            LastMessage = message;
+        }
     }
 
     private sealed class MutableTtsRuleLibraryService : ITtsRuleLibraryService

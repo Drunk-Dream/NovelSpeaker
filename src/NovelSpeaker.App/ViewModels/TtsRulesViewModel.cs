@@ -3,6 +3,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.App.Feedback;
 using NovelSpeaker.Domain.Speech;
 
 namespace NovelSpeaker.App.ViewModels;
@@ -14,15 +15,21 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 {
     private readonly ITtsRuleLibraryService _ruleLibraryService;
     private readonly ITtsRuleTestService _ruleTestService;
+    private readonly IExceptionProjector _exceptionProjector;
+    private readonly IAppNotificationService _notificationService;
     private TtsRuleImportPreview? _pendingPreview;
     private CancellationTokenSource? _testOperationCts;
 
     public TtsRulesViewModel(
         ITtsRuleLibraryService ruleLibraryService,
-        ITtsRuleTestService ruleTestService)
+        ITtsRuleTestService ruleTestService,
+        IAppNotificationService notificationService,
+        IExceptionProjector exceptionProjector)
     {
         _ruleLibraryService = ruleLibraryService;
         _ruleTestService = ruleTestService;
+        _notificationService = notificationService;
+        _exceptionProjector = exceptionProjector;
     }
 
     public ObservableCollection<TtsRuleSummary> Rules { get; } = [];
@@ -107,14 +114,28 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
     public async Task ImportFromFileAsync(string filePath, CancellationToken cancellationToken)
     {
-        var jsonText = await File.ReadAllTextAsync(filePath, cancellationToken);
-        await ImportJsonTextAsync(jsonText, Path.GetFileName(filePath), cancellationToken);
+        try
+        {
+            var jsonText = await File.ReadAllTextAsync(filePath, cancellationToken);
+            await ImportJsonTextAsync(jsonText, Path.GetFileName(filePath), cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            HandleProjectedError("规则导入失败", exception);
+        }
     }
 
     public async Task ImportJsonTextAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken)
     {
-        var preview = await _ruleLibraryService.CreateImportPreviewAsync(jsonText, sourceDescription, cancellationToken);
-        ApplyPreview(preview);
+        try
+        {
+            var preview = await _ruleLibraryService.CreateImportPreviewAsync(jsonText, sourceDescription, cancellationToken);
+            ApplyPreview(preview);
+        }
+        catch (Exception exception)
+        {
+            HandleProjectedError("规则导入失败", exception);
+        }
     }
 
     public async Task ExportSelectedRuleToFileAsync(string filePath, CancellationToken cancellationToken)
@@ -145,10 +166,20 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             return;
         }
 
-        var result = await _ruleLibraryService.ImportAsync(_pendingPreview, cancellationToken);
-        await LoadAsync(cancellationToken);
-        ClearPreview();
-        StatusMessage = $"导入完成：新增 {result.ImportedCount} 条，跳过 {result.SkippedCount} 条。";
+        try
+        {
+            var result = await _ruleLibraryService.ImportAsync(_pendingPreview, cancellationToken);
+            await LoadAsync(cancellationToken);
+            ClearPreview();
+            StatusMessage = "规则导入完成。";
+            _notificationService.ShowSuccess(
+                "规则导入完成",
+                $"新增 {result.ImportedCount} 条，跳过 {result.SkippedCount} 条。");
+        }
+        catch (Exception exception)
+        {
+            HandleProjectedError("规则导入失败", exception);
+        }
     }
 
     [RelayCommand]
@@ -172,9 +203,16 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             return;
         }
 
-        await _ruleLibraryService.SelectRuleAsync(rule.Id, cancellationToken);
-        await LoadAsync(cancellationToken);
-        StatusMessage = $"当前规则已切换为：{rule.Name}";
+        try
+        {
+            await _ruleLibraryService.SelectRuleAsync(rule.Id, cancellationToken);
+            await LoadAsync(cancellationToken);
+            StatusMessage = $"当前规则已切换为：{rule.Name}";
+        }
+        catch (Exception exception)
+        {
+            HandleProjectedError("规则切换失败", exception);
+        }
     }
 
     [RelayCommand]
@@ -185,11 +223,18 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             return;
         }
 
-        await _ruleLibraryService.SetRuleEnabledAsync(rule.Id, !rule.IsEnabled, cancellationToken);
-        await LoadAsync(cancellationToken);
-        StatusMessage = rule.IsEnabled
-            ? $"已禁用规则：{rule.Name}"
-            : $"已启用规则：{rule.Name}";
+        try
+        {
+            await _ruleLibraryService.SetRuleEnabledAsync(rule.Id, !rule.IsEnabled, cancellationToken);
+            await LoadAsync(cancellationToken);
+            StatusMessage = rule.IsEnabled
+                ? $"已禁用规则：{rule.Name}"
+                : $"已启用规则：{rule.Name}";
+        }
+        catch (Exception exception)
+        {
+            HandleProjectedError("规则更新失败", exception);
+        }
     }
 
     [RelayCommand]
@@ -200,12 +245,19 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             return;
         }
 
-        await _ruleLibraryService.DeleteRuleAsync(rule.Id, cancellationToken);
-        await LoadAsync(cancellationToken);
-        StatusMessage = $"已删除规则：{rule.Name}";
-        if (SelectedRule is null)
+        try
         {
-            ClearTestProjection();
+            await _ruleLibraryService.DeleteRuleAsync(rule.Id, cancellationToken);
+            await LoadAsync(cancellationToken);
+            StatusMessage = $"已删除规则：{rule.Name}";
+            if (SelectedRule is null)
+            {
+                ClearTestProjection();
+            }
+        }
+        catch (Exception exception)
+        {
+            HandleProjectedError("规则删除失败", exception);
         }
     }
 
@@ -481,5 +533,28 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         }
 
         return details.Count == 0 ? string.Empty : string.Join(Environment.NewLine, details);
+    }
+
+    private void HandleProjectedError(string title, Exception exception)
+    {
+        var projected = _exceptionProjector.Project(exception);
+        StatusMessage = projected.UserMessage;
+        if (projected.IsSilent)
+        {
+            return;
+        }
+
+        switch (projected.Severity)
+        {
+            case UiMessageSeverity.Warning:
+                _notificationService.ShowWarning(title, projected.UserMessage);
+                break;
+            case UiMessageSeverity.Error:
+                _notificationService.ShowError(title, projected.UserMessage);
+                break;
+            default:
+                _notificationService.ShowSuccess(title, projected.UserMessage);
+                break;
+        }
     }
 }
