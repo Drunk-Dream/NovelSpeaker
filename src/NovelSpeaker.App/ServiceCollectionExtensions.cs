@@ -3,6 +3,8 @@ using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.Theming;
 using NovelSpeaker.App.ViewModels;
+using Wpf.Ui;
+using Wpf.Ui.Abstractions;
 
 namespace NovelSpeaker.App;
 
@@ -13,8 +15,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddNovelSpeakerDesktop(this IServiceCollection services)
     {
-        services.AddSingleton<IAppNavigationService, AppNavigationService>();
-        services.AddSingleton<IAppPageResolver, AppPageResolver>();
+        services.AddSingleton<INavigationViewPageProvider, AppNavigationPageProvider>();
+        services.AddSingleton<INavigationService, NavigationService>();
         services.AddSingleton<IThemeRuntime, WpfUiThemeRuntime>();
         services.AddSingleton<AppThemeStartupCoordinator>();
         services.AddSingleton<IFluentWindowAppearanceAdapter, FluentWindowAppearanceAdapter>();
@@ -25,13 +27,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ChapterRulesViewModel>();
         services.AddSingleton<TtsRulesViewModel>();
         services.AddSingleton<MainWindowViewModel>();
-        services.AddSingleton<LibraryPage>();
-        services.AddSingleton<SettingsPage>();
-        services.AddSingleton<PlayerPage>();
-        services.AddSingleton<TtsRulesPage>();
-        services.AddSingleton<ChapterRulesPage>();
-        services.AddSingleton<BookDetailsPage>();
-        services.AddSingleton<CacheManagementPage>();
+        services.AddTransient<LibraryPage>();
+        services.AddTransient<SettingsPage>();
+        services.AddTransient<PlayerPage>();
+        services.AddTransient<TtsRulesPage>();
+        services.AddTransient<ChapterRulesPage>();
+        services.AddTransient<BookDetailsPage>();
+        services.AddTransient<CacheManagementPage>();
         services.AddSingleton<MainWindow>();
         return services;
     }

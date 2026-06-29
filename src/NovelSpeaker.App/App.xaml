@@ -5,7 +5,7 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ui:ThemesDictionary Theme="System" />
+                <ui:ThemesDictionary Theme="Light" />
                 <ui:ControlsDictionary />
                 <ResourceDictionary Source="Resources/DesignTokens.xaml" />
                 <ResourceDictionary Source="Resources/SemanticStyles.xaml" />
