@@ -1,5 +1,7 @@
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.Theming;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.Domain.Settings;
 using Wpf.Ui;
@@ -14,7 +16,7 @@ public sealed class SettingsViewModelTests
     public async Task LoadAsync_populates_segmentation_settings_from_store()
     {
         var store = new FakeAppSettingsStore(new AppSettings(false, 120, 14, 3, "Warning", "Dark", "{{name}} / {{author}}"));
-        var viewModel = new SettingsViewModel(store, new FakeNavigationService());
+        var viewModel = CreateViewModel(store);
 
         await viewModel.LoadAsync(CancellationToken.None);
 
@@ -31,16 +33,14 @@ public sealed class SettingsViewModelTests
     public async Task SaveAsync_persists_updated_segmentation_settings()
     {
         var store = new FakeAppSettingsStore(AppSettings.Default);
-        var viewModel = new SettingsViewModel(store, new FakeNavigationService())
-        {
-            EnableLongParagraphSplitting = false,
-            LongParagraphThreshold = 25,
-            DefaultSpeakSpeed = 16,
-            PrefetchCount = -1,
-            SelectedLogLevel = "Error",
-            SelectedTheme = "Light",
-            BookFileNameTemplate = "  {{name}} - {{author}}  "
-        };
+        var viewModel = CreateViewModel(store);
+        viewModel.EnableLongParagraphSplitting = false;
+        viewModel.LongParagraphThreshold = 25;
+        viewModel.DefaultSpeakSpeed = 16;
+        viewModel.PrefetchCount = -1;
+        viewModel.SelectedLogLevel = "Error";
+        viewModel.SelectedTheme = "Light";
+        viewModel.BookFileNameTemplate = "  {{name}} - {{author}}  ";
 
         await viewModel.SaveAsync(CancellationToken.None);
 
@@ -60,12 +60,61 @@ public sealed class SettingsViewModelTests
     public void OpenChapterRulesCommand_navigates_to_chapter_rules_page()
     {
         var navigationService = new FakeNavigationService();
-        var viewModel = new SettingsViewModel(new FakeAppSettingsStore(AppSettings.Default), navigationService);
+        var viewModel = CreateViewModel(new FakeAppSettingsStore(AppSettings.Default), navigationService);
 
         viewModel.OpenChapterRulesCommand.Execute(null);
 
         Assert.Equal(typeof(ChapterRulesPage), navigationService.LastNavigationPageType);
         Assert.True(navigationService.LastUsedHierarchyNavigation);
+    }
+
+    [Fact]
+    public void SelectedTheme_change_uses_theme_preference_service()
+    {
+        var themeService = new FakeThemePreferenceService();
+        var viewModel = CreateViewModel(new FakeAppSettingsStore(AppSettings.Default), themeService: themeService);
+
+        viewModel.SelectedTheme = "Dark";
+
+        Assert.Equal("Dark", themeService.LastRequestedTheme);
+        Assert.Equal(1, themeService.ApplyCallCount);
+    }
+
+    [Fact]
+    public void SelectedTheme_failure_restores_previous_theme_and_notifies()
+    {
+        var themeService = new FakeThemePreferenceService
+        {
+            ResultFactory = _ => new ThemePreferenceChangeResult(
+                false,
+                false,
+                "System",
+                new InvalidOperationException("主题保存失败。"))
+        };
+        var notifications = new FakeNotificationService();
+        var viewModel = CreateViewModel(
+            new FakeAppSettingsStore(AppSettings.Default),
+            themeService: themeService,
+            notificationService: notifications);
+
+        viewModel.SelectedTheme = "Dark";
+
+        Assert.Equal("System", viewModel.SelectedTheme);
+        Assert.Equal("主题切换失败", notifications.LastTitle);
+    }
+
+    private static SettingsViewModel CreateViewModel(
+        FakeAppSettingsStore store,
+        FakeNavigationService? navigationService = null,
+        FakeThemePreferenceService? themeService = null,
+        FakeNotificationService? notificationService = null)
+    {
+        return new SettingsViewModel(
+            store,
+            navigationService ?? new FakeNavigationService(),
+            themeService ?? new FakeThemePreferenceService(),
+            notificationService ?? new FakeNotificationService(),
+            new ExceptionProjector());
     }
 
     private sealed class FakeAppSettingsStore : IAppSettingsStore
@@ -157,6 +206,42 @@ public sealed class SettingsViewModelTests
         public void SetNavigationControl(INavigationView navigation)
         {
             NavigationControl = navigation;
+        }
+    }
+
+    private sealed class FakeThemePreferenceService : IThemePreferenceService
+    {
+        public Func<string, ThemePreferenceChangeResult>? ResultFactory { get; set; }
+
+        public int ApplyCallCount { get; private set; }
+
+        public string? LastRequestedTheme { get; private set; }
+
+        public Task<ThemePreferenceChangeResult> ApplyAsync(string requestedTheme, CancellationToken cancellationToken)
+        {
+            ApplyCallCount++;
+            LastRequestedTheme = requestedTheme;
+            return Task.FromResult(ResultFactory?.Invoke(requestedTheme) ?? new ThemePreferenceChangeResult(true, false, requestedTheme));
+        }
+    }
+
+    private sealed class FakeNotificationService : IAppNotificationService
+    {
+        public string? LastTitle { get; private set; }
+
+        public void ShowSuccess(string title, string message)
+        {
+            LastTitle = title;
+        }
+
+        public void ShowWarning(string title, string message)
+        {
+            LastTitle = title;
+        }
+
+        public void ShowError(string title, string message)
+        {
+            LastTitle = title;
         }
     }
 }
