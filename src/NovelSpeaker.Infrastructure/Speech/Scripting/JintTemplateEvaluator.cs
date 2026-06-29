@@ -14,7 +14,7 @@ public sealed partial class JintTemplateEvaluator : ITemplateEvaluator
     private const int MaxStatements = 256;
     private const int MaxRecursionDepth = 32;
     private const int MaxOutputLength = 8192;
-    private static readonly TimeSpan Timeout = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan Timeout = TimeSpan.FromMilliseconds(500);
 
     public Task<string> EvaluateAsync(
         NormalizedTemplate template,
