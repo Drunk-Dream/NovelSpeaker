@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
+using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Theming;
 using NovelSpeaker.App.ViewModels;
 using Wpf.Ui;
@@ -17,8 +19,15 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<INavigationViewPageProvider, AppNavigationPageProvider>();
         services.AddSingleton<INavigationService, NavigationService>();
+        services.AddSingleton<IContentDialogService, ContentDialogService>();
+        services.AddSingleton<ISnackbarService, SnackbarService>();
+        services.AddSingleton<IAppDialogService, AppDialogService>();
+        services.AddSingleton<IAppNotificationService, AppNotificationService>();
+        services.AddSingleton<IExceptionProjector, ExceptionProjector>();
+        services.AddSingleton<IShellLayoutController, ShellLayoutController>();
         services.AddSingleton<IThemeRuntime, WpfUiThemeRuntime>();
         services.AddSingleton<AppThemeStartupCoordinator>();
+        services.AddSingleton<IThemePreferenceService, ThemePreferenceService>();
         services.AddSingleton<IFluentWindowAppearanceAdapter, FluentWindowAppearanceAdapter>();
         services.AddSingleton<IMainWindowAppearanceConfigurator, MainWindowAppearanceConfigurator>();
         services.AddSingleton<LibraryViewModel>();
