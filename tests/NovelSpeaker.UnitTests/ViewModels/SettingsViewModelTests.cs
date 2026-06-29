@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.Domain.Settings;
 using Xunit;
@@ -11,7 +12,7 @@ public sealed class SettingsViewModelTests
     public async Task LoadAsync_populates_segmentation_settings_from_store()
     {
         var store = new FakeAppSettingsStore(new AppSettings(false, 120, 14, 3, "Warning", "Dark", "{{name}} / {{author}}"));
-        var viewModel = new SettingsViewModel(store);
+        var viewModel = new SettingsViewModel(store, new FakeNavigationService());
 
         await viewModel.LoadAsync(CancellationToken.None);
 
@@ -28,7 +29,7 @@ public sealed class SettingsViewModelTests
     public async Task SaveAsync_persists_updated_segmentation_settings()
     {
         var store = new FakeAppSettingsStore(AppSettings.Default);
-        var viewModel = new SettingsViewModel(store)
+        var viewModel = new SettingsViewModel(store, new FakeNavigationService())
         {
             EnableLongParagraphSplitting = false,
             LongParagraphThreshold = 25,
@@ -54,17 +55,14 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
-    public async Task ToggleChapterRulesAsync_loads_chapter_rules_when_panel_is_opened()
+    public void OpenChapterRulesCommand_navigates_to_chapter_rules_section()
     {
-        var store = new FakeAppSettingsStore(AppSettings.Default);
-        var chapterRepository = new FakeChapterRuleRepository();
-        var chapterRulesViewModel = new ChapterRulesViewModel(chapterRepository);
-        var viewModel = new SettingsViewModel(store, chapterRulesViewModel);
+        var navigationService = new FakeNavigationService();
+        var viewModel = new SettingsViewModel(new FakeAppSettingsStore(AppSettings.Default), navigationService);
 
-        await viewModel.ToggleChapterRulesCommand.ExecuteAsync(null);
+        viewModel.OpenChapterRulesCommand.Execute(null);
 
-        Assert.True(viewModel.IsChapterRulesVisible);
-        Assert.Equal(1, chapterRepository.GetAllCallCount);
+        Assert.Equal(SettingsSection.ChapterRules, navigationService.LastSettingsSection);
     }
 
     private sealed class FakeAppSettingsStore : IAppSettingsStore
@@ -91,27 +89,30 @@ public sealed class SettingsViewModelTests
         }
     }
 
-    private sealed class FakeChapterRuleRepository : Application.Books.IChapterRuleRepository
+    private sealed class FakeNavigationService : IAppNavigationService
     {
-        public int GetAllCallCount { get; private set; }
+        public AppNavigationEntry CurrentEntry { get; private set; } = AppNavigationEntry.CreatePrimary(AppPrimaryDestination.Library);
 
-        public Task<IReadOnlyList<Domain.Books.ChapterRule>> GetAllAsync(CancellationToken cancellationToken)
+        public bool CanGoBack => false;
+
+        public SettingsSection? LastSettingsSection { get; private set; }
+
+        public event EventHandler<AppNavigationChangedEventArgs>? CurrentEntryChanged;
+
+        public bool NavigateToPrimary(AppPrimaryDestination destination) => true;
+
+        public bool NavigateToSettings(SettingsSection section)
         {
-            GetAllCallCount++;
-            return Task.FromResult<IReadOnlyList<Domain.Books.ChapterRule>>([]);
+            LastSettingsSection = section;
+            CurrentEntry = AppNavigationEntry.CreateSettings(section);
+            CurrentEntryChanged?.Invoke(this, new AppNavigationChangedEventArgs(CurrentEntry));
+            return true;
         }
 
-        public Task<IReadOnlyList<Domain.Books.ChapterRule>> GetEnabledAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult<IReadOnlyList<Domain.Books.ChapterRule>>([]);
-        }
+        public bool NavigateToPlayer(PlayerNavigationRequest request) => true;
 
-        public Task SaveAsync(Domain.Books.ChapterRule rule, CancellationToken cancellationToken) => Task.CompletedTask;
+        public bool NavigateToBookDetails(BookDetailsNavigationRequest request) => true;
 
-        public Task DeleteAsync(string ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task MoveAsync(string ruleId, int newSortOrder, CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task<int> ImportDefaultsAsync(CancellationToken cancellationToken) => Task.FromResult(0);
+        public bool GoBack() => false;
     }
 }

@@ -5,6 +5,8 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.App;
+using NovelSpeaker.App.Navigation;
+using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using Xunit;
@@ -27,12 +29,37 @@ public sealed class ServiceCollectionExtensionsTests
                 services.AddNovelSpeakerInfrastructure();
                 services.AddNovelSpeakerDesktop();
 
+                if (System.Windows.Application.Current is null)
+                {
+                    _ = new global::NovelSpeaker.App.App();
+                }
+
+                if (System.Windows.Application.Current is { Resources.MergedDictionaries.Count: 0 } application)
+                {
+                    application.Resources.MergedDictionaries.Add(new System.Windows.ResourceDictionary
+                    {
+                        Source = new Uri("/NovelSpeaker.App;component/Resources/DesignTokens.xaml", UriKind.Relative)
+                    });
+                    application.Resources.MergedDictionaries.Add(new System.Windows.ResourceDictionary
+                    {
+                        Source = new Uri("/NovelSpeaker.App;component/Resources/SemanticStyles.xaml", UriKind.Relative)
+                    });
+                }
+
                 var provider = services.BuildServiceProvider();
                 try
                 {
                     Assert.IsType<MainWindowViewModel>(provider.GetRequiredService<MainWindowViewModel>());
+                    Assert.IsAssignableFrom<IAppNavigationService>(provider.GetRequiredService<IAppNavigationService>());
                     Assert.IsType<ChapterRulesViewModel>(provider.GetRequiredService<ChapterRulesViewModel>());
                     Assert.IsType<TtsRulesViewModel>(provider.GetRequiredService<TtsRulesViewModel>());
+                    Assert.IsType<LibraryPage>(provider.GetRequiredService<LibraryPage>());
+                    Assert.IsType<SettingsPage>(provider.GetRequiredService<SettingsPage>());
+                    Assert.IsType<PlayerPage>(provider.GetRequiredService<PlayerPage>());
+                    Assert.IsType<TtsRulesPage>(provider.GetRequiredService<TtsRulesPage>());
+                    Assert.IsType<ChapterRulesPage>(provider.GetRequiredService<ChapterRulesPage>());
+                    Assert.IsType<BookDetailsPage>(provider.GetRequiredService<BookDetailsPage>());
+                    Assert.IsType<CacheManagementPage>(provider.GetRequiredService<CacheManagementPage>());
                     Assert.IsAssignableFrom<IAppDataDirectoryProvider>(provider.GetRequiredService<IAppDataDirectoryProvider>());
                     Assert.IsAssignableFrom<IDatabaseInitializer>(provider.GetRequiredService<IDatabaseInitializer>());
                     Assert.IsAssignableFrom<IChapterRuleRepository>(provider.GetRequiredService<IChapterRuleRepository>());
