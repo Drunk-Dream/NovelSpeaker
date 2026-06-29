@@ -1,0 +1,189 @@
+using NovelSpeaker.Application.Playback;
+using NovelSpeaker.App.Navigation;
+using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.ViewModels;
+using Wpf.Ui;
+using Wpf.Ui.Controls;
+using Xunit;
+
+namespace NovelSpeaker.UnitTests.ViewModels;
+
+public sealed class MainWindowViewModelTests
+{
+    [Fact]
+    public void Idle_snapshot_hides_now_playing_entry()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var navigationService = new FakeNavigationService();
+            var viewModel = new MainWindowViewModel(new FakePlaybackCoordinator(PlaybackSnapshot.Idle), navigationService);
+
+            Assert.False(viewModel.IsNowPlayingVisible);
+            Assert.Equal(SymbolRegular.Headphones24, viewModel.NowPlayingSymbol);
+        });
+    }
+
+    [Theory]
+    [InlineData(PlaybackState.Playing, "正在播放", "示例小说", SymbolRegular.PlayCircle24)]
+    [InlineData(PlaybackState.Paused, "已暂停", "示例小说", SymbolRegular.PauseCircle24)]
+    [InlineData(PlaybackState.Stopped, "已停止", "示例小说", SymbolRegular.Headphones24)]
+    [InlineData(PlaybackState.Faulted, "播放出错", "示例小说", SymbolRegular.ErrorCircle24)]
+    public void Snapshot_projection_updates_now_playing_entry(
+        PlaybackState state,
+        string status,
+        string title,
+        SymbolRegular symbol)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var navigationService = new FakeNavigationService();
+            var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+            var viewModel = new MainWindowViewModel(coordinator, navigationService);
+
+            coordinator.Publish(new PlaybackSnapshot(
+                state,
+                "book-1",
+                title,
+                0,
+                "第一章",
+                0,
+                3,
+                1,
+                "默认规则",
+                10,
+                0,
+                1000,
+                "message",
+                false,
+                false,
+                false));
+
+            Assert.True(viewModel.IsNowPlayingVisible);
+            Assert.Equal(status, viewModel.NowPlayingStatus);
+            Assert.Equal(title, viewModel.NowPlayingTitle);
+            Assert.Equal(symbol, viewModel.NowPlayingSymbol);
+        });
+    }
+
+    [Fact]
+    public void NavigateToNowPlayingCommand_uses_player_request_without_playback_control()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var navigationService = new FakeNavigationService();
+            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+                PlaybackState.Paused,
+                "book-9",
+                "示例小说",
+                0,
+                "第一章",
+                0,
+                3,
+                1,
+                "默认规则",
+                10,
+                0,
+                1000,
+                null,
+                false,
+                false,
+                false));
+            var viewModel = new MainWindowViewModel(coordinator, navigationService);
+
+            viewModel.NavigateToNowPlayingCommand.Execute(null);
+
+            Assert.Equal(typeof(PlayerPage), navigationService.LastNavigationPageType);
+            var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigationData);
+            Assert.Equal("book-9", request.BookId);
+        });
+    }
+
+    private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
+    {
+        public FakePlaybackCoordinator(PlaybackSnapshot snapshot)
+        {
+            CurrentSnapshot = snapshot;
+        }
+
+        public PlaybackSnapshot CurrentSnapshot { get; private set; }
+
+        public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
+
+        public void Publish(PlaybackSnapshot snapshot)
+        {
+            CurrentSnapshot = snapshot;
+            SnapshotChanged?.Invoke(this, snapshot);
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task OpenPausedAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task PauseAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ResumeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task NextSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task PreviousSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task NextChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task PreviousChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeNavigationService : INavigationService
+    {
+        public Type? LastNavigationPageType { get; private set; }
+
+        public object? LastNavigationData { get; private set; }
+
+        public INavigationView GetNavigationControl() => throw new NotSupportedException();
+
+        public bool GoBack() => false;
+
+        public bool Navigate(Type pageType) => true;
+
+        public bool Navigate(Type pageType, object? dataContext) => true;
+
+        public bool Navigate(string pageIdOrTargetTag) => true;
+
+        public bool Navigate(string pageIdOrTargetTag, object? dataContext) => true;
+
+        public bool NavigateWithHierarchy(Type pageType)
+        {
+            LastNavigationPageType = pageType;
+            LastNavigationData = null;
+            return true;
+        }
+
+        public bool NavigateWithHierarchy(Type pageType, object? dataContext)
+        {
+            LastNavigationPageType = pageType;
+            LastNavigationData = dataContext;
+            return true;
+        }
+
+        public void SetNavigationControl(INavigationView navigation)
+        {
+        }
+    }
+}

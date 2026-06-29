@@ -1,4 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.Application.Playback;
+using NovelSpeaker.App.Navigation;
+using NovelSpeaker.App.Pages;
+using Wpf.Ui;
+using Wpf.Ui.Controls;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -7,10 +13,78 @@ namespace NovelSpeaker.App.ViewModels;
 /// </summary>
 public sealed partial class MainWindowViewModel : ObservableObject
 {
-    public MainWindowViewModel()
+    private readonly INavigationService _navigationService;
+    private string? _currentBookId;
+
+    public MainWindowViewModel(
+        IPlaybackCoordinator playbackCoordinator,
+        INavigationService navigationService)
     {
+        _navigationService = navigationService;
+        ApplySnapshot(playbackCoordinator.CurrentSnapshot);
+        playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
     }
 
     [ObservableProperty]
-    private bool isPlaybackShortcutVisible;
+    private bool isNowPlayingVisible;
+
+    [ObservableProperty]
+    private string nowPlayingTitle = string.Empty;
+
+    [ObservableProperty]
+    private string nowPlayingStatus = string.Empty;
+
+    [ObservableProperty]
+    private SymbolRegular nowPlayingSymbol = SymbolRegular.Headphones24;
+
+    [RelayCommand]
+    private void NavigateToNowPlaying()
+    {
+        if (string.IsNullOrWhiteSpace(_currentBookId))
+        {
+            return;
+        }
+
+        _navigationService.NavigateWithHierarchy(typeof(PlayerPage), new PlayerNavigationRequest(_currentBookId));
+    }
+
+    private void OnSnapshotChanged(object? sender, PlaybackSnapshot snapshot)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.InvokeAsync(() => ApplySnapshot(snapshot));
+            return;
+        }
+
+        ApplySnapshot(snapshot);
+    }
+
+    private void ApplySnapshot(PlaybackSnapshot snapshot)
+    {
+        _currentBookId = snapshot.BookId;
+        IsNowPlayingVisible = !string.IsNullOrWhiteSpace(snapshot.BookId) && snapshot.State != PlaybackState.Idle;
+        NowPlayingTitle = snapshot.BookTitle ?? string.Empty;
+        NowPlayingStatus = BuildStatus(snapshot);
+        NowPlayingSymbol = snapshot.State switch
+        {
+            PlaybackState.Playing => SymbolRegular.PlayCircle24,
+            PlaybackState.Paused => SymbolRegular.PauseCircle24,
+            PlaybackState.Faulted => SymbolRegular.ErrorCircle24,
+            _ => SymbolRegular.Headphones24
+        };
+    }
+
+    private static string BuildStatus(PlaybackSnapshot snapshot)
+    {
+        return snapshot.State switch
+        {
+            PlaybackState.Playing => "正在播放",
+            PlaybackState.Paused => "已暂停",
+            PlaybackState.Stopped => "已停止",
+            PlaybackState.Faulted => "播放出错",
+            PlaybackState.Buffering or PlaybackState.Preparing or PlaybackState.Recovering => "正在准备",
+            _ => string.IsNullOrWhiteSpace(snapshot.Message) ? string.Empty : snapshot.Message
+        };
+    }
 }

@@ -9,12 +9,16 @@
                   MinWidth="900"
                   MinHeight="640"
                   Background="{StaticResource ThemeWindowBackgroundBrush}">
+    <ui:FluentWindow.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </ui:FluentWindow.Resources>
+
     <ui:NavigationView x:Name="RootNavigationView"
                        PaneTitle="NovelSpeaker"
                        OpenPaneLength="{StaticResource NavigationPaneOpenWidth}"
                        CompactPaneLength="{StaticResource NavigationPaneCompactWidth}"
                        IsBackButtonVisible="Collapsed"
-                       IsPaneToggleVisible="False"
+                       IsPaneToggleVisible="True"
                        IsFooterSeparatorVisible="False"
                        PaneDisplayMode="Left"
                        Background="{StaticResource ThemePageBackgroundBrush}">
@@ -44,11 +48,18 @@
 
         <ui:NavigationView.FooterMenuItems>
             <ui:NavigationViewItem x:Name="PlaybackNavigationItem"
-                                   Visibility="Collapsed"
-                                   Content="正在播放">
+                                   Click="PlaybackNavigationItem_OnClick"
+                                   Visibility="{Binding IsNowPlayingVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <ui:NavigationViewItem.Icon>
-                    <ui:SymbolIcon Symbol="Headphones24" />
+                    <ui:SymbolIcon Symbol="{Binding NowPlayingSymbol}" />
                 </ui:NavigationViewItem.Icon>
+                <StackPanel>
+                    <TextBlock FontWeight="SemiBold"
+                               Text="{Binding NowPlayingTitle}" />
+                    <TextBlock FontSize="12"
+                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Text="{Binding NowPlayingStatus}" />
+                </StackPanel>
             </ui:NavigationViewItem>
         </ui:NavigationView.FooterMenuItems>
     </ui:NavigationView>

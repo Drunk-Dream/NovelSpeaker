@@ -1,7 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
+using System.Windows.Controls;
+using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App;
 using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Theming;
 using NovelSpeaker.App.ViewModels;
 using Wpf.Ui;
@@ -24,16 +27,17 @@ public sealed class MainWindowNavigationTests
             using var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
 
             var window = new MainWindow(
-                new MainWindowViewModel(),
+                new MainWindowViewModel(new FakePlaybackCoordinator(), navigationService),
                 navigationService,
                 pageProvider,
                 serviceProvider,
-                appearanceConfigurator);
+                appearanceConfigurator,
+                new ShellLayoutController());
 
             window.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.FrameworkElement.LoadedEvent));
             window.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.FrameworkElement.LoadedEvent));
 
-            Assert.True(appearanceConfigurator.ConfigureCallCount >= 1);
+            Assert.Equal(1, appearanceConfigurator.ConfigureCallCount);
             Assert.Same(GetNavigationView(window), navigationService.NavigationControl);
             Assert.Equal(typeof(LibraryPage), navigationService.LastNavigationPageType);
             Assert.Equal(1, navigationService.NavigateCallCount);
@@ -47,11 +51,12 @@ public sealed class MainWindowNavigationTests
         {
             using var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
             var window = new MainWindow(
-                new MainWindowViewModel(),
+                new MainWindowViewModel(new FakePlaybackCoordinator(), new FakeNavigationService()),
                 new FakeNavigationService(),
                 new FakeNavigationViewPageProvider(),
                 serviceProvider,
-                new FakeMainWindowAppearanceConfigurator());
+                new FakeMainWindowAppearanceConfigurator(),
+                new ShellLayoutController());
 
             var navigationView = GetNavigationView(window);
 
@@ -64,6 +69,11 @@ public sealed class MainWindowNavigationTests
             Assert.Equal(typeof(LibraryPage), firstItem.TargetPageType);
             Assert.Equal("设置", secondItem.Content);
             Assert.Equal(typeof(SettingsPage), secondItem.TargetPageType);
+            Assert.True(navigationView.IsPaneToggleVisible);
+            Assert.Equal(1280d, window.Width);
+            Assert.Equal(820d, window.Height);
+            Assert.Equal(900d, window.MinWidth);
+            Assert.Equal(640d, window.MinHeight);
         });
     }
 
@@ -136,4 +146,54 @@ public sealed class MainWindowNavigationTests
             ConfigureCallCount++;
         }
     }
+
+    private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
+    {
+        public PlaybackSnapshot CurrentSnapshot { get; } = PlaybackSnapshot.Idle;
+
+        public event EventHandler<PlaybackSnapshot>? SnapshotChanged
+        {
+            add
+            {
+            }
+            remove
+            {
+            }
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task OpenPausedAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task PauseAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ResumeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task NextSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task PreviousSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task NextChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task PreviousChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
 }
