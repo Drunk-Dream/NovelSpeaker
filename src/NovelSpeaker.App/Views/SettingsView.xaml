@@ -82,6 +82,15 @@
                          Text="{Binding LongParagraphThreshold, UpdateSourceTrigger=PropertyChanged}" />
             </StackPanel>
 
+            <StackPanel Margin="0,12,0,0">
+                <TextBlock Text="文件名模板" />
+                <TextBox Margin="0,8,0,0"
+                         Text="{Binding BookFileNameTemplate, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="#5C6470"
+                           Text="{}示例：{{name}} 作者：{{author}}；留空则禁用模板解析。" />
+            </StackPanel>
+
             <Button Width="180"
                     Margin="0,16,0,0"
                     HorizontalAlignment="Left"

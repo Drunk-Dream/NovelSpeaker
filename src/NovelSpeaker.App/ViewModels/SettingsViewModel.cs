@@ -40,6 +40,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     private string selectedTheme = AppSettings.DefaultTheme;
 
     [ObservableProperty]
+    private string bookFileNameTemplate = AppSettings.DefaultBookFileNameTemplate;
+
+    [ObservableProperty]
     private string statusMessage = "在这里配置播放、导入与文本分段偏好。";
 
     [ObservableProperty]
@@ -54,6 +57,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         PrefetchCount = settings.PrefetchCount;
         SelectedLogLevel = settings.LogLevel;
         SelectedTheme = settings.Theme;
+        BookFileNameTemplate = settings.BookFileNameTemplate!;
 
         if (IsChapterRulesVisible && ChapterRules is not null)
         {
@@ -72,7 +76,8 @@ public sealed partial class SettingsViewModel : ObservableObject
             DefaultSpeakSpeed = DefaultSpeakSpeed,
             PrefetchCount = PrefetchCount,
             LogLevel = SelectedLogLevel,
-            Theme = SelectedTheme
+            Theme = SelectedTheme,
+            BookFileNameTemplate = BookFileNameTemplate
         };
 
         await _settingsStore.SaveAsync(settings, cancellationToken);
@@ -83,6 +88,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         PrefetchCount = normalized.PrefetchCount;
         SelectedLogLevel = normalized.LogLevel;
         SelectedTheme = normalized.Theme;
+        BookFileNameTemplate = normalized.BookFileNameTemplate!;
         StatusMessage = "设置已保存。";
     }
 

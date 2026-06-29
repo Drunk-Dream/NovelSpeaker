@@ -10,7 +10,7 @@ public sealed class SettingsViewModelTests
     [Fact]
     public async Task LoadAsync_populates_segmentation_settings_from_store()
     {
-        var store = new FakeAppSettingsStore(new AppSettings(false, 120, 14, 3, "Warning", "Dark"));
+        var store = new FakeAppSettingsStore(new AppSettings(false, 120, 14, 3, "Warning", "Dark", "{{name}} / {{author}}"));
         var viewModel = new SettingsViewModel(store);
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -21,6 +21,7 @@ public sealed class SettingsViewModelTests
         Assert.Equal(2, viewModel.PrefetchCount);
         Assert.Equal("Warning", viewModel.SelectedLogLevel);
         Assert.Equal("Dark", viewModel.SelectedTheme);
+        Assert.Equal("{{name}} / {{author}}", viewModel.BookFileNameTemplate);
     }
 
     [Fact]
@@ -34,7 +35,8 @@ public sealed class SettingsViewModelTests
             DefaultSpeakSpeed = 16,
             PrefetchCount = -1,
             SelectedLogLevel = "Error",
-            SelectedTheme = "Light"
+            SelectedTheme = "Light",
+            BookFileNameTemplate = "  {{name}} - {{author}}  "
         };
 
         await viewModel.SaveAsync(CancellationToken.None);
@@ -46,7 +48,9 @@ public sealed class SettingsViewModelTests
         Assert.Equal(-1, store.LastSavedSettings.PrefetchCount);
         Assert.Equal("Error", store.LastSavedSettings.LogLevel);
         Assert.Equal("Light", store.LastSavedSettings.Theme);
+        Assert.Equal("  {{name}} - {{author}}  ", store.LastSavedSettings.BookFileNameTemplate);
         Assert.Equal(2, viewModel.PrefetchCount);
+        Assert.Equal("{{name}} - {{author}}", viewModel.BookFileNameTemplate);
     }
 
     [Fact]
