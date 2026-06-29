@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Wpf.Ui.Controls;
 
 namespace NovelSpeaker.App.Theming;
@@ -5,10 +6,14 @@ namespace NovelSpeaker.App.Theming;
 public sealed class MainWindowAppearanceConfigurator : IMainWindowAppearanceConfigurator
 {
     private readonly IFluentWindowAppearanceAdapter _appearanceAdapter;
+    private readonly ILogger<MainWindowAppearanceConfigurator> _logger;
 
-    public MainWindowAppearanceConfigurator(IFluentWindowAppearanceAdapter appearanceAdapter)
+    public MainWindowAppearanceConfigurator(
+        IFluentWindowAppearanceAdapter appearanceAdapter,
+        ILogger<MainWindowAppearanceConfigurator> logger)
     {
         _appearanceAdapter = appearanceAdapter;
+        _logger = logger;
     }
 
     public void Configure(FluentWindow window)
@@ -21,9 +26,9 @@ public sealed class MainWindowAppearanceConfigurator : IMainWindowAppearanceConf
         {
             _appearanceAdapter.SetBackdrop(window, WindowBackdropType.Mica);
         }
-        catch
+        catch (Exception exception)
         {
-            _appearanceAdapter.SetBackdrop(window, WindowBackdropType.None);
+            _logger.LogWarning(exception, "Failed to enable Mica backdrop for the main window. Falling back to the default window chrome.");
         }
     }
 }

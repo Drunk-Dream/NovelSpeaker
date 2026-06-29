@@ -43,9 +43,7 @@ public sealed class StartupDiagnosticsRecorder
         {
             builder
                 .Append(" (")
-                .Append(exception.GetType().Name)
-                .Append(": ")
-                .Append(exception.Message)
+                .Append(exception)
                 .Append(')');
         }
 

@@ -1,4 +1,5 @@
 using NovelSpeaker.App.Theming;
+using Microsoft.Extensions.Logging.Abstractions;
 using Wpf.Ui.Controls;
 using Xunit;
 
@@ -13,29 +14,31 @@ public sealed class MainWindowAppearanceConfiguratorTests
 
         RunSta(() =>
         {
-            var configurator = new MainWindowAppearanceConfigurator(adapter);
+            var configurator = new MainWindowAppearanceConfigurator(adapter, NullLogger<MainWindowAppearanceConfigurator>.Instance);
             configurator.Configure(new Wpf.Ui.Controls.FluentWindow());
         });
 
         Assert.True(adapter.ExtendsContentIntoTitleBarValue);
         Assert.Equal(WindowBackdropType.Mica, adapter.LastBackdropType);
+        Assert.Equal([WindowBackdropType.Mica], adapter.AttemptedBackdropTypes);
     }
 
     [Fact]
-    public void Configure_falls_back_to_none_when_mica_assignment_throws()
+    public void Configure_does_not_retry_backdrop_when_mica_assignment_throws()
     {
         var adapter = new FakeFluentWindowAppearanceAdapter { ThrowOnMica = true };
         Exception? exception = null;
 
         RunSta(() =>
         {
-            var configurator = new MainWindowAppearanceConfigurator(adapter);
+            var configurator = new MainWindowAppearanceConfigurator(adapter, NullLogger<MainWindowAppearanceConfigurator>.Instance);
             exception = Record.Exception(() => configurator.Configure(new Wpf.Ui.Controls.FluentWindow()));
         });
 
         Assert.Null(exception);
         Assert.True(adapter.ExtendsContentIntoTitleBarValue);
-        Assert.Equal(WindowBackdropType.None, adapter.LastBackdropType);
+        Assert.Null(adapter.LastBackdropType);
+        Assert.Equal([WindowBackdropType.Mica], adapter.AttemptedBackdropTypes);
     }
 
     private static void RunSta(Action action)
@@ -69,6 +72,8 @@ public sealed class MainWindowAppearanceConfiguratorTests
 
         public WindowBackdropType? LastBackdropType { get; private set; }
 
+        public List<WindowBackdropType> AttemptedBackdropTypes { get; } = [];
+
         public void SetExtendsContentIntoTitleBar(Wpf.Ui.Controls.FluentWindow window, bool value)
         {
             ExtendsContentIntoTitleBarValue = value;
@@ -76,6 +81,8 @@ public sealed class MainWindowAppearanceConfiguratorTests
 
         public void SetBackdrop(Wpf.Ui.Controls.FluentWindow window, WindowBackdropType backdropType)
         {
+            AttemptedBackdropTypes.Add(backdropType);
+
             if (ThrowOnMica && backdropType == WindowBackdropType.Mica)
             {
                 throw new InvalidOperationException("Mica not supported");
