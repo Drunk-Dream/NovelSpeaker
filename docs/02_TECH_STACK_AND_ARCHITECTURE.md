@@ -154,9 +154,10 @@ src/NovelSpeaker.Infrastructure/
 ## UI 架构边界
 
 - `MainWindow` 只承载 Wpf.Ui 壳层、一级导航和页面宿主。
-- 页面导航通过 App 层的导航服务完成，ViewModel 不直接创建 View。
+- `NovelSpeaker.App` 内的页面导航使用 Wpf.Ui 官方 `INavigationService` 和 `INavigationViewPageProvider`。
+- App 层 ViewModel 可以直接依赖 Wpf.Ui 导航接口，但不得直接创建 View，也不得把 Wpf.Ui 类型泄露到 `Application`、`Domain` 或 `Infrastructure`。
 - 文件选择、对话框、Snackbar 和打开数据目录等系统交互通过可替换服务封装。
-- 书库、播放、规则和设置 ViewModel 只依赖 Application 抽象。
+- 书库、播放、规则和设置 ViewModel 的业务能力仍只依赖 Application 抽象；导航可直接依赖 Wpf.Ui 接口。
 - 自动滚动的视觉定位属于 View/Behavior；播放状态和跳转语义属于 Application/Playback。
 - 不允许在 code-behind 中执行 SQL、文件删除、HTTP 请求或播放状态协调。
 

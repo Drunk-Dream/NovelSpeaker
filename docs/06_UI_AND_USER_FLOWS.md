@@ -891,7 +891,7 @@ Views/
 建议 ViewModel 职责：
 
 - ViewModel 不直接操作 Window、文件系统、SQLite、NAudio 或 HttpClient。
-- 页面导航通过统一导航服务传递强类型参数。
+- 页面导航通过 Wpf.Ui 官方导航服务传递强类型参数；`NovelSpeaker.App` 内的 ViewModel 可直接依赖其导航接口，但不得直接创建 View。
 - 对话框通过抽象服务或 Wpf.Ui 对话框服务调用，危险操作结果可测试。
 - 书库卡片只暴露展示字段和命令，不持有仓储。
 - 播放正文只消费应用层提供的章节和 `SpeechSegment`，不自行分段。
