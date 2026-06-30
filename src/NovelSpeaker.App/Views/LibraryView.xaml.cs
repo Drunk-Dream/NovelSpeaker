@@ -31,13 +31,13 @@ public partial class LibraryView : UserControl
         }
     }
 
-    private void ImportBorder_OnDragEnter(object sender, DragEventArgs e)
+    private void RootScrollViewer_OnDragEnter(object sender, DragEventArgs e)
     {
         e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
-    private async void ImportBorder_OnDrop(object sender, DragEventArgs e)
+    private async void RootScrollViewer_OnDrop(object sender, DragEventArgs e)
     {
         if (DataContext is not LibraryViewModel viewModel)
         {
