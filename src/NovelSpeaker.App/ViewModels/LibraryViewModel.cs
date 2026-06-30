@@ -13,21 +13,18 @@ public sealed partial class LibraryViewModel : ObservableObject
 {
     private readonly IBookImportService _bookImportService;
     private readonly IBookCatalogService _bookCatalogService;
-    private readonly IExceptionProjector _exceptionProjector;
-    private readonly IAppNotificationService _notificationService;
+    private readonly IAppFeedbackService _feedbackService;
     private BookImportAnalysis? _pendingAnalysis;
     private CancellationTokenSource? _activeImportCancellationTokenSource;
 
     public LibraryViewModel(
         IBookImportService bookImportService,
         IBookCatalogService bookCatalogService,
-        IAppNotificationService notificationService,
-        IExceptionProjector exceptionProjector)
+        IAppFeedbackService feedbackService)
     {
         _bookImportService = bookImportService;
         _bookCatalogService = bookCatalogService;
-        _notificationService = notificationService;
-        _exceptionProjector = exceptionProjector;
+        _feedbackService = feedbackService;
     }
 
     public ObservableCollection<LibraryBookItemViewModel> Books { get; } = [];
@@ -114,7 +111,7 @@ public sealed partial class LibraryViewModel : ObservableObject
                 await LoadAsync(linkedToken);
                 ClearPendingAnalysis();
                 StatusMessage = "导入完成，可以继续导入其他小说。";
-                _notificationService.ShowSuccess("导入成功", $"已导入《{result.Title}》。");
+                _feedbackService.ShowSuccess("导入成功", $"已导入《{result.Title}》。");
             },
             cancellationToken);
     }
@@ -159,12 +156,9 @@ public sealed partial class LibraryViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            var projected = _exceptionProjector.Project(exception);
+            var projected = _feedbackService.Project(exception);
             StatusMessage = projected.UserMessage;
-            if (!projected.IsSilent)
-            {
-                ShowProjectedNotification(projected);
-            }
+            _feedbackService.ShowProjectedNotification("导入失败", projected);
         }
         finally
         {
@@ -243,22 +237,6 @@ public sealed partial class LibraryViewModel : ObservableObject
         public void Report(T value)
         {
             _callback(value);
-        }
-    }
-
-    private void ShowProjectedNotification(ProjectedUiError projected)
-    {
-        switch (projected.Severity)
-        {
-            case UiMessageSeverity.Warning:
-                _notificationService.ShowWarning("导入失败", projected.UserMessage);
-                break;
-            case UiMessageSeverity.Error:
-                _notificationService.ShowError("导入失败", projected.UserMessage);
-                break;
-            default:
-                _notificationService.ShowSuccess("导入提示", projected.UserMessage);
-                break;
         }
     }
 }

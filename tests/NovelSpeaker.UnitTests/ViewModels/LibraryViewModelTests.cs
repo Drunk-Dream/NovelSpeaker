@@ -31,8 +31,8 @@ public sealed class LibraryViewModelTests
             new BookSummary("book-1", "demo", null, "第一章 开始", DateTime.UtcNow.ToString("O"))
         ]);
 
-        var notifications = new FakeNotificationService();
-        var viewModel = new LibraryViewModel(importService, catalogService, notifications, new ExceptionProjector());
+        var feedback = new FakeFeedbackService();
+        var viewModel = new LibraryViewModel(importService, catalogService, feedback);
 
         await viewModel.ImportFileAsync("C:\\books\\demo.txt", CancellationToken.None);
 
@@ -70,8 +70,8 @@ public sealed class LibraryViewModelTests
             new BookSummary("book-1", "demo", null, "第一章 开始", DateTime.UtcNow.ToString("O"))
         ]);
 
-        var notifications = new FakeNotificationService();
-        var viewModel = new LibraryViewModel(importService, catalogService, notifications, new ExceptionProjector());
+        var feedback = new FakeFeedbackService();
+        var viewModel = new LibraryViewModel(importService, catalogService, feedback);
         await viewModel.ImportFileAsync("C:\\books\\demo.txt", CancellationToken.None);
 
         await viewModel.ConfirmImportCommand.ExecuteAsync(null);
@@ -81,7 +81,7 @@ public sealed class LibraryViewModelTests
         Assert.Equal("导入完成，可以继续导入其他小说。", viewModel.StatusMessage);
         Assert.Equal(1, importService.CommitCallCount);
         Assert.False(viewModel.CanConfirmImport);
-        Assert.Equal("导入成功", notifications.LastTitle);
+        Assert.Equal("导入成功", feedback.LastTitle);
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class LibraryViewModelTests
                 false),
             new BookImportResult("book-1", "demo", 1));
 
-        var viewModel = new LibraryViewModel(importService, new FakeBookCatalogService([]), new FakeNotificationService(), new ExceptionProjector());
+        var viewModel = new LibraryViewModel(importService, new FakeBookCatalogService([]), new FakeFeedbackService());
         await viewModel.ImportFileAsync("C:\\books\\demo.txt", CancellationToken.None);
         viewModel.SelectedEncoding = "utf-16le";
 
@@ -170,11 +170,22 @@ public sealed class LibraryViewModelTests
         }
     }
 
-    private sealed class FakeNotificationService : IAppNotificationService
+    private sealed class FakeFeedbackService : IAppFeedbackService
     {
         public string? LastTitle { get; private set; }
 
         public string? LastMessage { get; private set; }
+
+        public ProjectedUiError Project(Exception exception)
+        {
+            return new ExceptionProjector().Project(exception);
+        }
+
+        public void ShowProjectedNotification(string title, ProjectedUiError projected)
+        {
+            LastTitle = title;
+            LastMessage = projected.UserMessage;
+        }
 
         public void ShowSuccess(string title, string message)
         {
@@ -182,16 +193,9 @@ public sealed class LibraryViewModelTests
             LastMessage = message;
         }
 
-        public void ShowWarning(string title, string message)
+        public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken)
         {
-            LastTitle = title;
-            LastMessage = message;
-        }
-
-        public void ShowError(string title, string message)
-        {
-            LastTitle = title;
-            LastMessage = message;
+            throw new NotSupportedException();
         }
     }
 }
