@@ -30,6 +30,28 @@ internal static class WpfTestHost
         Assert.Null(capturedException);
     }
 
+    public static async Task RunInStaAsync(Func<Task> action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        _ = SharedDispatcher.Value.InvokeAsync(async () =>
+        {
+            try
+            {
+                await action();
+                completion.SetResult();
+            }
+            catch (Exception exception)
+            {
+                completion.SetException(exception);
+            }
+        });
+
+        await completion.Task;
+    }
+
     public static ServiceProvider BuildServiceProvider()
     {
         EnsureApplicationResources();
