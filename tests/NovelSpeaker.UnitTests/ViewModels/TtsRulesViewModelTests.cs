@@ -303,6 +303,12 @@ public sealed class TtsRulesViewModelTests
             LastMessage = message;
         }
 
+        public void ShowWarning(string title, string message)
+        {
+            LastTitle = title;
+            LastMessage = message;
+        }
+
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken)
         {
             LastConfirmationTitle = title;

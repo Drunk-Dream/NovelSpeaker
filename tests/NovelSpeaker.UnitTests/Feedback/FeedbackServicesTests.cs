@@ -65,12 +65,13 @@ public sealed class FeedbackServicesTests
                 .GetResult();
             var projected = feedbackService.Project(new InvalidOperationException("规则正在使用中。"));
             feedbackService.ShowProjectedNotification("规则删除失败", projected);
+            feedbackService.ShowWarning("提示", "普通警告");
 
             Assert.Equal(AppConfirmationDecision.Confirm, decision);
             Assert.Equal("删除", dialogService.LastDialog?.PrimaryButtonText);
             Assert.Equal("取消", dialogService.LastDialog?.CloseButtonText);
-            Assert.Equal("规则删除失败", snackbarService.LastTitle);
-            Assert.Equal("规则正在使用中。", snackbarService.LastMessage);
+            Assert.Equal("提示", snackbarService.LastTitle);
+            Assert.Equal("普通警告", snackbarService.LastMessage);
             Assert.Equal(ControlAppearance.Caution, snackbarService.LastAppearance);
         });
     }

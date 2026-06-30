@@ -53,6 +53,11 @@ public sealed class AppFeedbackService : IAppFeedbackService
         _notificationService.ShowSuccess(title, message);
     }
 
+    public void ShowWarning(string title, string message)
+    {
+        _notificationService.ShowWarning(title, message);
+    }
+
     public Task<AppConfirmationDecision> ConfirmDeletionAsync(
         string title,
         string message,

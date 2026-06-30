@@ -12,6 +12,8 @@ public interface IAppFeedbackService
 
     void ShowSuccess(string title, string message);
 
+    void ShowWarning(string title, string message);
+
     Task<AppConfirmationDecision> ConfirmDeletionAsync(
         string title,
         string message,

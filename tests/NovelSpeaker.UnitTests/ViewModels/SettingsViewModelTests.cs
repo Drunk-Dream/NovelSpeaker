@@ -243,6 +243,11 @@ public sealed class SettingsViewModelTests
             LastTitle = title;
         }
 
+        public void ShowWarning(string title, string message)
+        {
+            LastTitle = title;
+        }
+
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
