@@ -4,6 +4,9 @@
     <Thickness x:Key="PagePadding">24</Thickness>
     <Thickness x:Key="SectionSpacing">0,20,0,0</Thickness>
     <Thickness x:Key="ItemSpacing">0,12,0,0</Thickness>
+    <Thickness x:Key="CardPadding">16</Thickness>
+    <Thickness x:Key="CardPaddingLarge">24</Thickness>
+    <Thickness x:Key="DialogPadding">24</Thickness>
     <CornerRadius x:Key="CardCornerRadius">12</CornerRadius>
     <CornerRadius x:Key="DialogCornerRadius">16</CornerRadius>
     <sys:Double x:Key="CoverSmallWidth">72</sys:Double>

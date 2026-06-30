@@ -10,7 +10,7 @@
                   MinHeight="640"
                   WindowCornerPreference="Round"
                   ExtendsContentIntoTitleBar="True"
-                  Background="{StaticResource ThemeWindowBackgroundBrush}">
+                  Background="{DynamicResource ApplicationBackgroundBrush}">
     <ui:FluentWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </ui:FluentWindow.Resources>
@@ -36,7 +36,7 @@
                            IsPaneToggleVisible="True"
                            IsFooterSeparatorVisible="False"
                            PaneDisplayMode="Left"
-                           Background="{StaticResource ThemePageBackgroundBrush}">
+                           Background="{DynamicResource LayerFillColorAltBrush}">
             <ui:NavigationView.MenuItems>
                 <ui:NavigationViewItem x:Name="LibraryNavigationItem"
                                        Content="书库"
