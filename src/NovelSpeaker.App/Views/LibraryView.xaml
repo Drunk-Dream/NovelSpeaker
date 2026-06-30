@@ -63,7 +63,7 @@
                                 Value="Visible"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding StatusMessage}"
-                                    Value="">
+                                         Value="">
                                 <Setter Property="Visibility"
                                         Value="Collapsed"/>
                             </DataTrigger>
@@ -85,7 +85,7 @@
                                         Value="Collapsed"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasBooks}"
-                                            Value="False">
+                                                 Value="False">
                                         <Setter Property="Visibility"
                                                 Value="Visible"/>
                                     </DataTrigger>
@@ -104,6 +104,7 @@
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="将 TXT 拖到这里，或选择文件导入。"/>
                         <Button Margin="0,16,0,0"
+                                HorizontalAlignment="Center"
                                 Padding="18,8"
                                 Click="ImportButton_OnClick"
                                 Content="导入小说"/>
@@ -119,9 +120,9 @@
                                     <MultiDataTrigger>
                                         <MultiDataTrigger.Conditions>
                                             <Condition Binding="{Binding HasBooks}"
-                                                    Value="True"/>
+                                                       Value="True"/>
                                             <Condition Binding="{Binding HasVisibleBooks}"
-                                                    Value="False"/>
+                                                       Value="False"/>
                                         </MultiDataTrigger.Conditions>
                                         <Setter Property="Visibility"
                                                 Value="Visible"/>
