@@ -6,6 +6,7 @@ using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.App;
 using NovelSpeaker.App.Feedback;
+using NovelSpeaker.App.Library;
 using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Theming;
@@ -36,6 +37,8 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IExceptionProjector>(provider.GetRequiredService<IExceptionProjector>());
                 Assert.IsAssignableFrom<IAppFeedbackService>(provider.GetRequiredService<IAppFeedbackService>());
                 Assert.IsAssignableFrom<IShellLayoutController>(provider.GetRequiredService<IShellLayoutController>());
+                Assert.IsAssignableFrom<IBookCoverGenerator>(provider.GetRequiredService<IBookCoverGenerator>());
+                Assert.IsType<LibraryScrollState>(provider.GetRequiredService<LibraryScrollState>());
                 Assert.IsAssignableFrom<IThemePreferenceService>(provider.GetRequiredService<IThemePreferenceService>());
                 Assert.IsType<ChapterRulesViewModel>(provider.GetRequiredService<ChapterRulesViewModel>());
                 Assert.IsType<TtsRulesViewModel>(provider.GetRequiredService<TtsRulesViewModel>());

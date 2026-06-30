@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Feedback;
+using NovelSpeaker.App.Library;
 using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.Shell;
@@ -26,6 +27,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IExceptionProjector, ExceptionProjector>();
         services.AddSingleton<IAppFeedbackService, AppFeedbackService>();
         services.AddSingleton<IShellLayoutController, ShellLayoutController>();
+        services.AddSingleton<IBookCoverGenerator, BookCoverGenerator>();
+        services.AddSingleton<LibraryScrollState>();
         services.AddSingleton<IThemeRuntime, WpfUiThemeRuntime>();
         services.AddSingleton<AppThemeStartupCoordinator>();
         services.AddSingleton<IThemePreferenceService, ThemePreferenceService>();
