@@ -1,4 +1,7 @@
 using System.IO;
+using System.Linq;
+using System.Xml;
+using System.Xml.Linq;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;
@@ -39,6 +42,47 @@ public sealed class ThemeResourceTests
         Assert.Contains("CardBackgroundFillColorDefaultBrush", content);
         Assert.Contains("CardStrokeColorDefaultBrush", content);
         Assert.Contains("SystemFillColorCriticalBrush", content);
+    }
+
+    [Fact]
+    public void App_textblocks_explicitly_bind_to_semantic_text_styles()
+    {
+        var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
+        var xamlFiles = Directory
+            .EnumerateFiles(Path.Combine(appRoot, "Views"), "*.xaml", SearchOption.AllDirectories)
+            .Concat(Directory.EnumerateFiles(Path.Combine(appRoot, "Pages"), "*.xaml", SearchOption.AllDirectories))
+            .Concat(new[]
+            {
+                Path.Combine(appRoot, "MainWindow.xaml"),
+                Path.Combine(appRoot, "StartupStatusWindow.xaml")
+            });
+
+        var violations = xamlFiles
+            .SelectMany(FindUnstyledTextBlocks)
+            .ToArray();
+
+        Assert.True(
+            violations.Length == 0,
+            $"Found TextBlock elements without explicit semantic style or foreground:{Environment.NewLine}{string.Join(Environment.NewLine, violations)}");
+    }
+
+    private static IEnumerable<string> FindUnstyledTextBlocks(string xamlPath)
+    {
+        var document = XDocument.Load(xamlPath, LoadOptions.SetLineInfo);
+        var xNamespace = document.Root?.GetDefaultNamespace() ?? XNamespace.None;
+
+        foreach (var textBlock in document.Descendants(xNamespace + "TextBlock"))
+        {
+            if (textBlock.Attribute("Style") is not null ||
+                textBlock.Attribute("Foreground") is not null ||
+                textBlock.Elements().Any(static element => element.Name.LocalName == "TextBlock.Style"))
+            {
+                continue;
+            }
+
+            var lineInfo = (IXmlLineInfo)textBlock;
+            yield return $"{Path.GetRelativePath(GetRepositoryRoot(), xamlPath)}:{lineInfo.LineNumber}";
+        }
     }
 
     private static string GetRepositoryRoot()
