@@ -15,6 +15,7 @@
                   AllowDrop="True"
                   DragEnter="RootScrollViewer_OnDragEnter"
                   Drop="RootScrollViewer_OnDrop"
+                  PreviewKeyDown="RootScrollViewer_OnPreviewKeyDown"
                   library:LibraryScrollViewerStateBehavior.ItemsControl="{Binding ElementName=BooksItemsControl}"
                   library:LibraryScrollViewerStateBehavior.State="{Binding ScrollState}">
         <StackPanel>
@@ -50,121 +51,36 @@
                 </WrapPanel>
             </Grid>
 
-            <Border Margin="0,20,0,0"
-                    Padding="{StaticResource CardPaddingLarge}"
-                    Style="{StaticResource CardBorderStyle}"
-                    Visibility="{Binding IsImportPanelVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
-                               Text="导入 TXT 小说" />
-                    <TextBlock Margin="0,8,0,0"
-                               Style="{StaticResource SecondaryTextBlockStyle}"
-                               Text="将 TXT 文件拖到书库页面，或使用导入按钮选择文件。" />
-                    <TextBlock Margin="0,10,0,0"
-                               Style="{StaticResource SecondaryTextBlockStyle}"
-                               Text="{Binding StatusMessage}" />
+            <TextBlock Margin="0,12,0,0"
+                       Text="{Binding StatusMessage}"
+                       TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock"
+                           BasedOn="{StaticResource SecondaryTextBlockStyle}">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
 
-                    <StackPanel Margin="0,16,0,0"
-                                Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
-                                   Text="{Binding ImportProgressText}" />
-                        <ProgressBar Margin="0,8,0,0"
-                                     Height="10"
-                                     Minimum="0"
-                                     Maximum="100"
-                                     IsIndeterminate="{Binding IsProgressIndeterminate}"
-                                     Value="{Binding ImportProgressPercent}" />
-                    </StackPanel>
-
-                    <Border Margin="0,16,0,0"
-                            Padding="{StaticResource CardPadding}"
-                            Style="{StaticResource CardBorderStyle}"
-                            Visibility="{Binding IsEncodingPreviewVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource StrongTextBlockStyle}"
-                                       Text="导入预览" />
-                            <Grid Margin="0,12,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="80" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-
-                                <TextBlock Grid.Row="0"
-                                           Style="{StaticResource FormLabelTextBlockStyle}"
-                                           VerticalAlignment="Center"
-                                           Text="书名" />
-                                <TextBox Grid.Row="0"
-                                         Grid.Column="1"
-                                         IsReadOnly="True"
-                                         Text="{Binding SuggestedTitle}" />
-
-                                <TextBlock Grid.Row="1"
-                                           Grid.Column="0"
-                                           Margin="0,8,0,0"
-                                           Style="{StaticResource FormLabelTextBlockStyle}"
-                                           VerticalAlignment="Center"
-                                           Text="作者" />
-                                <TextBox Grid.Row="1"
-                                         Grid.Column="1"
-                                         Margin="0,8,0,0"
-                                         IsReadOnly="True"
-                                         Text="{Binding SuggestedAuthor}" />
-
-                                <TextBlock Grid.Row="2"
-                                           Grid.ColumnSpan="2"
-                                           Margin="0,8,0,0"
-                                           Text="未匹配文件名模板，已回退为文件名书名。">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock"
-                                               BasedOn="{StaticResource SecondaryTextBlockStyle}">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsFileNameTemplateMatched}" Value="False">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </Grid>
-
-                            <TextBox Margin="0,12,0,12"
-                                     Height="160"
-                                     AcceptsReturn="True"
-                                     IsReadOnly="True"
-                                     Text="{Binding PreviewText}"
-                                     TextWrapping="Wrap" />
-
-                            <WrapPanel>
-                                <ComboBox Width="160"
-                                          SelectedValue="{Binding SelectedEncoding}"
-                                          SelectedValuePath="Content">
-                                    <ComboBoxItem Content="utf-8" />
-                                    <ComboBoxItem Content="utf-16le" />
-                                    <ComboBoxItem Content="utf-16be" />
-                                    <ComboBoxItem Content="gb18030" />
-                                </ComboBox>
-                                <Button Margin="12,0,0,0"
-                                        Click="RetryEncodingButton_OnClick"
-                                        Content="刷新预览" />
-                                <Button Margin="12,0,0,0"
-                                        Click="ConfirmImportButton_OnClick"
-                                        Content="确认导入"
-                                        Visibility="{Binding CanConfirmImport, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                <Button Margin="12,0,0,0"
-                                        Click="CancelImportButton_OnClick"
-                                        Content="取消"
-                                        Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                            </WrapPanel>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-            </Border>
+            <views:ContinueListeningCardView Margin="0,20,0,0"
+                                             Item="{Binding ContinueListening}"
+                                             OpenCommand="{Binding OpenContinueListeningCommand}">
+                <views:ContinueListeningCardView.Style>
+                    <Style TargetType="views:ContinueListeningCardView">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ContinueListening}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </views:ContinueListeningCardView.Style>
+            </views:ContinueListeningCardView>
 
             <Border Margin="0,20,0,0"
                     Padding="{StaticResource CardPaddingLarge}"
@@ -195,7 +111,11 @@
                         <TextBlock Margin="0,8,0,0"
                                    HorizontalAlignment="Center"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
-                                   Text="将 TXT 拖到这里，或使用右上角导入按钮。" />
+                                   Text="将 TXT 拖到这里，或选择文件导入。" />
+                        <Button Margin="0,16,0,0"
+                                Padding="18,8"
+                                Click="ImportButton_OnClick"
+                                Content="导入小说" />
                     </StackPanel>
 
                     <StackPanel Margin="0,20,0,0"

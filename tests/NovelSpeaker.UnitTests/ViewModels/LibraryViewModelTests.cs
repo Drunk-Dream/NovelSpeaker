@@ -1,10 +1,11 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.App.Dialogs;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Library;
 using NovelSpeaker.App.Navigation;
-using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.ViewModels;
 using Wpf.Ui;
 using Xunit;
 
@@ -13,101 +14,25 @@ namespace NovelSpeaker.UnitTests.ViewModels;
 public sealed class LibraryViewModelTests
 {
     [Fact]
-    public async Task ImportFileAsync_prepares_preview_and_waits_for_confirmation()
-    {
-        var importService = new FakeBookImportService(
-            new BookImportAnalysis(
-                BookImportAnalysisStatus.ReadyToCommit,
-                "C:\\books\\demo.txt",
-                "demo.txt",
-                "demo",
-                "utf-8",
-                "preview",
-                "第一章 开始\n正文",
-                "hash",
-                [new BookImportChapter(0, 0, "第一章 开始", 6, 2)],
-                null,
-                null,
-                "魔性沧月",
-                true),
-            new BookImportResult("book-1", "demo", 1));
-
-        var catalogService = new FakeBookCatalogService([
-            new BookSummary("book-1", "demo", null, "第一章 开始", DateTime.UtcNow.ToString("O"))
-        ]);
-
-        var feedback = new FakeFeedbackService();
-        var viewModel = CreateViewModel(importService, catalogService, feedback: feedback);
-
-        await viewModel.ImportFileAsync("C:\\books\\demo.txt", CancellationToken.None);
-
-        Assert.Empty(viewModel.Books);
-        Assert.True(viewModel.CanConfirmImport);
-        Assert.True(viewModel.IsImportPanelVisible);
-        Assert.True(viewModel.IsEncodingPreviewVisible);
-        Assert.Equal("preview", viewModel.PreviewText);
-        Assert.Equal("demo", viewModel.SuggestedTitle);
-        Assert.Equal("魔性沧月", viewModel.SuggestedAuthor);
-        Assert.True(viewModel.IsFileNameTemplateMatched);
-        Assert.Equal(0, importService.CommitCallCount);
-    }
-
-    [Fact]
-    public async Task ConfirmImportAsync_commits_pending_analysis_and_refreshes_books()
-    {
-        var importService = new FakeBookImportService(
-            new BookImportAnalysis(
-                BookImportAnalysisStatus.ReadyToCommit,
-                "C:\\books\\demo.txt",
-                "demo.txt",
-                "demo",
-                "utf-8",
-                "preview",
-                "第一章 开始\n正文",
-                "hash",
-                [new BookImportChapter(0, 0, "第一章 开始", 6, 2)],
-                null,
-                null,
-                "魔性沧月",
-                true),
-            new BookImportResult("book-1", "demo", 1));
-
-        var catalogService = new FakeBookCatalogService([
-            new BookSummary("book-1", "demo", null, "第一章 开始", DateTime.UtcNow.ToString("O"))
-        ]);
-
-        var feedback = new FakeFeedbackService();
-        var viewModel = CreateViewModel(importService, catalogService, feedback: feedback);
-        await viewModel.ImportFileAsync("C:\\books\\demo.txt", CancellationToken.None);
-
-        await viewModel.ConfirmImportCommand.ExecuteAsync(null);
-
-        Assert.Single(viewModel.Books);
-        Assert.Equal("demo", viewModel.Books[0].Title);
-        Assert.Equal(1, importService.CommitCallCount);
-        Assert.False(viewModel.CanConfirmImport);
-        Assert.False(viewModel.IsImportPanelVisible);
-        Assert.Equal("导入成功", feedback.LastTitle);
-    }
-
-    [Fact]
     public async Task LoadAsync_maps_book_summary_to_card_fields()
     {
         var viewModel = CreateViewModel(
-            catalogService: new FakeBookCatalogService([
-                new BookSummary(
-                    "book-1",
-                    "三体",
-                    null,
-                    "第一章 科学边界",
-                    DateTime.UtcNow.ToString("O"),
-                    LastPlayedAt: "2026-06-29T10:00:00.0000000Z",
-                    TotalChapterCount: 8,
-                    CurrentChapterIndex: 7,
-                    RemainingChapterCount: 0,
-                    OverallProgress: 1,
-                    HasReadingProgress: true)
-            ]));
+            catalogService: new FakeBookCatalogService(
+                [
+                    new BookSummary(
+                        "book-1",
+                        "三体",
+                        null,
+                        "第一章 科学边界",
+                        DateTime.UtcNow.ToString("O"),
+                        LastPlayedAt: "2026-06-29T10:00:00.0000000Z",
+                        TotalChapterCount: 8,
+                        CurrentChapterIndex: 7,
+                        RemainingChapterCount: 0,
+                        OverallProgress: 1,
+                        HasReadingProgress: true)
+                ],
+                continueListening: null));
 
         await viewModel.LoadAsync(CancellationToken.None);
 
@@ -122,14 +47,75 @@ public sealed class LibraryViewModelTests
     }
 
     [Fact]
+    public async Task LoadAsync_exposes_continue_listening_card_without_affecting_books()
+    {
+        var viewModel = CreateViewModel(
+            catalogService: new FakeBookCatalogService(
+                [new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"))],
+                new ContinueListeningSummary(
+                    "book-2",
+                    "Beta",
+                    "第二章",
+                    "2026-06-29T10:00:00.0000000Z",
+                    1,
+                    5,
+                    3,
+                    0.4,
+                    1,
+                    2)));
+
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        Assert.NotNull(viewModel.ContinueListening);
+        Assert.Equal("Beta", viewModel.ContinueListening!.Title);
+        Assert.Equal("第二章", viewModel.ContinueListening.CurrentChapterTitle);
+        Assert.Equal("剩余 3 章", viewModel.ContinueListening.RemainingChapterText);
+        Assert.Equal(0.4d, viewModel.ContinueListening.ProgressRatio);
+        Assert.Single(viewModel.Books);
+    }
+
+    [Fact]
+    public async Task Search_filters_books_but_keeps_continue_listening_card()
+    {
+        var viewModel = CreateViewModel(
+            catalogService: new FakeBookCatalogService(
+                [
+                    new BookSummary("book-1", "球状闪电", "刘慈欣", "章一", DateTime.UtcNow.ToString("O")),
+                    new BookSummary("book-2", "沙丘", "Frank Herbert", "章一", DateTime.UtcNow.ToString("O"))
+                ],
+                new ContinueListeningSummary(
+                    "book-1",
+                    "球状闪电",
+                    "章一",
+                    "2026-06-29T10:00:00.0000000Z",
+                    0,
+                    8,
+                    7,
+                    0.125,
+                    0,
+                    0)));
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.SearchText = "frank";
+        await Task.Delay(180);
+
+        var book = Assert.Single(viewModel.Books);
+        Assert.Equal("沙丘", book.Title);
+        Assert.NotNull(viewModel.ContinueListening);
+        Assert.Equal("球状闪电", viewModel.ContinueListening!.Title);
+    }
+
+    [Fact]
     public async Task LoadAsync_sorts_recent_reading_before_unplayed_books_by_default()
     {
         var viewModel = CreateViewModel(
-            catalogService: new FakeBookCatalogService([
-                new BookSummary("book-a", "Beta", null, "章一", DateTime.UtcNow.ToString("O"), "2026-06-29T11:00:00.0000000Z", 8, 1, 6, 0.25, true),
-                new BookSummary("book-b", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"), "2026-06-29T12:00:00.0000000Z", 8, 2, 5, 0.375, true),
-                new BookSummary("book-c", "Gamma", null, "章一", DateTime.UtcNow.ToString("O"), null, 8, null, 8, 0, false)
-            ]));
+            catalogService: new FakeBookCatalogService(
+                [
+                    new BookSummary("book-a", "Beta", null, "章一", DateTime.UtcNow.ToString("O"), "2026-06-29T11:00:00.0000000Z", 8, 1, 6, 0.25, true),
+                    new BookSummary("book-b", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"), "2026-06-29T12:00:00.0000000Z", 8, 2, 5, 0.375, true),
+                    new BookSummary("book-c", "Gamma", null, "章一", DateTime.UtcNow.ToString("O"), null, 8, null, 8, 0, false)
+                ],
+                continueListening: null));
 
         await viewModel.LoadAsync(CancellationToken.None);
 
@@ -140,33 +126,18 @@ public sealed class LibraryViewModelTests
     public async Task Selecting_title_sort_orders_books_by_normalized_title()
     {
         var viewModel = CreateViewModel(
-            catalogService: new FakeBookCatalogService([
-                new BookSummary("book-2", "beta", null, "章一", DateTime.UtcNow.ToString("O")),
-                new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
-                new BookSummary("book-3", "charlie", null, "章一", DateTime.UtcNow.ToString("O"))
-            ]));
+            catalogService: new FakeBookCatalogService(
+                [
+                    new BookSummary("book-2", "beta", null, "章一", DateTime.UtcNow.ToString("O")),
+                    new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
+                    new BookSummary("book-3", "charlie", null, "章一", DateTime.UtcNow.ToString("O"))
+                ],
+                continueListening: null));
 
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SelectedSortMode = LibrarySortMode.Title;
 
         Assert.Equal(["Alpha", "beta", "charlie"], viewModel.Books.Select(static book => book.Title));
-    }
-
-    [Fact]
-    public async Task Search_filters_by_title_and_author()
-    {
-        var viewModel = CreateViewModel(
-            catalogService: new FakeBookCatalogService([
-                new BookSummary("book-1", "球状闪电", "刘慈欣", "章一", DateTime.UtcNow.ToString("O")),
-                new BookSummary("book-2", "沙丘", "Frank Herbert", "章一", DateTime.UtcNow.ToString("O"))
-            ]));
-
-        await viewModel.LoadAsync(CancellationToken.None);
-        viewModel.SearchText = "frank";
-        await Task.Delay(180);
-
-        var book = Assert.Single(viewModel.Books);
-        Assert.Equal("沙丘", book.Title);
     }
 
     [Fact]
@@ -177,10 +148,12 @@ public sealed class LibraryViewModelTests
             NextDecision = AppConfirmationDecision.Confirm
         };
         var managementService = new FakeBookManagementService();
-        var catalogService = new FakeBookCatalogService([
-            new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
-            new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
-        ]);
+        var catalogService = new FakeBookCatalogService(
+            [
+                new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
+                new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
+            ],
+            continueListening: null);
         var viewModel = CreateViewModel(
             catalogService: catalogService,
             managementService: managementService,
@@ -189,9 +162,7 @@ public sealed class LibraryViewModelTests
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SearchText = "Alpha";
         await Task.Delay(180);
-        catalogService.Books = [
-            new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
-        ];
+        catalogService.Books = [new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))];
 
         await viewModel.DeleteBookCommand.ExecuteAsync(viewModel.Books[0]);
 
@@ -204,17 +175,20 @@ public sealed class LibraryViewModelTests
     [Fact]
     public async Task LoadAsync_keeps_search_and_sort_state()
     {
-        var catalogService = new FakeBookCatalogService([
-            new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
-            new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
-        ]);
+        var catalogService = new FakeBookCatalogService(
+            [
+                new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
+                new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
+            ],
+            continueListening: null);
         var viewModel = CreateViewModel(catalogService: catalogService);
 
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SearchText = "Beta";
         viewModel.SelectedSortMode = LibrarySortMode.Title;
         await Task.Delay(180);
-        catalogService.Books = [
+        catalogService.Books =
+        [
             new BookSummary("book-3", "Gamma", null, "章一", DateTime.UtcNow.ToString("O")),
             new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
         ];
@@ -238,10 +212,12 @@ public sealed class LibraryViewModelTests
                 BookTitle = "Alpha"
             });
         var viewModel = CreateViewModel(
-            catalogService: new FakeBookCatalogService([
-                new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
-                new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
-            ]),
+            catalogService: new FakeBookCatalogService(
+                [
+                    new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
+                    new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
+                ],
+                continueListening: null),
             playbackCoordinator: playbackCoordinator);
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -251,13 +227,13 @@ public sealed class LibraryViewModelTests
     }
 
     [Fact]
-    public async Task OpenBookCommand_navigates_to_player_page()
+    public async Task OpenBookCommand_navigates_to_player_page_in_open_paused_mode()
     {
         var navigationService = new FakeNavigationService();
         var viewModel = CreateViewModel(
-            catalogService: new FakeBookCatalogService([
-                new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"))
-            ]),
+            catalogService: new FakeBookCatalogService(
+                [new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"))],
+                continueListening: null),
             navigationService: navigationService);
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -265,84 +241,124 @@ public sealed class LibraryViewModelTests
         viewModel.OpenBookCommand.Execute(viewModel.Books[0]);
 
         Assert.Equal(typeof(PlayerPage), navigationService.LastNavigateWithHierarchyPageType);
-        Assert.Equal("book-1", Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigateWithHierarchyParameter).BookId);
+        var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigateWithHierarchyParameter);
+        Assert.Equal("book-1", request.BookId);
+        Assert.Equal(PlayerNavigationMode.OpenPaused, request.Mode);
+    }
+
+    [Fact]
+    public async Task OpenContinueListeningCommand_navigates_to_player_page_in_open_paused_mode()
+    {
+        var navigationService = new FakeNavigationService();
+        var viewModel = CreateViewModel(
+            catalogService: new FakeBookCatalogService(
+                [new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"))],
+                new ContinueListeningSummary(
+                    "book-2",
+                    "Beta",
+                    "第二章",
+                    "2026-06-29T10:00:00.0000000Z",
+                    1,
+                    5,
+                    3,
+                    0.4,
+                    1,
+                    2)),
+            navigationService: navigationService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        viewModel.OpenContinueListeningCommand.Execute(null);
+
+        Assert.Equal(typeof(PlayerPage), navigationService.LastNavigateWithHierarchyPageType);
+        var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigateWithHierarchyParameter);
+        Assert.Equal("book-2", request.BookId);
+        Assert.Equal(PlayerNavigationMode.OpenPaused, request.Mode);
+    }
+
+    [Fact]
+    public async Task ImportFilesAsync_refreshes_books_when_dialog_reports_imported()
+    {
+        var feedback = new FakeFeedbackService();
+        var dialogService = new FakeImportBookDialogService
+        {
+            NextOutcome = ImportBookDialogOutcome.Imported
+        };
+        var catalogService = new FakeBookCatalogService([], continueListening: null);
+        var viewModel = CreateViewModel(
+            catalogService: catalogService,
+            feedback: feedback,
+            importDialogService: dialogService);
+
+        catalogService.Books = [new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"))];
+        await viewModel.ImportFilesAsync([CreateTempTxtFile()], CancellationToken.None);
+
+        Assert.Equal("导入成功", feedback.LastTitle);
+        Assert.Single(viewModel.Books);
+        Assert.Single(dialogService.Requests);
+    }
+
+    public static IEnumerable<object[]> InvalidImportInputs()
+    {
+        yield return [Array.Empty<string>(), "未检测到可导入的 TXT 文件。"];
+        yield return [new[] { "one.txt", "two.txt" }, "一次只能导入一个 TXT 文件。"];
+        yield return [new[] { "novel.epub" }, "只支持导入单个 .txt 文件。"];
+    }
+
+    [Theory]
+    [MemberData(nameof(InvalidImportInputs))]
+    public async Task ImportFilesAsync_rejects_invalid_inputs(string[] inputs, string expectedMessage)
+    {
+        var feedback = new FakeFeedbackService();
+        var dialogService = new FakeImportBookDialogService();
+        var viewModel = CreateViewModel(feedback: feedback, importDialogService: dialogService);
+
+        await viewModel.ImportFilesAsync(inputs, CancellationToken.None);
+
+        Assert.Equal("无法导入", feedback.LastTitle);
+        Assert.Equal(expectedMessage, feedback.LastMessage);
+        Assert.Empty(dialogService.Requests);
     }
 
     private static LibraryViewModel CreateViewModel(
-        IBookImportService? importService = null,
         FakeBookCatalogService? catalogService = null,
         FakeBookManagementService? managementService = null,
+        FakeImportBookDialogService? importDialogService = null,
         FakeFeedbackService? feedback = null,
         FakeNavigationService? navigationService = null,
         FakePlaybackCoordinator? playbackCoordinator = null)
     {
         return new LibraryViewModel(
-            importService ?? new FakeBookImportService(
-                new BookImportAnalysis(
-                    BookImportAnalysisStatus.ReadyToCommit,
-                    "C:\\books\\demo.txt",
-                    "demo.txt",
-                    "demo",
-                    "utf-8",
-                    "preview",
-                    "第一章 开始\n正文",
-                    "hash",
-                    [new BookImportChapter(0, 0, "第一章 开始", 6, 2)],
-                    null,
-                    null,
-                    null,
-                    false),
-                new BookImportResult("book-1", "demo", 1)),
-            catalogService ?? new FakeBookCatalogService([]),
+            catalogService ?? new FakeBookCatalogService([], continueListening: null),
             managementService ?? new FakeBookManagementService(),
             new BookCoverGenerator(),
+            importDialogService ?? new FakeImportBookDialogService(),
             feedback ?? new FakeFeedbackService(),
             navigationService ?? new FakeNavigationService(),
             playbackCoordinator ?? new FakePlaybackCoordinator(PlaybackSnapshot.Idle),
             new LibraryScrollState());
     }
 
-    private sealed class FakeBookImportService : IBookImportService
+    private static string CreateTempTxtFile()
     {
-        private readonly BookImportAnalysis _analysis;
-        private readonly BookImportResult _result;
-        public List<BookImportRequest> Requests { get; } = [];
-        public int CommitCallCount { get; private set; }
-
-        public FakeBookImportService(BookImportAnalysis analysis, BookImportResult result)
-        {
-            _analysis = analysis;
-            _result = result;
-        }
-
-        public Task<BookImportAnalysis> AnalyzeAsync(
-            BookImportRequest request,
-            IProgress<BookImportProgress>? progress,
-            CancellationToken cancellationToken)
-        {
-            Requests.Add(request);
-            progress?.Report(new BookImportProgress(BookImportPhase.DetectingEncoding, 100, 100, false, "正在读取小说内容。"));
-            return Task.FromResult(_analysis);
-        }
-
-        public Task<BookImportResult> CommitAsync(
-            BookImportAnalysis analysis,
-            IProgress<BookImportProgress>? progress,
-            CancellationToken cancellationToken)
-        {
-            CommitCallCount++;
-            return Task.FromResult(_result);
-        }
+        var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.txt");
+        File.WriteAllText(filePath, "demo");
+        return filePath;
     }
 
     private sealed class FakeBookCatalogService : IBookCatalogService
     {
-        public IReadOnlyList<BookSummary> Books { get; set; }
-
-        public FakeBookCatalogService(IReadOnlyList<BookSummary> books)
+        public FakeBookCatalogService(
+            IReadOnlyList<BookSummary> books,
+            ContinueListeningSummary? continueListening)
         {
             Books = books;
+            ContinueListening = continueListening;
         }
+
+        public IReadOnlyList<BookSummary> Books { get; set; }
+
+        public ContinueListeningSummary? ContinueListening { get; set; }
 
         public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
         {
@@ -351,7 +367,20 @@ public sealed class LibraryViewModelTests
 
         public Task<ContinueListeningSummary?> GetContinueListeningAsync(CancellationToken cancellationToken)
         {
-            return Task.FromResult<ContinueListeningSummary?>(null);
+            return Task.FromResult(ContinueListening);
+        }
+    }
+
+    private sealed class FakeImportBookDialogService : IImportBookDialogService
+    {
+        public List<string> Requests { get; } = [];
+
+        public ImportBookDialogOutcome NextOutcome { get; set; } = ImportBookDialogOutcome.Cancelled;
+
+        public Task<ImportBookDialogOutcome> ShowAsync(string filePath, CancellationToken cancellationToken)
+        {
+            Requests.Add(filePath);
+            return Task.FromResult(NextOutcome);
         }
     }
 
@@ -401,6 +430,12 @@ public sealed class LibraryViewModelTests
         }
 
         public void ShowSuccess(string title, string message)
+        {
+            LastTitle = title;
+            LastMessage = message;
+        }
+
+        public void ShowWarning(string title, string message)
         {
             LastTitle = title;
             LastMessage = message;

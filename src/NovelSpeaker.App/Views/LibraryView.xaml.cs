@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Microsoft.Win32;
 using NovelSpeaker.App.ViewModels;
 
@@ -14,21 +15,7 @@ public partial class LibraryView : UserControl
 
     private async void ImportButton_OnClick(object sender, RoutedEventArgs e)
     {
-        if (DataContext is not LibraryViewModel viewModel)
-        {
-            return;
-        }
-
-        var dialog = new OpenFileDialog
-        {
-            Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
-            Multiselect = false
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            await viewModel.ImportFileAsync(dialog.FileName, CancellationToken.None);
-        }
+        await ShowImportFileDialogAsync();
     }
 
     private void RootScrollViewer_OnDragEnter(object sender, DragEventArgs e)
@@ -44,33 +31,37 @@ public partial class LibraryView : UserControl
             return;
         }
 
-        if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
-        {
-            await viewModel.ImportFileAsync(files[0], CancellationToken.None);
-        }
+        var files = e.Data.GetData(DataFormats.FileDrop) as string[];
+        await viewModel.ImportFilesAsync(files ?? [], CancellationToken.None);
     }
 
-    private async void RetryEncodingButton_OnClick(object sender, RoutedEventArgs e)
+    private async void RootScrollViewer_OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (DataContext is LibraryViewModel viewModel)
+        if (e.Key != Key.O || (Keyboard.Modifiers & ModifierKeys.Control) == 0)
         {
-            await viewModel.RetryWithEncodingCommand.ExecuteAsync(null);
+            return;
         }
+
+        e.Handled = true;
+        await ShowImportFileDialogAsync();
     }
 
-    private async void ConfirmImportButton_OnClick(object sender, RoutedEventArgs e)
+    private async Task ShowImportFileDialogAsync()
     {
-        if (DataContext is LibraryViewModel viewModel)
+        if (DataContext is not LibraryViewModel viewModel)
         {
-            await viewModel.ConfirmImportCommand.ExecuteAsync(null);
+            return;
         }
-    }
 
-    private void CancelImportButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is LibraryViewModel viewModel)
+        var dialog = new OpenFileDialog
         {
-            viewModel.CancelImportCommand.Execute(null);
+            Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            await viewModel.ImportFilesAsync([dialog.FileName], CancellationToken.None);
         }
     }
 }

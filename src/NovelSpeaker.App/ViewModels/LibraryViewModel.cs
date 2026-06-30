@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.App.Dialogs;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Library;
 using NovelSpeaker.App.Navigation;
@@ -22,14 +24,12 @@ public sealed partial class LibraryViewModel : ObservableObject
         new(LibrarySortMode.Title, "书名")
     ];
 
-    private readonly IBookImportService _bookImportService;
     private readonly IBookCatalogService _bookCatalogService;
     private readonly IBookManagementService _bookManagementService;
     private readonly IBookCoverGenerator _bookCoverGenerator;
+    private readonly IImportBookDialogService _importBookDialogService;
     private readonly IAppFeedbackService _feedbackService;
     private readonly INavigationService _navigationService;
-    private BookImportAnalysis? _pendingAnalysis;
-    private CancellationTokenSource? _activeImportCancellationTokenSource;
     private CancellationTokenSource? _searchDebounceCancellationTokenSource;
     private IReadOnlyList<LibraryBookItemViewModel> _allBooks = [];
     private string? _activePlaybackBookId;
@@ -37,19 +37,19 @@ public sealed partial class LibraryViewModel : ObservableObject
     private bool _isDeletingBook;
 
     public LibraryViewModel(
-        IBookImportService bookImportService,
         IBookCatalogService bookCatalogService,
         IBookManagementService bookManagementService,
         IBookCoverGenerator bookCoverGenerator,
+        IImportBookDialogService importBookDialogService,
         IAppFeedbackService feedbackService,
         INavigationService navigationService,
         IPlaybackCoordinator playbackCoordinator,
         LibraryScrollState scrollState)
     {
-        _bookImportService = bookImportService;
         _bookCatalogService = bookCatalogService;
         _bookManagementService = bookManagementService;
         _bookCoverGenerator = bookCoverGenerator;
+        _importBookDialogService = importBookDialogService;
         _feedbackService = feedbackService;
         _navigationService = navigationService;
         ScrollState = scrollState;
@@ -70,12 +70,6 @@ public sealed partial class LibraryViewModel : ObservableObject
     private bool isBusy;
 
     [ObservableProperty]
-    private bool isImportPanelVisible;
-
-    [ObservableProperty]
-    private bool isEncodingPreviewVisible;
-
-    [ObservableProperty]
     private bool hasBooks;
 
     [ObservableProperty]
@@ -88,86 +82,47 @@ public sealed partial class LibraryViewModel : ObservableObject
     private LibrarySortMode selectedSortMode = LibrarySortMode.RecentReading;
 
     [ObservableProperty]
-    private string previewText = string.Empty;
-
-    [ObservableProperty]
-    private string selectedEncoding = "utf-8";
-
-    [ObservableProperty]
-    private bool canConfirmImport;
-
-    [ObservableProperty]
-    private bool isProgressIndeterminate;
-
-    [ObservableProperty]
-    private double importProgressPercent;
-
-    [ObservableProperty]
-    private string importProgressText = string.Empty;
-
-    [ObservableProperty]
-    private string suggestedTitle = string.Empty;
-
-    [ObservableProperty]
-    private string? suggestedAuthor;
-
-    [ObservableProperty]
-    private bool isFileNameTemplateMatched;
-
-    public string? LastImportedPath { get; private set; }
+    private ContinueListeningItemViewModel? continueListening;
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        var books = await _bookCatalogService.GetBooksAsync(cancellationToken);
+        var booksTask = _bookCatalogService.GetBooksAsync(cancellationToken);
+        var continueListeningTask = _bookCatalogService.GetContinueListeningAsync(cancellationToken);
+        await Task.WhenAll(booksTask, continueListeningTask);
+
+        var books = await booksTask;
         _allBooks = books
             .Select(MapBook)
             .ToArray();
+        ContinueListening = MapContinueListening(await continueListeningTask);
         UpdateDeleteAvailability();
         ApplyVisibleBooks();
     }
 
-    public async Task ImportFileAsync(string filePath, CancellationToken cancellationToken)
+    public async Task ImportFilesAsync(IReadOnlyList<string>? filePaths, CancellationToken cancellationToken)
     {
-        LastImportedPath = filePath;
-        IsImportPanelVisible = true;
-        await AnalyzeAsync(new BookImportRequest(filePath, null), cancellationToken);
-    }
-
-    [RelayCommand]
-    private async Task RetryWithEncodingAsync(CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(LastImportedPath))
+        var validatedPath = ValidateSingleImportFile(filePaths);
+        if (validatedPath is null)
         {
             return;
         }
 
-        await AnalyzeAsync(new BookImportRequest(LastImportedPath, SelectedEncoding), cancellationToken);
-    }
-
-    [RelayCommand]
-    private async Task ConfirmImportAsync(CancellationToken cancellationToken)
-    {
-        if (_pendingAnalysis is null)
+        IsBusy = true;
+        try
         {
-            return;
-        }
-
-        await RunImportOperationAsync(
-            async (linkedToken, progress) =>
+            var outcome = await _importBookDialogService.ShowAsync(validatedPath, cancellationToken);
+            if (outcome != ImportBookDialogOutcome.Imported)
             {
-                var result = await _bookImportService.CommitAsync(_pendingAnalysis, progress, linkedToken);
-                await LoadAsync(linkedToken);
-                ClearPendingAnalysis(hidePanel: true);
-                StatusMessage = string.Empty;
-                _feedbackService.ShowSuccess("导入成功", $"已导入《{result.Title}》。");
-            },
-            cancellationToken);
-    }
+                return;
+            }
 
-    [RelayCommand]
-    private void CancelImport()
-    {
-        _activeImportCancellationTokenSource?.Cancel();
+            await LoadAsync(cancellationToken);
+            _feedbackService.ShowSuccess("导入成功", "已导入小说。");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     [RelayCommand]
@@ -178,7 +133,22 @@ public sealed partial class LibraryViewModel : ObservableObject
             return;
         }
 
-        _navigationService.NavigateWithHierarchy(typeof(PlayerPage), new PlayerNavigationRequest(book.BookId));
+        _navigationService.NavigateWithHierarchy(
+            typeof(PlayerPage),
+            new PlayerNavigationRequest(book.BookId, PlayerNavigationMode.OpenPaused));
+    }
+
+    [RelayCommand]
+    private void OpenContinueListening()
+    {
+        if (ContinueListening is null)
+        {
+            return;
+        }
+
+        _navigationService.NavigateWithHierarchy(
+            typeof(PlayerPage),
+            new PlayerNavigationRequest(ContinueListening.BookId, PlayerNavigationMode.OpenPaused));
     }
 
     [RelayCommand]
@@ -262,120 +232,6 @@ public sealed partial class LibraryViewModel : ObservableObject
         ApplyVisibleBooks();
     }
 
-    private async Task AnalyzeAsync(BookImportRequest request, CancellationToken cancellationToken)
-    {
-        ClearPendingAnalysis();
-        IsImportPanelVisible = true;
-        await RunImportOperationAsync(
-            async (linkedToken, progress) =>
-            {
-                var analysis = await _bookImportService.AnalyzeAsync(request, progress, linkedToken);
-                ApplyAnalysis(analysis);
-            },
-            cancellationToken);
-    }
-
-    private async Task RunImportOperationAsync(
-        Func<CancellationToken, IProgress<BookImportProgress>, Task> operation,
-        CancellationToken cancellationToken)
-    {
-        _activeImportCancellationTokenSource?.Cancel();
-        _activeImportCancellationTokenSource?.Dispose();
-        _activeImportCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-        var progress = new CallbackProgress<BookImportProgress>(UpdateProgress);
-        IsBusy = true;
-
-        try
-        {
-            await operation(_activeImportCancellationTokenSource.Token, progress);
-        }
-        catch (OperationCanceledException)
-        {
-            StatusMessage = "导入已取消。";
-            ImportProgressText = "已取消当前导入任务。";
-            if (_pendingAnalysis is null && string.IsNullOrWhiteSpace(PreviewText))
-            {
-                IsImportPanelVisible = false;
-            }
-        }
-        catch (Exception exception)
-        {
-            var projected = _feedbackService.Project(exception);
-            StatusMessage = projected.UserMessage;
-            _feedbackService.ShowProjectedNotification("导入失败", projected);
-        }
-        finally
-        {
-            IsBusy = false;
-            IsProgressIndeterminate = false;
-            _activeImportCancellationTokenSource.Dispose();
-            _activeImportCancellationTokenSource = null;
-        }
-    }
-
-    private void ApplyAnalysis(BookImportAnalysis analysis)
-    {
-        PreviewText = analysis.PreviewText;
-        SuggestedTitle = analysis.SuggestedTitle;
-        SuggestedAuthor = analysis.SuggestedAuthor;
-        IsFileNameTemplateMatched = analysis.IsFileNameTemplateMatched;
-        IsImportPanelVisible = true;
-        IsEncodingPreviewVisible = !string.IsNullOrWhiteSpace(analysis.PreviewText) ||
-            analysis.FailureReason == BookImportFailureReason.UnsupportedEncoding;
-
-        if (!string.Equals(analysis.DetectedEncoding, "unknown", StringComparison.OrdinalIgnoreCase))
-        {
-            SelectedEncoding = analysis.DetectedEncoding;
-        }
-
-        if (analysis.Status == BookImportAnalysisStatus.ReadyToCommit)
-        {
-            _pendingAnalysis = analysis;
-            CanConfirmImport = true;
-            StatusMessage = string.Empty;
-            ImportProgressText = "预览已准备好，可以确认导入。";
-            return;
-        }
-
-        _pendingAnalysis = null;
-        CanConfirmImport = false;
-        StatusMessage = analysis.FailureReason switch
-        {
-            BookImportFailureReason.DuplicateBook => "这本书已经在书库中了。",
-            BookImportFailureReason.NoValidChapters => "小说内容为空或无法识别为可导入文本。",
-            BookImportFailureReason.UnsupportedEncoding => "自动识别编码失败，请切换编码并重新预览。",
-            _ => "导入失败，请重试。"
-        };
-    }
-
-    private void ClearPendingAnalysis(bool hidePanel = false)
-    {
-        _pendingAnalysis = null;
-        CanConfirmImport = false;
-        IsEncodingPreviewVisible = false;
-        PreviewText = string.Empty;
-        SuggestedTitle = string.Empty;
-        SuggestedAuthor = null;
-        IsFileNameTemplateMatched = false;
-        ImportProgressPercent = 0;
-        ImportProgressText = string.Empty;
-        if (hidePanel)
-        {
-            IsImportPanelVisible = false;
-            StatusMessage = string.Empty;
-        }
-    }
-
-    private void UpdateProgress(BookImportProgress progress)
-    {
-        ImportProgressText = progress.Message;
-        IsProgressIndeterminate = progress.IsIndeterminate || progress.TotalBytes <= 0;
-        ImportProgressPercent = IsProgressIndeterminate
-            ? 0
-            : Math.Round(progress.BytesProcessed * 100d / progress.TotalBytes, 1);
-    }
-
     private void ScheduleFilterRefresh()
     {
         _searchDebounceCancellationTokenSource?.Cancel();
@@ -440,11 +296,59 @@ public sealed partial class LibraryViewModel : ObservableObject
             !string.Equals(book.Id, _activePlaybackBookId, StringComparison.Ordinal));
     }
 
+    private ContinueListeningItemViewModel? MapContinueListening(ContinueListeningSummary? summary)
+    {
+        if (summary is null)
+        {
+            return null;
+        }
+
+        return new ContinueListeningItemViewModel(
+            summary.BookId,
+            summary.BookTitle,
+            summary.ChapterTitle,
+            BuildRemainingChapterText(summary.TotalChapterCount, summary.RemainingChapterCount),
+            summary.OverallProgress,
+            _bookCoverGenerator.Generate(summary.BookTitle));
+    }
+
     private static string BuildRemainingChapterText(BookSummary book)
     {
-        return book.TotalChapterCount > 0 && book.RemainingChapterCount <= 0
+        return BuildRemainingChapterText(book.TotalChapterCount, book.RemainingChapterCount);
+    }
+
+    private static string BuildRemainingChapterText(int totalChapterCount, int remainingChapterCount)
+    {
+        return totalChapterCount > 0 && remainingChapterCount <= 0
             ? "最后一章"
-            : $"剩余 {Math.Max(0, book.RemainingChapterCount)} 章";
+            : $"剩余 {Math.Max(0, remainingChapterCount)} 章";
+    }
+
+    private string? ValidateSingleImportFile(IReadOnlyList<string>? filePaths)
+    {
+        if (filePaths is null || filePaths.Count == 0)
+        {
+            _feedbackService.ShowWarning("无法导入", "未检测到可导入的 TXT 文件。");
+            return null;
+        }
+
+        if (filePaths.Count != 1)
+        {
+            _feedbackService.ShowWarning("无法导入", "一次只能导入一个 TXT 文件。");
+            return null;
+        }
+
+        var filePath = filePaths[0];
+        if (string.IsNullOrWhiteSpace(filePath) ||
+            Directory.Exists(filePath) ||
+            !File.Exists(filePath) ||
+            !string.Equals(Path.GetExtension(filePath), ".txt", StringComparison.OrdinalIgnoreCase))
+        {
+            _feedbackService.ShowWarning("无法导入", "只支持导入单个 .txt 文件。");
+            return null;
+        }
+
+        return filePath;
     }
 
     private void OnPlaybackSnapshotChanged(object? sender, PlaybackSnapshot snapshot)
@@ -470,21 +374,6 @@ public sealed partial class LibraryViewModel : ObservableObject
         foreach (var book in _allBooks)
         {
             book.CanDelete = !string.Equals(book.BookId, _activePlaybackBookId, StringComparison.Ordinal);
-        }
-    }
-
-    private sealed class CallbackProgress<T> : IProgress<T>
-    {
-        private readonly Action<T> _callback;
-
-        public CallbackProgress(Action<T> callback)
-        {
-            _callback = callback;
-        }
-
-        public void Report(T value)
-        {
-            _callback(value);
         }
     }
 }
