@@ -95,20 +95,41 @@ public sealed class BookCatalogService : IBookCatalogService
         var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT b.Id,
-                   b.Title,
+            WITH RankedBook AS (
+                SELECT b.Id,
+                       b.Title,
+                       b.LastPlayedAt,
+                       rp.ChapterIndex,
+                       rp.SegmentIndex,
+                       COALESCE(chapterCounts.TotalChapterCount, 0) AS TotalChapterCount
+                FROM Books b
+                INNER JOIN ReadingProgress rp ON rp.BookId = b.Id
+                LEFT JOIN (
+                    SELECT BookId, COUNT(*) AS TotalChapterCount
+                    FROM Chapters
+                    GROUP BY BookId
+                ) chapterCounts
+                    ON chapterCounts.BookId = b.Id
+                WHERE b.LastPlayedAt IS NOT NULL
+                ORDER BY b.LastPlayedAt DESC, rp.UpdatedAt DESC
+                LIMIT 1
+            )
+            SELECT rb.Id,
+                   rb.Title,
                    COALESCE(c.Title, '未开始') AS ChapterTitle,
-                   b.LastPlayedAt,
-                   rp.ChapterIndex,
-                   rp.SegmentIndex
-            FROM Books b
-            INNER JOIN ReadingProgress rp ON rp.BookId = b.Id
+                   rb.LastPlayedAt,
+                   rb.ChapterIndex,
+                   rb.SegmentIndex,
+                   rb.TotalChapterCount
+            FROM RankedBook rb
             LEFT JOIN Chapters c
-                ON c.BookId = rp.BookId
-               AND c.ChapterIndex = rp.ChapterIndex
-            WHERE b.LastPlayedAt IS NOT NULL
-            ORDER BY b.LastPlayedAt DESC, rp.UpdatedAt DESC
-            LIMIT 1;
+                ON c.BookId = rb.Id
+               AND c.ChapterIndex = CASE
+                   WHEN rb.TotalChapterCount <= 0 THEN NULL
+                   WHEN rb.ChapterIndex < 0 THEN 0
+                   WHEN rb.ChapterIndex >= rb.TotalChapterCount THEN rb.TotalChapterCount - 1
+                   ELSE rb.ChapterIndex
+               END;
             """;
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -117,12 +138,26 @@ public sealed class BookCatalogService : IBookCatalogService
             return null;
         }
 
+        var totalChapterCount = reader.GetInt32(6);
+        var currentChapterIndex = reader.GetInt32(4);
+        var clampedCurrentChapterIndex = totalChapterCount > 0
+            ? Math.Clamp(currentChapterIndex, 0, totalChapterCount - 1)
+            : 0;
+
         return new ContinueListeningSummary(
             reader.GetString(0),
             reader.GetString(1),
             reader.GetString(2),
             reader.GetString(3),
-            reader.GetInt32(4),
+            clampedCurrentChapterIndex,
+            totalChapterCount,
+            totalChapterCount > 0
+                ? Math.Max(0, totalChapterCount - (clampedCurrentChapterIndex + 1))
+                : 0,
+            totalChapterCount > 0
+                ? (double)(clampedCurrentChapterIndex + 1) / totalChapterCount
+                : 0,
+            clampedCurrentChapterIndex,
             reader.GetInt32(5));
     }
 }

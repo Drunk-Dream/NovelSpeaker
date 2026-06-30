@@ -40,6 +40,10 @@ public sealed class BookCatalogServiceTests
         Assert.NotNull(summary);
         Assert.Equal("book-2", summary!.BookId);
         Assert.Equal("开场", summary.ChapterTitle);
+        Assert.Equal(0, summary.CurrentChapterIndex);
+        Assert.Equal(2, summary.TotalChapterCount);
+        Assert.Equal(1, summary.RemainingChapterCount);
+        Assert.Equal(0.5d, summary.OverallProgress);
         Assert.Equal(0, summary.ChapterIndex);
         Assert.Equal(1, summary.SegmentIndex);
     }

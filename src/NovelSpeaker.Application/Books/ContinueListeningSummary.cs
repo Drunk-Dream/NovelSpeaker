@@ -8,5 +8,9 @@ public sealed record ContinueListeningSummary(
     string BookTitle,
     string ChapterTitle,
     string LastPlayedAt,
+    int CurrentChapterIndex,
+    int TotalChapterCount,
+    int RemainingChapterCount,
+    double OverallProgress,
     int ChapterIndex,
     int SegmentIndex);
