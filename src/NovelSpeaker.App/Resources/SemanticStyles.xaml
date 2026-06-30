@@ -12,8 +12,23 @@
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
     </Style>
 
+    <Style x:Key="PrimaryTextBlockStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
     <Style x:Key="SecondaryTextBlockStyle" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <Style x:Key="StrongTextBlockStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource PrimaryTextBlockStyle}">
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="FormLabelTextBlockStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource PrimaryTextBlockStyle}">
     </Style>
 
     <Style x:Key="DialogTitleTextBlockStyle" TargetType="TextBlock">

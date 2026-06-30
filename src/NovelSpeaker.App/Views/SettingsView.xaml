@@ -21,7 +21,8 @@
                        Text="播放" />
             <StackPanel Margin="{StaticResource ItemSpacing}"
                         Orientation="Horizontal">
-                <TextBlock VerticalAlignment="Center"
+                <TextBlock Style="{StaticResource FormLabelTextBlockStyle}"
+                           VerticalAlignment="Center"
                            Text="默认语速" />
                 <TextBox Width="120"
                          Margin="12,0,0,0"
@@ -30,7 +31,8 @@
 
             <StackPanel Margin="{StaticResource ItemSpacing}"
                         Orientation="Horizontal">
-                <TextBlock VerticalAlignment="Center"
+                <TextBlock Style="{StaticResource FormLabelTextBlockStyle}"
+                           VerticalAlignment="Center"
                            Text="预取段落数" />
                 <TextBox Width="120"
                          Margin="12,0,0,0"
@@ -39,7 +41,8 @@
 
             <StackPanel Margin="{StaticResource ItemSpacing}"
                         Orientation="Horizontal">
-                <TextBlock VerticalAlignment="Center"
+                <TextBlock Style="{StaticResource FormLabelTextBlockStyle}"
+                           VerticalAlignment="Center"
                            Text="日志级别" />
                 <ComboBox Width="180"
                           Margin="12,0,0,0"
@@ -49,7 +52,8 @@
 
             <StackPanel Margin="{StaticResource ItemSpacing}"
                         Orientation="Horizontal">
-                <TextBlock VerticalAlignment="Center"
+                <TextBlock Style="{StaticResource FormLabelTextBlockStyle}"
+                           VerticalAlignment="Center"
                            Text="主题" />
                 <ComboBox Width="180"
                           Margin="12,0,0,0"
@@ -68,7 +72,8 @@
 
             <StackPanel Margin="{StaticResource ItemSpacing}"
                         Orientation="Horizontal">
-                <TextBlock VerticalAlignment="Center"
+                <TextBlock Style="{StaticResource FormLabelTextBlockStyle}"
+                           VerticalAlignment="Center"
                            Text="拆分阈值" />
                 <TextBox Width="120"
                          Margin="12,0,0,0"
@@ -76,7 +81,8 @@
             </StackPanel>
 
             <StackPanel Margin="{StaticResource ItemSpacing}">
-                <TextBlock Text="文件名模板" />
+                <TextBlock Style="{StaticResource FormLabelTextBlockStyle}"
+                           Text="文件名模板" />
                 <TextBox Margin="0,8,0,0"
                          Text="{Binding BookFileNameTemplate, UpdateSourceTrigger=PropertyChanged}" />
                 <TextBlock Margin="0,6,0,0"
