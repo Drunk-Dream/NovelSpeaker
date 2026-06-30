@@ -28,8 +28,11 @@ public sealed partial class LibraryViewModel : ObservableObject
     private readonly IBookManagementService _bookManagementService;
     private readonly IBookCoverGenerator _bookCoverGenerator;
     private readonly IImportBookDialogService _importBookDialogService;
+    private readonly IBookDeleteDialogService _deleteDialogService;
+    private readonly IBookCatalogInvalidationState _catalogInvalidationState;
     private readonly IAppFeedbackService _feedbackService;
     private readonly INavigationService _navigationService;
+    private readonly IPlaybackCoordinator _playbackCoordinator;
     private CancellationTokenSource? _searchDebounceCancellationTokenSource;
     private IReadOnlyList<LibraryBookItemViewModel> _allBooks = [];
     private string? _activePlaybackBookId;
@@ -41,6 +44,8 @@ public sealed partial class LibraryViewModel : ObservableObject
         IBookManagementService bookManagementService,
         IBookCoverGenerator bookCoverGenerator,
         IImportBookDialogService importBookDialogService,
+        IBookDeleteDialogService deleteDialogService,
+        IBookCatalogInvalidationState catalogInvalidationState,
         IAppFeedbackService feedbackService,
         INavigationService navigationService,
         IPlaybackCoordinator playbackCoordinator,
@@ -50,8 +55,11 @@ public sealed partial class LibraryViewModel : ObservableObject
         _bookManagementService = bookManagementService;
         _bookCoverGenerator = bookCoverGenerator;
         _importBookDialogService = importBookDialogService;
+        _deleteDialogService = deleteDialogService;
+        _catalogInvalidationState = catalogInvalidationState;
         _feedbackService = feedbackService;
         _navigationService = navigationService;
+        _playbackCoordinator = playbackCoordinator;
         ScrollState = scrollState;
         ApplyPlaybackSnapshot(playbackCoordinator.CurrentSnapshot);
         playbackCoordinator.SnapshotChanged += OnPlaybackSnapshotChanged;
@@ -87,8 +95,8 @@ public sealed partial class LibraryViewModel : ObservableObject
         _allBooks = books
             .Select(MapBook)
             .ToArray();
-        UpdateDeleteAvailability();
         ApplyVisibleBooks();
+        _catalogInvalidationState.Consume();
     }
 
     public async Task ImportFilesAsync(IReadOnlyList<string>? filePaths, CancellationToken cancellationToken)
@@ -149,18 +157,12 @@ public sealed partial class LibraryViewModel : ObservableObject
             return;
         }
 
-        if (!book.CanDelete)
-        {
-            StatusMessage = "正在播放的书籍暂时不能从书库删除。";
-            return;
-        }
-
-        var decision = await _feedbackService.ConfirmDeletionAsync(
-            "删除书籍",
-            $"确定删除《{book.Title}》及其阅读进度吗？音频缓存也会一并删除。",
+        var decision = await _deleteDialogService.ShowAsync(
+            new BookDeleteDialogRequest(
+                book.Title,
+                string.Equals(book.BookId, _activePlaybackBookId, StringComparison.Ordinal)),
             cancellationToken);
-
-        if (decision != AppConfirmationDecision.Confirm)
+        if (!decision.IsConfirmed)
         {
             return;
         }
@@ -168,17 +170,24 @@ public sealed partial class LibraryViewModel : ObservableObject
         _isDeletingBook = true;
         try
         {
+            if (string.Equals(book.BookId, _activePlaybackBookId, StringComparison.Ordinal))
+            {
+                await _playbackCoordinator.HandleBookDeletedAsync(book.BookId, cancellationToken);
+            }
+
             var result = await _bookManagementService.DeleteAsync(
-                new BookDeleteRequest(book.BookId, DeleteAudioCache: true),
+                new BookDeleteRequest(book.BookId, decision.DeleteAudioCache),
                 cancellationToken);
 
             if (result is null)
             {
                 StatusMessage = "这本书已不存在，书库已刷新。";
+                _catalogInvalidationState.Invalidate();
                 await LoadAsync(cancellationToken);
                 return;
             }
 
+            _catalogInvalidationState.Invalidate();
             await LoadAsync(cancellationToken);
             StatusMessage = string.Empty;
             _feedbackService.ShowSuccess("删除成功", $"已删除《{book.Title}》。");
@@ -272,7 +281,7 @@ public sealed partial class LibraryViewModel : ObservableObject
             book.HasReadingProgress,
             book.LastPlayedAt,
             _bookCoverGenerator.Generate(book.Title),
-            !string.Equals(book.Id, _activePlaybackBookId, StringComparison.Ordinal));
+            canDelete: true);
     }
 
     private static string BuildRemainingChapterText(BookSummary book)
@@ -329,14 +338,5 @@ public sealed partial class LibraryViewModel : ObservableObject
     private void ApplyPlaybackSnapshot(PlaybackSnapshot snapshot)
     {
         _activePlaybackBookId = snapshot.BookId;
-        UpdateDeleteAvailability();
-    }
-
-    private void UpdateDeleteAvailability()
-    {
-        foreach (var book in _allBooks)
-        {
-            book.CanDelete = !string.Equals(book.BookId, _activePlaybackBookId, StringComparison.Ordinal);
-        }
     }
 }

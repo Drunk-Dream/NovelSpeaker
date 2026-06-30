@@ -99,9 +99,9 @@ public sealed class LibraryViewModelTests
     [Fact]
     public async Task DeleteBookAsync_keeps_current_filter_and_removes_deleted_book()
     {
-        var feedback = new FakeFeedbackService
+        var deleteDialogService = new FakeBookDeleteDialogService
         {
-            NextDecision = AppConfirmationDecision.Confirm
+            NextResult = new BookDeleteDialogResult(true, true)
         };
         var managementService = new FakeBookManagementService();
         var catalogService = new FakeBookCatalogService(
@@ -112,7 +112,7 @@ public sealed class LibraryViewModelTests
         var viewModel = CreateViewModel(
             catalogService: catalogService,
             managementService: managementService,
-            feedback: feedback);
+            deleteDialogService: deleteDialogService);
 
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SearchText = "Alpha";
@@ -125,6 +125,7 @@ public sealed class LibraryViewModelTests
         Assert.Empty(viewModel.Books);
         Assert.Single(managementService.Requests);
         Assert.True(managementService.Requests[0].DeleteAudioCache);
+        Assert.Equal("Alpha", deleteDialogService.Requests[0].BookTitle);
     }
 
     [Fact]
@@ -156,7 +157,7 @@ public sealed class LibraryViewModelTests
     }
 
     [Fact]
-    public async Task Current_playing_book_cannot_be_deleted()
+    public async Task DeleteBookAsync_allows_current_playing_book_and_stops_playback_first()
     {
         var playbackCoordinator = new FakePlaybackCoordinator(
             PlaybackSnapshot.Idle with
@@ -165,18 +166,26 @@ public sealed class LibraryViewModelTests
                 BookId = "book-1",
                 BookTitle = "Alpha"
             });
+        var deleteDialogService = new FakeBookDeleteDialogService
+        {
+            NextResult = new BookDeleteDialogResult(true, false)
+        };
+        var managementService = new FakeBookManagementService();
         var viewModel = CreateViewModel(
             catalogService: new FakeBookCatalogService(
                 [
                     new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
                     new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
                 ]),
-            playbackCoordinator: playbackCoordinator);
+            managementService: managementService,
+            playbackCoordinator: playbackCoordinator,
+            deleteDialogService: deleteDialogService);
 
         await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.DeleteBookCommand.ExecuteAsync(viewModel.Books[0]);
 
-        Assert.False(viewModel.Books[0].CanDelete);
-        Assert.True(viewModel.Books[1].CanDelete);
+        Assert.Equal("book-1", playbackCoordinator.LastHandledDeletedBookId);
+        Assert.False(managementService.Requests[0].DeleteAudioCache);
     }
 
     [Fact]
@@ -246,6 +255,7 @@ public sealed class LibraryViewModelTests
         FakeBookCatalogService? catalogService = null,
         FakeBookManagementService? managementService = null,
         FakeImportBookDialogService? importDialogService = null,
+        FakeBookDeleteDialogService? deleteDialogService = null,
         FakeFeedbackService? feedback = null,
         FakeNavigationService? navigationService = null,
         FakePlaybackCoordinator? playbackCoordinator = null)
@@ -255,6 +265,8 @@ public sealed class LibraryViewModelTests
             managementService ?? new FakeBookManagementService(),
             new BookCoverGenerator(),
             importDialogService ?? new FakeImportBookDialogService(),
+            deleteDialogService ?? new FakeBookDeleteDialogService(),
+            new BookCatalogInvalidationState(),
             feedback ?? new FakeFeedbackService(),
             navigationService ?? new FakeNavigationService(),
             playbackCoordinator ?? new FakePlaybackCoordinator(PlaybackSnapshot.Idle),
@@ -293,6 +305,19 @@ public sealed class LibraryViewModelTests
         {
             Requests.Add(filePath);
             return Task.FromResult(NextOutcome);
+        }
+    }
+
+    private sealed class FakeBookDeleteDialogService : IBookDeleteDialogService
+    {
+        public List<BookDeleteDialogRequest> Requests { get; } = [];
+
+        public BookDeleteDialogResult NextResult { get; set; } = new(false, true);
+
+        public Task<BookDeleteDialogResult> ShowAsync(BookDeleteDialogRequest request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult(NextResult);
         }
     }
 
@@ -408,7 +433,9 @@ public sealed class LibraryViewModelTests
             CurrentSnapshot = snapshot;
         }
 
-        public PlaybackSnapshot CurrentSnapshot { get; }
+        public PlaybackSnapshot CurrentSnapshot { get; private set; }
+
+        public string? LastHandledDeletedBookId { get; private set; }
 
         public event EventHandler<PlaybackSnapshot>? SnapshotChanged
         {
@@ -453,5 +480,14 @@ public sealed class LibraryViewModelTests
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken)
+        {
+            LastHandledDeletedBookId = bookId;
+            CurrentSnapshot = PlaybackSnapshot.Idle;
+            return Task.CompletedTask;
+        }
     }
 }
