@@ -23,7 +23,7 @@ public sealed class AppNotificationService : IAppNotificationService
 
     public void ShowWarning(string title, string message)
     {
-        Show(title, message, ControlAppearance.Primary);
+        Show(title, message, ControlAppearance.Caution);
     }
 
     public void ShowError(string title, string message)

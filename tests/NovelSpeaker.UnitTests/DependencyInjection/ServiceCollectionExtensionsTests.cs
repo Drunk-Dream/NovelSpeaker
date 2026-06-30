@@ -34,6 +34,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAppDialogService>(provider.GetRequiredService<IAppDialogService>());
                 Assert.IsAssignableFrom<IAppNotificationService>(provider.GetRequiredService<IAppNotificationService>());
                 Assert.IsAssignableFrom<IExceptionProjector>(provider.GetRequiredService<IExceptionProjector>());
+                Assert.IsAssignableFrom<IAppFeedbackService>(provider.GetRequiredService<IAppFeedbackService>());
                 Assert.IsAssignableFrom<IShellLayoutController>(provider.GetRequiredService<IShellLayoutController>());
                 Assert.IsAssignableFrom<IThemePreferenceService>(provider.GetRequiredService<IThemePreferenceService>());
                 Assert.IsType<ChapterRulesViewModel>(provider.GetRequiredService<ChapterRulesViewModel>());

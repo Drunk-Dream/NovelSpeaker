@@ -36,11 +36,42 @@ public sealed class FeedbackServicesTests
             var snackbarService = new FakeSnackbarService();
             var notifications = new AppNotificationService(snackbarService);
 
-            notifications.ShowError("标题", "内容");
+            notifications.ShowWarning("标题", "内容");
 
             Assert.Equal("标题", snackbarService.LastTitle);
             Assert.Equal("内容", snackbarService.LastMessage);
-            Assert.Equal(ControlAppearance.Danger, snackbarService.LastAppearance);
+            Assert.Equal(ControlAppearance.Caution, snackbarService.LastAppearance);
+        });
+    }
+
+    [Fact]
+    public void AppFeedbackService_confirms_deletion_and_routes_projected_notifications()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var dialogService = new FakeContentDialogService
+            {
+                NextResult = ContentDialogResult.Primary
+            };
+            var snackbarService = new FakeSnackbarService();
+            var feedbackService = new AppFeedbackService(
+                new AppDialogService(dialogService),
+                new AppNotificationService(snackbarService),
+                new ExceptionProjector());
+
+            var decision = feedbackService
+                .ConfirmDeletionAsync("删除规则", "将删除规则“示例规则”。此操作不可撤销。", CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+            var projected = feedbackService.Project(new InvalidOperationException("规则正在使用中。"));
+            feedbackService.ShowProjectedNotification("规则删除失败", projected);
+
+            Assert.Equal(AppConfirmationDecision.Confirm, decision);
+            Assert.Equal("删除", dialogService.LastDialog?.PrimaryButtonText);
+            Assert.Equal("取消", dialogService.LastDialog?.CloseButtonText);
+            Assert.Equal("规则删除失败", snackbarService.LastTitle);
+            Assert.Equal("规则正在使用中。", snackbarService.LastMessage);
+            Assert.Equal(ControlAppearance.Caution, snackbarService.LastAppearance);
         });
     }
 
@@ -63,6 +94,8 @@ public sealed class FeedbackServicesTests
 
         public ContentDialogResult NextResult { get; set; }
 
+        public ContentDialog? LastDialog { get; private set; }
+
         public void SetDialogHost(ContentPresenter contentPresenter)
         {
         }
@@ -83,6 +116,7 @@ public sealed class FeedbackServicesTests
 
         public Task<ContentDialogResult> ShowAsync(ContentDialog dialog, CancellationToken cancellationToken)
         {
+            LastDialog = dialog;
             return Task.FromResult(NextResult);
         }
     }

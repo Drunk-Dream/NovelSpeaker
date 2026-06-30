@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAppDialogService, AppDialogService>();
         services.AddSingleton<IAppNotificationService, AppNotificationService>();
         services.AddSingleton<IExceptionProjector, ExceptionProjector>();
+        services.AddSingleton<IAppFeedbackService, AppFeedbackService>();
         services.AddSingleton<IShellLayoutController, ShellLayoutController>();
         services.AddSingleton<IThemeRuntime, WpfUiThemeRuntime>();
         services.AddSingleton<AppThemeStartupCoordinator>();
