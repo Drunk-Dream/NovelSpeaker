@@ -1,12 +1,14 @@
 <UserControl x:Class="NovelSpeaker.App.Views.TtsRulesView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:input="clr-namespace:NovelSpeaker.App.Input">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
-                  CanContentScroll="False">
+                  CanContentScroll="False"
+                  input:MouseWheelScrollBehavior.Enabled="True">
         <StackPanel>
             <StackPanel>
                 <TextBlock Style="{StaticResource PageTitleTextBlockStyle}" Text="TTS 规则" />
