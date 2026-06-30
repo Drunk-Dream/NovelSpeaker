@@ -25,4 +25,6 @@ public interface IPlaybackCoordinator : IAsyncDisposable
     Task SkipCurrentSegmentAsync(CancellationToken cancellationToken);
     Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken);
     Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken);
+    Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken);
+    Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken);
 }

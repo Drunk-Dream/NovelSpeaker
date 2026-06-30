@@ -242,6 +242,60 @@ public sealed class BookPlaybackCoordinatorTests
     }
 
     [Fact]
+    public async Task RefreshBookMetadataAsync_updates_active_snapshot_without_changing_playback_state()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var bookContentService = new FakeBookPlaybackContentService(CreateBook());
+        await using var coordinator = CreateCoordinator(localCoordinator, bookContentService: bookContentService);
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        bookContentService.Book = new PlaybackBookContent(
+            "book-1",
+            "已更新书名",
+            CreateBook().Chapters,
+            "已更新作者");
+
+        await coordinator.RefreshBookMetadataAsync("book-1", CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal("已更新书名", coordinator.CurrentSnapshot.BookTitle);
+        Assert.Equal("已更新作者", coordinator.CurrentSnapshot.BookAuthor);
+    }
+
+    [Fact]
+    public async Task HandleBookDeletedAsync_stops_current_session_and_publishes_idle()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var prefetchScheduler = new FakePrefetchScheduler();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            prefetchScheduler: prefetchScheduler);
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        await coordinator.HandleBookDeletedAsync("book-1", CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Idle, coordinator.CurrentSnapshot.State);
+        Assert.Null(coordinator.CurrentSnapshot.BookId);
+        Assert.Equal(1, localCoordinator.StopCallCount);
+        Assert.NotEmpty(prefetchScheduler.CancelledSessions);
+    }
+
+    [Fact]
+    public async Task RefreshBookMetadataAsync_and_HandleBookDeletedAsync_ignore_other_books()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        await using var coordinator = CreateCoordinator(localCoordinator);
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        var snapshotBefore = coordinator.CurrentSnapshot;
+
+        await coordinator.RefreshBookMetadataAsync("book-2", CancellationToken.None);
+        await coordinator.HandleBookDeletedAsync("book-2", CancellationToken.None);
+
+        Assert.Equal(snapshotBefore, coordinator.CurrentSnapshot);
+    }
+
+    [Fact]
     public async Task StartAsync_without_explicit_position_restores_saved_progress()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
@@ -606,37 +660,38 @@ public sealed class BookPlaybackCoordinatorTests
 
     private sealed class FakeBookPlaybackContentService : IBookPlaybackContentService
     {
-        private readonly PlaybackBookContent _book;
-
         public FakeBookPlaybackContentService(PlaybackBookContent book)
         {
-            _book = book;
+            Book = book;
         }
+
+        public PlaybackBookContent Book { get; set; }
 
         public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
         {
-            if (bookId != _book.BookId)
+            if (bookId != Book.BookId)
             {
                 return Task.FromResult<PlaybackBookContent?>(null);
             }
 
             var metadataOnly = new PlaybackBookContent(
-                _book.BookId,
-                _book.BookTitle,
-                _book.Chapters
+                Book.BookId,
+                Book.BookTitle,
+                Book.Chapters
                     .Select(chapter => new PlaybackChapterContent(chapter.ChapterIndex, chapter.Title, []))
-                    .ToArray());
+                    .ToArray(),
+                Book.BookAuthor);
             return Task.FromResult<PlaybackBookContent?>(metadataOnly);
         }
 
         public Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
         {
-            if (bookId != _book.BookId)
+            if (bookId != Book.BookId)
             {
                 return Task.FromResult<PlaybackChapterContent?>(null);
             }
 
-            return Task.FromResult<PlaybackChapterContent?>(_book.Chapters.FirstOrDefault(chapter => chapter.ChapterIndex == chapterIndex));
+            return Task.FromResult<PlaybackChapterContent?>(Book.Chapters.FirstOrDefault(chapter => chapter.ChapterIndex == chapterIndex));
         }
     }
 

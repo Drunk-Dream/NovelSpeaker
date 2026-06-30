@@ -144,6 +144,18 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         return RunSerializedAsync(ct => ChangeSpeedCoreAsync(speakSpeed, ct), cancellationToken);
     }
 
+    public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        return RunSerializedAsync(ct => RefreshBookMetadataCoreAsync(bookId, ct), cancellationToken);
+    }
+
+    public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        return RunSerializedAsync(ct => HandleBookDeletedCoreAsync(bookId, ct), cancellationToken);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _mutex.WaitAsync().ConfigureAwait(false);
@@ -394,6 +406,55 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             CanRetry = false,
             CanSkip = false
         });
+    }
+
+    private async Task RefreshBookMetadataCoreAsync(string bookId, CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+
+        if (_currentBook is null ||
+            !string.Equals(_currentBook.BookId, bookId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var refreshedBook = await _bookContentService.GetBookAsync(bookId, cancellationToken).ConfigureAwait(false);
+        if (refreshedBook is null)
+        {
+            return;
+        }
+
+        _currentBook = MergeBookMetadata(_currentBook, refreshedBook);
+        PublishSnapshot(_currentSnapshot with
+        {
+            BookTitle = _currentBook.BookTitle,
+            BookAuthor = _currentBook.BookAuthor
+        });
+    }
+
+    private async Task HandleBookDeletedCoreAsync(string bookId, CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+
+        if (!string.Equals(_currentSnapshot.BookId, bookId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (_currentSession is not null)
+        {
+            if (_currentSession.HasLoadedAudio)
+            {
+                await _localAudioPlaybackCoordinator.StopAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            await _prefetchScheduler.CancelAsync(_currentSession.SessionId, cancellationToken).ConfigureAwait(false);
+            await DisposeSessionAsync().ConfigureAwait(false);
+        }
+
+        ClearProtectedPlaybackFile();
+        ClearCurrentBookContext();
+        PublishSnapshot(PlaybackSnapshot.Idle);
     }
 
     private async Task MoveSegmentCoreAsync(int delta, CancellationToken cancellationToken)
@@ -1555,6 +1616,28 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         _currentSession.Cancel();
         await _currentSession.DisposeAsync();
         _currentSession = null;
+    }
+
+    private void ClearCurrentBookContext()
+    {
+        _currentBook = null;
+        _currentRule = null;
+        _lastFailureKind = null;
+        _lastRecoveredCorruptSegmentKey = null;
+    }
+
+    private static PlaybackBookContent MergeBookMetadata(PlaybackBookContent existingBook, PlaybackBookContent refreshedBook)
+    {
+        var existingChapters = existingBook.Chapters.ToDictionary(chapter => chapter.ChapterIndex);
+        var mergedChapters = refreshedBook.Chapters
+            .Select(chapter => existingChapters.GetValueOrDefault(chapter.ChapterIndex) ?? chapter)
+            .ToArray();
+
+        return new PlaybackBookContent(
+            refreshedBook.BookId,
+            refreshedBook.BookTitle,
+            mergedChapters,
+            refreshedBook.BookAuthor);
     }
 
     private void ReplaceProtectedPlaybackFile(string? filePath)

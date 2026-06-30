@@ -435,6 +435,26 @@ public sealed class PlayerViewModelTests
             return Task.CompletedTask;
         }
 
+        public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken)
+        {
+            if (string.Equals(CurrentSnapshot.BookId, bookId, StringComparison.Ordinal))
+            {
+                Publish(CurrentSnapshot with { BookTitle = "已更新书名", BookAuthor = "已更新作者" });
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken)
+        {
+            if (string.Equals(CurrentSnapshot.BookId, bookId, StringComparison.Ordinal))
+            {
+                Publish(PlaybackSnapshot.Idle);
+            }
+
+            return Task.CompletedTask;
+        }
+
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public void Publish(PlaybackSnapshot snapshot)
