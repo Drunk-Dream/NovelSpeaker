@@ -32,6 +32,9 @@ public sealed class NavigationPageLifecycleTests
             try
             {
                 var page = provider.GetRequiredService<PlayerPage>();
+                typeof(PlayerPage)
+                    .GetField("_hasLoaded", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?
+                    .SetValue(page, true);
                 page.DataContext = new PlayerNavigationRequest("book-7");
 
                 page.OnNavigatedToAsync().GetAwaiter().GetResult();
