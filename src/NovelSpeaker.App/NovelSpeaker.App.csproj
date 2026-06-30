@@ -15,9 +15,14 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+  <ItemGroup>
+    <None Remove="Assets\Branding\app.ico" />
+    <Resource Include="Assets\Branding\app.ico" />
+  </ItemGroup>
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>Assets\Branding\app.ico</ApplicationIcon>
   </PropertyGroup>
 </Project>

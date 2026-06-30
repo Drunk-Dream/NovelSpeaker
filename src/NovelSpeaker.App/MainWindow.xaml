@@ -4,6 +4,7 @@
                   xmlns:pages="clr-namespace:NovelSpeaker.App.Pages"
                   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                   Title="NovelSpeaker"
+                  Icon="pack://application:,,,/NovelSpeaker.App;component/Assets/Branding/app.ico"
                   Width="1280"
                   Height="820"
                   MinWidth="900"
@@ -23,6 +24,7 @@
 
         <ui:TitleBar Grid.Row="0"
                      Title="NovelSpeaker"
+                     Icon="{ui:ImageIcon 'pack://application:,,,/NovelSpeaker.App;component/Assets/Branding/app.ico'}"
                      ShowMinimize="True"
                      ShowMaximize="True"
                      ShowClose="True" />
