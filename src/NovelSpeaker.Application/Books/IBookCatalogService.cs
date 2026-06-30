@@ -6,6 +6,4 @@ namespace NovelSpeaker.Application.Books;
 public interface IBookCatalogService
 {
     Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken);
-
-    Task<ContinueListeningSummary?> GetContinueListeningAsync(CancellationToken cancellationToken);
 }

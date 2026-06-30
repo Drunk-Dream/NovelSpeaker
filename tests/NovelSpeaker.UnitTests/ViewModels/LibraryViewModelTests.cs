@@ -31,8 +31,7 @@ public sealed class LibraryViewModelTests
                         RemainingChapterCount: 0,
                         OverallProgress: 1,
                         HasReadingProgress: true)
-                ],
-                continueListening: null));
+                ]));
 
         await viewModel.LoadAsync(CancellationToken.None);
 
@@ -47,53 +46,14 @@ public sealed class LibraryViewModelTests
     }
 
     [Fact]
-    public async Task LoadAsync_exposes_continue_listening_card_without_affecting_books()
-    {
-        var viewModel = CreateViewModel(
-            catalogService: new FakeBookCatalogService(
-                [new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"))],
-                new ContinueListeningSummary(
-                    "book-2",
-                    "Beta",
-                    "第二章",
-                    "2026-06-29T10:00:00.0000000Z",
-                    1,
-                    5,
-                    3,
-                    0.4,
-                    1,
-                    2)));
-
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        Assert.NotNull(viewModel.ContinueListening);
-        Assert.Equal("Beta", viewModel.ContinueListening!.Title);
-        Assert.Equal("第二章", viewModel.ContinueListening.CurrentChapterTitle);
-        Assert.Equal("剩余 3 章", viewModel.ContinueListening.RemainingChapterText);
-        Assert.Equal(0.4d, viewModel.ContinueListening.ProgressRatio);
-        Assert.Single(viewModel.Books);
-    }
-
-    [Fact]
-    public async Task Search_filters_books_but_keeps_continue_listening_card()
+    public async Task Search_filters_books_by_title_and_author()
     {
         var viewModel = CreateViewModel(
             catalogService: new FakeBookCatalogService(
                 [
                     new BookSummary("book-1", "球状闪电", "刘慈欣", "章一", DateTime.UtcNow.ToString("O")),
                     new BookSummary("book-2", "沙丘", "Frank Herbert", "章一", DateTime.UtcNow.ToString("O"))
-                ],
-                new ContinueListeningSummary(
-                    "book-1",
-                    "球状闪电",
-                    "章一",
-                    "2026-06-29T10:00:00.0000000Z",
-                    0,
-                    8,
-                    7,
-                    0.125,
-                    0,
-                    0)));
+                ]));
 
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SearchText = "frank";
@@ -101,8 +61,6 @@ public sealed class LibraryViewModelTests
 
         var book = Assert.Single(viewModel.Books);
         Assert.Equal("沙丘", book.Title);
-        Assert.NotNull(viewModel.ContinueListening);
-        Assert.Equal("球状闪电", viewModel.ContinueListening!.Title);
     }
 
     [Fact]
@@ -114,8 +72,7 @@ public sealed class LibraryViewModelTests
                     new BookSummary("book-a", "Beta", null, "章一", DateTime.UtcNow.ToString("O"), "2026-06-29T11:00:00.0000000Z", 8, 1, 6, 0.25, true),
                     new BookSummary("book-b", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"), "2026-06-29T12:00:00.0000000Z", 8, 2, 5, 0.375, true),
                     new BookSummary("book-c", "Gamma", null, "章一", DateTime.UtcNow.ToString("O"), null, 8, null, 8, 0, false)
-                ],
-                continueListening: null));
+                ]));
 
         await viewModel.LoadAsync(CancellationToken.None);
 
@@ -131,8 +88,7 @@ public sealed class LibraryViewModelTests
                     new BookSummary("book-2", "beta", null, "章一", DateTime.UtcNow.ToString("O")),
                     new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
                     new BookSummary("book-3", "charlie", null, "章一", DateTime.UtcNow.ToString("O"))
-                ],
-                continueListening: null));
+                ]));
 
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SelectedSortMode = LibrarySortMode.Title;
@@ -152,8 +108,7 @@ public sealed class LibraryViewModelTests
             [
                 new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
                 new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
-            ],
-            continueListening: null);
+            ]);
         var viewModel = CreateViewModel(
             catalogService: catalogService,
             managementService: managementService,
@@ -179,8 +134,7 @@ public sealed class LibraryViewModelTests
             [
                 new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
                 new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
-            ],
-            continueListening: null);
+            ]);
         var viewModel = CreateViewModel(catalogService: catalogService);
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -216,8 +170,7 @@ public sealed class LibraryViewModelTests
                 [
                     new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
                     new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
-                ],
-                continueListening: null),
+                ]),
             playbackCoordinator: playbackCoordinator);
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -232,8 +185,7 @@ public sealed class LibraryViewModelTests
         var navigationService = new FakeNavigationService();
         var viewModel = CreateViewModel(
             catalogService: new FakeBookCatalogService(
-                [new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"))],
-                continueListening: null),
+                [new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"))]),
             navigationService: navigationService);
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -247,36 +199,6 @@ public sealed class LibraryViewModelTests
     }
 
     [Fact]
-    public async Task OpenContinueListeningCommand_navigates_to_player_page_in_open_paused_mode()
-    {
-        var navigationService = new FakeNavigationService();
-        var viewModel = CreateViewModel(
-            catalogService: new FakeBookCatalogService(
-                [new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"))],
-                new ContinueListeningSummary(
-                    "book-2",
-                    "Beta",
-                    "第二章",
-                    "2026-06-29T10:00:00.0000000Z",
-                    1,
-                    5,
-                    3,
-                    0.4,
-                    1,
-                    2)),
-            navigationService: navigationService);
-
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        viewModel.OpenContinueListeningCommand.Execute(null);
-
-        Assert.Equal(typeof(PlayerPage), navigationService.LastNavigateWithHierarchyPageType);
-        var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigateWithHierarchyParameter);
-        Assert.Equal("book-2", request.BookId);
-        Assert.Equal(PlayerNavigationMode.OpenPaused, request.Mode);
-    }
-
-    [Fact]
     public async Task ImportFilesAsync_refreshes_books_when_dialog_reports_imported()
     {
         var feedback = new FakeFeedbackService();
@@ -284,7 +206,7 @@ public sealed class LibraryViewModelTests
         {
             NextOutcome = ImportBookDialogOutcome.Imported
         };
-        var catalogService = new FakeBookCatalogService([], continueListening: null);
+        var catalogService = new FakeBookCatalogService([]);
         var viewModel = CreateViewModel(
             catalogService: catalogService,
             feedback: feedback,
@@ -329,7 +251,7 @@ public sealed class LibraryViewModelTests
         FakePlaybackCoordinator? playbackCoordinator = null)
     {
         return new LibraryViewModel(
-            catalogService ?? new FakeBookCatalogService([], continueListening: null),
+            catalogService ?? new FakeBookCatalogService([]),
             managementService ?? new FakeBookManagementService(),
             new BookCoverGenerator(),
             importDialogService ?? new FakeImportBookDialogService(),
@@ -348,26 +270,16 @@ public sealed class LibraryViewModelTests
 
     private sealed class FakeBookCatalogService : IBookCatalogService
     {
-        public FakeBookCatalogService(
-            IReadOnlyList<BookSummary> books,
-            ContinueListeningSummary? continueListening)
+        public FakeBookCatalogService(IReadOnlyList<BookSummary> books)
         {
             Books = books;
-            ContinueListening = continueListening;
         }
 
         public IReadOnlyList<BookSummary> Books { get; set; }
 
-        public ContinueListeningSummary? ContinueListening { get; set; }
-
         public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult(Books);
-        }
-
-        public Task<ContinueListeningSummary?> GetContinueListeningAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(ContinueListening);
         }
     }
 

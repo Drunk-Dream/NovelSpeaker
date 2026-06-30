@@ -81,20 +81,12 @@ public sealed partial class LibraryViewModel : ObservableObject
     [ObservableProperty]
     private LibrarySortMode selectedSortMode = LibrarySortMode.RecentReading;
 
-    [ObservableProperty]
-    private ContinueListeningItemViewModel? continueListening;
-
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        var booksTask = _bookCatalogService.GetBooksAsync(cancellationToken);
-        var continueListeningTask = _bookCatalogService.GetContinueListeningAsync(cancellationToken);
-        await Task.WhenAll(booksTask, continueListeningTask);
-
-        var books = await booksTask;
+        var books = await _bookCatalogService.GetBooksAsync(cancellationToken);
         _allBooks = books
             .Select(MapBook)
             .ToArray();
-        ContinueListening = MapContinueListening(await continueListeningTask);
         UpdateDeleteAvailability();
         ApplyVisibleBooks();
     }
@@ -136,19 +128,6 @@ public sealed partial class LibraryViewModel : ObservableObject
         _navigationService.NavigateWithHierarchy(
             typeof(PlayerPage),
             new PlayerNavigationRequest(book.BookId, PlayerNavigationMode.OpenPaused));
-    }
-
-    [RelayCommand]
-    private void OpenContinueListening()
-    {
-        if (ContinueListening is null)
-        {
-            return;
-        }
-
-        _navigationService.NavigateWithHierarchy(
-            typeof(PlayerPage),
-            new PlayerNavigationRequest(ContinueListening.BookId, PlayerNavigationMode.OpenPaused));
     }
 
     [RelayCommand]
@@ -294,22 +273,6 @@ public sealed partial class LibraryViewModel : ObservableObject
             book.LastPlayedAt,
             _bookCoverGenerator.Generate(book.Title),
             !string.Equals(book.Id, _activePlaybackBookId, StringComparison.Ordinal));
-    }
-
-    private ContinueListeningItemViewModel? MapContinueListening(ContinueListeningSummary? summary)
-    {
-        if (summary is null)
-        {
-            return null;
-        }
-
-        return new ContinueListeningItemViewModel(
-            summary.BookId,
-            summary.BookTitle,
-            summary.ChapterTitle,
-            BuildRemainingChapterText(summary.TotalChapterCount, summary.RemainingChapterCount),
-            summary.OverallProgress,
-            _bookCoverGenerator.Generate(summary.BookTitle));
     }
 
     private static string BuildRemainingChapterText(BookSummary book)

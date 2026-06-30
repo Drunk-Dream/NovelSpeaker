@@ -1,6 +1,7 @@
 <UserControl x:Class="NovelSpeaker.App.Views.LibraryView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:input="clr-namespace:NovelSpeaker.App.Input"
              xmlns:library="clr-namespace:NovelSpeaker.App.Library"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:views="clr-namespace:NovelSpeaker.App.Views">
@@ -16,6 +17,7 @@
                   DragEnter="RootScrollViewer_OnDragEnter"
                   Drop="RootScrollViewer_OnDrop"
                   PreviewKeyDown="RootScrollViewer_OnPreviewKeyDown"
+                  input:MouseWheelScrollBehavior.Enabled="True"
                   library:LibraryScrollViewerStateBehavior.ItemsControl="{Binding ElementName=BooksItemsControl}"
                   library:LibraryScrollViewerStateBehavior.State="{Binding ScrollState}">
         <StackPanel>
@@ -66,21 +68,6 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
-
-            <views:ContinueListeningCardView Margin="0,20,0,0"
-                                             Item="{Binding ContinueListening}"
-                                             OpenCommand="{Binding OpenContinueListeningCommand}">
-                <views:ContinueListeningCardView.Style>
-                    <Style TargetType="views:ContinueListeningCardView">
-                        <Setter Property="Visibility" Value="Visible" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ContinueListening}" Value="{x:Null}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </views:ContinueListeningCardView.Style>
-            </views:ContinueListeningCardView>
 
             <Border Margin="0,20,0,0"
                     Padding="{StaticResource CardPaddingLarge}"

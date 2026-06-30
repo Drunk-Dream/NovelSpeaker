@@ -26,28 +26,6 @@ public sealed class BookCatalogServiceTests
         Assert.True(book.HasReadingProgress);
     }
 
-    [Fact]
-    public async Task GetContinueListeningAsync_returns_most_recent_book()
-    {
-        var (factory, service) = await CreateCatalogAsync();
-        await SeedBookAsync(factory, "book-1", "第一章", "第二章");
-        await SeedBookAsync(factory, "book-2", "开场", "续章");
-        await SeedReadingProgressAsync(factory, "book-1", 1, 2, "2026-06-25T09:00:00.0000000Z");
-        await SeedReadingProgressAsync(factory, "book-2", 0, 1, "2026-06-25T10:00:00.0000000Z");
-
-        var summary = await service.GetContinueListeningAsync(CancellationToken.None);
-
-        Assert.NotNull(summary);
-        Assert.Equal("book-2", summary!.BookId);
-        Assert.Equal("开场", summary.ChapterTitle);
-        Assert.Equal(0, summary.CurrentChapterIndex);
-        Assert.Equal(2, summary.TotalChapterCount);
-        Assert.Equal(1, summary.RemainingChapterCount);
-        Assert.Equal(0.5d, summary.OverallProgress);
-        Assert.Equal(0, summary.ChapterIndex);
-        Assert.Equal(1, summary.SegmentIndex);
-    }
-
     private static async Task<(SqliteConnectionFactory Factory, BookCatalogService Service)> CreateCatalogAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());

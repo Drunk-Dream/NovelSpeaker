@@ -457,11 +457,6 @@ public sealed class PlayerViewModelTests
         {
             return Task.FromResult(_books);
         }
-
-        public Task<ContinueListeningSummary?> GetContinueListeningAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult<ContinueListeningSummary?>(null);
-        }
     }
 
     private sealed class MutableBookCatalogService : IBookCatalogService
@@ -476,11 +471,6 @@ public sealed class PlayerViewModelTests
         public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult(Books);
-        }
-
-        public Task<ContinueListeningSummary?> GetContinueListeningAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult<ContinueListeningSummary?>(null);
         }
     }
 
