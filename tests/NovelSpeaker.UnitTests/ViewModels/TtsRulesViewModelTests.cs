@@ -29,7 +29,7 @@ public sealed class TtsRulesViewModelTests
                         CreateRule("示例规则", "https://example.com/tts"))
                 ],
                 null));
-        var viewModel = new TtsRulesViewModel(libraryService, new FakeTtsRuleTestService(), new FakeNotificationService(), new ExceptionProjector());
+        var viewModel = new TtsRulesViewModel(libraryService, new FakeTtsRuleTestService(), new FakeFeedbackService());
 
         await viewModel.ImportJsonTextAsync("""{"name":"示例规则","url":"https://example.com/tts"}""", "剪贴板", CancellationToken.None);
 
@@ -62,8 +62,8 @@ public sealed class TtsRulesViewModelTests
                         CreateRule("现有规则", "https://example.com/tts"))
                 ],
                 null));
-        var notifications = new FakeNotificationService();
-        var viewModel = new TtsRulesViewModel(libraryService, new FakeTtsRuleTestService(), notifications, new ExceptionProjector());
+        var notifications = new FakeFeedbackService();
+        var viewModel = new TtsRulesViewModel(libraryService, new FakeTtsRuleTestService(), notifications);
         await viewModel.ImportJsonTextAsync("""{"name":"现有规则","url":"https://example.com/tts"}""", "file.json", CancellationToken.None);
 
         await viewModel.ConfirmImportCommand.ExecuteAsync(null);
@@ -83,7 +83,7 @@ public sealed class TtsRulesViewModelTests
                 new TtsRuleSummary(1, "规则一", true, false, null, TtsRuleCompatibilityStatus.Compatible, []),
                 new TtsRuleSummary(2, "规则二", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])
             ]);
-        var viewModel = new TtsRulesViewModel(libraryService, new FakeTtsRuleTestService(), new FakeNotificationService(), new ExceptionProjector());
+        var viewModel = new TtsRulesViewModel(libraryService, new FakeTtsRuleTestService(), new FakeFeedbackService());
 
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SelectedRule = viewModel.Rules[1];
@@ -119,8 +119,7 @@ public sealed class TtsRulesViewModelTests
                     [],
                     null)
             },
-            new FakeNotificationService(),
-            new ExceptionProjector());
+            new FakeFeedbackService());
 
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SelectedRule = ruleSummary;
@@ -156,8 +155,7 @@ public sealed class TtsRulesViewModelTests
                     """{"message":"slow down"}""",
                     TimeSpan.FromSeconds(5))
             },
-            new FakeNotificationService(),
-            new ExceptionProjector());
+            new FakeFeedbackService());
 
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SelectedRule = ruleSummary;
@@ -167,6 +165,30 @@ public sealed class TtsRulesViewModelTests
         Assert.Contains("429", viewModel.LastResponseStatusText);
         Assert.Contains("application/json", viewModel.LastResponseDetailText);
         Assert.Contains("Retry-After", viewModel.LastResponseDetailText);
+    }
+
+    [Fact]
+    public async Task DeleteRuleAsync_requires_confirmation_before_deleting()
+    {
+        var ruleSummary = new TtsRuleSummary(5, "待删除规则", true, false, null, TtsRuleCompatibilityStatus.Compatible, []);
+        var libraryService = new MutableTtsRuleLibraryService([ruleSummary]);
+        var feedback = new FakeFeedbackService
+        {
+            NextConfirmationDecision = AppConfirmationDecision.Cancel
+        };
+        var viewModel = new TtsRulesViewModel(libraryService, new FakeTtsRuleTestService(), feedback);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.DeleteRuleCommand.ExecuteAsync(ruleSummary);
+
+        Assert.Equal(0, libraryService.DeleteCallCount);
+        Assert.Equal("已取消删除规则：待删除规则", viewModel.StatusMessage);
+
+        feedback.NextConfirmationDecision = AppConfirmationDecision.Confirm;
+        await viewModel.DeleteRuleCommand.ExecuteAsync(ruleSummary);
+
+        Assert.Equal(1, libraryService.DeleteCallCount);
+        Assert.Equal("删除规则", feedback.LastConfirmationTitle);
     }
 
     private static HttpTtsRule CreateRule(string name, string url)
@@ -254,11 +276,26 @@ public sealed class TtsRulesViewModelTests
         public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class FakeNotificationService : IAppNotificationService
+    private sealed class FakeFeedbackService : IAppFeedbackService
     {
         public string? LastTitle { get; private set; }
 
         public string? LastMessage { get; private set; }
+
+        public string? LastConfirmationTitle { get; private set; }
+
+        public AppConfirmationDecision NextConfirmationDecision { get; set; } = AppConfirmationDecision.Confirm;
+
+        public ProjectedUiError Project(Exception exception)
+        {
+            return new ExceptionProjector().Project(exception);
+        }
+
+        public void ShowProjectedNotification(string title, ProjectedUiError projected)
+        {
+            LastTitle = title;
+            LastMessage = projected.UserMessage;
+        }
 
         public void ShowSuccess(string title, string message)
         {
@@ -266,16 +303,10 @@ public sealed class TtsRulesViewModelTests
             LastMessage = message;
         }
 
-        public void ShowWarning(string title, string message)
+        public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken)
         {
-            LastTitle = title;
-            LastMessage = message;
-        }
-
-        public void ShowError(string title, string message)
-        {
-            LastTitle = title;
-            LastMessage = message;
+            LastConfirmationTitle = title;
+            return Task.FromResult(NextConfirmationDecision);
         }
     }
 
@@ -287,6 +318,8 @@ public sealed class TtsRulesViewModelTests
         }
 
         public IReadOnlyList<TtsRuleSummary> Rules { get; set; }
+
+        public int DeleteCallCount { get; private set; }
 
         public Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken)
         {
@@ -334,7 +367,12 @@ public sealed class TtsRulesViewModelTests
 
         public Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken)
+        {
+            DeleteCallCount++;
+            Rules = Rules.Where(rule => rule.Id != ruleId).ToArray();
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeTtsRuleTestService : ITtsRuleTestService

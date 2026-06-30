@@ -15,21 +15,18 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 {
     private readonly ITtsRuleLibraryService _ruleLibraryService;
     private readonly ITtsRuleTestService _ruleTestService;
-    private readonly IExceptionProjector _exceptionProjector;
-    private readonly IAppNotificationService _notificationService;
+    private readonly IAppFeedbackService _feedbackService;
     private TtsRuleImportPreview? _pendingPreview;
     private CancellationTokenSource? _testOperationCts;
 
     public TtsRulesViewModel(
         ITtsRuleLibraryService ruleLibraryService,
         ITtsRuleTestService ruleTestService,
-        IAppNotificationService notificationService,
-        IExceptionProjector exceptionProjector)
+        IAppFeedbackService feedbackService)
     {
         _ruleLibraryService = ruleLibraryService;
         _ruleTestService = ruleTestService;
-        _notificationService = notificationService;
-        _exceptionProjector = exceptionProjector;
+        _feedbackService = feedbackService;
     }
 
     public ObservableCollection<TtsRuleSummary> Rules { get; } = [];
@@ -172,7 +169,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             await LoadAsync(cancellationToken);
             ClearPreview();
             StatusMessage = "规则导入完成。";
-            _notificationService.ShowSuccess(
+            _feedbackService.ShowSuccess(
                 "规则导入完成",
                 $"新增 {result.ImportedCount} 条，跳过 {result.SkippedCount} 条。");
         }
@@ -245,11 +242,23 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             return;
         }
 
+        var confirmation = await _feedbackService.ConfirmDeletionAsync(
+            "删除规则",
+            $"将删除规则“{rule.Name}”。此操作不可撤销。",
+            cancellationToken);
+
+        if (confirmation != AppConfirmationDecision.Confirm)
+        {
+            StatusMessage = $"已取消删除规则：{rule.Name}";
+            return;
+        }
+
         try
         {
             await _ruleLibraryService.DeleteRuleAsync(rule.Id, cancellationToken);
             await LoadAsync(cancellationToken);
             StatusMessage = $"已删除规则：{rule.Name}";
+            _feedbackService.ShowSuccess("规则已删除", $"已删除规则：{rule.Name}。");
             if (SelectedRule is null)
             {
                 ClearTestProjection();
@@ -537,24 +546,8 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
     private void HandleProjectedError(string title, Exception exception)
     {
-        var projected = _exceptionProjector.Project(exception);
+        var projected = _feedbackService.Project(exception);
         StatusMessage = projected.UserMessage;
-        if (projected.IsSilent)
-        {
-            return;
-        }
-
-        switch (projected.Severity)
-        {
-            case UiMessageSeverity.Warning:
-                _notificationService.ShowWarning(title, projected.UserMessage);
-                break;
-            case UiMessageSeverity.Error:
-                _notificationService.ShowError(title, projected.UserMessage);
-                break;
-            default:
-                _notificationService.ShowSuccess(title, projected.UserMessage);
-                break;
-        }
+        _feedbackService.ShowProjectedNotification(title, projected);
     }
 }
