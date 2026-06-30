@@ -4,16 +4,16 @@
              xmlns:local="clr-namespace:NovelSpeaker.App.Views"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              x:Name="Root">
-    <Grid>
-        <Button Padding="0"
-                Background="Transparent"
-                BorderThickness="0"
-                Command="{Binding OpenBookCommand, ElementName=Root}"
-                CommandParameter="{Binding Item, ElementName=Root}"
-                HorizontalContentAlignment="Stretch"
-                VerticalContentAlignment="Stretch">
-            <Border Padding="{StaticResource CardPadding}"
-                    Style="{StaticResource CardBorderStyle}">
+    <Border Padding="{StaticResource CardPadding}"
+            Style="{StaticResource CardBorderStyle}">
+        <Grid>
+            <Button Padding="0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Command="{Binding OpenBookCommand, ElementName=Root}"
+                    CommandParameter="{Binding Item, ElementName=Root}"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Stretch">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -25,7 +25,7 @@
                                          Cover="{Binding Item.Cover, ElementName=Root}" />
 
                     <StackPanel Grid.Column="1"
-                                Margin="16,0,32,0"
+                                Margin="16,0,44,0"
                                 VerticalAlignment="Center">
                         <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                    FontSize="18"
@@ -50,46 +50,52 @@
                                      Value="{Binding Item.ProgressRatio, ElementName=Root, Mode=OneWay}" />
                     </StackPanel>
                 </Grid>
-            </Border>
-        </Button>
+            </Button>
 
-        <Button x:Name="MoreButton"
-                Width="32"
-                Height="32"
-                Margin="0,10,10,0"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Top"
-                AutomationProperties.Name="更多书籍操作"
-                Click="MoreButton_OnClick"
-                ToolTip="更多操作">
-            <Button.Style>
-                <Style TargetType="Button">
-                    <Setter Property="Opacity" Value="0" />
-                    <Setter Property="IsHitTestVisible" Value="False" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsMouseOver, ElementName=Root}" Value="True">
-                            <Setter Property="Opacity" Value="1" />
-                            <Setter Property="IsHitTestVisible" Value="True" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=Root}" Value="True">
-                            <Setter Property="Opacity" Value="1" />
-                            <Setter Property="IsHitTestVisible" Value="True" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Button.Style>
-            <Button.ContextMenu>
-                <ContextMenu>
-                    <MenuItem Command="{Binding OpenBookDetailsCommand}"
-                              CommandParameter="{Binding Item}"
-                              Header="书籍详情" />
-                    <MenuItem Command="{Binding DeleteBookCommand}"
-                              CommandParameter="{Binding Item}"
-                              Header="删除书籍"
-                              IsEnabled="{Binding Item.CanDelete}" />
-                </ContextMenu>
-            </Button.ContextMenu>
-            <ui:SymbolIcon Symbol="MoreHorizontal24" />
-        </Button>
-    </Grid>
+            <Button x:Name="MoreButton"
+                    Width="34"
+                    Height="34"
+                    Margin="0,0,0,0"
+                    Padding="0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    AutomationProperties.Name="更多书籍操作"
+                    Click="MoreButton_OnClick"
+                    ToolTip="更多操作">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Opacity" Value="0" />
+                        <Setter Property="IsHitTestVisible" Value="False" />
+                        <Setter Property="Margin" Value="0,2,2,0" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsMouseOver, ElementName=Root}" Value="True">
+                                <Setter Property="Opacity" Value="1" />
+                                <Setter Property="IsHitTestVisible" Value="True" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=Root}" Value="True">
+                                <Setter Property="Opacity" Value="1" />
+                                <Setter Property="IsHitTestVisible" Value="True" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <Button.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Command="{Binding OpenBookDetailsCommand}"
+                                  CommandParameter="{Binding Item}"
+                                  Header="书籍详情" />
+                        <MenuItem Command="{Binding DeleteBookCommand}"
+                                  CommandParameter="{Binding Item}"
+                                  Header="删除书籍"
+                                  IsEnabled="{Binding Item.CanDelete}" />
+                    </ContextMenu>
+                </Button.ContextMenu>
+                <ui:SymbolIcon Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Symbol="MoreHorizontal24" />
+            </Button>
+        </Grid>
+    </Border>
 </UserControl>
