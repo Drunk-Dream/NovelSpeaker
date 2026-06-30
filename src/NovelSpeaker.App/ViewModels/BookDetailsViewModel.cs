@@ -285,7 +285,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             "保存",
             "放弃",
             "取消",
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
 
         switch (decision)
         {

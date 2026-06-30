@@ -70,7 +70,7 @@ public sealed class BookDeleteDialogService : IBookDeleteDialogService
             CloseButtonText = "取消"
         };
 
-        var result = await _contentDialogService.ShowAsync(dialog, cancellationToken).ConfigureAwait(false);
+        var result = await _contentDialogService.ShowAsync(dialog, cancellationToken);
         return new BookDeleteDialogResult(
             result == ContentDialogResult.Primary,
             deleteCacheCheckBox.IsChecked != false);
