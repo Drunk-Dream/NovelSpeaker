@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/branding/logo.png" alt="NovelSpeaker logo" width="220" />
+</p>
+
 # NovelSpeaker
 
 一款面向 Windows 10/11 的轻量小说听书应用。
