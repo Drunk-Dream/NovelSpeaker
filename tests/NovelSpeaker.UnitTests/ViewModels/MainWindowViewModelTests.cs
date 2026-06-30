@@ -95,6 +95,7 @@ public sealed class MainWindowViewModelTests
             Assert.Equal(typeof(PlayerPage), navigationService.LastNavigationPageType);
             var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigationData);
             Assert.Equal("book-9", request.BookId);
+            Assert.Equal(PlayerNavigationMode.ReturnToCurrentSession, request.Mode);
         });
     }
 

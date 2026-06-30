@@ -26,13 +26,16 @@ public partial class PlayerPage : System.Windows.Controls.Page, INavigationAware
     {
         LastRequest = DataContext as PlayerNavigationRequest;
 
-        if (_hasLoaded)
+        if (!_hasLoaded)
         {
-            return;
+            await ViewModel.LoadAsync(CancellationToken.None);
+            _hasLoaded = true;
         }
 
-        await ViewModel.LoadAsync(CancellationToken.None);
-        _hasLoaded = true;
+        if (LastRequest is not null)
+        {
+            await ViewModel.HandleNavigationAsync(LastRequest, CancellationToken.None);
+        }
     }
 
     public Task OnNavigatedFromAsync()

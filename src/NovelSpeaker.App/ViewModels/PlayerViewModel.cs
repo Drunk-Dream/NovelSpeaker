@@ -5,6 +5,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.App.Navigation;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -87,14 +88,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
         var settings = await _settingsStore.LoadAsync(cancellationToken);
-        var books = await _bookCatalogService.GetBooksAsync(cancellationToken);
-        Books.ReplaceWith(books, book => new LibraryBookItemViewModel(
-            book.Id,
-            book.Title,
-            book.Author,
-            book.CurrentChapterTitle,
-            book.ImportedAt,
-            book.LastPlayedAt));
+        await RefreshBooksAsync(cancellationToken);
 
         var rules = await _ruleLibraryService.GetRulesAsync(cancellationToken);
         Rules.ReplaceWith(rules, rule => new PlayerRuleItemViewModel(rule.Id, rule.Name, rule.IsEnabled, rule.IsSelected));
@@ -115,6 +109,35 @@ public sealed partial class PlayerViewModel : ObservableObject
         {
             SpeakSpeed = settings.DefaultSpeakSpeed;
         }
+    }
+
+    public async Task HandleNavigationAsync(PlayerNavigationRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Books.Any(book => string.Equals(book.Id, request.BookId, StringComparison.Ordinal)))
+        {
+            await RefreshBooksAsync(cancellationToken);
+        }
+
+        SelectedBook = Books.SelectByKeyOrFallback(
+            request.BookId,
+            book => book.Id,
+            SelectedBook);
+
+        var snapshot = _playbackCoordinator.CurrentSnapshot;
+        if (request.Mode == PlayerNavigationMode.ReturnToCurrentSession ||
+            string.Equals(snapshot.BookId, request.BookId, StringComparison.Ordinal))
+        {
+            ApplySnapshot(snapshot);
+            return;
+        }
+
+        await _playbackCoordinator.OpenPausedAsync(
+            new OpenBookPlaybackRequest(request.BookId, null, null, SpeakSpeed),
+            cancellationToken);
+
+        ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
     }
 
     [RelayCommand]
@@ -232,6 +255,18 @@ public sealed partial class PlayerViewModel : ObservableObject
     private void OnSnapshotChanged(object? sender, PlaybackSnapshot snapshot)
     {
         ApplySnapshot(snapshot);
+    }
+
+    private async Task RefreshBooksAsync(CancellationToken cancellationToken)
+    {
+        var books = await _bookCatalogService.GetBooksAsync(cancellationToken);
+        Books.ReplaceWith(books, book => new LibraryBookItemViewModel(
+            book.Id,
+            book.Title,
+            book.Author,
+            book.CurrentChapterTitle,
+            book.ImportedAt,
+            book.LastPlayedAt));
     }
 
     private void ApplySnapshot(PlaybackSnapshot snapshot)

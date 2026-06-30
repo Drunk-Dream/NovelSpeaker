@@ -2,6 +2,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
@@ -185,6 +186,118 @@ public sealed class PlayerViewModelTests
         Assert.Equal("音频解码失败，请重试当前段。", viewModel.DetailText);
     }
 
+    [Fact]
+    public async Task HandleNavigationAsync_open_paused_calls_coordinator_for_different_book()
+    {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章 开始",
+            0,
+            2,
+            5,
+            "默认规则",
+            10,
+            0,
+            700,
+            null,
+            false,
+            false,
+            false));
+        var viewModel = new PlayerViewModel(
+            coordinator,
+            new FakeBookCatalogService(
+                [
+                    new BookSummary("book-1", "示例小说", null, "第一章 开始", "2026-06-24"),
+                    new BookSummary("book-2", "另一本书", null, "第二章", "2026-06-24")
+                ]),
+            new FakeTtsRuleLibraryService([]),
+            new FakeAppSettingsStore(AppSettings.Default));
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-2", PlayerNavigationMode.OpenPaused),
+            CancellationToken.None);
+
+        Assert.Equal(1, coordinator.OpenPausedCallCount);
+        Assert.Equal("book-2", coordinator.LastOpenPausedRequest!.BookId);
+        Assert.Equal("book-2", viewModel.SelectedBook?.Id);
+    }
+
+    [Fact]
+    public async Task HandleNavigationAsync_open_paused_keeps_existing_session_for_same_book()
+    {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Playing,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章 开始",
+            0,
+            2,
+            5,
+            "默认规则",
+            10,
+            120,
+            700,
+            null,
+            false,
+            false,
+            false));
+        var viewModel = new PlayerViewModel(
+            coordinator,
+            new FakeBookCatalogService([new BookSummary("book-1", "示例小说", null, "第一章 开始", "2026-06-24")]),
+            new FakeTtsRuleLibraryService([]),
+            new FakeAppSettingsStore(AppSettings.Default));
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.OpenPaused),
+            CancellationToken.None);
+
+        Assert.Equal(0, coordinator.OpenPausedCallCount);
+        Assert.Equal("book-1", viewModel.SelectedBook?.Id);
+        Assert.Equal("示例小说", viewModel.CurrentTitle);
+    }
+
+    [Fact]
+    public async Task HandleNavigationAsync_return_to_current_session_does_not_reopen_playback()
+    {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Playing,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章 开始",
+            0,
+            2,
+            5,
+            "默认规则",
+            10,
+            120,
+            700,
+            null,
+            false,
+            false,
+            false));
+        var viewModel = new PlayerViewModel(
+            coordinator,
+            new FakeBookCatalogService([new BookSummary("book-1", "示例小说", null, "第一章 开始", "2026-06-24")]),
+            new FakeTtsRuleLibraryService([]),
+            new FakeAppSettingsStore(AppSettings.Default));
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
+
+        Assert.Equal(0, coordinator.OpenPausedCallCount);
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal("book-1", viewModel.SelectedBook?.Id);
+    }
+
     private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
     {
         public FakePlaybackCoordinator()
@@ -204,6 +317,10 @@ public sealed class PlayerViewModelTests
         public long? LastChangedRuleId { get; private set; }
 
         public int PauseCallCount { get; private set; }
+
+        public int OpenPausedCallCount { get; private set; }
+
+        public OpenBookPlaybackRequest? LastOpenPausedRequest { get; private set; }
 
         public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 
@@ -232,6 +349,8 @@ public sealed class PlayerViewModelTests
 
         public Task OpenPausedAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken)
         {
+            OpenPausedCallCount++;
+            LastOpenPausedRequest = request;
             Publish(CurrentSnapshot with
             {
                 State = PlaybackState.Paused,

@@ -45,7 +45,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return;
         }
 
-        _navigationService.NavigateWithHierarchy(typeof(PlayerPage), new PlayerNavigationRequest(_currentBookId));
+        _navigationService.NavigateWithHierarchy(
+            typeof(PlayerPage),
+            new PlayerNavigationRequest(_currentBookId, PlayerNavigationMode.ReturnToCurrentSession));
     }
 
     private void OnSnapshotChanged(object? sender, PlaybackSnapshot snapshot)

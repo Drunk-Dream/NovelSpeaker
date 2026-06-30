@@ -35,11 +35,12 @@ public sealed class NavigationPageLifecycleTests
                 typeof(PlayerPage)
                     .GetField("_hasLoaded", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?
                     .SetValue(page, true);
-                page.DataContext = new PlayerNavigationRequest("book-7");
+                page.DataContext = new PlayerNavigationRequest("book-7", PlayerNavigationMode.ReturnToCurrentSession);
 
                 page.OnNavigatedToAsync().GetAwaiter().GetResult();
 
                 Assert.Equal("book-7", page.LastRequest?.BookId);
+                Assert.Equal(PlayerNavigationMode.ReturnToCurrentSession, page.LastRequest?.Mode);
             }
             finally
             {
