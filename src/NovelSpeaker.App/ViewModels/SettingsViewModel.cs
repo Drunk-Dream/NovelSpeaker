@@ -14,8 +14,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly INavigationService _navigationService;
     private readonly IAppSettingsStore _settingsStore;
     private readonly IThemePreferenceService _themePreferenceService;
-    private readonly IAppNotificationService _notificationService;
-    private readonly IExceptionProjector _exceptionProjector;
+    private readonly IAppFeedbackService _feedbackService;
     private bool _isLoading;
     private bool _isUpdatingThemeSelection;
     private int _themeSelectionVersion;
@@ -24,14 +23,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         IAppSettingsStore settingsStore,
         INavigationService navigationService,
         IThemePreferenceService themePreferenceService,
-        IAppNotificationService notificationService,
-        IExceptionProjector exceptionProjector)
+        IAppFeedbackService feedbackService)
     {
         _settingsStore = settingsStore;
         _navigationService = navigationService;
         _themePreferenceService = themePreferenceService;
-        _notificationService = notificationService;
-        _exceptionProjector = exceptionProjector;
+        _feedbackService = feedbackService;
     }
 
     public IReadOnlyList<string> AvailableLogLevels => AppSettings.SupportedLogLevels;
@@ -112,12 +109,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            var projected = _exceptionProjector.Project(exception);
+            var projected = _feedbackService.Project(exception);
             StatusMessage = projected.UserMessage;
-            if (!projected.IsSilent)
-            {
-                _notificationService.ShowError("设置保存失败", projected.UserMessage);
-            }
+            _feedbackService.ShowProjectedNotification("设置保存失败", projected);
         }
     }
 
@@ -163,12 +157,9 @@ public sealed partial class SettingsViewModel : ObservableObject
             if (!result.IsSuccess)
             {
                 SetSelectedThemeWithoutApplying(result.EffectiveTheme);
-                var projected = _exceptionProjector.Project(result.Exception!);
+                var projected = _feedbackService.Project(result.Exception!);
                 StatusMessage = projected.UserMessage;
-                if (!projected.IsSilent)
-                {
-                    _notificationService.ShowError("主题切换失败", projected.UserMessage);
-                }
+                _feedbackService.ShowProjectedNotification("主题切换失败", projected);
                 return;
             }
 
@@ -179,12 +170,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            var projected = _exceptionProjector.Project(exception);
+            var projected = _feedbackService.Project(exception);
             StatusMessage = projected.UserMessage;
-            if (!projected.IsSilent)
-            {
-                _notificationService.ShowError("主题切换失败", projected.UserMessage);
-            }
+            _feedbackService.ShowProjectedNotification("主题切换失败", projected);
         }
     }
 

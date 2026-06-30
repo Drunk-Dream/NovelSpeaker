@@ -91,7 +91,7 @@ public sealed class SettingsViewModelTests
                 "System",
                 new InvalidOperationException("主题保存失败。"))
         };
-        var notifications = new FakeNotificationService();
+        var notifications = new FakeFeedbackService();
         var viewModel = CreateViewModel(
             new FakeAppSettingsStore(AppSettings.Default),
             themeService: themeService,
@@ -107,14 +107,13 @@ public sealed class SettingsViewModelTests
         FakeAppSettingsStore store,
         FakeNavigationService? navigationService = null,
         FakeThemePreferenceService? themeService = null,
-        FakeNotificationService? notificationService = null)
+        FakeFeedbackService? notificationService = null)
     {
         return new SettingsViewModel(
             store,
             navigationService ?? new FakeNavigationService(),
             themeService ?? new FakeThemePreferenceService(),
-            notificationService ?? new FakeNotificationService(),
-            new ExceptionProjector());
+            notificationService ?? new FakeFeedbackService());
     }
 
     private sealed class FakeAppSettingsStore : IAppSettingsStore
@@ -225,23 +224,28 @@ public sealed class SettingsViewModelTests
         }
     }
 
-    private sealed class FakeNotificationService : IAppNotificationService
+    private sealed class FakeFeedbackService : IAppFeedbackService
     {
         public string? LastTitle { get; private set; }
+
+        public ProjectedUiError Project(Exception exception)
+        {
+            return new ExceptionProjector().Project(exception);
+        }
+
+        public void ShowProjectedNotification(string title, ProjectedUiError projected)
+        {
+            LastTitle = title;
+        }
 
         public void ShowSuccess(string title, string message)
         {
             LastTitle = title;
         }
 
-        public void ShowWarning(string title, string message)
+        public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken)
         {
-            LastTitle = title;
-        }
-
-        public void ShowError(string title, string message)
-        {
-            LastTitle = title;
+            throw new NotSupportedException();
         }
     }
 }
