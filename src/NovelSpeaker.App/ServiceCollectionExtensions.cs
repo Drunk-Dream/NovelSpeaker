@@ -28,15 +28,18 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IExceptionProjector, ExceptionProjector>();
         services.AddSingleton<IAppFeedbackService, AppFeedbackService>();
         services.AddSingleton<IImportBookDialogService, ImportBookDialogService>();
+        services.AddSingleton<IBookDeleteDialogService, BookDeleteDialogService>();
         services.AddSingleton<IShellLayoutController, ShellLayoutController>();
         services.AddSingleton<IBookCoverGenerator, BookCoverGenerator>();
         services.AddSingleton<LibraryScrollState>();
+        services.AddSingleton<IBookCatalogInvalidationState, BookCatalogInvalidationState>();
         services.AddSingleton<IThemeRuntime, WpfUiThemeRuntime>();
         services.AddSingleton<AppThemeStartupCoordinator>();
         services.AddSingleton<IThemePreferenceService, ThemePreferenceService>();
         services.AddSingleton<IFluentWindowAppearanceAdapter, FluentWindowAppearanceAdapter>();
         services.AddSingleton<IMainWindowAppearanceConfigurator, MainWindowAppearanceConfigurator>();
         services.AddSingleton<LibraryViewModel>();
+        services.AddTransient<BookDetailsViewModel>();
         services.AddTransient<ImportBookDialogViewModel>();
         services.AddSingleton<PlayerViewModel>();
         services.AddSingleton<SettingsViewModel>();

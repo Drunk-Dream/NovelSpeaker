@@ -1,19 +1,251 @@
 <Page x:Class="NovelSpeaker.App.Pages.BookDetailsPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid Margin="{StaticResource PagePadding}">
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:views="clr-namespace:NovelSpeaker.App.Views">
+    <ScrollViewer x:Name="PageContent"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  Margin="{StaticResource PagePadding}">
         <StackPanel>
             <Button Padding="12,8"
                     HorizontalAlignment="Left"
-                    Click="BackButton_OnClick"
+                    Command="{Binding BackCommand}"
                     Content="返回" />
 
             <TextBlock Margin="{StaticResource SectionSpacing}"
                        Style="{StaticResource PageTitleTextBlockStyle}"
                        Text="书籍详情" />
-            <TextBlock Margin="{StaticResource ItemSpacing}"
-                       Style="{StaticResource SecondaryTextBlockStyle}"
-                       Text="{Binding PlaceholderText}" />
+
+            <TextBlock Margin="0,12,0,0"
+                       Text="{Binding StatusMessage}"
+                       TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock"
+                           BasedOn="{StaticResource SecondaryTextBlockStyle}">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <Grid Margin="0,20,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <views:BookCoverView Width="168"
+                                     Height="224"
+                                     Cover="{Binding Cover}" />
+
+                <StackPanel Grid.Column="1"
+                            Margin="24,0,0,0">
+                    <TextBlock Style="{StaticResource StrongTextBlockStyle}"
+                               FontSize="28"
+                               Text="{Binding Title}"
+                               TextWrapping="Wrap" />
+                    <TextBlock Margin="0,8,0,0"
+                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Text="{Binding DisplayAuthor}"
+                               TextWrapping="Wrap" />
+
+                    <Border Margin="0,20,0,0"
+                            Padding="{StaticResource CardPadding}"
+                            Style="{StaticResource CardBorderStyle}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Margin="0,0,16,12">
+                                <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Text="源文件名" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Style="{StaticResource PrimaryTextBlockStyle}"
+                                           Text="{Binding OriginalFileName}"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1"
+                                        Margin="0,0,0,12">
+                                <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Text="文本编码" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Style="{StaticResource PrimaryTextBlockStyle}"
+                                           Text="{Binding Encoding}"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1"
+                                        Margin="0,0,16,12">
+                                <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Text="章节总数" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Style="{StaticResource PrimaryTextBlockStyle}"
+                                           Text="{Binding TotalChapterCountText}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1"
+                                        Grid.Column="1"
+                                        Margin="0,0,0,12">
+                                <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Text="当前章节" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Style="{StaticResource PrimaryTextBlockStyle}"
+                                           Text="{Binding CurrentChapterText}"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="2"
+                                        Grid.ColumnSpan="2">
+                                <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Text="总体进度" />
+                                <ProgressBar Margin="0,8,0,0"
+                                             Height="10"
+                                             Maximum="1"
+                                             Value="{Binding ProgressRatio}" />
+                                <TextBlock Margin="0,8,0,0"
+                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                           Text="{Binding ProgressText}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <Grid Margin="0,24,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border Padding="{StaticResource CardPaddingLarge}"
+                        Style="{StaticResource CardBorderStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                                   Text="书籍信息" />
+
+                        <TextBlock Margin="0,16,0,0"
+                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                   Text="书名" />
+                        <TextBox Margin="0,6,0,0"
+                                 Text="{Binding EditTitle, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Margin="0,16,0,0"
+                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                   Text="作者" />
+                        <TextBox Margin="0,6,0,0"
+                                 Text="{Binding EditAuthor, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <WrapPanel Margin="0,16,0,0">
+                            <Button Padding="18,8"
+                                    Command="{Binding SaveCommand}"
+                                    Content="保存" />
+                            <Button Margin="12,0,0,0"
+                                    Padding="18,8"
+                                    Command="{Binding CancelEditCommand}"
+                                    Content="取消" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1"
+                        Margin="24,0,0,0"
+                        Padding="{StaticResource CardPaddingLarge}"
+                        Width="320"
+                        Style="{StaticResource CardBorderStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                                   Text="管理操作" />
+
+                        <TextBlock Margin="0,16,0,0"
+                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                   Text="缓存占用" />
+                        <TextBlock Margin="0,4,0,0"
+                                   Style="{StaticResource StrongTextBlockStyle}"
+                                   Text="{Binding CacheSizeText}" />
+
+                        <Button Margin="0,16,0,0"
+                                Padding="18,8"
+                                Command="{Binding ClearCacheCommand}"
+                                Content="清理本书缓存" />
+
+                        <Button Margin="0,12,0,0"
+                                Padding="18,8"
+                                Command="{Binding DeleteBookCommand}"
+                                Content="删除书籍" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Margin="0,24,0,0"
+                    Padding="{StaticResource CardPaddingLarge}"
+                    Style="{StaticResource CardBorderStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                               Text="章节预览" />
+                    <TextBlock Margin="0,8,0,0"
+                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Text="仅用于检查章节解析结果，当前版本不支持从详情页直接跳转播放。" />
+
+                    <ItemsControl Margin="0,16,0,0"
+                                  ItemsSource="{Binding Chapters}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,12"
+                                        Padding="12"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="10">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="1">
+                                            <WrapPanel>
+                                                <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
+                                                           Text="{Binding IndexText}" />
+                                                <Border Margin="8,0,0,0"
+                                                        Padding="8,2"
+                                                        Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                                        CornerRadius="999">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock FontSize="12"
+                                                               Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
+                                                               Text="当前章节" />
+                                                </Border>
+                                            </WrapPanel>
+                                            <TextBlock Margin="0,4,0,0"
+                                                       Style="{StaticResource StrongTextBlockStyle}"
+                                                       Text="{Binding Title}"
+                                                       TextWrapping="Wrap" />
+                                            <TextBlock Margin="0,6,0,0"
+                                                       Style="{StaticResource SecondaryTextBlockStyle}"
+                                                       Text="{Binding RangeText}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
         </StackPanel>
-    </Grid>
+    </ScrollViewer>
 </Page>

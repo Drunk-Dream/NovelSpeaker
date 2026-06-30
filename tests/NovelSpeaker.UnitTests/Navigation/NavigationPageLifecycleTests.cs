@@ -12,14 +12,20 @@ public sealed class NavigationPageLifecycleTests
     {
         WpfTestHost.RunInSta(() =>
         {
-            var page = new BookDetailsPage(new FakeNavigationService())
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
             {
-                DataContext = new BookDetailsNavigationRequest("book-42")
-            };
+                var page = provider.GetRequiredService<BookDetailsPage>();
+                page.DataContext = new BookDetailsNavigationRequest("book-42");
 
-            page.OnNavigatedToAsync().GetAwaiter().GetResult();
+                page.OnNavigatedToAsync().GetAwaiter().GetResult();
 
-            Assert.Equal("book-42", page.LastRequest?.BookId);
+                Assert.Equal("book-42", page.LastRequest?.BookId);
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
         });
     }
 
@@ -47,31 +53,5 @@ public sealed class NavigationPageLifecycleTests
                 provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
         });
-    }
-
-    private sealed class FakeNavigationService : Wpf.Ui.INavigationService
-    {
-        public Wpf.Ui.Controls.INavigationView GetNavigationControl()
-        {
-            throw new NotSupportedException();
-        }
-
-        public bool GoBack() => false;
-
-        public bool Navigate(Type pageType) => true;
-
-        public bool Navigate(Type pageType, object? dataContext) => true;
-
-        public bool Navigate(string pageIdOrTargetTag) => true;
-
-        public bool Navigate(string pageIdOrTargetTag, object? dataContext) => true;
-
-        public bool NavigateWithHierarchy(Type pageType) => true;
-
-        public bool NavigateWithHierarchy(Type pageType, object? dataContext) => true;
-
-        public void SetNavigationControl(Wpf.Ui.Controls.INavigationView navigation)
-        {
-        }
     }
 }

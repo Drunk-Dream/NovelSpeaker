@@ -1,57 +1,35 @@
 using NovelSpeaker.App.Navigation;
-using Wpf.Ui;
+using NovelSpeaker.App.ViewModels;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Pages;
 
-public partial class BookDetailsPage : System.Windows.Controls.Page, INavigationAware, System.ComponentModel.INotifyPropertyChanged
+public partial class BookDetailsPage : System.Windows.Controls.Page, INavigationAware, INavigableView<BookDetailsViewModel>
 {
-    private readonly INavigationService _navigationService;
-    private string _placeholderText = "当前版本仅建立书籍详情页导航壳，详细内容将在后续任务实现。";
-
-    public BookDetailsPage(INavigationService navigationService)
+    public BookDetailsPage(BookDetailsViewModel viewModel)
     {
-        _navigationService = navigationService;
+        ViewModel = viewModel;
         InitializeComponent();
-        DataContext = this;
+        PageContent.DataContext = ViewModel;
     }
 
-    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
-
-    public string PlaceholderText
-    {
-        get => _placeholderText;
-        private set
-        {
-            if (string.Equals(_placeholderText, value, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            _placeholderText = value;
-            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(PlaceholderText)));
-        }
-    }
+    public BookDetailsViewModel ViewModel { get; }
 
     public BookDetailsNavigationRequest? LastRequest { get; private set; }
 
-    public Task OnNavigatedToAsync()
+    public async Task OnNavigatedToAsync()
     {
         LastRequest = DataContext as BookDetailsNavigationRequest;
-        PlaceholderText = LastRequest is null
-            ? "当前版本仅建立书籍详情页导航壳，详细内容将在后续任务实现。"
-            : $"已接收书籍详情导航参数，BookId: {LastRequest.BookId}";
-        DataContext = this;
-        return Task.CompletedTask;
+        if (LastRequest is null)
+        {
+            return;
+        }
+
+        await ViewModel.LoadAsync(LastRequest.BookId, CancellationToken.None);
     }
 
     public Task OnNavigatedFromAsync()
     {
         return Task.CompletedTask;
-    }
-
-    private void BackButton_OnClick(object sender, System.Windows.RoutedEventArgs e)
-    {
-        _ = _navigationService.GoBack();
     }
 }

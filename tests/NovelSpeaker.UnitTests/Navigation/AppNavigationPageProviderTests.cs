@@ -1,6 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
+using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Navigation;
+using NovelSpeaker.App.Dialogs;
+using NovelSpeaker.App.Feedback;
+using NovelSpeaker.App.Library;
 using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.ViewModels;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
@@ -16,14 +22,29 @@ public sealed class AppNavigationPageProviderTests
         {
             var services = new ServiceCollection();
             services.AddSingleton<INavigationService, FakeNavigationService>();
+            services.AddSingleton<IBookManagementService, FakeBookManagementService>();
+            services.AddSingleton<IBookCoverGenerator, BookCoverGenerator>();
+            services.AddSingleton<IAppFeedbackService, FakeAppFeedbackService>();
+            services.AddSingleton<IAppDialogService, FakeAppDialogService>();
+            services.AddSingleton<IBookDeleteDialogService, FakeBookDeleteDialogService>();
+            services.AddSingleton<IBookCatalogInvalidationState, BookCatalogInvalidationState>();
+            services.AddSingleton<IPlaybackCoordinator, FakePlaybackCoordinator>();
+            services.AddTransient<BookDetailsViewModel>();
             services.AddTransient<BookDetailsPage>();
 
-            using var provider = services.BuildServiceProvider();
-            var pageProvider = new AppNavigationPageProvider(provider);
+            var provider = services.BuildServiceProvider();
+            try
+            {
+                var pageProvider = new AppNavigationPageProvider(provider);
 
-            var page = pageProvider.GetPage(typeof(BookDetailsPage));
+                var page = pageProvider.GetPage(typeof(BookDetailsPage));
 
-            Assert.IsType<BookDetailsPage>(page);
+                Assert.IsType<BookDetailsPage>(page);
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
         });
     }
 
@@ -67,5 +88,117 @@ public sealed class AppNavigationPageProviderTests
         public void SetNavigationControl(INavigationView navigation)
         {
         }
+    }
+
+    private sealed class FakeBookManagementService : IBookManagementService
+    {
+        public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult<BookDetails?>(null);
+        }
+
+        public Task<BookDetails> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<long> ClearBookCacheAsync(string bookId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class FakeAppFeedbackService : IAppFeedbackService
+    {
+        public ProjectedUiError Project(Exception exception) => new("error", UiMessageSeverity.Error, false);
+
+        public void ShowProjectedNotification(string title, ProjectedUiError projected)
+        {
+        }
+
+        public void ShowSuccess(string title, string message)
+        {
+        }
+
+        public void ShowWarning(string title, string message)
+        {
+        }
+
+        public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(AppConfirmationDecision.Cancel);
+        }
+    }
+
+    private sealed class FakeAppDialogService : IAppDialogService
+    {
+        public Task<AppConfirmationDecision> ShowConfirmationAsync(
+            string title,
+            string message,
+            string primaryButtonText,
+            string closeButtonText,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(AppConfirmationDecision.Cancel);
+        }
+
+        public Task<UnsavedChangesDecision> ShowUnsavedChangesAsync(
+            string title,
+            string message,
+            string saveButtonText,
+            string discardButtonText,
+            string cancelButtonText,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(UnsavedChangesDecision.Cancel);
+        }
+    }
+
+    private sealed class FakeBookDeleteDialogService : IBookDeleteDialogService
+    {
+        public Task<BookDeleteDialogResult> ShowAsync(BookDeleteDialogRequest request, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new BookDeleteDialogResult(false, true));
+        }
+    }
+
+    private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
+    {
+        public PlaybackSnapshot CurrentSnapshot { get; } = PlaybackSnapshot.Idle;
+
+        public event EventHandler<PlaybackSnapshot>? SnapshotChanged
+        {
+            add
+            {
+            }
+            remove
+            {
+            }
+        }
+
+        public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task OpenPausedAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PauseAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ResumeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task NextSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PreviousSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task NextChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PreviousChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }
