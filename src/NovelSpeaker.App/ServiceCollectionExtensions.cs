@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using NovelSpeaker.App.Dialogs;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Library;
 using NovelSpeaker.App.Navigation;
@@ -26,6 +27,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAppNotificationService, AppNotificationService>();
         services.AddSingleton<IExceptionProjector, ExceptionProjector>();
         services.AddSingleton<IAppFeedbackService, AppFeedbackService>();
+        services.AddSingleton<IImportBookDialogService, ImportBookDialogService>();
         services.AddSingleton<IShellLayoutController, ShellLayoutController>();
         services.AddSingleton<IBookCoverGenerator, BookCoverGenerator>();
         services.AddSingleton<LibraryScrollState>();
@@ -35,6 +37,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IFluentWindowAppearanceAdapter, FluentWindowAppearanceAdapter>();
         services.AddSingleton<IMainWindowAppearanceConfigurator, MainWindowAppearanceConfigurator>();
         services.AddSingleton<LibraryViewModel>();
+        services.AddTransient<ImportBookDialogViewModel>();
         services.AddSingleton<PlayerViewModel>();
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<ChapterRulesViewModel>();
