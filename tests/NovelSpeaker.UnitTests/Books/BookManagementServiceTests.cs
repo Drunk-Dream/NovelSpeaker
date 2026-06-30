@@ -45,6 +45,63 @@ public sealed class BookManagementServiceTests
     }
 
     [Fact]
+    public async Task UpdateMetadataAsync_rejects_blank_title_and_normalizes_blank_author()
+    {
+        var fixture = await CreateFixtureAsync();
+        await SeedBookAsync(fixture, "book-1", title: "原书名", author: "作者");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Service.UpdateMetadataAsync(
+                new BookMetadataUpdateRequest("book-1", "   ", "作者"),
+                CancellationToken.None));
+
+        var updated = await fixture.Service.UpdateMetadataAsync(
+            new BookMetadataUpdateRequest("book-1", "新书名", "   "),
+            CancellationToken.None);
+
+        Assert.Equal("新书名", updated.Title);
+        Assert.Null(updated.Author);
+    }
+
+    [Fact]
+    public async Task ClearBookCacheAsync_skips_protected_files_and_returns_actual_cleared_bytes()
+    {
+        var fixture = await CreateFixtureAsync();
+        await SeedBookAsync(fixture, "book-1", title: "缓存测试", author: null);
+
+        var first = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段"),
+                "book-1",
+                0,
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        var second = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                AudioCacheKey.FromPlayback("book-1", 0, 1, 1, 10, "第二段"),
+                "book-1",
+                0,
+                1,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        using var protection = fixture.ProtectionRegistry.Protect(second.FilePath);
+
+        var clearedBytes = await fixture.Service.ClearBookCacheAsync("book-1", CancellationToken.None);
+        var remainingDetails = await fixture.Service.GetBookDetailsAsync("book-1", CancellationToken.None);
+
+        Assert.True(clearedBytes > 0);
+        Assert.False(File.Exists(first.FilePath));
+        Assert.True(File.Exists(second.FilePath));
+        Assert.NotNull(remainingDetails);
+        Assert.True(remainingDetails!.CachedAudioBytes > 0);
+    }
+
+    [Fact]
     public async Task DeleteAsync_removes_book_progress_and_internal_files()
     {
         var fixture = await CreateFixtureAsync();
@@ -108,7 +165,7 @@ public sealed class BookManagementServiceTests
         var cache = new SqliteAudioCache(factory, directories, AudioCacheOptions.Default, protectionRegistry);
         var progressStore = new SqliteReadingProgressStore(factory);
         var service = new BookManagementService(factory, directories, cache, protectionRegistry);
-        return new TestFixture(directories, factory, cache, progressStore, service);
+        return new TestFixture(directories, factory, cache, progressStore, protectionRegistry, service);
     }
 
     private static async Task<string> SeedBookAsync(TestFixture fixture, string bookId, string title, string? author)
@@ -155,5 +212,6 @@ public sealed class BookManagementServiceTests
         SqliteConnectionFactory Factory,
         SqliteAudioCache Cache,
         SqliteReadingProgressStore ProgressStore,
+        AudioCacheProtectionRegistry ProtectionRegistry,
         BookManagementService Service);
 }
