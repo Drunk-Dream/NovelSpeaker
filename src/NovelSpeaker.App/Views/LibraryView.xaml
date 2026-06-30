@@ -6,7 +6,7 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:views="clr-namespace:NovelSpeaker.App.Views">
     <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto"
@@ -23,13 +23,13 @@
         <StackPanel>
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <TextBlock VerticalAlignment="Center"
                            Style="{StaticResource PageTitleTextBlockStyle}"
-                           Text="书库" />
+                           Text="书库"/>
 
                 <WrapPanel Grid.Column="1"
                            HorizontalAlignment="Right"
@@ -37,19 +37,19 @@
                     <TextBox Width="240"
                              Margin="0,0,12,0"
                              VerticalContentAlignment="Center"
-                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
                     <Button Margin="0,0,12,0"
                             Command="{Binding ClearSearchCommand}"
-                            Content="清空" />
+                            Content="清空"/>
                     <ComboBox Width="140"
                               Margin="0,0,12,0"
                               DisplayMemberPath="DisplayName"
                               ItemsSource="{Binding AvailableSortOptions}"
                               SelectedValue="{Binding SelectedSortMode}"
-                              SelectedValuePath="Mode" />
+                              SelectedValuePath="Mode"/>
                     <Button Width="120"
                             Click="ImportButton_OnClick"
-                            Content="导入小说" />
+                            Content="导入小说"/>
                 </WrapPanel>
             </Grid>
 
@@ -59,10 +59,13 @@
                 <TextBlock.Style>
                     <Style TargetType="TextBlock"
                            BasedOn="{StaticResource SecondaryTextBlockStyle}">
-                        <Setter Property="Visibility" Value="Visible" />
+                        <Setter Property="Visibility"
+                                Value="Visible"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding StatusMessage}" Value="">
-                                <Setter Property="Visibility" Value="Collapsed" />
+                            <DataTrigger Binding="{Binding StatusMessage}"
+                                    Value="">
+                                <Setter Property="Visibility"
+                                        Value="Collapsed"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -73,61 +76,66 @@
                     Padding="{StaticResource CardPaddingLarge}"
                     Style="{StaticResource CardBorderStyle}">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
-                               Text="书架" />
 
                     <StackPanel Margin="0,20,0,0"
                                 HorizontalAlignment="Center">
                         <StackPanel.Style>
                             <Style TargetType="StackPanel">
-                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Setter Property="Visibility"
+                                        Value="Collapsed"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasBooks}" Value="False">
-                                        <Setter Property="Visibility" Value="Visible" />
+                                    <DataTrigger Binding="{Binding HasBooks}"
+                                            Value="False">
+                                        <Setter Property="Visibility"
+                                                Value="Visible"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </StackPanel.Style>
                         <ui:SymbolIcon HorizontalAlignment="Center"
                                        FontSize="48"
-                                       Symbol="BookOpen24" />
+                                       Symbol="BookOpen24"/>
                         <TextBlock Margin="0,12,0,0"
                                    HorizontalAlignment="Center"
                                    Style="{StaticResource StrongTextBlockStyle}"
-                                   Text="尚未导入小说" />
+                                   Text="尚未导入小说"/>
                         <TextBlock Margin="0,8,0,0"
                                    HorizontalAlignment="Center"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
-                                   Text="将 TXT 拖到这里，或选择文件导入。" />
+                                   Text="将 TXT 拖到这里，或选择文件导入。"/>
                         <Button Margin="0,16,0,0"
                                 Padding="18,8"
                                 Click="ImportButton_OnClick"
-                                Content="导入小说" />
+                                Content="导入小说"/>
                     </StackPanel>
 
                     <StackPanel Margin="0,20,0,0"
                                 HorizontalAlignment="Center">
                         <StackPanel.Style>
                             <Style TargetType="StackPanel">
-                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Setter Property="Visibility"
+                                        Value="Collapsed"/>
                                 <Style.Triggers>
                                     <MultiDataTrigger>
                                         <MultiDataTrigger.Conditions>
-                                            <Condition Binding="{Binding HasBooks}" Value="True" />
-                                            <Condition Binding="{Binding HasVisibleBooks}" Value="False" />
+                                            <Condition Binding="{Binding HasBooks}"
+                                                    Value="True"/>
+                                            <Condition Binding="{Binding HasVisibleBooks}"
+                                                    Value="False"/>
                                         </MultiDataTrigger.Conditions>
-                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Setter Property="Visibility"
+                                                Value="Visible"/>
                                     </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </StackPanel.Style>
                         <TextBlock HorizontalAlignment="Center"
                                    Style="{StaticResource StrongTextBlockStyle}"
-                                   Text="没有找到匹配的书籍" />
+                                   Text="没有找到匹配的书籍"/>
                         <TextBlock Margin="0,8,0,0"
                                    HorizontalAlignment="Center"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
-                                   Text="试试修改关键词，或清空搜索条件。" />
+                                   Text="试试修改关键词，或清空搜索条件。"/>
                     </StackPanel>
 
                     <ItemsControl x:Name="BooksItemsControl"
@@ -136,12 +144,13 @@
                                   Visibility="{Binding HasVisibleBooks, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <WrapPanel ItemWidth="340" />
+                                <WrapPanel ItemWidth="340"/>
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemContainerStyle>
                             <Style TargetType="ContentPresenter">
-                                <Setter Property="Margin" Value="0,0,16,16" />
+                                <Setter Property="Margin"
+                                        Value="0,0,16,16"/>
                             </Style>
                         </ItemsControl.ItemContainerStyle>
                         <ItemsControl.ItemTemplate>
@@ -149,7 +158,7 @@
                                 <views:BookCardView Item="{Binding}"
                                                     DeleteBookCommand="{Binding DataContext.DeleteBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                     OpenBookCommand="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                    OpenBookDetailsCommand="{Binding DataContext.OpenBookDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                                    OpenBookDetailsCommand="{Binding DataContext.OpenBookDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
