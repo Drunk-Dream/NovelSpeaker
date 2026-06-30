@@ -73,11 +73,13 @@
         </ui:NavigationView>
 
         <ui:ContentDialogHost x:Name="RootContentDialogHost"
+                              Grid.RowSpan="2"
                               Panel.ZIndex="10" />
         <ui:SnackbarPresenter x:Name="RootSnackbarPresenter"
-                              Margin="16"
+                              Grid.RowSpan="2"
+                              Margin="16,48,16,16"
                               HorizontalAlignment="Right"
-                              VerticalAlignment="Bottom"
+                              VerticalAlignment="Top"
                               Panel.ZIndex="20" />
     </Grid>
 </ui:FluentWindow>
