@@ -62,7 +62,7 @@
                         <ui:SymbolIcon Symbol="{Binding NowPlayingSymbol}" />
                     </ui:NavigationViewItem.Icon>
                     <StackPanel>
-                        <TextBlock FontWeight="SemiBold"
+                        <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                    Text="{Binding NowPlayingTitle}" />
                         <TextBlock FontSize="12"
                                    Style="{StaticResource SecondaryTextBlockStyle}"

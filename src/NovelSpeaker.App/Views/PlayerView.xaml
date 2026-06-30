@@ -15,7 +15,7 @@
                            TextWrapping="Wrap"
                            Text="{Binding Headline}" />
                 <TextBlock Margin="0,16,0,0"
-                           FontWeight="SemiBold"
+                           Style="{StaticResource StrongTextBlockStyle}"
                            Text="选择书籍" />
                 <ComboBox Margin="0,8,0,0"
                           DisplayMemberPath="Title"
@@ -23,7 +23,7 @@
                           SelectedItem="{Binding SelectedBook}" />
 
                 <TextBlock Margin="0,16,0,0"
-                           FontWeight="SemiBold"
+                           Style="{StaticResource StrongTextBlockStyle}"
                            Text="选择规则" />
                 <ComboBox Margin="0,8,0,0"
                           DisplayMemberPath="Name"
@@ -35,7 +35,7 @@
                         Content="应用当前规则" />
 
                 <TextBlock Margin="0,16,0,0"
-                           FontWeight="SemiBold"
+                           Style="{StaticResource StrongTextBlockStyle}"
                            Text="语速" />
                 <StackPanel Margin="0,8,0,0"
                             Orientation="Horizontal">
@@ -56,11 +56,13 @@
 
         <StackPanel Grid.Column="2">
             <TextBlock FontSize="26"
+                       Style="{StaticResource PrimaryTextBlockStyle}"
                        FontWeight="SemiBold"
                        TextWrapping="Wrap"
                        Text="{Binding CurrentTitle}" />
             <TextBlock Margin="0,10,0,0"
                        FontSize="18"
+                       Style="{StaticResource PrimaryTextBlockStyle}"
                        FontWeight="SemiBold"
                        TextWrapping="Wrap"
                        Text="{Binding CurrentChapterTitle}" />
@@ -71,6 +73,7 @@
                        Text="{Binding CurrentRuleText}" />
             <TextBlock Margin="0,8,0,0"
                        FontSize="16"
+                       Style="{StaticResource PrimaryTextBlockStyle}"
                        Text="{Binding StatusText}" />
             <TextBlock Margin="0,6,0,0"
                        Style="{StaticResource SecondaryTextBlockStyle}"

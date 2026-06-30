@@ -10,9 +10,11 @@
         <StackPanel>
             <StackPanel>
                 <TextBlock Style="{StaticResource PageTitleTextBlockStyle}" Text="TTS 规则" />
-                <TextBlock Margin="0,8,0,0" Text="{Binding StatusMessage}" />
                 <TextBlock Margin="0,8,0,0"
-                           FontWeight="SemiBold"
+                           Style="{StaticResource SecondaryTextBlockStyle}"
+                           Text="{Binding StatusMessage}" />
+                <TextBlock Margin="0,8,0,0"
+                           Style="{StaticResource StrongTextBlockStyle}"
                            Text="{Binding CurrentRuleDisplayText}" />
                 <WrapPanel Margin="0,12,0,0">
                     <Button Margin="0,0,12,12" Padding="18,10" Content="从文件导入" Click="ImportFromFileButton_OnClick" />
@@ -32,6 +34,7 @@
                                Style="{StaticResource SecondaryTextBlockStyle}"
                                Text="{Binding PreviewSourceDescription}" />
                     <TextBlock Margin="0,8,0,0"
+                               Style="{StaticResource PrimaryTextBlockStyle}"
                                TextWrapping="Wrap"
                                Text="{Binding PreviewStatusMessage}" />
                     <DataGrid Margin="0,12,0,0"
@@ -78,7 +81,7 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0">
-                            <TextBlock FontWeight="SemiBold" Text="试听文本" />
+                            <TextBlock Style="{StaticResource StrongTextBlockStyle}" Text="试听文本" />
                             <TextBox Margin="0,6,0,0"
                                      MinHeight="90"
                                      AcceptsReturn="True"
@@ -86,7 +89,7 @@
                                      Text="{Binding TestSpeakText, UpdateSourceTrigger=PropertyChanged}" />
 
                             <TextBlock Margin="0,12,0,0"
-                                       FontWeight="SemiBold"
+                                       Style="{StaticResource StrongTextBlockStyle}"
                                        Text="临时登录信息" />
                             <TextBlock Margin="0,6,0,0"
                                        Style="{StaticResource SecondaryTextBlockStyle}"
@@ -99,7 +102,7 @@
                         </StackPanel>
 
                         <StackPanel Grid.Column="2">
-                            <TextBlock FontWeight="SemiBold" Text="试听语速" />
+                            <TextBlock Style="{StaticResource StrongTextBlockStyle}" Text="试听语速" />
                             <TextBox Margin="0,6,0,0"
                                      Width="120"
                                      Text="{Binding TestSpeakSpeed, UpdateSourceTrigger=PropertyChanged}" />
@@ -124,7 +127,7 @@
                             </WrapPanel>
 
                             <TextBlock Margin="0,10,0,0"
-                                       FontWeight="SemiBold"
+                                       Style="{StaticResource StrongTextBlockStyle}"
                                        Text="{Binding LastResponseStatusText}" />
                             <TextBox Margin="0,6,0,0"
                                      MinHeight="90"
@@ -147,14 +150,14 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock FontWeight="SemiBold" Text="方法" />
+                        <TextBlock Style="{StaticResource StrongTextBlockStyle}" Text="方法" />
                         <TextBox Grid.Column="1"
                                  Margin="12,0,0,8"
                                  IsReadOnly="True"
                                  Text="{Binding PreviewMethodText}" />
 
                         <TextBlock Grid.Row="1"
-                                   FontWeight="SemiBold"
+                                   Style="{StaticResource StrongTextBlockStyle}"
                                    Text="URL" />
                         <TextBox Grid.Row="1"
                                  Grid.Column="1"
@@ -164,7 +167,7 @@
                                  Text="{Binding PreviewUrlText}" />
 
                         <TextBlock Grid.Row="2"
-                                   FontWeight="SemiBold"
+                                   Style="{StaticResource StrongTextBlockStyle}"
                                    Text="Headers" />
                         <TextBox Grid.Row="2"
                                  Grid.Column="1"
@@ -175,7 +178,7 @@
                                  Text="{Binding PreviewHeadersText}" />
 
                         <TextBlock Grid.Row="3"
-                                   FontWeight="SemiBold"
+                                   Style="{StaticResource StrongTextBlockStyle}"
                                    Text="Body" />
                         <TextBox Grid.Row="3"
                                  Grid.Column="1"
@@ -188,7 +191,7 @@
                         <StackPanel Grid.Row="4"
                                     Grid.ColumnSpan="2"
                                     Margin="0,4,0,0">
-                            <TextBlock FontWeight="SemiBold"
+                            <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                        Text="{Binding PreviewDeclaredContentTypeText, StringFormat=声明 Content-Type：{0}}" />
                             <TextBox Margin="0,8,0,0"
                                      MinHeight="52"
