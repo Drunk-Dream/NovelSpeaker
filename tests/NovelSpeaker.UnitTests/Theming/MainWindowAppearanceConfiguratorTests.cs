@@ -1,5 +1,6 @@
 using NovelSpeaker.App.Theming;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Windows;
 using Wpf.Ui.Controls;
 using Xunit;
 
@@ -18,9 +19,23 @@ public sealed class MainWindowAppearanceConfiguratorTests
             configurator.Configure(new Wpf.Ui.Controls.FluentWindow());
         });
 
-        Assert.True(adapter.ExtendsContentIntoTitleBarValue);
+        Assert.False(adapter.ExtendsContentIntoTitleBarValue);
         Assert.Equal(WindowBackdropType.Mica, adapter.LastBackdropType);
         Assert.Equal([WindowBackdropType.Mica], adapter.AttemptedBackdropTypes);
+    }
+
+    [Fact]
+    public void Configure_ignores_standard_window_instances()
+    {
+        var adapter = new FakeFluentWindowAppearanceAdapter();
+
+        RunSta(() =>
+        {
+            var configurator = new MainWindowAppearanceConfigurator(adapter, NullLogger<MainWindowAppearanceConfigurator>.Instance);
+            configurator.Configure(new Window());
+        });
+
+        Assert.Empty(adapter.AttemptedBackdropTypes);
     }
 
     [Fact]
@@ -36,7 +51,7 @@ public sealed class MainWindowAppearanceConfiguratorTests
         });
 
         Assert.Null(exception);
-        Assert.True(adapter.ExtendsContentIntoTitleBarValue);
+        Assert.False(adapter.ExtendsContentIntoTitleBarValue);
         Assert.Null(adapter.LastBackdropType);
         Assert.Equal([WindowBackdropType.Mica], adapter.AttemptedBackdropTypes);
     }

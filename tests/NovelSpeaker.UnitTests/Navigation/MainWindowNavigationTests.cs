@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows.Controls;
+using System.Windows;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App;
 using NovelSpeaker.App.Navigation;
@@ -24,12 +25,16 @@ public sealed class MainWindowNavigationTests
             var navigationService = new FakeNavigationService();
             var pageProvider = new FakeNavigationViewPageProvider();
             var appearanceConfigurator = new FakeMainWindowAppearanceConfigurator();
+            var contentDialogService = new FakeContentDialogService();
+            var snackbarService = new FakeSnackbarService();
             using var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
 
             var window = new MainWindow(
                 new MainWindowViewModel(new FakePlaybackCoordinator(), navigationService),
+                contentDialogService,
                 navigationService,
                 pageProvider,
+                snackbarService,
                 serviceProvider,
                 appearanceConfigurator,
                 new ShellLayoutController());
@@ -38,6 +43,8 @@ public sealed class MainWindowNavigationTests
             window.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.FrameworkElement.LoadedEvent));
 
             Assert.Equal(1, appearanceConfigurator.ConfigureCallCount);
+            Assert.Equal(1, contentDialogService.SetDialogHostCallCount);
+            Assert.Equal(1, snackbarService.SetPresenterCallCount);
             Assert.Same(GetNavigationView(window), navigationService.NavigationControl);
             Assert.Equal(typeof(LibraryPage), navigationService.LastNavigationPageType);
             Assert.Equal(1, navigationService.NavigateCallCount);
@@ -50,10 +57,14 @@ public sealed class MainWindowNavigationTests
         WpfTestHost.RunInSta(() =>
         {
             using var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
+            var contentDialogService = new FakeContentDialogService();
+            var snackbarService = new FakeSnackbarService();
             var window = new MainWindow(
                 new MainWindowViewModel(new FakePlaybackCoordinator(), new FakeNavigationService()),
+                contentDialogService,
                 new FakeNavigationService(),
                 new FakeNavigationViewPageProvider(),
+                snackbarService,
                 serviceProvider,
                 new FakeMainWindowAppearanceConfigurator(),
                 new ShellLayoutController());
@@ -74,6 +85,7 @@ public sealed class MainWindowNavigationTests
             Assert.Equal(820d, window.Height);
             Assert.Equal(900d, window.MinWidth);
             Assert.Equal(640d, window.MinHeight);
+            Assert.True(window.ExtendsContentIntoTitleBar);
         });
     }
 
@@ -141,9 +153,57 @@ public sealed class MainWindowNavigationTests
     {
         public int ConfigureCallCount { get; private set; }
 
-        public void Configure(FluentWindow window)
+        public void Configure(Window window)
         {
             ConfigureCallCount++;
+        }
+    }
+
+    private sealed class FakeContentDialogService : IContentDialogService
+    {
+        public int SetDialogHostCallCount { get; private set; }
+
+        public void SetDialogHost(ContentPresenter contentPresenter)
+        {
+            SetDialogHostCallCount++;
+        }
+
+        public void SetContentPresenter(ContentPresenter contentPresenter)
+        {
+        }
+
+        public void SetDialogHost(ContentDialogHost contentDialogHost)
+        {
+            SetDialogHostCallCount++;
+        }
+
+        public ContentPresenter GetDialogHost() => new();
+
+        public ContentPresenter GetContentPresenter() => new();
+
+        public ContentDialogHost GetDialogHostEx() => new();
+
+        public Task<ContentDialogResult> ShowAsync(ContentDialog dialog, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(ContentDialogResult.None);
+        }
+    }
+
+    private sealed class FakeSnackbarService : ISnackbarService
+    {
+        public int SetPresenterCallCount { get; private set; }
+
+        public TimeSpan DefaultTimeOut { get; set; }
+
+        public void SetSnackbarPresenter(SnackbarPresenter contentPresenter)
+        {
+            SetPresenterCallCount++;
+        }
+
+        public SnackbarPresenter GetSnackbarPresenter() => new();
+
+        public void Show(string title, string message, ControlAppearance appearance, IconElement? icon, TimeSpan timeout)
+        {
         }
     }
 

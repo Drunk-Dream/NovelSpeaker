@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using System.Windows;
 using Wpf.Ui.Controls;
 
 namespace NovelSpeaker.App.Theming;
@@ -16,15 +17,18 @@ public sealed class MainWindowAppearanceConfigurator : IMainWindowAppearanceConf
         _logger = logger;
     }
 
-    public void Configure(FluentWindow window)
+    public void Configure(Window window)
     {
         ArgumentNullException.ThrowIfNull(window);
 
-        _appearanceAdapter.SetExtendsContentIntoTitleBar(window, true);
+        if (window is not FluentWindow fluentWindow)
+        {
+            return;
+        }
 
         try
         {
-            _appearanceAdapter.SetBackdrop(window, WindowBackdropType.Mica);
+            _appearanceAdapter.SetBackdrop(fluentWindow, WindowBackdropType.Mica);
         }
         catch (Exception exception)
         {

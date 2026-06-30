@@ -8,59 +8,76 @@
                   Height="820"
                   MinWidth="900"
                   MinHeight="640"
+                  WindowCornerPreference="Round"
+                  ExtendsContentIntoTitleBar="True"
                   Background="{StaticResource ThemeWindowBackgroundBrush}">
     <ui:FluentWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </ui:FluentWindow.Resources>
 
-    <ui:NavigationView x:Name="RootNavigationView"
-                       PaneTitle="NovelSpeaker"
-                       OpenPaneLength="{StaticResource NavigationPaneOpenWidth}"
-                       CompactPaneLength="{StaticResource NavigationPaneCompactWidth}"
-                       IsBackButtonVisible="Collapsed"
-                       IsPaneToggleVisible="True"
-                       IsFooterSeparatorVisible="False"
-                       PaneDisplayMode="Left"
-                       Background="{StaticResource ThemePageBackgroundBrush}">
-        <ui:NavigationView.TitleBar>
-            <ui:TitleBar Title="NovelSpeaker"
-                         ShowMinimize="True"
-                         ShowMaximize="True"
-                         ShowClose="True" />
-        </ui:NavigationView.TitleBar>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-        <ui:NavigationView.MenuItems>
-            <ui:NavigationViewItem x:Name="LibraryNavigationItem"
-                                   Content="书库"
-                                   TargetPageType="{x:Type pages:LibraryPage}">
-                <ui:NavigationViewItem.Icon>
-                    <ui:SymbolIcon Symbol="Book24" />
-                </ui:NavigationViewItem.Icon>
-            </ui:NavigationViewItem>
-            <ui:NavigationViewItem x:Name="SettingsNavigationItem"
-                                   Content="设置"
-                                   TargetPageType="{x:Type pages:SettingsPage}">
-                <ui:NavigationViewItem.Icon>
-                    <ui:SymbolIcon Symbol="Settings24" />
-                </ui:NavigationViewItem.Icon>
-            </ui:NavigationViewItem>
-        </ui:NavigationView.MenuItems>
+        <ui:TitleBar Grid.Row="0"
+                     Title="NovelSpeaker"
+                     ShowMinimize="True"
+                     ShowMaximize="True"
+                     ShowClose="True" />
 
-        <ui:NavigationView.FooterMenuItems>
-            <ui:NavigationViewItem x:Name="PlaybackNavigationItem"
-                                   Click="PlaybackNavigationItem_OnClick"
-                                   Visibility="{Binding IsNowPlayingVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <ui:NavigationViewItem.Icon>
-                    <ui:SymbolIcon Symbol="{Binding NowPlayingSymbol}" />
-                </ui:NavigationViewItem.Icon>
-                <StackPanel>
-                    <TextBlock FontWeight="SemiBold"
-                               Text="{Binding NowPlayingTitle}" />
-                    <TextBlock FontSize="12"
-                               Style="{StaticResource SecondaryTextBlockStyle}"
-                               Text="{Binding NowPlayingStatus}" />
-                </StackPanel>
-            </ui:NavigationViewItem>
-        </ui:NavigationView.FooterMenuItems>
-    </ui:NavigationView>
+        <ui:NavigationView x:Name="RootNavigationView"
+                           Grid.Row="1"
+                           PaneTitle=""
+                           OpenPaneLength="{StaticResource NavigationPaneOpenWidth}"
+                           CompactPaneLength="{StaticResource NavigationPaneCompactWidth}"
+                           IsBackButtonVisible="Collapsed"
+                           IsPaneToggleVisible="True"
+                           IsFooterSeparatorVisible="False"
+                           PaneDisplayMode="Left"
+                           Background="{StaticResource ThemePageBackgroundBrush}">
+            <ui:NavigationView.MenuItems>
+                <ui:NavigationViewItem x:Name="LibraryNavigationItem"
+                                       Content="书库"
+                                       TargetPageType="{x:Type pages:LibraryPage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Book24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem x:Name="SettingsNavigationItem"
+                                       Content="设置"
+                                       TargetPageType="{x:Type pages:SettingsPage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Settings24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+            </ui:NavigationView.MenuItems>
+
+            <ui:NavigationView.FooterMenuItems>
+                <ui:NavigationViewItem x:Name="PlaybackNavigationItem"
+                                       Click="PlaybackNavigationItem_OnClick"
+                                       Visibility="{Binding IsNowPlayingVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="{Binding NowPlayingSymbol}" />
+                    </ui:NavigationViewItem.Icon>
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold"
+                                   Text="{Binding NowPlayingTitle}" />
+                        <TextBlock FontSize="12"
+                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                   Text="{Binding NowPlayingStatus}" />
+                    </StackPanel>
+                </ui:NavigationViewItem>
+            </ui:NavigationView.FooterMenuItems>
+        </ui:NavigationView>
+
+        <ui:ContentDialogHost x:Name="RootContentDialogHost"
+                              Panel.ZIndex="10" />
+        <ui:SnackbarPresenter x:Name="RootSnackbarPresenter"
+                              Margin="16"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Bottom"
+                              Panel.ZIndex="20" />
+    </Grid>
 </ui:FluentWindow>

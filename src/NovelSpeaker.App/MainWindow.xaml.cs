@@ -15,9 +15,11 @@ namespace NovelSpeaker.App;
 public partial class MainWindow : FluentWindow
 {
     private readonly IMainWindowAppearanceConfigurator _appearanceConfigurator;
+    private readonly IContentDialogService _contentDialogService;
     private readonly INavigationService _navigationService;
     private readonly INavigationViewPageProvider _pageProvider;
     private readonly IShellLayoutController _shellLayoutController;
+    private readonly ISnackbarService _snackbarService;
     private readonly IServiceProvider _serviceProvider;
     private readonly MainWindowViewModel _viewModel;
     private bool _isShellInfrastructureConfigured;
@@ -25,16 +27,20 @@ public partial class MainWindow : FluentWindow
 
     public MainWindow(
         MainWindowViewModel viewModel,
+        IContentDialogService contentDialogService,
         INavigationService navigationService,
         INavigationViewPageProvider pageProvider,
+        ISnackbarService snackbarService,
         IServiceProvider serviceProvider,
         IMainWindowAppearanceConfigurator appearanceConfigurator,
         IShellLayoutController shellLayoutController)
     {
         _appearanceConfigurator = appearanceConfigurator;
+        _contentDialogService = contentDialogService;
         _navigationService = navigationService;
         _pageProvider = pageProvider;
         _shellLayoutController = shellLayoutController;
+        _snackbarService = snackbarService;
         _serviceProvider = serviceProvider;
         _viewModel = viewModel;
 
@@ -53,6 +59,8 @@ public partial class MainWindow : FluentWindow
     {
         if (!_isShellInfrastructureConfigured)
         {
+            _contentDialogService.SetDialogHost(RootContentDialogHost);
+            _snackbarService.SetSnackbarPresenter(RootSnackbarPresenter);
             _appearanceConfigurator.Configure(this);
             _isShellInfrastructureConfigured = true;
         }

@@ -1,8 +1,8 @@
-using Wpf.Ui.Controls;
+using System.Windows;
 
 namespace NovelSpeaker.App.Theming;
 
 public interface IMainWindowAppearanceConfigurator
 {
-    void Configure(FluentWindow window);
+    void Configure(Window window);
 }
