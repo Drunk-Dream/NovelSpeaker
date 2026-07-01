@@ -85,6 +85,7 @@ internal static class WpfTestHost
                     "InitializeComponent",
                     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
                 initializeComponent?.Invoke(application, null);
+                application.ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
             }
             catch (Exception exception)
             {
