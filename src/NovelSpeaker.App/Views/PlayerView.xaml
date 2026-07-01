@@ -6,7 +6,6 @@
           ClipToBounds="True">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -56,148 +55,146 @@
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Top">
-                <Button Padding="14,8"
+                <Button x:Name="RuleMenuButton"
+                        Padding="14,8"
                         Command="{Binding ToggleRuleMenuCommand}"
                         Content="规则" />
-                <Button Margin="12,0,0,0"
+                <Button x:Name="SpeedMenuButton"
+                        Margin="12,0,0,0"
                         Padding="14,8"
                         Command="{Binding ToggleSpeedMenuCommand}"
                         Content="{Binding SpeakSpeedButtonText}" />
             </StackPanel>
+
+            <Popup PlacementTarget="{Binding ElementName=RuleMenuButton}"
+                   Placement="Bottom"
+                   HorizontalOffset="0"
+                   VerticalOffset="8"
+                   AllowsTransparency="True"
+                   PopupAnimation="Fade"
+                   StaysOpen="False"
+                   IsOpen="{Binding IsRuleMenuOpen, Mode=TwoWay}">
+                <Border Width="320"
+                        Padding="{StaticResource CardPadding}"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                                   Text="切换规则" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                   Text="当前规则仅在菜单中显示勾选。" />
+                        <ItemsControl Margin="0,16,0,0"
+                                      ItemsSource="{Binding Rules}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Margin="0,0,0,8"
+                                            Padding="12,8"
+                                            HorizontalContentAlignment="Stretch"
+                                            IsEnabled="{Binding IsEnabled}"
+                                            Command="{Binding DataContext.SelectRuleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
+                                                       Text="{Binding Name}" />
+                                            <TextBlock Grid.Column="1"
+                                                       Margin="12,0,0,0"
+                                                       Text="当前">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock"
+                                                           BasedOn="{StaticResource SecondaryTextBlockStyle}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Margin="0,12,0,0"
+                                   Text="尚无可用规则。">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock"
+                                       BasedOn="{StaticResource SecondaryTextBlockStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasRules}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <Button Margin="0,12,0,0"
+                                Padding="14,8"
+                                HorizontalAlignment="Left"
+                                Command="{Binding OpenRulesManagementCommand}"
+                                Content="前往规则管理" />
+                    </StackPanel>
+                </Border>
+            </Popup>
+
+            <Popup PlacementTarget="{Binding ElementName=SpeedMenuButton}"
+                   Placement="Bottom"
+                   HorizontalOffset="0"
+                   VerticalOffset="8"
+                   AllowsTransparency="True"
+                   PopupAnimation="Fade"
+                   StaysOpen="False"
+                   IsOpen="{Binding IsSpeedMenuOpen, Mode=TwoWay}">
+                <Border Width="280"
+                        Padding="{StaticResource CardPadding}"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                                   Text="调整语速" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                   Text="输入后端实际使用的原始整数值。" />
+                        <TextBox Margin="0,16,0,0"
+                                 Width="120"
+                                 Text="{Binding SpeedEditorText, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Text="{Binding SpeedEditorErrorText}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock"
+                                       BasedOn="{StaticResource ErrorTextBlockStyle}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SpeedEditorErrorText}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <Button Margin="0,12,0,0"
+                                Padding="14,8"
+                                HorizontalAlignment="Left"
+                                Command="{Binding ApplySpeakSpeedCommand}"
+                                Content="应用语速" />
+                    </StackPanel>
+                </Border>
+            </Popup>
         </Grid>
 
         <Grid Grid.Row="1"
-              Margin="0,16,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <Border Margin="0,0,12,0"
-                    Padding="{StaticResource CardPadding}">
-                <Border.Style>
-                    <Style TargetType="Border"
-                           BasedOn="{StaticResource CardBorderStyle}">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsRuleMenuOpen}" Value="True">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <StackPanel>
-                    <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
-                               Text="切换规则" />
-                    <TextBlock Margin="0,8,0,0"
-                               Style="{StaticResource SecondaryTextBlockStyle}"
-                               Text="当前规则仅在菜单中显示勾选。" />
-                    <ItemsControl Margin="0,16,0,0"
-                                  ItemsSource="{Binding Rules}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Button Margin="0,0,0,8"
-                                        Padding="12,8"
-                                        HorizontalContentAlignment="Stretch"
-                                        Command="{Binding DataContext.SelectRuleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
-                                                   Text="{Binding Name}" />
-                                        <TextBlock Grid.Column="1"
-                                                   Margin="12,0,0,0"
-                                                   Text="当前">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock"
-                                                       BasedOn="{StaticResource SecondaryTextBlockStyle}">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                            <Setter Property="Visibility" Value="Visible" />
-                                                            <Setter Property="FontWeight" Value="SemiBold" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                    </Grid>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <TextBlock Margin="0,12,0,0"
-                               Text="尚无可用规则。">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock"
-                                   BasedOn="{StaticResource SecondaryTextBlockStyle}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasRules}" Value="False">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <Button Margin="0,12,0,0"
-                            Padding="14,8"
-                            HorizontalAlignment="Left"
-                            Command="{Binding OpenRulesManagementCommand}"
-                            Content="前往规则管理" />
-                </StackPanel>
-            </Border>
-
-            <Border Grid.Column="1"
-                    Margin="12,0,0,0"
-                    Padding="{StaticResource CardPadding}">
-                <Border.Style>
-                    <Style TargetType="Border"
-                           BasedOn="{StaticResource CardBorderStyle}">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsSpeedMenuOpen}" Value="True">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <StackPanel>
-                    <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
-                               Text="调整语速" />
-                    <TextBlock Margin="0,8,0,0"
-                               Style="{StaticResource SecondaryTextBlockStyle}"
-                               Text="输入后端实际使用的原始整数值。" />
-                    <TextBox Margin="0,16,0,0"
-                             Width="120"
-                             Text="{Binding SpeedEditorText, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Margin="0,8,0,0"
-                               Text="{Binding SpeedEditorErrorText}">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock"
-                                   BasedOn="{StaticResource ErrorTextBlockStyle}">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SpeedEditorErrorText}" Value="">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <Button Margin="0,12,0,0"
-                            Padding="14,8"
-                            HorizontalAlignment="Left"
-                            Command="{Binding ApplySpeakSpeedCommand}"
-                            Content="应用语速" />
-                </StackPanel>
-            </Border>
-        </Grid>
-
-        <Grid Grid.Row="2"
               Margin="0,20,0,0"
               MinHeight="0">
             <Grid.ColumnDefinitions>
@@ -315,6 +312,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <Border Padding="{StaticResource CardPadding}"
@@ -364,55 +362,84 @@
                                        Text="正文预览" />
                             <TextBlock Grid.Column="1"
                                        Style="{StaticResource SecondaryTextBlockStyle}"
-                                       Text="{Binding CurrentSegmentCounterText}" />
+                                       Text="{Binding DisplayedSegmentCounterText}" />
                         </Grid>
 
-                        <ListBox x:Name="SegmentListBox"
-                                 Grid.Row="1"
-                                 Margin="0,16,0,0"
-                                 MinHeight="0"
-                                 ItemsSource="{Binding Segments}"
-                                 BorderThickness="0"
-                                 Background="Transparent"
-                                 HorizontalContentAlignment="Stretch"
-                                 ScrollViewer.CanContentScroll="True"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                 VirtualizingPanel.IsVirtualizing="True"
-                                 VirtualizingPanel.VirtualizationMode="Recycling">
-                            <ListBox.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <VirtualizingStackPanel />
-                                </ItemsPanelTemplate>
-                            </ListBox.ItemsPanel>
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Margin="0,0,0,12"
-                                            Padding="16,14"
-                                            HorizontalContentAlignment="Left"
-                                            Command="{Binding DataContext.SelectSegmentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="{Binding}"
-                                            Opacity="{Binding Opacity}">
-                                        <Button.Style>
-                                            <Style TargetType="Button">
-                                                <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
-                                                <Setter Property="FontWeight" Value="Normal" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                                        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                                                        <Setter Property="FontWeight" Value="SemiBold" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                        <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
-                                                   Text="{Binding Text}"
-                                                   TextWrapping="Wrap"
-                                                   LineHeight="28" />
-                                    </Button>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
+                        <Grid Grid.Row="1"
+                              Margin="0,16,0,0"
+                              MinHeight="0">
+                            <ListBox x:Name="SegmentListBox"
+                                     PreviewMouseWheel="SegmentListBox_OnPreviewMouseWheel"
+                                     PreviewKeyDown="SegmentListBox_OnPreviewKeyDown"
+                                     MinHeight="0"
+                                     ItemsSource="{Binding Segments}"
+                                     BorderThickness="0"
+                                     Background="Transparent"
+                                     HorizontalContentAlignment="Stretch"
+                                     ScrollViewer.CanContentScroll="True"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     VirtualizingPanel.IsVirtualizing="True"
+                                     VirtualizingPanel.VirtualizationMode="Recycling">
+                                <ListBox.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel />
+                                    </ItemsPanelTemplate>
+                                </ListBox.ItemsPanel>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Margin="0,0,0,14"
+                                                Padding="0"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                HorizontalContentAlignment="Stretch"
+                                                Command="{Binding DataContext.SelectSegmentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                IsEnabled="{Binding IsInteractive}">
+                                            <Border Padding="16,8,16,12"
+                                                    Background="Transparent"
+                                                    CornerRadius="10">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="Transparent" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
+                                                           Text="{Binding Text}"
+                                                           TextWrapping="Wrap"
+                                                           Opacity="{Binding VisualOpacity}"
+                                                           FontWeight="{Binding FontWeight}"
+                                                           LineHeight="30" />
+                                            </Border>
+                                        </Button>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <Button HorizontalAlignment="Right"
+                                    VerticalAlignment="Bottom"
+                                    Margin="0,0,12,12"
+                                    Padding="14,8"
+                                    Panel.ZIndex="2"
+                                    Command="{Binding ReturnToCurrentSegmentCommand}"
+                                    Content="回到当前段">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ShowReturnToCurrentSegment}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </Grid>
                     </Grid>
                 </Border>
 
@@ -456,6 +483,30 @@
                                 ToolTip="下一章"
                                 AutomationProperties.Name="下一章" />
                     </WrapPanel>
+                </Border>
+
+                <Border Grid.Row="3"
+                        Margin="0,16,0,0"
+                        Padding="{StaticResource CardPadding}"
+                        Style="{StaticResource CardBorderStyle}">
+                    <StackPanel>
+                        <Slider x:Name="SegmentProgressSlider"
+                                Minimum="0"
+                                Maximum="{Binding SegmentProgressMaximum}"
+                                Value="{Binding SegmentProgressValue, Mode=OneWay}"
+                                IsSnapToTickEnabled="True"
+                                TickFrequency="1"
+                                ValueChanged="SegmentProgressSlider_OnValueChanged"
+                                PreviewMouseLeftButtonDown="SegmentProgressSlider_OnPreviewMouseLeftButtonDown"
+                                PreviewMouseLeftButtonUp="SegmentProgressSlider_OnPreviewMouseLeftButtonUp"
+                                PreviewKeyDown="SegmentProgressSlider_OnPreviewKeyDown"
+                                PreviewKeyUp="SegmentProgressSlider_OnPreviewKeyUp"
+                                LostMouseCapture="SegmentProgressSlider_OnLostMouseCapture" />
+                        <TextBlock Margin="0,10,0,0"
+                                   HorizontalAlignment="Center"
+                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                   Text="{Binding DisplayedSegmentCounterText}" />
+                    </StackPanel>
                 </Border>
             </Grid>
 
