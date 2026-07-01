@@ -9,6 +9,7 @@ using NovelSpeaker.App.Dialogs;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Library;
 using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.Player;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Theming;
 using NovelSpeaker.App.ViewModels;
@@ -40,6 +41,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IImportBookDialogService>(provider.GetRequiredService<IImportBookDialogService>());
                 Assert.IsAssignableFrom<IBookDeleteDialogService>(provider.GetRequiredService<IBookDeleteDialogService>());
                 Assert.IsAssignableFrom<IShellLayoutController>(provider.GetRequiredService<IShellLayoutController>());
+                Assert.IsAssignableFrom<IPlayerLayoutController>(provider.GetRequiredService<IPlayerLayoutController>());
                 Assert.IsAssignableFrom<IBookCoverGenerator>(provider.GetRequiredService<IBookCoverGenerator>());
                 Assert.IsType<LibraryScrollState>(provider.GetRequiredService<LibraryScrollState>());
                 Assert.IsAssignableFrom<IBookCatalogInvalidationState>(provider.GetRequiredService<IBookCatalogInvalidationState>());

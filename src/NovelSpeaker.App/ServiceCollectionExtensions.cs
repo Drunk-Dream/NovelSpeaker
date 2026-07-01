@@ -4,6 +4,7 @@ using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Library;
 using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.Player;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Theming;
 using NovelSpeaker.App.ViewModels;
@@ -30,6 +31,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IImportBookDialogService, ImportBookDialogService>();
         services.AddSingleton<IBookDeleteDialogService, BookDeleteDialogService>();
         services.AddSingleton<IShellLayoutController, ShellLayoutController>();
+        services.AddSingleton<IPlayerLayoutController, PlayerLayoutController>();
         services.AddSingleton<IBookCoverGenerator, BookCoverGenerator>();
         services.AddSingleton<LibraryScrollState>();
         services.AddSingleton<IBookCatalogInvalidationState, BookCatalogInvalidationState>();
