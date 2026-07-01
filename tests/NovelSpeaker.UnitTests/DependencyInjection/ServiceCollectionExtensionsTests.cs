@@ -42,6 +42,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IBookDeleteDialogService>(provider.GetRequiredService<IBookDeleteDialogService>());
                 Assert.IsAssignableFrom<IShellLayoutController>(provider.GetRequiredService<IShellLayoutController>());
                 Assert.IsAssignableFrom<IPlayerLayoutController>(provider.GetRequiredService<IPlayerLayoutController>());
+                Assert.IsAssignableFrom<IPlayerAutoScrollCoordinator>(provider.GetRequiredService<IPlayerAutoScrollCoordinator>());
                 Assert.IsAssignableFrom<IBookCoverGenerator>(provider.GetRequiredService<IBookCoverGenerator>());
                 Assert.IsType<LibraryScrollState>(provider.GetRequiredService<LibraryScrollState>());
                 Assert.IsAssignableFrom<IBookCatalogInvalidationState>(provider.GetRequiredService<IBookCatalogInvalidationState>());

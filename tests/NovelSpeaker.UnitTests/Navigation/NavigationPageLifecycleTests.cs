@@ -70,7 +70,8 @@ public sealed class NavigationPageLifecycleTests
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
-                new PlayerLayoutController());
+                new PlayerLayoutController(),
+                new FakePlayerAutoScrollCoordinator());
             var page = new PlayerPage(viewModel);
             page.DataContext = new PlayerNavigationRequest("book-7", PlayerNavigationMode.ReturnToCurrentSession);
 
@@ -136,6 +137,53 @@ public sealed class NavigationPageLifecycleTests
         public Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
         {
             return Task.FromResult<PlaybackChapterContent?>(_chapter);
+        }
+    }
+
+    private sealed class FakePlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator
+    {
+        public bool ShouldAutoCenter => true;
+
+        public bool ShowReturnToCurrentSegment => false;
+
+        public int PendingRestoreVersion => 0;
+
+        public event EventHandler? StateChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public void NotifyUserScrollInput()
+        {
+        }
+
+        public void BeginScrollbarDrag()
+        {
+        }
+
+        public void EndScrollbarDrag()
+        {
+        }
+
+        public void BeginProgrammaticScroll()
+        {
+        }
+
+        public void EndProgrammaticScroll()
+        {
+        }
+
+        public void ReturnToCurrentSegment()
+        {
+        }
+
+        public void ResetForChapterChange()
+        {
+        }
+
+        public void ResetForPageLeave()
+        {
         }
     }
 

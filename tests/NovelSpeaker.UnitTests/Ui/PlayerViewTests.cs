@@ -1,3 +1,4 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -32,7 +33,7 @@ public sealed class PlayerViewTests
                     segmentIndex,
                     $"这是第 {segmentIndex + 1} 段，用来验证正文预览在固定高度下保持内部滚动，而不是继续把整个页面撑高。");
                 segment.IsCurrent = segmentIndex == 32;
-                segment.Opacity = segmentIndex == 32 ? 1d : 0.52d;
+                segment.VisualOpacity = segmentIndex == 32 ? 1d : 0.52d;
                 segments.Add(segment);
             }
 
@@ -61,6 +62,38 @@ public sealed class PlayerViewTests
         });
     }
 
+    [Fact]
+    public void PlayerView_shows_return_to_current_segment_button_when_manual_browsing()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>
+            {
+                new(0, "第一章")
+            };
+            var segments = new ObservableCollection<PlayerSegmentItemViewModel>
+            {
+                new(0, 0, "第一段")
+                {
+                    IsCurrent = true,
+                    VisualOpacity = 1d
+                }
+            };
+
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(chapters, segments, showReturnToCurrentSegment: true),
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var returnButton = Assert.IsType<Button>(FindDescendantByContent(view, "回到当前段"));
+            Assert.Equal(Visibility.Visible, returnButton.Visibility);
+        });
+    }
+
     private static T? FindDescendant<T>(DependencyObject root)
         where T : DependencyObject
     {
@@ -82,15 +115,40 @@ public sealed class PlayerViewTests
         return null;
     }
 
+    private static FrameworkElement? FindDescendantByContent(DependencyObject root, string content)
+    {
+        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
+        {
+            var child = VisualTreeHelper.GetChild(root, childIndex);
+            if (child is FrameworkElement element &&
+                element is ContentControl contentControl &&
+                string.Equals(contentControl.Content as string, content, StringComparison.Ordinal))
+            {
+                return element;
+            }
+
+            var descendant = FindDescendantByContent(child, content);
+            if (descendant is not null)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
+    }
+
     private sealed class PlayerViewLayoutTestContext
     {
         public PlayerViewLayoutTestContext(
             ObservableCollection<PlayerChapterItemViewModel> chapters,
-            ObservableCollection<PlayerSegmentItemViewModel> segments)
+            ObservableCollection<PlayerSegmentItemViewModel> segments,
+            bool showReturnToCurrentSegment = false)
         {
             Chapters = chapters;
             Segments = segments;
-            CurrentChapterItem = chapters[10];
+            CurrentChapterItem = chapters.Count > 10 ? chapters[10] : chapters[0];
+            CurrentSegmentItem = segments.Count > 32 ? segments[32] : segments[0];
+            ShowReturnToCurrentSegment = showReturnToCurrentSegment;
         }
 
         public IRelayCommand BackCommand { get; } = new RelayCommand(() => { });
@@ -119,6 +177,8 @@ public sealed class PlayerViewTests
 
         public IRelayCommand SelectSegmentCommand { get; } = new RelayCommand<PlayerSegmentItemViewModel?>(_ => { });
 
+        public IRelayCommand ReturnToCurrentSegmentCommand { get; } = new RelayCommand(() => { });
+
         public string CurrentTitle { get; } = "信息全知者";
 
         public string CurrentAuthor { get; } = "魔性沧月";
@@ -133,7 +193,7 @@ public sealed class PlayerViewTests
 
         public string ErrorText { get; } = string.Empty;
 
-        public string CurrentSegmentCounterText { get; } = "第 33 / 140 段";
+        public string DisplayedSegmentCounterText { get; } = "第 33 / 140 段";
 
         public string SpeedEditorText { get; set; } = "10";
 
@@ -143,9 +203,13 @@ public sealed class PlayerViewTests
 
         public bool IsCatalogDrawerOpen { get; } = false;
 
-        public bool IsRuleMenuOpen { get; } = false;
+        public bool IsRuleMenuOpen { get; set; }
 
-        public bool IsSpeedMenuOpen { get; } = false;
+        public bool IsSpeedMenuOpen { get; set; }
+
+        public bool ShouldAutoCenterCurrentSegment { get; } = true;
+
+        public bool ShowReturnToCurrentSegment { get; }
 
         public bool HasRules { get; } = false;
 
@@ -161,6 +225,10 @@ public sealed class PlayerViewTests
 
         public string PrimaryActionText { get; } = "播放";
 
+        public double SegmentProgressMaximum { get; } = 139d;
+
+        public double SegmentProgressValue { get; } = 32d;
+
         public ObservableCollection<PlayerRuleItemViewModel> Rules { get; } = [];
 
         public ObservableCollection<PlayerChapterItemViewModel> Chapters { get; }
@@ -168,5 +236,7 @@ public sealed class PlayerViewTests
         public ObservableCollection<PlayerSegmentItemViewModel> Segments { get; }
 
         public PlayerChapterItemViewModel CurrentChapterItem { get; }
+
+        public PlayerSegmentItemViewModel CurrentSegmentItem { get; }
     }
 }
