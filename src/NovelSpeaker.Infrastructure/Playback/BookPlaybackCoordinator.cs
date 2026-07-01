@@ -11,7 +11,6 @@ namespace NovelSpeaker.Infrastructure.Playback;
 /// </summary>
 public sealed class PlaybackCoordinator : IPlaybackCoordinator
 {
-    private const int DefaultSpeakSpeed = 10;
     private const int FailurePauseThreshold = 2;
 
     private readonly IBookPlaybackContentService _bookContentService;
@@ -1226,7 +1225,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             0,
             null,
             null,
-            speakSpeed <= 0 ? DefaultSpeakSpeed : speakSpeed,
+            AppSettings.NormalizeSpeakSpeed(speakSpeed),
             0,
             0,
             "当前没有可用的 TTS 规则，请先前往规则页选择或导入规则。",
@@ -1290,7 +1289,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
 
     private static int NormalizeSpeakSpeed(int speakSpeed)
     {
-        return speakSpeed <= 0 ? DefaultSpeakSpeed : speakSpeed;
+        return AppSettings.NormalizeSpeakSpeed(speakSpeed);
     }
 
     private async Task<int> GetPrefetchCountAsync(int? maxCountOverride, CancellationToken cancellationToken)

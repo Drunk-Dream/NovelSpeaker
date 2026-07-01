@@ -15,6 +15,8 @@ public sealed record AppSettings(
     string? BookFileNameTemplate = "{{name}} 作者：{{author}}",
     long? SelectedTtsRuleId = null)
 {
+    public const int MinSpeakSpeed = 1;
+    public const int MaxSpeakSpeed = 20;
     public const int DefaultSpeakSpeedValue = 10;
     public const int DefaultPrefetchCountValue = 2;
     public const string DefaultLogLevel = "Information";
@@ -45,6 +47,21 @@ public sealed record AppSettings(
             LongParagraphThreshold).Normalize();
     }
 
+    public static bool IsValidSpeakSpeed(int speakSpeed)
+    {
+        return speakSpeed >= MinSpeakSpeed && speakSpeed <= MaxSpeakSpeed;
+    }
+
+    public static int NormalizeSpeakSpeed(int speakSpeed)
+    {
+        if (speakSpeed <= 0)
+        {
+            return DefaultSpeakSpeedValue;
+        }
+
+        return Math.Clamp(speakSpeed, MinSpeakSpeed, MaxSpeakSpeed);
+    }
+
     public AppSettings Normalize()
     {
         var segmentation = ToTextSegmentationOptions();
@@ -52,7 +69,7 @@ public sealed record AppSettings(
         {
             EnableLongParagraphSplitting = segmentation.EnableLongParagraphSplitting,
             LongParagraphThreshold = segmentation.LongParagraphThreshold,
-            DefaultSpeakSpeed = DefaultSpeakSpeed <= 0 ? DefaultSpeakSpeedValue : DefaultSpeakSpeed,
+            DefaultSpeakSpeed = NormalizeSpeakSpeed(DefaultSpeakSpeed),
             PrefetchCount = PrefetchCount < 0
                 ? DefaultPrefetchCountValue
                 : Math.Min(PrefetchCount, DefaultPrefetchCountValue),
