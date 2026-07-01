@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using System.Windows;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -21,5 +22,11 @@ public sealed partial class PlayerSegmentItemViewModel : ObservableObject
     private bool isCurrent;
 
     [ObservableProperty]
-    private double opacity = 0.52d;
+    private double visualOpacity = 0.52d;
+
+    [ObservableProperty]
+    private FontWeight fontWeight = FontWeights.Normal;
+
+    [ObservableProperty]
+    private bool isInteractive = true;
 }

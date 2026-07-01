@@ -10,6 +10,7 @@ using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.Player;
 using NovelSpeaker.Domain.Settings;
+using System.Windows;
 using Wpf.Ui;
 
 namespace NovelSpeaker.App.ViewModels;
@@ -23,9 +24,9 @@ public sealed partial class PlayerViewModel : ObservableObject
     private readonly IAppFeedbackService _feedbackService;
     private readonly INavigationService _navigationService;
     private readonly IPlayerLayoutController _layoutController;
+    private readonly IPlayerAutoScrollCoordinator _autoScrollCoordinator;
 
     private readonly Dictionary<int, PlaybackChapterContent> _chapterCache = [];
-
     private PlaybackBookContent? _loadedBook;
     private string? _requestedBookId;
     private int _loadedChapterIndex = -1;
@@ -40,7 +41,8 @@ public sealed partial class PlayerViewModel : ObservableObject
         IAppSettingsStore settingsStore,
         IAppFeedbackService feedbackService,
         INavigationService navigationService,
-        IPlayerLayoutController layoutController)
+        IPlayerLayoutController layoutController,
+        IPlayerAutoScrollCoordinator autoScrollCoordinator)
     {
         _playbackCoordinator = playbackCoordinator;
         _bookPlaybackContentService = bookPlaybackContentService;
@@ -49,12 +51,15 @@ public sealed partial class PlayerViewModel : ObservableObject
         _feedbackService = feedbackService;
         _navigationService = navigationService;
         _layoutController = layoutController;
+        _autoScrollCoordinator = autoScrollCoordinator;
 
         ApplyLayoutState();
+        ApplyAutoScrollState();
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
 
         _playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
         _layoutController.StateChanged += OnLayoutStateChanged;
+        _autoScrollCoordinator.StateChanged += OnAutoScrollStateChanged;
     }
 
     public ObservableCollection<PlayerRuleItemViewModel> Rules { get; } = [];
@@ -71,9 +76,13 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     public string SpeakSpeedButtonText => $"语速 {SpeakSpeed}";
 
-    public string CurrentSegmentCounterText => CurrentChapterSegmentCount > 0 && CurrentSegmentIndex >= 0
-        ? $"第 {CurrentSegmentIndex + 1} / {CurrentChapterSegmentCount} 段"
-        : "尚未定位段落";
+    public string DisplayedSegmentCounterText => BuildSegmentCounterText(
+        IsSegmentProgressDragging ? (int)Math.Round(SegmentProgressPreviewValue) : CurrentSegmentIndex,
+        CurrentChapterSegmentCount);
+
+    public bool ShouldAutoCenterCurrentSegment => _autoScrollCoordinator.ShouldAutoCenter;
+
+    public double SegmentProgressMaximum => Math.Max(CurrentChapterSegmentCount - 1, 0);
 
     [ObservableProperty]
     private string currentTitle = "未打开书籍";
@@ -150,6 +159,21 @@ public sealed partial class PlayerViewModel : ObservableObject
     [ObservableProperty]
     private PlayerChapterItemViewModel? currentChapterItem;
 
+    [ObservableProperty]
+    private PlayerSegmentItemViewModel? currentSegmentItem;
+
+    [ObservableProperty]
+    private bool showReturnToCurrentSegment;
+
+    [ObservableProperty]
+    private double segmentProgressValue;
+
+    [ObservableProperty]
+    private double segmentProgressPreviewValue;
+
+    [ObservableProperty]
+    private bool isSegmentProgressDragging;
+
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
         var settings = await _settingsStore.LoadAsync(cancellationToken);
@@ -208,6 +232,89 @@ public sealed partial class PlayerViewModel : ObservableObject
     public void OnPageNavigatedFrom()
     {
         CloseTransientPanels();
+        _autoScrollCoordinator.ResetForPageLeave();
+    }
+
+    public void NotifyUserScrollInput()
+    {
+        _autoScrollCoordinator.NotifyUserScrollInput();
+    }
+
+    public void NotifyScrollbarDragStarted()
+    {
+        _autoScrollCoordinator.BeginScrollbarDrag();
+    }
+
+    public void NotifyScrollbarDragCompleted()
+    {
+        _autoScrollCoordinator.EndScrollbarDrag();
+    }
+
+    public void NotifyProgrammaticScrollStarted()
+    {
+        _autoScrollCoordinator.BeginProgrammaticScroll();
+    }
+
+    public void NotifyProgrammaticScrollCompleted()
+    {
+        _autoScrollCoordinator.EndProgrammaticScroll();
+    }
+
+    public void BeginSegmentProgressInteraction()
+    {
+        if (CurrentChapterSegmentCount <= 0)
+        {
+            return;
+        }
+
+        IsSegmentProgressDragging = true;
+        SegmentProgressPreviewValue = SegmentProgressValue;
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+    }
+
+    public void PreviewSegmentProgress(double value)
+    {
+        if (!IsSegmentProgressDragging)
+        {
+            return;
+        }
+
+        SegmentProgressPreviewValue = NormalizeSegmentProgressValue(value);
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+    }
+
+    public async Task CommitSegmentProgressAsync(double value, CancellationToken cancellationToken)
+    {
+        if (CurrentChapterSegmentCount <= 0 || CurrentChapterIndex < 0)
+        {
+            CancelSegmentProgressInteraction();
+            return;
+        }
+
+        var targetSegmentIndex = (int)Math.Round(NormalizeSegmentProgressValue(value));
+        IsSegmentProgressDragging = false;
+        SegmentProgressPreviewValue = targetSegmentIndex;
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+
+        if (targetSegmentIndex == CurrentSegmentIndex)
+        {
+            SegmentProgressValue = targetSegmentIndex;
+            return;
+        }
+
+        await _playbackCoordinator.JumpToSegmentAsync(CurrentChapterIndex, targetSegmentIndex, cancellationToken);
+    }
+
+    public void CancelSegmentProgressInteraction()
+    {
+        if (!IsSegmentProgressDragging)
+        {
+            return;
+        }
+
+        IsSegmentProgressDragging = false;
+        SegmentProgressPreviewValue = SegmentProgressValue;
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
     }
 
     [RelayCommand]
@@ -252,7 +359,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         _navigationService.NavigateWithHierarchy(typeof(TtsRulesPage));
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task TogglePlayPauseAsync(CancellationToken cancellationToken)
     {
         if (CurrentPlaybackState == PlaybackState.Playing)
@@ -284,34 +391,34 @@ public sealed partial class PlayerViewModel : ObservableObject
             cancellationToken);
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = false)]
     private Task PreviousSegmentAsync(CancellationToken cancellationToken)
     {
         return _playbackCoordinator.PreviousSegmentAsync(cancellationToken);
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = false)]
     private Task NextSegmentAsync(CancellationToken cancellationToken)
     {
         return _playbackCoordinator.NextSegmentAsync(cancellationToken);
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = false)]
     private Task PreviousChapterAsync(CancellationToken cancellationToken)
     {
         return _playbackCoordinator.PreviousChapterAsync(cancellationToken);
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = false)]
     private Task NextChapterAsync(CancellationToken cancellationToken)
     {
         return _playbackCoordinator.NextChapterAsync(cancellationToken);
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task SelectRuleAsync(PlayerRuleItemViewModel? rule, CancellationToken cancellationToken)
     {
-        if (rule is null || !rule.IsEnabled)
+        if (rule is null || !rule.IsEnabled || rule.IsSelected || _playbackCoordinator.CurrentSnapshot.RuleId == rule.Id)
         {
             return;
         }
@@ -321,7 +428,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         IsRuleMenuOpen = false;
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task ApplySpeakSpeedAsync(CancellationToken cancellationToken)
     {
         if (!int.TryParse(SpeedEditorText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedSpeed) ||
@@ -336,7 +443,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         IsSpeedMenuOpen = false;
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task SelectChapterAsync(PlayerChapterItemViewModel? chapter, CancellationToken cancellationToken)
     {
         if (chapter is null)
@@ -344,19 +451,26 @@ public sealed partial class PlayerViewModel : ObservableObject
             return;
         }
 
+        _autoScrollCoordinator.ResetForChapterChange();
         await _playbackCoordinator.JumpToChapterAsync(chapter.ChapterIndex, cancellationToken);
         _layoutController.CloseDrawer();
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = false)]
     private Task SelectSegmentAsync(PlayerSegmentItemViewModel? segment, CancellationToken cancellationToken)
     {
-        if (segment is null)
+        if (segment is null || segment.SegmentIndex == CurrentSegmentIndex)
         {
             return Task.CompletedTask;
         }
 
         return _playbackCoordinator.JumpToSegmentAsync(segment.ChapterIndex, segment.SegmentIndex, cancellationToken);
+    }
+
+    [RelayCommand]
+    private void ReturnToCurrentSegment()
+    {
+        _autoScrollCoordinator.ReturnToCurrentSegment();
     }
 
     partial void OnSpeakSpeedChanged(int value)
@@ -366,12 +480,28 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     partial void OnCurrentSegmentIndexChanged(int value)
     {
-        OnPropertyChanged(nameof(CurrentSegmentCounterText));
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+        if (!IsSegmentProgressDragging)
+        {
+            SegmentProgressValue = NormalizeSegmentProgressValue(value);
+            SegmentProgressPreviewValue = SegmentProgressValue;
+        }
     }
 
     partial void OnCurrentChapterSegmentCountChanged(int value)
     {
-        OnPropertyChanged(nameof(CurrentSegmentCounterText));
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+        OnPropertyChanged(nameof(SegmentProgressMaximum));
+        SegmentProgressValue = NormalizeSegmentProgressValue(CurrentSegmentIndex);
+        if (!IsSegmentProgressDragging)
+        {
+            SegmentProgressPreviewValue = SegmentProgressValue;
+        }
+    }
+
+    partial void OnIsSegmentProgressDraggingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
     }
 
     private void OnSnapshotChanged(object? sender, PlaybackSnapshot snapshot)
@@ -396,6 +526,18 @@ public sealed partial class PlayerViewModel : ObservableObject
         }
 
         ApplyLayoutState();
+    }
+
+    private void OnAutoScrollStateChanged(object? sender, EventArgs e)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.InvokeAsync(ApplyAutoScrollState);
+            return;
+        }
+
+        ApplyAutoScrollState();
     }
 
     private async Task HandleSnapshotUpdateAsync(PlaybackSnapshot snapshot)
@@ -523,7 +665,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         if (_loadedChapterIndex != chapter.ChapterIndex)
         {
-            // The page keeps a fixed viewport; chapter changes replace the visible preview content.
+            _autoScrollCoordinator.ResetForChapterChange();
         }
 
         _loadedChapterIndex = chapter.ChapterIndex;
@@ -538,6 +680,7 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     private void ApplySnapshot(PlaybackSnapshot snapshot)
     {
+        var previousChapterIndex = CurrentChapterIndex;
         CurrentPlaybackState = snapshot.State;
         CurrentTitle = string.IsNullOrWhiteSpace(snapshot.BookTitle)
             ? _loadedBook?.BookTitle ?? "未打开书籍"
@@ -572,6 +715,11 @@ public sealed partial class PlayerViewModel : ObservableObject
             CurrentChapterSegmentCount = snapshot.SegmentCount;
         }
 
+        if (previousChapterIndex != CurrentChapterIndex && previousChapterIndex >= 0)
+        {
+            _autoScrollCoordinator.ResetForChapterChange();
+        }
+
         ApplyRuleSelection(snapshot.RuleId);
         UpdateChapterProjection(snapshot.ChapterIndex);
         UpdateSegmentProjection(snapshot.SegmentIndex);
@@ -604,18 +752,28 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     private void UpdateSegmentProjection(int currentSegmentIndex)
     {
+        PlayerSegmentItemViewModel? currentItem = null;
         foreach (var segment in Segments)
         {
             var distance = Math.Abs(segment.SegmentIndex - currentSegmentIndex);
             segment.IsCurrent = segment.SegmentIndex == currentSegmentIndex;
-            segment.Opacity = distance switch
+            segment.FontWeight = distance == 0 ? FontWeights.SemiBold : FontWeights.Normal;
+            segment.VisualOpacity = distance switch
             {
                 0 => 1d,
                 1 => 0.82d,
                 2 => 0.68d,
-                _ => 0.52d
+                3 => 0.58d,
+                _ => 0.46d
             };
+            segment.IsInteractive = true;
+            if (segment.IsCurrent)
+            {
+                currentItem = segment;
+            }
         }
+
+        CurrentSegmentItem = currentItem;
     }
 
     private void UpdateNavigationAvailability()
@@ -674,6 +832,12 @@ public sealed partial class PlayerViewModel : ObservableObject
         IsCatalogDrawerOpen = _layoutController.IsDrawerOpen;
     }
 
+    private void ApplyAutoScrollState()
+    {
+        ShowReturnToCurrentSegment = _autoScrollCoordinator.ShowReturnToCurrentSegment;
+        OnPropertyChanged(nameof(ShouldAutoCenterCurrentSegment));
+    }
+
     private void CloseTransientPanels()
     {
         IsRuleMenuOpen = false;
@@ -724,5 +888,22 @@ public sealed partial class PlayerViewModel : ObservableObject
             ? $"第 {snapshot.SegmentIndex + 1} / {snapshot.SegmentCount} 段"
             : "段落信息待加载";
         return $"{chapterText} · {segmentText}";
+    }
+
+    private double NormalizeSegmentProgressValue(double value)
+    {
+        if (CurrentChapterSegmentCount <= 0)
+        {
+            return 0d;
+        }
+
+        return Math.Clamp(Math.Round(value), 0d, SegmentProgressMaximum);
+    }
+
+    private static string BuildSegmentCounterText(int segmentIndex, int segmentCount)
+    {
+        return segmentCount > 0 && segmentIndex >= 0
+            ? $"第 {segmentIndex + 1} / {segmentCount} 段"
+            : "尚未定位段落";
     }
 }
