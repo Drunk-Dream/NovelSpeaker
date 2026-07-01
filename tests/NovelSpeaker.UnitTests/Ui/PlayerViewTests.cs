@@ -94,6 +94,83 @@ public sealed class PlayerViewTests
         });
     }
 
+    [Fact]
+    public void PlayerView_replaces_control_area_with_no_rule_state()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>
+            {
+                new(0, "第一章")
+            };
+            var segments = new ObservableCollection<PlayerSegmentItemViewModel>
+            {
+                new(0, 0, "第一段")
+            };
+
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(
+                    chapters,
+                    segments,
+                    showPlaybackControls: false,
+                    showNoRuleState: true),
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var emptyStateButton = Assert.IsType<Button>(FindVisibleDescendantByContent(view, "前往 TTS 规则"));
+            Assert.Equal(Visibility.Visible, emptyStateButton.Visibility);
+            Assert.Null(FindVisibleDescendantByContent(view, "播放"));
+        });
+    }
+
+    [Fact]
+    public void PlayerView_shows_error_bar_only_when_faulted()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>
+            {
+                new(0, "第一章")
+            };
+            var segments = new ObservableCollection<PlayerSegmentItemViewModel>
+            {
+                new(0, 0, "第一段")
+            };
+
+            var faultedView = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(
+                    chapters,
+                    segments,
+                    showPlaybackErrorBar: true,
+                    errorText: "网络失败，请稍后重试。"),
+            };
+
+            faultedView.Measure(new Size(1280, 760));
+            faultedView.Arrange(new Rect(0, 0, 1280, 760));
+            faultedView.UpdateLayout();
+
+            Assert.NotNull(FindVisibleDescendantByContent(faultedView, "再次尝试"));
+            Assert.NotNull(FindVisibleDescendantByContent(faultedView, "切换规则"));
+
+            var normalView = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(chapters, segments),
+            };
+
+            normalView.Measure(new Size(1280, 760));
+            normalView.Arrange(new Rect(0, 0, 1280, 760));
+            normalView.UpdateLayout();
+
+            Assert.Null(FindVisibleDescendantByContent(normalView, "再次尝试"));
+            Assert.Null(FindVisibleDescendantByContent(normalView, "切换规则"));
+        });
+    }
+
     private static T? FindDescendant<T>(DependencyObject root)
         where T : DependencyObject
     {
@@ -137,18 +214,58 @@ public sealed class PlayerViewTests
         return null;
     }
 
+    private static FrameworkElement? FindVisibleDescendantByContent(DependencyObject root, string content)
+    {
+        var element = FindDescendantByContent(root, content);
+        if (element is null || !IsEffectivelyVisible(element, root))
+        {
+            return null;
+        }
+
+        return element;
+    }
+
+    private static bool IsEffectivelyVisible(FrameworkElement element, DependencyObject searchRoot)
+    {
+        DependencyObject? current = element;
+        while (current is not null)
+        {
+            if (current is UIElement uiElement && uiElement.Visibility != Visibility.Visible)
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(current, searchRoot))
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
+    }
+
     private sealed class PlayerViewLayoutTestContext
     {
         public PlayerViewLayoutTestContext(
             ObservableCollection<PlayerChapterItemViewModel> chapters,
             ObservableCollection<PlayerSegmentItemViewModel> segments,
-            bool showReturnToCurrentSegment = false)
+            bool showReturnToCurrentSegment = false,
+            bool showPlaybackControls = true,
+            bool showNoRuleState = false,
+            bool showPlaybackErrorBar = false,
+            string errorText = "")
         {
             Chapters = chapters;
             Segments = segments;
             CurrentChapterItem = chapters.Count > 10 ? chapters[10] : chapters[0];
             CurrentSegmentItem = segments.Count > 32 ? segments[32] : segments[0];
             ShowReturnToCurrentSegment = showReturnToCurrentSegment;
+            ShowPlaybackControls = showPlaybackControls;
+            ShowNoRuleState = showNoRuleState;
+            ShowPlaybackErrorBar = showPlaybackErrorBar;
+            ErrorText = errorText;
         }
 
         public IRelayCommand BackCommand { get; } = new RelayCommand(() => { });
@@ -159,9 +276,15 @@ public sealed class PlayerViewTests
 
         public IRelayCommand ToggleSpeedMenuCommand { get; } = new RelayCommand(() => { });
 
+        public IRelayCommand OpenRuleMenuCommand { get; } = new RelayCommand(() => { });
+
         public IRelayCommand OpenRulesManagementCommand { get; } = new RelayCommand(() => { });
 
         public IRelayCommand ApplySpeakSpeedCommand { get; } = new RelayCommand(() => { });
+
+        public IRelayCommand IncreaseSpeakSpeedCommand { get; } = new RelayCommand(() => { });
+
+        public IRelayCommand DecreaseSpeakSpeedCommand { get; } = new RelayCommand(() => { });
 
         public IRelayCommand PreviousChapterCommand { get; } = new RelayCommand(() => { });
 
@@ -179,6 +302,8 @@ public sealed class PlayerViewTests
 
         public IRelayCommand ReturnToCurrentSegmentCommand { get; } = new RelayCommand(() => { });
 
+        public IRelayCommand RetryCurrentSegmentCommand { get; } = new RelayCommand(() => { });
+
         public string CurrentTitle { get; } = "信息全知者";
 
         public string CurrentAuthor { get; } = "魔性沧月";
@@ -191,7 +316,7 @@ public sealed class PlayerViewTests
 
         public string DetailText { get; } = "已跳转到目标段落，等待播放。";
 
-        public string ErrorText { get; } = string.Empty;
+        public string ErrorText { get; }
 
         public string DisplayedSegmentCounterText { get; } = "第 33 / 140 段";
 
@@ -211,9 +336,21 @@ public sealed class PlayerViewTests
 
         public bool ShowReturnToCurrentSegment { get; }
 
+        public bool ShowPlaybackControls { get; }
+
+        public bool ShowNoRuleState { get; }
+
+        public bool ShowPlaybackErrorBar { get; }
+
         public bool HasRules { get; } = false;
 
         public bool HasAvailableRule { get; } = true;
+
+        public bool CanTogglePlayPause { get; } = true;
+
+        public bool CanDecreaseSpeakSpeed { get; } = true;
+
+        public bool CanIncreaseSpeakSpeed { get; } = true;
 
         public bool CanGoToPreviousChapter { get; } = true;
 

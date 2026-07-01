@@ -57,6 +57,20 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
+    public async Task SaveAsync_normalizes_default_speak_speed_into_supported_range()
+    {
+        var store = new FakeAppSettingsStore(AppSettings.Default);
+        var viewModel = CreateViewModel(store);
+        viewModel.DefaultSpeakSpeed = 99;
+
+        await viewModel.SaveAsync(CancellationToken.None);
+
+        Assert.Equal(99, store.LastSavedSettings!.DefaultSpeakSpeed);
+        Assert.Equal(AppSettings.MaxSpeakSpeed, viewModel.DefaultSpeakSpeed);
+        Assert.Equal(AppSettings.MaxSpeakSpeed, store.CurrentSettings.DefaultSpeakSpeed);
+    }
+
+    [Fact]
     public void OpenChapterRulesCommand_navigates_to_chapter_rules_page()
     {
         var navigationService = new FakeNavigationService();

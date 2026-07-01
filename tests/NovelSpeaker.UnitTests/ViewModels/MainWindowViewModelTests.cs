@@ -99,6 +99,40 @@ public sealed class MainWindowViewModelTests
         });
     }
 
+    [Fact]
+    public void Missing_rule_snapshot_still_shows_now_playing_entry_until_context_is_cleared()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var navigationService = new FakeNavigationService();
+            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+                PlaybackState.Stopped,
+                "book-1",
+                "示例小说",
+                0,
+                "第一章",
+                0,
+                1,
+                null,
+                null,
+                10,
+                0,
+                0,
+                "当前没有可用的 TTS 规则，请先前往规则页选择或导入规则。",
+                false,
+                false,
+                false,
+                "作者甲",
+                false));
+            var viewModel = new MainWindowViewModel(coordinator, navigationService);
+
+            Assert.True(viewModel.IsNowPlayingVisible);
+            Assert.Equal("示例小说", viewModel.NowPlayingTitle);
+            Assert.Equal("已停止", viewModel.NowPlayingStatus);
+            Assert.Equal(SymbolRegular.Headphones24, viewModel.NowPlayingSymbol);
+        });
+    }
+
     private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
     {
         public FakePlaybackCoordinator(PlaybackSnapshot snapshot)

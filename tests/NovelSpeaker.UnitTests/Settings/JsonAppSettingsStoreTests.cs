@@ -105,7 +105,7 @@ public sealed class JsonAppSettingsStoreTests
             {
               "EnableLongParagraphSplitting": true,
               "LongParagraphThreshold": 40,
-              "DefaultSpeakSpeed": 0,
+              "DefaultSpeakSpeed": 99,
               "PrefetchCount": -5,
               "LogLevel": "Verbose",
               "Theme": "Blue",
@@ -118,7 +118,7 @@ public sealed class JsonAppSettingsStoreTests
         var settings = await store.LoadAsync(CancellationToken.None);
 
         Assert.Equal(50, settings.LongParagraphThreshold);
-        Assert.Equal(10, settings.DefaultSpeakSpeed);
+        Assert.Equal(20, settings.DefaultSpeakSpeed);
         Assert.Equal(2, settings.PrefetchCount);
         Assert.Equal("Information", settings.LogLevel);
         Assert.Equal("System", settings.Theme);
