@@ -74,6 +74,18 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     public bool HasSegments => Segments.Count > 0;
 
+    public bool ShowPlaybackControls => HasAvailableRule;
+
+    public bool ShowNoRuleState => !HasAvailableRule;
+
+    public bool ShowPlaybackErrorBar => IsFaulted && !string.IsNullOrWhiteSpace(ErrorText);
+
+    public bool CanTogglePlayPause => HasAvailableRule && !IsFaulted;
+
+    public bool CanDecreaseSpeakSpeed => SpeakSpeed > AppSettings.MinSpeakSpeed;
+
+    public bool CanIncreaseSpeakSpeed => SpeakSpeed < AppSettings.MaxSpeakSpeed;
+
     public string SpeakSpeedButtonText => $"语速 {SpeakSpeed}";
 
     public string DisplayedSegmentCounterText => BuildSegmentCounterText(
@@ -179,7 +191,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         var settings = await _settingsStore.LoadAsync(cancellationToken);
         _defaultSpeakSpeed = settings.DefaultSpeakSpeed;
 
-        if (_playbackCoordinator.CurrentSnapshot.SpeakSpeed <= 0)
+        if (!AppSettings.IsValidSpeakSpeed(_playbackCoordinator.CurrentSnapshot.SpeakSpeed))
         {
             SpeakSpeed = _defaultSpeakSpeed;
         }
@@ -208,6 +220,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         {
             ApplySnapshot(snapshot);
             await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
+            await RestoreMissingRuleSessionAsync(request.BookId, snapshot, cancellationToken);
             return;
         }
 
@@ -353,6 +366,13 @@ public sealed partial class PlayerViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void OpenRuleMenu()
+    {
+        IsSpeedMenuOpen = false;
+        IsRuleMenuOpen = true;
+    }
+
+    [RelayCommand]
     private void OpenRulesManagement()
     {
         CloseTransientPanels();
@@ -362,6 +382,11 @@ public sealed partial class PlayerViewModel : ObservableObject
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task TogglePlayPauseAsync(CancellationToken cancellationToken)
     {
+        if (!HasAvailableRule || CurrentPlaybackState == PlaybackState.Faulted)
+        {
+            return;
+        }
+
         if (CurrentPlaybackState == PlaybackState.Playing)
         {
             await _playbackCoordinator.PauseAsync(cancellationToken);
@@ -431,16 +456,42 @@ public sealed partial class PlayerViewModel : ObservableObject
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task ApplySpeakSpeedAsync(CancellationToken cancellationToken)
     {
-        if (!int.TryParse(SpeedEditorText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedSpeed) ||
-            parsedSpeed <= 0)
+        if (!TryParseSpeedEditorText(out var parsedSpeed))
         {
-            SpeedEditorErrorText = "请输入大于 0 的整数。";
             return;
         }
 
+        await ApplySpeakSpeedChangeAsync(parsedSpeed, cancellationToken);
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task IncreaseSpeakSpeedAsync(CancellationToken cancellationToken)
+    {
+        var currentSpeed = ResolvePendingSpeakSpeed();
+        var nextSpeed = Math.Min(currentSpeed + 1, AppSettings.MaxSpeakSpeed);
+        if (nextSpeed == currentSpeed)
+        {
+            return;
+        }
+
+        SpeedEditorText = nextSpeed.ToString(CultureInfo.InvariantCulture);
         SpeedEditorErrorText = string.Empty;
-        await _playbackCoordinator.ChangeSpeedAsync(parsedSpeed, cancellationToken);
-        IsSpeedMenuOpen = false;
+        await ApplySpeakSpeedChangeAsync(nextSpeed, cancellationToken);
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task DecreaseSpeakSpeedAsync(CancellationToken cancellationToken)
+    {
+        var currentSpeed = ResolvePendingSpeakSpeed();
+        var nextSpeed = Math.Max(currentSpeed - 1, AppSettings.MinSpeakSpeed);
+        if (nextSpeed == currentSpeed)
+        {
+            return;
+        }
+
+        SpeedEditorText = nextSpeed.ToString(CultureInfo.InvariantCulture);
+        SpeedEditorErrorText = string.Empty;
+        await ApplySpeakSpeedChangeAsync(nextSpeed, cancellationToken);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -473,9 +524,17 @@ public sealed partial class PlayerViewModel : ObservableObject
         _autoScrollCoordinator.ReturnToCurrentSegment();
     }
 
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private Task RetryCurrentSegmentAsync(CancellationToken cancellationToken)
+    {
+        return _playbackCoordinator.RetryCurrentSegmentAsync(cancellationToken);
+    }
+
     partial void OnSpeakSpeedChanged(int value)
     {
         OnPropertyChanged(nameof(SpeakSpeedButtonText));
+        OnPropertyChanged(nameof(CanDecreaseSpeakSpeed));
+        OnPropertyChanged(nameof(CanIncreaseSpeakSpeed));
     }
 
     partial void OnCurrentSegmentIndexChanged(int value)
@@ -502,6 +561,24 @@ public sealed partial class PlayerViewModel : ObservableObject
     partial void OnIsSegmentProgressDraggingChanged(bool value)
     {
         OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+    }
+
+    partial void OnIsFaultedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowPlaybackErrorBar));
+        OnPropertyChanged(nameof(CanTogglePlayPause));
+    }
+
+    partial void OnHasAvailableRuleChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowPlaybackControls));
+        OnPropertyChanged(nameof(ShowNoRuleState));
+        OnPropertyChanged(nameof(CanTogglePlayPause));
+    }
+
+    partial void OnErrorTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(ShowPlaybackErrorBar));
     }
 
     private void OnSnapshotChanged(object? sender, PlaybackSnapshot snapshot)
@@ -698,7 +775,8 @@ public sealed partial class PlayerViewModel : ObservableObject
         DetailText = BuildDetailText(snapshot);
         PrimaryActionText = snapshot.State == PlaybackState.Playing ? "暂停" : "播放";
 
-        var nextSpeakSpeed = snapshot.SpeakSpeed <= 0 ? _defaultSpeakSpeed : snapshot.SpeakSpeed;
+        var nextSpeakSpeed = AppSettings.NormalizeSpeakSpeed(
+            snapshot.SpeakSpeed <= 0 ? _defaultSpeakSpeed : snapshot.SpeakSpeed);
         if (nextSpeakSpeed > 0)
         {
             SpeakSpeed = nextSpeakSpeed;
@@ -728,9 +806,14 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     private void ApplyRuleSelection(long? selectedRuleId)
     {
+        if (selectedRuleId is null)
+        {
+            return;
+        }
+
         foreach (var rule in Rules)
         {
-            rule.IsSelected = selectedRuleId is not null && rule.Id == selectedRuleId.Value;
+            rule.IsSelected = rule.Id == selectedRuleId.Value;
         }
     }
 
@@ -847,7 +930,70 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     private int ResolveSpeakSpeedForOpen()
     {
-        return SpeakSpeed > 0 ? SpeakSpeed : _defaultSpeakSpeed;
+        return AppSettings.NormalizeSpeakSpeed(SpeakSpeed > 0 ? SpeakSpeed : _defaultSpeakSpeed);
+    }
+
+    private bool TryParseSpeedEditorText(out int parsedSpeed)
+    {
+        if (!int.TryParse(SpeedEditorText, NumberStyles.Integer, CultureInfo.InvariantCulture, out parsedSpeed) ||
+            !AppSettings.IsValidSpeakSpeed(parsedSpeed))
+        {
+            SpeedEditorErrorText = $"请输入 {AppSettings.MinSpeakSpeed} 到 {AppSettings.MaxSpeakSpeed} 的整数。";
+            return false;
+        }
+
+        SpeedEditorErrorText = string.Empty;
+        return true;
+    }
+
+    private int ResolvePendingSpeakSpeed()
+    {
+        return int.TryParse(SpeedEditorText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedSpeed) &&
+               AppSettings.IsValidSpeakSpeed(parsedSpeed)
+            ? parsedSpeed
+            : SpeakSpeed;
+    }
+
+    private async Task ApplySpeakSpeedChangeAsync(int parsedSpeed, CancellationToken cancellationToken)
+    {
+        if (parsedSpeed == SpeakSpeed &&
+            AppSettings.NormalizeSpeakSpeed(_playbackCoordinator.CurrentSnapshot.SpeakSpeed) == parsedSpeed)
+        {
+            return;
+        }
+
+        await _playbackCoordinator.ChangeSpeedAsync(parsedSpeed, cancellationToken);
+    }
+
+    private async Task RestoreMissingRuleSessionAsync(
+        string requestedBookId,
+        PlaybackSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        if (snapshot.HasAvailableRule ||
+            string.IsNullOrWhiteSpace(snapshot.BookId) ||
+            !string.Equals(snapshot.BookId, requestedBookId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var selectedRule = Rules.FirstOrDefault(static rule => rule.IsEnabled && rule.IsSelected);
+        if (selectedRule is null)
+        {
+            return;
+        }
+
+        await _playbackCoordinator.OpenPausedAsync(
+            new OpenBookPlaybackRequest(
+                requestedBookId,
+                snapshot.ChapterIndex >= 0 ? snapshot.ChapterIndex : null,
+                snapshot.SegmentIndex >= 0 ? snapshot.SegmentIndex : null,
+                ResolveSpeakSpeedForOpen()),
+            cancellationToken);
+
+        var refreshedSnapshot = _playbackCoordinator.CurrentSnapshot;
+        ApplySnapshot(refreshedSnapshot);
+        await EnsureContentLoadedForSnapshotAsync(refreshedSnapshot, cancellationToken);
     }
 
     private void HandleMissingBook()
@@ -873,14 +1019,16 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     private static string BuildDetailText(PlaybackSnapshot snapshot)
     {
-        if (!string.IsNullOrWhiteSpace(snapshot.Message))
-        {
-            return snapshot.Message;
-        }
-
         if (string.IsNullOrWhiteSpace(snapshot.BookId))
         {
             return "从书库打开一本书后，这里会显示当前章节与段落位置。";
+        }
+
+        if (!string.IsNullOrWhiteSpace(snapshot.Message) &&
+            snapshot.State != PlaybackState.Faulted &&
+            snapshot.HasAvailableRule)
+        {
+            return snapshot.Message;
         }
 
         var chapterText = snapshot.ChapterIndex >= 0 ? $"第 {snapshot.ChapterIndex + 1} 章" : "未定位章节";

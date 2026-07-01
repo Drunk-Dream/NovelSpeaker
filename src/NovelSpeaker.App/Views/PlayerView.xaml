@@ -167,9 +167,41 @@
                         <TextBlock Margin="0,8,0,0"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="输入后端实际使用的原始整数值。" />
-                        <TextBox Margin="0,16,0,0"
-                                 Width="120"
-                                 Text="{Binding SpeedEditorText, UpdateSourceTrigger=PropertyChanged}" />
+                        <Grid Margin="0,16,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="DecreaseSpeedButton"
+                                    Grid.Column="0"
+                                    Width="40"
+                                    Height="36"
+                                    Margin="0,0,8,0"
+                                    Command="{Binding DecreaseSpeakSpeedCommand}"
+                                    Content="-"
+                                    IsEnabled="{Binding CanDecreaseSpeakSpeed}"
+                                    ToolTip="降低语速"
+                                    AutomationProperties.Name="降低语速" />
+                            <TextBox x:Name="SpeedEditorTextBox"
+                                     Grid.Column="1"
+                                     Height="36"
+                                     VerticalContentAlignment="Center"
+                                     HorizontalContentAlignment="Center"
+                                     PreviewKeyDown="SpeedEditorTextBox_OnPreviewKeyDown"
+                                     LostKeyboardFocus="SpeedEditorTextBox_OnLostKeyboardFocus"
+                                     Text="{Binding SpeedEditorText, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button x:Name="IncreaseSpeedButton"
+                                    Grid.Column="2"
+                                    Width="40"
+                                    Height="36"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding IncreaseSpeakSpeedCommand}"
+                                    Content="+"
+                                    IsEnabled="{Binding CanIncreaseSpeakSpeed}"
+                                    ToolTip="提高语速"
+                                    AutomationProperties.Name="提高语速" />
+                        </Grid>
                         <TextBlock Margin="0,8,0,0"
                                    Text="{Binding SpeedEditorErrorText}">
                             <TextBlock.Style>
@@ -184,11 +216,6 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
-                        <Button Margin="0,12,0,0"
-                                Padding="14,8"
-                                HorizontalAlignment="Left"
-                                Command="{Binding ApplySpeakSpeedCommand}"
-                                Content="应用语速" />
                     </StackPanel>
                 </Border>
             </Popup>
@@ -310,6 +337,7 @@
                   MinHeight="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -324,25 +352,54 @@
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="{Binding DetailText}"
                                    TextWrapping="Wrap" />
-                        <TextBlock Margin="0,8,0,0"
-                                   Text="{Binding ErrorText}"
-                                   TextWrapping="Wrap">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock"
-                                       BasedOn="{StaticResource ErrorTextBlockStyle}">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding ErrorText}" Value="">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
                     </StackPanel>
                 </Border>
 
                 <Border Grid.Row="1"
+                        Margin="0,16,0,0"
+                        Padding="{StaticResource CardPadding}"
+                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ShowPlaybackErrorBar}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource ErrorTextBlockStyle}"
+                                   Text="{Binding ErrorText}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center" />
+                        <WrapPanel Grid.Column="1"
+                                   Margin="16,0,0,0"
+                                   VerticalAlignment="Center">
+                            <Button Margin="0,0,8,0"
+                                    Padding="14,8"
+                                    Command="{Binding RetryCurrentSegmentCommand}"
+                                    Content="再次尝试"
+                                    ToolTip="再次尝试"
+                                    AutomationProperties.Name="再次尝试" />
+                            <Button Padding="14,8"
+                                    Command="{Binding OpenRuleMenuCommand}"
+                                    Content="切换规则"
+                                    ToolTip="切换规则"
+                                    AutomationProperties.Name="切换规则" />
+                        </WrapPanel>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="2"
                         Margin="0,20,0,0"
                         MinHeight="0"
                         Padding="{StaticResource CardPaddingLarge}"
@@ -443,10 +500,20 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Row="2"
+                <Border Grid.Row="3"
                         Margin="0,20,0,0"
-                        Padding="{StaticResource CardPadding}"
-                        Style="{StaticResource CardBorderStyle}">
+                        Padding="{StaticResource CardPadding}">
+                    <Border.Style>
+                        <Style TargetType="Border"
+                               BasedOn="{StaticResource CardBorderStyle}">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ShowPlaybackControls}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <WrapPanel HorizontalAlignment="Center">
                         <Button Margin="0,0,12,0"
                                 Padding="18,10"
@@ -464,7 +531,7 @@
                                 AutomationProperties.Name="上一段" />
                         <Button Margin="0,0,12,0"
                                 Padding="24,10"
-                                IsEnabled="{Binding HasAvailableRule}"
+                                IsEnabled="{Binding CanTogglePlayPause}"
                                 Command="{Binding TogglePlayPauseCommand}"
                                 Content="{Binding PrimaryActionText}"
                                 ToolTip="{Binding PrimaryActionText}"
@@ -485,10 +552,20 @@
                     </WrapPanel>
                 </Border>
 
-                <Border Grid.Row="3"
+                <Border Grid.Row="4"
                         Margin="0,16,0,0"
-                        Padding="{StaticResource CardPadding}"
-                        Style="{StaticResource CardBorderStyle}">
+                        Padding="{StaticResource CardPadding}">
+                    <Border.Style>
+                        <Style TargetType="Border"
+                               BasedOn="{StaticResource CardBorderStyle}">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ShowPlaybackControls}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <StackPanel>
                         <Slider x:Name="SegmentProgressSlider"
                                 Minimum="0"
@@ -506,6 +583,36 @@
                                    HorizontalAlignment="Center"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="{Binding DisplayedSegmentCounterText}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="3"
+                        Grid.RowSpan="2"
+                        Margin="0,20,0,0"
+                        Padding="{StaticResource CardPaddingLarge}">
+                    <Border.Style>
+                        <Style TargetType="Border"
+                               BasedOn="{StaticResource CardBorderStyle}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ShowNoRuleState}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                                   Text="尚无可用的朗读规则" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                   Text="先前往 TTS 规则页选择或导入一条可用规则，再回到当前书籍位置继续准备播放。"
+                                   TextWrapping="Wrap" />
+                        <Button Margin="0,16,0,0"
+                                Padding="14,8"
+                                HorizontalAlignment="Left"
+                                Command="{Binding OpenRulesManagementCommand}"
+                                Content="前往 TTS 规则" />
                     </StackPanel>
                 </Border>
             </Grid>

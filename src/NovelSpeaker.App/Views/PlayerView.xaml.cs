@@ -126,6 +126,27 @@ public partial class PlayerView : UserControl
         await _viewModel.CommitSegmentProgressAsync(slider.Value, CancellationToken.None);
     }
 
+    private async void SpeedEditorTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || _viewModel is null)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await _viewModel.ApplySpeakSpeedCommand.ExecuteAsync(null);
+    }
+
+    private async void SpeedEditorTextBox_OnLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (_viewModel is null || !_viewModel.IsSpeedMenuOpen || IsSpeedStepButton(e.NewFocus as DependencyObject))
+        {
+            return;
+        }
+
+        await _viewModel.ApplySpeakSpeedCommand.ExecuteAsync(null);
+    }
+
     private void AttachViewModel(PlayerViewModel? viewModel)
     {
         if (viewModel is null || ReferenceEquals(_viewModel, viewModel))
@@ -268,6 +289,11 @@ public partial class PlayerView : UserControl
     private static bool IsScrollKey(Key key)
     {
         return key is Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End;
+    }
+
+    private static bool IsSpeedStepButton(DependencyObject? target)
+    {
+        return target is FrameworkElement { Name: "DecreaseSpeedButton" or "IncreaseSpeedButton" };
     }
 
     private static bool IsSegmentProgressKey(Key key)
