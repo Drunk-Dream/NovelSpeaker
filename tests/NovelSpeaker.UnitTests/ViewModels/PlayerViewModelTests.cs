@@ -1,11 +1,16 @@
-using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Navigation;
+using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.Player;
 using NovelSpeaker.App.ViewModels;
+using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
+using Wpf.Ui;
+using Wpf.Ui.Controls;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.ViewModels;
@@ -13,253 +18,51 @@ namespace NovelSpeaker.UnitTests.ViewModels;
 public sealed class PlayerViewModelTests
 {
     [Fact]
-    public void Constructor_projects_existing_snapshot()
-    {
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Playing,
-            "book-1",
-            "示例小说",
-            0,
-            "第一章 开始",
-            1,
-            4,
-            5,
-            "默认规则",
-            12,
-            200,
-            700,
-            null,
-            false,
-            false,
-            false));
-
-        var viewModel = new PlayerViewModel(
-            coordinator,
-            new FakeBookCatalogService([]),
-            new FakeTtsRuleLibraryService([]),
-            new FakeAppSettingsStore(AppSettings.Default));
-
-        Assert.Equal("示例小说", viewModel.CurrentTitle);
-        Assert.Equal("正在播放", viewModel.StatusText);
-        Assert.Equal("第 1 章，第 2/4 段 · 在线生成 · 200 / 700 ms", viewModel.DetailText);
-        Assert.Equal("暂停", viewModel.PrimaryActionText);
-    }
-
-    [Fact]
-    public async Task StartSelectedBookCommand_starts_selected_book()
-    {
-        var coordinator = new FakePlaybackCoordinator();
-        var viewModel = new PlayerViewModel(
-            coordinator,
-            new FakeBookCatalogService([new BookSummary("book-1", "示例小说", null, "第一章 开始", "2026-06-24")]),
-            new FakeTtsRuleLibraryService([new TtsRuleSummary(5, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]),
-            new FakeAppSettingsStore(AppSettings.Default));
-
-        await viewModel.LoadAsync(CancellationToken.None);
-        await viewModel.StartSelectedBookCommand.ExecuteAsync(null);
-
-        Assert.NotNull(coordinator.LastStartRequest);
-        Assert.Equal("book-1", coordinator.LastStartRequest!.BookId);
-        Assert.Equal(10, coordinator.LastStartRequest.SpeakSpeedOverride);
-    }
-
-    [Fact]
-    public async Task TogglePlayPauseCommand_pauses_current_playback()
-    {
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Playing,
-            "book-1",
-            "示例小说",
-            0,
-            "第一章 开始",
-            0,
-            2,
-            5,
-            "默认规则",
-            10,
-            0,
-            700,
-            null,
-            false,
-            false,
-            false));
-
-        var viewModel = new PlayerViewModel(
-            coordinator,
-            new FakeBookCatalogService([]),
-            new FakeTtsRuleLibraryService([]),
-            new FakeAppSettingsStore(AppSettings.Default));
-
-        await viewModel.TogglePlayPauseCommand.ExecuteAsync(null);
-
-        Assert.Equal(1, coordinator.PauseCallCount);
-    }
-
-    [Fact]
-    public async Task ApplySelectedRuleCommand_calls_change_rule_on_coordinator()
-    {
-        var coordinator = new FakePlaybackCoordinator();
-        var viewModel = new PlayerViewModel(
-            coordinator,
-            new FakeBookCatalogService([]),
-            new FakeTtsRuleLibraryService([new TtsRuleSummary(9, "备用规则", true, false, null, TtsRuleCompatibilityStatus.Compatible, [])]),
-            new FakeAppSettingsStore(AppSettings.Default));
-
-        await viewModel.LoadAsync(CancellationToken.None);
-        viewModel.SelectedRule = viewModel.Rules.Single();
-
-        await viewModel.ApplySelectedRuleCommand.ExecuteAsync(null);
-
-        Assert.Equal(9, coordinator.LastChangedRuleId);
-    }
-
-    [Fact]
-    public async Task LoadAsync_preserves_current_selections_when_lists_refresh()
-    {
-        var coordinator = new FakePlaybackCoordinator();
-        var catalogService = new MutableBookCatalogService([
-            new BookSummary("book-1", "示例小说一", null, "第一章", "2026-06-24"),
-            new BookSummary("book-2", "示例小说二", null, "第二章", "2026-06-24")
-        ]);
-        var ruleService = new MutableTtsRuleLibraryService([
-            new TtsRuleSummary(1, "规则一", true, false, null, TtsRuleCompatibilityStatus.Compatible, []),
-            new TtsRuleSummary(2, "规则二", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])
-        ]);
-        var viewModel = new PlayerViewModel(
-            coordinator,
-            catalogService,
-            ruleService,
-            new FakeAppSettingsStore(AppSettings.Default));
-
-        await viewModel.LoadAsync(CancellationToken.None);
-        viewModel.SelectedBook = viewModel.Books[1];
-        viewModel.SelectedRule = viewModel.Rules[1];
-
-        catalogService.Books = [
-            new BookSummary("book-2", "示例小说二", null, "第二章", "2026-06-25"),
-            new BookSummary("book-1", "示例小说一", null, "第一章", "2026-06-25")
-        ];
-        ruleService.Rules = [
-            new TtsRuleSummary(2, "规则二", true, true, null, TtsRuleCompatibilityStatus.Compatible, []),
-            new TtsRuleSummary(1, "规则一", true, false, null, TtsRuleCompatibilityStatus.Compatible, [])
-        ];
-
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        Assert.Equal("book-2", viewModel.SelectedBook?.Id);
-        Assert.Equal(2, viewModel.SelectedRule?.Id);
-    }
-
-    [Fact]
-    public void SnapshotChanged_updates_error_projection()
-    {
-        var coordinator = new FakePlaybackCoordinator();
-        var viewModel = new PlayerViewModel(
-            coordinator,
-            new FakeBookCatalogService([]),
-            new FakeTtsRuleLibraryService([]),
-            new FakeAppSettingsStore(AppSettings.Default));
-
-        coordinator.Publish(new PlaybackSnapshot(
-            PlaybackState.Faulted,
-            "book-1",
-            "示例小说",
-            0,
-            "第一章 开始",
-            2,
-            4,
-            5,
-            "默认规则",
-            10,
-            0,
-            0,
-            "音频解码失败，请重试当前段。",
-            false,
-            true,
-            true));
-
-        Assert.True(viewModel.IsFaulted);
-        Assert.True(viewModel.CanRetryCurrentSegment);
-        Assert.True(viewModel.CanSkipCurrentSegment);
-        Assert.Equal("播放失败", viewModel.StatusText);
-        Assert.Equal("音频解码失败，请重试当前段。", viewModel.ErrorText);
-        Assert.Equal("音频解码失败，请重试当前段。", viewModel.DetailText);
-    }
-
-    [Fact]
-    public async Task HandleNavigationAsync_open_paused_calls_coordinator_for_different_book()
+    public async Task HandleNavigationAsync_open_paused_calls_coordinator_for_different_book_and_loads_projection()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
             "book-1",
             "示例小说",
             0,
-            "第一章 开始",
+            "第一章",
             0,
             2,
-            5,
+            1,
             "默认规则",
             10,
             0,
-            700,
+            0,
             null,
             false,
             false,
-            false));
-        var viewModel = new PlayerViewModel(
-            coordinator,
-            new FakeBookCatalogService(
-                [
-                    new BookSummary("book-1", "示例小说", null, "第一章 开始", "2026-06-24"),
-                    new BookSummary("book-2", "另一本书", null, "第二章", "2026-06-24")
-                ]),
-            new FakeTtsRuleLibraryService([]),
-            new FakeAppSettingsStore(AppSettings.Default));
+            false,
+            "作者甲"));
+        var contentService = new FakeBookPlaybackContentService(
+            new PlaybackBookContent(
+                "book-2",
+                "另一本书",
+                [new PlaybackChapterContent(0, "第二章", [])],
+                "作者乙"),
+            new PlaybackChapterContent(
+                0,
+                "第二章",
+                [new SpeechSegment(0, 0, 3, "第二章第一段", "第二章第一段")]));
+        var viewModel = CreateViewModel(coordinator, contentService);
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
             new PlayerNavigationRequest("book-2", PlayerNavigationMode.OpenPaused),
             CancellationToken.None);
+        await Task.Delay(20);
 
         Assert.Equal(1, coordinator.OpenPausedCallCount);
         Assert.Equal("book-2", coordinator.LastOpenPausedRequest!.BookId);
-        Assert.Equal("book-2", viewModel.SelectedBook?.Id);
-    }
-
-    [Fact]
-    public async Task HandleNavigationAsync_open_paused_keeps_existing_session_for_same_book()
-    {
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Playing,
-            "book-1",
-            "示例小说",
-            0,
-            "第一章 开始",
-            0,
-            2,
-            5,
-            "默认规则",
-            10,
-            120,
-            700,
-            null,
-            false,
-            false,
-            false));
-        var viewModel = new PlayerViewModel(
-            coordinator,
-            new FakeBookCatalogService([new BookSummary("book-1", "示例小说", null, "第一章 开始", "2026-06-24")]),
-            new FakeTtsRuleLibraryService([]),
-            new FakeAppSettingsStore(AppSettings.Default));
-
-        await viewModel.LoadAsync(CancellationToken.None);
-        await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.OpenPaused),
-            CancellationToken.None);
-
-        Assert.Equal(0, coordinator.OpenPausedCallCount);
-        Assert.Equal("book-1", viewModel.SelectedBook?.Id);
-        Assert.Equal("示例小说", viewModel.CurrentTitle);
+        Assert.Equal("另一本书", viewModel.CurrentTitle);
+        Assert.Equal("作者乙", viewModel.CurrentAuthor);
+        Assert.Single(viewModel.Chapters);
+        Assert.Single(viewModel.Segments);
+        Assert.Equal("第二章第一段", viewModel.Segments[0].Text);
     }
 
     [Fact]
@@ -270,23 +73,34 @@ public sealed class PlayerViewModelTests
             "book-1",
             "示例小说",
             0,
-            "第一章 开始",
-            0,
-            2,
-            5,
+            "第一章",
+            1,
+            3,
+            1,
             "默认规则",
-            10,
-            120,
-            700,
+            12,
+            0,
+            0,
             null,
             false,
             false,
-            false));
-        var viewModel = new PlayerViewModel(
-            coordinator,
-            new FakeBookCatalogService([new BookSummary("book-1", "示例小说", null, "第一章 开始", "2026-06-24")]),
-            new FakeTtsRuleLibraryService([]),
-            new FakeAppSettingsStore(AppSettings.Default));
+            false,
+            "作者甲"));
+        var contentService = new FakeBookPlaybackContentService(
+            new PlaybackBookContent(
+                "book-1",
+                "示例小说",
+                [new PlaybackChapterContent(0, "第一章", [])],
+                "作者甲"),
+            new PlaybackChapterContent(
+                0,
+                "第一章",
+                [
+                    new SpeechSegment(0, 0, 3, "第一段", "第一段"),
+                    new SpeechSegment(1, 3, 3, "第二段", "第二段"),
+                    new SpeechSegment(2, 6, 3, "第三段", "第三段")
+                ]));
+        var viewModel = CreateViewModel(coordinator, contentService);
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
@@ -294,8 +108,243 @@ public sealed class PlayerViewModelTests
             CancellationToken.None);
 
         Assert.Equal(0, coordinator.OpenPausedCallCount);
-        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
-        Assert.Equal("book-1", viewModel.SelectedBook?.Id);
+        Assert.Equal(PlaybackState.Playing, viewModel.CurrentPlaybackState);
+        Assert.Equal(1, viewModel.CurrentSegmentIndex);
+        Assert.Equal(3, viewModel.CurrentChapterSegmentCount);
+        Assert.True(viewModel.Segments[1].IsCurrent);
+    }
+
+    [Fact]
+    public async Task HandleNavigationAsync_missing_book_navigates_to_library_and_warns()
+    {
+        var navigationService = new FakeNavigationService();
+        var feedbackService = new FakeAppFeedbackService();
+        var viewModel = CreateViewModel(
+            new FakePlaybackCoordinator(),
+            new FakeBookPlaybackContentService(null, null),
+            navigationService: navigationService,
+            feedbackService: feedbackService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("missing-book", PlayerNavigationMode.OpenPaused),
+            CancellationToken.None);
+
+        Assert.Equal(typeof(LibraryPage), navigationService.LastNavigationPageType);
+        Assert.Equal("无法打开书籍", feedbackService.LastWarningTitle);
+    }
+
+    [Fact]
+    public async Task SelectChapterCommand_jumps_and_closes_drawer()
+    {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            2,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            false));
+        var layoutController = new FakePlayerLayoutController(isCompactLayout: true, isDrawerOpen: true);
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(
+                new PlaybackBookContent(
+                    "book-1",
+                    "示例小说",
+                    [
+                        new PlaybackChapterContent(0, "第一章", []),
+                        new PlaybackChapterContent(1, "第二章", [])
+                    ],
+                    "作者甲"),
+                new PlaybackChapterContent(1, "第二章", [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")])),
+            layoutController: layoutController);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
+
+        await viewModel.SelectChapterCommand.ExecuteAsync(viewModel.Chapters[1]);
+
+        Assert.Equal(1, coordinator.LastJumpedChapterIndex);
+        Assert.False(layoutController.IsDrawerOpen);
+    }
+
+    [Fact]
+    public async Task Snapshot_updates_ignore_stale_chapter_load_results()
+    {
+        var firstChapterLoad = new TaskCompletionSource<PlaybackChapterContent?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var contentService = new DelayedBookPlaybackContentService(
+            new PlaybackBookContent(
+                "book-1",
+                "示例小说",
+                [
+                    new PlaybackChapterContent(0, "第一章", []),
+                    new PlaybackChapterContent(1, "第二章", [])
+                ],
+                "作者甲"),
+            [
+                firstChapterLoad.Task,
+                Task.FromResult<PlaybackChapterContent?>(new PlaybackChapterContent(
+                    1,
+                    "第二章",
+                    [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")]))
+            ]);
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            1,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            false));
+        var viewModel = CreateViewModel(coordinator, contentService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        var navigationTask = viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
+
+        await contentService.WaitForChapterRequestCountAsync(1);
+
+        coordinator.Publish(coordinator.CurrentSnapshot with
+        {
+            ChapterIndex = 1,
+            ChapterTitle = "第二章",
+            SegmentIndex = 0,
+            SegmentCount = 1
+        });
+
+        await contentService.WaitForChapterRequestCountAsync(2);
+        firstChapterLoad.SetResult(new PlaybackChapterContent(
+            0,
+            "第一章",
+            [new SpeechSegment(0, 0, 4, "第一章第一段", "第一章第一段")]));
+
+        await navigationTask;
+        await Task.Delay(20);
+
+        Assert.Equal(1, viewModel.CurrentChapterIndex);
+        Assert.Single(viewModel.Segments);
+        Assert.Equal("第二章第一段", viewModel.Segments[0].Text);
+    }
+
+    [Fact]
+    public async Task SelectRuleCommand_changes_rule_without_losing_context()
+    {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            1,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            false));
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
+                new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
+            ruleService: new FakeTtsRuleLibraryService(
+                [
+                    new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, []),
+                    new TtsRuleSummary(2, "备用规则", true, false, null, TtsRuleCompatibilityStatus.Compatible, [])
+                ]));
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
+
+        await viewModel.SelectRuleCommand.ExecuteAsync(viewModel.Rules[1]);
+
+        Assert.Equal(2, coordinator.LastChangedRuleId);
+        Assert.Equal("示例小说", viewModel.CurrentTitle);
+    }
+
+    [Fact]
+    public async Task ApplySpeakSpeedCommand_changes_speed_with_current_context()
+    {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            1,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            false));
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
+                new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
+
+        viewModel.ToggleSpeedMenuCommand.Execute(null);
+        viewModel.SpeedEditorText = "18";
+        await viewModel.ApplySpeakSpeedCommand.ExecuteAsync(null);
+
+        Assert.Equal(18, coordinator.LastChangedSpeakSpeed);
+        Assert.Equal("示例小说", viewModel.CurrentTitle);
+    }
+
+    private static PlayerViewModel CreateViewModel(
+        FakePlaybackCoordinator coordinator,
+        IBookPlaybackContentService contentService,
+        ITtsRuleLibraryService? ruleService = null,
+        FakeNavigationService? navigationService = null,
+        FakeAppFeedbackService? feedbackService = null,
+        FakePlayerLayoutController? layoutController = null)
+    {
+        return new PlayerViewModel(
+            coordinator,
+            contentService,
+            ruleService ?? new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]),
+            new FakeAppSettingsStore(AppSettings.Default),
+            feedbackService ?? new FakeAppFeedbackService(),
+            navigationService ?? new FakeNavigationService(),
+            layoutController ?? new FakePlayerLayoutController());
     }
 
     private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
@@ -312,38 +361,28 @@ public sealed class PlayerViewModelTests
 
         public PlaybackSnapshot CurrentSnapshot { get; private set; }
 
-        public PlaybackStartRequest? LastStartRequest { get; private set; }
-
         public long? LastChangedRuleId { get; private set; }
 
-        public int PauseCallCount { get; private set; }
+        public int? LastChangedSpeakSpeed { get; private set; }
 
         public int OpenPausedCallCount { get; private set; }
 
         public OpenBookPlaybackRequest? LastOpenPausedRequest { get; private set; }
 
+        public int? LastJumpedChapterIndex { get; private set; }
+
         public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 
         public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken)
         {
-            LastStartRequest = request;
-            Publish(new PlaybackSnapshot(
-                PlaybackState.Playing,
-                request.BookId,
-                "示例小说",
-                request.ChapterIndex ?? 0,
-                "第一章 开始",
-                request.SegmentIndex ?? 0,
-                3,
-                5,
-                "默认规则",
-                request.SpeakSpeedOverride ?? 10,
-                request.ResumePositionMilliseconds ?? 0,
-                800,
-                null,
-                false,
-                false,
-                false));
+            Publish(CurrentSnapshot with
+            {
+                State = PlaybackState.Playing,
+                BookId = request.BookId,
+                ChapterIndex = request.ChapterIndex ?? CurrentSnapshot.ChapterIndex,
+                SegmentIndex = request.SegmentIndex ?? CurrentSnapshot.SegmentIndex,
+                SpeakSpeed = request.SpeakSpeedOverride ?? CurrentSnapshot.SpeakSpeed
+            });
             return Task.CompletedTask;
         }
 
@@ -351,19 +390,29 @@ public sealed class PlayerViewModelTests
         {
             OpenPausedCallCount++;
             LastOpenPausedRequest = request;
-            Publish(CurrentSnapshot with
-            {
-                State = PlaybackState.Paused,
-                BookId = request.BookId,
-                ChapterIndex = request.ChapterIndex ?? 0,
-                SegmentIndex = request.SegmentIndex ?? 0
-            });
+            Publish(new PlaybackSnapshot(
+                PlaybackState.Paused,
+                request.BookId,
+                request.BookId == "book-2" ? "另一本书" : "示例小说",
+                request.ChapterIndex ?? 0,
+                request.BookId == "book-2" ? "第二章" : "第一章",
+                request.SegmentIndex ?? 0,
+                1,
+                1,
+                "默认规则",
+                request.SpeakSpeedOverride ?? 10,
+                0,
+                0,
+                null,
+                false,
+                false,
+                false,
+                request.BookId == "book-2" ? "作者乙" : "作者甲"));
             return Task.CompletedTask;
         }
 
         public Task PauseAsync(CancellationToken cancellationToken)
         {
-            PauseCallCount++;
             Publish(CurrentSnapshot with { State = PlaybackState.Paused });
             return Task.CompletedTask;
         }
@@ -376,31 +425,21 @@ public sealed class PlayerViewModelTests
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
-            Publish(CurrentSnapshot with
-            {
-                State = PlaybackState.Stopped,
-                PositionMilliseconds = 0,
-                Message = "已停止当前播放。"
-            });
+            Publish(CurrentSnapshot with { State = PlaybackState.Stopped });
             return Task.CompletedTask;
         }
 
-        public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken)
-        {
-            Publish(CurrentSnapshot with
-            {
-                ChapterIndex = target.ChapterIndex,
-                SegmentIndex = target.SegmentIndex
-            });
-            return Task.CompletedTask;
-        }
+        public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken)
         {
+            LastJumpedChapterIndex = chapterIndex;
             Publish(CurrentSnapshot with
             {
                 ChapterIndex = chapterIndex,
-                SegmentIndex = 0
+                ChapterTitle = chapterIndex == 0 ? "第一章" : "第二章",
+                SegmentIndex = 0,
+                SegmentCount = 1
             });
             return Task.CompletedTask;
         }
@@ -431,29 +470,14 @@ public sealed class PlayerViewModelTests
 
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken)
         {
+            LastChangedSpeakSpeed = speakSpeed;
             Publish(CurrentSnapshot with { SpeakSpeed = speakSpeed });
             return Task.CompletedTask;
         }
 
-        public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken)
-        {
-            if (string.Equals(CurrentSnapshot.BookId, bookId, StringComparison.Ordinal))
-            {
-                Publish(CurrentSnapshot with { BookTitle = "已更新书名", BookAuthor = "已更新作者" });
-            }
+        public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
 
-            return Task.CompletedTask;
-        }
-
-        public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken)
-        {
-            if (string.Equals(CurrentSnapshot.BookId, bookId, StringComparison.Ordinal))
-            {
-                Publish(PlaybackSnapshot.Idle);
-            }
-
-            return Task.CompletedTask;
-        }
+        public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
@@ -464,34 +488,101 @@ public sealed class PlayerViewModelTests
         }
     }
 
-    private sealed class FakeBookCatalogService : IBookCatalogService
+    private sealed class FakeBookPlaybackContentService : IBookPlaybackContentService
     {
-        private readonly IReadOnlyList<BookSummary> _books;
+        private readonly PlaybackBookContent? _book;
+        private readonly PlaybackChapterContent? _chapter;
 
-        public FakeBookCatalogService(IReadOnlyList<BookSummary> books)
+        public FakeBookPlaybackContentService(PlaybackBookContent? book, PlaybackChapterContent? chapter)
         {
-            _books = books;
+            _book = book;
+            _chapter = chapter;
         }
 
-        public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
+        public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
         {
-            return Task.FromResult(_books);
+            if (_book is null || !string.Equals(_book.BookId, bookId, StringComparison.Ordinal))
+            {
+                return Task.FromResult<PlaybackBookContent?>(null);
+            }
+
+            return Task.FromResult<PlaybackBookContent?>(_book);
+        }
+
+        public Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
+        {
+            if (_book is null || _chapter is null ||
+                !string.Equals(_book.BookId, bookId, StringComparison.Ordinal) ||
+                _chapter.ChapterIndex != chapterIndex)
+            {
+                return Task.FromResult<PlaybackChapterContent?>(null);
+            }
+
+            return Task.FromResult<PlaybackChapterContent?>(_chapter);
         }
     }
 
-    private sealed class MutableBookCatalogService : IBookCatalogService
+    private sealed class DelayedBookPlaybackContentService : IBookPlaybackContentService
     {
-        public MutableBookCatalogService(IReadOnlyList<BookSummary> books)
+        private readonly PlaybackBookContent _book;
+        private readonly Queue<Task<PlaybackChapterContent?>> _chapterLoads;
+        private int _chapterRequestCount;
+
+        public DelayedBookPlaybackContentService(
+            PlaybackBookContent book,
+            IEnumerable<Task<PlaybackChapterContent?>> chapterLoads)
         {
-            Books = books;
+            _book = book;
+            _chapterLoads = new Queue<Task<PlaybackChapterContent?>>(chapterLoads);
         }
 
-        public IReadOnlyList<BookSummary> Books { get; set; }
-
-        public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
+        public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Books);
+            return Task.FromResult<PlaybackBookContent?>(_book);
         }
+
+        public Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _chapterRequestCount);
+            return _chapterLoads.Count == 0
+                ? Task.FromResult<PlaybackChapterContent?>(null)
+                : _chapterLoads.Dequeue();
+        }
+
+        public async Task WaitForChapterRequestCountAsync(int expectedCount)
+        {
+            while (Volatile.Read(ref _chapterRequestCount) < expectedCount)
+            {
+                await Task.Delay(10);
+            }
+        }
+    }
+
+    private sealed class FakeTtsRuleLibraryService : ITtsRuleLibraryService
+    {
+        private readonly IReadOnlyList<TtsRuleSummary> _rules;
+
+        public FakeTtsRuleLibraryService(IReadOnlyList<TtsRuleSummary> rules)
+        {
+            _rules = rules;
+        }
+
+        public Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(_rules);
+        }
+
+        public Task<TtsRuleImportPreview> CreateImportPreviewAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<TtsRuleValidationResult> ValidateEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<TtsRuleProtectionInfo> GetRuleProtectionAsync(long ruleId, TtsRuleMutationAction action, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<TtsRuleMutationResult> ApplyRuleMutationAsync(TtsRuleMutationDecision decision, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task SelectRuleAsync(long? ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class FakeAppSettingsStore : IAppSettingsStore
@@ -512,143 +603,115 @@ public sealed class PlayerViewModelTests
         }
     }
 
-    private sealed class FakeTtsRuleLibraryService : ITtsRuleLibraryService
+    private sealed class FakeAppFeedbackService : IAppFeedbackService
     {
-        private readonly IReadOnlyList<TtsRuleSummary> _rules;
+        public string? LastWarningTitle { get; private set; }
 
-        public FakeTtsRuleLibraryService(IReadOnlyList<TtsRuleSummary> rules)
+        public ProjectedUiError Project(Exception exception) => new(exception.Message, UiMessageSeverity.Error, false);
+
+        public void ShowProjectedNotification(string title, ProjectedUiError projected)
         {
-            _rules = rules;
         }
 
-        public Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken)
+        public void ShowSuccess(string title, string message)
         {
-            return Task.FromResult(_rules);
         }
 
-        public Task<TtsRuleImportPreview> CreateImportPreviewAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken)
+        public void ShowWarning(string title, string message)
         {
-            throw new NotSupportedException();
+            LastWarningTitle = title;
         }
 
-        public Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken)
+        public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken)
         {
-            throw new NotSupportedException();
-        }
-
-        public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<TtsRuleValidationResult> ValidateEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<TtsRuleProtectionInfo> GetRuleProtectionAsync(long ruleId, TtsRuleMutationAction action, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<TtsRuleMutationResult> ApplyRuleMutationAsync(TtsRuleMutationDecision decision, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task SelectRuleAsync(long? ruleId, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
+            return Task.FromResult(AppConfirmationDecision.Cancel);
         }
     }
 
-    private sealed class MutableTtsRuleLibraryService : ITtsRuleLibraryService
+    private sealed class FakeNavigationService : INavigationService
     {
-        public MutableTtsRuleLibraryService(IReadOnlyList<TtsRuleSummary> rules)
+        public Type? LastNavigationPageType { get; private set; }
+
+        public object? LastNavigationData { get; private set; }
+
+        public INavigationView GetNavigationControl() => throw new NotSupportedException();
+
+        public bool GoBack() => false;
+
+        public bool Navigate(Type pageType) => true;
+
+        public bool Navigate(Type pageType, object? dataContext) => true;
+
+        public bool Navigate(string pageIdOrTargetTag) => true;
+
+        public bool Navigate(string pageIdOrTargetTag, object? dataContext) => true;
+
+        public bool NavigateWithHierarchy(Type pageType)
         {
-            Rules = rules;
+            LastNavigationPageType = pageType;
+            LastNavigationData = null;
+            return true;
         }
 
-        public IReadOnlyList<TtsRuleSummary> Rules { get; set; }
-
-        public Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken)
+        public bool NavigateWithHierarchy(Type pageType, object? dataContext)
         {
-            return Task.FromResult(Rules);
+            LastNavigationPageType = pageType;
+            LastNavigationData = dataContext;
+            return true;
         }
 
-        public Task<TtsRuleImportPreview> CreateImportPreviewAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken)
+        public void SetNavigationControl(INavigationView navigation)
         {
-            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class FakePlayerLayoutController : IPlayerLayoutController
+    {
+        public FakePlayerLayoutController(bool isCompactLayout = false, bool isDrawerOpen = false)
+        {
+            IsCompactLayout = isCompactLayout;
+            IsDrawerOpen = isDrawerOpen;
         }
 
-        public Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken)
+        public bool IsCompactLayout { get; private set; }
+
+        public bool IsDrawerOpen { get; private set; }
+
+        public event EventHandler? StateChanged;
+
+        public void UpdateWidth(double width)
         {
-            throw new NotSupportedException();
+            var nextIsCompact = width < 1080d;
+            if (nextIsCompact == IsCompactLayout)
+            {
+                return;
+            }
+
+            IsCompactLayout = nextIsCompact;
+            if (!IsCompactLayout)
+            {
+                IsDrawerOpen = false;
+            }
+
+            StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken)
+        public void OpenDrawer()
         {
-            throw new NotSupportedException();
+            IsDrawerOpen = true;
+            StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        public Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken)
+        public void CloseDrawer()
         {
-            throw new NotSupportedException();
+            IsDrawerOpen = false;
+            StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        public Task<TtsRuleValidationResult> ValidateEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken)
+        public void ToggleDrawer()
         {
-            throw new NotSupportedException();
-        }
-
-        public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<TtsRuleProtectionInfo> GetRuleProtectionAsync(long ruleId, TtsRuleMutationAction action, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<TtsRuleMutationResult> ApplyRuleMutationAsync(TtsRuleMutationDecision decision, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task SelectRuleAsync(long? ruleId, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
+            IsDrawerOpen = !IsDrawerOpen;
+            StateChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 }
