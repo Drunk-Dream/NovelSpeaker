@@ -1,12 +1,15 @@
 <Page x:Class="NovelSpeaker.App.Pages.CacheManagementPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
     <Grid Margin="{StaticResource PagePadding}">
         <StackPanel>
-            <Button Padding="12,8"
-                    HorizontalAlignment="Left"
+            <Button Style="{StaticResource BackIconButtonStyle}"
                     Click="BackButton_OnClick"
-                    Content="返回" />
+                    ToolTip="返回"
+                    AutomationProperties.Name="返回">
+                <ui:SymbolIcon Symbol="ChevronLeft24" />
+            </Button>
 
             <TextBlock Margin="{StaticResource SectionSpacing}"
                        Style="{StaticResource PageTitleTextBlockStyle}"

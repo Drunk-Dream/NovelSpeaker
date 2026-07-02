@@ -8,10 +8,12 @@
                   HorizontalScrollBarVisibility="Disabled"
                   Margin="{StaticResource PagePadding}">
         <StackPanel>
-            <Button Padding="12,8"
-                    HorizontalAlignment="Left"
+            <Button Style="{StaticResource BackIconButtonStyle}"
                     Command="{Binding BackCommand}"
-                    Content="返回" />
+                    ToolTip="返回"
+                    AutomationProperties.Name="返回">
+                <ui:SymbolIcon Symbol="ChevronLeft24" />
+            </Button>
 
             <TextBlock Margin="{StaticResource SectionSpacing}"
                        Style="{StaticResource PageTitleTextBlockStyle}"

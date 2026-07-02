@@ -1,12 +1,15 @@
 <UserControl x:Class="NovelSpeaker.App.Views.PlayerView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
     <UserControl.Resources>
         <Style x:Key="ChapterListButtonStyle" TargetType="Button">
             <Setter Property="Padding" Value="0" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -42,9 +45,13 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <Button Padding="14,8"
+                <Button x:Name="BackButton"
+                        Style="{StaticResource BackIconButtonStyle}"
                         Command="{Binding BackCommand}"
-                        Content="返回" />
+                        ToolTip="返回"
+                        AutomationProperties.Name="返回">
+                    <ui:SymbolIcon Symbol="ChevronLeft24" />
+                </Button>
                 <TextBlock Grid.Column="1"
                            Margin="12,0,0,0"
                            VerticalAlignment="Center"
@@ -59,14 +66,26 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center">
                 <Button x:Name="RuleMenuButton"
-                        Padding="14,8"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
                         Command="{Binding ToggleRuleMenuCommand}"
-                        Content="规则" />
+                        ToolTip="切换规则"
+                        AutomationProperties.Name="切换规则">
+                    <ui:SymbolIcon Symbol="TextBulletListSquare24" />
+                </Button>
                 <Button x:Name="SpeedMenuButton"
                         Margin="12,0,0,0"
-                        Padding="14,8"
+                        Style="{StaticResource ToolbarValueButtonStyle}"
                         Command="{Binding ToggleSpeedMenuCommand}"
-                        Content="{Binding SpeakSpeedButtonText}" />
+                        ToolTip="调整语速"
+                        AutomationProperties.Name="{Binding SpeakSpeedButtonText}">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Speaker124" />
+                        <TextBlock Margin="8,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Style="{StaticResource StrongTextBlockStyle}"
+                                   Text="{Binding SpeakSpeed}" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
 
             <Popup PlacementTarget="{Binding ElementName=RuleMenuButton}"
@@ -74,79 +93,77 @@
                    HorizontalOffset="0"
                    VerticalOffset="8"
                    AllowsTransparency="True"
-                   PopupAnimation="Fade"
                    StaysOpen="False"
                    IsOpen="{Binding IsRuleMenuOpen, Mode=TwoWay}">
                 <Border Width="320"
-                        Padding="{StaticResource CardPadding}"
-                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="12">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
-                                   Text="切换规则" />
-                        <TextBlock Margin="0,8,0,0"
-                                   Style="{StaticResource SecondaryTextBlockStyle}"
-                                   Text="当前规则仅在菜单中显示勾选。" />
-                        <ItemsControl Margin="0,16,0,0"
-                                      ItemsSource="{Binding Rules}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Margin="0,0,0,8"
-                                            Padding="12,8"
-                                            HorizontalContentAlignment="Stretch"
-                                            IsEnabled="{Binding IsEnabled}"
-                                            Command="{Binding DataContext.SelectRuleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="{Binding}">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
-                                                       Text="{Binding Name}" />
-                                            <TextBlock Grid.Column="1"
-                                                       Margin="12,0,0,0"
-                                                       Text="当前">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock"
-                                                           BasedOn="{StaticResource SecondaryTextBlockStyle}">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                                <Setter Property="FontWeight" Value="SemiBold" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </Grid>
-                                    </Button>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <TextBlock Margin="0,12,0,0"
-                                   Text="尚无可用规则。">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock"
-                                       BasedOn="{StaticResource SecondaryTextBlockStyle}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding HasRules}" Value="False">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <Button Margin="0,12,0,0"
-                                Padding="14,8"
-                                HorizontalAlignment="Left"
-                                Command="{Binding OpenRulesManagementCommand}"
-                                Content="前往规则管理" />
-                    </StackPanel>
+                        Background="Transparent">
+                    <Border Padding="{StaticResource CardPadding}"
+                            Style="{StaticResource PopupSurfaceBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                                       Text="切换规则" />
+                            <TextBlock Margin="0,8,0,0"
+                                       Style="{StaticResource SecondaryTextBlockStyle}"
+                                       Text="当前规则仅在菜单中显示勾选。" />
+                            <ItemsControl Margin="0,16,0,0"
+                                          ItemsSource="{Binding Rules}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Margin="0,0,0,8"
+                                                Padding="12,8"
+                                                HorizontalContentAlignment="Stretch"
+                                                IsEnabled="{Binding IsEnabled}"
+                                                Command="{Binding DataContext.SelectRuleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
+                                                           Text="{Binding Name}" />
+                                                <TextBlock Grid.Column="1"
+                                                           Margin="12,0,0,0"
+                                                           Text="当前">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock"
+                                                               BasedOn="{StaticResource SecondaryTextBlockStyle}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Margin="0,12,0,0"
+                                       Text="尚无可用规则。">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock"
+                                           BasedOn="{StaticResource SecondaryTextBlockStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasRules}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <Button Margin="0,12,0,0"
+                                    Padding="14,8"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding OpenRulesManagementCommand}"
+                                    Content="前往规则管理" />
+                        </StackPanel>
+                    </Border>
                 </Border>
             </Popup>
 
@@ -155,71 +172,69 @@
                    HorizontalOffset="0"
                    VerticalOffset="8"
                    AllowsTransparency="True"
-                   PopupAnimation="Fade"
                    StaysOpen="False"
                    IsOpen="{Binding IsSpeedMenuOpen, Mode=TwoWay}">
                 <Border Width="280"
-                        Padding="{StaticResource CardPadding}"
-                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="12">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
-                                   Text="调整语速" />
-                        <TextBlock Margin="0,8,0,0"
-                                   Style="{StaticResource SecondaryTextBlockStyle}"
-                                   Text="输入后端实际使用的原始整数值。" />
-                        <Grid Margin="0,16,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Button x:Name="DecreaseSpeedButton"
-                                    Grid.Column="0"
-                                    Width="40"
-                                    Height="36"
-                                    Margin="0,0,8,0"
-                                    Command="{Binding DecreaseSpeakSpeedCommand}"
-                                    Content="-"
-                                    IsEnabled="{Binding CanDecreaseSpeakSpeed}"
-                                    ToolTip="降低语速"
-                                    AutomationProperties.Name="降低语速" />
-                            <TextBox x:Name="SpeedEditorTextBox"
-                                     Grid.Column="1"
-                                     Height="36"
-                                     VerticalContentAlignment="Center"
-                                     HorizontalContentAlignment="Center"
-                                     PreviewKeyDown="SpeedEditorTextBox_OnPreviewKeyDown"
-                                     LostKeyboardFocus="SpeedEditorTextBox_OnLostKeyboardFocus"
-                                     Text="{Binding SpeedEditorText, UpdateSourceTrigger=PropertyChanged}" />
-                            <Button x:Name="IncreaseSpeedButton"
-                                    Grid.Column="2"
-                                    Width="40"
-                                    Height="36"
-                                    Margin="8,0,0,0"
-                                    Command="{Binding IncreaseSpeakSpeedCommand}"
-                                    Content="+"
-                                    IsEnabled="{Binding CanIncreaseSpeakSpeed}"
-                                    ToolTip="提高语速"
-                                    AutomationProperties.Name="提高语速" />
-                        </Grid>
-                        <TextBlock Margin="0,8,0,0"
-                                   Text="{Binding SpeedEditorErrorText}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock"
-                                       BasedOn="{StaticResource ErrorTextBlockStyle}">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SpeedEditorErrorText}" Value="">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </StackPanel>
+                        Background="Transparent">
+                    <Border Padding="{StaticResource CardPadding}"
+                            Style="{StaticResource PopupSurfaceBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                                       Text="调整语速" />
+                            <TextBlock Margin="0,8,0,0"
+                                       Style="{StaticResource SecondaryTextBlockStyle}"
+                                       Text="输入后端实际使用的原始整数值。" />
+                            <Grid Margin="0,16,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="DecreaseSpeedButton"
+                                        Grid.Column="0"
+                                        Width="40"
+                                        Height="36"
+                                        Margin="0,0,8,0"
+                                        Command="{Binding DecreaseSpeakSpeedCommand}"
+                                        Content="-"
+                                        IsEnabled="{Binding CanDecreaseSpeakSpeed}"
+                                        ToolTip="降低语速"
+                                        AutomationProperties.Name="降低语速" />
+                                <TextBox x:Name="SpeedEditorTextBox"
+                                         Grid.Column="1"
+                                         Height="36"
+                                         VerticalContentAlignment="Center"
+                                         HorizontalContentAlignment="Center"
+                                         PreviewKeyDown="SpeedEditorTextBox_OnPreviewKeyDown"
+                                         LostKeyboardFocus="SpeedEditorTextBox_OnLostKeyboardFocus"
+                                         Text="{Binding SpeedEditorText, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button x:Name="IncreaseSpeedButton"
+                                        Grid.Column="2"
+                                        Width="40"
+                                        Height="36"
+                                        Margin="8,0,0,0"
+                                        Command="{Binding IncreaseSpeakSpeedCommand}"
+                                        Content="+"
+                                        IsEnabled="{Binding CanIncreaseSpeakSpeed}"
+                                        ToolTip="提高语速"
+                                        AutomationProperties.Name="提高语速" />
+                            </Grid>
+                            <TextBlock Margin="0,8,0,0"
+                                       Text="{Binding SpeedEditorErrorText}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock"
+                                           BasedOn="{StaticResource ErrorTextBlockStyle}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SpeedEditorErrorText}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
                 </Border>
             </Popup>
         </Grid>
@@ -501,13 +516,14 @@
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <Button Padding="0"
+                                                Style="{StaticResource ChapterListButtonStyle}"
                                                 Background="Transparent"
                                                 BorderThickness="0"
-                                                HorizontalContentAlignment="Stretch"
                                                 Command="{Binding DataContext.SelectSegmentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
                                                 IsEnabled="{Binding IsInteractive}">
-                                            <Border Padding="14,6,14,10"
+                                            <Border HorizontalAlignment="Stretch"
+                                                    Padding="14,6,14,10"
                                                     Background="Transparent"
                                                     CornerRadius="10">
                                                 <Border.Style>
@@ -532,15 +548,18 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
 
-                            <Button HorizontalAlignment="Right"
+                            <Button x:Name="ReturnToCurrentSegmentButton"
+                                    HorizontalAlignment="Right"
                                     VerticalAlignment="Bottom"
                                     Margin="0,0,12,12"
-                                    Padding="14,8"
                                     Panel.ZIndex="2"
                                     Command="{Binding ReturnToCurrentSegmentCommand}"
-                                    Content="回到当前段">
+                                    ToolTip="回到当前段"
+                                    AutomationProperties.Name="回到当前段">
+                                <ui:SymbolIcon Symbol="TargetArrow24" />
                                 <Button.Style>
-                                    <Style TargetType="Button">
+                                    <Style TargetType="Button"
+                                           BasedOn="{StaticResource FloatingIconButtonStyle}">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding ShowReturnToCurrentSegment}" Value="True">
@@ -574,56 +593,75 @@
                 </Border.Style>
                 <StackPanel>
                     <WrapPanel HorizontalAlignment="Center">
-                        <Button Margin="0,0,12,0"
-                                Padding="18,10"
+                        <Button x:Name="PreviousChapterButton"
+                                Margin="0,0,12,0"
+                                Style="{StaticResource SecondaryIconButtonStyle}"
                                 IsEnabled="{Binding CanGoToPreviousChapter}"
                                 Command="{Binding PreviousChapterCommand}"
-                                Content="上一章"
                                 ToolTip="上一章"
-                                AutomationProperties.Name="上一章" />
-                        <Button Margin="0,0,12,0"
-                                Padding="18,10"
+                                AutomationProperties.Name="上一章">
+                            <ui:SymbolIcon Symbol="ChevronDoubleLeft20" />
+                        </Button>
+                        <Button x:Name="PreviousSegmentButton"
+                                Margin="0,0,12,0"
+                                Style="{StaticResource SecondaryIconButtonStyle}"
                                 IsEnabled="{Binding CanGoToPreviousSegment}"
                                 Command="{Binding PreviousSegmentCommand}"
-                                Content="上一段"
                                 ToolTip="上一段"
-                                AutomationProperties.Name="上一段" />
+                                AutomationProperties.Name="上一段">
+                            <ui:SymbolIcon Symbol="ArrowPrevious24" />
+                        </Button>
                         <Button x:Name="PrimaryPlaybackButton"
                                 Margin="0,0,12,0"
-                                Padding="24,10"
+                                Style="{StaticResource PrimaryPlaybackIconButtonStyle}"
                                 IsEnabled="{Binding CanTogglePlayPause}"
                                 Command="{Binding TogglePlayPauseCommand}"
-                                Content="{Binding PrimaryActionText}"
                                 ToolTip="{Binding PrimaryActionText}"
-                                AutomationProperties.Name="{Binding PrimaryActionText}" />
-                        <Button Margin="0,0,12,0"
-                                Padding="18,10"
+                                AutomationProperties.Name="{Binding PrimaryActionText}">
+                            <ui:SymbolIcon FontSize="24"
+                                           Symbol="{Binding PrimaryActionSymbol}" />
+                        </Button>
+                        <Button x:Name="NextSegmentButton"
+                                Margin="0,0,12,0"
+                                Style="{StaticResource SecondaryIconButtonStyle}"
                                 IsEnabled="{Binding CanGoToNextSegment}"
                                 Command="{Binding NextSegmentCommand}"
-                                Content="下一段"
                                 ToolTip="下一段"
-                                AutomationProperties.Name="下一段" />
-                        <Button Padding="18,10"
+                                AutomationProperties.Name="下一段">
+                            <ui:SymbolIcon Symbol="ArrowNext24" />
+                        </Button>
+                        <Button x:Name="NextChapterButton"
+                                Style="{StaticResource SecondaryIconButtonStyle}"
                                 IsEnabled="{Binding CanGoToNextChapter}"
                                 Command="{Binding NextChapterCommand}"
-                                Content="下一章"
                                 ToolTip="下一章"
-                                AutomationProperties.Name="下一章" />
+                                AutomationProperties.Name="下一章">
+                            <ui:SymbolIcon Symbol="ChevronDoubleRight20" />
+                        </Button>
                     </WrapPanel>
 
-                    <Slider x:Name="SegmentProgressSlider"
-                            Margin="0,16,0,0"
-                            Minimum="0"
-                            Maximum="{Binding SegmentProgressMaximum}"
-                            Value="{Binding SegmentProgressValue, Mode=OneWay}"
-                            IsSnapToTickEnabled="True"
-                            TickFrequency="1"
-                            ValueChanged="SegmentProgressSlider_OnValueChanged"
-                            PreviewMouseLeftButtonDown="SegmentProgressSlider_OnPreviewMouseLeftButtonDown"
-                            PreviewMouseLeftButtonUp="SegmentProgressSlider_OnPreviewMouseLeftButtonUp"
-                            PreviewKeyDown="SegmentProgressSlider_OnPreviewKeyDown"
-                            PreviewKeyUp="SegmentProgressSlider_OnPreviewKeyUp"
-                            LostMouseCapture="SegmentProgressSlider_OnLostMouseCapture" />
+                    <Grid Margin="0,16,0,0">
+                        <ProgressBar x:Name="SegmentProgressFillBar"
+                                     VerticalAlignment="Center"
+                                     IsHitTestVisible="False"
+                                     Style="{StaticResource PlaybackProgressBarStyle}"
+                                     Minimum="0"
+                                     Maximum="{Binding SegmentProgressMaximum}"
+                                     Value="{Binding SegmentProgressValue, Mode=OneWay}" />
+                        <Slider x:Name="SegmentProgressSlider"
+                                Style="{StaticResource PlaybackProgressSliderStyle}"
+                                Minimum="0"
+                                Maximum="{Binding SegmentProgressMaximum}"
+                                Value="{Binding SegmentProgressValue, Mode=OneWay}"
+                                IsSnapToTickEnabled="True"
+                                TickFrequency="1"
+                                ValueChanged="SegmentProgressSlider_OnValueChanged"
+                                PreviewMouseLeftButtonDown="SegmentProgressSlider_OnPreviewMouseLeftButtonDown"
+                                PreviewMouseLeftButtonUp="SegmentProgressSlider_OnPreviewMouseLeftButtonUp"
+                                PreviewKeyDown="SegmentProgressSlider_OnPreviewKeyDown"
+                                PreviewKeyUp="SegmentProgressSlider_OnPreviewKeyUp"
+                                LostMouseCapture="SegmentProgressSlider_OnLostMouseCapture" />
+                    </Grid>
                 </StackPanel>
             </Border>
 

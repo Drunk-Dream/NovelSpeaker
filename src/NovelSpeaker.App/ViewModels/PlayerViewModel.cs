@@ -12,6 +12,7 @@ using NovelSpeaker.App.Player;
 using NovelSpeaker.Domain.Settings;
 using System.Windows;
 using Wpf.Ui;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -79,6 +80,10 @@ public sealed partial class PlayerViewModel : ObservableObject
     public bool CanIncreaseSpeakSpeed => SpeakSpeed < AppSettings.MaxSpeakSpeed;
 
     public string SpeakSpeedButtonText => $"语速 {SpeakSpeed}";
+
+    public SymbolRegular PrimaryActionSymbol => CurrentPlaybackState == PlaybackState.Playing
+        ? SymbolRegular.PauseCircle24
+        : SymbolRegular.PlayCircle24;
 
     public string DisplayedSegmentCounterText => BuildSegmentCounterText(
         IsSegmentProgressDragging ? (int)Math.Round(SegmentProgressPreviewValue) : CurrentSegmentIndex,
@@ -572,6 +577,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(ShowInlineLoadingState));
         OnPropertyChanged(nameof(InlineLoadingText));
+        OnPropertyChanged(nameof(PrimaryActionSymbol));
     }
 
     partial void OnHasAvailableRuleChanged(bool value)
