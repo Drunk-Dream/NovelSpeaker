@@ -1,11 +1,21 @@
-using System;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Speech;
+using NovelSpeaker.App.Feedback;
+using NovelSpeaker.App.Navigation;
+using NovelSpeaker.App.Player;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.App.Views;
+using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.Domain.Speech;
+using Wpf.Ui;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;
@@ -218,7 +228,7 @@ public sealed class PlayerViewTests
     }
 
     [Fact]
-    public void PlayerView_keeps_footer_visible_when_catalog_drawer_is_open_in_compact_layout()
+    public void PlayerView_keeps_catalog_visible_at_minimum_supported_width()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -241,23 +251,162 @@ public sealed class PlayerViewTests
 
             var view = new PlayerView
             {
-                DataContext = new PlayerViewLayoutTestContext(
-                    chapters,
-                    segments,
-                    isCompactLayout: true,
-                    isCatalogDrawerOpen: true),
+                DataContext = new PlayerViewLayoutTestContext(chapters, segments),
             };
 
             view.Measure(new Size(900, 640));
             view.Arrange(new Rect(0, 0, 900, 640));
             view.UpdateLayout();
 
-            var drawerList = Assert.IsType<ListBox>(view.FindName("DrawerChaptersListBox"));
+            var catalog = Assert.IsType<ListBox>(view.FindName("WideChaptersListBox"));
             var footer = Assert.IsType<Border>(view.FindName("PlaybackFooterBorder"));
 
-            Assert.True(drawerList.ActualHeight > 0);
+            Assert.True(catalog.ActualWidth > 0);
             Assert.Equal(Visibility.Visible, footer.Visibility);
             Assert.True(GetBoundsRelativeToRoot(footer, view).Bottom <= view.ActualHeight);
+            Assert.Null(view.FindName("DrawerChaptersListBox"));
+        });
+    }
+
+    [Fact]
+    public void PlayerView_uses_single_line_truncated_chapter_titles_without_horizontal_scroll()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>
+            {
+                new(0, "第一章 这是一个特别长特别长特别长的章节标题用于验证单行截断效果")
+                {
+                    IsCurrent = true
+                }
+            };
+            var segments = new ObservableCollection<PlayerSegmentItemViewModel>
+            {
+                new(0, 0, "第一段")
+                {
+                    IsCurrent = true,
+                    VisualOpacity = 1d
+                }
+            };
+
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(chapters, segments),
+            };
+
+            view.Measure(new Size(900, 640));
+            view.Arrange(new Rect(0, 0, 900, 640));
+            view.UpdateLayout();
+
+            var chaptersListBox = Assert.IsType<ListBox>(view.FindName("WideChaptersListBox"));
+            chaptersListBox.UpdateLayout();
+
+            var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(chaptersListBox));
+            var itemContainer = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(0));
+            var titleText = FindDescendant<TextBlock>(
+                itemContainer,
+                static textBlock => textBlock.Text.StartsWith("第一章", StringComparison.Ordinal));
+
+            Assert.NotNull(titleText);
+            Assert.Equal(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(chaptersListBox));
+            Assert.Equal(TextWrapping.NoWrap, titleText!.TextWrapping);
+            Assert.Equal(TextTrimming.CharacterEllipsis, titleText.TextTrimming);
+            Assert.NotEqual(Visibility.Visible, scrollViewer.ComputedHorizontalScrollBarVisibility);
+        });
+    }
+
+    [Fact]
+    public void PlayerView_auto_centering_keeps_current_segment_near_viewport_middle_instead_of_scrolling_to_bottom()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+                PlaybackState.Paused,
+                "book-1",
+                "信息全知者",
+                0,
+                "第三章 来自星空的压力",
+                12,
+                90,
+                1,
+                "默认规则",
+                10,
+                0,
+                0,
+                null,
+                false,
+                false,
+                false,
+                "魔性沧月",
+                true));
+            var chapter = new PlaybackChapterContent(
+                0,
+                "第三章 来自星空的压力",
+                Enumerable.Range(0, 90)
+                    .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证自动居中不会把列表滚到最底部。"))
+                    .ToArray());
+            var viewModel = new PlayerViewModel(
+                coordinator,
+                new FakeBookPlaybackContentService(
+                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    chapter),
+                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]),
+                new FakeAppSettingsStore(AppSettings.Default),
+                new FakeAppFeedbackService(),
+                new FakeNavigationService(),
+                new FakePlayerAutoScrollCoordinator());
+
+            viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            viewModel.HandleNavigationAsync(
+                new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+                CancellationToken.None).GetAwaiter().GetResult();
+
+            var view = new PlayerView
+            {
+                DataContext = viewModel,
+            };
+            var window = new Window
+            {
+                Content = view,
+                Width = 1280,
+                Height = 760,
+                WindowStyle = WindowStyle.None,
+                ShowInTaskbar = false,
+                ShowActivated = false
+            };
+
+            try
+            {
+                window.Show();
+                DoEvents();
+                view.UpdateLayout();
+
+                coordinator.Publish(coordinator.CurrentSnapshot with
+                {
+                    SegmentIndex = 40,
+                    SegmentCount = 90
+                });
+
+                DoEvents();
+                view.UpdateLayout();
+                DoEvents();
+
+                var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
+                var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
+                var currentContainer = Assert.IsAssignableFrom<FrameworkElement>(
+                    segmentsListBox.ItemContainerGenerator.ContainerFromItem(viewModel.CurrentSegmentItem));
+
+                var itemTop = currentContainer.TranslatePoint(new Point(0, 0), scrollViewer).Y;
+                var itemCenter = itemTop + (currentContainer.ActualHeight / 2d);
+                var viewportCenter = scrollViewer.ViewportHeight / 2d;
+
+                Assert.True(scrollViewer.VerticalOffset < scrollViewer.ScrollableHeight - 1d);
+                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 48d);
+            }
+            finally
+            {
+                window.Close();
+            }
         });
     }
 
@@ -274,6 +423,27 @@ public sealed class PlayerViewTests
             }
 
             var descendant = FindDescendantByContent(child, content);
+            if (descendant is not null)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root, Predicate<T> predicate)
+        where T : DependencyObject
+    {
+        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
+        {
+            var child = VisualTreeHelper.GetChild(root, childIndex);
+            if (child is T typedChild && predicate(typedChild))
+            {
+                return typedChild;
+            }
+
+            var descendant = FindDescendant(child, predicate);
             if (descendant is not null)
             {
                 return descendant;
@@ -321,6 +491,15 @@ public sealed class PlayerViewTests
         return new Rect(origin.X, origin.Y, element.ActualWidth, element.ActualHeight);
     }
 
+    private static void DoEvents()
+    {
+        var frame = new DispatcherFrame();
+        Dispatcher.CurrentDispatcher.BeginInvoke(
+            DispatcherPriority.ApplicationIdle,
+            new Action(() => frame.Continue = false));
+        Dispatcher.PushFrame(frame);
+    }
+
     private sealed class PlayerViewLayoutTestContext
     {
         public PlayerViewLayoutTestContext(
@@ -331,8 +510,8 @@ public sealed class PlayerViewTests
             bool showNoRuleState = false,
             bool showPlaybackErrorBar = false,
             string errorText = "",
-            bool isCompactLayout = false,
-            bool isCatalogDrawerOpen = false)
+            bool showInlineLoadingState = false,
+            string inlineLoadingText = "")
         {
             Chapters = chapters;
             Segments = segments;
@@ -343,13 +522,11 @@ public sealed class PlayerViewTests
             ShowNoRuleState = showNoRuleState;
             ShowPlaybackErrorBar = showPlaybackErrorBar;
             ErrorText = errorText;
-            IsCompactLayout = isCompactLayout;
-            IsCatalogDrawerOpen = isCatalogDrawerOpen;
+            ShowInlineLoadingState = showInlineLoadingState;
+            InlineLoadingText = inlineLoadingText;
         }
 
         public IRelayCommand BackCommand { get; } = new RelayCommand(() => { });
-
-        public IRelayCommand ToggleCatalogDrawerCommand { get; } = new RelayCommand(() => { });
 
         public IRelayCommand ToggleRuleMenuCommand { get; } = new RelayCommand(() => { });
 
@@ -391,21 +568,15 @@ public sealed class PlayerViewTests
 
         public string SpeakSpeedButtonText { get; } = "语速 10";
 
-        public string StatusText { get; } = "已暂停";
-
-        public string DetailText { get; } = "已跳转到目标段落，等待播放。";
-
         public string ErrorText { get; }
 
         public string DisplayedSegmentCounterText { get; } = "第 33 / 140 段";
 
+        public string InlineLoadingText { get; }
+
         public string SpeedEditorText { get; set; } = "10";
 
         public string SpeedEditorErrorText { get; } = string.Empty;
-
-        public bool IsCompactLayout { get; }
-
-        public bool IsCatalogDrawerOpen { get; }
 
         public bool IsRuleMenuOpen { get; set; }
 
@@ -420,6 +591,8 @@ public sealed class PlayerViewTests
         public bool ShowNoRuleState { get; }
 
         public bool ShowPlaybackErrorBar { get; }
+
+        public bool ShowInlineLoadingState { get; }
 
         public bool HasRules { get; } = false;
 
@@ -454,5 +627,200 @@ public sealed class PlayerViewTests
         public PlayerChapterItemViewModel CurrentChapterItem { get; }
 
         public PlayerSegmentItemViewModel CurrentSegmentItem { get; }
+    }
+
+    private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
+    {
+        public FakePlaybackCoordinator(PlaybackSnapshot snapshot)
+        {
+            CurrentSnapshot = snapshot;
+        }
+
+        public PlaybackSnapshot CurrentSnapshot { get; private set; }
+
+        public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
+
+        public void Publish(PlaybackSnapshot snapshot)
+        {
+            CurrentSnapshot = snapshot;
+            SnapshotChanged?.Invoke(this, snapshot);
+        }
+
+        public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task OpenPausedAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PauseAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ResumeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task NextSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PreviousSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task NextChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PreviousChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class FakeBookPlaybackContentService : IBookPlaybackContentService
+    {
+        private readonly PlaybackBookContent? _book;
+        private readonly PlaybackChapterContent? _chapter;
+
+        public FakeBookPlaybackContentService(PlaybackBookContent? book, PlaybackChapterContent? chapter)
+        {
+            _book = book;
+            _chapter = chapter;
+        }
+
+        public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(_book);
+        }
+
+        public Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(_chapter);
+        }
+    }
+
+    private sealed class FakeTtsRuleLibraryService : ITtsRuleLibraryService
+    {
+        private readonly IReadOnlyList<TtsRuleSummary> _rules;
+
+        public FakeTtsRuleLibraryService(IReadOnlyList<TtsRuleSummary> rules)
+        {
+            _rules = rules;
+        }
+
+        public Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken) => Task.FromResult(_rules);
+        public Task<TtsRuleImportPreview> CreateImportPreviewAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<TtsRuleValidationResult> ValidateEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<TtsRuleProtectionInfo> GetRuleProtectionAsync(long ruleId, TtsRuleMutationAction action, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<TtsRuleMutationResult> ApplyRuleMutationAsync(TtsRuleMutationDecision decision, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task SelectRuleAsync(long? ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class FakeAppSettingsStore : IAppSettingsStore
+    {
+        public FakeAppSettingsStore(AppSettings settings)
+        {
+            Settings = settings;
+        }
+
+        public AppSettings Settings { get; private set; }
+
+        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(Settings);
+        }
+
+        public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
+        {
+            Settings = settings;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeAppFeedbackService : IAppFeedbackService
+    {
+        public ProjectedUiError Project(Exception exception)
+        {
+            return new ProjectedUiError(exception.Message, UiMessageSeverity.Error, false);
+        }
+
+        public void ShowProjectedNotification(string title, ProjectedUiError projected)
+        {
+        }
+
+        public void ShowInformation(string title, string message)
+        {
+        }
+
+        public void ShowSuccess(string title, string message)
+        {
+        }
+
+        public void ShowWarning(string title, string message)
+        {
+        }
+
+        public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(AppConfirmationDecision.Cancel);
+        }
+    }
+
+    private sealed class FakeNavigationService : INavigationService
+    {
+        public Wpf.Ui.Controls.INavigationView GetNavigationControl() => throw new NotSupportedException();
+        public bool GoBack() => false;
+        public bool Navigate(Type pageType) => true;
+        public bool Navigate(Type pageType, object? dataContext) => true;
+        public bool Navigate(string pageIdOrTargetTag) => true;
+        public bool Navigate(string pageIdOrTargetTag, object? dataContext) => true;
+        public bool NavigateWithHierarchy(Type pageType) => true;
+        public bool NavigateWithHierarchy(Type pageType, object? dataContext) => true;
+        public void SetNavigationControl(Wpf.Ui.Controls.INavigationView navigation)
+        {
+        }
+    }
+
+    private sealed class FakePlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator
+    {
+        public bool ShouldAutoCenter => true;
+
+        public bool ShowReturnToCurrentSegment => false;
+
+        public int PendingRestoreVersion => 0;
+
+        public event EventHandler? StateChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public void NotifyUserScrollInput()
+        {
+        }
+
+        public void BeginScrollbarDrag()
+        {
+        }
+
+        public void EndScrollbarDrag()
+        {
+        }
+
+        public void BeginProgrammaticScroll()
+        {
+        }
+
+        public void EndProgrammaticScroll()
+        {
+        }
+
+        public void ReturnToCurrentSegment()
+        {
+        }
+
+        public void ResetForChapterChange()
+        {
+        }
+
+        public void ResetForPageLeave()
+        {
+        }
     }
 }
