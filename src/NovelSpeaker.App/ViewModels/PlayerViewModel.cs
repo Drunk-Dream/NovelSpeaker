@@ -24,6 +24,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private readonly IAppFeedbackService _feedbackService;
     private readonly INavigationService _navigationService;
     private readonly IPlayerAutoScrollCoordinator _autoScrollCoordinator;
+    private readonly object _projectionSyncRoot = new();
 
     private readonly Dictionary<int, PlaybackChapterContent> _chapterCache = [];
     private PlaybackBookContent? _loadedBook;
@@ -628,8 +629,11 @@ public sealed partial class PlayerViewModel : ObservableObject
         }
 
         await EnsureChapterLoadedAsync(book.BookId, snapshot.ChapterIndex, cancellationToken);
-        UpdateChapterProjection(snapshot.ChapterIndex);
-        UpdateSegmentProjection(snapshot.SegmentIndex);
+        lock (_projectionSyncRoot)
+        {
+            UpdateChapterProjection(snapshot.ChapterIndex);
+            UpdateSegmentProjection(snapshot.SegmentIndex);
+        }
     }
 
     private async Task<PlaybackBookContent?> EnsureBookLoadedAsync(string bookId, CancellationToken cancellationToken)
@@ -681,46 +685,52 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     private void ApplyLoadedBook(PlaybackBookContent book)
     {
-        var isDifferentBook = !string.Equals(_loadedBook?.BookId, book.BookId, StringComparison.Ordinal);
-        _loadedBook = book;
-
-        if (isDifferentBook)
+        lock (_projectionSyncRoot)
         {
-            _chapterCache.Clear();
-            _loadedChapterIndex = -1;
-            Segments.Clear();
+            var isDifferentBook = !string.Equals(_loadedBook?.BookId, book.BookId, StringComparison.Ordinal);
+            _loadedBook = book;
+
+            if (isDifferentBook)
+            {
+                _chapterCache.Clear();
+                _loadedChapterIndex = -1;
+                Segments.Clear();
+            }
+
+            Chapters.ReplaceWith(book.Chapters, chapter => new PlayerChapterItemViewModel(chapter.ChapterIndex, chapter.Title));
+
+            if (string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookTitle))
+            {
+                CurrentTitle = book.BookTitle;
+            }
+
+            if (string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookAuthor))
+            {
+                CurrentAuthor = string.IsNullOrWhiteSpace(book.BookAuthor) ? "未知作者" : book.BookAuthor;
+            }
+
+            UpdateChapterProjection(CurrentChapterIndex);
+            UpdateNavigationAvailability();
         }
-
-        Chapters.ReplaceWith(book.Chapters, chapter => new PlayerChapterItemViewModel(chapter.ChapterIndex, chapter.Title));
-
-        if (string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookTitle))
-        {
-            CurrentTitle = book.BookTitle;
-        }
-
-        if (string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookAuthor))
-        {
-            CurrentAuthor = string.IsNullOrWhiteSpace(book.BookAuthor) ? "未知作者" : book.BookAuthor;
-        }
-
-        UpdateChapterProjection(CurrentChapterIndex);
-        UpdateNavigationAvailability();
     }
 
     private void ApplyChapterContent(PlaybackChapterContent chapter)
     {
-        if (_loadedChapterIndex != chapter.ChapterIndex)
+        lock (_projectionSyncRoot)
         {
-            _autoScrollCoordinator.ResetForChapterChange();
-        }
+            if (_loadedChapterIndex != chapter.ChapterIndex)
+            {
+                _autoScrollCoordinator.ResetForChapterChange();
+            }
 
-        _loadedChapterIndex = chapter.ChapterIndex;
-        CurrentChapterSegmentCount = chapter.Segments.Count;
-        CurrentChapterTitle = chapter.Title;
-        Segments.ReplaceWith(chapter.Segments, segment =>
-            new PlayerSegmentItemViewModel(chapter.ChapterIndex, segment.SegmentIndex, segment.DisplayText));
-        UpdateSegmentProjection(CurrentSegmentIndex);
-        UpdateNavigationAvailability();
+            _loadedChapterIndex = chapter.ChapterIndex;
+            CurrentChapterSegmentCount = chapter.Segments.Count;
+            CurrentChapterTitle = chapter.Title;
+            Segments.ReplaceWith(chapter.Segments, segment =>
+                new PlayerSegmentItemViewModel(chapter.ChapterIndex, segment.SegmentIndex, segment.DisplayText));
+            UpdateSegmentProjection(CurrentSegmentIndex);
+            UpdateNavigationAvailability();
+        }
     }
 
     private void ApplySnapshot(PlaybackSnapshot snapshot)

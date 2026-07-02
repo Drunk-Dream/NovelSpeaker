@@ -269,6 +269,44 @@ public sealed class PlayerViewTests
     }
 
     [Fact]
+    public void PlayerView_keeps_catalog_and_preview_cards_at_the_same_height_without_error_bar()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>();
+            for (var chapterIndex = 0; chapterIndex < 30; chapterIndex++)
+            {
+                var chapter = new PlayerChapterItemViewModel(chapterIndex, $"第{chapterIndex + 1}章");
+                chapter.IsCurrent = chapterIndex == 4;
+                chapters.Add(chapter);
+            }
+
+            var segments = new ObservableCollection<PlayerSegmentItemViewModel>();
+            for (var segmentIndex = 0; segmentIndex < 60; segmentIndex++)
+            {
+                var segment = new PlayerSegmentItemViewModel(4, segmentIndex, $"第 {segmentIndex + 1} 段");
+                segment.IsCurrent = segmentIndex == 8;
+                segment.VisualOpacity = segmentIndex == 8 ? 1d : 0.52d;
+                segments.Add(segment);
+            }
+
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(chapters, segments),
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var catalogBorder = Assert.IsType<Border>(view.FindName("CatalogPanelBorder"));
+            var previewBorder = Assert.IsType<Border>(view.FindName("PreviewPanelBorder"));
+
+            Assert.InRange(Math.Abs(catalogBorder.ActualHeight - previewBorder.ActualHeight), 0d, 1d);
+        });
+    }
+
+    [Fact]
     public void PlayerView_uses_single_line_truncated_chapter_titles_without_horizontal_scroll()
     {
         WpfTestHost.RunInSta(() =>
@@ -400,6 +438,104 @@ public sealed class PlayerViewTests
                 var itemCenter = itemTop + (currentContainer.ActualHeight / 2d);
                 var viewportCenter = scrollViewer.ViewportHeight / 2d;
 
+                Assert.True(scrollViewer.VerticalOffset < scrollViewer.ScrollableHeight - 1d);
+                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 48d);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void PlayerView_return_to_current_segment_recenters_instead_of_sticking_to_bottom()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+                PlaybackState.Paused,
+                "book-1",
+                "信息全知者",
+                0,
+                "第三章 来自星空的压力",
+                18,
+                90,
+                1,
+                "默认规则",
+                10,
+                0,
+                0,
+                null,
+                false,
+                false,
+                false,
+                "魔性沧月",
+                true));
+            var chapter = new PlaybackChapterContent(
+                0,
+                "第三章 来自星空的压力",
+                Enumerable.Range(0, 90)
+                    .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证回到当前段不会把列表滚到最底部。"))
+                    .ToArray());
+            var viewModel = new PlayerViewModel(
+                coordinator,
+                new FakeBookPlaybackContentService(
+                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    chapter),
+                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]),
+                new FakeAppSettingsStore(AppSettings.Default),
+                new FakeAppFeedbackService(),
+                new FakeNavigationService(),
+                new PlayerAutoScrollCoordinator(TimeProvider.System));
+
+            viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            viewModel.HandleNavigationAsync(
+                new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+                CancellationToken.None).GetAwaiter().GetResult();
+
+            var view = new PlayerView
+            {
+                DataContext = viewModel,
+            };
+            var window = new Window
+            {
+                Content = view,
+                Width = 1280,
+                Height = 760,
+                WindowStyle = WindowStyle.None,
+                ShowInTaskbar = false,
+                ShowActivated = false
+            };
+
+            try
+            {
+                window.Show();
+                DoEvents();
+                view.UpdateLayout();
+
+                var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
+                var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
+
+                scrollViewer.ScrollToBottom();
+                DoEvents();
+                view.UpdateLayout();
+
+                Assert.True(viewModel.ShowReturnToCurrentSegment);
+                Assert.True(scrollViewer.VerticalOffset >= scrollViewer.ScrollableHeight - 1d);
+
+                viewModel.ReturnToCurrentSegmentCommand.Execute(null);
+                DoEvents();
+                view.UpdateLayout();
+                DoEvents();
+
+                var currentContainer = Assert.IsAssignableFrom<FrameworkElement>(
+                    segmentsListBox.ItemContainerGenerator.ContainerFromItem(viewModel.CurrentSegmentItem));
+                var itemTop = currentContainer.TranslatePoint(new Point(0, 0), scrollViewer).Y;
+                var itemCenter = itemTop + (currentContainer.ActualHeight / 2d);
+                var viewportCenter = scrollViewer.ViewportHeight / 2d;
+
+                Assert.False(viewModel.ShowReturnToCurrentSegment);
                 Assert.True(scrollViewer.VerticalOffset < scrollViewer.ScrollableHeight - 1d);
                 Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 48d);
             }

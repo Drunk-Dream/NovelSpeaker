@@ -237,7 +237,8 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Border MinHeight="0"
+            <Border x:Name="CatalogPanelBorder"
+                    MinHeight="0"
                     Padding="{StaticResource CardPaddingLarge}"
                     Style="{StaticResource CardBorderStyle}">
                 <DockPanel LastChildFill="True"
@@ -399,11 +400,21 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Row="1"
-                        Margin="0,16,0,0"
+                <Border x:Name="PreviewPanelBorder"
+                        Grid.Row="1"
                         MinHeight="0"
-                        Padding="{StaticResource CardPaddingLarge}"
-                        Style="{StaticResource CardBorderStyle}">
+                        Padding="{StaticResource CardPaddingLarge}">
+                    <Border.Style>
+                        <Style TargetType="Border"
+                               BasedOn="{StaticResource CardBorderStyle}">
+                            <Setter Property="Margin" Value="0" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ShowPlaybackErrorBar}" Value="True">
+                                    <Setter Property="Margin" Value="0,16,0,0" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <Grid MinHeight="0"
                           ClipToBounds="True">
                         <Grid.RowDefinitions>
@@ -472,6 +483,7 @@
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                                      VirtualizingPanel.IsVirtualizing="True"
+                                     VirtualizingPanel.ScrollUnit="Pixel"
                                      VirtualizingPanel.VirtualizationMode="Recycling">
                                 <ListBox.ItemsPanel>
                                     <ItemsPanelTemplate>

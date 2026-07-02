@@ -15,6 +15,7 @@ public partial class PlayerView : UserControl
     private ScrollViewer? _segmentScrollViewer;
     private bool _isKeyboardAdjustingSegmentProgress;
     private int _segmentEnsureRequestVersion;
+    private int _segmentProgrammaticScrollDepth;
 
     public PlayerView()
     {
@@ -195,13 +196,17 @@ public partial class PlayerView : UserControl
 
     private void ScheduleEnsureCurrentSegmentVisible()
     {
-        var requestVersion = Interlocked.Increment(ref _segmentEnsureRequestVersion);
-        Dispatcher.BeginInvoke(
-            DispatcherPriority.Loaded,
-            new Action(() => EnsureCurrentSegmentVisible(requestVersion)));
+        ScheduleEnsureCurrentSegmentVisible(Interlocked.Increment(ref _segmentEnsureRequestVersion), 0);
     }
 
-    private void EnsureCurrentSegmentVisible(int requestVersion)
+    private void ScheduleEnsureCurrentSegmentVisible(int requestVersion, int attempt)
+    {
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.Loaded,
+            new Action(() => EnsureCurrentSegmentVisible(requestVersion, attempt)));
+    }
+
+    private void EnsureCurrentSegmentVisible(int requestVersion, int attempt)
     {
         if (requestVersion != _segmentEnsureRequestVersion ||
             _viewModel?.CurrentSegmentItem is null ||
@@ -216,31 +221,39 @@ public partial class PlayerView : UserControl
             return;
         }
 
-        _viewModel.NotifyProgrammaticScrollStarted();
-        try
+        var container = SegmentListBox.ItemContainerGenerator.ContainerFromItem(_viewModel.CurrentSegmentItem) as FrameworkElement;
+        if (container is null)
         {
-            var container = SegmentListBox.ItemContainerGenerator.ContainerFromItem(_viewModel.CurrentSegmentItem) as FrameworkElement;
-            if (container is null)
+            RunProgrammaticSegmentScroll(() => SegmentListBox.ScrollIntoView(_viewModel.CurrentSegmentItem));
+            if (attempt < 3)
             {
-                SegmentListBox.ScrollIntoView(_viewModel.CurrentSegmentItem);
-                SegmentListBox.UpdateLayout();
-                container = SegmentListBox.ItemContainerGenerator.ContainerFromItem(_viewModel.CurrentSegmentItem) as FrameworkElement;
-                if (container is null)
-                {
-                    return;
-                }
+                ScheduleEnsureCurrentSegmentVisible(requestVersion, attempt + 1);
             }
 
-            var top = container.TranslatePoint(new Point(0, 0), _segmentScrollViewer).Y;
-            var targetOffset = _segmentScrollViewer.VerticalOffset +
-                               top -
-                               Math.Max(0d, (_segmentScrollViewer.ViewportHeight - container.ActualHeight) / 2d);
-            _segmentScrollViewer.ScrollToVerticalOffset(Math.Clamp(targetOffset, 0d, _segmentScrollViewer.ScrollableHeight));
+            return;
         }
-        finally
+
+        if (container.ActualHeight <= 0 || _segmentScrollViewer.ViewportHeight <= 0)
         {
-            _viewModel.NotifyProgrammaticScrollCompleted();
+            if (attempt < 3)
+            {
+                ScheduleEnsureCurrentSegmentVisible(requestVersion, attempt + 1);
+            }
+
+            return;
         }
+
+        var top = container.TranslatePoint(new Point(0, 0), _segmentScrollViewer).Y;
+        var targetOffset = _segmentScrollViewer.VerticalOffset +
+                           top -
+                           Math.Max(0d, (_segmentScrollViewer.ViewportHeight - container.ActualHeight) / 2d);
+        var clampedOffset = Math.Clamp(targetOffset, 0d, _segmentScrollViewer.ScrollableHeight);
+        if (Math.Abs(clampedOffset - _segmentScrollViewer.VerticalOffset) < 0.5d)
+        {
+            return;
+        }
+
+        RunProgrammaticSegmentScroll(() => _segmentScrollViewer.ScrollToVerticalOffset(clampedOffset));
     }
 
     private void InitializeSegmentScrollViewer()
@@ -281,6 +294,11 @@ public partial class PlayerView : UserControl
             return;
         }
 
+        if (Volatile.Read(ref _segmentProgrammaticScrollDepth) > 0)
+        {
+            return;
+        }
+
         _viewModel?.NotifyUserScrollInput();
     }
 
@@ -309,6 +327,33 @@ public partial class PlayerView : UserControl
         return key is Key.Left or Key.Right or Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End;
     }
 
+    private void RunProgrammaticSegmentScroll(Action action)
+    {
+        if (_viewModel is null)
+        {
+            action();
+            return;
+        }
+
+        _viewModel.NotifyProgrammaticScrollStarted();
+        Interlocked.Increment(ref _segmentProgrammaticScrollDepth);
+
+        try
+        {
+            action();
+        }
+        finally
+        {
+            Dispatcher.BeginInvoke(
+                DispatcherPriority.ContextIdle,
+                new Action(() =>
+                {
+                    InterlockedExtensions.DecrementIfPositive(ref _segmentProgrammaticScrollDepth);
+                    _viewModel?.NotifyProgrammaticScrollCompleted();
+                }));
+        }
+    }
+
     private static T? FindDescendant<T>(DependencyObject root)
         where T : DependencyObject
     {
@@ -328,5 +373,25 @@ public partial class PlayerView : UserControl
         }
 
         return null;
+    }
+
+    private static class InterlockedExtensions
+    {
+        public static void DecrementIfPositive(ref int value)
+        {
+            while (true)
+            {
+                var current = Volatile.Read(ref value);
+                if (current <= 0)
+                {
+                    return;
+                }
+
+                if (Interlocked.CompareExchange(ref value, current - 1, current) == current)
+                {
+                    return;
+                }
+            }
+        }
     }
 }
