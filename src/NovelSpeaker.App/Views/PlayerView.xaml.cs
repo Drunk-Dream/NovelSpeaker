@@ -15,6 +15,7 @@ public partial class PlayerView : UserControl
     private ScrollViewer? _segmentScrollViewer;
     private bool _isKeyboardAdjustingSegmentProgress;
     private int _segmentEnsureRequestVersion;
+    private int _segmentAutoCenterSuppressionDepth;
     private int _segmentProgrammaticScrollDepth;
 
     public PlayerView()
@@ -196,6 +197,7 @@ public partial class PlayerView : UserControl
 
     private void ScheduleEnsureCurrentSegmentVisible()
     {
+        BeginSegmentAutoCenterSuppression();
         ScheduleEnsureCurrentSegmentVisible(Interlocked.Increment(ref _segmentEnsureRequestVersion), 0);
     }
 
@@ -212,12 +214,14 @@ public partial class PlayerView : UserControl
             _viewModel?.CurrentSegmentItem is null ||
             !_viewModel.ShouldAutoCenterCurrentSegment)
         {
+            CompleteSegmentAutoCenterSuppression();
             return;
         }
 
         InitializeSegmentScrollViewer();
         if (_segmentScrollViewer is null)
         {
+            CompleteSegmentAutoCenterSuppression();
             return;
         }
 
@@ -228,8 +232,11 @@ public partial class PlayerView : UserControl
             if (attempt < 3)
             {
                 ScheduleEnsureCurrentSegmentVisible(requestVersion, attempt + 1);
+                CompleteSegmentAutoCenterSuppression();
+                return;
             }
 
+            CompleteSegmentAutoCenterSuppression();
             return;
         }
 
@@ -238,8 +245,11 @@ public partial class PlayerView : UserControl
             if (attempt < 3)
             {
                 ScheduleEnsureCurrentSegmentVisible(requestVersion, attempt + 1);
+                CompleteSegmentAutoCenterSuppression();
+                return;
             }
 
+            CompleteSegmentAutoCenterSuppression();
             return;
         }
 
@@ -250,10 +260,12 @@ public partial class PlayerView : UserControl
         var clampedOffset = Math.Clamp(targetOffset, 0d, _segmentScrollViewer.ScrollableHeight);
         if (Math.Abs(clampedOffset - _segmentScrollViewer.VerticalOffset) < 0.5d)
         {
+            CompleteSegmentAutoCenterSuppression();
             return;
         }
 
         RunProgrammaticSegmentScroll(() => _segmentScrollViewer.ScrollToVerticalOffset(clampedOffset));
+        CompleteSegmentAutoCenterSuppression();
     }
 
     private void InitializeSegmentScrollViewer()
@@ -294,7 +306,8 @@ public partial class PlayerView : UserControl
             return;
         }
 
-        if (Volatile.Read(ref _segmentProgrammaticScrollDepth) > 0)
+        if (Volatile.Read(ref _segmentProgrammaticScrollDepth) > 0 ||
+            Volatile.Read(ref _segmentAutoCenterSuppressionDepth) > 0)
         {
             return;
         }
@@ -352,6 +365,18 @@ public partial class PlayerView : UserControl
                     _viewModel?.NotifyProgrammaticScrollCompleted();
                 }));
         }
+    }
+
+    private void BeginSegmentAutoCenterSuppression()
+    {
+        Interlocked.Increment(ref _segmentAutoCenterSuppressionDepth);
+    }
+
+    private void CompleteSegmentAutoCenterSuppression()
+    {
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.ContextIdle,
+            new Action(() => InterlockedExtensions.DecrementIfPositive(ref _segmentAutoCenterSuppressionDepth)));
     }
 
     private static T? FindDescendant<T>(DependencyObject root)

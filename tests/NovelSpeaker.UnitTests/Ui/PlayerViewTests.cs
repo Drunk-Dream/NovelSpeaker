@@ -591,6 +591,197 @@ public sealed class PlayerViewTests
         });
     }
 
+    [Fact]
+    public void PlayerView_manual_browsing_does_not_recenter_when_playback_auto_advances()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+                PlaybackState.Playing,
+                "book-1",
+                "信息全知者",
+                0,
+                "第三章 来自星空的压力",
+                18,
+                90,
+                1,
+                "默认规则",
+                10,
+                0,
+                0,
+                null,
+                false,
+                false,
+                false,
+                "魔性沧月",
+                true));
+            var chapter = new PlaybackChapterContent(
+                0,
+                "第三章 来自星空的压力",
+                Enumerable.Range(0, 90)
+                    .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证播放自动切段不会抢回用户滚动位置。"))
+                    .ToArray());
+            var viewModel = new PlayerViewModel(
+                coordinator,
+                new FakeBookPlaybackContentService(
+                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    chapter),
+                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]),
+                new FakeAppSettingsStore(AppSettings.Default),
+                new FakeAppFeedbackService(),
+                new FakeNavigationService(),
+                new PlayerAutoScrollCoordinator(TimeProvider.System));
+
+            viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            viewModel.HandleNavigationAsync(
+                new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+                CancellationToken.None).GetAwaiter().GetResult();
+
+            var view = new PlayerView
+            {
+                DataContext = viewModel,
+            };
+            var window = new Window
+            {
+                Content = view,
+                Width = 1280,
+                Height = 760,
+                WindowStyle = WindowStyle.None,
+                ShowInTaskbar = false,
+                ShowActivated = false
+            };
+
+            try
+            {
+                window.Show();
+                DoEvents();
+                view.UpdateLayout();
+
+                var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
+                var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
+                scrollViewer.ScrollToBottom();
+                DoEvents();
+                view.UpdateLayout();
+
+                var offsetBeforeAutoAdvance = scrollViewer.VerticalOffset;
+                Assert.True(viewModel.ShowReturnToCurrentSegment);
+
+                coordinator.Publish(coordinator.CurrentSnapshot with
+                {
+                    SegmentIndex = 19,
+                    SegmentCount = 90
+                });
+
+                DoEvents();
+                view.UpdateLayout();
+                DoEvents();
+
+                Assert.True(viewModel.ShowReturnToCurrentSegment);
+                Assert.InRange(Math.Abs(scrollViewer.VerticalOffset - offsetBeforeAutoAdvance), 0d, 1d);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void PlayerView_next_segment_recenters_after_active_navigation()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+                PlaybackState.Paused,
+                "book-1",
+                "信息全知者",
+                0,
+                "第三章 来自星空的压力",
+                18,
+                90,
+                1,
+                "默认规则",
+                10,
+                0,
+                0,
+                null,
+                false,
+                false,
+                false,
+                "魔性沧月",
+                true));
+            var chapter = new PlaybackChapterContent(
+                0,
+                "第三章 来自星空的压力",
+                Enumerable.Range(0, 90)
+                    .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证主动切换段落后会重新居中。"))
+                    .ToArray());
+            var viewModel = new PlayerViewModel(
+                coordinator,
+                new FakeBookPlaybackContentService(
+                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    chapter),
+                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]),
+                new FakeAppSettingsStore(AppSettings.Default),
+                new FakeAppFeedbackService(),
+                new FakeNavigationService(),
+                new PlayerAutoScrollCoordinator(TimeProvider.System));
+
+            viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            viewModel.HandleNavigationAsync(
+                new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+                CancellationToken.None).GetAwaiter().GetResult();
+
+            var view = new PlayerView
+            {
+                DataContext = viewModel,
+            };
+            var window = new Window
+            {
+                Content = view,
+                Width = 1280,
+                Height = 760,
+                WindowStyle = WindowStyle.None,
+                ShowInTaskbar = false,
+                ShowActivated = false
+            };
+
+            try
+            {
+                window.Show();
+                DoEvents();
+                view.UpdateLayout();
+
+                var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
+                var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
+
+                scrollViewer.ScrollToBottom();
+                DoEvents();
+                view.UpdateLayout();
+
+                Assert.True(viewModel.ShowReturnToCurrentSegment);
+
+                viewModel.NextSegmentCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+                DoEvents();
+                view.UpdateLayout();
+                DoEvents();
+
+                var currentContainer = Assert.IsAssignableFrom<FrameworkElement>(
+                    segmentsListBox.ItemContainerGenerator.ContainerFromItem(viewModel.CurrentSegmentItem));
+                var itemTop = currentContainer.TranslatePoint(new Point(0, 0), scrollViewer).Y;
+                var itemCenter = itemTop + (currentContainer.ActualHeight / 2d);
+                var viewportCenter = scrollViewer.ViewportHeight / 2d;
+
+                Assert.False(viewModel.ShowReturnToCurrentSegment);
+                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 48d);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
     private static FrameworkElement? FindDescendantByContent(DependencyObject root, string content)
     {
         for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
@@ -846,12 +1037,70 @@ public sealed class PlayerViewTests
         public Task ResumeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task NextSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task PreviousSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task NextChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task PreviousChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken)
+        {
+            Publish(CurrentSnapshot with
+            {
+                ChapterIndex = chapterIndex,
+                ChapterTitle = chapterIndex == 0 ? "第一章" : "第二章",
+                SegmentIndex = 0,
+                SegmentCount = 1
+            });
+            return Task.CompletedTask;
+        }
+
+        public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken)
+        {
+            Publish(CurrentSnapshot with
+            {
+                ChapterIndex = chapterIndex,
+                SegmentIndex = segmentIndex
+            });
+            return Task.CompletedTask;
+        }
+
+        public Task NextSegmentAsync(CancellationToken cancellationToken)
+        {
+            Publish(CurrentSnapshot with
+            {
+                SegmentIndex = CurrentSnapshot.SegmentIndex + 1,
+                SegmentCount = Math.Max(CurrentSnapshot.SegmentCount, CurrentSnapshot.SegmentIndex + 2)
+            });
+            return Task.CompletedTask;
+        }
+
+        public Task PreviousSegmentAsync(CancellationToken cancellationToken)
+        {
+            Publish(CurrentSnapshot with
+            {
+                SegmentIndex = Math.Max(CurrentSnapshot.SegmentIndex - 1, 0)
+            });
+            return Task.CompletedTask;
+        }
+
+        public Task NextChapterAsync(CancellationToken cancellationToken)
+        {
+            Publish(CurrentSnapshot with
+            {
+                ChapterIndex = CurrentSnapshot.ChapterIndex + 1,
+                ChapterTitle = "第二章",
+                SegmentIndex = 0,
+                SegmentCount = 1
+            });
+            return Task.CompletedTask;
+        }
+
+        public Task PreviousChapterAsync(CancellationToken cancellationToken)
+        {
+            Publish(CurrentSnapshot with
+            {
+                ChapterIndex = Math.Max(CurrentSnapshot.ChapterIndex - 1, 0),
+                ChapterTitle = "第一章",
+                SegmentIndex = 0,
+                SegmentCount = 1
+            });
+            return Task.CompletedTask;
+        }
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -973,6 +1222,8 @@ public sealed class PlayerViewTests
 
     private sealed class FakePlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator
     {
+        public PlayerAutoScrollState State => PlayerAutoScrollState.AutoCentering;
+
         public bool ShouldAutoCenter => true;
 
         public bool ShowReturnToCurrentSegment => false;
@@ -1005,11 +1256,7 @@ public sealed class PlayerViewTests
         {
         }
 
-        public void ReturnToCurrentSegment()
-        {
-        }
-
-        public void ResetForChapterChange()
+        public void ResumeAutoCenter()
         {
         }
 
