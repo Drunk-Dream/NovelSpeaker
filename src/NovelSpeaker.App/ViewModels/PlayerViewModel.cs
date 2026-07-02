@@ -70,10 +70,6 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     public bool HasRules => Rules.Count > 0;
 
-    public bool HasChapters => Chapters.Count > 0;
-
-    public bool HasSegments => Segments.Count > 0;
-
     public bool ShowPlaybackControls => HasAvailableRule;
 
     public bool ShowNoRuleState => !HasAvailableRule;
@@ -718,11 +714,9 @@ public sealed partial class PlayerViewModel : ObservableObject
             _chapterCache.Clear();
             _loadedChapterIndex = -1;
             Segments.Clear();
-            OnPropertyChanged(nameof(HasSegments));
         }
 
         Chapters.ReplaceWith(book.Chapters, chapter => new PlayerChapterItemViewModel(chapter.ChapterIndex, chapter.Title));
-        OnPropertyChanged(nameof(HasChapters));
 
         if (string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookTitle))
         {
@@ -750,7 +744,6 @@ public sealed partial class PlayerViewModel : ObservableObject
         CurrentChapterTitle = chapter.Title;
         Segments.ReplaceWith(chapter.Segments, segment =>
             new PlayerSegmentItemViewModel(chapter.ChapterIndex, segment.SegmentIndex, segment.DisplayText));
-        OnPropertyChanged(nameof(HasSegments));
         UpdateSegmentProjection(CurrentSegmentIndex);
         UpdateNavigationAvailability();
     }
