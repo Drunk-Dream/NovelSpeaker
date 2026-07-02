@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows.Controls;
 using System.Windows;
+using System.Windows.Media;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App;
 using NovelSpeaker.App.Navigation;
@@ -48,6 +49,10 @@ public sealed class MainWindowNavigationTests
             Assert.Same(GetNavigationView(window), navigationService.NavigationControl);
             Assert.Equal(typeof(LibraryPage), navigationService.LastNavigationPageType);
             Assert.Equal(1, navigationService.NavigateCallCount);
+
+            var presenter = FindDescendant<NavigationViewContentPresenter>(GetNavigationView(window));
+            Assert.NotNull(presenter);
+            Assert.False(presenter!.IsDynamicScrollViewerEnabled);
         });
     }
 
@@ -89,12 +94,62 @@ public sealed class MainWindowNavigationTests
         });
     }
 
+    [Fact]
+    public void Real_shell_navigation_to_player_page_keeps_navigation_content_presenter_configuration()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            var window = provider.GetRequiredService<MainWindow>();
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+
+                var navigationService = provider.GetRequiredService<INavigationService>();
+                Assert.True(navigationService.Navigate(typeof(PlayerPage)));
+
+                window.UpdateLayout();
+
+                var navigationView = GetNavigationView(window);
+                var presenter = FindDescendant<NavigationViewContentPresenter>(navigationView);
+                Assert.NotNull(presenter);
+                Assert.False(presenter!.IsDynamicScrollViewerEnabled);
+            }
+            finally
+            {
+                window.Close();
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
     private static NavigationView GetNavigationView(MainWindow window)
     {
         var property = typeof(MainWindow).GetProperty("NavigationViewControl", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         return Assert.IsType<NavigationView>(property?.GetValue(window));
     }
 
+    private static T? FindDescendant<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
+        {
+            var child = VisualTreeHelper.GetChild(root, childIndex);
+            if (child is T typedChild)
+            {
+                return typedChild;
+            }
+
+            var descendant = FindDescendant<T>(child);
+            if (descendant is not null)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
+    }
     private sealed class FakeNavigationService : INavigationService
     {
         public INavigationView? NavigationControl { get; private set; }

@@ -63,6 +63,46 @@ public sealed class PlayerViewTests
     }
 
     [Fact]
+    public void PlayerView_keeps_playback_footer_visible_with_long_content()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>();
+            for (var chapterIndex = 0; chapterIndex < 120; chapterIndex++)
+            {
+                var chapter = new PlayerChapterItemViewModel(chapterIndex, $"第{chapterIndex + 1}章");
+                chapter.IsCurrent = chapterIndex == 10;
+                chapters.Add(chapter);
+            }
+
+            var segments = new ObservableCollection<PlayerSegmentItemViewModel>();
+            for (var segmentIndex = 0; segmentIndex < 180; segmentIndex++)
+            {
+                var segment = new PlayerSegmentItemViewModel(10, segmentIndex, $"第 {segmentIndex + 1} 段");
+                segment.IsCurrent = segmentIndex == 32;
+                segment.VisualOpacity = segmentIndex == 32 ? 1d : 0.52d;
+                segments.Add(segment);
+            }
+
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(chapters, segments),
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var footer = Assert.IsType<Border>(view.FindName("PlaybackFooterBorder"));
+            var playButton = Assert.IsType<Button>(view.FindName("PrimaryPlaybackButton"));
+
+            Assert.Equal(Visibility.Visible, footer.Visibility);
+            Assert.True(GetBoundsRelativeToRoot(footer, view).Bottom <= view.ActualHeight);
+            Assert.True(GetBoundsRelativeToRoot(playButton, view).Bottom <= view.ActualHeight);
+        });
+    }
+
+    [Fact]
     public void PlayerView_shows_return_to_current_segment_button_when_manual_browsing()
     {
         WpfTestHost.RunInSta(() =>
@@ -122,8 +162,14 @@ public sealed class PlayerViewTests
             view.UpdateLayout();
 
             var emptyStateButton = Assert.IsType<Button>(FindVisibleDescendantByContent(view, "前往 TTS 规则"));
+            var noRuleFooter = Assert.IsType<Border>(view.FindName("NoRuleFooterBorder"));
+            var backButton = Assert.IsType<Button>(FindVisibleDescendantByContent(view, "返回"));
+
             Assert.Equal(Visibility.Visible, emptyStateButton.Visibility);
+            Assert.Equal(Visibility.Visible, noRuleFooter.Visibility);
             Assert.Null(FindVisibleDescendantByContent(view, "播放"));
+            Assert.True(GetBoundsRelativeToRoot(noRuleFooter, view).Bottom <= view.ActualHeight);
+            Assert.True(GetBoundsRelativeToRoot(backButton, view).Top >= 0);
         });
     }
 
@@ -168,6 +214,50 @@ public sealed class PlayerViewTests
 
             Assert.Null(FindVisibleDescendantByContent(normalView, "再次尝试"));
             Assert.Null(FindVisibleDescendantByContent(normalView, "切换规则"));
+        });
+    }
+
+    [Fact]
+    public void PlayerView_keeps_footer_visible_when_catalog_drawer_is_open_in_compact_layout()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>();
+            for (var chapterIndex = 0; chapterIndex < 40; chapterIndex++)
+            {
+                var chapter = new PlayerChapterItemViewModel(chapterIndex, $"第{chapterIndex + 1}章");
+                chapter.IsCurrent = chapterIndex == 10;
+                chapters.Add(chapter);
+            }
+
+            var segments = new ObservableCollection<PlayerSegmentItemViewModel>();
+            for (var segmentIndex = 0; segmentIndex < 80; segmentIndex++)
+            {
+                var segment = new PlayerSegmentItemViewModel(10, segmentIndex, $"第 {segmentIndex + 1} 段");
+                segment.IsCurrent = segmentIndex == 12;
+                segment.VisualOpacity = segmentIndex == 12 ? 1d : 0.52d;
+                segments.Add(segment);
+            }
+
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(
+                    chapters,
+                    segments,
+                    isCompactLayout: true,
+                    isCatalogDrawerOpen: true),
+            };
+
+            view.Measure(new Size(900, 640));
+            view.Arrange(new Rect(0, 0, 900, 640));
+            view.UpdateLayout();
+
+            var drawerList = Assert.IsType<ListBox>(view.FindName("DrawerChaptersListBox"));
+            var footer = Assert.IsType<Border>(view.FindName("PlaybackFooterBorder"));
+
+            Assert.True(drawerList.ActualHeight > 0);
+            Assert.Equal(Visibility.Visible, footer.Visibility);
+            Assert.True(GetBoundsRelativeToRoot(footer, view).Bottom <= view.ActualHeight);
         });
     }
 
@@ -246,6 +336,12 @@ public sealed class PlayerViewTests
         return false;
     }
 
+    private static Rect GetBoundsRelativeToRoot(FrameworkElement element, Visual root)
+    {
+        var origin = element.TransformToAncestor(root).Transform(new Point(0, 0));
+        return new Rect(origin.X, origin.Y, element.ActualWidth, element.ActualHeight);
+    }
+
     private sealed class PlayerViewLayoutTestContext
     {
         public PlayerViewLayoutTestContext(
@@ -255,7 +351,9 @@ public sealed class PlayerViewTests
             bool showPlaybackControls = true,
             bool showNoRuleState = false,
             bool showPlaybackErrorBar = false,
-            string errorText = "")
+            string errorText = "",
+            bool isCompactLayout = false,
+            bool isCatalogDrawerOpen = false)
         {
             Chapters = chapters;
             Segments = segments;
@@ -266,6 +364,8 @@ public sealed class PlayerViewTests
             ShowNoRuleState = showNoRuleState;
             ShowPlaybackErrorBar = showPlaybackErrorBar;
             ErrorText = errorText;
+            IsCompactLayout = isCompactLayout;
+            IsCatalogDrawerOpen = isCatalogDrawerOpen;
         }
 
         public IRelayCommand BackCommand { get; } = new RelayCommand(() => { });
@@ -324,9 +424,9 @@ public sealed class PlayerViewTests
 
         public string SpeedEditorErrorText { get; } = string.Empty;
 
-        public bool IsCompactLayout { get; } = false;
+        public bool IsCompactLayout { get; }
 
-        public bool IsCatalogDrawerOpen { get; } = false;
+        public bool IsCatalogDrawerOpen { get; }
 
         public bool IsRuleMenuOpen { get; set; }
 
