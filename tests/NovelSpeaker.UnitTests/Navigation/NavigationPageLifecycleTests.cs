@@ -70,7 +70,6 @@ public sealed class NavigationPageLifecycleTests
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
-                new PlayerLayoutController(),
                 new FakePlayerAutoScrollCoordinator());
             var page = new PlayerPage(viewModel);
             page.DataContext = new PlayerNavigationRequest("book-7", PlayerNavigationMode.ReturnToCurrentSession);

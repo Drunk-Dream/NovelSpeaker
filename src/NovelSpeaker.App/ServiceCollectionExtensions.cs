@@ -31,7 +31,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IImportBookDialogService, ImportBookDialogService>();
         services.AddSingleton<IBookDeleteDialogService, BookDeleteDialogService>();
         services.AddSingleton<IShellLayoutController, ShellLayoutController>();
-        services.AddSingleton<IPlayerLayoutController, PlayerLayoutController>();
         services.AddSingleton<IPlayerAutoScrollCoordinator, PlayerAutoScrollCoordinator>();
         services.AddSingleton<IBookCoverGenerator, BookCoverGenerator>();
         services.AddSingleton<LibraryScrollState>();
