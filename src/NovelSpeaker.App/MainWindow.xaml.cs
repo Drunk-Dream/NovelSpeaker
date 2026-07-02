@@ -3,6 +3,7 @@ using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Theming;
 using NovelSpeaker.App.ViewModels;
+using System.Windows.Controls;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
@@ -67,6 +68,7 @@ public partial class MainWindow : FluentWindow
 
         if (_isNavigationInitialized)
         {
+            ConfigureNavigationContentPresenter();
             _shellLayoutController.UpdateWindowWidth(ActualWidth);
             return;
         }
@@ -74,6 +76,7 @@ public partial class MainWindow : FluentWindow
         RootNavigationView.SetPageProviderService(_pageProvider);
         RootNavigationView.SetServiceProvider(_serviceProvider);
         _navigationService.SetNavigationControl(RootNavigationView);
+        ConfigureNavigationContentPresenter();
         _navigationService.Navigate(typeof(LibraryPage));
         _isNavigationInitialized = true;
         _shellLayoutController.UpdateWindowWidth(ActualWidth);
@@ -108,6 +111,25 @@ public partial class MainWindow : FluentWindow
         }
 
         RootNavigationView.IsPaneOpen = isPaneOpen;
+    }
+
+    private void ConfigureNavigationContentPresenter()
+    {
+        RootNavigationView.ApplyTemplate();
+
+        if (RootNavigationView.Template?.FindName("PART_NavigationViewContentPresenter", RootNavigationView) is not NavigationViewContentPresenter presenter)
+        {
+            return;
+        }
+
+        presenter.SetValue(NavigationViewContentPresenter.IsDynamicScrollViewerEnabledProperty, false);
+
+        if (presenter.TryFindResource("DefaultNavigationViewContentPresenterControlTemplate") is ControlTemplate template &&
+            !ReferenceEquals(presenter.Template, template))
+        {
+            presenter.Template = template;
+            presenter.ApplyTemplate();
+        }
     }
 
     private void PlaybackNavigationItem_OnClick(object sender, System.Windows.RoutedEventArgs e)

@@ -3,10 +3,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              SizeChanged="PlayerView_OnSizeChanged">
     <Grid Margin="{StaticResource PagePadding}"
+          MinHeight="0"
           ClipToBounds="True">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Grid>
@@ -246,12 +248,14 @@
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
-                <DockPanel>
+                <DockPanel LastChildFill="True"
+                           MinHeight="0">
                     <TextBlock DockPanel.Dock="Top"
                                Margin="0,0,0,16"
                                Style="{StaticResource SectionTitleTextBlockStyle}"
                                Text="章节目录" />
                     <ListBox x:Name="WideChaptersListBox"
+                             MinHeight="0"
                              ItemsSource="{Binding Chapters}"
                              SelectedItem="{Binding CurrentChapterItem, Mode=OneWay}"
                              BorderThickness="0"
@@ -339,8 +343,6 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <Border Padding="{StaticResource CardPadding}"
@@ -404,7 +406,8 @@
                         MinHeight="0"
                         Padding="{StaticResource CardPaddingLarge}"
                         Style="{StaticResource CardBorderStyle}">
-                    <Grid ClipToBounds="True">
+                    <Grid MinHeight="0"
+                          ClipToBounds="True">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
@@ -499,122 +502,6 @@
                         </Grid>
                     </Grid>
                 </Border>
-
-                <Border Grid.Row="3"
-                        Margin="0,20,0,0"
-                        Padding="{StaticResource CardPadding}">
-                    <Border.Style>
-                        <Style TargetType="Border"
-                               BasedOn="{StaticResource CardBorderStyle}">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ShowPlaybackControls}" Value="False">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <WrapPanel HorizontalAlignment="Center">
-                        <Button Margin="0,0,12,0"
-                                Padding="18,10"
-                                IsEnabled="{Binding CanGoToPreviousChapter}"
-                                Command="{Binding PreviousChapterCommand}"
-                                Content="上一章"
-                                ToolTip="上一章"
-                                AutomationProperties.Name="上一章" />
-                        <Button Margin="0,0,12,0"
-                                Padding="18,10"
-                                IsEnabled="{Binding CanGoToPreviousSegment}"
-                                Command="{Binding PreviousSegmentCommand}"
-                                Content="上一段"
-                                ToolTip="上一段"
-                                AutomationProperties.Name="上一段" />
-                        <Button Margin="0,0,12,0"
-                                Padding="24,10"
-                                IsEnabled="{Binding CanTogglePlayPause}"
-                                Command="{Binding TogglePlayPauseCommand}"
-                                Content="{Binding PrimaryActionText}"
-                                ToolTip="{Binding PrimaryActionText}"
-                                AutomationProperties.Name="{Binding PrimaryActionText}" />
-                        <Button Margin="0,0,12,0"
-                                Padding="18,10"
-                                IsEnabled="{Binding CanGoToNextSegment}"
-                                Command="{Binding NextSegmentCommand}"
-                                Content="下一段"
-                                ToolTip="下一段"
-                                AutomationProperties.Name="下一段" />
-                        <Button Padding="18,10"
-                                IsEnabled="{Binding CanGoToNextChapter}"
-                                Command="{Binding NextChapterCommand}"
-                                Content="下一章"
-                                ToolTip="下一章"
-                                AutomationProperties.Name="下一章" />
-                    </WrapPanel>
-                </Border>
-
-                <Border Grid.Row="4"
-                        Margin="0,16,0,0"
-                        Padding="{StaticResource CardPadding}">
-                    <Border.Style>
-                        <Style TargetType="Border"
-                               BasedOn="{StaticResource CardBorderStyle}">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ShowPlaybackControls}" Value="False">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <StackPanel>
-                        <Slider x:Name="SegmentProgressSlider"
-                                Minimum="0"
-                                Maximum="{Binding SegmentProgressMaximum}"
-                                Value="{Binding SegmentProgressValue, Mode=OneWay}"
-                                IsSnapToTickEnabled="True"
-                                TickFrequency="1"
-                                ValueChanged="SegmentProgressSlider_OnValueChanged"
-                                PreviewMouseLeftButtonDown="SegmentProgressSlider_OnPreviewMouseLeftButtonDown"
-                                PreviewMouseLeftButtonUp="SegmentProgressSlider_OnPreviewMouseLeftButtonUp"
-                                PreviewKeyDown="SegmentProgressSlider_OnPreviewKeyDown"
-                                PreviewKeyUp="SegmentProgressSlider_OnPreviewKeyUp"
-                                LostMouseCapture="SegmentProgressSlider_OnLostMouseCapture" />
-                        <TextBlock Margin="0,10,0,0"
-                                   HorizontalAlignment="Center"
-                                   Style="{StaticResource SecondaryTextBlockStyle}"
-                                   Text="{Binding DisplayedSegmentCounterText}" />
-                    </StackPanel>
-                </Border>
-
-                <Border Grid.Row="3"
-                        Grid.RowSpan="2"
-                        Margin="0,20,0,0"
-                        Padding="{StaticResource CardPaddingLarge}">
-                    <Border.Style>
-                        <Style TargetType="Border"
-                               BasedOn="{StaticResource CardBorderStyle}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ShowNoRuleState}" Value="True">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
-                                   Text="尚无可用的朗读规则" />
-                        <TextBlock Margin="0,8,0,0"
-                                   Style="{StaticResource SecondaryTextBlockStyle}"
-                                   Text="先前往 TTS 规则页选择或导入一条可用规则，再回到当前书籍位置继续准备播放。"
-                                   TextWrapping="Wrap" />
-                        <Button Margin="0,16,0,0"
-                                Padding="14,8"
-                                HorizontalAlignment="Left"
-                                Command="{Binding OpenRulesManagementCommand}"
-                                Content="前往 TTS 规则" />
-                    </StackPanel>
-                </Border>
             </Grid>
 
             <Border Grid.ColumnSpan="3"
@@ -640,7 +527,8 @@
                         Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1">
-                    <DockPanel>
+                    <DockPanel LastChildFill="True"
+                               MinHeight="0">
                         <Grid DockPanel.Dock="Top"
                               Margin="0,0,0,16">
                             <Grid.ColumnDefinitions>
@@ -655,6 +543,7 @@
                                     Content="关闭" />
                         </Grid>
                         <ListBox x:Name="DrawerChaptersListBox"
+                                 MinHeight="0"
                                  ItemsSource="{Binding Chapters}"
                                  SelectedItem="{Binding CurrentChapterItem, Mode=OneWay}"
                                  BorderThickness="0"
@@ -717,6 +606,110 @@
                         </ListBox>
                     </DockPanel>
                 </Border>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="2"
+              Margin="0,20,0,0"
+              MinHeight="0">
+            <Border x:Name="PlaybackFooterBorder"
+                    Padding="{StaticResource CardPadding}">
+                <Border.Style>
+                    <Style TargetType="Border"
+                           BasedOn="{StaticResource CardBorderStyle}">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowPlaybackControls}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel>
+                    <WrapPanel HorizontalAlignment="Center">
+                        <Button Margin="0,0,12,0"
+                                Padding="18,10"
+                                IsEnabled="{Binding CanGoToPreviousChapter}"
+                                Command="{Binding PreviousChapterCommand}"
+                                Content="上一章"
+                                ToolTip="上一章"
+                                AutomationProperties.Name="上一章" />
+                        <Button Margin="0,0,12,0"
+                                Padding="18,10"
+                                IsEnabled="{Binding CanGoToPreviousSegment}"
+                                Command="{Binding PreviousSegmentCommand}"
+                                Content="上一段"
+                                ToolTip="上一段"
+                                AutomationProperties.Name="上一段" />
+                        <Button x:Name="PrimaryPlaybackButton"
+                                Margin="0,0,12,0"
+                                Padding="24,10"
+                                IsEnabled="{Binding CanTogglePlayPause}"
+                                Command="{Binding TogglePlayPauseCommand}"
+                                Content="{Binding PrimaryActionText}"
+                                ToolTip="{Binding PrimaryActionText}"
+                                AutomationProperties.Name="{Binding PrimaryActionText}" />
+                        <Button Margin="0,0,12,0"
+                                Padding="18,10"
+                                IsEnabled="{Binding CanGoToNextSegment}"
+                                Command="{Binding NextSegmentCommand}"
+                                Content="下一段"
+                                ToolTip="下一段"
+                                AutomationProperties.Name="下一段" />
+                        <Button Padding="18,10"
+                                IsEnabled="{Binding CanGoToNextChapter}"
+                                Command="{Binding NextChapterCommand}"
+                                Content="下一章"
+                                ToolTip="下一章"
+                                AutomationProperties.Name="下一章" />
+                    </WrapPanel>
+
+                    <Slider x:Name="SegmentProgressSlider"
+                            Margin="0,16,0,0"
+                            Minimum="0"
+                            Maximum="{Binding SegmentProgressMaximum}"
+                            Value="{Binding SegmentProgressValue, Mode=OneWay}"
+                            IsSnapToTickEnabled="True"
+                            TickFrequency="1"
+                            ValueChanged="SegmentProgressSlider_OnValueChanged"
+                            PreviewMouseLeftButtonDown="SegmentProgressSlider_OnPreviewMouseLeftButtonDown"
+                            PreviewMouseLeftButtonUp="SegmentProgressSlider_OnPreviewMouseLeftButtonUp"
+                            PreviewKeyDown="SegmentProgressSlider_OnPreviewKeyDown"
+                            PreviewKeyUp="SegmentProgressSlider_OnPreviewKeyUp"
+                            LostMouseCapture="SegmentProgressSlider_OnLostMouseCapture" />
+                    <TextBlock Margin="0,10,0,0"
+                               HorizontalAlignment="Center"
+                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Text="{Binding DisplayedSegmentCounterText}" />
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="NoRuleFooterBorder"
+                    Padding="{StaticResource CardPaddingLarge}">
+                <Border.Style>
+                    <Style TargetType="Border"
+                           BasedOn="{StaticResource CardBorderStyle}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowNoRuleState}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                               Text="尚无可用的朗读规则" />
+                    <TextBlock Margin="0,8,0,0"
+                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Text="先前往 TTS 规则页选择或导入一条可用规则，再回到当前书籍位置继续准备播放。"
+                               TextWrapping="Wrap" />
+                    <Button Margin="0,16,0,0"
+                            Padding="14,8"
+                            HorizontalAlignment="Left"
+                            Command="{Binding OpenRulesManagementCommand}"
+                            Content="前往 TTS 规则" />
+                </StackPanel>
             </Border>
         </Grid>
     </Grid>
