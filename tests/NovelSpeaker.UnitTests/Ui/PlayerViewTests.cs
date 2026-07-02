@@ -113,6 +113,51 @@ public sealed class PlayerViewTests
     }
 
     [Fact]
+    public void PlayerView_places_book_title_in_toolbar_and_moves_chapter_title_to_preview_header()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>
+            {
+                new(0, "第一章")
+            };
+            var segments = new ObservableCollection<PlayerSegmentItemViewModel>
+            {
+                new(0, 0, "第一段")
+                {
+                    IsCurrent = true,
+                    VisualOpacity = 1d
+                }
+            };
+
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(chapters, segments),
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var backButton = Assert.IsType<Button>(FindVisibleDescendantByContent(view, "返回"));
+            var titleText = Assert.IsType<TextBlock>(FindVisibleDescendantByText(view, "信息全知者"));
+            var chapterTitleText = Assert.IsType<TextBlock>(FindVisibleDescendantByText(view, "第二章 头铁的落款"));
+            var footer = Assert.IsType<Border>(view.FindName("PlaybackFooterBorder"));
+
+            Assert.Null(FindVisibleDescendantByText(view, "魔性沧月"));
+            Assert.Null(FindVisibleDescendantByText(footer, "第 33 / 140 段"));
+
+            var backBounds = GetBoundsRelativeToRoot(backButton, view);
+            var titleBounds = GetBoundsRelativeToRoot(titleText, view);
+            var chapterTitleBounds = GetBoundsRelativeToRoot(chapterTitleText, view);
+
+            Assert.InRange(Math.Abs(titleBounds.Top - backBounds.Top), 0d, 8d);
+            Assert.True(titleBounds.Left > backBounds.Right);
+            Assert.True(chapterTitleBounds.Top > titleBounds.Bottom);
+        });
+    }
+
+    [Fact]
     public void PlayerView_shows_return_to_current_segment_button_when_manual_browsing()
     {
         WpfTestHost.RunInSta(() =>
@@ -592,6 +637,19 @@ public sealed class PlayerViewTests
     private static FrameworkElement? FindVisibleDescendantByContent(DependencyObject root, string content)
     {
         var element = FindDescendantByContent(root, content);
+        if (element is null || !IsEffectivelyVisible(element, root))
+        {
+            return null;
+        }
+
+        return element;
+    }
+
+    private static TextBlock? FindVisibleDescendantByText(DependencyObject root, string text)
+    {
+        var element = FindDescendant<TextBlock>(
+            root,
+            textBlock => string.Equals(textBlock.Text, text, StringComparison.Ordinal));
         if (element is null || !IsEffectivelyVisible(element, root))
         {
             return null;

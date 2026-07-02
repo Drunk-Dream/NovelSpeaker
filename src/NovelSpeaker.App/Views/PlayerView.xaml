@@ -37,31 +37,27 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <StackPanel>
-                <WrapPanel>
-                    <Button Padding="14,8"
-                            Command="{Binding BackCommand}"
-                            Content="返回" />
-                </WrapPanel>
-
-                <TextBlock Margin="0,16,0,0"
-                           Style="{StaticResource PageTitleTextBlockStyle}"
+            <Grid VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button Padding="14,8"
+                        Command="{Binding BackCommand}"
+                        Content="返回" />
+                <TextBlock Grid.Column="1"
+                           Margin="12,0,0,0"
+                           VerticalAlignment="Center"
+                           Style="{StaticResource SectionTitleTextBlockStyle}"
                            Text="{Binding CurrentTitle}"
-                           TextWrapping="Wrap" />
-                <TextBlock Margin="0,8,0,0"
-                           Style="{StaticResource SecondaryTextBlockStyle}"
-                           Text="{Binding CurrentAuthor}"
-                           TextWrapping="Wrap" />
-                <TextBlock Margin="0,8,0,0"
-                           Style="{StaticResource StrongTextBlockStyle}"
-                           Text="{Binding CurrentChapterTitle}"
-                           TextWrapping="Wrap" />
-            </StackPanel>
+                           TextTrimming="CharacterEllipsis"
+                           TextWrapping="NoWrap" />
+            </Grid>
 
             <StackPanel Grid.Column="1"
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
-                        VerticalAlignment="Top">
+                        VerticalAlignment="Center">
                 <Button x:Name="RuleMenuButton"
                         Padding="14,8"
                         Command="{Binding ToggleRuleMenuCommand}"
@@ -241,12 +237,12 @@
                     MinHeight="0"
                     Padding="{StaticResource CardPaddingLarge}"
                     Style="{StaticResource CardBorderStyle}">
-                <DockPanel LastChildFill="True"
-                           MinHeight="0">
+                    <DockPanel LastChildFill="True"
+                               MinHeight="0">
                     <TextBlock DockPanel.Dock="Top"
                                Margin="0,0,0,14"
                                Style="{StaticResource SectionTitleTextBlockStyle}"
-                               Text="章节目录" />
+                               Text="目录" />
                     <ListBox x:Name="WideChaptersListBox"
                              MinHeight="0"
                              ItemsSource="{Binding Chapters}"
@@ -428,7 +424,9 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
-                                       Text="正文预览" />
+                                       Text="{Binding CurrentChapterTitle}"
+                                       TextTrimming="CharacterEllipsis"
+                                       TextWrapping="NoWrap" />
 
                             <TextBlock Grid.Column="1"
                                        Text="{Binding DisplayedSegmentCounterText}">
@@ -626,10 +624,6 @@
                             PreviewKeyDown="SegmentProgressSlider_OnPreviewKeyDown"
                             PreviewKeyUp="SegmentProgressSlider_OnPreviewKeyUp"
                             LostMouseCapture="SegmentProgressSlider_OnLostMouseCapture" />
-                    <TextBlock Margin="0,10,0,0"
-                               HorizontalAlignment="Center"
-                               Style="{StaticResource SecondaryTextBlockStyle}"
-                               Text="{Binding DisplayedSegmentCounterText}" />
                 </StackPanel>
             </Border>
 
