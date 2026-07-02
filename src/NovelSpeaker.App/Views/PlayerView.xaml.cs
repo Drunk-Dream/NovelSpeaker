@@ -14,6 +14,7 @@ public partial class PlayerView : UserControl
     private PlayerViewModel? _viewModel;
     private ScrollViewer? _segmentScrollViewer;
     private bool _isKeyboardAdjustingSegmentProgress;
+    private int _segmentEnsureRequestVersion;
 
     public PlayerView()
     {
@@ -26,10 +27,9 @@ public partial class PlayerView : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         AttachViewModel(DataContext as PlayerViewModel);
-        _viewModel?.UpdateLayoutWidth(ActualWidth);
         EnsureCurrentChapterVisible();
         InitializeSegmentScrollViewer();
-        Dispatcher.BeginInvoke(EnsureCurrentSegmentVisible, DispatcherPriority.Background);
+        ScheduleEnsureCurrentSegmentVisible();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -42,11 +42,6 @@ public partial class PlayerView : UserControl
     {
         DetachViewModel();
         AttachViewModel(e.NewValue as PlayerViewModel);
-    }
-
-    private void PlayerView_OnSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        _viewModel?.UpdateLayoutWidth(e.NewSize.Width);
     }
 
     private void SegmentListBox_OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -183,7 +178,7 @@ public partial class PlayerView : UserControl
         {
             if (_viewModel?.ShouldAutoCenterCurrentSegment == true)
             {
-                Dispatcher.BeginInvoke(EnsureCurrentSegmentVisible, DispatcherPriority.Background);
+                ScheduleEnsureCurrentSegmentVisible();
             }
         }
     }
@@ -196,12 +191,21 @@ public partial class PlayerView : UserControl
         }
 
         WideChaptersListBox.ScrollIntoView(_viewModel.CurrentChapterItem);
-        DrawerChaptersListBox.ScrollIntoView(_viewModel.CurrentChapterItem);
     }
 
-    private void EnsureCurrentSegmentVisible()
+    private void ScheduleEnsureCurrentSegmentVisible()
     {
-        if (_viewModel?.CurrentSegmentItem is null || !_viewModel.ShouldAutoCenterCurrentSegment)
+        var requestVersion = Interlocked.Increment(ref _segmentEnsureRequestVersion);
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.Loaded,
+            new Action(() => EnsureCurrentSegmentVisible(requestVersion)));
+    }
+
+    private void EnsureCurrentSegmentVisible(int requestVersion)
+    {
+        if (requestVersion != _segmentEnsureRequestVersion ||
+            _viewModel?.CurrentSegmentItem is null ||
+            !_viewModel.ShouldAutoCenterCurrentSegment)
         {
             return;
         }
@@ -215,12 +219,16 @@ public partial class PlayerView : UserControl
         _viewModel.NotifyProgrammaticScrollStarted();
         try
         {
-            SegmentListBox.ScrollIntoView(_viewModel.CurrentSegmentItem);
-            SegmentListBox.UpdateLayout();
-
-            if (SegmentListBox.ItemContainerGenerator.ContainerFromItem(_viewModel.CurrentSegmentItem) is not FrameworkElement container)
+            var container = SegmentListBox.ItemContainerGenerator.ContainerFromItem(_viewModel.CurrentSegmentItem) as FrameworkElement;
+            if (container is null)
             {
-                return;
+                SegmentListBox.ScrollIntoView(_viewModel.CurrentSegmentItem);
+                SegmentListBox.UpdateLayout();
+                container = SegmentListBox.ItemContainerGenerator.ContainerFromItem(_viewModel.CurrentSegmentItem) as FrameworkElement;
+                if (container is null)
+                {
+                    return;
+                }
             }
 
             var top = container.TranslatePoint(new Point(0, 0), _segmentScrollViewer).Y;
