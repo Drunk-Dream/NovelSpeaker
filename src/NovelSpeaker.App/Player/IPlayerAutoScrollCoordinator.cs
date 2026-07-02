@@ -2,6 +2,8 @@ namespace NovelSpeaker.App.Player;
 
 public interface IPlayerAutoScrollCoordinator
 {
+    PlayerAutoScrollState State { get; }
+
     bool ShouldAutoCenter { get; }
 
     bool ShowReturnToCurrentSegment { get; }
@@ -20,9 +22,7 @@ public interface IPlayerAutoScrollCoordinator
 
     void EndProgrammaticScroll();
 
-    void ReturnToCurrentSegment();
-
-    void ResetForChapterChange();
+    void ResumeAutoCenter();
 
     void ResetForPageLeave();
 }

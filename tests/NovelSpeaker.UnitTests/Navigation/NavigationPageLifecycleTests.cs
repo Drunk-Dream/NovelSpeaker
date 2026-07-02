@@ -141,6 +141,8 @@ public sealed class NavigationPageLifecycleTests
 
     private sealed class FakePlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator
     {
+        public PlayerAutoScrollState State => PlayerAutoScrollState.AutoCentering;
+
         public bool ShouldAutoCenter => true;
 
         public bool ShowReturnToCurrentSegment => false;
@@ -173,11 +175,7 @@ public sealed class NavigationPageLifecycleTests
         {
         }
 
-        public void ReturnToCurrentSegment()
-        {
-        }
-
-        public void ResetForChapterChange()
+        public void ResumeAutoCenter()
         {
         }
 
