@@ -84,6 +84,8 @@ public sealed partial class PlayerViewModel : ObservableObject
         IsSegmentProgressDragging ? (int)Math.Round(SegmentProgressPreviewValue) : CurrentSegmentIndex,
         CurrentChapterSegmentCount);
 
+    public PlayerAutoScrollState AutoScrollState => _autoScrollCoordinator.State;
+
     public bool ShouldAutoCenterCurrentSegment => _autoScrollCoordinator.ShouldAutoCenter;
 
     public bool ShowInlineLoadingState => CurrentPlaybackState is PlaybackState.Preparing or PlaybackState.Buffering or PlaybackState.Recovering;
@@ -297,10 +299,12 @@ public sealed partial class PlayerViewModel : ObservableObject
         if (targetSegmentIndex == CurrentSegmentIndex)
         {
             SegmentProgressValue = targetSegmentIndex;
+            _autoScrollCoordinator.ResumeAutoCenter();
             return;
         }
 
         await _playbackCoordinator.JumpToSegmentAsync(CurrentChapterIndex, targetSegmentIndex, cancellationToken);
+        _autoScrollCoordinator.ResumeAutoCenter();
     }
 
     public void CancelSegmentProgressInteraction()
@@ -396,27 +400,31 @@ public sealed partial class PlayerViewModel : ObservableObject
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task PreviousSegmentAsync(CancellationToken cancellationToken)
+    private async Task PreviousSegmentAsync(CancellationToken cancellationToken)
     {
-        return _playbackCoordinator.PreviousSegmentAsync(cancellationToken);
+        await _playbackCoordinator.PreviousSegmentAsync(cancellationToken);
+        _autoScrollCoordinator.ResumeAutoCenter();
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task NextSegmentAsync(CancellationToken cancellationToken)
+    private async Task NextSegmentAsync(CancellationToken cancellationToken)
     {
-        return _playbackCoordinator.NextSegmentAsync(cancellationToken);
+        await _playbackCoordinator.NextSegmentAsync(cancellationToken);
+        _autoScrollCoordinator.ResumeAutoCenter();
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task PreviousChapterAsync(CancellationToken cancellationToken)
+    private async Task PreviousChapterAsync(CancellationToken cancellationToken)
     {
-        return _playbackCoordinator.PreviousChapterAsync(cancellationToken);
+        await _playbackCoordinator.PreviousChapterAsync(cancellationToken);
+        _autoScrollCoordinator.ResumeAutoCenter();
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task NextChapterAsync(CancellationToken cancellationToken)
+    private async Task NextChapterAsync(CancellationToken cancellationToken)
     {
-        return _playbackCoordinator.NextChapterAsync(cancellationToken);
+        await _playbackCoordinator.NextChapterAsync(cancellationToken);
+        _autoScrollCoordinator.ResumeAutoCenter();
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -481,25 +489,38 @@ public sealed partial class PlayerViewModel : ObservableObject
             return;
         }
 
-        _autoScrollCoordinator.ResetForChapterChange();
+        if (chapter.ChapterIndex == CurrentChapterIndex)
+        {
+            _autoScrollCoordinator.ResumeAutoCenter();
+            return;
+        }
+
         await _playbackCoordinator.JumpToChapterAsync(chapter.ChapterIndex, cancellationToken);
+        _autoScrollCoordinator.ResumeAutoCenter();
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task SelectSegmentAsync(PlayerSegmentItemViewModel? segment, CancellationToken cancellationToken)
+    private async Task SelectSegmentAsync(PlayerSegmentItemViewModel? segment, CancellationToken cancellationToken)
     {
-        if (segment is null || segment.SegmentIndex == CurrentSegmentIndex)
+        if (segment is null)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        return _playbackCoordinator.JumpToSegmentAsync(segment.ChapterIndex, segment.SegmentIndex, cancellationToken);
+        if (segment.ChapterIndex == CurrentChapterIndex && segment.SegmentIndex == CurrentSegmentIndex)
+        {
+            _autoScrollCoordinator.ResumeAutoCenter();
+            return;
+        }
+
+        await _playbackCoordinator.JumpToSegmentAsync(segment.ChapterIndex, segment.SegmentIndex, cancellationToken);
+        _autoScrollCoordinator.ResumeAutoCenter();
     }
 
     [RelayCommand]
     private void ReturnToCurrentSegment()
     {
-        _autoScrollCoordinator.ReturnToCurrentSegment();
+        _autoScrollCoordinator.ResumeAutoCenter();
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -718,11 +739,6 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         lock (_projectionSyncRoot)
         {
-            if (_loadedChapterIndex != chapter.ChapterIndex)
-            {
-                _autoScrollCoordinator.ResetForChapterChange();
-            }
-
             _loadedChapterIndex = chapter.ChapterIndex;
             CurrentChapterSegmentCount = chapter.Segments.Count;
             CurrentChapterTitle = chapter.Title;
@@ -735,7 +751,6 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     private void ApplySnapshot(PlaybackSnapshot snapshot)
     {
-        var previousChapterIndex = CurrentChapterIndex;
         CurrentPlaybackState = snapshot.State;
         CurrentTitle = string.IsNullOrWhiteSpace(snapshot.BookTitle)
             ? _loadedBook?.BookTitle ?? "未打开书籍"
@@ -767,11 +782,6 @@ public sealed partial class PlayerViewModel : ObservableObject
         if (snapshot.SegmentCount > 0)
         {
             CurrentChapterSegmentCount = snapshot.SegmentCount;
-        }
-
-        if (previousChapterIndex != CurrentChapterIndex && previousChapterIndex >= 0)
-        {
-            _autoScrollCoordinator.ResetForChapterChange();
         }
 
         ApplyRuleSelection(snapshot.RuleId);
@@ -893,6 +903,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private void ApplyAutoScrollState()
     {
         ShowReturnToCurrentSegment = _autoScrollCoordinator.ShowReturnToCurrentSegment;
+        OnPropertyChanged(nameof(AutoScrollState));
         OnPropertyChanged(nameof(ShouldAutoCenterCurrentSegment));
     }
 

@@ -179,6 +179,47 @@ public sealed class PlayerViewModelTests
     }
 
     [Fact]
+    public async Task SelectChapterCommand_current_chapter_resumes_without_jump()
+    {
+        var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            1,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            false));
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
+                new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
+            autoScrollCoordinator: autoScrollCoordinator);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
+
+        viewModel.NotifyUserScrollInput();
+        await viewModel.SelectChapterCommand.ExecuteAsync(viewModel.CurrentChapterItem);
+
+        Assert.Null(coordinator.LastJumpedChapterIndex);
+        Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
+        Assert.Equal(1, autoScrollCoordinator.ResumeAutoCenterCallCount);
+    }
+
+    [Fact]
     public async Task Snapshot_updates_ignore_stale_chapter_load_results()
     {
         var firstChapterLoad = new TaskCompletionSource<PlaybackChapterContent?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -611,6 +652,7 @@ public sealed class PlayerViewModelTests
     [Fact]
     public async Task CommitSegmentProgressAsync_same_segment_is_noop()
     {
+        var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
             "book-1",
@@ -639,24 +681,30 @@ public sealed class PlayerViewModelTests
                         new SpeechSegment(0, 0, 4, "第一段", "第一段"),
                         new SpeechSegment(1, 4, 4, "第二段", "第二段"),
                         new SpeechSegment(2, 8, 4, "第三段", "第三段")
-                    ])));
+                    ])),
+            autoScrollCoordinator: autoScrollCoordinator);
+        coordinator.ReadAutoScrollStateDuringSegmentJump = () => viewModel.AutoScrollState;
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
             new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
+        viewModel.NotifyUserScrollInput();
         viewModel.BeginSegmentProgressInteraction();
         viewModel.PreviewSegmentProgress(1);
         await viewModel.CommitSegmentProgressAsync(1, CancellationToken.None);
 
         Assert.Null(coordinator.LastJumpedSegmentIndex);
         Assert.Equal("第 2 / 3 段", viewModel.DisplayedSegmentCounterText);
+        Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
+        Assert.Equal(1, autoScrollCoordinator.ResumeAutoCenterCallCount);
     }
 
     [Fact]
     public async Task CommitSegmentProgressAsync_new_segment_jumps_once()
     {
+        var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
             "book-1",
@@ -685,19 +733,25 @@ public sealed class PlayerViewModelTests
                         new SpeechSegment(0, 0, 4, "第一段", "第一段"),
                         new SpeechSegment(1, 4, 4, "第二段", "第二段"),
                         new SpeechSegment(2, 8, 4, "第三段", "第三段")
-                    ])));
+                    ])),
+            autoScrollCoordinator: autoScrollCoordinator);
+        coordinator.ReadAutoScrollStateDuringSegmentJump = () => viewModel.AutoScrollState;
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
             new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
+        viewModel.NotifyUserScrollInput();
         viewModel.BeginSegmentProgressInteraction();
         viewModel.PreviewSegmentProgress(2);
         await viewModel.CommitSegmentProgressAsync(2, CancellationToken.None);
 
         Assert.Equal(2, coordinator.LastJumpedSegmentIndex);
         Assert.Equal(0, coordinator.LastJumpedSegmentChapterIndex);
+        Assert.Equal(PlayerAutoScrollState.ManualBrowsing, coordinator.AutoScrollStateObservedDuringLastJumpToSegment);
+        Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
+        Assert.Equal(1, autoScrollCoordinator.ResumeAutoCenterCallCount);
     }
 
     [Fact]
@@ -715,9 +769,212 @@ public sealed class PlayerViewModelTests
             viewModel.NotifyUserScrollInput();
 
             Assert.True(viewModel.ShowReturnToCurrentSegment);
+            Assert.Equal(PlayerAutoScrollState.ManualBrowsing, viewModel.AutoScrollState);
             viewModel.ReturnToCurrentSegmentCommand.Execute(null);
             Assert.False(viewModel.ShowReturnToCurrentSegment);
+            Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
         });
+    }
+
+    [Fact]
+    public async Task SelectSegmentCommand_current_segment_resumes_without_jump()
+    {
+        var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            1,
+            3,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            false));
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
+                new PlaybackChapterContent(
+                    0,
+                    "第一章",
+                    [
+                        new SpeechSegment(0, 0, 4, "第一段", "第一段"),
+                        new SpeechSegment(1, 4, 4, "第二段", "第二段"),
+                        new SpeechSegment(2, 8, 4, "第三段", "第三段")
+                    ])),
+            autoScrollCoordinator: autoScrollCoordinator);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
+
+        viewModel.NotifyUserScrollInput();
+        await viewModel.SelectSegmentCommand.ExecuteAsync(viewModel.CurrentSegmentItem);
+
+        Assert.Null(coordinator.LastJumpedSegmentIndex);
+        Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
+        Assert.Equal(1, autoScrollCoordinator.ResumeAutoCenterCallCount);
+    }
+
+    [Fact]
+    public async Task Segment_navigation_commands_resume_auto_center_after_success()
+    {
+        var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            1,
+            3,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            false));
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
+                new PlaybackChapterContent(
+                    0,
+                    "第一章",
+                    [
+                        new SpeechSegment(0, 0, 4, "第一段", "第一段"),
+                        new SpeechSegment(1, 4, 4, "第二段", "第二段"),
+                        new SpeechSegment(2, 8, 4, "第三段", "第三段")
+                    ])),
+            autoScrollCoordinator: autoScrollCoordinator);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
+
+        viewModel.NotifyUserScrollInput();
+        await viewModel.NextSegmentCommand.ExecuteAsync(null);
+        Assert.Equal(1, coordinator.NextSegmentCallCount);
+        Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
+
+        viewModel.NotifyUserScrollInput();
+        await viewModel.PreviousSegmentCommand.ExecuteAsync(null);
+        Assert.Equal(1, coordinator.PreviousSegmentCallCount);
+        Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
+    }
+
+    [Fact]
+    public async Task Chapter_navigation_commands_resume_auto_center_after_success()
+    {
+        var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说",
+            1,
+            "第二章",
+            0,
+            1,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            false));
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(
+                new PlaybackBookContent(
+                    "book-1",
+                    "示例小说",
+                    [
+                        new PlaybackChapterContent(0, "第一章", []),
+                        new PlaybackChapterContent(1, "第二章", [])
+                    ],
+                    "作者甲"),
+                new PlaybackChapterContent(1, "第二章", [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")])),
+            autoScrollCoordinator: autoScrollCoordinator);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
+
+        viewModel.NotifyUserScrollInput();
+        await viewModel.PreviousChapterCommand.ExecuteAsync(null);
+        Assert.Equal(1, coordinator.PreviousChapterCallCount);
+        Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
+
+        viewModel.NotifyUserScrollInput();
+        await viewModel.NextChapterCommand.ExecuteAsync(null);
+        Assert.Equal(1, coordinator.NextChapterCallCount);
+        Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
+    }
+
+    [Fact]
+    public async Task Playback_snapshot_segment_change_keeps_manual_browsing_state()
+    {
+        var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Playing,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            3,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            false));
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
+                new PlaybackChapterContent(
+                    0,
+                    "第一章",
+                    [
+                        new SpeechSegment(0, 0, 4, "第一段", "第一段"),
+                        new SpeechSegment(1, 4, 4, "第二段", "第二段"),
+                        new SpeechSegment(2, 8, 4, "第三段", "第三段")
+                    ])),
+            autoScrollCoordinator: autoScrollCoordinator);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
+
+        viewModel.NotifyUserScrollInput();
+        coordinator.Publish(coordinator.CurrentSnapshot with
+        {
+            SegmentIndex = 1,
+            SegmentCount = 3
+        });
+
+        Assert.Equal(PlayerAutoScrollState.ManualBrowsing, viewModel.AutoScrollState);
+        Assert.False(viewModel.ShouldAutoCenterCurrentSegment);
     }
 
     [Fact]
@@ -813,6 +1070,20 @@ public sealed class PlayerViewModelTests
 
         public int RetryCurrentSegmentCallCount { get; private set; }
 
+        public Func<PlayerAutoScrollState>? ReadAutoScrollStateDuringSegmentJump { get; set; }
+
+        public PlayerAutoScrollState? AutoScrollStateObservedDuringLastJumpToSegment { get; private set; }
+
+        public int PreviousSegmentCallCount { get; private set; }
+
+        public int NextSegmentCallCount { get; private set; }
+
+        public int PreviousChapterCallCount { get; private set; }
+
+        public int NextChapterCallCount { get; private set; }
+
+        public List<string> OperationLog { get; } = [];
+
         public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 
         public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken)
@@ -875,6 +1146,7 @@ public sealed class PlayerViewModelTests
 
         public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken)
         {
+            OperationLog.Add($"JumpToChapter:{chapterIndex}");
             LastJumpedChapterIndex = chapterIndex;
             Publish(CurrentSnapshot with
             {
@@ -888,6 +1160,8 @@ public sealed class PlayerViewModelTests
 
         public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken)
         {
+            OperationLog.Add($"JumpToSegment:{chapterIndex}:{segmentIndex}");
+            AutoScrollStateObservedDuringLastJumpToSegment = ReadAutoScrollStateDuringSegmentJump?.Invoke();
             LastJumpedSegmentChapterIndex = chapterIndex;
             LastJumpedSegmentIndex = segmentIndex;
             Publish(CurrentSnapshot with
@@ -898,10 +1172,58 @@ public sealed class PlayerViewModelTests
             return Task.CompletedTask;
         }
 
-        public Task NextSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task PreviousSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task NextChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task PreviousChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task NextSegmentAsync(CancellationToken cancellationToken)
+        {
+            OperationLog.Add("NextSegment");
+            NextSegmentCallCount++;
+            Publish(CurrentSnapshot with
+            {
+                SegmentIndex = CurrentSnapshot.SegmentIndex + 1,
+                SegmentCount = Math.Max(CurrentSnapshot.SegmentCount, CurrentSnapshot.SegmentIndex + 2)
+            });
+            return Task.CompletedTask;
+        }
+
+        public Task PreviousSegmentAsync(CancellationToken cancellationToken)
+        {
+            OperationLog.Add("PreviousSegment");
+            PreviousSegmentCallCount++;
+            Publish(CurrentSnapshot with
+            {
+                SegmentIndex = Math.Max(CurrentSnapshot.SegmentIndex - 1, 0)
+            });
+            return Task.CompletedTask;
+        }
+
+        public Task NextChapterAsync(CancellationToken cancellationToken)
+        {
+            OperationLog.Add("NextChapter");
+            NextChapterCallCount++;
+            var nextChapterIndex = CurrentSnapshot.ChapterIndex + 1;
+            Publish(CurrentSnapshot with
+            {
+                ChapterIndex = nextChapterIndex,
+                ChapterTitle = nextChapterIndex == 0 ? "第一章" : "第二章",
+                SegmentIndex = 0,
+                SegmentCount = 1
+            });
+            return Task.CompletedTask;
+        }
+
+        public Task PreviousChapterAsync(CancellationToken cancellationToken)
+        {
+            OperationLog.Add("PreviousChapter");
+            PreviousChapterCallCount++;
+            var previousChapterIndex = Math.Max(CurrentSnapshot.ChapterIndex - 1, 0);
+            Publish(CurrentSnapshot with
+            {
+                ChapterIndex = previousChapterIndex,
+                ChapterTitle = previousChapterIndex == 0 ? "第一章" : "第二章",
+                SegmentIndex = 0,
+                SegmentCount = 1
+            });
+            return Task.CompletedTask;
+        }
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken)
         {
             RetryCurrentSegmentCallCount++;
@@ -972,29 +1294,40 @@ public sealed class PlayerViewModelTests
 
     private sealed class FakePlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator
     {
-        public bool ShouldAutoCenter { get; private set; } = true;
+        public PlayerAutoScrollState State { get; private set; } = PlayerAutoScrollState.AutoCentering;
 
-        public bool ShowReturnToCurrentSegment { get; private set; }
+        public bool ShouldAutoCenter => State == PlayerAutoScrollState.AutoCentering;
+
+        public bool ShowReturnToCurrentSegment => State != PlayerAutoScrollState.AutoCentering;
 
         public int PendingRestoreVersion { get; private set; }
+
+        public int ResumeAutoCenterCallCount { get; private set; }
+
+        public List<string> OperationLog { get; } = [];
 
         public event EventHandler? StateChanged;
 
         public void NotifyUserScrollInput()
         {
-            ShouldAutoCenter = false;
-            ShowReturnToCurrentSegment = true;
+            OperationLog.Add("NotifyUserScrollInput");
+            State = PlayerAutoScrollState.ManualBrowsing;
             PendingRestoreVersion++;
             StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
         public void BeginScrollbarDrag()
         {
-            NotifyUserScrollInput();
+            OperationLog.Add("BeginScrollbarDrag");
+            State = PlayerAutoScrollState.ScrollbarDragging;
+            StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
         public void EndScrollbarDrag()
         {
+            OperationLog.Add("EndScrollbarDrag");
+            State = PlayerAutoScrollState.ManualBrowsing;
+            StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
         public void BeginProgrammaticScroll()
@@ -1005,21 +1338,18 @@ public sealed class PlayerViewModelTests
         {
         }
 
-        public void ReturnToCurrentSegment()
+        public void ResumeAutoCenter()
         {
-            ShouldAutoCenter = true;
-            ShowReturnToCurrentSegment = false;
+            OperationLog.Add("ResumeAutoCenter");
+            ResumeAutoCenterCallCount++;
+            State = PlayerAutoScrollState.AutoCentering;
             StateChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        public void ResetForChapterChange()
-        {
-            ReturnToCurrentSegment();
         }
 
         public void ResetForPageLeave()
         {
-            ReturnToCurrentSegment();
+            OperationLog.Add("ResetForPageLeave");
+            ResumeAutoCenter();
         }
     }
 
