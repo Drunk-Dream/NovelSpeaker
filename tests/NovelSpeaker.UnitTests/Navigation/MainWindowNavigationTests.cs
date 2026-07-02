@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows.Controls;
 using System.Windows;
-using System.Windows.Media;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App;
 using NovelSpeaker.App.Navigation;
@@ -50,7 +49,7 @@ public sealed class MainWindowNavigationTests
             Assert.Equal(typeof(LibraryPage), navigationService.LastNavigationPageType);
             Assert.Equal(1, navigationService.NavigateCallCount);
 
-            var presenter = FindDescendant<NavigationViewContentPresenter>(GetNavigationView(window));
+            var presenter = VisualTreeTestHelper.FindDescendant<NavigationViewContentPresenter>(GetNavigationView(window));
             Assert.NotNull(presenter);
             Assert.False(presenter!.IsDynamicScrollViewerEnabled);
         });
@@ -112,7 +111,7 @@ public sealed class MainWindowNavigationTests
                 window.UpdateLayout();
 
                 var navigationView = GetNavigationView(window);
-                var presenter = FindDescendant<NavigationViewContentPresenter>(navigationView);
+                var presenter = VisualTreeTestHelper.FindDescendant<NavigationViewContentPresenter>(navigationView);
                 Assert.NotNull(presenter);
                 Assert.False(presenter!.IsDynamicScrollViewerEnabled);
             }
@@ -130,26 +129,6 @@ public sealed class MainWindowNavigationTests
         return Assert.IsType<NavigationView>(property?.GetValue(window));
     }
 
-    private static T? FindDescendant<T>(DependencyObject root)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typedChild)
-            {
-                return typedChild;
-            }
-
-            var descendant = FindDescendant<T>(child);
-            if (descendant is not null)
-            {
-                return descendant;
-            }
-        }
-
-        return null;
-    }
     private sealed class FakeNavigationService : INavigationService
     {
         public INavigationView? NavigationControl { get; private set; }

@@ -52,8 +52,8 @@ public sealed class PlayerViewTests
             Assert.True(chaptersListBox.ActualHeight > 0);
             Assert.True(segmentListBox.ActualHeight > 0);
 
-            var chaptersScrollViewer = FindDescendant<ScrollViewer>(chaptersListBox);
-            var segmentsScrollViewer = FindDescendant<ScrollViewer>(segmentListBox);
+            var chaptersScrollViewer = VisualTreeTestHelper.FindDescendant<ScrollViewer>(chaptersListBox);
+            var segmentsScrollViewer = VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentListBox);
 
             Assert.NotNull(chaptersScrollViewer);
             Assert.NotNull(segmentsScrollViewer);
@@ -259,27 +259,6 @@ public sealed class PlayerViewTests
             Assert.Equal(Visibility.Visible, footer.Visibility);
             Assert.True(GetBoundsRelativeToRoot(footer, view).Bottom <= view.ActualHeight);
         });
-    }
-
-    private static T? FindDescendant<T>(DependencyObject root)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typedChild)
-            {
-                return typedChild;
-            }
-
-            var descendant = FindDescendant<T>(child);
-            if (descendant is not null)
-            {
-                return descendant;
-            }
-        }
-
-        return null;
     }
 
     private static FrameworkElement? FindDescendantByContent(DependencyObject root, string content)
