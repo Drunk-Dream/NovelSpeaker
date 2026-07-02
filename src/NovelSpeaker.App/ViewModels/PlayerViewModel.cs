@@ -23,7 +23,6 @@ public sealed partial class PlayerViewModel : ObservableObject
     private readonly IAppSettingsStore _settingsStore;
     private readonly IAppFeedbackService _feedbackService;
     private readonly INavigationService _navigationService;
-    private readonly IPlayerLayoutController _layoutController;
     private readonly IPlayerAutoScrollCoordinator _autoScrollCoordinator;
 
     private readonly Dictionary<int, PlaybackChapterContent> _chapterCache = [];
@@ -41,7 +40,6 @@ public sealed partial class PlayerViewModel : ObservableObject
         IAppSettingsStore settingsStore,
         IAppFeedbackService feedbackService,
         INavigationService navigationService,
-        IPlayerLayoutController layoutController,
         IPlayerAutoScrollCoordinator autoScrollCoordinator)
     {
         _playbackCoordinator = playbackCoordinator;
@@ -50,15 +48,12 @@ public sealed partial class PlayerViewModel : ObservableObject
         _settingsStore = settingsStore;
         _feedbackService = feedbackService;
         _navigationService = navigationService;
-        _layoutController = layoutController;
         _autoScrollCoordinator = autoScrollCoordinator;
 
-        ApplyLayoutState();
         ApplyAutoScrollState();
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
 
         _playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
-        _layoutController.StateChanged += OnLayoutStateChanged;
         _autoScrollCoordinator.StateChanged += OnAutoScrollStateChanged;
     }
 
@@ -90,6 +85,16 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     public bool ShouldAutoCenterCurrentSegment => _autoScrollCoordinator.ShouldAutoCenter;
 
+    public bool ShowInlineLoadingState => CurrentPlaybackState is PlaybackState.Preparing or PlaybackState.Buffering or PlaybackState.Recovering;
+
+    public string InlineLoadingText => CurrentPlaybackState switch
+    {
+        PlaybackState.Preparing => "正在准备",
+        PlaybackState.Buffering => "正在加载",
+        PlaybackState.Recovering => "正在恢复",
+        _ => string.Empty
+    };
+
     public double SegmentProgressMaximum => Math.Max(CurrentChapterSegmentCount - 1, 0);
 
     [ObservableProperty]
@@ -100,12 +105,6 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     [ObservableProperty]
     private string currentChapterTitle = "尚未定位章节";
-
-    [ObservableProperty]
-    private string statusText = "从书库打开一本书后，这里会显示播放状态。";
-
-    [ObservableProperty]
-    private string detailText = "可在这里浏览章节目录与当前章节的分段内容。";
 
     [ObservableProperty]
     private string errorText = string.Empty;
@@ -145,12 +144,6 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     [ObservableProperty]
     private bool canGoToNextSegment;
-
-    [ObservableProperty]
-    private bool isCompactLayout;
-
-    [ObservableProperty]
-    private bool isCatalogDrawerOpen;
 
     [ObservableProperty]
     private bool isRuleMenuOpen;
@@ -231,11 +224,6 @@ public sealed partial class PlayerViewModel : ObservableObject
         snapshot = _playbackCoordinator.CurrentSnapshot;
         ApplySnapshot(snapshot);
         await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
-    }
-
-    public void UpdateLayoutWidth(double width)
-    {
-        _layoutController.UpdateWidth(width);
     }
 
     public void OnPageNavigatedFrom()
@@ -333,12 +321,6 @@ public sealed partial class PlayerViewModel : ObservableObject
         {
             _navigationService.NavigateWithHierarchy(typeof(LibraryPage));
         }
-    }
-
-    [RelayCommand]
-    private void ToggleCatalogDrawer()
-    {
-        _layoutController.ToggleDrawer();
     }
 
     [RelayCommand]
@@ -500,7 +482,6 @@ public sealed partial class PlayerViewModel : ObservableObject
 
         _autoScrollCoordinator.ResetForChapterChange();
         await _playbackCoordinator.JumpToChapterAsync(chapter.ChapterIndex, cancellationToken);
-        _layoutController.CloseDrawer();
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -565,6 +546,12 @@ public sealed partial class PlayerViewModel : ObservableObject
         OnPropertyChanged(nameof(CanTogglePlayPause));
     }
 
+    partial void OnCurrentPlaybackStateChanged(PlaybackState value)
+    {
+        OnPropertyChanged(nameof(ShowInlineLoadingState));
+        OnPropertyChanged(nameof(InlineLoadingText));
+    }
+
     partial void OnHasAvailableRuleChanged(bool value)
     {
         OnPropertyChanged(nameof(ShowPlaybackControls));
@@ -587,18 +574,6 @@ public sealed partial class PlayerViewModel : ObservableObject
         }
 
         _ = HandleSnapshotUpdateAsync(snapshot);
-    }
-
-    private void OnLayoutStateChanged(object? sender, EventArgs e)
-    {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
-        {
-            _ = dispatcher.InvokeAsync(ApplyLayoutState);
-            return;
-        }
-
-        ApplyLayoutState();
     }
 
     private void OnAutoScrollStateChanged(object? sender, EventArgs e)
@@ -764,8 +739,6 @@ public sealed partial class PlayerViewModel : ObservableObject
         IsFaulted = snapshot.State == PlaybackState.Faulted;
         HasAvailableRule = snapshot.HasAvailableRule;
         ErrorText = IsFaulted ? snapshot.Message ?? "播放失败。" : string.Empty;
-        StatusText = BuildStatusText(snapshot);
-        DetailText = BuildDetailText(snapshot);
         PrimaryActionText = snapshot.State == PlaybackState.Playing ? "暂停" : "播放";
 
         var nextSpeakSpeed = AppSettings.NormalizeSpeakSpeed(
@@ -831,6 +804,11 @@ public sealed partial class PlayerViewModel : ObservableObject
         PlayerSegmentItemViewModel? currentItem = null;
         foreach (var segment in Segments)
         {
+            if (segment is null)
+            {
+                continue;
+            }
+
             var distance = Math.Abs(segment.SegmentIndex - currentSegmentIndex);
             segment.IsCurrent = segment.SegmentIndex == currentSegmentIndex;
             segment.FontWeight = distance == 0 ? FontWeights.SemiBold : FontWeights.Normal;
@@ -900,12 +878,6 @@ public sealed partial class PlayerViewModel : ObservableObject
         }
 
         return "尚未定位章节";
-    }
-
-    private void ApplyLayoutState()
-    {
-        IsCompactLayout = _layoutController.IsCompactLayout;
-        IsCatalogDrawerOpen = _layoutController.IsDrawerOpen;
     }
 
     private void ApplyAutoScrollState()
@@ -993,42 +965,6 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         _feedbackService.ShowWarning("无法打开书籍", "这本书可能已经被删除。");
         _navigationService.NavigateWithHierarchy(typeof(LibraryPage));
-    }
-
-    private static string BuildStatusText(PlaybackSnapshot snapshot)
-    {
-        return snapshot.State switch
-        {
-            PlaybackState.Preparing => "正在准备播放会话",
-            PlaybackState.Buffering => "正在加载当前段音频",
-            PlaybackState.Playing => "正在播放",
-            PlaybackState.Paused => "已暂停",
-            PlaybackState.Stopped => "已停止",
-            PlaybackState.Recovering => "正在恢复当前段",
-            PlaybackState.Faulted => "播放失败",
-            _ => "待机中"
-        };
-    }
-
-    private static string BuildDetailText(PlaybackSnapshot snapshot)
-    {
-        if (string.IsNullOrWhiteSpace(snapshot.BookId))
-        {
-            return "从书库打开一本书后，这里会显示当前章节与段落位置。";
-        }
-
-        if (!string.IsNullOrWhiteSpace(snapshot.Message) &&
-            snapshot.State != PlaybackState.Faulted &&
-            snapshot.HasAvailableRule)
-        {
-            return snapshot.Message;
-        }
-
-        var chapterText = snapshot.ChapterIndex >= 0 ? $"第 {snapshot.ChapterIndex + 1} 章" : "未定位章节";
-        var segmentText = snapshot.SegmentCount > 0 && snapshot.SegmentIndex >= 0
-            ? $"第 {snapshot.SegmentIndex + 1} / {snapshot.SegmentCount} 段"
-            : "段落信息待加载";
-        return $"{chapterText} · {segmentText}";
     }
 
     private double NormalizeSegmentProgressValue(double value)

@@ -135,7 +135,7 @@ public sealed class PlayerViewModelTests
     }
 
     [Fact]
-    public async Task SelectChapterCommand_jumps_and_closes_drawer()
+    public async Task SelectChapterCommand_jumps_without_reopening_playback()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
@@ -154,7 +154,6 @@ public sealed class PlayerViewModelTests
             false,
             false,
             false));
-        var layoutController = new FakePlayerLayoutController(isCompactLayout: true, isDrawerOpen: true);
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
@@ -166,8 +165,7 @@ public sealed class PlayerViewModelTests
                         new PlaybackChapterContent(1, "第二章", [])
                     ],
                     "作者甲"),
-                new PlaybackChapterContent(1, "第二章", [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")])),
-            layoutController: layoutController);
+                new PlaybackChapterContent(1, "第二章", [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")])));
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
@@ -177,7 +175,7 @@ public sealed class PlayerViewModelTests
         await viewModel.SelectChapterCommand.ExecuteAsync(viewModel.Chapters[1]);
 
         Assert.Equal(1, coordinator.LastJumpedChapterIndex);
-        Assert.False(layoutController.IsDrawerOpen);
+        Assert.Equal(0, coordinator.OpenPausedCallCount);
     }
 
     [Fact]
@@ -722,13 +720,57 @@ public sealed class PlayerViewModelTests
         });
     }
 
+    [Fact]
+    public async Task Loading_states_are_exposed_only_for_inline_loading_indicator()
+    {
+        var viewModel = CreateViewModel(
+            new FakePlaybackCoordinator(
+                PlaybackSnapshot.Idle with
+                {
+                    State = PlaybackState.Idle
+                }),
+            new FakeBookPlaybackContentService(null, null));
+
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        Assert.False(viewModel.ShowInlineLoadingState);
+        Assert.Equal(string.Empty, viewModel.InlineLoadingText);
+
+        viewModel = CreateViewModel(
+            new FakePlaybackCoordinator(PlaybackSnapshot.Idle with { State = PlaybackState.Preparing }),
+            new FakeBookPlaybackContentService(null, null));
+        await viewModel.LoadAsync(CancellationToken.None);
+        Assert.True(viewModel.ShowInlineLoadingState);
+        Assert.Equal("正在准备", viewModel.InlineLoadingText);
+
+        viewModel = CreateViewModel(
+            new FakePlaybackCoordinator(PlaybackSnapshot.Idle with { State = PlaybackState.Buffering }),
+            new FakeBookPlaybackContentService(null, null));
+        await viewModel.LoadAsync(CancellationToken.None);
+        Assert.True(viewModel.ShowInlineLoadingState);
+        Assert.Equal("正在加载", viewModel.InlineLoadingText);
+
+        viewModel = CreateViewModel(
+            new FakePlaybackCoordinator(PlaybackSnapshot.Idle with { State = PlaybackState.Recovering }),
+            new FakeBookPlaybackContentService(null, null));
+        await viewModel.LoadAsync(CancellationToken.None);
+        Assert.True(viewModel.ShowInlineLoadingState);
+        Assert.Equal("正在恢复", viewModel.InlineLoadingText);
+
+        viewModel = CreateViewModel(
+            new FakePlaybackCoordinator(PlaybackSnapshot.Idle with { State = PlaybackState.Paused }),
+            new FakeBookPlaybackContentService(null, null));
+        await viewModel.LoadAsync(CancellationToken.None);
+        Assert.False(viewModel.ShowInlineLoadingState);
+        Assert.Equal(string.Empty, viewModel.InlineLoadingText);
+    }
+
     private static PlayerViewModel CreateViewModel(
         FakePlaybackCoordinator coordinator,
         IBookPlaybackContentService contentService,
         ITtsRuleLibraryService? ruleService = null,
         FakeNavigationService? navigationService = null,
         FakeAppFeedbackService? feedbackService = null,
-        FakePlayerLayoutController? layoutController = null,
         FakePlayerAutoScrollCoordinator? autoScrollCoordinator = null)
     {
         return new PlayerViewModel(
@@ -738,7 +780,6 @@ public sealed class PlayerViewModelTests
             new FakeAppSettingsStore(AppSettings.Default),
             feedbackService ?? new FakeAppFeedbackService(),
             navigationService ?? new FakeNavigationService(),
-            layoutController ?? new FakePlayerLayoutController(),
             autoScrollCoordinator ?? new FakePlayerAutoScrollCoordinator());
     }
 
@@ -1125,53 +1166,4 @@ public sealed class PlayerViewModelTests
         }
     }
 
-    private sealed class FakePlayerLayoutController : IPlayerLayoutController
-    {
-        public FakePlayerLayoutController(bool isCompactLayout = false, bool isDrawerOpen = false)
-        {
-            IsCompactLayout = isCompactLayout;
-            IsDrawerOpen = isDrawerOpen;
-        }
-
-        public bool IsCompactLayout { get; private set; }
-
-        public bool IsDrawerOpen { get; private set; }
-
-        public event EventHandler? StateChanged;
-
-        public void UpdateWidth(double width)
-        {
-            var nextIsCompact = width < 1080d;
-            if (nextIsCompact == IsCompactLayout)
-            {
-                return;
-            }
-
-            IsCompactLayout = nextIsCompact;
-            if (!IsCompactLayout)
-            {
-                IsDrawerOpen = false;
-            }
-
-            StateChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        public void OpenDrawer()
-        {
-            IsDrawerOpen = true;
-            StateChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        public void CloseDrawer()
-        {
-            IsDrawerOpen = false;
-            StateChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        public void ToggleDrawer()
-        {
-            IsDrawerOpen = !IsDrawerOpen;
-            StateChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
 }
