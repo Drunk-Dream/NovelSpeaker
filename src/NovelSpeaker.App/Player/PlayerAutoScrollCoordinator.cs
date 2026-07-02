@@ -9,12 +9,23 @@ public sealed class PlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator, 
 
     private ITimer? _restoreTimer;
     private int _programmaticScrollDepth;
-    private AutoScrollMode _mode = AutoScrollMode.AutoCentering;
+    private PlayerAutoScrollState _state = PlayerAutoScrollState.AutoCentering;
     private int _pendingRestoreVersion;
 
     public PlayerAutoScrollCoordinator(TimeProvider timeProvider)
     {
         _timeProvider = timeProvider;
+    }
+
+    public PlayerAutoScrollState State
+    {
+        get
+        {
+            lock (_syncRoot)
+            {
+                return _state;
+            }
+        }
     }
 
     public bool ShouldAutoCenter
@@ -23,7 +34,7 @@ public sealed class PlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator, 
         {
             lock (_syncRoot)
             {
-                return _mode == AutoScrollMode.AutoCentering;
+                return _state == PlayerAutoScrollState.AutoCentering;
             }
         }
     }
@@ -34,7 +45,7 @@ public sealed class PlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator, 
         {
             lock (_syncRoot)
             {
-                return _mode != AutoScrollMode.AutoCentering;
+                return _state != PlayerAutoScrollState.AutoCentering;
             }
         }
     }
@@ -58,13 +69,13 @@ public sealed class PlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator, 
 
         lock (_syncRoot)
         {
-            if (_programmaticScrollDepth > 0 || _mode == AutoScrollMode.ScrollbarDragging)
+            if (_programmaticScrollDepth > 0 || _state == PlayerAutoScrollState.ScrollbarDragging)
             {
                 return;
             }
 
-            shouldRaise = _mode != AutoScrollMode.ManualBrowsing;
-            _mode = AutoScrollMode.ManualBrowsing;
+            shouldRaise = _state != PlayerAutoScrollState.ManualBrowsing;
+            _state = PlayerAutoScrollState.ManualBrowsing;
             ScheduleRestore_NoLock();
         }
 
@@ -81,8 +92,8 @@ public sealed class PlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator, 
         lock (_syncRoot)
         {
             CancelRestore_NoLock();
-            shouldRaise = _mode != AutoScrollMode.ScrollbarDragging;
-            _mode = AutoScrollMode.ScrollbarDragging;
+            shouldRaise = _state != PlayerAutoScrollState.ScrollbarDragging;
+            _state = PlayerAutoScrollState.ScrollbarDragging;
         }
 
         if (shouldRaise)
@@ -93,13 +104,19 @@ public sealed class PlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator, 
 
     public void EndScrollbarDrag()
     {
+        var shouldRaise = false;
+
         lock (_syncRoot)
         {
-            _mode = AutoScrollMode.ManualBrowsing;
+            shouldRaise = _state != PlayerAutoScrollState.ManualBrowsing;
+            _state = PlayerAutoScrollState.ManualBrowsing;
             ScheduleRestore_NoLock();
         }
 
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        if (shouldRaise)
+        {
+            StateChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     public void BeginProgrammaticScroll()
@@ -121,26 +138,21 @@ public sealed class PlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator, 
         }
     }
 
-    public void ReturnToCurrentSegment()
+    public void ResumeAutoCenter()
     {
         var shouldRaise = false;
 
         lock (_syncRoot)
         {
             CancelRestore_NoLock();
-            shouldRaise = _mode != AutoScrollMode.AutoCentering;
-            _mode = AutoScrollMode.AutoCentering;
+            shouldRaise = _state != PlayerAutoScrollState.AutoCentering;
+            _state = PlayerAutoScrollState.AutoCentering;
         }
 
         if (shouldRaise)
         {
             StateChanged?.Invoke(this, EventArgs.Empty);
         }
-    }
-
-    public void ResetForChapterChange()
-    {
-        Reset();
     }
 
     public void ResetForPageLeave()
@@ -163,8 +175,8 @@ public sealed class PlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator, 
         lock (_syncRoot)
         {
             CancelRestore_NoLock();
-            shouldRaise = _mode != AutoScrollMode.AutoCentering || _programmaticScrollDepth != 0;
-            _mode = AutoScrollMode.AutoCentering;
+            shouldRaise = _state != PlayerAutoScrollState.AutoCentering || _programmaticScrollDepth != 0;
+            _state = PlayerAutoScrollState.AutoCentering;
             _programmaticScrollDepth = 0;
         }
 
@@ -198,14 +210,14 @@ public sealed class PlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator, 
 
         lock (_syncRoot)
         {
-            if (_pendingRestoreVersion != version || _mode == AutoScrollMode.ScrollbarDragging)
+            if (_pendingRestoreVersion != version || _state == PlayerAutoScrollState.ScrollbarDragging)
             {
                 return;
             }
 
             CancelRestore_NoLock();
-            shouldRaise = _mode != AutoScrollMode.AutoCentering;
-            _mode = AutoScrollMode.AutoCentering;
+            shouldRaise = _state != PlayerAutoScrollState.AutoCentering;
+            _state = PlayerAutoScrollState.AutoCentering;
         }
 
         if (shouldRaise)
@@ -214,10 +226,4 @@ public sealed class PlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator, 
         }
     }
 
-    private enum AutoScrollMode
-    {
-        AutoCentering,
-        ManualBrowsing,
-        ScrollbarDragging
-    }
 }

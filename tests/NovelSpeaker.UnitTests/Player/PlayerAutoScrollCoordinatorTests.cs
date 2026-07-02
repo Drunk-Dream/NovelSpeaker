@@ -14,11 +14,13 @@ public sealed class PlayerAutoScrollCoordinatorTests
 
         coordinator.NotifyUserScrollInput();
 
+        Assert.Equal(PlayerAutoScrollState.ManualBrowsing, coordinator.State);
         Assert.False(coordinator.ShouldAutoCenter);
         Assert.True(coordinator.ShowReturnToCurrentSegment);
 
         timeProvider.Advance(TimeSpan.FromSeconds(4));
 
+        Assert.Equal(PlayerAutoScrollState.AutoCentering, coordinator.State);
         Assert.True(coordinator.ShouldAutoCenter);
         Assert.False(coordinator.ShowReturnToCurrentSegment);
     }
@@ -35,6 +37,7 @@ public sealed class PlayerAutoScrollCoordinatorTests
 
         coordinator.NotifyUserScrollInput();
 
+        Assert.Equal(PlayerAutoScrollState.ManualBrowsing, coordinator.State);
         Assert.True(coordinator.PendingRestoreVersion > firstVersion);
 
         timeProvider.Advance(TimeSpan.FromSeconds(2));
@@ -53,11 +56,14 @@ public sealed class PlayerAutoScrollCoordinatorTests
         coordinator.BeginScrollbarDrag();
         timeProvider.Advance(TimeSpan.FromSeconds(10));
 
+        Assert.Equal(PlayerAutoScrollState.ScrollbarDragging, coordinator.State);
         Assert.False(coordinator.ShouldAutoCenter);
 
         coordinator.EndScrollbarDrag();
+        Assert.Equal(PlayerAutoScrollState.ManualBrowsing, coordinator.State);
         timeProvider.Advance(TimeSpan.FromSeconds(4));
 
+        Assert.Equal(PlayerAutoScrollState.AutoCentering, coordinator.State);
         Assert.True(coordinator.ShouldAutoCenter);
     }
 
@@ -76,16 +82,33 @@ public sealed class PlayerAutoScrollCoordinatorTests
     }
 
     [Fact]
-    public void Chapter_change_cancels_pending_restore_and_returns_to_auto_center()
+    public void Resume_auto_center_cancels_pending_restore_and_returns_to_auto_center()
     {
         var timeProvider = new ManualTimeProvider();
         var coordinator = new PlayerAutoScrollCoordinator(timeProvider);
 
         coordinator.NotifyUserScrollInput();
 
-        coordinator.ResetForChapterChange();
+        coordinator.ResumeAutoCenter();
         timeProvider.Advance(TimeSpan.FromSeconds(10));
 
+        Assert.Equal(PlayerAutoScrollState.AutoCentering, coordinator.State);
+        Assert.True(coordinator.ShouldAutoCenter);
+        Assert.False(coordinator.ShowReturnToCurrentSegment);
+    }
+
+    [Fact]
+    public void Page_leave_reset_cancels_pending_restore_and_returns_to_auto_center()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var coordinator = new PlayerAutoScrollCoordinator(timeProvider);
+
+        coordinator.NotifyUserScrollInput();
+
+        coordinator.ResetForPageLeave();
+        timeProvider.Advance(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(PlayerAutoScrollState.AutoCentering, coordinator.State);
         Assert.True(coordinator.ShouldAutoCenter);
         Assert.False(coordinator.ShowReturnToCurrentSegment);
     }
