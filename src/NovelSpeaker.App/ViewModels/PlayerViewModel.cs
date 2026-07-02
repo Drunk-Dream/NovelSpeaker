@@ -1007,7 +1007,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private static string BuildSegmentCounterText(int segmentIndex, int segmentCount)
     {
         return segmentCount > 0 && segmentIndex >= 0
-            ? $"第 {segmentIndex + 1} / {segmentCount} 段"
+            ? $"{segmentIndex + 1} / {segmentCount}"
             : "尚未定位段落";
     }
 }
