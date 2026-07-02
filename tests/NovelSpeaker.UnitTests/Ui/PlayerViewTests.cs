@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows.Automation;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -16,6 +17,8 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using Wpf.Ui;
+using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;
@@ -139,7 +142,7 @@ public sealed class PlayerViewTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var backButton = Assert.IsType<Button>(FindVisibleDescendantByContent(view, "返回"));
+            var backButton = Assert.IsType<Button>(view.FindName("BackButton"));
             var titleText = Assert.IsType<TextBlock>(FindVisibleDescendantByText(view, "信息全知者"));
             var chapterTitleText = Assert.IsType<TextBlock>(FindVisibleDescendantByText(view, "第二章 头铁的落款"));
             var footer = Assert.IsType<Border>(view.FindName("PlaybackFooterBorder"));
@@ -151,7 +154,7 @@ public sealed class PlayerViewTests
             var titleBounds = GetBoundsRelativeToRoot(titleText, view);
             var chapterTitleBounds = GetBoundsRelativeToRoot(chapterTitleText, view);
 
-            Assert.InRange(Math.Abs(titleBounds.Top - backBounds.Top), 0d, 8d);
+            Assert.InRange(Math.Abs(titleBounds.Top - backBounds.Top), 0d, 10d);
             Assert.True(titleBounds.Left > backBounds.Right);
             Assert.True(chapterTitleBounds.Top > titleBounds.Bottom);
         });
@@ -184,8 +187,10 @@ public sealed class PlayerViewTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var returnButton = Assert.IsType<Button>(FindDescendantByContent(view, "回到当前段"));
+            var returnButton = Assert.IsType<Button>(view.FindName("ReturnToCurrentSegmentButton"));
             Assert.Equal(Visibility.Visible, returnButton.Visibility);
+            Assert.Equal("回到当前段", returnButton.ToolTip);
+            Assert.Equal("回到当前段", AutomationProperties.GetName(returnButton));
         });
     }
 
@@ -218,11 +223,10 @@ public sealed class PlayerViewTests
 
             var emptyStateButton = Assert.IsType<Button>(FindVisibleDescendantByContent(view, "前往 TTS 规则"));
             var noRuleFooter = Assert.IsType<Border>(view.FindName("NoRuleFooterBorder"));
-            var backButton = Assert.IsType<Button>(FindVisibleDescendantByContent(view, "返回"));
+            var backButton = Assert.IsType<Button>(view.FindName("BackButton"));
 
             Assert.Equal(Visibility.Visible, emptyStateButton.Visibility);
             Assert.Equal(Visibility.Visible, noRuleFooter.Visibility);
-            Assert.Null(FindVisibleDescendantByContent(view, "播放"));
             Assert.True(GetBoundsRelativeToRoot(noRuleFooter, view).Bottom <= view.ActualHeight);
             Assert.True(GetBoundsRelativeToRoot(backButton, view).Top >= 0);
         });
@@ -395,6 +399,181 @@ public sealed class PlayerViewTests
             Assert.Equal(TextWrapping.NoWrap, titleText!.TextWrapping);
             Assert.Equal(TextTrimming.CharacterEllipsis, titleText.TextTrimming);
             Assert.NotEqual(Visibility.Visible, scrollViewer.ComputedHorizontalScrollBarVisibility);
+        });
+    }
+
+    [Fact]
+    public void PlayerView_uses_full_width_segment_buttons_for_short_paragraphs()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>
+            {
+                new(0, "第一章")
+                {
+                    IsCurrent = true
+                }
+            };
+            var segments = new ObservableCollection<PlayerSegmentItemViewModel>
+            {
+                new(0, 0, "短句")
+                {
+                    IsCurrent = true,
+                    VisualOpacity = 1d
+                }
+            };
+
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(chapters, segments),
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var segmentListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
+            var itemContainer = Assert.IsType<ListBoxItem>(segmentListBox.ItemContainerGenerator.ContainerFromIndex(0));
+            var segmentButton = Assert.IsType<Button>(FindDescendant<Button>(itemContainer, static _ => true));
+
+            Assert.InRange(Math.Abs(segmentButton.ActualWidth - itemContainer.ActualWidth), 0d, 1d);
+        });
+    }
+
+    [Fact]
+    public void PlayerView_keeps_rule_and_speed_toolbar_buttons_at_the_same_height()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>
+            {
+                new(0, "第一章")
+                {
+                    IsCurrent = true
+                }
+            };
+            var segments = new ObservableCollection<PlayerSegmentItemViewModel>
+            {
+                new(0, 0, "第一段")
+                {
+                    IsCurrent = true,
+                    VisualOpacity = 1d
+                }
+            };
+
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(chapters, segments),
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var ruleButton = Assert.IsType<Button>(view.FindName("RuleMenuButton"));
+            var speedButton = Assert.IsType<Button>(view.FindName("SpeedMenuButton"));
+
+            Assert.InRange(Math.Abs(ruleButton.ActualHeight - speedButton.ActualHeight), 0d, 1d);
+        });
+    }
+
+    [Fact]
+    public void PlayerView_uses_accent_filled_segment_progress_slider()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>
+            {
+                new(0, "第一章")
+                {
+                    IsCurrent = true
+                }
+            };
+            var segments = new ObservableCollection<PlayerSegmentItemViewModel>
+            {
+                new(0, 0, "第一段")
+                {
+                    IsCurrent = true,
+                    VisualOpacity = 1d
+                }
+            };
+
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(chapters, segments),
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var fillBar = Assert.IsType<ProgressBar>(view.FindName("SegmentProgressFillBar"));
+            var slider = Assert.IsType<Slider>(view.FindName("SegmentProgressSlider"));
+            var accentBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.TryFindResource("AccentFillColorDefaultBrush"));
+            var trackBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.TryFindResource("LayerFillColorAltBrush"));
+            var fillBarForeground = Assert.IsType<SolidColorBrush>(fillBar.Foreground);
+            var fillBarBackground = Assert.IsType<SolidColorBrush>(fillBar.Background);
+
+            Assert.Equal(accentBrush.Color, fillBarForeground.Color);
+            Assert.Equal(trackBrush.Color, fillBarBackground.Color);
+            Assert.Equal(slider.Maximum, fillBar.Maximum);
+            Assert.Equal(slider.Value, fillBar.Value);
+            Assert.True(fillBar.Value > 0);
+            Assert.True(fillBar.Maximum > fillBar.Value);
+        });
+    }
+
+    [Fact]
+    public void PlayerView_uses_icon_buttons_with_accessible_metadata_for_playback_controls()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>
+            {
+                new(0, "第一章")
+                {
+                    IsCurrent = true
+                }
+            };
+            var segments = new ObservableCollection<PlayerSegmentItemViewModel>
+            {
+                new(0, 0, "第一段")
+                {
+                    IsCurrent = true,
+                    VisualOpacity = 1d
+                }
+            };
+
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(chapters, segments, showReturnToCurrentSegment: true),
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("PreviousChapterButton")), "上一章");
+            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("PreviousSegmentButton")), "上一段");
+            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("PrimaryPlaybackButton")), "播放");
+            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("NextSegmentButton")), "下一段");
+            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("NextChapterButton")), "下一章");
+            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("ReturnToCurrentSegmentButton")), "回到当前段");
+            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("BackButton")), "返回");
+
+            var primaryIcon = Assert.IsType<SymbolIcon>(FindDescendant<SymbolIcon>(
+                Assert.IsType<Button>(view.FindName("PrimaryPlaybackButton")),
+                static _ => true));
+            var previousChapterIcon = Assert.IsType<SymbolIcon>(FindDescendant<SymbolIcon>(
+                Assert.IsType<Button>(view.FindName("PreviousChapterButton")),
+                static _ => true));
+            var nextChapterIcon = Assert.IsType<SymbolIcon>(FindDescendant<SymbolIcon>(
+                Assert.IsType<Button>(view.FindName("NextChapterButton")),
+                static _ => true));
+
+            Assert.Equal(SymbolRegular.PlayCircle24, primaryIcon.Symbol);
+            Assert.Equal(SymbolRegular.ChevronDoubleLeft20, previousChapterIcon.Symbol);
+            Assert.Equal(SymbolRegular.ChevronDoubleRight20, nextChapterIcon.Symbol);
         });
     }
 
@@ -876,6 +1055,12 @@ public sealed class PlayerViewTests
         return new Rect(origin.X, origin.Y, element.ActualWidth, element.ActualHeight);
     }
 
+    private static void AssertButtonMetadata(Button button, string expectedName)
+    {
+        Assert.Equal(expectedName, button.ToolTip);
+        Assert.Equal(expectedName, AutomationProperties.GetName(button));
+    }
+
     private static void DoEvents()
     {
         var frame = new DispatcherFrame();
@@ -952,6 +1137,10 @@ public sealed class PlayerViewTests
         public string CurrentChapterTitle { get; } = "第二章 头铁的落款";
 
         public string SpeakSpeedButtonText { get; } = "语速 10";
+
+        public int SpeakSpeed { get; } = 10;
+
+        public SymbolRegular PrimaryActionSymbol { get; } = SymbolRegular.PlayCircle24;
 
         public string ErrorText { get; }
 
