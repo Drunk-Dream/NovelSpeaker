@@ -47,7 +47,7 @@ public partial class TtsRulesView : UserControl
         await viewModel.ImportJsonTextAsync(Clipboard.GetText(), "剪贴板", CancellationToken.None);
     }
 
-    private async void ExportSelectedRuleButton_OnClick(object sender, RoutedEventArgs e)
+    private async void ExportDraftButton_OnClick(object sender, RoutedEventArgs e)
     {
         if (DataContext is not TtsRulesViewModel viewModel)
         {
@@ -62,7 +62,7 @@ public partial class TtsRulesView : UserControl
 
         if (dialog.ShowDialog() == true)
         {
-            await viewModel.ExportSelectedRuleToFileAsync(dialog.FileName, CancellationToken.None);
+            await viewModel.ExportDraftToFileAsync(dialog.FileName, CancellationToken.None);
         }
     }
 }
