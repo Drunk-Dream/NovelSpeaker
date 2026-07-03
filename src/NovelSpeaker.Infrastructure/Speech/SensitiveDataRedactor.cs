@@ -92,6 +92,24 @@ internal static partial class SensitiveDataRedactor
         return JsonSerializer.Serialize(ordered);
     }
 
+    public static string? RedactKnownSecrets(string? value, IEnumerable<string> secrets)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        var redacted = value;
+        foreach (var secret in secrets
+                     .Where(static item => !string.IsNullOrWhiteSpace(item))
+                     .Distinct(StringComparer.Ordinal))
+        {
+            redacted = redacted.Replace(secret, "***", StringComparison.Ordinal);
+        }
+
+        return redacted;
+    }
+
     public static bool IsSensitiveKey(string key)
     {
         return key.Contains("authorization", StringComparison.OrdinalIgnoreCase) ||
