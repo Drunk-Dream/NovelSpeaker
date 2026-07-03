@@ -18,6 +18,7 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
         "contentType",
         "concurrentRate",
         "header",
+        "loginInfo",
         "enabledCookieJar",
         "isEnabled",
         "lastUpdateTime"
@@ -256,7 +257,31 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
             unsupportedFields,
             null,
             utcNow,
-            utcNow);
+            utcNow)
+        {
+            LoginInfoJson = ReadJsonOrString(ruleElement, "loginInfo")
+        };
+    }
+
+    private static string? ReadJsonOrString(JsonElement root, string propertyName)
+    {
+        foreach (var property in root.EnumerateObject())
+        {
+            if (!string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return property.Value.ValueKind switch
+            {
+                JsonValueKind.Object => property.Value.GetRawText(),
+                JsonValueKind.String => property.Value.GetString(),
+                JsonValueKind.Null => null,
+                _ => property.Value.GetRawText()
+            };
+        }
+
+        return null;
     }
 
     private static HttpTtsRule ApplyCompatibilityStatus(

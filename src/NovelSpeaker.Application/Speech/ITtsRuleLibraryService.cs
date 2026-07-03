@@ -14,6 +14,11 @@ public interface ITtsRuleLibraryService
         string sourceDescription,
         CancellationToken cancellationToken);
 
+    Task<TtsRuleImportResult> ImportJsonTextAsync(
+        string jsonText,
+        string sourceDescription,
+        CancellationToken cancellationToken);
+
     Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken);
 
     Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken);

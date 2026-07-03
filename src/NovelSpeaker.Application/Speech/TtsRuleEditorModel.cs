@@ -18,4 +18,7 @@ public sealed record TtsRuleEditorModel(
     TtsRuleRequestOptionsEditor RequestOptions,
     string RawRuleJson,
     TtsRuleCompatibilityStatus CompatibilityStatus,
-    IReadOnlyList<string> UnsupportedFields);
+    IReadOnlyList<string> UnsupportedFields)
+{
+    public IReadOnlyList<TtsRuleEditorKeyValue> LoginInfo { get; init; } = [];
+}

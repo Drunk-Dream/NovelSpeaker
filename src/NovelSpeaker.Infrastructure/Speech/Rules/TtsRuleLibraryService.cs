@@ -52,33 +52,73 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
         }
     }
 
+    public async Task<TtsRuleImportResult> ImportJsonTextAsync(
+        string jsonText,
+        string sourceDescription,
+        CancellationToken cancellationToken)
+    {
+        var preview = await CreateImportPreviewAsync(jsonText, sourceDescription, cancellationToken);
+        return await ImportAsync(preview, cancellationToken);
+    }
+
     public async Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken)
     {
         if (preview.ErrorMessage is not null)
         {
-            return new TtsRuleImportResult(0, preview.Items.Count, preview.Items.Count);
+            return new TtsRuleImportResult(0, 0, preview.Items.Count)
+            {
+                FailedCount = preview.Items.Count
+            };
         }
 
         var importedCount = 0;
         var skippedCount = 0;
+        var failedCount = 0;
+        long? firstImportedRuleId = null;
+        long? firstImportedEnabledRuleId = null;
         var existingRules = (await _repository.GetAllAsync(cancellationToken)).ToList();
 
         foreach (var item in preview.Items)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!item.CanImport || IsExactDuplicate(existingRules, item))
+            if (IsExactDuplicate(existingRules, item))
             {
                 skippedCount++;
                 continue;
             }
 
-            await SaveImportedRuleAsync(item.CandidateRule, cancellationToken);
-            existingRules.Add(item.CandidateRule);
+            if (!item.CanImport)
+            {
+                failedCount++;
+                continue;
+            }
+
+            var savedRule = await SaveImportedRuleAsync(item.CandidateRule, existingRules, cancellationToken);
+            firstImportedRuleId ??= savedRule.Id;
+            if (savedRule.IsEnabled)
+            {
+                firstImportedEnabledRuleId ??= savedRule.Id;
+            }
+
+            existingRules.Add(savedRule);
             importedCount++;
         }
 
-        return new TtsRuleImportResult(importedCount, skippedCount, preview.Items.Count);
+        if (firstImportedEnabledRuleId is not null)
+        {
+            var settings = await _settingsService.LoadAsync(cancellationToken);
+            if (settings.SelectedTtsRuleId is null)
+            {
+                await SelectRuleAsync(firstImportedEnabledRuleId.Value, cancellationToken);
+            }
+        }
+
+        return new TtsRuleImportResult(importedCount, skippedCount, preview.Items.Count)
+        {
+            FailedCount = failedCount,
+            FirstImportedRuleId = firstImportedRuleId
+        };
     }
 
     public async Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken)
@@ -108,6 +148,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
 
         ValidateNameAndUrl(normalizedEditor, errors);
         ValidateHeaders(normalizedEditor.Headers, "Header", errors);
+        ValidateHeaders(normalizedEditor.LoginInfo, "LoginInfo", errors);
         ValidateRequestOptions(normalizedEditor.RequestOptions, errors);
 
         var normalizedRule = BuildRuleFromEditor(normalizedEditor, existingRule);
@@ -156,13 +197,24 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             ? await _repository.GetByIdAsync(validation.NormalizedModel.Id.Value, cancellationToken)
             : null;
         var rule = BuildRuleFromEditor(validation.NormalizedModel, existingRule);
-        rule = rule with
-        {
-            RuleJson = validation.NormalizedModel.RawRuleJson
-        };
+        var existingRules = await _repository.GetAllAsync(cancellationToken);
+        rule = EnsureUniqueRuleName(rule, existingRules, existingRule?.Id);
+        rule = rule with { RuleJson = NovelSpeakerRuleJsonSerializer.Serialize(rule) };
 
         var ruleId = await _repository.SaveAsync(rule, cancellationToken);
-        return (await _repository.GetByIdAsync(ruleId, cancellationToken))!;
+        var savedRule = (await _repository.GetByIdAsync(ruleId, cancellationToken))!;
+
+        if (existingRule is null && savedRule.IsEnabled)
+        {
+            var settings = await _settingsService.LoadAsync(cancellationToken);
+            if (settings.SelectedTtsRuleId is null)
+            {
+                await SelectRuleAsync(savedRule.Id, cancellationToken);
+                savedRule = (await _repository.GetByIdAsync(ruleId, cancellationToken))!;
+            }
+        }
+
+        return savedRule;
     }
 
     public async Task<TtsRuleProtectionInfo> GetRuleProtectionAsync(
@@ -182,7 +234,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             action,
             isCurrentRule,
             !isCurrentRule,
-            isCurrentRule && replacementCandidates.Length == 0,
+            isCurrentRule,
             replacementCandidates);
     }
 
@@ -205,7 +257,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             }
             else if (!decision.ClearSelectedRule || !protection.CanClearSelectedRule)
             {
-                throw new InvalidOperationException("当前规则需要先选择替代规则，或在无替代规则时明确清空当前规则。");
+                throw new InvalidOperationException("当前规则需要明确清空当前规则后才能继续。");
             }
         }
 
@@ -437,7 +489,10 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             ParseRequestOptions(rule.RequestOptionsJson),
             rule.RuleJson,
             rule.CompatibilityStatus,
-            rule.UnsupportedFields);
+            rule.UnsupportedFields)
+        {
+            LoginInfo = ParseKeyValueJson(rule.LoginInfoJson)
+        };
     }
 
     private static TtsRuleEditorModel NormalizeEditor(TtsRuleEditorModel editor)
@@ -449,6 +504,10 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             ContentType = NormalizeOptionalText(editor.ContentType),
             ConcurrentRate = NormalizeOptionalText(editor.ConcurrentRate),
             Headers = editor.Headers
+                .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))
+                .Select(entry => new TtsRuleEditorKeyValue(entry.Key.Trim(), entry.Value))
+                .ToArray(),
+            LoginInfo = editor.LoginInfo
                 .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))
                 .Select(entry => new TtsRuleEditorKeyValue(entry.Key.Trim(), entry.Value))
                 .ToArray(),
@@ -561,6 +620,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
     private static HttpTtsRule BuildRuleFromEditor(TtsRuleEditorModel editor, HttpTtsRule? existingRule)
     {
         var headerJson = SerializeKeyValueJson(editor.Headers);
+        var loginInfoJson = SerializeKeyValueJson(editor.LoginInfo);
         var requestOptionsJson = SerializeRequestOptions(editor.RequestOptions);
         var utcNow = DateTime.UtcNow.ToString("O");
 
@@ -580,7 +640,10 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             editor.UnsupportedFields,
             existingRule?.LastUsedAt,
             existingRule?.CreatedAt ?? utcNow,
-            utcNow);
+            utcNow)
+        {
+            LoginInfoJson = loginInfoJson
+        };
 
         return rule with
         {
@@ -773,7 +836,10 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             baselineRule.UnsupportedFields,
             baselineRule.LastUsedAt,
             baselineRule.CreatedAt,
-            baselineRule.UpdatedAt);
+            baselineRule.UpdatedAt)
+        {
+            LoginInfoJson = ReadJsonOrString(root, "loginInfo")
+        };
 
         return NovelSpeakerRuleJsonSerializer.Serialize(rawRule);
     }
@@ -896,14 +962,50 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
         return existingRules.Any(rule => string.Equals(rule.RuleJson, item.CandidateRule.RuleJson, StringComparison.Ordinal));
     }
 
-    private Task SaveImportedRuleAsync(HttpTtsRule rule, CancellationToken cancellationToken)
+    private async Task<HttpTtsRule> SaveImportedRuleAsync(
+        HttpTtsRule rule,
+        IReadOnlyList<HttpTtsRule> existingRules,
+        CancellationToken cancellationToken)
     {
         var utcNow = DateTime.UtcNow.ToString("O");
-        return _repository.SaveAsync(rule with
+        var normalizedRule = EnsureUniqueRuleName(rule, existingRules, null);
+        normalizedRule = normalizedRule with
         {
+            RuleJson = NovelSpeakerRuleJsonSerializer.Serialize(normalizedRule),
             CreatedAt = utcNow,
             UpdatedAt = utcNow
-        }, cancellationToken);
+        };
+
+        var ruleId = await _repository.SaveAsync(normalizedRule, cancellationToken);
+        return normalizedRule with { Id = ruleId };
+    }
+
+    private static HttpTtsRule EnsureUniqueRuleName(
+        HttpTtsRule rule,
+        IReadOnlyList<HttpTtsRule> existingRules,
+        long? currentRuleId)
+    {
+        var baseName = string.IsNullOrWhiteSpace(rule.Name) ? "新建规则" : rule.Name.Trim();
+        if (!existingRules.Any(existing =>
+                existing.Id != currentRuleId &&
+                string.Equals(existing.Name, baseName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return rule with { Name = baseName };
+        }
+
+        var suffix = 2;
+        while (true)
+        {
+            var candidateName = $"{baseName} ({suffix})";
+            if (!existingRules.Any(existing =>
+                    existing.Id != currentRuleId &&
+                    string.Equals(existing.Name, candidateName, StringComparison.OrdinalIgnoreCase)))
+            {
+                return rule with { Name = candidateName };
+            }
+
+            suffix++;
+        }
     }
 
     private async Task UpdateSelectedRuleAsync(long? ruleId, CancellationToken cancellationToken)

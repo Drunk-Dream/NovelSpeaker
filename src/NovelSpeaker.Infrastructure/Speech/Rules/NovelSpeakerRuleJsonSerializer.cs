@@ -33,6 +33,13 @@ internal static class NovelSpeakerRuleJsonSerializer
             writer.WriteString("header", rule.Header);
         }
 
+        if (!string.IsNullOrWhiteSpace(rule.LoginInfoJson))
+        {
+            writer.WritePropertyName("loginInfo");
+            using var loginInfoDocument = JsonDocument.Parse(rule.LoginInfoJson);
+            loginInfoDocument.RootElement.WriteTo(writer);
+        }
+
         if (!string.IsNullOrWhiteSpace(rule.RequestOptionsJson))
         {
             writer.WritePropertyName("requestOptions");

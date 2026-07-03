@@ -74,6 +74,48 @@ public sealed class TtsRuleLibraryServiceTests
     }
 
     [Fact]
+    public async Task ImportJsonTextAsync_renames_same_name_rules_and_reports_counts()
+    {
+        var repository = new FakeTtsRuleRepository([
+            new HttpTtsRule(
+                3,
+                "现有规则",
+                "https://example.com/old",
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                """{"name":"现有规则","url":"https://example.com/old"}""",
+                true,
+                TtsRuleCompatibilityStatus.Compatible,
+                [],
+                null,
+                "created",
+                "updated")
+        ]);
+        var service = new TtsRuleLibraryService(repository, new FakeAppSettingsStore(AppSettings.Default), new LegadoRuleConverter());
+
+        var result = await service.ImportJsonTextAsync(
+            """
+            [
+              {"name":"现有规则","url":"https://example.com/new"},
+              {"name":"无效规则"},
+              {"name":"现有规则","url":"https://example.com/old"}
+            ]
+            """,
+            "file.json",
+            CancellationToken.None);
+
+        Assert.Equal(1, result.ImportedCount);
+        Assert.Equal(1, result.FailedCount);
+        Assert.Equal(1, result.SkippedCount);
+        Assert.NotNull(result.FirstImportedRuleId);
+        Assert.Contains(repository.Rules, rule => rule.Name == "现有规则 (2)");
+    }
+
+    [Fact]
     public async Task SelectRuleAsync_updates_last_used_and_settings()
     {
         var repository = new FakeTtsRuleRepository([
@@ -163,6 +205,9 @@ public sealed class TtsRuleLibraryServiceTests
                 utcNow,
                 utcNow,
                 utcNow)
+            {
+                LoginInfoJson = """{"token":"abc"}"""
+            }
         ]);
         var service = new TtsRuleLibraryService(repository, new FakeAppSettingsStore(AppSettings.Default), new LegadoRuleConverter());
 
@@ -170,6 +215,7 @@ public sealed class TtsRuleLibraryServiceTests
         var saved = await service.SaveEditorAsync(editor! with
         {
             Name = "已更新规则",
+            LoginInfo = [new TtsRuleEditorKeyValue("token", "updated-secret")],
             RequestOptions = editor.RequestOptions with
             {
                 TimeoutMs = 8000
@@ -180,8 +226,55 @@ public sealed class TtsRuleLibraryServiceTests
         Assert.NotNull(editor);
         Assert.Equal("POST", editor!.RequestOptions.Method);
         Assert.Single(editor.RequestOptions.Headers);
+        Assert.Single(editor.LoginInfo);
         Assert.Equal("已更新规则", saved.Name);
         Assert.Contains(@"""timeoutMs"":8000", saved.RequestOptionsJson);
+        Assert.Equal("""{"token":"updated-secret"}""", saved.LoginInfoJson);
+    }
+
+    [Fact]
+    public async Task SaveEditorAsync_renames_duplicate_names()
+    {
+        var utcNow = DateTime.UtcNow.ToString("O");
+        var repository = new FakeTtsRuleRepository([
+            new HttpTtsRule(
+                1,
+                "重复名",
+                "https://example.com/one",
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                """{"name":"重复名","url":"https://example.com/one"}""",
+                true,
+                TtsRuleCompatibilityStatus.Compatible,
+                [],
+                null,
+                utcNow,
+                utcNow)
+        ]);
+        var service = new TtsRuleLibraryService(repository, new FakeAppSettingsStore(AppSettings.Default), new LegadoRuleConverter());
+
+        var saved = await service.SaveEditorAsync(
+            new TtsRuleEditorModel(
+                null,
+                "重复名",
+                true,
+                "https://example.com/two",
+                null,
+                null,
+                false,
+                null,
+                [],
+                new TtsRuleRequestOptionsEditor(null, [], null, null),
+                string.Empty,
+                TtsRuleCompatibilityStatus.Compatible,
+                []),
+            CancellationToken.None);
+
+        Assert.Equal("重复名 (2)", saved.Name);
     }
 
     [Fact]
@@ -263,6 +356,59 @@ public sealed class TtsRuleLibraryServiceTests
         Assert.Single(protection.ReplacementCandidates);
         Assert.Equal(2, result.SelectedRuleId);
         Assert.Equal(2, settingsStore.Current.SelectedTtsRuleId);
+        Assert.False(repository.Rules.Single(rule => rule.Id == 1).IsEnabled);
+    }
+
+    [Fact]
+    public async Task ApplyRuleMutationAsync_can_clear_current_rule_even_when_replacements_exist()
+    {
+        var repository = new FakeTtsRuleRepository([
+            new HttpTtsRule(
+                1,
+                "当前规则",
+                "https://example.com/a",
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                """{"name":"当前规则","url":"https://example.com/a"}""",
+                true,
+                TtsRuleCompatibilityStatus.Compatible,
+                [],
+                null,
+                "created",
+                "updated"),
+            new HttpTtsRule(
+                2,
+                "候选规则",
+                "https://example.com/b",
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                """{"name":"候选规则","url":"https://example.com/b"}""",
+                true,
+                TtsRuleCompatibilityStatus.Compatible,
+                [],
+                null,
+                "created",
+                "updated")
+        ]);
+        var settingsStore = new FakeAppSettingsStore(AppSettings.Default with { SelectedTtsRuleId = 1 });
+        var service = new TtsRuleLibraryService(repository, settingsStore, new LegadoRuleConverter());
+
+        var protection = await service.GetRuleProtectionAsync(1, TtsRuleMutationAction.Disable, CancellationToken.None);
+        var result = await service.ApplyRuleMutationAsync(
+            new TtsRuleMutationDecision(1, TtsRuleMutationAction.Disable, null, true),
+            CancellationToken.None);
+
+        Assert.True(protection.CanClearSelectedRule);
+        Assert.Null(result.SelectedRuleId);
+        Assert.Null(settingsStore.Current.SelectedTtsRuleId);
         Assert.False(repository.Rules.Single(rule => rule.Id == 1).IsEnabled);
     }
 

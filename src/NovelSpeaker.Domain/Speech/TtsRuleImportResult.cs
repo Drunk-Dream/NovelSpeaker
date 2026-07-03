@@ -6,4 +6,9 @@ namespace NovelSpeaker.Domain.Speech;
 public sealed record TtsRuleImportResult(
     int ImportedCount,
     int SkippedCount,
-    int TotalCount);
+    int TotalCount)
+{
+    public int FailedCount { get; init; }
+
+    public long? FirstImportedRuleId { get; init; }
+}
