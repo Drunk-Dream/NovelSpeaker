@@ -29,6 +29,7 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
             SELECT Id,
                    Name,
                    RuleJson,
+                   LoginInfoJson,
                    IsEnabled,
                    CompatibilityStatus,
                    UnsupportedFieldsJson,
@@ -61,6 +62,7 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
             SELECT Id,
                    Name,
                    RuleJson,
+                   LoginInfoJson,
                    IsEnabled,
                    CompatibilityStatus,
                    UnsupportedFieldsJson,
@@ -90,6 +92,7 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
                 INSERT INTO HttpTtsRules (
                     Name,
                     RuleJson,
+                    LoginInfoJson,
                     IsEnabled,
                     CompatibilityStatus,
                     UnsupportedFieldsJson,
@@ -99,6 +102,7 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
                 VALUES (
                     $name,
                     $ruleJson,
+                    $loginInfoJson,
                     $isEnabled,
                     $compatibilityStatus,
                     $unsupportedFieldsJson,
@@ -118,6 +122,7 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
             UPDATE HttpTtsRules
             SET Name = $name,
                 RuleJson = $ruleJson,
+                LoginInfoJson = $loginInfoJson,
                 IsEnabled = $isEnabled,
                 CompatibilityStatus = $compatibilityStatus,
                 UnsupportedFieldsJson = $unsupportedFieldsJson,
@@ -145,6 +150,7 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
     {
         command.Parameters.AddWithValue("$name", rule.Name);
         command.Parameters.AddWithValue("$ruleJson", rule.RuleJson);
+        command.Parameters.AddWithValue("$loginInfoJson", (object?)rule.LoginInfoJson ?? DBNull.Value);
         command.Parameters.AddWithValue("$isEnabled", rule.IsEnabled ? 1 : 0);
         command.Parameters.AddWithValue("$compatibilityStatus", (int)rule.CompatibilityStatus);
         command.Parameters.AddWithValue(
@@ -159,7 +165,7 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
     {
         var ruleJson = reader.GetString(2);
         var metadata = RuleJsonMetadata.Parse(ruleJson);
-        var unsupportedFieldsJson = reader.GetString(5);
+        var unsupportedFieldsJson = reader.GetString(6);
         var unsupportedFields = JsonSerializer.Deserialize<string[]>(unsupportedFieldsJson, SerializerOptions) ?? [];
 
         return new HttpTtsRule(
@@ -173,11 +179,14 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
             metadata.EnabledCookieJar,
             metadata.LastUpdateTime,
             ruleJson,
-            reader.GetInt64(3) == 1,
-            (TtsRuleCompatibilityStatus)reader.GetInt32(4),
+            reader.GetInt64(4) == 1,
+            (TtsRuleCompatibilityStatus)reader.GetInt32(5),
             unsupportedFields,
-            reader.IsDBNull(6) ? null : reader.GetString(6),
-            reader.GetString(7),
-            reader.GetString(8));
+            reader.IsDBNull(7) ? null : reader.GetString(7),
+            reader.GetString(8),
+            reader.GetString(9))
+        {
+            LoginInfoJson = reader.IsDBNull(3) ? metadata.LoginInfoJson : reader.GetString(3)
+        };
     }
 }

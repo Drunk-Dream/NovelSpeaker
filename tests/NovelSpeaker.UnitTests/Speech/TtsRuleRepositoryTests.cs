@@ -32,7 +32,10 @@ public sealed class TtsRuleRepositoryTests
             ["loginUrl"],
             utcNow,
             utcNow,
-            utcNow), CancellationToken.None);
+            utcNow)
+        {
+            LoginInfoJson = """{"token":"secret-token"}"""
+        }, CancellationToken.None);
 
         var stored = await repository.GetByIdAsync(ruleId, CancellationToken.None);
 
@@ -44,6 +47,7 @@ public sealed class TtsRuleRepositoryTests
         Assert.Equal(12345, stored.LastUpdateTime);
         Assert.Equal(utcNow, stored.LastUsedAt);
         Assert.Equal("""{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"}""", stored.RequestOptionsJson);
+        Assert.Equal("""{"token":"secret-token"}""", stored.LoginInfoJson);
     }
 
     [Fact]

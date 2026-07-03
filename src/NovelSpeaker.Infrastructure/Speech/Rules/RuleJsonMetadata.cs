@@ -7,6 +7,7 @@ internal sealed record RuleJsonMetadata(
     string? ContentType,
     string? ConcurrentRate,
     string? Header,
+    string? LoginInfoJson,
     string? RequestOptionsJson,
     bool EnabledCookieJar,
     long? LastUpdateTime)
@@ -21,6 +22,7 @@ internal sealed record RuleJsonMetadata(
             ReadOptionalString(root, "contentType"),
             ReadOptionalString(root, "concurrentRate"),
             ReadOptionalString(root, "header"),
+            ReadOptionalJson(root, "loginInfo"),
             ReadOptionalJson(root, "requestOptions"),
             ReadOptionalBoolean(root, "enabledCookieJar"),
             ReadOptionalInt64(root, "lastUpdateTime"));
