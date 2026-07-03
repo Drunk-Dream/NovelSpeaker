@@ -25,7 +25,7 @@
 - `speakSpeed`
 - `{{ ... }}` 表达式
 - 少量白名单兼容辅助函数
-- 规则页临时试听输入与脱敏请求预览
+- 规则页使用固定试听输入与脱敏请求预览
 
 第一版明确不承诺：
 
@@ -73,11 +73,12 @@ public sealed class HttpTtsRule
 上面的 `HttpTtsRule` 更适合作为导入并转换后的持久化规则模型。
 第一版中，Legado 规则只作为导入来源；成功导入后，数据库与导出都以 NovelSpeaker 自有规则 JSON 为准，而不是长期保留原始导入 JSON。
 
-并非所有字段都必须在第一版执行。未实现字段必须：
+并非所有导入源字段都必须在第一版执行。第一版导入采用“规范化后保存”的策略：
 
-- 保留导入值。
-- 在规则详情中标记为“当前版本不支持”。
-- 不得静默忽略并假装兼容。
+- NovelSpeaker 自有规则模型只保存当前版本识别和执行所需的字段。
+- 导入源中的多余字段直接丢弃，不在 UI 中展示兼容性状态或未支持字段。
+- 缺少必需字段、字段类型错误、请求模板无法解析或无法转换为内部模型时，不允许导入或保存。
+- 不得把无法执行的字段静默保存为可用规则。
 
 运行时应再规范化为内部模型，例如：
 
@@ -88,8 +89,7 @@ public sealed record NormalizedHttpTtsRule(
     RequestTemplate Template,
     string? DeclaredContentType,
     string? ConcurrentRate,
-    bool EnableSessionCookieJar,
-    IReadOnlyList<string> UnsupportedFields);
+    bool EnableSessionCookieJar);
 ```
 
 播放链路、缓存键和 HTTP 执行只依赖规范化后的运行时模型，不直接理解导入 JSON 的原始细节。
@@ -254,7 +254,7 @@ public sealed record ParsedTtsRequest(
 - `body`
 - `timeoutMs`
 
-出现其他字段时应明确报为规则不兼容，而不是静默忽略。
+出现其他字段时，导入规范化阶段直接丢弃这些字段；若字段缺失或值非法导致无法构造请求模型，则拒绝导入或保存。
 
 ## Header 处理
 
