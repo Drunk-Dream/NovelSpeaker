@@ -24,63 +24,76 @@
                            Text="播放设置" />
 
                 <StackPanel Margin="{StaticResource SectionSpacing}">
-                    <TextBlock Style="{StaticResource FormLabelTextBlockStyle}"
-                               Text="默认语速" />
-                    <TextBox x:Name="DefaultSpeakSpeedTextBox"
-                             Margin="0,8,0,0"
-                             Width="180"
-                             PreviewKeyDown="DefaultSpeakSpeedTextBox_OnPreviewKeyDown"
-                             LostKeyboardFocus="DefaultSpeakSpeedTextBox_OnLostKeyboardFocus"
-                             Text="{Binding DefaultSpeakSpeedText, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Margin="0,6,0,0"
-                               Text="{Binding DefaultSpeakSpeedErrorText}">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock"
-                                   BasedOn="{StaticResource ErrorTextBlockStyle}">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding DefaultSpeakSpeedErrorText}" Value="">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </StackPanel>
+                    <Border x:Name="DefaultSpeakSpeedItemBorder"
+                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="默认语速" />
+                            <TextBox x:Name="DefaultSpeakSpeedTextBox"
+                                     Margin="0,10,0,0"
+                                     Width="260"
+                                     HorizontalAlignment="Left"
+                                     PreviewKeyDown="DefaultSpeakSpeedTextBox_OnPreviewKeyDown"
+                                     LostKeyboardFocus="DefaultSpeakSpeedTextBox_OnLostKeyboardFocus"
+                                     Text="{Binding DefaultSpeakSpeedText, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,6,0,0"
+                                       Text="{Binding DefaultSpeakSpeedErrorText}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock"
+                                           BasedOn="{StaticResource ErrorTextBlockStyle}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DefaultSpeakSpeedErrorText}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
 
-                <StackPanel Margin="{StaticResource SectionSpacing}">
-                    <TextBlock Style="{StaticResource FormLabelTextBlockStyle}"
-                               Text="预取段落数量" />
-                    <TextBox x:Name="PrefetchCountTextBox"
-                             Margin="0,8,0,0"
-                             Width="180"
-                             PreviewKeyDown="PrefetchCountTextBox_OnPreviewKeyDown"
-                             LostKeyboardFocus="PrefetchCountTextBox_OnLostKeyboardFocus"
-                             Text="{Binding PrefetchCountText, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Margin="0,6,0,0"
-                               Text="{Binding PrefetchCountErrorText}">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock"
-                                   BasedOn="{StaticResource ErrorTextBlockStyle}">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding PrefetchCountErrorText}" Value="">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </StackPanel>
+                    <Border x:Name="PrefetchCountItemBorder"
+                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="预取段落数量" />
+                            <TextBox x:Name="PrefetchCountTextBox"
+                                     Margin="0,10,0,0"
+                                     Width="260"
+                                     HorizontalAlignment="Left"
+                                     PreviewKeyDown="PrefetchCountTextBox_OnPreviewKeyDown"
+                                     LostKeyboardFocus="PrefetchCountTextBox_OnLostKeyboardFocus"
+                                     Text="{Binding PrefetchCountText, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,6,0,0"
+                                       Text="{Binding PrefetchCountErrorText}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock"
+                                           BasedOn="{StaticResource ErrorTextBlockStyle}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding PrefetchCountErrorText}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
 
-                <StackPanel Margin="{StaticResource SectionSpacing}">
-                    <TextBlock Style="{StaticResource FormLabelTextBlockStyle}"
-                               Text="当前 TTS 规则" />
-                    <Button Margin="0,8,0,0"
-                            Width="180"
-                            HorizontalAlignment="Left"
-                            Command="{Binding OpenTtsRulesCommand}"
-                            Content="前往 TTS 规则" />
+                    <Border x:Name="CurrentTtsRuleItemBorder"
+                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="当前 TTS 规则" />
+                            <Button Margin="0,10,0,0"
+                                    Width="180"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding OpenTtsRulesCommand}"
+                                    Content="前往 TTS 规则" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>
