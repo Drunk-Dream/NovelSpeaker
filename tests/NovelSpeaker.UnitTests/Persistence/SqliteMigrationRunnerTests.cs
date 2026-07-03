@@ -7,7 +7,7 @@ namespace NovelSpeaker.UnitTests.Persistence;
 public sealed class SqliteMigrationRunnerTests
 {
     [Fact]
-    public async Task InitializeAsync_creates_current_schema_as_version_2()
+    public async Task InitializeAsync_creates_current_schema_as_version_3()
     {
         var factory = await CreateInitializedFactoryAsync();
 
@@ -28,7 +28,7 @@ public sealed class SqliteMigrationRunnerTests
         var version = Convert.ToInt32(await versionCommand.ExecuteScalarAsync(CancellationToken.None));
 
         Assert.Equal(8, tableCount);
-        Assert.Equal(2, version);
+        Assert.Equal(3, version);
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class SqliteMigrationRunnerTests
         command.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
 
         var version = Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
-        Assert.Equal(2, version);
+        Assert.Equal(3, version);
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public sealed class SqliteMigrationRunnerTests
         var exception = await Assert.ThrowsAsync<IncompatibleDatabaseSchemaException>(
             () => runner.InitializeAsync(CancellationToken.None));
         Assert.Equal(1, exception.DetectedVersion);
-        Assert.Equal(2, exception.RequiredVersion);
+        Assert.Equal(3, exception.RequiredVersion);
     }
 
     private static async Task<SqliteConnectionFactory> CreateInitializedFactoryAsync()

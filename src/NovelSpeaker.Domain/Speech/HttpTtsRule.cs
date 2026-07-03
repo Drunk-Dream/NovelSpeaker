@@ -21,6 +21,8 @@ public sealed record HttpTtsRule(
     string CreatedAt,
     string UpdatedAt)
 {
+    public string? LoginInfoJson { get; init; }
+
     public NormalizedHttpTtsRule ToNormalizedRule()
     {
         return new NormalizedHttpTtsRule(
