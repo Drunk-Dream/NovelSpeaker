@@ -31,6 +31,41 @@
            BasedOn="{StaticResource PrimaryTextBlockStyle}">
     </Style>
 
+    <Style x:Key="SettingsEntryButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Padding" Value="0,14" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="SettingsEntryTitleTextBlockStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource StrongTextBlockStyle}">
+        <Setter Property="FontSize" Value="15" />
+    </Style>
+
+    <Style x:Key="SettingsGroupBorderStyle" TargetType="Border">
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="Padding" Value="0,0,0,16" />
+    </Style>
+
+    <Style x:Key="SettingsSubpageItemBorderStyle" TargetType="Border">
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="Padding" Value="0,18,0,18" />
+    </Style>
+
+    <Style x:Key="SettingsSubpageItemTitleTextBlockStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource StrongTextBlockStyle}">
+        <Setter Property="FontSize" Value="15" />
+    </Style>
+
     <Style x:Key="DialogTitleTextBlockStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="22" />
         <Setter Property="FontWeight" Value="SemiBold" />

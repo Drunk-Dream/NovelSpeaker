@@ -1,7 +1,7 @@
 using System.Windows;
-using System.Windows.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Pages;
+using Wpf.Ui.Controls;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;
@@ -21,16 +21,27 @@ public sealed class SettingsPageViewTests
                 page.Arrange(new Rect(0, 0, 1200, 800));
                 page.UpdateLayout();
 
-                var allText = FindVisualChildren<TextBlock>(page).Select(text => text.Text).Where(text => !string.IsNullOrWhiteSpace(text)).ToArray();
-                var allButtons = FindVisualChildren<Button>(page).ToArray();
+                var allText = FindVisualChildren<System.Windows.Controls.TextBlock>(page)
+                    .Select(text => text.Text)
+                    .Where(text => !string.IsNullOrWhiteSpace(text))
+                    .Cast<string>()
+                    .ToArray();
+                var allButtons = FindVisualChildren<System.Windows.Controls.Button>(page).ToArray();
+                var allIcons = FindVisualChildren<SymbolIcon>(page).ToArray();
 
                 Assert.Contains("常用", allText);
                 Assert.Contains("文本处理", allText);
                 Assert.Contains("应用", allText);
                 Assert.DoesNotContain("保存设置", allText);
                 Assert.DoesNotContain(allButtons, button => string.Equals(button.Content?.ToString(), "保存设置", StringComparison.Ordinal));
-                Assert.Empty(FindVisualChildren<TextBox>(page));
-                Assert.Empty(FindVisualChildren<ComboBox>(page));
+                Assert.Empty(FindVisualChildren<System.Windows.Controls.TextBox>(page));
+                Assert.Empty(FindVisualChildren<System.Windows.Controls.ComboBox>(page));
+                Assert.Equal(14, allIcons.Length);
+                Assert.Equal(7, allIcons.Count(icon => icon.Symbol == SymbolRegular.ChevronRight24));
+                Assert.Equal(
+                    3,
+                    FindVisualChildren<System.Windows.Controls.Border>(page)
+                        .Count(border => string.Equals(border.Tag?.ToString(), "SettingsGroupSeparator", StringComparison.Ordinal)));
             }
             finally
             {

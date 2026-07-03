@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.App.Pages;
 using Wpf.Ui;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -17,21 +18,21 @@ public sealed partial class SettingsViewModel : ObservableObject
             new SettingsNavigationGroupViewModel(
                 "常用",
                 [
-                    new SettingsNavigationItemViewModel("播放设置", OpenPlaybackSettingsCommand),
-                    new SettingsNavigationItemViewModel("TTS 规则", OpenTtsRulesCommand)
+                    new SettingsNavigationItemViewModel("播放设置", SymbolRegular.PlayCircle24, OpenPlaybackSettingsCommand),
+                    new SettingsNavigationItemViewModel("TTS 规则", SymbolRegular.Speaker124, OpenTtsRulesCommand)
                 ]),
             new SettingsNavigationGroupViewModel(
                 "文本处理",
                 [
-                    new SettingsNavigationItemViewModel("导入与文本", OpenImportTextSettingsCommand),
-                    new SettingsNavigationItemViewModel("章节规则", OpenChapterRulesCommand)
+                    new SettingsNavigationItemViewModel("导入与文本", SymbolRegular.DocumentText24, OpenImportTextSettingsCommand),
+                    new SettingsNavigationItemViewModel("章节规则", SymbolRegular.TextBulletListSquare24, OpenChapterRulesCommand)
                 ]),
             new SettingsNavigationGroupViewModel(
                 "应用",
                 [
-                    new SettingsNavigationItemViewModel("缓存与数据", OpenCacheManagementCommand),
-                    new SettingsNavigationItemViewModel("外观", OpenAppearanceSettingsCommand),
-                    new SettingsNavigationItemViewModel("诊断与关于", OpenDiagnosticsAboutCommand)
+                    new SettingsNavigationItemViewModel("缓存与数据", SymbolRegular.Database24, OpenCacheManagementCommand),
+                    new SettingsNavigationItemViewModel("外观", SymbolRegular.DarkTheme24, OpenAppearanceSettingsCommand),
+                    new SettingsNavigationItemViewModel("诊断与关于", SymbolRegular.Info24, OpenDiagnosticsAboutCommand)
                 ])
         ];
     }
