@@ -24,45 +24,65 @@
                            Text="导入与文本" />
 
                 <StackPanel Margin="{StaticResource SectionSpacing}">
-                    <TextBlock Style="{StaticResource FormLabelTextBlockStyle}"
-                               Text="文件名模板" />
-                    <TextBox x:Name="BookFileNameTemplateTextBox"
-                             Margin="0,8,0,0"
-                             PreviewKeyDown="BookFileNameTemplateTextBox_OnPreviewKeyDown"
-                             LostKeyboardFocus="BookFileNameTemplateTextBox_OnLostKeyboardFocus"
-                             Text="{Binding BookFileNameTemplateText, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Margin="0,6,0,0"
-                               Style="{StaticResource SecondaryTextBlockStyle}"
-                               Text="{}示例：{{name}} 作者：{{author}}；留空则禁用模板解析。" />
-                </StackPanel>
+                    <Border x:Name="BookFileNameTemplateItemBorder"
+                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="文件名模板" />
+                            <TextBox x:Name="BookFileNameTemplateTextBox"
+                                     Margin="0,10,0,0"
+                                     Width="360"
+                                     HorizontalAlignment="Left"
+                                     PreviewKeyDown="BookFileNameTemplateTextBox_OnPreviewKeyDown"
+                                     LostKeyboardFocus="BookFileNameTemplateTextBox_OnLostKeyboardFocus"
+                                     Text="{Binding BookFileNameTemplateText, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,6,0,0"
+                                       Style="{StaticResource SecondaryTextBlockStyle}"
+                                       Text="{}示例：{{name}} 作者：{{author}}；留空则禁用模板解析。" />
+                        </StackPanel>
+                    </Border>
 
-                <CheckBox Margin="{StaticResource SectionSpacing}"
-                          Content="启用超长段落拆分"
-                          IsChecked="{Binding EnableLongParagraphSplitting}" />
+                    <Border x:Name="EnableLongParagraphSplittingItemBorder"
+                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="启用超长段落拆分" />
+                            <ui:ToggleSwitch Margin="0,10,0,0"
+                                             HorizontalAlignment="Left"
+                                             OffContent="关闭"
+                                             OnContent="开启"
+                                             IsChecked="{Binding EnableLongParagraphSplitting}" />
+                        </StackPanel>
+                    </Border>
 
-                <StackPanel Margin="{StaticResource SectionSpacing}">
-                    <TextBlock Style="{StaticResource FormLabelTextBlockStyle}"
-                               Text="长段拆分阈值" />
-                    <TextBox x:Name="LongParagraphThresholdTextBox"
-                             Margin="0,8,0,0"
-                             Width="180"
-                             PreviewKeyDown="LongParagraphThresholdTextBox_OnPreviewKeyDown"
-                             LostKeyboardFocus="LongParagraphThresholdTextBox_OnLostKeyboardFocus"
-                             Text="{Binding LongParagraphThresholdText, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Margin="0,6,0,0"
-                               Text="{Binding LongParagraphThresholdErrorText}">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock"
-                                   BasedOn="{StaticResource ErrorTextBlockStyle}">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding LongParagraphThresholdErrorText}" Value="">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
+                    <Border x:Name="LongParagraphThresholdItemBorder"
+                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="长段拆分阈值" />
+                            <TextBox x:Name="LongParagraphThresholdTextBox"
+                                     Margin="0,10,0,0"
+                                     Width="260"
+                                     HorizontalAlignment="Left"
+                                     PreviewKeyDown="LongParagraphThresholdTextBox_OnPreviewKeyDown"
+                                     LostKeyboardFocus="LongParagraphThresholdTextBox_OnLostKeyboardFocus"
+                                     Text="{Binding LongParagraphThresholdText, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,6,0,0"
+                                       Text="{Binding LongParagraphThresholdErrorText}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock"
+                                           BasedOn="{StaticResource ErrorTextBlockStyle}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding LongParagraphThresholdErrorText}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>
