@@ -58,7 +58,7 @@ public sealed class ThemePreferenceServiceTests
         Assert.Equal(1, runtime.DarkCalls);
     }
 
-    private class FakeAppSettingsStore : IAppSettingsStore
+    private class FakeAppSettingsStore : IAppSettingsStore, IAppSettingsService
     {
         public FakeAppSettingsStore(AppSettings settings)
         {
@@ -80,6 +80,20 @@ public sealed class ThemePreferenceServiceTests
 
             Settings = settings.Normalize();
             return Task.CompletedTask;
+        }
+
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
+        {
+            return SaveAndReturnAsync(Settings with
+            {
+                Theme = update.Theme ?? Settings.Theme
+            }, cancellationToken);
+        }
+
+        private async Task<AppSettings> SaveAndReturnAsync(AppSettings settings, CancellationToken cancellationToken)
+        {
+            await SaveAsync(settings, cancellationToken);
+            return Settings;
         }
     }
 

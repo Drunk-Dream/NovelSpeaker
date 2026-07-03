@@ -67,7 +67,7 @@ public sealed class NavigationPageLifecycleTests
                     new PlaybackBookContent("book-7", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
                     new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
                 new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]),
-                new FakeAppSettingsStore(AppSettings.Default),
+                new FakeAppSettingsService(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator());
@@ -207,9 +207,9 @@ public sealed class NavigationPageLifecycleTests
         public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
-    private sealed class FakeAppSettingsStore : IAppSettingsStore
+    private sealed class FakeAppSettingsService : IAppSettingsService
     {
-        public FakeAppSettingsStore(AppSettings settings)
+        public FakeAppSettingsService(AppSettings settings)
         {
             Settings = settings;
         }
@@ -218,10 +218,13 @@ public sealed class NavigationPageLifecycleTests
 
         public Task<AppSettings> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(Settings);
 
-        public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {
-            Settings = settings;
-            return Task.CompletedTask;
+            Settings = (Settings with
+            {
+                DefaultSpeakSpeed = update.DefaultSpeakSpeed ?? Settings.DefaultSpeakSpeed
+            }).Normalize();
+            return Task.FromResult(Settings);
         }
     }
 

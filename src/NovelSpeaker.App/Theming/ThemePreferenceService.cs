@@ -9,15 +9,15 @@ namespace NovelSpeaker.App.Theming;
 public sealed class ThemePreferenceService : IThemePreferenceService
 {
     private readonly SemaphoreSlim _saveLock = new(1, 1);
-    private readonly IAppSettingsStore _settingsStore;
+    private readonly IAppSettingsService _settingsService;
     private readonly AppThemeStartupCoordinator _themeCoordinator;
     private int _latestRequestId;
 
     public ThemePreferenceService(
-        IAppSettingsStore settingsStore,
+        IAppSettingsService settingsService,
         AppThemeStartupCoordinator themeCoordinator)
     {
-        _settingsStore = settingsStore;
+        _settingsService = settingsService;
         _themeCoordinator = themeCoordinator;
     }
 
@@ -31,11 +31,15 @@ public sealed class ThemePreferenceService : IThemePreferenceService
         await _saveLock.WaitAsync(cancellationToken);
         try
         {
-            var currentSettings = await _settingsStore.LoadAsync(cancellationToken);
+            var currentSettings = await _settingsService.LoadAsync(cancellationToken);
             fallbackTheme = currentSettings.Theme;
 
-            await _settingsStore.SaveAsync(currentSettings with { Theme = requestedTheme }, cancellationToken);
-            var persistedSettings = await _settingsStore.LoadAsync(cancellationToken);
+            var persistedSettings = await _settingsService.UpdateAsync(
+                new AppSettingsUpdate
+                {
+                    Theme = requestedTheme
+                },
+                cancellationToken);
 
             return new ThemePreferenceChangeResult(
                 true,

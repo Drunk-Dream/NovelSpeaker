@@ -148,7 +148,7 @@ public sealed class PlayerViewTests
             var footer = Assert.IsType<Border>(view.FindName("PlaybackFooterBorder"));
 
             Assert.Null(FindVisibleDescendantByText(view, "魔性沧月"));
-            Assert.Null(FindVisibleDescendantByText(footer, "第 33 / 140 段"));
+            Assert.Null(FindVisibleDescendantByText(footer, "33 / 140"));
 
             var backBounds = GetBoundsRelativeToRoot(backButton, view);
             var titleBounds = GetBoundsRelativeToRoot(titleText, view);
@@ -1144,7 +1144,7 @@ public sealed class PlayerViewTests
 
         public string ErrorText { get; }
 
-        public string DisplayedSegmentCounterText { get; } = "第 33 / 140 段";
+        public string DisplayedSegmentCounterText { get; } = "33 / 140";
 
         public string InlineLoadingText { get; }
 
@@ -1344,7 +1344,7 @@ public sealed class PlayerViewTests
         public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
-    private sealed class FakeAppSettingsStore : IAppSettingsStore
+    private sealed class FakeAppSettingsStore : IAppSettingsService
     {
         public FakeAppSettingsStore(AppSettings settings)
         {
@@ -1358,10 +1358,13 @@ public sealed class PlayerViewTests
             return Task.FromResult(Settings);
         }
 
-        public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {
-            Settings = settings;
-            return Task.CompletedTask;
+            Settings = (Settings with
+            {
+                DefaultSpeakSpeed = update.DefaultSpeakSpeed ?? Settings.DefaultSpeakSpeed
+            }).Normalize();
+            return Task.FromResult(Settings);
         }
     }
 

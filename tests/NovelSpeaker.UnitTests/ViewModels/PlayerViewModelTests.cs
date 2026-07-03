@@ -385,11 +385,13 @@ public sealed class PlayerViewModelTests
             false,
             false,
             false));
+        var settingsService = new FakeAppSettingsService(AppSettings.Default);
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
                 new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
+                new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
+            settingsService: settingsService);
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
@@ -403,6 +405,7 @@ public sealed class PlayerViewModelTests
         Assert.Equal(18, coordinator.LastChangedSpeakSpeed);
         Assert.Equal(PlaybackState.Paused, viewModel.CurrentPlaybackState);
         Assert.Equal("示例小说", viewModel.CurrentTitle);
+        Assert.Equal(18, settingsService.Settings.DefaultSpeakSpeed);
     }
 
     [Theory]
@@ -696,7 +699,7 @@ public sealed class PlayerViewModelTests
         await viewModel.CommitSegmentProgressAsync(1, CancellationToken.None);
 
         Assert.Null(coordinator.LastJumpedSegmentIndex);
-        Assert.Equal("第 2 / 3 段", viewModel.DisplayedSegmentCounterText);
+        Assert.Equal("2 / 3", viewModel.DisplayedSegmentCounterText);
         Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
         Assert.Equal(1, autoScrollCoordinator.ResumeAutoCenterCallCount);
     }
@@ -1028,13 +1031,14 @@ public sealed class PlayerViewModelTests
         ITtsRuleLibraryService? ruleService = null,
         FakeNavigationService? navigationService = null,
         FakeAppFeedbackService? feedbackService = null,
-        FakePlayerAutoScrollCoordinator? autoScrollCoordinator = null)
+        FakePlayerAutoScrollCoordinator? autoScrollCoordinator = null,
+        FakeAppSettingsService? settingsService = null)
     {
         return new PlayerViewModel(
             coordinator,
             contentService,
             ruleService ?? new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]),
-            new FakeAppSettingsStore(AppSettings.Default),
+            settingsService ?? new FakeAppSettingsService(AppSettings.Default),
             feedbackService ?? new FakeAppFeedbackService(),
             navigationService ?? new FakeNavigationService(),
             autoScrollCoordinator ?? new FakePlayerAutoScrollCoordinator());
@@ -1416,9 +1420,9 @@ public sealed class PlayerViewModelTests
         public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
-    private sealed class FakeAppSettingsStore : IAppSettingsStore
+    private sealed class FakeAppSettingsService : IAppSettingsService
     {
-        public FakeAppSettingsStore(AppSettings settings)
+        public FakeAppSettingsService(AppSettings settings)
         {
             Settings = settings;
         }
@@ -1427,10 +1431,13 @@ public sealed class PlayerViewModelTests
 
         public Task<AppSettings> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(Settings);
 
-        public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {
-            Settings = settings;
-            return Task.CompletedTask;
+            Settings = (Settings with
+            {
+                DefaultSpeakSpeed = update.DefaultSpeakSpeed ?? Settings.DefaultSpeakSpeed
+            }).Normalize();
+            return Task.FromResult(Settings);
         }
     }
 

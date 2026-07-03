@@ -266,7 +266,7 @@ public sealed class TtsRuleLibraryServiceTests
         Assert.False(repository.Rules.Single(rule => rule.Id == 1).IsEnabled);
     }
 
-    private sealed class FakeAppSettingsStore : IAppSettingsStore
+    private sealed class FakeAppSettingsStore : IAppSettingsService
     {
         public FakeAppSettingsStore(AppSettings current)
         {
@@ -277,10 +277,13 @@ public sealed class TtsRuleLibraryServiceTests
 
         public Task<AppSettings> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(Current);
 
-        public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {
-            Current = settings;
-            return Task.CompletedTask;
+            Current = (Current with
+            {
+                SelectedTtsRuleId = update.ClearSelectedTtsRuleId ? null : update.SelectedTtsRuleId ?? Current.SelectedTtsRuleId
+            }).Normalize();
+            return Task.FromResult(Current);
         }
     }
 

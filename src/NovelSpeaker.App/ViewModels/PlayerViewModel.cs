@@ -21,7 +21,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private readonly IPlaybackCoordinator _playbackCoordinator;
     private readonly IBookPlaybackContentService _bookPlaybackContentService;
     private readonly ITtsRuleLibraryService _ruleLibraryService;
-    private readonly IAppSettingsStore _settingsStore;
+    private readonly IAppSettingsService _settingsService;
     private readonly IAppFeedbackService _feedbackService;
     private readonly INavigationService _navigationService;
     private readonly IPlayerAutoScrollCoordinator _autoScrollCoordinator;
@@ -39,7 +39,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         IPlaybackCoordinator playbackCoordinator,
         IBookPlaybackContentService bookPlaybackContentService,
         ITtsRuleLibraryService ruleLibraryService,
-        IAppSettingsStore settingsStore,
+        IAppSettingsService settingsService,
         IAppFeedbackService feedbackService,
         INavigationService navigationService,
         IPlayerAutoScrollCoordinator autoScrollCoordinator)
@@ -47,7 +47,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         _playbackCoordinator = playbackCoordinator;
         _bookPlaybackContentService = bookPlaybackContentService;
         _ruleLibraryService = ruleLibraryService;
-        _settingsStore = settingsStore;
+        _settingsService = settingsService;
         _feedbackService = feedbackService;
         _navigationService = navigationService;
         _autoScrollCoordinator = autoScrollCoordinator;
@@ -185,7 +185,7 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        var settings = await _settingsStore.LoadAsync(cancellationToken);
+        var settings = await _settingsService.LoadAsync(cancellationToken);
         _defaultSpeakSpeed = settings.DefaultSpeakSpeed;
 
         if (!AppSettings.IsValidSpeakSpeed(_playbackCoordinator.CurrentSnapshot.SpeakSpeed))
@@ -955,6 +955,25 @@ public sealed partial class PlayerViewModel : ObservableObject
         }
 
         await _playbackCoordinator.ChangeSpeedAsync(parsedSpeed, cancellationToken);
+        try
+        {
+            var settings = await _settingsService.UpdateAsync(
+                new AppSettingsUpdate
+                {
+                    DefaultSpeakSpeed = parsedSpeed
+                },
+                cancellationToken);
+            _defaultSpeakSpeed = settings.DefaultSpeakSpeed;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            var projected = _feedbackService.Project(exception);
+            _feedbackService.ShowProjectedNotification("保存默认语速失败", projected);
+        }
     }
 
     private async Task RestoreMissingRuleSessionAsync(

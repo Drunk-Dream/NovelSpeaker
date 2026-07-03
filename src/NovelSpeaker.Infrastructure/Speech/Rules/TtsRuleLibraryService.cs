@@ -17,7 +17,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
     public async Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken)
     {
         var rules = await _repository.GetAllAsync(cancellationToken);
-        var settings = await _settingsStore.LoadAsync(cancellationToken);
+        var settings = await _settingsService.LoadAsync(cancellationToken);
 
         return rules.Select(rule => ToSummary(rule, settings.SelectedTtsRuleId)).ToArray();
     }
@@ -170,7 +170,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
         TtsRuleMutationAction action,
         CancellationToken cancellationToken)
     {
-        var settings = await _settingsStore.LoadAsync(cancellationToken);
+        var settings = await _settingsService.LoadAsync(cancellationToken);
         var isCurrentRule = settings.SelectedTtsRuleId == ruleId;
         var rules = await GetRulesAsync(cancellationToken);
         var replacementCandidates = rules
@@ -249,7 +249,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             await UpdateSelectedRuleAsync(null, cancellationToken);
         }
 
-        var settings = await _settingsStore.LoadAsync(cancellationToken);
+        var settings = await _settingsService.LoadAsync(cancellationToken);
         return new TtsRuleMutationResult(
             decision.RuleId,
             decision.Action,
@@ -308,15 +308,15 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
     }
 
     private readonly ITtsRuleRepository _repository;
-    private readonly IAppSettingsStore _settingsStore;
+    private readonly IAppSettingsService _settingsService;
 
     public TtsRuleLibraryService(
         ITtsRuleRepository repository,
-        IAppSettingsStore settingsStore,
+        IAppSettingsService settingsService,
         ITtsRuleConverter ruleConverter)
     {
         _repository = repository;
-        _settingsStore = settingsStore;
+        _settingsService = settingsService;
         _ruleConverter = ruleConverter;
     }
 
@@ -908,16 +908,26 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
 
     private async Task UpdateSelectedRuleAsync(long? ruleId, CancellationToken cancellationToken)
     {
-        var settings = await _settingsStore.LoadAsync(cancellationToken);
-        await _settingsStore.SaveAsync(settings with { SelectedTtsRuleId = ruleId }, cancellationToken);
+        await _settingsService.UpdateAsync(
+            new AppSettingsUpdate
+            {
+                SelectedTtsRuleId = ruleId,
+                ClearSelectedTtsRuleId = ruleId is null
+            },
+            cancellationToken);
     }
 
     private async Task ClearSelectedRuleIfNeededAsync(long ruleId, CancellationToken cancellationToken)
     {
-        var settings = await _settingsStore.LoadAsync(cancellationToken);
+        var settings = await _settingsService.LoadAsync(cancellationToken);
         if (settings.SelectedTtsRuleId == ruleId)
         {
-            await _settingsStore.SaveAsync(settings with { SelectedTtsRuleId = null }, cancellationToken);
+            await _settingsService.UpdateAsync(
+                new AppSettingsUpdate
+                {
+                    ClearSelectedTtsRuleId = true
+                },
+                cancellationToken);
         }
     }
 }

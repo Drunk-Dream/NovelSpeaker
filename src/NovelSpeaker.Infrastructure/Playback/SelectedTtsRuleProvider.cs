@@ -11,21 +11,21 @@ public sealed class SelectedTtsRuleProvider : ISelectedTtsRuleProvider
 {
     private readonly ITtsRuleRepository _repository;
     private readonly ITtsRuleLibraryService _libraryService;
-    private readonly IAppSettingsStore _settingsStore;
+    private readonly IAppSettingsService _settingsService;
 
     public SelectedTtsRuleProvider(
         ITtsRuleRepository repository,
         ITtsRuleLibraryService libraryService,
-        IAppSettingsStore settingsStore)
+        IAppSettingsService settingsService)
     {
         _repository = repository;
         _libraryService = libraryService;
-        _settingsStore = settingsStore;
+        _settingsService = settingsService;
     }
 
     public async Task<SelectedPlaybackRule?> GetSelectedRuleAsync(CancellationToken cancellationToken)
     {
-        var settings = await _settingsStore.LoadAsync(cancellationToken);
+        var settings = await _settingsService.LoadAsync(cancellationToken);
         if (settings.SelectedTtsRuleId is null)
         {
             return null;

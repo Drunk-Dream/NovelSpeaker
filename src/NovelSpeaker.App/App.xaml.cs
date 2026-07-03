@@ -7,6 +7,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using NovelSpeaker.App.Theming;
 using NovelSpeaker.Infrastructure.FileSystem;
+using NovelSpeaker.Infrastructure.Settings;
 using NovelSpeaker.App.ViewModels;
 
 namespace NovelSpeaker.App;
@@ -67,7 +68,13 @@ public partial class App : System.Windows.Application
         await ReportStartupStageAsync("startup", "正在准备启动日志目录。", "正在建立启动诊断日志。");
 
         var services = new ServiceCollection();
-        services.AddLogging(builder => builder.AddDebug());
+        var bootstrapSettings = await new JsonAppSettingsStore(new LocalAppDataDirectoryProvider())
+            .LoadAsync(CancellationToken.None);
+        services.AddLogging(builder =>
+        {
+            builder.SetMinimumLevel(ParseLogLevel(bootstrapSettings.LogLevel));
+            builder.AddDebug();
+        });
         services.AddNovelSpeakerInfrastructure();
         services.AddNovelSpeakerDesktop();
 
@@ -179,6 +186,13 @@ public partial class App : System.Windows.Application
     {
         _startupDiagnostics?.RecordFailure("task-unobserved-exception", "检测到未观察的任务异常。", e.Exception);
         e.SetObserved();
+    }
+
+    private static LogLevel ParseLogLevel(string? value)
+    {
+        return Enum.TryParse<LogLevel>(value, ignoreCase: true, out var result)
+            ? result
+            : LogLevel.Information;
     }
 }
 
