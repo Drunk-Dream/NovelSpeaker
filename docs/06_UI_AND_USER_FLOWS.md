@@ -54,8 +54,7 @@ MainWindow / AppShell
 │  └─ PlayerPage                       上下文页
 └─ SettingsPage                        一级入口，分组列表，仅提供入口
    ├─ PlaybackSettingsPage             二级页
-   ├─ TtsRulesPage                     二级页，左侧规则列表 + 右侧规则编辑
-   │  └─ TtsRuleHelpDialog             规则编写帮助
+   ├─ TtsRulesPage                     二级页，左侧规则列表 + 右侧规则编辑 + 页内帮助浮层
    ├─ ImportTextSettingsPage           二级页
    │  └─ RegexReplacementRulesPage     三级页，后续规划
    ├─ ChapterRulesPage                 二级页
@@ -610,6 +609,7 @@ TTS 规则是设置页下的二级页面，也是当前 TTS 规则的正式管�
 - 点击左侧列表项切换右侧编辑副本。
 - 新建规则在右侧打开空白编辑副本，不使用弹窗或三级页。
 - 规则编辑在右侧区域完成，不使用悬浮编辑弹窗。
+- 右侧编辑区域只保留结构化表单字段，不提供折叠原始 JSON 编辑区。
 - 右侧编辑区域提供设为当前、试听、清除 Cookie、导出、删除、取消和保存操作。
 - 试听按钮放在右侧编辑区域，不打开试听弹窗；第一版不要求用户额外输入试听文本、语速或临时登录信息。
 - 文件导入和剪贴板导入直接导入，不提供导入预览。
@@ -617,13 +617,12 @@ TTS 规则是设置页下的二级页面，也是当前 TTS 规则的正式管�
 - 同名但内容不同的规则允许导入，并自动追加“(2)”、“(3)”等后缀改名。
 - 设为当前规则在本页即时保存。
 - 播放页仍允许快速切换规则；播放页切换规则复用同一持久化当前规则。
-- 规则编写帮助通过帮助入口打开，说明常见字段、模板、Header、LoginInfo、试听、导入限制和常见错误。
+- 规则编写帮助通过页内右侧覆盖浮层打开，说明常见字段、模板、Header、LoginInfo、试听、导入限制和常见错误。
 
 当前规则保护：
 
 - 当前规则不能在无处理的情况下直接禁用或删除。
-- 若存在其他已启用规则，提示先选择替代规则。
-- 若没有替代规则，可提供明确的“清除当前规则并继续”危险选项，使应用进入无可用规则状态。
+- 禁用或删除当前规则时，统一使用一次危险确认；确认后直接清空当前规则，使应用进入无可用规则状态。
 - 播放中切换规则时，当前段从头重新生成并继续播放；暂停时保持暂停。
 
 未保存修改保护：
@@ -763,7 +762,7 @@ Views/
    ├─ SettingsPage.xaml
    ├─ PlaybackSettingsPage.xaml
    ├─ TtsRulesPage.xaml
-   ├─ TtsRuleHelpDialog.xaml
+   ├─ TtsRulesView.xaml
    ├─ ImportTextSettingsPage.xaml
    ├─ ChapterRulesPage.xaml
    ├─ ChapterRuleEditorPage.xaml
