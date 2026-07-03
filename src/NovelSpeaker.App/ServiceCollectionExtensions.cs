@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Dialogs;
+using NovelSpeaker.App.Diagnostics;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Library;
 using NovelSpeaker.App.Navigation;
@@ -28,6 +29,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAppNotificationService, AppNotificationService>();
         services.AddSingleton<IExceptionProjector, ExceptionProjector>();
         services.AddSingleton<IAppFeedbackService, AppFeedbackService>();
+        services.AddSingleton<IAppDiagnosticsService, AppDiagnosticsService>();
         services.AddSingleton<IImportBookDialogService, ImportBookDialogService>();
         services.AddSingleton<IBookDeleteDialogService, BookDeleteDialogService>();
         services.AddSingleton<IShellLayoutController, ShellLayoutController>();
@@ -45,11 +47,19 @@ public static class ServiceCollectionExtensions
         services.AddTransient<ImportBookDialogViewModel>();
         services.AddSingleton<PlayerViewModel>();
         services.AddSingleton<SettingsViewModel>();
+        services.AddTransient<PlaybackSettingsViewModel>();
+        services.AddTransient<ImportTextSettingsViewModel>();
+        services.AddTransient<AppearanceSettingsViewModel>();
+        services.AddTransient<DiagnosticsAboutViewModel>();
         services.AddSingleton<ChapterRulesViewModel>();
         services.AddSingleton<TtsRulesViewModel>();
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<LibraryPage>();
         services.AddTransient<SettingsPage>();
+        services.AddTransient<PlaybackSettingsPage>();
+        services.AddTransient<ImportTextSettingsPage>();
+        services.AddTransient<AppearanceSettingsPage>();
+        services.AddTransient<DiagnosticsAboutPage>();
         services.AddTransient<PlayerPage>();
         services.AddTransient<TtsRulesPage>();
         services.AddTransient<ChapterRulesPage>();

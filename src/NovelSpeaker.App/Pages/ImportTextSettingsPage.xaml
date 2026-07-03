@@ -1,0 +1,70 @@
+<Page x:Class="NovelSpeaker.App.Pages.ImportTextSettingsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <Grid Margin="{StaticResource PagePadding}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Button Style="{StaticResource BackIconButtonStyle}"
+                Command="{Binding BackCommand}"
+                ToolTip="返回"
+                AutomationProperties.Name="返回">
+            <ui:SymbolIcon Symbol="ChevronLeft24" />
+        </Button>
+
+        <ScrollViewer Grid.Row="1"
+                      Margin="0,20,0,0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <TextBlock Style="{StaticResource PageTitleTextBlockStyle}"
+                           Text="导入与文本" />
+
+                <StackPanel Margin="{StaticResource SectionSpacing}">
+                    <TextBlock Style="{StaticResource FormLabelTextBlockStyle}"
+                               Text="文件名模板" />
+                    <TextBox x:Name="BookFileNameTemplateTextBox"
+                             Margin="0,8,0,0"
+                             PreviewKeyDown="BookFileNameTemplateTextBox_OnPreviewKeyDown"
+                             LostKeyboardFocus="BookFileNameTemplateTextBox_OnLostKeyboardFocus"
+                             Text="{Binding BookFileNameTemplateText, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Margin="0,6,0,0"
+                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Text="{}示例：{{name}} 作者：{{author}}；留空则禁用模板解析。" />
+                </StackPanel>
+
+                <CheckBox Margin="{StaticResource SectionSpacing}"
+                          Content="启用超长段落拆分"
+                          IsChecked="{Binding EnableLongParagraphSplitting}" />
+
+                <StackPanel Margin="{StaticResource SectionSpacing}">
+                    <TextBlock Style="{StaticResource FormLabelTextBlockStyle}"
+                               Text="长段拆分阈值" />
+                    <TextBox x:Name="LongParagraphThresholdTextBox"
+                             Margin="0,8,0,0"
+                             Width="180"
+                             PreviewKeyDown="LongParagraphThresholdTextBox_OnPreviewKeyDown"
+                             LostKeyboardFocus="LongParagraphThresholdTextBox_OnLostKeyboardFocus"
+                             Text="{Binding LongParagraphThresholdText, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Margin="0,6,0,0"
+                               Text="{Binding LongParagraphThresholdErrorText}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock"
+                                   BasedOn="{StaticResource ErrorTextBlockStyle}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding LongParagraphThresholdErrorText}" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

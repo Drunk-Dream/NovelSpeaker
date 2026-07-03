@@ -1,10 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using NovelSpeaker.Application.Settings;
-using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Pages;
-using NovelSpeaker.App.Theming;
-using NovelSpeaker.Domain.Settings;
 using Wpf.Ui;
 
 namespace NovelSpeaker.App.ViewModels;
@@ -12,113 +8,52 @@ namespace NovelSpeaker.App.ViewModels;
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly INavigationService _navigationService;
-    private readonly IAppSettingsStore _settingsStore;
-    private readonly IThemePreferenceService _themePreferenceService;
-    private readonly IAppFeedbackService _feedbackService;
-    private bool _isLoading;
-    private bool _isUpdatingThemeSelection;
-    private int _themeSelectionVersion;
 
-    public SettingsViewModel(
-        IAppSettingsStore settingsStore,
-        INavigationService navigationService,
-        IThemePreferenceService themePreferenceService,
-        IAppFeedbackService feedbackService)
+    public SettingsViewModel(INavigationService navigationService)
     {
-        _settingsStore = settingsStore;
         _navigationService = navigationService;
-        _themePreferenceService = themePreferenceService;
-        _feedbackService = feedbackService;
+        Groups =
+        [
+            new SettingsNavigationGroupViewModel(
+                "常用",
+                [
+                    new SettingsNavigationItemViewModel("播放设置", OpenPlaybackSettingsCommand),
+                    new SettingsNavigationItemViewModel("TTS 规则", OpenTtsRulesCommand)
+                ]),
+            new SettingsNavigationGroupViewModel(
+                "文本处理",
+                [
+                    new SettingsNavigationItemViewModel("导入与文本", OpenImportTextSettingsCommand),
+                    new SettingsNavigationItemViewModel("章节规则", OpenChapterRulesCommand)
+                ]),
+            new SettingsNavigationGroupViewModel(
+                "应用",
+                [
+                    new SettingsNavigationItemViewModel("缓存与数据", OpenCacheManagementCommand),
+                    new SettingsNavigationItemViewModel("外观", OpenAppearanceSettingsCommand),
+                    new SettingsNavigationItemViewModel("诊断与关于", OpenDiagnosticsAboutCommand)
+                ])
+        ];
     }
 
-    public IReadOnlyList<string> AvailableLogLevels => AppSettings.SupportedLogLevels;
-
-    public IReadOnlyList<string> AvailableThemes => AppSettings.SupportedThemes;
-
-    [ObservableProperty]
-    private bool enableLongParagraphSplitting;
-
-    [ObservableProperty]
-    private int longParagraphThreshold;
-
-    [ObservableProperty]
-    private int defaultSpeakSpeed = AppSettings.DefaultSpeakSpeedValue;
-
-    [ObservableProperty]
-    private int prefetchCount = AppSettings.DefaultPrefetchCountValue;
-
-    [ObservableProperty]
-    private string selectedLogLevel = AppSettings.DefaultLogLevel;
-
-    [ObservableProperty]
-    private string selectedTheme = AppSettings.DefaultTheme;
-
-    [ObservableProperty]
-    private string bookFileNameTemplate = AppSettings.DefaultBookFileNameTemplate;
-
-    [ObservableProperty]
-    private string statusMessage = "在这里配置播放、导入与文本分段偏好。";
-
-    public async Task LoadAsync(CancellationToken cancellationToken)
-    {
-        _isLoading = true;
-        try
-        {
-            var settings = await _settingsStore.LoadAsync(cancellationToken);
-            EnableLongParagraphSplitting = settings.EnableLongParagraphSplitting;
-            LongParagraphThreshold = settings.LongParagraphThreshold;
-            DefaultSpeakSpeed = settings.DefaultSpeakSpeed;
-            PrefetchCount = settings.PrefetchCount;
-            SelectedLogLevel = settings.LogLevel;
-            SelectedTheme = settings.Theme;
-            BookFileNameTemplate = settings.BookFileNameTemplate!;
-        }
-        finally
-        {
-            _isLoading = false;
-        }
-    }
+    public IReadOnlyList<SettingsNavigationGroupViewModel> Groups { get; }
 
     [RelayCommand]
-    public async Task SaveAsync(CancellationToken cancellationToken)
+    private void OpenPlaybackSettings()
     {
-        try
-        {
-            var currentSettings = await _settingsStore.LoadAsync(cancellationToken);
-            var settings = currentSettings with
-            {
-                EnableLongParagraphSplitting = EnableLongParagraphSplitting,
-                LongParagraphThreshold = LongParagraphThreshold,
-                DefaultSpeakSpeed = DefaultSpeakSpeed,
-                PrefetchCount = PrefetchCount,
-                LogLevel = SelectedLogLevel,
-                Theme = SelectedTheme,
-                BookFileNameTemplate = BookFileNameTemplate
-            };
-
-            await _settingsStore.SaveAsync(settings, cancellationToken);
-            var normalized = await _settingsStore.LoadAsync(cancellationToken);
-            EnableLongParagraphSplitting = normalized.EnableLongParagraphSplitting;
-            LongParagraphThreshold = normalized.LongParagraphThreshold;
-            DefaultSpeakSpeed = normalized.DefaultSpeakSpeed;
-            PrefetchCount = normalized.PrefetchCount;
-            SelectedLogLevel = normalized.LogLevel;
-            SetSelectedThemeWithoutApplying(normalized.Theme);
-            BookFileNameTemplate = normalized.BookFileNameTemplate!;
-            StatusMessage = "在这里配置播放、导入与文本分段偏好。";
-        }
-        catch (Exception exception)
-        {
-            var projected = _feedbackService.Project(exception);
-            StatusMessage = projected.UserMessage;
-            _feedbackService.ShowProjectedNotification("设置保存失败", projected);
-        }
+        _navigationService.NavigateWithHierarchy(typeof(PlaybackSettingsPage));
     }
 
     [RelayCommand]
     private void OpenTtsRules()
     {
         _navigationService.NavigateWithHierarchy(typeof(TtsRulesPage));
+    }
+
+    [RelayCommand]
+    private void OpenImportTextSettings()
+    {
+        _navigationService.NavigateWithHierarchy(typeof(ImportTextSettingsPage));
     }
 
     [RelayCommand]
@@ -133,53 +68,15 @@ public sealed partial class SettingsViewModel : ObservableObject
         _navigationService.NavigateWithHierarchy(typeof(CacheManagementPage));
     }
 
-    partial void OnSelectedThemeChanged(string value)
+    [RelayCommand]
+    private void OpenAppearanceSettings()
     {
-        if (_isLoading || _isUpdatingThemeSelection)
-        {
-            return;
-        }
-
-        var version = Interlocked.Increment(ref _themeSelectionVersion);
-        _ = ApplyThemeSelectionAsync(value, version);
+        _navigationService.NavigateWithHierarchy(typeof(AppearanceSettingsPage));
     }
 
-    private async Task ApplyThemeSelectionAsync(string selectedTheme, int version)
+    [RelayCommand]
+    private void OpenDiagnosticsAbout()
     {
-        try
-        {
-            var result = await _themePreferenceService.ApplyAsync(selectedTheme, CancellationToken.None);
-            if (result.IsStale || version != Volatile.Read(ref _themeSelectionVersion))
-            {
-                return;
-            }
-
-            if (!result.IsSuccess)
-            {
-                SetSelectedThemeWithoutApplying(result.EffectiveTheme);
-                var projected = _feedbackService.Project(result.Exception!);
-                StatusMessage = projected.UserMessage;
-                _feedbackService.ShowProjectedNotification("主题切换失败", projected);
-                return;
-            }
-
-            if (!string.Equals(SelectedTheme, result.EffectiveTheme, StringComparison.Ordinal))
-            {
-                SetSelectedThemeWithoutApplying(result.EffectiveTheme);
-            }
-        }
-        catch (Exception exception)
-        {
-            var projected = _feedbackService.Project(exception);
-            StatusMessage = projected.UserMessage;
-            _feedbackService.ShowProjectedNotification("主题切换失败", projected);
-        }
-    }
-
-    private void SetSelectedThemeWithoutApplying(string theme)
-    {
-        _isUpdatingThemeSelection = true;
-        SelectedTheme = theme;
-        _isUpdatingThemeSelection = false;
+        _navigationService.NavigateWithHierarchy(typeof(DiagnosticsAboutPage));
     }
 }

@@ -6,8 +6,6 @@ namespace NovelSpeaker.App.Pages;
 
 public partial class SettingsPage : System.Windows.Controls.Page, INavigationAware, INavigableView<SettingsViewModel>
 {
-    private bool _hasLoaded;
-
     public SettingsPage(SettingsViewModel viewModel)
     {
         ViewModel = viewModel;
@@ -17,15 +15,9 @@ public partial class SettingsPage : System.Windows.Controls.Page, INavigationAwa
 
     public SettingsViewModel ViewModel { get; }
 
-    public async Task OnNavigatedToAsync()
+    public Task OnNavigatedToAsync()
     {
-        if (_hasLoaded)
-        {
-            return;
-        }
-
-        await ViewModel.LoadAsync(CancellationToken.None);
-        _hasLoaded = true;
+        return Task.CompletedTask;
     }
 
     public Task OnNavigatedFromAsync()

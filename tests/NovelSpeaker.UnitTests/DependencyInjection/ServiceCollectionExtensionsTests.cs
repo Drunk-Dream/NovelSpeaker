@@ -6,6 +6,7 @@ using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.App;
 using NovelSpeaker.App.Dialogs;
+using NovelSpeaker.App.Diagnostics;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Library;
 using NovelSpeaker.App.Pages;
@@ -38,6 +39,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAppNotificationService>(provider.GetRequiredService<IAppNotificationService>());
                 Assert.IsAssignableFrom<IExceptionProjector>(provider.GetRequiredService<IExceptionProjector>());
                 Assert.IsAssignableFrom<IAppFeedbackService>(provider.GetRequiredService<IAppFeedbackService>());
+                Assert.IsAssignableFrom<IAppDiagnosticsService>(provider.GetRequiredService<IAppDiagnosticsService>());
                 Assert.IsAssignableFrom<IImportBookDialogService>(provider.GetRequiredService<IImportBookDialogService>());
                 Assert.IsAssignableFrom<IBookDeleteDialogService>(provider.GetRequiredService<IBookDeleteDialogService>());
                 Assert.IsAssignableFrom<IShellLayoutController>(provider.GetRequiredService<IShellLayoutController>());
@@ -51,6 +53,10 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<TtsRulesViewModel>(provider.GetRequiredService<TtsRulesViewModel>());
                 Assert.IsType<LibraryPage>(provider.GetRequiredService<LibraryPage>());
                 Assert.IsType<SettingsPage>(provider.GetRequiredService<SettingsPage>());
+                Assert.IsType<PlaybackSettingsPage>(provider.GetRequiredService<PlaybackSettingsPage>());
+                Assert.IsType<ImportTextSettingsPage>(provider.GetRequiredService<ImportTextSettingsPage>());
+                Assert.IsType<AppearanceSettingsPage>(provider.GetRequiredService<AppearanceSettingsPage>());
+                Assert.IsType<DiagnosticsAboutPage>(provider.GetRequiredService<DiagnosticsAboutPage>());
                 Assert.IsType<PlayerPage>(provider.GetRequiredService<PlayerPage>());
                 Assert.IsType<TtsRulesPage>(provider.GetRequiredService<TtsRulesPage>());
                 Assert.IsType<ChapterRulesPage>(provider.GetRequiredService<ChapterRulesPage>());
@@ -62,6 +68,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<NovelSpeaker.Application.Speech.ITtsRuleRepository>(
                     provider.GetRequiredService<NovelSpeaker.Application.Speech.ITtsRuleRepository>());
                 Assert.IsAssignableFrom<IAppSettingsStore>(provider.GetRequiredService<IAppSettingsStore>());
+                Assert.IsAssignableFrom<IAppSettingsService>(provider.GetRequiredService<IAppSettingsService>());
                 Assert.IsAssignableFrom<IBookFileNameTemplateProvider>(
                     provider.GetRequiredService<IBookFileNameTemplateProvider>());
                 Assert.IsAssignableFrom<ITextSegmentationOptionsProvider>(

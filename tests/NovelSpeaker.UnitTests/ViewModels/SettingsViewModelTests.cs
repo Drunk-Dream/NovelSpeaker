@@ -1,9 +1,5 @@
-using NovelSpeaker.Application.Settings;
-using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Pages;
-using NovelSpeaker.App.Theming;
 using NovelSpeaker.App.ViewModels;
-using NovelSpeaker.Domain.Settings;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
@@ -13,152 +9,56 @@ namespace NovelSpeaker.UnitTests.ViewModels;
 public sealed class SettingsViewModelTests
 {
     [Fact]
-    public async Task LoadAsync_populates_segmentation_settings_from_store()
+    public void Groups_expose_expected_titles_and_order()
     {
-        var store = new FakeAppSettingsStore(new AppSettings(false, 120, 14, 3, "Warning", "Dark", "{{name}} / {{author}}"));
-        var viewModel = CreateViewModel(store);
+        var viewModel = new SettingsViewModel(new FakeNavigationService());
 
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        Assert.False(viewModel.EnableLongParagraphSplitting);
-        Assert.Equal(120, viewModel.LongParagraphThreshold);
-        Assert.Equal(14, viewModel.DefaultSpeakSpeed);
-        Assert.Equal(2, viewModel.PrefetchCount);
-        Assert.Equal("Warning", viewModel.SelectedLogLevel);
-        Assert.Equal("Dark", viewModel.SelectedTheme);
-        Assert.Equal("{{name}} / {{author}}", viewModel.BookFileNameTemplate);
+        Assert.Collection(
+            viewModel.Groups,
+            group =>
+            {
+                Assert.Equal("常用", group.Title);
+                Assert.Equal(["播放设置", "TTS 规则"], group.Items.Select(item => item.Title));
+            },
+            group =>
+            {
+                Assert.Equal("文本处理", group.Title);
+                Assert.Equal(["导入与文本", "章节规则"], group.Items.Select(item => item.Title));
+            },
+            group =>
+            {
+                Assert.Equal("应用", group.Title);
+                Assert.Equal(["缓存与数据", "外观", "诊断与关于"], group.Items.Select(item => item.Title));
+            });
     }
 
     [Fact]
-    public async Task SaveAsync_persists_updated_segmentation_settings()
-    {
-        var store = new FakeAppSettingsStore(AppSettings.Default);
-        var viewModel = CreateViewModel(store);
-        viewModel.EnableLongParagraphSplitting = false;
-        viewModel.LongParagraphThreshold = 25;
-        viewModel.DefaultSpeakSpeed = 16;
-        viewModel.PrefetchCount = -1;
-        viewModel.SelectedLogLevel = "Error";
-        viewModel.SelectedTheme = "Light";
-        viewModel.BookFileNameTemplate = "  {{name}} - {{author}}  ";
-
-        await viewModel.SaveAsync(CancellationToken.None);
-
-        Assert.NotNull(store.LastSavedSettings);
-        Assert.False(store.LastSavedSettings!.EnableLongParagraphSplitting);
-        Assert.Equal(25, store.LastSavedSettings.LongParagraphThreshold);
-        Assert.Equal(16, store.LastSavedSettings.DefaultSpeakSpeed);
-        Assert.Equal(-1, store.LastSavedSettings.PrefetchCount);
-        Assert.Equal("Error", store.LastSavedSettings.LogLevel);
-        Assert.Equal("Light", store.LastSavedSettings.Theme);
-        Assert.Equal("  {{name}} - {{author}}  ", store.LastSavedSettings.BookFileNameTemplate);
-        Assert.Equal(2, viewModel.PrefetchCount);
-        Assert.Equal("{{name}} - {{author}}", viewModel.BookFileNameTemplate);
-    }
-
-    [Fact]
-    public async Task SaveAsync_normalizes_default_speak_speed_into_supported_range()
-    {
-        var store = new FakeAppSettingsStore(AppSettings.Default);
-        var viewModel = CreateViewModel(store);
-        viewModel.DefaultSpeakSpeed = 99;
-
-        await viewModel.SaveAsync(CancellationToken.None);
-
-        Assert.Equal(99, store.LastSavedSettings!.DefaultSpeakSpeed);
-        Assert.Equal(AppSettings.MaxSpeakSpeed, viewModel.DefaultSpeakSpeed);
-        Assert.Equal(AppSettings.MaxSpeakSpeed, store.CurrentSettings.DefaultSpeakSpeed);
-    }
-
-    [Fact]
-    public void OpenChapterRulesCommand_navigates_to_chapter_rules_page()
+    public void OpenPlaybackSettingsCommand_navigates_to_playback_settings_page()
     {
         var navigationService = new FakeNavigationService();
-        var viewModel = CreateViewModel(new FakeAppSettingsStore(AppSettings.Default), navigationService);
+        var viewModel = new SettingsViewModel(navigationService);
 
-        viewModel.OpenChapterRulesCommand.Execute(null);
+        viewModel.OpenPlaybackSettingsCommand.Execute(null);
 
-        Assert.Equal(typeof(ChapterRulesPage), navigationService.LastNavigationPageType);
+        Assert.Equal(typeof(PlaybackSettingsPage), navigationService.LastNavigationPageType);
         Assert.True(navigationService.LastUsedHierarchyNavigation);
     }
 
     [Fact]
-    public void SelectedTheme_change_uses_theme_preference_service()
+    public void OpenDiagnosticsAboutCommand_navigates_to_diagnostics_page()
     {
-        var themeService = new FakeThemePreferenceService();
-        var viewModel = CreateViewModel(new FakeAppSettingsStore(AppSettings.Default), themeService: themeService);
+        var navigationService = new FakeNavigationService();
+        var viewModel = new SettingsViewModel(navigationService);
 
-        viewModel.SelectedTheme = "Dark";
+        viewModel.OpenDiagnosticsAboutCommand.Execute(null);
 
-        Assert.Equal("Dark", themeService.LastRequestedTheme);
-        Assert.Equal(1, themeService.ApplyCallCount);
-    }
-
-    [Fact]
-    public void SelectedTheme_failure_restores_previous_theme_and_notifies()
-    {
-        var themeService = new FakeThemePreferenceService
-        {
-            ResultFactory = _ => new ThemePreferenceChangeResult(
-                false,
-                false,
-                "System",
-                new InvalidOperationException("主题保存失败。"))
-        };
-        var notifications = new FakeFeedbackService();
-        var viewModel = CreateViewModel(
-            new FakeAppSettingsStore(AppSettings.Default),
-            themeService: themeService,
-            notificationService: notifications);
-
-        viewModel.SelectedTheme = "Dark";
-
-        Assert.Equal("System", viewModel.SelectedTheme);
-        Assert.Equal("主题切换失败", notifications.LastTitle);
-    }
-
-    private static SettingsViewModel CreateViewModel(
-        FakeAppSettingsStore store,
-        FakeNavigationService? navigationService = null,
-        FakeThemePreferenceService? themeService = null,
-        FakeFeedbackService? notificationService = null)
-    {
-        return new SettingsViewModel(
-            store,
-            navigationService ?? new FakeNavigationService(),
-            themeService ?? new FakeThemePreferenceService(),
-            notificationService ?? new FakeFeedbackService());
-    }
-
-    private sealed class FakeAppSettingsStore : IAppSettingsStore
-    {
-        public FakeAppSettingsStore(AppSettings loadedSettings)
-        {
-            CurrentSettings = loadedSettings.Normalize();
-        }
-
-        public AppSettings CurrentSettings { get; private set; }
-
-        public AppSettings? LastSavedSettings { get; private set; }
-
-        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(CurrentSettings);
-        }
-
-        public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
-        {
-            LastSavedSettings = settings;
-            CurrentSettings = settings.Normalize();
-            return Task.CompletedTask;
-        }
+        Assert.Equal(typeof(DiagnosticsAboutPage), navigationService.LastNavigationPageType);
+        Assert.True(navigationService.LastUsedHierarchyNavigation);
     }
 
     private sealed class FakeNavigationService : INavigationService
     {
         public Type? LastNavigationPageType { get; private set; }
-
-        public object? LastNavigationData { get; private set; }
 
         public bool LastUsedHierarchyNavigation { get; private set; }
 
@@ -177,7 +77,6 @@ public sealed class SettingsViewModelTests
         public bool Navigate(Type pageType)
         {
             LastNavigationPageType = pageType;
-            LastNavigationData = null;
             LastUsedHierarchyNavigation = false;
             return true;
         }
@@ -185,7 +84,6 @@ public sealed class SettingsViewModelTests
         public bool Navigate(Type pageType, object? dataContext)
         {
             LastNavigationPageType = pageType;
-            LastNavigationData = dataContext;
             LastUsedHierarchyNavigation = false;
             return true;
         }
@@ -203,7 +101,6 @@ public sealed class SettingsViewModelTests
         public bool NavigateWithHierarchy(Type pageType)
         {
             LastNavigationPageType = pageType;
-            LastNavigationData = null;
             LastUsedHierarchyNavigation = true;
             return true;
         }
@@ -211,7 +108,6 @@ public sealed class SettingsViewModelTests
         public bool NavigateWithHierarchy(Type pageType, object? dataContext)
         {
             LastNavigationPageType = pageType;
-            LastNavigationData = dataContext;
             LastUsedHierarchyNavigation = true;
             return true;
         }
@@ -219,52 +115,6 @@ public sealed class SettingsViewModelTests
         public void SetNavigationControl(INavigationView navigation)
         {
             NavigationControl = navigation;
-        }
-    }
-
-    private sealed class FakeThemePreferenceService : IThemePreferenceService
-    {
-        public Func<string, ThemePreferenceChangeResult>? ResultFactory { get; set; }
-
-        public int ApplyCallCount { get; private set; }
-
-        public string? LastRequestedTheme { get; private set; }
-
-        public Task<ThemePreferenceChangeResult> ApplyAsync(string requestedTheme, CancellationToken cancellationToken)
-        {
-            ApplyCallCount++;
-            LastRequestedTheme = requestedTheme;
-            return Task.FromResult(ResultFactory?.Invoke(requestedTheme) ?? new ThemePreferenceChangeResult(true, false, requestedTheme));
-        }
-    }
-
-    private sealed class FakeFeedbackService : IAppFeedbackService
-    {
-        public string? LastTitle { get; private set; }
-
-        public ProjectedUiError Project(Exception exception)
-        {
-            return new ExceptionProjector().Project(exception);
-        }
-
-        public void ShowProjectedNotification(string title, ProjectedUiError projected)
-        {
-            LastTitle = title;
-        }
-
-        public void ShowSuccess(string title, string message)
-        {
-            LastTitle = title;
-        }
-
-        public void ShowWarning(string title, string message)
-        {
-            LastTitle = title;
-        }
-
-        public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
         }
     }
 }

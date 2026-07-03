@@ -13,10 +13,10 @@
 
             <TextBlock Margin="{StaticResource SectionSpacing}"
                        Style="{StaticResource PageTitleTextBlockStyle}"
-                       Text="缓存管理" />
+                       Text="缓存与数据" />
             <TextBlock Margin="{StaticResource ItemSpacing}"
                        Style="{StaticResource SecondaryTextBlockStyle}"
-                       Text="当前版本仅建立缓存管理页导航壳，详细能力将在后续任务实现。" />
+                       Text="当前版本仅建立缓存与数据页导航壳，详细能力将在后续任务实现。" />
         </StackPanel>
     </Grid>
 </Page>
