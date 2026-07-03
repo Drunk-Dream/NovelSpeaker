@@ -195,6 +195,42 @@ public sealed class PlaybackAudioProviderTests
         Assert.Equal(AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段"), cache.InvalidatedKey);
     }
 
+    [Fact]
+    public async Task GetAudioAsync_passes_persisted_login_info_into_request_context()
+    {
+        var rule = CreateRule() with
+        {
+            LoginInfoJson = """{"token":"persisted-secret"}"""
+        };
+        var request = new PlaybackAudioRequest(
+            "book-1",
+            0,
+            0,
+            "第一段",
+            rule.Id,
+            rule,
+            rule.ToNormalizedRule(),
+            10,
+            Guid.NewGuid());
+        var compiler = new FakeTtsRequestCompiler
+        {
+            CompilationResult = CreateSuccessfulCompilationResult()
+        };
+        var provider = new PlaybackAudioProvider(
+            compiler,
+            new FakeHttpTtsClient(),
+            new FakeAudioCache(),
+            new CountingRateLimiter());
+
+        await provider.GetAudioAsync(
+            request,
+            PlaybackAudioPriority.Current,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal("persisted-secret", compiler.LastContext!.LoginInfo["token"]);
+    }
+
     private static PlaybackAudioRequest CreatePlaybackRequest(
         int segmentIndex = 0,
         string speechText = "第一段")
@@ -311,6 +347,8 @@ public sealed class PlaybackAudioProviderTests
     {
         public int CallCount { get; private set; }
 
+        public TtsRuleContext? LastContext { get; private set; }
+
         public TtsRequestCompilationResult CompilationResult { get; set; } =
             CreateSuccessfulCompilationResult();
 
@@ -320,6 +358,7 @@ public sealed class PlaybackAudioProviderTests
             CancellationToken cancellationToken)
         {
             CallCount++;
+            LastContext = context;
             return Task.FromResult(CompilationResult);
         }
     }
