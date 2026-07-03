@@ -72,7 +72,8 @@ Novel Import
 ├─ EncodingDetector
 ├─ TxtNormalizer
 ├─ ChapterSplitter
-└─ TextSegmenter
+├─ TextSegmenter
+└─ RegexReplacementPipeline            后续规划
 
 TTS Rules
 ├─ RuleImporter
@@ -101,7 +102,8 @@ Persistence
 ├─ ProgressRepository
 ├─ TtsRuleRepository
 ├─ SettingsRepository
-└─ CacheRepository
+├─ CacheRepository
+└─ RegexReplacementRuleRepository      后续规划
 ```
 
 ## 推荐目录结构
@@ -186,6 +188,18 @@ public interface ITextSegmenter
     IReadOnlyList<SpeechSegment> Segment(Chapter chapter);
 }
 ```
+
+
+```csharp
+public interface IRegexReplacementPipeline
+{
+    ProcessedSegmentText Process(
+        string rawSegmentText,
+        IReadOnlyList<RegexReplacementRule> enabledRules);
+}
+```
+
+`IRegexReplacementPipeline` 为后续规划接口，第一版不实现。它位于章节正文读取和展示/TTS 消费之间，不改写 `content.txt` 或章节偏移；音频缓存键使用最终处理后的 `SpeechText` 哈希。
 
 ```csharp
 public interface ITtsRequestCompiler

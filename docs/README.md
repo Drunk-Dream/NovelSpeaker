@@ -14,25 +14,30 @@
 6. `04_PLAYBACK_PIPELINE.md`
 7. `05_DATA_AND_PERSISTENCE.md`
 8. `06_UI_AND_USER_FLOWS.md`
-9. `07_DEVELOPMENT_MILESTONES.md`
-10. `08_TESTING_AND_QUALITY.md`
-11. `09_ENGINEERING_CONVENTIONS.md`
-12. `10_DECISIONS_RISKS_OPEN_QUESTIONS.md`
-13. `11_TASK_BACKLOG.md`
+9. `06A_SETTINGS_PAGES.md`
+10. `07_DEVELOPMENT_MILESTONES.md`
+11. `08_TESTING_AND_QUALITY.md`
+12. `09_ENGINEERING_CONVENTIONS.md`
+13. `10_DECISIONS_RISKS_OPEN_QUESTIONS.md`
+14. `11_TASK_BACKLOG.md`
+15. `12_REGEX_REPLACEMENT_PIPELINE.md`
 
 ## UI/UX 设计基线
 
 以下文档是当前项目 UI/UX 设计的基准方案：
 
 - `06_UI_AND_USER_FLOWS.md`
+- `06A_SETTINGS_PAGES.md`
 
 后续涉及以下内容时，应先参考该方案并与其保持一致：
 
 - 主窗口信息架构、两项一级导航和二级页面层级。
-- 书库、播放、设置、TTS 规则、章节规则和缓存管理的职责边界。
+- 书库、播放、设置首页、七个设置二级页、TTS 规则、章节规则和缓存与数据的职责边界。
 - 导航栏“正在播放”入口、状态提示和错误反馈模式。
 - 歌词式正文、段落进度和手动滚动后的自动居中规则。
 - Wpf.Ui Fluent 视觉、主题、响应式布局和可访问性基线。
+
+后续正则替换能力的技术规划见 `12_REGEX_REPLACEMENT_PIPELINE.md`。
 
 ## 项目核心原则
 

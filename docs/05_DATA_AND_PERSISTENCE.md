@@ -107,11 +107,22 @@ Status INTEGER NOT NULL
   "cacheLimitBytes": 2147483648,
   "prefetchCount": 2,
   "theme": "System",
+  "logLevel": "Information",
   "closeBehavior": "Exit"
 }
 ```
 
 敏感信息不得放在该文件中。
+
+字段归属：
+
+- `selectedRuleId`：TTS 规则页设置当前规则，播放页快速切换规则也写入该字段。
+- `speechSpeed`：播放设置中的默认语速，播放页修改语速也写入该字段。
+- `prefetchCount`：播放设置中的预取段落数量。
+- `cacheLimitBytes`：缓存与数据页的缓存上限，默认 `2 GB`，最小 `256 MB`。
+- `theme`：外观页主题。
+- `logLevel`：诊断与关于页日志级别。
+- `closeBehavior`：外观页后续规划字段；第一版暂不实现 UI。可选值为 `Exit`、`MinimizeToTray`。
 
 ## 登录信息与密钥
 
@@ -155,7 +166,7 @@ public interface ISecretStore
 
 不建议保存每个段落为数据库记录。
 
-打开章节时，先根据 `StoredFilePath + StartOffset + Length` 从 `content.txt` 切出章节正文，再动态生成：
+打开章节时，先根据 `StoredFilePath + StartOffset + Length` 从 `content.txt` 切出章节正文，再动态生成运行时段落：
 
 ```csharp
 public sealed record SpeechSegment(
@@ -165,6 +176,8 @@ public sealed record SpeechSegment(
     string DisplayText,
     string SpeechText);
 ```
+
+`StartOffset` 和 `Length` 指向原始规范化正文。后续正则替换启用后，只改变运行时生成的 `DisplayText` 和 `SpeechText`，不改写原始内容和章节偏移。详细设计见 `12_REGEX_REPLACEMENT_PIPELINE.md`。
 
 好处：
 
@@ -181,6 +194,37 @@ public sealed record SpeechSegment(
 - 保存字符偏移。
 - 每个分段算法定义版本号。
 - 恢复时优先根据字符偏移寻找最近段落。
+
+
+## 正则替换持久化预留
+
+第一版不实现正则替换。后续实现时，可将正则替换规则保存到 SQLite，而不是 `settings.json`，以便支持排序、启用状态、规则校验和未来扩展。
+
+建议字段：
+
+```text
+RegexReplacementRules
+Id TEXT PRIMARY KEY
+Name TEXT NOT NULL
+IsEnabled INTEGER NOT NULL
+SortOrder INTEGER NOT NULL
+Pattern TEXT NOT NULL
+Replacement TEXT NOT NULL
+Scope TEXT NOT NULL        -- Display / Speech / Both
+Options INTEGER NOT NULL
+CreatedAt TEXT NOT NULL
+UpdatedAt TEXT NOT NULL
+```
+
+要求：
+
+- 规则变更不触发重新导入书籍。
+- 规则变更不改写 `content.txt`。
+- 规则按 `SortOrder` 稳定执行。
+- 语音范围规则影响最终 `SpeechText`，从而影响音频缓存键。
+- 缓存键使用最终处理后的 `SpeechText` 哈希，不使用规则配置哈希。
+
+详细设计见 `12_REGEX_REPLACEMENT_PIPELINE.md`。
 
 ## 缓存写入
 

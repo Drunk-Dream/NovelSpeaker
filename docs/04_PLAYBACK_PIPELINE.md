@@ -82,9 +82,13 @@ Resolve current segment
   ↓
 Load chapter text from Books.StoredFilePath using chapter StartOffset/Length
   ↓
+Build runtime segment DisplayText/SpeechText
+  ↓
+Apply regex replacement pipeline when enabled in a later version
+  ↓
 Resolve selected rule and speak speed
   ↓
-Build cache key
+Build cache key from final SpeechText
   ↓
 Cache hit?
   ├─ Yes → validate cached audio
@@ -162,6 +166,36 @@ On completed: save progress and advance
 - 生成新缓存键。
 - 从当前段起重新生成。
 - 旧语速缓存继续保留，交给 LRU 清理。
+
+
+## 正则替换预留
+
+第一版不实现正则替换，但播放链路需要为后续扩展保留边界。
+
+正则替换位于章节正文读取和内容消费之间：
+
+```text
+Load chapter text by StartOffset/Length
+  ↓
+Create raw runtime segments with original offsets
+  ↓
+Apply enabled regex replacement rules
+  ├─ DisplayText for UI
+  └─ SpeechText for TTS
+  ↓
+Build TTS request and audio cache key from final SpeechText
+```
+
+要求：
+
+- 正则替换不改写 `content.txt`。
+- 正则替换不改写 `Chapters.StartOffset` 和 `Chapters.Length`。
+- 展示和语音可以使用不同作用范围的替换结果。
+- 语音文本变化必须形成新的音频缓存键。
+- 缓存键使用最终处理后的 `SpeechText` 哈希，不使用正则规则配置哈希。
+- 不同正则规则组合如果产生完全相同的最终语音文本，可以复用同一音频缓存。
+
+详细设计见 `12_REGEX_REPLACEMENT_PIPELINE.md`。
 
 ## 错误策略
 
