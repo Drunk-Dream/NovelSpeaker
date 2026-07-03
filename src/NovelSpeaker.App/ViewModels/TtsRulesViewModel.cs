@@ -1,70 +1,112 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.App.Feedback;
+using NovelSpeaker.App.Pages;
 using NovelSpeaker.Domain.Speech;
+using Wpf.Ui;
 
 namespace NovelSpeaker.App.ViewModels;
 
 /// <summary>
-/// Drives the HTTP TTS rules page, including import preview and current-rule selection.
+/// Drives the TTS rules workspace, including list selection, draft editing, import, and audition flows.
 /// </summary>
 public sealed partial class TtsRulesViewModel : ObservableObject
 {
+    private const string FixedTestText = "你好，欢迎试听。";
+
     private readonly ITtsRuleLibraryService _ruleLibraryService;
     private readonly ITtsRuleTestService _ruleTestService;
     private readonly IAppFeedbackService _feedbackService;
-    private TtsRuleImportPreview? _pendingPreview;
+    private readonly IAppDialogService _dialogService;
+    private readonly IAppSettingsService _settingsService;
+    private readonly INavigationService _navigationService;
     private CancellationTokenSource? _testOperationCts;
+    private TtsRuleEditorModel? _baselineEditor;
+    private long? _fallbackRuleId;
+    private int _defaultSpeakSpeed = 10;
 
     public TtsRulesViewModel(
         ITtsRuleLibraryService ruleLibraryService,
         ITtsRuleTestService ruleTestService,
-        IAppFeedbackService feedbackService)
+        IAppFeedbackService feedbackService,
+        IAppDialogService dialogService,
+        IAppSettingsService settingsService,
+        INavigationService navigationService)
     {
         _ruleLibraryService = ruleLibraryService;
         _ruleTestService = ruleTestService;
         _feedbackService = feedbackService;
+        _dialogService = dialogService;
+        _settingsService = settingsService;
+        _navigationService = navigationService;
     }
 
-    public ObservableCollection<TtsRuleSummary> Rules { get; } = [];
+    public ObservableCollection<TtsRuleListItemViewModel> Rules { get; } = [];
 
-    public ObservableCollection<TtsRuleImportItem> PreviewItems { get; } = [];
+    public ObservableCollection<EditableKeyValueItemViewModel> HeaderEntries { get; } = [];
+
+    public ObservableCollection<EditableKeyValueItemViewModel> LoginInfoEntries { get; } = [];
+
+    public ObservableCollection<EditableKeyValueItemViewModel> RequestHeaderEntries { get; } = [];
 
     [ObservableProperty]
     private string statusMessage = "在这里管理 HTTP TTS 规则。";
 
     [ObservableProperty]
-    private string testStatusMessage = "请选择一条规则，生成请求预览或开始试听。";
+    private string testStatusMessage = "使用固定试听文本和默认语速进行规则试听。";
 
     [ObservableProperty]
-    private bool isPreviewVisible;
+    private bool hasEditor;
 
     [ObservableProperty]
-    private string previewSourceDescription = string.Empty;
+    private bool isEditingNewRule;
 
     [ObservableProperty]
-    private string previewStatusMessage = string.Empty;
+    private bool hasUnsavedChanges;
 
     [ObservableProperty]
-    private string currentRuleDisplayText = "当前规则：未选择规则";
-
-    [ObservableProperty]
-    private string testSpeakText = "你好，欢迎试听。";
-
-    [ObservableProperty]
-    private int testSpeakSpeed = 10;
-
-    [ObservableProperty]
-    private string loginInfoText = string.Empty;
+    private bool isBusy;
 
     [ObservableProperty]
     private bool isTestBusy;
 
     [ObservableProperty]
-    private bool hasTestPreview;
+    private bool isHelpDrawerOpen;
+
+    [ObservableProperty]
+    private long? highlightedRuleId;
+
+    [ObservableProperty]
+    private string draftName = string.Empty;
+
+    [ObservableProperty]
+    private bool draftIsEnabled = true;
+
+    [ObservableProperty]
+    private string draftUrl = string.Empty;
+
+    [ObservableProperty]
+    private string draftRequestMethod = "GET";
+
+    [ObservableProperty]
+    private string draftContentType = string.Empty;
+
+    [ObservableProperty]
+    private string draftRequestBody = string.Empty;
+
+    [ObservableProperty]
+    private string draftConcurrentRate = string.Empty;
+
+    [ObservableProperty]
+    private bool draftEnabledCookieJar;
+
+    [ObservableProperty]
+    private string draftTimeoutMs = string.Empty;
 
     [ObservableProperty]
     private string previewMethodText = "未生成";
@@ -90,31 +132,50 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     [ObservableProperty]
     private string lastResponseDetailText = string.Empty;
 
-    [ObservableProperty]
-    private TtsRuleSummary? selectedRule;
+    public bool CanSaveDraft => HasEditor && !IsBusy;
+
+    public bool CanCancelEditing => HasEditor && !IsBusy;
+
+    public bool CanDeleteCurrentRule => HasEditor && !IsEditingNewRule && CurrentRuleId is not null && !IsBusy;
+
+    public bool CanSetCurrentRule => HasEditor && !IsEditingNewRule && CurrentRuleId is not null && !IsBusy;
+
+    public bool CanClearRuleCookies => CurrentRuleId is not null && !IsBusy;
+
+    public bool CanExportDraft => HasEditor && !IsBusy;
+
+    public bool CanTestDraft => HasEditor && !IsBusy;
+
+    public long? CurrentRuleId => IsEditingNewRule ? null : _baselineEditor?.Id;
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        var rules = await _ruleLibraryService.GetRulesAsync(cancellationToken);
-        Rules.ReplaceWith(rules, rule => rule);
+        var settings = await _settingsService.LoadAsync(cancellationToken);
+        _defaultSpeakSpeed = settings.DefaultSpeakSpeed;
 
-        SelectedRule = Rules.SelectByKeyOrFallback(
-            SelectedRule?.Id,
-            rule => rule.Id,
-            SelectedRule,
-            rule => rule.IsSelected);
+        await RefreshRulesAsync(
+            preferredRuleId: HighlightedRuleId ?? Rules.FirstOrDefault(rule => rule.IsCurrent)?.Id,
+            openEditorIfNeeded: !HasEditor,
+            cancellationToken);
+    }
 
-        CurrentRuleDisplayText = Rules.FirstOrDefault(rule => rule.IsSelected) is { } selected
-            ? $"当前规则：{selected.Name}"
-            : "当前规则：未选择规则";
+    public void HandleNavigatedFrom()
+    {
+        CancelCurrentTest("离开页面时已取消试听。");
+        IsHelpDrawerOpen = false;
     }
 
     public async Task ImportFromFileAsync(string filePath, CancellationToken cancellationToken)
     {
+        if (!await ConfirmLeaveDraftAsync(cancellationToken))
+        {
+            return;
+        }
+
         try
         {
             var jsonText = await File.ReadAllTextAsync(filePath, cancellationToken);
-            await ImportJsonTextAsync(jsonText, Path.GetFileName(filePath), cancellationToken);
+            await ImportJsonTextAsyncCore(jsonText, Path.GetFileName(filePath), cancellationToken);
         }
         catch (Exception exception)
         {
@@ -124,77 +185,154 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
     public async Task ImportJsonTextAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken)
     {
-        try
+        if (!await ConfirmLeaveDraftAsync(cancellationToken))
         {
-            var preview = await _ruleLibraryService.CreateImportPreviewAsync(jsonText, sourceDescription, cancellationToken);
-            ApplyPreview(preview);
+            return;
         }
-        catch (Exception exception)
-        {
-            HandleProjectedError("规则导入失败", exception);
-        }
+
+        await ImportJsonTextAsyncCore(jsonText, sourceDescription, cancellationToken);
     }
 
-    public async Task ExportSelectedRuleToFileAsync(string filePath, CancellationToken cancellationToken)
+    public async Task ExportDraftToFileAsync(string filePath, CancellationToken cancellationToken)
     {
-        if (SelectedRule is null)
+        if (!HasEditor)
         {
-            StatusMessage = "请先选择一条规则再导出。";
+            StatusMessage = "请先打开一条规则或新建规则。";
             return;
         }
 
-        var json = await _ruleLibraryService.ExportRuleJsonAsync(SelectedRule.Id, cancellationToken);
-        if (json is null)
+        var validation = await _ruleLibraryService.ValidateEditorAsync(BuildCurrentEditorModel(), cancellationToken);
+        if (!validation.IsValid)
         {
-            StatusMessage = "未找到要导出的规则。";
+            StatusMessage = string.Join(" ", validation.Errors);
+            _feedbackService.ShowWarning("导出失败", StatusMessage);
             return;
         }
 
-        await File.WriteAllTextAsync(filePath, json, cancellationToken);
-        StatusMessage = $"已导出规则：{SelectedRule.Name}";
+        await File.WriteAllTextAsync(filePath, validation.NormalizedModel.RawRuleJson, cancellationToken);
+        StatusMessage = $"已导出规则：{validation.NormalizedModel.Name}";
     }
 
     [RelayCommand]
-    private async Task ConfirmImportAsync(CancellationToken cancellationToken)
+    private async Task BackAsync(CancellationToken cancellationToken)
     {
-        if (_pendingPreview is null)
+        if (!await ConfirmLeaveDraftAsync(cancellationToken))
         {
-            StatusMessage = "当前没有待确认的规则导入。";
             return;
         }
 
-        try
+        CancelCurrentTest("返回时已取消试听。");
+        if (!_navigationService.GoBack())
         {
-            var result = await _ruleLibraryService.ImportAsync(_pendingPreview, cancellationToken);
-            await LoadAsync(cancellationToken);
-            ClearPreview();
-            StatusMessage = "规则导入完成。";
-            _feedbackService.ShowSuccess(
-                "规则导入完成",
-                $"新增 {result.ImportedCount} 条，跳过 {result.SkippedCount} 条。");
-        }
-        catch (Exception exception)
-        {
-            HandleProjectedError("规则导入失败", exception);
+            _navigationService.NavigateWithHierarchy(typeof(SettingsPage));
         }
     }
 
     [RelayCommand]
-    private void CancelPreview()
+    private async Task NewRuleAsync(CancellationToken cancellationToken)
     {
-        ClearPreview();
-        StatusMessage = "已取消本次规则导入预览。";
+        if (!await ConfirmLeaveDraftAsync(cancellationToken))
+        {
+            return;
+        }
+
+        CancelCurrentTest("已取消上一条规则的试听。");
+        var fallbackRuleId = HighlightedRuleId;
+        OpenEditor(CreateEmptyEditor(), true, fallbackRuleId);
+        StatusMessage = "已打开空白规则草稿。";
     }
 
     [RelayCommand]
-    private async Task SetCurrentRuleAsync(TtsRuleSummary? rule, CancellationToken cancellationToken)
+    private async Task SelectRuleAsync(TtsRuleListItemViewModel? rule, CancellationToken cancellationToken)
     {
         if (rule is null)
         {
             return;
         }
 
-        if (!rule.IsEnabled)
+        if (HighlightedRuleId == rule.Id && !IsEditingNewRule)
+        {
+            return;
+        }
+
+        if (!await ConfirmLeaveDraftAsync(cancellationToken))
+        {
+            return;
+        }
+
+        await OpenSavedRuleAsync(rule.Id, cancellationToken);
+    }
+
+    [RelayCommand]
+    private async Task SaveDraftAsync(CancellationToken cancellationToken)
+    {
+        await SaveDraftCoreAsync(cancellationToken);
+    }
+
+    [RelayCommand]
+    private async Task CancelEditingAsync(CancellationToken cancellationToken)
+    {
+        if (!HasEditor)
+        {
+            return;
+        }
+
+        if (IsEditingNewRule)
+        {
+            if (_fallbackRuleId is long fallbackRuleId)
+            {
+                await OpenSavedRuleAsync(fallbackRuleId, cancellationToken);
+            }
+            else
+            {
+                CloseEditor();
+            }
+
+            StatusMessage = "已放弃新建规则草稿。";
+            return;
+        }
+
+        if (_baselineEditor is not null)
+        {
+            OpenEditor(_baselineEditor, false, _fallbackRuleId);
+            StatusMessage = "已撤销未保存修改。";
+        }
+    }
+
+    [RelayCommand]
+    private async Task SetCurrentRuleAsync(CancellationToken cancellationToken)
+    {
+        if (!HasEditor)
+        {
+            return;
+        }
+
+        long ruleId;
+        string ruleName;
+        var isEnabled = DraftIsEnabled;
+        if (HasUnsavedChanges || IsEditingNewRule)
+        {
+            var savedRule = await SaveDraftCoreAsync(cancellationToken);
+            if (savedRule is null)
+            {
+                return;
+            }
+
+            ruleId = savedRule.Id;
+            ruleName = savedRule.Name;
+            isEnabled = savedRule.IsEnabled;
+        }
+        else if (CurrentRuleId is long currentRuleId)
+        {
+            ruleId = currentRuleId;
+            ruleName = DraftName;
+        }
+        else
+        {
+            return;
+        }
+
+        if (!isEnabled)
         {
             StatusMessage = "请先启用规则，再将其设为当前规则。";
             return;
@@ -202,9 +340,9 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
         try
         {
-            await _ruleLibraryService.SelectRuleAsync(rule.Id, cancellationToken);
-            await LoadAsync(cancellationToken);
-            StatusMessage = $"当前规则已切换为：{rule.Name}";
+            await _ruleLibraryService.SelectRuleAsync(ruleId, cancellationToken);
+            await RefreshRulesAsync(ruleId, openEditorIfNeeded: false, cancellationToken);
+            StatusMessage = $"当前规则已切换为：{ruleName}";
         }
         catch (Exception exception)
         {
@@ -213,56 +351,81 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task ToggleRuleEnabledAsync(TtsRuleSummary? rule, CancellationToken cancellationToken)
+    private async Task DeleteRuleAsync(CancellationToken cancellationToken)
     {
-        if (rule is null)
+        if (!CanDeleteCurrentRule || CurrentRuleId is not long ruleId)
         {
             return;
         }
 
-        try
+        if (HasUnsavedChanges)
         {
-            await _ruleLibraryService.SetRuleEnabledAsync(rule.Id, !rule.IsEnabled, cancellationToken);
-            await LoadAsync(cancellationToken);
-            StatusMessage = rule.IsEnabled
-                ? $"已禁用规则：{rule.Name}"
-                : $"已启用规则：{rule.Name}";
-        }
-        catch (Exception exception)
-        {
-            HandleProjectedError("规则更新失败", exception);
-        }
-    }
+            var decision = await _dialogService.ShowUnsavedChangesAsync(
+                "未保存的修改",
+                "当前规则有未保存的修改。要先保存再删除吗？",
+                "保存",
+                "放弃",
+                "取消",
+                cancellationToken);
 
-    [RelayCommand]
-    private async Task DeleteRuleAsync(TtsRuleSummary? rule, CancellationToken cancellationToken)
-    {
-        if (rule is null)
-        {
-            return;
-        }
-
-        var confirmation = await _feedbackService.ConfirmDeletionAsync(
-            "删除规则",
-            $"将删除规则“{rule.Name}”。此操作不可撤销。",
-            cancellationToken);
-
-        if (confirmation != AppConfirmationDecision.Confirm)
-        {
-            StatusMessage = $"已取消删除规则：{rule.Name}";
-            return;
-        }
-
-        try
-        {
-            await _ruleLibraryService.DeleteRuleAsync(rule.Id, cancellationToken);
-            await LoadAsync(cancellationToken);
-            StatusMessage = $"已删除规则：{rule.Name}";
-            _feedbackService.ShowSuccess("规则已删除", $"已删除规则：{rule.Name}。");
-            if (SelectedRule is null)
+            if (decision == UnsavedChangesDecision.Cancel)
             {
-                ClearTestProjection();
+                return;
             }
+
+            if (decision == UnsavedChangesDecision.Save)
+            {
+                var savedRule = await EnsureSavedDraftAsync(cancellationToken);
+                if (savedRule is null)
+                {
+                    return;
+                }
+
+                ruleId = savedRule.Id;
+            }
+        }
+
+        var currentRule = Rules.FirstOrDefault(rule => rule.Id == ruleId);
+        if (currentRule is null)
+        {
+            return;
+        }
+
+        var isCurrentRule = currentRule.IsCurrent;
+        var confirmed = isCurrentRule
+            ? await _dialogService.ShowConfirmationAsync(
+                "删除当前规则",
+                $"删除“{currentRule.Name}”后，应用将进入无当前规则状态。确定继续吗？",
+                "继续",
+                "取消",
+                cancellationToken)
+            : await _feedbackService.ConfirmDeletionAsync(
+                "删除规则",
+                $"将删除规则“{currentRule.Name}”。此操作不可撤销。",
+                cancellationToken);
+        if (confirmed != AppConfirmationDecision.Confirm)
+        {
+            return;
+        }
+
+        try
+        {
+            CancelCurrentTest("删除规则时已取消试听。");
+            if (isCurrentRule)
+            {
+                await _ruleLibraryService.ApplyRuleMutationAsync(
+                    new TtsRuleMutationDecision(ruleId, TtsRuleMutationAction.Delete, null, true),
+                    cancellationToken);
+            }
+            else
+            {
+                await _ruleLibraryService.DeleteRuleAsync(ruleId, cancellationToken);
+            }
+
+            CloseEditor();
+            await RefreshRulesAsync(null, openEditorIfNeeded: true, cancellationToken);
+            StatusMessage = $"已删除规则：{currentRule.Name}";
+            _feedbackService.ShowSuccess("规则已删除", $"已删除规则：{currentRule.Name}。");
         }
         catch (Exception exception)
         {
@@ -271,156 +434,539 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task GeneratePreviewAsync(CancellationToken cancellationToken)
+    private async Task TestDraftAsync(CancellationToken cancellationToken)
     {
-        await ExecuteTestOperationAsync(
-            cancellationToken,
-            "已取消当前请求预览。",
-            async (input, token) =>
-            {
-                var result = await _ruleTestService.CreatePreviewAsync(input, token);
-                return (
-                    result.Preview,
-                    result.Warnings,
-                    result.Message,
-                    result.IsSuccess ? "请求预览已更新。" : "请求预览生成失败。",
-                    result.ErrorKind is null ? string.Empty : $"错误类型：{result.ErrorKind}");
-            });
+        if (!HasEditor)
+        {
+            return;
+        }
+
+        using var linkedCts = BeginTestOperation(cancellationToken);
+        try
+        {
+            var result = await _ruleTestService.TestAsync(
+                new TtsRuleDraftTestInput(BuildCurrentEditorModel(), FixedTestText, _defaultSpeakSpeed),
+                linkedCts.Token);
+            ApplyTestProjection(result.Preview, result.Warnings);
+            TestStatusMessage = result.Message;
+            LastResponseStatusText = BuildResponseStatusText(result);
+            LastResponseDetailText = BuildResponseDetailText(result);
+        }
+        catch (OperationCanceledException)
+        {
+            TestStatusMessage = "试听已取消。";
+            LastResponseStatusText = "试听已取消。";
+        }
+        finally
+        {
+            EndTestOperation(linkedCts);
+        }
     }
 
     [RelayCommand]
-    private async Task TestSelectedRuleAsync(CancellationToken cancellationToken)
+    private async Task GeneratePreviewAsync(CancellationToken cancellationToken)
     {
-        await ExecuteTestOperationAsync(
-            cancellationToken,
-            "已取消当前试听请求。",
-            async (input, token) =>
-            {
-                var result = await _ruleTestService.TestAsync(input, token);
-                return (
-                    result.Preview,
-                    result.Warnings,
-                    result.Message,
-                    BuildResponseStatusText(result),
-                    BuildResponseDetailText(result));
-            },
-            "试听已取消。");
+        if (!HasEditor)
+        {
+            return;
+        }
+
+        using var linkedCts = BeginTestOperation(cancellationToken);
+        try
+        {
+            var result = await _ruleTestService.CreatePreviewAsync(
+                new TtsRuleDraftTestInput(BuildCurrentEditorModel(), FixedTestText, _defaultSpeakSpeed),
+                linkedCts.Token);
+            ApplyTestProjection(result.Preview, result.Warnings);
+            TestStatusMessage = result.Message;
+            LastResponseStatusText = result.IsSuccess ? "请求预览已更新。" : "请求预览生成失败。";
+            LastResponseDetailText = string.Empty;
+        }
+        catch (OperationCanceledException)
+        {
+            TestStatusMessage = "已取消当前请求预览。";
+            LastResponseStatusText = "请求预览已取消。";
+        }
+        finally
+        {
+            EndTestOperation(linkedCts);
+        }
     }
 
     [RelayCommand]
     private void CancelTest()
     {
-        _testOperationCts?.Cancel();
-        TestStatusMessage = "正在取消当前请求。";
+        CancelCurrentTest("正在取消当前试听请求。");
     }
 
     [RelayCommand]
     private async Task ClearRuleCookiesAsync(CancellationToken cancellationToken)
     {
-        if (SelectedRule is null)
+        if (CurrentRuleId is not long ruleId)
         {
-            TestStatusMessage = "请先选择一条规则，再清除该规则的 Cookie。";
+            StatusMessage = "规则尚未保存，无法清除 Cookie。";
             return;
         }
 
-        await _ruleTestService.ClearRuleCookiesAsync(SelectedRule.Id, cancellationToken);
-        TestStatusMessage = $"已清除规则 Cookie：{SelectedRule.Name}";
+        await _ruleTestService.ClearRuleCookiesAsync(ruleId, cancellationToken);
+        TestStatusMessage = "已清除该规则的 Cookie。";
         LastResponseStatusText = "该规则的会话 Cookie 已清空。";
         LastResponseDetailText = string.Empty;
     }
 
-    private void ApplyPreview(TtsRuleImportPreview preview)
+    [RelayCommand]
+    private void OpenHelp()
     {
-        _pendingPreview = preview;
-        PreviewItems.ReplaceWith(preview.Items, item => item);
-
-        PreviewSourceDescription = preview.SourceDescription;
-        IsPreviewVisible = true;
-        PreviewStatusMessage = preview.ErrorMessage ??
-            $"共解析 {preview.Items.Count} 条规则，可导入 {preview.ImportableCount} 条，跳过 {preview.SkippedCount} 条。";
-        StatusMessage = preview.ErrorMessage ?? "请确认本次规则导入。";
+        IsHelpDrawerOpen = true;
     }
 
-    private void ClearPreview()
+    [RelayCommand]
+    private void CloseHelp()
     {
-        _pendingPreview = null;
-        PreviewItems.Clear();
-        PreviewSourceDescription = string.Empty;
-        PreviewStatusMessage = string.Empty;
-        IsPreviewVisible = false;
+        IsHelpDrawerOpen = false;
     }
 
-    partial void OnSelectedRuleChanged(TtsRuleSummary? value)
+    [RelayCommand]
+    private void AddHeaderEntry()
     {
-        ClearTestProjection();
-        if (value is null)
+        AddEditableEntry(HeaderEntries);
+    }
+
+    [RelayCommand]
+    private void RemoveHeaderEntry(EditableKeyValueItemViewModel? item)
+    {
+        RemoveEditableEntry(HeaderEntries, item);
+    }
+
+    [RelayCommand]
+    private void AddLoginInfoEntry()
+    {
+        AddEditableEntry(LoginInfoEntries);
+    }
+
+    [RelayCommand]
+    private void RemoveLoginInfoEntry(EditableKeyValueItemViewModel? item)
+    {
+        RemoveEditableEntry(LoginInfoEntries, item);
+    }
+
+    [RelayCommand]
+    private void AddRequestHeaderEntry()
+    {
+        AddEditableEntry(RequestHeaderEntries);
+    }
+
+    [RelayCommand]
+    private void RemoveRequestHeaderEntry(EditableKeyValueItemViewModel? item)
+    {
+        RemoveEditableEntry(RequestHeaderEntries, item);
+    }
+
+    partial void OnDraftNameChanged(string value) => NotifyDraftChanged();
+    partial void OnDraftIsEnabledChanged(bool value) => NotifyDraftChanged();
+    partial void OnDraftUrlChanged(string value) => NotifyDraftChanged();
+    partial void OnDraftRequestMethodChanged(string value) => NotifyDraftChanged();
+    partial void OnDraftContentTypeChanged(string value) => NotifyDraftChanged();
+    partial void OnDraftRequestBodyChanged(string value) => NotifyDraftChanged();
+    partial void OnDraftConcurrentRateChanged(string value) => NotifyDraftChanged();
+    partial void OnDraftEnabledCookieJarChanged(bool value) => NotifyDraftChanged();
+    partial void OnDraftTimeoutMsChanged(string value) => NotifyDraftChanged();
+
+    private async Task ImportJsonTextAsyncCore(string jsonText, string sourceDescription, CancellationToken cancellationToken)
+    {
+        try
         {
-            TestStatusMessage = "请选择一条规则，生成请求预览或开始试听。";
+            var result = await _ruleLibraryService.ImportJsonTextAsync(jsonText, sourceDescription, cancellationToken);
+            await RefreshRulesAsync(result.FirstImportedRuleId, openEditorIfNeeded: true, cancellationToken);
+
+            StatusMessage = BuildImportStatusMessage(result);
+            _feedbackService.ShowSuccess("规则导入完成", StatusMessage);
         }
-        else
+        catch (Exception exception)
         {
-            TestStatusMessage = $"当前已选择规则：{value.Name}";
+            HandleProjectedError("规则导入失败", exception);
         }
     }
 
-    private bool TryCreateTestInput(out TtsRuleTestInput input)
+    private async Task RefreshRulesAsync(long? preferredRuleId, bool openEditorIfNeeded, CancellationToken cancellationToken)
     {
-        input = default!;
-        if (SelectedRule is null)
-        {
-            TestStatusMessage = "请先选择一条规则。";
-            return false;
-        }
+        var rules = await _ruleLibraryService.GetRulesAsync(cancellationToken);
+        Rules.ReplaceWith(
+            rules,
+            rule => new TtsRuleListItemViewModel(
+                rule.Id,
+                rule.Name,
+                rule.IsEnabled,
+                rule.IsSelected,
+                HighlightedRuleId == rule.Id && !IsEditingNewRule));
 
-        if (string.IsNullOrWhiteSpace(TestSpeakText))
-        {
-            TestStatusMessage = "试听文本不能为空。";
-            return false;
-        }
+        OnPropertyChanged(nameof(CurrentRuleId));
 
-        if (!TryParseLoginInfo(out var loginInfo, out var errorMessage))
+        if (openEditorIfNeeded)
         {
-            TestStatusMessage = errorMessage;
-            return false;
-        }
-
-        input = new TtsRuleTestInput(
-            SelectedRule.Id,
-            TestSpeakText,
-            TestSpeakSpeed,
-            loginInfo);
-        return true;
-    }
-
-    private bool TryParseLoginInfo(
-        out IReadOnlyDictionary<string, string> loginInfo,
-        out string errorMessage)
-    {
-        var parsed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var rawLine in LoginInfoText.Split(["\r\n", "\n"], StringSplitOptions.None))
-        {
-            var line = rawLine.Trim();
-            if (line.Length == 0)
+            var targetRuleId = preferredRuleId;
+            if (targetRuleId is null)
             {
-                continue;
+                targetRuleId = rules.FirstOrDefault(rule => rule.IsSelected)?.Id ?? rules.FirstOrDefault()?.Id;
             }
 
-            var separatorIndex = line.IndexOf('=', StringComparison.Ordinal);
-            if (separatorIndex <= 0)
+            if (targetRuleId is long ruleId)
             {
-                loginInfo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                errorMessage = "临时登录信息需按每行 key=value 的格式输入。";
+                await OpenSavedRuleAsync(ruleId, cancellationToken);
+            }
+            else if (!IsEditingNewRule)
+            {
+                CloseEditor();
+            }
+        }
+
+        NotifyUiStateChanged();
+    }
+
+    private async Task OpenSavedRuleAsync(long ruleId, CancellationToken cancellationToken)
+    {
+        var editor = await _ruleLibraryService.GetEditorAsync(ruleId, cancellationToken);
+        if (editor is null)
+        {
+            CloseEditor();
+            return;
+        }
+
+        CancelCurrentTest("切换规则时已取消试听。");
+        OpenEditor(editor, false, ruleId);
+        StatusMessage = $"当前正在编辑：{editor.Name}";
+    }
+
+    private void OpenEditor(TtsRuleEditorModel editor, bool isNew, long? fallbackRuleId)
+    {
+        _baselineEditor = editor;
+        _fallbackRuleId = fallbackRuleId;
+        IsEditingNewRule = isNew;
+        HighlightedRuleId = isNew ? null : editor.Id;
+        HasEditor = true;
+        UpdateRuleSelectionStates();
+
+        SetDraftFields(editor);
+        UpdateUnsavedChanges();
+        NotifyUiStateChanged();
+    }
+
+    private void CloseEditor()
+    {
+        _baselineEditor = null;
+        _fallbackRuleId = null;
+        HighlightedRuleId = null;
+        IsEditingNewRule = false;
+        HasEditor = false;
+        UpdateRuleSelectionStates();
+        DraftName = string.Empty;
+        DraftIsEnabled = true;
+        DraftUrl = string.Empty;
+        DraftRequestMethod = "GET";
+        DraftContentType = string.Empty;
+        DraftRequestBody = string.Empty;
+        DraftConcurrentRate = string.Empty;
+        DraftEnabledCookieJar = false;
+        DraftTimeoutMs = string.Empty;
+        ResetEditableCollection(HeaderEntries, []);
+        ResetEditableCollection(LoginInfoEntries, []);
+        ResetEditableCollection(RequestHeaderEntries, []);
+        UpdateUnsavedChanges();
+        ClearTestProjection();
+        NotifyUiStateChanged();
+    }
+
+    private void SetDraftFields(TtsRuleEditorModel editor)
+    {
+        DraftName = editor.Name;
+        DraftIsEnabled = editor.IsEnabled;
+        DraftUrl = editor.Url;
+        DraftRequestMethod = editor.RequestOptions.Method ?? "GET";
+        DraftContentType = editor.ContentType ?? string.Empty;
+        DraftRequestBody = editor.RequestOptions.Body ?? string.Empty;
+        DraftConcurrentRate = editor.ConcurrentRate ?? string.Empty;
+        DraftEnabledCookieJar = editor.EnabledCookieJar;
+        DraftTimeoutMs = editor.RequestOptions.TimeoutMs?.ToString() ?? string.Empty;
+        ResetEditableCollection(HeaderEntries, editor.Headers);
+        ResetEditableCollection(LoginInfoEntries, editor.LoginInfo);
+        ResetEditableCollection(RequestHeaderEntries, editor.RequestOptions.Headers);
+        ClearTestProjection();
+    }
+
+    private void ResetEditableCollection(
+        ObservableCollection<EditableKeyValueItemViewModel> target,
+        IReadOnlyList<TtsRuleEditorKeyValue> values)
+    {
+        foreach (var existing in target)
+        {
+            existing.PropertyChanged -= EditableEntryOnPropertyChanged;
+        }
+
+        target.Clear();
+        foreach (var value in values)
+        {
+            var item = new EditableKeyValueItemViewModel(value.Key, value.Value);
+            item.PropertyChanged += EditableEntryOnPropertyChanged;
+            target.Add(item);
+        }
+    }
+
+    private void AddEditableEntry(ObservableCollection<EditableKeyValueItemViewModel> target)
+    {
+        if (!HasEditor)
+        {
+            return;
+        }
+
+        var item = new EditableKeyValueItemViewModel();
+        item.PropertyChanged += EditableEntryOnPropertyChanged;
+        target.Add(item);
+        UpdateUnsavedChanges();
+    }
+
+    private void RemoveEditableEntry(
+        ObservableCollection<EditableKeyValueItemViewModel> target,
+        EditableKeyValueItemViewModel? item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        item.PropertyChanged -= EditableEntryOnPropertyChanged;
+        target.Remove(item);
+        UpdateUnsavedChanges();
+    }
+
+    private void EditableEntryOnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        UpdateUnsavedChanges();
+    }
+
+    private void NotifyDraftChanged()
+    {
+        UpdateUnsavedChanges();
+    }
+
+    private void UpdateUnsavedChanges()
+    {
+        HasUnsavedChanges = HasEditor &&
+                            _baselineEditor is not null &&
+                            !EditorsEqual(_baselineEditor, BuildCurrentEditorModel());
+        NotifyUiStateChanged();
+    }
+
+    private void NotifyUiStateChanged()
+    {
+        OnPropertyChanged(nameof(CanSaveDraft));
+        OnPropertyChanged(nameof(CanCancelEditing));
+        OnPropertyChanged(nameof(CanDeleteCurrentRule));
+        OnPropertyChanged(nameof(CanSetCurrentRule));
+        OnPropertyChanged(nameof(CanClearRuleCookies));
+        OnPropertyChanged(nameof(CanExportDraft));
+        OnPropertyChanged(nameof(CanTestDraft));
+    }
+
+    private void UpdateRuleSelectionStates()
+    {
+        foreach (var rule in Rules)
+        {
+            rule.IsSelected = !IsEditingNewRule && HighlightedRuleId == rule.Id;
+        }
+    }
+
+    private async Task<bool> ConfirmLeaveDraftAsync(CancellationToken cancellationToken)
+    {
+        if (!HasUnsavedChanges)
+        {
+            return true;
+        }
+
+        var decision = await _dialogService.ShowUnsavedChangesAsync(
+            "未保存的修改",
+            "当前规则有未保存的修改。要先保存再继续吗？",
+            "保存",
+            "放弃",
+            "取消",
+            cancellationToken);
+
+        switch (decision)
+        {
+            case UnsavedChangesDecision.Save:
+                return await SaveDraftCoreAsync(cancellationToken) is not null;
+            case UnsavedChangesDecision.Discard:
+                DiscardCurrentDraft();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private async Task<HttpTtsRule?> EnsureSavedDraftAsync(CancellationToken cancellationToken)
+    {
+        return await SaveDraftCoreAsync(cancellationToken);
+    }
+
+    private async Task<HttpTtsRule?> SaveDraftCoreAsync(CancellationToken cancellationToken)
+    {
+        if (!HasEditor)
+        {
+            return null;
+        }
+
+        IsBusy = true;
+        NotifyUiStateChanged();
+
+        try
+        {
+            var draft = BuildCurrentEditorModel();
+            var currentRule = CurrentRuleId is long currentRuleId
+                ? Rules.FirstOrDefault(rule => rule.Id == currentRuleId)
+                : null;
+            if (currentRule?.IsCurrent == true && !draft.IsEnabled)
+            {
+                var confirmation = await _dialogService.ShowConfirmationAsync(
+                    "禁用当前规则",
+                    $"禁用“{draft.Name}”后，应用将进入无当前规则状态。确定继续吗？",
+                    "继续",
+                    "取消",
+                    cancellationToken);
+                if (confirmation != AppConfirmationDecision.Confirm)
+                {
+                    return null;
+                }
+            }
+
+            var savedRule = await _ruleLibraryService.SaveEditorAsync(draft, cancellationToken);
+            if (currentRule?.IsCurrent == true && !savedRule.IsEnabled)
+            {
+                await _ruleLibraryService.ApplyRuleMutationAsync(
+                    new TtsRuleMutationDecision(savedRule.Id, TtsRuleMutationAction.Disable, null, true),
+                    cancellationToken);
+            }
+
+            await RefreshRulesAsync(savedRule.Id, openEditorIfNeeded: false, cancellationToken);
+            var savedEditor = await _ruleLibraryService.GetEditorAsync(savedRule.Id, cancellationToken);
+            if (savedEditor is not null)
+            {
+                OpenEditor(savedEditor, false, savedRule.Id);
+            }
+
+            StatusMessage = $"规则已保存：{savedRule.Name}";
+            return savedRule;
+        }
+        catch (Exception exception)
+        {
+            HandleProjectedError("规则保存失败", exception);
+            return null;
+        }
+        finally
+        {
+            IsBusy = false;
+            NotifyUiStateChanged();
+        }
+    }
+
+    private TtsRuleEditorModel BuildCurrentEditorModel()
+    {
+        int? timeoutMs = string.IsNullOrWhiteSpace(DraftTimeoutMs)
+            ? null
+            : int.TryParse(DraftTimeoutMs.Trim(), out var parsedTimeout)
+                ? parsedTimeout
+                : -1;
+
+        return new TtsRuleEditorModel(
+            IsEditingNewRule ? null : _baselineEditor?.Id,
+            DraftName,
+            DraftIsEnabled,
+            DraftUrl,
+            NullIfWhitespace(DraftContentType),
+            NullIfWhitespace(DraftConcurrentRate),
+            DraftEnabledCookieJar,
+            _baselineEditor?.LastUpdateTime,
+            ToEditorEntries(HeaderEntries),
+            new TtsRuleRequestOptionsEditor(
+                NullIfWhitespace(DraftRequestMethod)?.ToUpperInvariant(),
+                ToEditorEntries(RequestHeaderEntries),
+                NullIfWhitespace(DraftRequestBody),
+                timeoutMs),
+            _baselineEditor?.RawRuleJson ?? string.Empty,
+            _baselineEditor?.CompatibilityStatus ?? TtsRuleCompatibilityStatus.Compatible,
+            _baselineEditor?.UnsupportedFields ?? [])
+        {
+            LoginInfo = ToEditorEntries(LoginInfoEntries)
+        };
+    }
+
+    private static IReadOnlyList<TtsRuleEditorKeyValue> ToEditorEntries(
+        ObservableCollection<EditableKeyValueItemViewModel> items)
+    {
+        return items
+            .Select(item => new TtsRuleEditorKeyValue(item.Key, item.Value))
+            .ToArray();
+    }
+
+    private static bool EditorsEqual(TtsRuleEditorModel left, TtsRuleEditorModel right)
+    {
+        return left.Id == right.Id &&
+               left.Name == right.Name &&
+               left.IsEnabled == right.IsEnabled &&
+               left.Url == right.Url &&
+               left.ContentType == right.ContentType &&
+               left.ConcurrentRate == right.ConcurrentRate &&
+               left.EnabledCookieJar == right.EnabledCookieJar &&
+               left.RequestOptions.Method == right.RequestOptions.Method &&
+               left.RequestOptions.Body == right.RequestOptions.Body &&
+               left.RequestOptions.TimeoutMs == right.RequestOptions.TimeoutMs &&
+               EntryListsEqual(left.Headers, right.Headers) &&
+               EntryListsEqual(left.LoginInfo, right.LoginInfo) &&
+               EntryListsEqual(left.RequestOptions.Headers, right.RequestOptions.Headers);
+    }
+
+    private static bool EntryListsEqual(
+        IReadOnlyList<TtsRuleEditorKeyValue> left,
+        IReadOnlyList<TtsRuleEditorKeyValue> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < left.Count; index++)
+        {
+            if (left[index].Key != right[index].Key || left[index].Value != right[index].Value)
+            {
                 return false;
             }
-
-            var key = line[..separatorIndex].Trim();
-            var value = line[(separatorIndex + 1)..].Trim();
-            parsed[key] = value;
         }
 
-        loginInfo = parsed;
-        errorMessage = string.Empty;
         return true;
+    }
+
+    private static string? NullIfWhitespace(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static TtsRuleEditorModel CreateEmptyEditor()
+    {
+        return new TtsRuleEditorModel(
+            null,
+            string.Empty,
+            true,
+            string.Empty,
+            null,
+            null,
+            false,
+            null,
+            [],
+            new TtsRuleRequestOptionsEditor("GET", [], null, null),
+            string.Empty,
+            TtsRuleCompatibilityStatus.Compatible,
+            [])
+        {
+            LoginInfo = []
+        };
     }
 
     private CancellationTokenSource BeginTestOperation(CancellationToken cancellationToken)
@@ -429,61 +975,32 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         _testOperationCts?.Dispose();
         _testOperationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         IsTestBusy = true;
+        NotifyUiStateChanged();
         return _testOperationCts;
     }
 
-    private async Task ExecuteTestOperationAsync(
-        CancellationToken cancellationToken,
-        string canceledStatusMessage,
-        Func<TtsRuleTestInput, CancellationToken, Task<(
-            TtsRequestPreview? Preview,
-            IReadOnlyList<string> Warnings,
-            string StatusMessage,
-            string ResponseStatusText,
-            string ResponseDetailText)>> operation,
-        string? canceledResponseStatusText = null)
+    private void EndTestOperation(CancellationTokenSource operationCts)
     {
-        if (!TryCreateTestInput(out var input))
-        {
-            return;
-        }
-
-        using var linkedCts = BeginTestOperation(cancellationToken);
-        try
-        {
-            var result = await operation(input, linkedCts.Token);
-            ApplyTestPreview(result.Preview, result.Warnings);
-            TestStatusMessage = result.StatusMessage;
-            LastResponseStatusText = result.ResponseStatusText;
-            LastResponseDetailText = result.ResponseDetailText;
-        }
-        catch (OperationCanceledException)
-        {
-            TestStatusMessage = canceledStatusMessage;
-            if (canceledResponseStatusText is not null)
-            {
-                LastResponseStatusText = canceledResponseStatusText;
-            }
-        }
-        finally
-        {
-            EndTestOperation(linkedCts);
-        }
-    }
-
-    private void EndTestOperation(CancellationTokenSource linkedCts)
-    {
-        if (ReferenceEquals(_testOperationCts, linkedCts))
+        if (ReferenceEquals(_testOperationCts, operationCts))
         {
             _testOperationCts = null;
         }
 
         IsTestBusy = false;
+        NotifyUiStateChanged();
     }
 
-    private void ApplyTestPreview(TtsRequestPreview? preview, IReadOnlyList<string> warnings)
+    private void CancelCurrentTest(string message)
     {
-        HasTestPreview = preview is not null;
+        _testOperationCts?.Cancel();
+        if (IsTestBusy)
+        {
+            TestStatusMessage = message;
+        }
+    }
+
+    private void ApplyTestProjection(TtsRequestPreview? preview, IReadOnlyList<string> warnings)
+    {
         PreviewMethodText = preview?.Method ?? "未生成";
         PreviewUrlText = preview?.Url ?? "未生成";
         PreviewHeadersText = string.IsNullOrWhiteSpace(preview?.HeadersJson) ? "无" : preview.HeadersJson;
@@ -494,7 +1011,6 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
     private void ClearTestProjection()
     {
-        HasTestPreview = false;
         PreviewMethodText = "未生成";
         PreviewUrlText = "未生成";
         PreviewHeadersText = "无";
@@ -503,6 +1019,30 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         PreviewWarningsText = "无";
         LastResponseStatusText = "尚未执行试听。";
         LastResponseDetailText = string.Empty;
+    }
+
+    private void DiscardCurrentDraft()
+    {
+        if (!HasEditor)
+        {
+            return;
+        }
+
+        if (IsEditingNewRule)
+        {
+            CloseEditor();
+            return;
+        }
+
+        if (_baselineEditor is not null)
+        {
+            OpenEditor(_baselineEditor, false, _fallbackRuleId);
+        }
+    }
+
+    private static string BuildImportStatusMessage(TtsRuleImportResult result)
+    {
+        return $"新增 {result.ImportedCount} 条，失败 {result.FailedCount} 条，跳过 {result.SkippedCount} 条。";
     }
 
     private static string BuildResponseStatusText(TtsRuleTestResult result)

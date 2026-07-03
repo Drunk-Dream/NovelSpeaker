@@ -1,17 +1,14 @@
 using NovelSpeaker.App.ViewModels;
-using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Pages;
 
 public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAware, INavigableView<TtsRulesViewModel>
 {
-    private readonly INavigationService _navigationService;
     private bool _hasLoaded;
 
-    public TtsRulesPage(INavigationService navigationService, TtsRulesViewModel viewModel)
+    public TtsRulesPage(TtsRulesViewModel viewModel)
     {
-        _navigationService = navigationService;
         ViewModel = viewModel;
         InitializeComponent();
         TtsRulesView.DataContext = ViewModel;
@@ -32,11 +29,7 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
 
     public Task OnNavigatedFromAsync()
     {
+        ViewModel.HandleNavigatedFrom();
         return Task.CompletedTask;
-    }
-
-    private void BackButton_OnClick(object sender, System.Windows.RoutedEventArgs e)
-    {
-        _ = _navigationService.GoBack();
     }
 }
