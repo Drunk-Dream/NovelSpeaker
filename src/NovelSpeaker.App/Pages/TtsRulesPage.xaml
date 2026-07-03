@@ -1,23 +1,12 @@
 <Page x:Class="NovelSpeaker.App.Pages.TtsRulesPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:views="clr-namespace:NovelSpeaker.App.Views">
-    <Grid Margin="{StaticResource PagePadding}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <Button Style="{StaticResource BackIconButtonStyle}"
-                Click="BackButton_OnClick"
-                ToolTip="返回"
-                AutomationProperties.Name="返回">
-            <ui:SymbolIcon Symbol="ChevronLeft24" />
-        </Button>
-
+    <Grid MinHeight="0"
+          ClipToBounds="True">
         <views:TtsRulesView x:Name="TtsRulesView"
-                            Grid.Row="1"
-                            Margin="0,20,0,0" />
+                            Height="{Binding RelativeSource={RelativeSource AncestorType=Page}, Path=ActualHeight}"
+                            VerticalAlignment="Stretch"
+                            HorizontalAlignment="Stretch" />
     </Grid>
 </Page>
