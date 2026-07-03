@@ -20,7 +20,7 @@
 - POST Form
 - 自定义 Header 和 Body
 - 会话内 Cookie
-- 只读 LoginInfo 输入
+- 规则持久化 LoginInfo 输入
 - `speakText`
 - `speakSpeed`
 - `{{ ... }}` 表达式
@@ -35,7 +35,7 @@
 - WebView 登录
 - 复杂 `source.get/put` 可变状态语义
 - 零改动兼容所有社区规则
-- 测试态 `loginInfo` 的安全持久化
+- 将 `LoginInfo` 扩展为独立登录流程或额外权限模型
 
 ## 建议规则模型
 
@@ -115,7 +115,7 @@ public sealed record TtsRuleContext(
 
 说明：
 
-- `loginInfo` 是显式输入，只读。
+- `loginInfo` 是规则中的显式持久化输入，会同时参与试听和正式播放。
 - `source` 在第一版应作为只读兼容外观对象，不暴露任意可变状态。
 
 ## 模板格式
@@ -280,6 +280,7 @@ public sealed record ParsedTtsRequest(
 - Set-Cookie
 
 规则页中的请求预览也必须遵守同样的脱敏边界。
+`LoginInfo`、Token 和其它凭据值不得在普通日志、错误摘要或请求预览中明文显示。
 
 ## Cookie
 
@@ -380,7 +381,7 @@ SHA256(
 | 自定义 Header | 支持 |
 | 会话内 Cookie | 支持 |
 | Cookie 持久化 | 不支持 |
-| LoginInfo 只读输入 | 支持 |
+| 规则持久化 LoginInfo 输入 | 支持 |
 | `speakText` | 支持 |
 | `speakSpeed` | 支持 |
 | JavaScript 表达式 | 支持 |
