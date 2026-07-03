@@ -68,6 +68,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IBookImportService, BookImportService>();
         services.AddSingleton<JsonAppSettingsStore>();
         services.AddSingleton<IAppSettingsStore>(serviceProvider => serviceProvider.GetRequiredService<JsonAppSettingsStore>());
+        services.AddSingleton<IAppSettingsService, AppSettingsService>();
         services.AddSingleton<IBookFileNameTemplateProvider>(serviceProvider => serviceProvider.GetRequiredService<JsonAppSettingsStore>());
         services.AddSingleton<ITextSegmentationOptionsProvider>(serviceProvider => serviceProvider.GetRequiredService<JsonAppSettingsStore>());
         services.AddSingleton<DefaultChapterRuleSeeder>();
