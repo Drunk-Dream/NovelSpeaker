@@ -23,60 +23,93 @@
                 <TextBlock Style="{StaticResource PageTitleTextBlockStyle}"
                            Text="诊断与关于" />
 
-                <Grid Margin="{StaticResource SectionSpacing}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="180" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Style="{StaticResource FormLabelTextBlockStyle}" Text="应用名称" />
-                    <TextBlock Grid.Column="1" Style="{StaticResource PrimaryTextBlockStyle}" Text="{Binding AppName}" />
-
-                    <TextBlock Grid.Row="1" Style="{StaticResource FormLabelTextBlockStyle}" Text="应用版本" />
-                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource PrimaryTextBlockStyle}" Text="{Binding AppVersion}" />
-
-                    <TextBlock Grid.Row="2" Style="{StaticResource FormLabelTextBlockStyle}" Text="项目说明" />
-                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource PrimaryTextBlockStyle}" Text="{Binding Description}" TextWrapping="Wrap" />
-
-                    <TextBlock Grid.Row="3" Style="{StaticResource FormLabelTextBlockStyle}" Text="数据库版本" />
-                    <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource PrimaryTextBlockStyle}" Text="{Binding DatabaseSchemaVersionText}" />
-
-                    <TextBlock Grid.Row="4" Style="{StaticResource FormLabelTextBlockStyle}" Text="应用数据目录" />
-                    <TextBox Grid.Row="4"
-                             Grid.Column="1"
-                             IsReadOnly="True"
-                             TextWrapping="Wrap"
-                             Text="{Binding AppDataDirectoryPath}" />
-
-                    <TextBlock Grid.Row="5" Style="{StaticResource FormLabelTextBlockStyle}" Text="日志级别" />
-                    <ComboBox Grid.Row="5"
-                              Grid.Column="1"
-                              Width="180"
-                              HorizontalAlignment="Left"
-                              ItemsSource="{Binding AvailableLogLevels}"
-                              SelectedItem="{Binding SelectedLogLevel}" />
-                </Grid>
-
                 <StackPanel Margin="{StaticResource SectionSpacing}">
-                    <TextBlock Style="{StaticResource FormLabelTextBlockStyle}"
-                               Text="日志目录" />
-                    <TextBox Margin="0,8,0,0"
-                             IsReadOnly="True"
-                             TextWrapping="Wrap"
-                             Text="{Binding LogsDirectoryPath}" />
-                    <Button Margin="0,8,0,0"
-                            Width="180"
-                            HorizontalAlignment="Left"
-                            Command="{Binding OpenLogsDirectoryCommand}"
-                            Content="打开日志目录" />
+                    <Border x:Name="AppNameItemBorder"
+                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="应用名称" />
+                            <TextBlock Margin="0,10,0,0"
+                                       Style="{StaticResource PrimaryTextBlockStyle}"
+                                       Text="{Binding AppName}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="AppVersionItemBorder"
+                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="应用版本" />
+                            <TextBlock Margin="0,10,0,0"
+                                       Style="{StaticResource PrimaryTextBlockStyle}"
+                                       Text="{Binding AppVersion}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="DescriptionItemBorder"
+                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="项目说明" />
+                            <TextBlock Margin="0,10,0,0"
+                                       Style="{StaticResource PrimaryTextBlockStyle}"
+                                       Text="{Binding Description}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="DatabaseSchemaVersionItemBorder"
+                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="数据库版本" />
+                            <TextBlock Margin="0,10,0,0"
+                                       Style="{StaticResource PrimaryTextBlockStyle}"
+                                       Text="{Binding DatabaseSchemaVersionText}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="AppDataDirectoryItemBorder"
+                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="应用数据目录" />
+                            <TextBlock Margin="0,10,0,0"
+                                       Style="{StaticResource PrimaryTextBlockStyle}"
+                                       Text="{Binding AppDataDirectoryPath}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="LogsDirectoryItemBorder"
+                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="日志目录" />
+                            <TextBlock Margin="0,10,0,0"
+                                       Style="{StaticResource PrimaryTextBlockStyle}"
+                                       Text="{Binding LogsDirectoryPath}"
+                                       TextWrapping="Wrap" />
+                            <Button Margin="0,10,0,0"
+                                    Width="180"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding OpenLogsDirectoryCommand}"
+                                    Content="打开日志目录" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="LogLevelItemBorder"
+                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="日志级别" />
+                            <ComboBox Margin="0,10,0,0"
+                                      Width="220"
+                                      HorizontalAlignment="Left"
+                                      ItemsSource="{Binding AvailableLogLevels}"
+                                      SelectedItem="{Binding SelectedLogLevel}" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>
