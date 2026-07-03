@@ -8,11 +8,11 @@ namespace NovelSpeaker.Application.Speech;
 public interface ITtsRuleTestService
 {
     Task<TtsRuleTestPreviewResult> CreatePreviewAsync(
-        TtsRuleTestInput input,
+        TtsRuleDraftTestInput input,
         CancellationToken cancellationToken);
 
     Task<TtsRuleTestResult> TestAsync(
-        TtsRuleTestInput input,
+        TtsRuleDraftTestInput input,
         CancellationToken cancellationToken);
 
     Task ClearRuleCookiesAsync(
