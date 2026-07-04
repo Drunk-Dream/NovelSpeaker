@@ -46,6 +46,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITextSegmenter, TextSegmenter>();
         services.AddSingleton<IChapterRuleRepository, ChapterRuleRepository>();
         services.AddSingleton<IChapterRuleManagementService, ChapterRuleManagementService>();
+        services.AddSingleton<IChapterRuleWorkspaceService, ChapterRuleWorkspaceService>();
         services.AddSingleton<ITtsRuleRepository, TtsRuleRepository>();
         services.AddSingleton<ITtsRuleConverter, LegadoRuleConverter>();
         services.AddSingleton<ITemplateEvaluator, JintTemplateEvaluator>();
