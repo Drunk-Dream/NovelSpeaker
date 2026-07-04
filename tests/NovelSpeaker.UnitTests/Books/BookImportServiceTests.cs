@@ -266,6 +266,7 @@ public sealed class BookImportServiceTests
         public Task SaveAsync(ChapterRule rule, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task DeleteAsync(string ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task MoveAsync(string ruleId, int newSortOrder, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SaveOrderAsync(IReadOnlyList<(string RuleId, int SortOrder)> order, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<int> ImportDefaultsAsync(CancellationToken cancellationToken) => Task.FromResult(0);
     }
 

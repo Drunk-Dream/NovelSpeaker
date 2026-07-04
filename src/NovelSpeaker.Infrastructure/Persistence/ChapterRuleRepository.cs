@@ -106,6 +106,34 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task SaveOrderAsync(IReadOnlyList<(string RuleId, int SortOrder)> order, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        foreach (var item in order)
+        {
+            var command = connection.CreateCommand();
+            command.Transaction = (SqliteTransaction)transaction;
+            command.CommandText =
+                """
+                UPDATE ChapterRules
+                SET SortOrder = $sortOrder,
+                    UpdatedAt = $updatedAt
+                WHERE Id = $id;
+                """;
+
+            command.Parameters.AddWithValue("$id", item.RuleId);
+            command.Parameters.AddWithValue("$sortOrder", item.SortOrder);
+            command.Parameters.AddWithValue("$updatedAt", DateTime.UtcNow.ToString("O"));
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     public async Task<int> ImportDefaultsAsync(CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken);
