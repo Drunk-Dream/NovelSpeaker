@@ -1,0 +1,207 @@
+using System.Collections.ObjectModel;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Media;
+using CommunityToolkit.Mvvm.ComponentModel;
+using NovelSpeaker.App.ViewModels;
+using NovelSpeaker.App.Views;
+using Xunit;
+
+namespace NovelSpeaker.UnitTests.Ui;
+
+public sealed partial class ChapterRulesViewTests
+{
+    [Fact]
+    public void ChapterRulesView_uses_split_scrollable_workspace_without_datagrid()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var context = new ChapterRulesViewLayoutContext
+            {
+                HasEditor = true,
+                Rules =
+                [
+                    new ChapterRuleListItemViewModel("builtin:one", "内置规则", @"^\s*第一章$", true, true, true),
+                    new ChapterRuleListItemViewModel("custom:two", "自定义规则", @"^\s*第二章$", false, false, false)
+                ]
+            };
+            for (var index = 0; index < 30; index++)
+            {
+                context.Rules.Add(new ChapterRuleListItemViewModel($"custom:{index + 3}", $"规则 {index + 3}", $@"^\s*第{index + 3}章$", true, false, false));
+            }
+
+            var view = new ChapterRulesView
+            {
+                DataContext = context
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var leftScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("RulesListScrollViewer"));
+            var rightScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("RuleEditorScrollViewer"));
+
+            Assert.True(leftScrollViewer.ScrollableHeight > 0);
+            Assert.True(rightScrollViewer.ActualWidth > 0);
+            Assert.Null(VisualTreeTestHelper.FindDescendant<DataGrid>(view));
+        });
+    }
+
+    [Fact]
+    public void ChapterRulesView_exposes_rule_item_automation_name()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var item = new ChapterRuleListItemViewModel("builtin:one", "内置规则", @"^\s*第一章$", false, true, true);
+            var view = new ChapterRulesView
+            {
+                DataContext = new ChapterRulesViewLayoutContext
+                {
+                    Rules = [item]
+                }
+            };
+
+            view.Measure(new Size(960, 680));
+            view.Arrange(new Rect(0, 0, 960, 680));
+            view.UpdateLayout();
+
+            var border = FindDescendant<Border>(
+                view,
+                candidate => AutomationProperties.GetName(candidate) == item.AutomationName);
+
+            Assert.NotNull(border);
+            Assert.Equal("内置规则，已禁用，内置规则，不可删除，已选中", AutomationProperties.GetName(border!));
+        });
+    }
+
+    [Fact]
+    public void ChapterRulesView_toggles_help_drawer_visibility()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var context = new ChapterRulesViewLayoutContext
+            {
+                IsHelpDrawerOpen = true
+            };
+            var view = new ChapterRulesView
+            {
+                DataContext = context
+            };
+
+            view.Measure(new Size(1000, 700));
+            view.Arrange(new Rect(0, 0, 1000, 700));
+            view.UpdateLayout();
+
+            var helpDrawer = Assert.IsType<Border>(view.FindName("HelpDrawerBorder"));
+            Assert.Equal(Visibility.Visible, helpDrawer.Visibility);
+            Assert.Equal(Visibility.Visible, ((UIElement)helpDrawer.Parent).Visibility);
+
+            context.IsHelpDrawerOpen = false;
+            view.UpdateLayout();
+
+            Assert.Equal(Visibility.Visible, helpDrawer.Visibility);
+            Assert.Equal(Visibility.Collapsed, ((UIElement)helpDrawer.Parent).Visibility);
+        });
+    }
+
+    [Fact]
+    public void ChapterRulesView_marks_drag_target_visually()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var first = new ChapterRuleListItemViewModel("custom:one", "规则一", @"^\s*一$", true, false, false);
+            var second = new ChapterRuleListItemViewModel("custom:two", "规则二", @"^\s*二$", true, false, false)
+            {
+                IsDropTarget = true
+            };
+            var view = new ChapterRulesView
+            {
+                DataContext = new ChapterRulesViewLayoutContext
+                {
+                    Rules = [first, second]
+                }
+            };
+
+            view.Measure(new Size(960, 680));
+            view.Arrange(new Rect(0, 0, 960, 680));
+            view.UpdateLayout();
+
+            var borders = FindDescendants<Border>(
+                view,
+                candidate => candidate.DataContext is ChapterRuleListItemViewModel).ToArray();
+
+            Assert.True(borders.Length >= 2);
+            Assert.NotEqual(borders[0].Background, borders[1].Background);
+        });
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root, Func<T, bool> predicate)
+        where T : DependencyObject
+    {
+        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
+        {
+            var child = VisualTreeHelper.GetChild(root, childIndex);
+            if (child is T typed && predicate(typed))
+            {
+                return typed;
+            }
+
+            var descendant = FindDescendant(child, predicate);
+            if (descendant is not null)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<T> FindDescendants<T>(DependencyObject root, Func<T, bool> predicate)
+        where T : DependencyObject
+    {
+        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
+        {
+            var child = VisualTreeHelper.GetChild(root, childIndex);
+            if (child is T typed && predicate(typed))
+            {
+                yield return typed;
+            }
+
+            foreach (var descendant in FindDescendants(child, predicate))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    private sealed partial class ChapterRulesViewLayoutContext : ObservableObject
+    {
+        public ObservableCollection<ChapterRuleListItemViewModel> Rules { get; init; } = [];
+
+        [ObservableProperty]
+        private bool hasEditor;
+
+        [ObservableProperty]
+        private bool isHelpDrawerOpen;
+
+        public string DraftName { get; init; } = "当前规则";
+
+        public string DraftPattern { get; init; } = @"^\s*第一章$";
+
+        public bool DraftIsEnabled { get; init; } = true;
+
+        public bool CanSaveDraft => true;
+
+        public bool CanCancelEditing => true;
+
+        public bool CanDeleteCurrentRule => true;
+
+        public string NameValidationMessage { get; init; } = string.Empty;
+
+        public string PatternValidationMessage { get; init; } = string.Empty;
+
+        public string DeleteRestrictionMessage { get; init; } = string.Empty;
+    }
+}

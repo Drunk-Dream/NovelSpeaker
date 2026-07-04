@@ -65,6 +65,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAppDataDirectoryProvider>(provider.GetRequiredService<IAppDataDirectoryProvider>());
                 Assert.IsAssignableFrom<IDatabaseInitializer>(provider.GetRequiredService<IDatabaseInitializer>());
                 Assert.IsAssignableFrom<IChapterRuleRepository>(provider.GetRequiredService<IChapterRuleRepository>());
+                Assert.IsAssignableFrom<IChapterRuleWorkspaceService>(provider.GetRequiredService<IChapterRuleWorkspaceService>());
                 Assert.IsAssignableFrom<NovelSpeaker.Application.Speech.ITtsRuleRepository>(
                     provider.GetRequiredService<NovelSpeaker.Application.Speech.ITtsRuleRepository>());
                 Assert.IsAssignableFrom<IAppSettingsStore>(provider.GetRequiredService<IAppSettingsStore>());
