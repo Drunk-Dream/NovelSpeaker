@@ -3,7 +3,9 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Microsoft.Extensions.DependencyInjection;
 using CommunityToolkit.Mvvm.ComponentModel;
+using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.App.Views;
 using Xunit;
@@ -134,6 +136,31 @@ public sealed partial class ChapterRulesViewTests
 
             Assert.True(borders.Length >= 2);
             Assert.NotEqual(borders[0].Background, borders[1].Background);
+        });
+    }
+
+    [Fact]
+    public void ChapterRulesPage_constrains_workspace_height_to_page()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var page = provider.GetRequiredService<ChapterRulesPage>();
+
+                page.Measure(new Size(1280, 760));
+                page.Arrange(new Rect(0, 0, 1280, 760));
+                page.UpdateLayout();
+
+                var view = Assert.IsType<ChapterRulesView>(page.FindName("ChapterRulesView"));
+
+                Assert.InRange(Math.Abs(view.ActualHeight - page.ActualHeight), 0d, 1d);
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
         });
     }
 
