@@ -255,7 +255,7 @@ public interface IAudioPlayer : IAsyncDisposable
 
 说明：
 
-- `HttpTtsRule` 或等价持久化模型负责保存 NovelSpeaker 自有规则 JSON 和用户配置；导入源中的多余字段在规范化时丢弃。
+- `HttpTtsRule` 或等价持久化模型负责保存结构化规则字段和用户配置；导入源中的多余字段在规范化时丢弃，导出时再生成 NovelSpeaker 自有规则 JSON。
 - `NormalizedHttpTtsRule` 是运行时使用的内部模型，裁剪到当前版本真正支持的能力。
 - 播放链路只依赖规范化模型和 `ParsedTtsRequest`，不直接理解导入 JSON 的边缘语法。
 

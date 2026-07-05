@@ -71,15 +71,20 @@ UpdatedAt TEXT NOT NULL
 ```text
 Id INTEGER PRIMARY KEY
 Name TEXT NOT NULL
-RuleJson TEXT NOT NULL
+Url TEXT NOT NULL
+ContentType TEXT NULL
+ConcurrentRate TEXT NULL
+Header TEXT NULL
+RequestOptionsJson TEXT NULL
+LastUpdateTime INTEGER NULL
 IsEnabled INTEGER NOT NULL
 LastUsedAt TEXT NULL
 CreatedAt TEXT NOT NULL
 UpdatedAt TEXT NOT NULL
 ```
 
-`RuleJson` 保存的是 NovelSpeaker 自有规则 JSON，而不是导入源的原始 Legado JSON。
-Legado 规则只作为导入输入，导入成功后系统内部统一以转换后的规范规则作为唯一持久化和导出格式。
+SQLite 直接保存规则的结构化字段，不再把完整规则 JSON 作为数据库真相源。
+Legado 或 NovelSpeaker JSON 只作为导入输入；导出时再根据结构化字段生成规范 JSON。
 
 ### AudioCacheEntries
 
