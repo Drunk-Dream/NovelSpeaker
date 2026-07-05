@@ -1,4 +1,3 @@
-using System.Text.Json;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Domain.Speech;
@@ -147,77 +146,7 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
 
     private static HttpTtsRule BuildRuleFromEditor(TtsRuleEditorModel editor)
     {
-        var utcNow = DateTime.UtcNow.ToString("O");
-        var rule = new HttpTtsRule(
-            editor.Id ?? 0,
-            editor.Name,
-            editor.Url,
-            editor.ContentType,
-            editor.ConcurrentRate,
-            SerializeKeyValueJson(editor.Headers),
-            SerializeRequestOptions(editor.RequestOptions),
-            editor.LastUpdateTime,
-            string.Empty,
-            editor.IsEnabled,
-            editor.CompatibilityStatus,
-            editor.UnsupportedFields,
-            null,
-            utcNow,
-            utcNow);
-
-        return rule with { RuleJson = NovelSpeakerRuleJsonSerializer.Serialize(rule) };
-    }
-
-    private static string? SerializeKeyValueJson(IReadOnlyList<TtsRuleEditorKeyValue> entries)
-    {
-        if (entries.Count == 0)
-        {
-            return null;
-        }
-
-        var dictionary = entries.ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.OrdinalIgnoreCase);
-        return JsonSerializer.Serialize(dictionary);
-    }
-
-    private static string? SerializeRequestOptions(TtsRuleRequestOptionsEditor requestOptions)
-    {
-        var hasMethod = !string.IsNullOrWhiteSpace(requestOptions.Method);
-        var hasBody = !string.IsNullOrWhiteSpace(requestOptions.Body);
-        if (!hasMethod && !hasBody)
-        {
-            return null;
-        }
-
-        using var stream = new MemoryStream();
-        using var writer = new Utf8JsonWriter(stream);
-        writer.WriteStartObject();
-
-        if (hasMethod)
-        {
-            writer.WriteString("method", requestOptions.Method);
-        }
-
-        if (hasBody)
-        {
-            writer.WritePropertyName("body");
-            WriteJsonLikeValue(writer, requestOptions.Body!);
-        }
-
-        writer.WriteEndObject();
-        writer.Flush();
-        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
-    }
-
-    private static void WriteJsonLikeValue(Utf8JsonWriter writer, string text)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(text);
-            document.RootElement.WriteTo(writer);
-        }
-        catch (JsonException)
-        {
-            writer.WriteStringValue(text);
-        }
+        var normalizedEditor = TtsRuleModelMapper.NormalizeEditor(editor);
+        return TtsRuleModelMapper.BuildRuleFromEditor(normalizedEditor, existingRule: null);
     }
 }

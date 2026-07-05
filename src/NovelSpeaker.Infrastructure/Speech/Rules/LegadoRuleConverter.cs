@@ -62,9 +62,7 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
             name,
             normalizedUrl,
             normalizedHeader,
-            normalizedRequestOptions,
-            unsupportedFields);
-        candidateRule = ApplyCompatibilityStatus(candidateRule, blockingIssues, unsupportedFields);
+            normalizedRequestOptions);
 
         return new TtsRuleConversionResult(candidateRule, unsupportedFields, blockingIssues);
     }
@@ -235,8 +233,7 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
         string? name,
         string? normalizedUrl,
         string? normalizedHeader,
-        string? normalizedRequestOptions,
-        IReadOnlyList<string> unsupportedFields)
+        string? normalizedRequestOptions)
     {
         var utcNow = DateTime.UtcNow.ToString("O");
         return new HttpTtsRule(
@@ -248,10 +245,7 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
             normalizedHeader,
             normalizedRequestOptions,
             ReadOptionalInt64(ruleElement, "lastUpdateTime"),
-            string.Empty,
             ReadOptionalBoolean(ruleElement, "isEnabled", defaultValue: true),
-            TtsRuleCompatibilityStatus.Compatible,
-            unsupportedFields,
             null,
             utcNow,
             utcNow);
@@ -296,22 +290,6 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
         {
             return null;
         }
-    }
-
-    private static HttpTtsRule ApplyCompatibilityStatus(
-        HttpTtsRule candidateRule,
-        IReadOnlyList<string> blockingIssues,
-        IReadOnlyList<string> unsupportedFields)
-    {
-        return candidateRule with
-        {
-            RuleJson = NovelSpeakerRuleJsonSerializer.Serialize(candidateRule),
-            CompatibilityStatus = blockingIssues.Count > 0
-                ? TtsRuleCompatibilityStatus.NeedsManualAdjustment
-                : unsupportedFields.Count == 0
-                    ? TtsRuleCompatibilityStatus.Compatible
-                    : TtsRuleCompatibilityStatus.CompatibleWithWarnings
-        };
     }
 
     [GeneratedRegex(@"\bcookie\s*\.", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
