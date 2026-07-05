@@ -105,8 +105,7 @@
                                    Text="规则列表" />
                         <TextBlock Margin="0,6,0,0"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
-                                   Text="{Binding StatusMessage}"
-                                   TextWrapping="Wrap" />
+                                   Text="{Binding Rules.Count, StringFormat=共 {0} 条规则}" />
                     </StackPanel>
 
                     <TextBlock Margin="16,0,16,16"
@@ -242,10 +241,6 @@
                         <StackPanel>
                             <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
                                        Text="规则编辑" />
-                            <TextBlock Margin="0,8,0,0"
-                                       Style="{StaticResource SecondaryTextBlockStyle}"
-                                       Text="{Binding TestStatusMessage}"
-                                       TextWrapping="Wrap" />
 
                             <Grid Margin="0,20,0,0">
                                 <Grid.ColumnDefinitions>
@@ -253,12 +248,14 @@
                                     <ColumnDefinition Width="16" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
+
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                                Text="名称" />
                                     <TextBox Margin="0,6,0,0"
                                              Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
+
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                                Text="启用" />
@@ -282,6 +279,7 @@
                                     <ColumnDefinition Width="16" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
+
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                                Text="请求方法" />
@@ -292,6 +290,7 @@
                                         <ComboBoxItem Content="POST" />
                                     </ComboBox>
                                 </StackPanel>
+
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                                Text="Content-Type" />
@@ -299,15 +298,6 @@
                                              Text="{Binding DraftContentType, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
                             </Grid>
-
-                            <TextBlock Margin="0,18,0,0"
-                                       Style="{StaticResource StrongTextBlockStyle}"
-                                       Text="请求体" />
-                            <TextBox Margin="0,6,0,0"
-                                     AcceptsReturn="True"
-                                     MinHeight="90"
-                                     TextWrapping="Wrap"
-                                     Text="{Binding DraftRequestBody, UpdateSourceTrigger=PropertyChanged}" />
 
                             <TextBlock Margin="0,22,0,0"
                                        Style="{StaticResource StrongTextBlockStyle}"
@@ -342,100 +332,24 @@
                                     Command="{Binding AddHeaderEntryCommand}"
                                     Content="添加 Header" />
 
-                            <TextBlock Margin="0,22,0,0"
-                                       Style="{StaticResource StrongTextBlockStyle}"
-                                       Text="LoginInfo" />
-                            <ItemsControl Margin="0,8,0,0"
-                                          ItemsSource="{Binding LoginInfoEntries}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,0,0,10">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="180" />
-                                                <ColumnDefinition Width="12" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="12" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBox Grid.Column="0"
-                                                     Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}" />
-                                            <TextBox Grid.Column="2"
-                                                     Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" />
-                                            <Button Grid.Column="4"
-                                                    Padding="12,8"
-                                                    Command="{Binding DataContext.RemoveLoginInfoEntryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                    CommandParameter="{Binding}"
-                                                    Content="删除" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Button HorizontalAlignment="Left"
-                                    Padding="14,8"
-                                    Command="{Binding AddLoginInfoEntryCommand}"
-                                    Content="添加 LoginInfo" />
+                            <StackPanel Margin="0,22,0,0">
+                                <TextBlock Style="{StaticResource StrongTextBlockStyle}"
+                                           Text="并发限制" />
+                                <TextBox Margin="0,6,0,0"
+                                         Text="{Binding DraftConcurrentRate, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="格式：次数/毫秒，例如 2/1000" />
+                            </StackPanel>
 
-                            <Expander Margin="0,22,0,0"
-                                      IsExpanded="True"
-                                      Header="高级设置">
-                                <StackPanel Margin="0,12,0,0">
-                                    <TextBlock Style="{StaticResource StrongTextBlockStyle}"
-                                               Text="请求 Headers" />
-                                    <ItemsControl Margin="0,8,0,0"
-                                                  ItemsSource="{Binding RequestHeaderEntries}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid Margin="0,0,0,10">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="180" />
-                                                        <ColumnDefinition Width="12" />
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="12" />
-                                                        <ColumnDefinition Width="Auto" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBox Grid.Column="0"
-                                                             Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}" />
-                                                    <TextBox Grid.Column="2"
-                                                             Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" />
-                                                    <Button Grid.Column="4"
-                                                            Padding="12,8"
-                                                            Command="{Binding DataContext.RemoveRequestHeaderEntryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                            CommandParameter="{Binding}"
-                                                            Content="删除" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                    <Button HorizontalAlignment="Left"
-                                            Padding="14,8"
-                                            Command="{Binding AddRequestHeaderEntryCommand}"
-                                            Content="添加请求 Header" />
-
-                                    <Grid Margin="0,18,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="200" />
-                                            <ColumnDefinition Width="16" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock Style="{StaticResource StrongTextBlockStyle}"
-                                                       Text="并发限制" />
-                                            <TextBox Margin="0,6,0,0"
-                                                     Text="{Binding DraftConcurrentRate, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock Style="{StaticResource StrongTextBlockStyle}"
-                                                       Text="超时 (ms)" />
-                                            <TextBox Margin="0,6,0,0"
-                                                     Text="{Binding DraftTimeoutMs, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                    </Grid>
-
-                                    <CheckBox Margin="0,18,0,0"
-                                              IsChecked="{Binding DraftEnabledCookieJar}"
-                                              Content="启用 Cookie 会话" />
-                                </StackPanel>
-                            </Expander>
+                            <StackPanel Margin="0,22,0,0"
+                                        Visibility="{Binding IsPostMethod, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock Style="{StaticResource StrongTextBlockStyle}"
+                                           Text="请求体" />
+                                <TextBox Margin="0,6,0,0"
+                                         AcceptsReturn="True"
+                                         MinHeight="90"
+                                         TextWrapping="Wrap"
+                                         Text="{Binding DraftRequestBody, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
 
                             <WrapPanel Margin="0,24,0,0">
                                 <Button Margin="0,0,12,12"
@@ -445,24 +359,9 @@
                                         IsEnabled="{Binding CanSetCurrentRule}" />
                                 <Button Margin="0,0,12,12"
                                         Padding="16,8"
-                                        Command="{Binding GeneratePreviewCommand}"
-                                        Content="生成预览"
-                                        IsEnabled="{Binding CanTestDraft}" />
-                                <Button Margin="0,0,12,12"
-                                        Padding="16,8"
                                         Command="{Binding TestDraftCommand}"
                                         Content="试听"
                                         IsEnabled="{Binding CanTestDraft}" />
-                                <Button Margin="0,0,12,12"
-                                        Padding="16,8"
-                                        Command="{Binding CancelTestCommand}"
-                                        Content="取消试听"
-                                        IsEnabled="{Binding IsTestBusy}" />
-                                <Button Margin="0,0,12,12"
-                                        Padding="16,8"
-                                        Command="{Binding ClearRuleCookiesCommand}"
-                                        Content="清除 Cookie"
-                                        IsEnabled="{Binding CanClearRuleCookies}" />
                                 <Button Margin="0,0,12,12"
                                         Padding="16,8"
                                         Click="ExportDraftButton_OnClick"
@@ -484,98 +383,6 @@
                                         Content="保存"
                                         IsEnabled="{Binding CanSaveDraft}" />
                             </WrapPanel>
-
-                            <Border Margin="0,20,0,0"
-                                    Padding="16"
-                                    Style="{StaticResource CardBorderStyle}">
-                                <StackPanel>
-                                    <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
-                                               Text="请求预览与结果" />
-                                    <TextBlock Margin="0,8,0,0"
-                                               Style="{StaticResource SecondaryTextBlockStyle}"
-                                               Text="{Binding LastResponseStatusText}"
-                                               TextWrapping="Wrap" />
-
-                                    <Grid Margin="0,16,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="140" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-
-                                        <TextBlock Style="{StaticResource StrongTextBlockStyle}" Text="方法" />
-                                        <TextBox Grid.Column="1"
-                                                 Margin="12,0,0,8"
-                                                 IsReadOnly="True"
-                                                 Text="{Binding PreviewMethodText}" />
-
-                                        <TextBlock Grid.Row="1"
-                                                   Style="{StaticResource StrongTextBlockStyle}"
-                                                   Text="URL" />
-                                        <TextBox Grid.Row="1"
-                                                 Grid.Column="1"
-                                                 Margin="12,0,0,8"
-                                                 IsReadOnly="True"
-                                                 TextWrapping="Wrap"
-                                                 Text="{Binding PreviewUrlText}" />
-
-                                        <TextBlock Grid.Row="2"
-                                                   Style="{StaticResource StrongTextBlockStyle}"
-                                                   Text="Headers" />
-                                        <TextBox Grid.Row="2"
-                                                 Grid.Column="1"
-                                                 Margin="12,0,0,8"
-                                                 MinHeight="66"
-                                                 IsReadOnly="True"
-                                                 TextWrapping="Wrap"
-                                                 Text="{Binding PreviewHeadersText}" />
-
-                                        <TextBlock Grid.Row="3"
-                                                   Style="{StaticResource StrongTextBlockStyle}"
-                                                   Text="Body" />
-                                        <TextBox Grid.Row="3"
-                                                 Grid.Column="1"
-                                                 Margin="12,0,0,8"
-                                                 MinHeight="66"
-                                                 IsReadOnly="True"
-                                                 TextWrapping="Wrap"
-                                                 Text="{Binding PreviewBodyText}" />
-
-                                        <TextBlock Grid.Row="4"
-                                                   Style="{StaticResource StrongTextBlockStyle}"
-                                                   Text="声明 Content-Type" />
-                                        <TextBox Grid.Row="4"
-                                                 Grid.Column="1"
-                                                 Margin="12,0,0,0"
-                                                 IsReadOnly="True"
-                                                 Text="{Binding PreviewDeclaredContentTypeText}" />
-                                    </Grid>
-
-                                    <TextBlock Margin="0,16,0,0"
-                                               Style="{StaticResource StrongTextBlockStyle}"
-                                               Text="预览告警" />
-                                    <TextBox Margin="0,6,0,0"
-                                             MinHeight="52"
-                                             IsReadOnly="True"
-                                             TextWrapping="Wrap"
-                                             Text="{Binding PreviewWarningsText}" />
-
-                                    <TextBlock Margin="0,16,0,0"
-                                               Style="{StaticResource StrongTextBlockStyle}"
-                                               Text="响应摘要" />
-                                    <TextBox Margin="0,6,0,0"
-                                             MinHeight="74"
-                                             IsReadOnly="True"
-                                             TextWrapping="Wrap"
-                                             Text="{Binding LastResponseDetailText}" />
-                                </StackPanel>
-                            </Border>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
@@ -637,7 +444,7 @@
                                            Text="模板表达式" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="可使用 speakText、speakSpeed、loginInfo，以及 encodeURIComponent 等白名单函数。表达式执行失败会导致保存或试听失败。"
+                                           Text="可使用 speakText、speakSpeed，以及 encodeURIComponent 等白名单函数。表达式执行失败会导致保存或试听失败。"
                                            TextWrapping="Wrap" />
 
                                 <TextBlock Margin="0,18,0,0"
@@ -645,15 +452,7 @@
                                            Text="Header 与请求体" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="Header、请求 Header 和请求体都会在保存与试听前做结构化校验。GET 请求不能携带 body。"
-                                           TextWrapping="Wrap" />
-
-                                <TextBlock Margin="0,18,0,0"
-                                           Style="{StaticResource StrongTextBlockStyle}"
-                                           Text="LoginInfo" />
-                                <TextBlock Margin="0,8,0,0"
-                                           Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="LoginInfo 会随规则一起保存，并同时用于规则页试听和正式播放。其值不会在预览、错误摘要或通知中明文显示。"
+                                           Text="Header 会在保存与试听前做结构化校验。GET 请求不能携带 body；请求体仅在 POST 时生效。"
                                            TextWrapping="Wrap" />
 
                                 <TextBlock Margin="0,18,0,0"
@@ -661,7 +460,7 @@
                                            Text="试听" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="试听固定使用“你好，欢迎试听。”和当前默认语速。未保存草稿可以直接试听，但不会自动保存。"
+                                           Text="试听固定使用“你好，欢迎试听。”和当前默认语速。未保存草稿可以直接试听，但不会自动保存；再次试听会取消旧请求。"
                                            TextWrapping="Wrap" />
 
                                 <TextBlock Margin="0,18,0,0"
@@ -677,7 +476,7 @@
                                            Text="常见错误" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="常见问题包括：URL 不是绝对地址、模板括号未闭合、Header 重复键、GET 携带 body、并发限制格式错误、timeoutMs 非正整数。"
+                                           Text="常见问题包括：URL 不是绝对地址、模板括号未闭合、Header 重复键、GET 携带 body、并发限制格式错误。"
                                            TextWrapping="Wrap" />
                             </StackPanel>
                         </ScrollViewer>

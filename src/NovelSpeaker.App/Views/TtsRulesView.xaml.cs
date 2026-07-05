@@ -40,7 +40,7 @@ public partial class TtsRulesView : UserControl
 
         if (!Clipboard.ContainsText())
         {
-            viewModel.StatusMessage = "剪贴板中没有可导入的文本内容。";
+            viewModel.NotifyClipboardTextMissing();
             return;
         }
 

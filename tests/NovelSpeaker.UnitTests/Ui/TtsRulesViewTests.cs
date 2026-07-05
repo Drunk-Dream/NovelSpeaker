@@ -138,6 +138,101 @@ public sealed partial class TtsRulesViewTests
         });
     }
 
+    [Fact]
+    public void TtsRulesView_hides_removed_rule_controls_and_preview_area()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new TtsRulesView
+            {
+                DataContext = new TtsRulesViewLayoutContext
+                {
+                    HasEditor = true,
+                    Rules = [new TtsRuleListItemViewModel(1, "规则一", true, true, true)]
+                }
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            Assert.Null(FindDescendant<TextBlock>(view, candidate => candidate.Text == "LoginInfo"));
+            Assert.Null(FindDescendant<Expander>(view, candidate => Equals(candidate.Header, "高级设置")));
+            Assert.Null(FindDescendant<TextBlock>(view, candidate => candidate.Text == "请求预览与结果"));
+            Assert.Null(FindDescendant<Button>(view, candidate => Equals(candidate.Content, "生成预览")));
+            Assert.Null(FindDescendant<Button>(view, candidate => Equals(candidate.Content, "取消试听")));
+            Assert.Null(FindDescendant<Button>(view, candidate => Equals(candidate.Content, "清除 Cookie")));
+            Assert.Null(FindDescendant<TextBlock>(view, candidate => candidate.Text == "超时 (ms)"));
+        });
+    }
+
+    [Fact]
+    public void TtsRulesView_shows_request_body_only_for_post()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var getView = new TtsRulesView
+            {
+                DataContext = new TtsRulesViewLayoutContext
+                {
+                    HasEditor = true,
+                    DraftRequestMethod = "GET",
+                    Rules = [new TtsRuleListItemViewModel(1, "规则一", true, true, true)]
+                }
+            };
+            getView.Measure(new Size(1280, 760));
+            getView.Arrange(new Rect(0, 0, 1280, 760));
+            getView.UpdateLayout();
+
+            var hiddenRequestBodyLabel = FindDescendant<TextBlock>(getView, candidate => candidate.Text == "请求体");
+            Assert.NotNull(hiddenRequestBodyLabel);
+            Assert.Equal(Visibility.Collapsed, ((FrameworkElement)hiddenRequestBodyLabel!.Parent).Visibility);
+
+            var postView = new TtsRulesView
+            {
+                DataContext = new TtsRulesViewLayoutContext
+                {
+                    HasEditor = true,
+                    DraftRequestMethod = "POST",
+                    Rules = [new TtsRuleListItemViewModel(1, "规则一", true, true, true)]
+                }
+            };
+            postView.Measure(new Size(1280, 760));
+            postView.Arrange(new Rect(0, 0, 1280, 760));
+            postView.UpdateLayout();
+
+            var visibleRequestBodyLabel = FindDescendant<TextBlock>(postView, candidate => candidate.Text == "请求体");
+            Assert.NotNull(visibleRequestBodyLabel);
+            Assert.Equal(Visibility.Visible, ((FrameworkElement)visibleRequestBodyLabel!.Parent).Visibility);
+        });
+    }
+
+    [Fact]
+    public void TtsRulesView_shows_concurrent_rate_format_tooltip()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new TtsRulesView
+            {
+                DataContext = new TtsRulesViewLayoutContext
+                {
+                    HasEditor = true,
+                    Rules = [new TtsRuleListItemViewModel(1, "规则一", true, true, true)]
+                }
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var tooltipTextBox = FindDescendant<TextBox>(
+                view,
+                candidate => Equals(candidate.ToolTip, "格式：次数/毫秒，例如 2/1000"));
+
+            Assert.NotNull(tooltipTextBox);
+        });
+    }
+
     private static T? FindDescendant<T>(DependencyObject root, Func<T, bool> predicate)
         where T : DependencyObject
     {
@@ -164,14 +259,6 @@ public sealed partial class TtsRulesViewTests
         public ObservableCollection<TtsRuleListItemViewModel> Rules { get; init; } = [];
 
         public ObservableCollection<EditableKeyValueItemViewModel> HeaderEntries { get; } = [];
-
-        public ObservableCollection<EditableKeyValueItemViewModel> LoginInfoEntries { get; } = [];
-
-        public ObservableCollection<EditableKeyValueItemViewModel> RequestHeaderEntries { get; } = [];
-
-        public string StatusMessage { get; init; } = "状态";
-
-        public string TestStatusMessage { get; init; } = "试听说明";
 
         [ObservableProperty]
         private bool hasEditor;
@@ -201,26 +288,6 @@ public sealed partial class TtsRulesViewTests
 
         public string DraftConcurrentRate { get; init; } = "2/1000";
 
-        public bool DraftEnabledCookieJar { get; init; }
-
-        public string DraftTimeoutMs { get; init; } = "5000";
-
-        public string PreviewMethodText { get; init; } = "GET";
-
-        public string PreviewUrlText { get; init; } = "https://example.com/tts";
-
-        public string PreviewHeadersText { get; init; } = "无";
-
-        public string PreviewBodyText { get; init; } = "无";
-
-        public string PreviewDeclaredContentTypeText { get; init; } = "audio/mpeg";
-
-        public string PreviewWarningsText { get; init; } = "无";
-
-        public string LastResponseStatusText { get; init; } = "尚未执行试听。";
-
-        public string LastResponseDetailText { get; init; } = string.Empty;
-
         public bool CanSaveDraft => true;
 
         public bool CanCancelEditing => true;
@@ -229,10 +296,10 @@ public sealed partial class TtsRulesViewTests
 
         public bool CanSetCurrentRule => true;
 
-        public bool CanClearRuleCookies => true;
-
         public bool CanExportDraft => true;
 
         public bool CanTestDraft => true;
+
+        public bool IsPostMethod => string.Equals(DraftRequestMethod, "POST", StringComparison.OrdinalIgnoreCase);
     }
 }

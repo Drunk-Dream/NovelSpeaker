@@ -28,10 +28,9 @@ public sealed class TtsRulesViewModelTests
                 "https://example.com/tts",
                 null,
                 null,
-                false,
                 null,
                 [],
-                new TtsRuleRequestOptionsEditor("GET", [], null, null),
+                new TtsRuleRequestOptionsEditor("GET", null),
                 string.Empty,
                 TtsRuleCompatibilityStatus.Compatible,
                 []));
@@ -57,10 +56,9 @@ public sealed class TtsRulesViewModelTests
                 "https://example.com/old",
                 null,
                 null,
-                false,
                 null,
                 [],
-                new TtsRuleRequestOptionsEditor("GET", [], null, null),
+                new TtsRuleRequestOptionsEditor("GET", null),
                 string.Empty,
                 TtsRuleCompatibilityStatus.Compatible,
                 []));
@@ -94,10 +92,9 @@ public sealed class TtsRulesViewModelTests
                 "https://example.com/old",
                 null,
                 null,
-                false,
                 null,
                 [],
-                new TtsRuleRequestOptionsEditor("GET", [], null, null),
+                new TtsRuleRequestOptionsEditor("GET", null),
                 string.Empty,
                 TtsRuleCompatibilityStatus.Compatible,
                 []))
@@ -121,10 +118,9 @@ public sealed class TtsRulesViewModelTests
                     "https://example.com/imported",
                     null,
                     null,
-                    false,
                     null,
                     [],
-                    new TtsRuleRequestOptionsEditor("GET", [], null, null),
+                    new TtsRuleRequestOptionsEditor("GET", null),
                     string.Empty,
                     TtsRuleCompatibilityStatus.Compatible,
                     [])
@@ -158,10 +154,9 @@ public sealed class TtsRulesViewModelTests
                 "https://example.com/one",
                 null,
                 null,
-                false,
                 null,
                 [],
-                new TtsRuleRequestOptionsEditor("GET", [], null, null),
+                new TtsRuleRequestOptionsEditor("GET", null),
                 string.Empty,
                 TtsRuleCompatibilityStatus.Compatible,
                 []))
@@ -175,10 +170,9 @@ public sealed class TtsRulesViewModelTests
                     "https://example.com/two",
                     null,
                     null,
-                    false,
                     null,
                     [],
-                    new TtsRuleRequestOptionsEditor("GET", [], null, null),
+                    new TtsRuleRequestOptionsEditor("GET", null),
                     string.Empty,
                     TtsRuleCompatibilityStatus.Compatible,
                     [])
@@ -216,27 +210,28 @@ public sealed class TtsRulesViewModelTests
                 "https://example.com/tts",
                 null,
                 null,
-                false,
                 null,
                 [],
-                new TtsRuleRequestOptionsEditor("GET", [], null, null),
+                new TtsRuleRequestOptionsEditor("GET", null),
                 string.Empty,
                 TtsRuleCompatibilityStatus.Compatible,
                 []));
         var ruleTestService = new FakeTtsRuleTestService();
-        var viewModel = CreateViewModel(libraryService: libraryService, ruleTestService: ruleTestService);
+        var feedback = new FakeFeedbackService();
+        var viewModel = CreateViewModel(libraryService: libraryService, ruleTestService: ruleTestService, feedbackService: feedback);
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.DraftUrl = "https://example.com/changed";
-        viewModel.AddLoginInfoEntryCommand.Execute(null);
-        viewModel.LoginInfoEntries[0].Key = "token";
-        viewModel.LoginInfoEntries[0].Value = "secret";
+        viewModel.AddHeaderEntryCommand.Execute(null);
+        viewModel.HeaderEntries[0].Key = "Authorization";
+        viewModel.HeaderEntries[0].Value = "Bearer demo";
 
         await viewModel.TestDraftCommand.ExecuteAsync(null);
 
         Assert.NotNull(ruleTestService.LastInput);
         Assert.Equal("https://example.com/changed", ruleTestService.LastInput!.Editor.Url);
-        Assert.Equal("token", ruleTestService.LastInput.Editor.LoginInfo[0].Key);
-        Assert.Equal("secret", ruleTestService.LastInput.Editor.LoginInfo[0].Value);
+        Assert.Equal("Authorization", ruleTestService.LastInput.Editor.Headers[0].Key);
+        Assert.Equal("Bearer demo", ruleTestService.LastInput.Editor.Headers[0].Value);
+        Assert.Equal("试听已开始", feedback.LastTitle);
     }
 
     [Fact]
@@ -251,10 +246,9 @@ public sealed class TtsRulesViewModelTests
                 "https://example.com/current",
                 null,
                 null,
-                false,
                 null,
                 [],
-                new TtsRuleRequestOptionsEditor("GET", [], null, null),
+                new TtsRuleRequestOptionsEditor("GET", null),
                 string.Empty,
                 TtsRuleCompatibilityStatus.Compatible,
                 []));
@@ -364,7 +358,6 @@ public sealed class TtsRulesViewModelTests
                 editor.ConcurrentRate,
                 null,
                 null,
-                editor.EnabledCookieJar,
                 editor.LastUpdateTime,
                 editor.RawRuleJson,
                 editor.IsEnabled,
@@ -372,12 +365,7 @@ public sealed class TtsRulesViewModelTests
                 editor.UnsupportedFields,
                 null,
                 "created",
-                "updated")
-            {
-                LoginInfoJson = editor.LoginInfo.Count == 0
-                    ? null
-                    : $$"""{"{{editor.LoginInfo[0].Key}}":"{{editor.LoginInfo[0].Value}}"}"""
-            };
+                "updated");
 
             var savedEditor = editor with { Id = ruleId };
             EditorsById[ruleId] = savedEditor;
@@ -421,21 +409,10 @@ public sealed class TtsRulesViewModelTests
     {
         public TtsRuleDraftTestInput? LastInput { get; private set; }
 
-        public Task<TtsRuleTestPreviewResult> CreatePreviewAsync(TtsRuleDraftTestInput input, CancellationToken cancellationToken)
-        {
-            LastInput = input;
-            return Task.FromResult(new TtsRuleTestPreviewResult(true, "ok", null, [], null));
-        }
-
         public Task<TtsRuleTestResult> TestAsync(TtsRuleDraftTestInput input, CancellationToken cancellationToken)
         {
             LastInput = input;
             return Task.FromResult(new TtsRuleTestResult(true, "试听成功。", null, [], null, 200, "audio/wav", null, null));
-        }
-
-        public Task ClearRuleCookiesAsync(long ruleId, CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
         }
     }
 
