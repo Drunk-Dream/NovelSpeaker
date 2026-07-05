@@ -10,5 +10,4 @@ public sealed record NormalizedHttpTtsRule(
     NormalizedTemplate? HeaderTemplate,
     NormalizedTemplate? RequestOptionsTemplate,
     string? DeclaredContentType,
-    string? ConcurrentRate,
-    IReadOnlyList<string> UnsupportedFields);
+    string? ConcurrentRate);

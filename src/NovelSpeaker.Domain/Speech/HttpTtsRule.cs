@@ -12,10 +12,7 @@ public sealed record HttpTtsRule(
     string? Header,
     string? RequestOptionsJson,
     long? LastUpdateTime,
-    string RuleJson,
     bool IsEnabled,
-    TtsRuleCompatibilityStatus CompatibilityStatus,
-    IReadOnlyList<string> UnsupportedFields,
     string? LastUsedAt,
     string CreatedAt,
     string UpdatedAt)
@@ -29,7 +26,6 @@ public sealed record HttpTtsRule(
             Header is null ? null : NormalizedTemplate.Parse(Header),
             RequestOptionsJson is null ? null : NormalizedTemplate.Parse(RequestOptionsJson),
             ContentType,
-            ConcurrentRate,
-            UnsupportedFields);
+            ConcurrentRate);
     }
 }

@@ -8,11 +8,4 @@ public sealed record TtsRuleSummary(
     string Name,
     bool IsEnabled,
     bool IsSelected,
-    string? LastUsedAt,
-    TtsRuleCompatibilityStatus CompatibilityStatus,
-    IReadOnlyList<string> UnsupportedFields)
-{
-    public string UnsupportedFieldsSummary => UnsupportedFields.Count == 0
-        ? "无"
-        : string.Join("、", UnsupportedFields);
-}
+    string? LastUsedAt);

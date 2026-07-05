@@ -23,6 +23,8 @@ public interface ITtsRuleLibraryService
 
     Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken);
 
+    Task<string> ExportEditorJsonAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken);
+
     Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken);
 
     Task<TtsRuleValidationResult> ValidateEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken);

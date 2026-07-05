@@ -14,7 +14,4 @@ public sealed record TtsRuleEditorModel(
     string? ConcurrentRate,
     long? LastUpdateTime,
     IReadOnlyList<TtsRuleEditorKeyValue> Headers,
-    TtsRuleRequestOptionsEditor RequestOptions,
-    string RawRuleJson,
-    TtsRuleCompatibilityStatus CompatibilityStatus,
-    IReadOnlyList<string> UnsupportedFields);
+    TtsRuleRequestOptionsEditor RequestOptions);

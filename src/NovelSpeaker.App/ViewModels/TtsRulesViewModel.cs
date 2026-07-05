@@ -161,14 +161,16 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             return;
         }
 
-        var validation = await _ruleLibraryService.ValidateEditorAsync(BuildCurrentEditorModel(), cancellationToken);
+        var draft = BuildCurrentEditorModel();
+        var validation = await _ruleLibraryService.ValidateEditorAsync(draft, cancellationToken);
         if (!validation.IsValid)
         {
             _feedbackService.ShowWarning("导出失败", string.Join(" ", validation.Errors));
             return;
         }
 
-        await File.WriteAllTextAsync(filePath, validation.NormalizedModel.RawRuleJson, cancellationToken);
+        var json = await _ruleLibraryService.ExportEditorJsonAsync(draft, cancellationToken);
+        await File.WriteAllTextAsync(filePath, json, cancellationToken);
         _feedbackService.ShowSuccess("规则已导出", $"已导出规则：{validation.NormalizedModel.Name}。");
     }
 
@@ -759,10 +761,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             ToEditorEntries(HeaderEntries),
             new TtsRuleRequestOptionsEditor(
                 NullIfWhitespace(DraftRequestMethod)?.ToUpperInvariant(),
-                IsPostMethod ? NullIfWhitespace(DraftRequestBody) : null),
-            _baselineEditor?.RawRuleJson ?? string.Empty,
-            _baselineEditor?.CompatibilityStatus ?? TtsRuleCompatibilityStatus.Compatible,
-            _baselineEditor?.UnsupportedFields ?? []);
+                IsPostMethod ? NullIfWhitespace(DraftRequestBody) : null));
     }
 
     private static IReadOnlyList<TtsRuleEditorKeyValue> ToEditorEntries(
@@ -822,10 +821,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             null,
             null,
             [],
-            new TtsRuleRequestOptionsEditor("GET", null),
-            string.Empty,
-            TtsRuleCompatibilityStatus.Compatible,
-            []);
+            new TtsRuleRequestOptionsEditor("GET", null));
     }
 
     private CancellationTokenSource BeginTestOperation(CancellationToken cancellationToken)
