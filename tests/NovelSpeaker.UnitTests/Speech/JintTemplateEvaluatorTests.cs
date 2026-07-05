@@ -17,27 +17,26 @@ public sealed class JintTemplateEvaluatorTests
         var context = new TtsRuleContext(
             "你好 世界",
             12,
-            rule,
-            new Dictionary<string, string> { ["token"] = "demo" });
+            rule);
 
         var textResult = await _evaluator.EvaluateAsync(
             NormalizedTemplate.Parse("{{speakText}}|{{speakSpeed}}"),
             context,
             CancellationToken.None);
         var objectResult = await _evaluator.EvaluateAsync(
-            NormalizedTemplate.Parse("{{({ text: speakText, speed: speakSpeed, token: source.getLoginInfo().token })}}"),
+            NormalizedTemplate.Parse("{{({ text: speakText, speed: speakSpeed, ruleName: source.name })}}"),
             context,
             CancellationToken.None);
 
         Assert.Equal("你好 世界|12", textResult);
-        Assert.Equal("""{"text":"你好 世界","speed":12,"token":"demo"}""", objectResult);
+        Assert.Equal("""{"text":"你好 世界","speed":12,"ruleName":"示例规则"}""", objectResult);
     }
 
     [Fact]
     public async Task EvaluateAsync_rejects_infinite_loops_and_untrusted_system_access()
     {
         var rule = CreateRule("安全规则", "https://example.com/tts");
-        var context = new TtsRuleContext("test", 10, rule, new Dictionary<string, string>());
+        var context = new TtsRuleContext("test", 10, rule);
 
         await Assert.ThrowsAnyAsync<Exception>(() => _evaluator.EvaluateAsync(
             NormalizedTemplate.Parse("{{(() => { while (true) {} })()}}"),
@@ -65,7 +64,6 @@ public sealed class JintTemplateEvaluatorTests
             null,
             header,
             requestOptionsJson,
-            false,
             null,
             "{}",
             true,

@@ -12,13 +12,9 @@ public sealed record TtsRuleEditorModel(
     string Url,
     string? ContentType,
     string? ConcurrentRate,
-    bool EnabledCookieJar,
     long? LastUpdateTime,
     IReadOnlyList<TtsRuleEditorKeyValue> Headers,
     TtsRuleRequestOptionsEditor RequestOptions,
     string RawRuleJson,
     TtsRuleCompatibilityStatus CompatibilityStatus,
-    IReadOnlyList<string> UnsupportedFields)
-{
-    public IReadOnlyList<TtsRuleEditorKeyValue> LoginInfo { get; init; } = [];
-}
+    IReadOnlyList<string> UnsupportedFields);

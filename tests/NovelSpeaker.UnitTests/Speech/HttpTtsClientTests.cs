@@ -56,8 +56,7 @@ public sealed class HttpTtsClientTests
                     ["Content-Type"] = "application/json"
                 },
                 new ParsedTtsRequestBody(ParsedTtsRequestBodyKind.Json, """{"text":"demo"}""", null),
-                "audio/mpeg",
-                TimeSpan.FromSeconds(2)),
+                "audio/mpeg"),
             CancellationToken.None);
         var formResult = await client.ExecuteAsync(
             new ParsedTtsRequest(
@@ -78,8 +77,7 @@ public sealed class HttpTtsClientTests
                         ["text"] = "demo",
                         ["speed"] = "10"
                     }),
-                "audio/wav",
-                TimeSpan.FromSeconds(2)),
+                "audio/wav"),
             CancellationToken.None);
 
         Assert.True(jsonResult.IsSuccess);
@@ -106,49 +104,29 @@ public sealed class HttpTtsClientTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_isolates_and_clears_rule_cookies()
+    public async Task ExecuteAsync_times_out_when_request_exceeds_timeout()
     {
         await using var server = new LocalHttpTtsTestServer();
-        using var client = CreateClient();
-
-        var initResult = await client.ExecuteAsync(
-            CreateRequest(1, new Uri(server.BaseUri, "cookie-init")),
-            CancellationToken.None);
-        var sameRuleResult = await client.ExecuteAsync(
-            CreateRequest(1, new Uri(server.BaseUri, "cookie-required")),
-            CancellationToken.None);
-        var differentRuleResult = await client.ExecuteAsync(
-            CreateRequest(2, new Uri(server.BaseUri, "cookie-required")),
-            CancellationToken.None);
-
-        Assert.True(initResult.IsSuccess);
-        Assert.True(sameRuleResult.IsSuccess);
-        Assert.False(differentRuleResult.IsSuccess);
-        Assert.Equal(TtsErrorKind.Unauthorized, differentRuleResult.Failure!.Kind);
-
-        await client.ClearRuleCookiesAsync(1, CancellationToken.None);
-        var clearedRuleResult = await client.ExecuteAsync(
-            CreateRequest(1, new Uri(server.BaseUri, "cookie-required")),
-            CancellationToken.None);
-        Assert.False(clearedRuleResult.IsSuccess);
-        Assert.Equal(TtsErrorKind.Unauthorized, clearedRuleResult.Failure!.Kind);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_times_out_and_retries_transient_errors()
-    {
-        await using var server = new LocalHttpTtsTestServer();
-        using var client = CreateClient();
+        using var client = CreateClient(TimeSpan.FromMilliseconds(50));
 
         var timeoutResult = await client.ExecuteAsync(
-            CreateRequest(1, new Uri(server.BaseUri, "slow"), timeout: TimeSpan.FromMilliseconds(50)),
-            CancellationToken.None);
-        var retryResult = await client.ExecuteAsync(
-            CreateRequest(1, new Uri(server.BaseUri, "server-error")),
+            CreateRequest(1, new Uri(server.BaseUri, "slow")),
             CancellationToken.None);
 
         Assert.False(timeoutResult.IsSuccess);
         Assert.Equal(TtsErrorKind.Timeout, timeoutResult.Failure!.Kind);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_retries_transient_server_errors()
+    {
+        await using var server = new LocalHttpTtsTestServer();
+        using var client = CreateClient();
+
+        var retryResult = await client.ExecuteAsync(
+            CreateRequest(1, new Uri(server.BaseUri, "server-error")),
+            CancellationToken.None);
+
         Assert.True(retryResult.IsSuccess);
         Assert.Equal(3, server.GetRequestCount("/server-error"));
     }
@@ -167,20 +145,19 @@ public sealed class HttpTtsClientTests
         Assert.Equal(TtsErrorKind.AudioDecode, result.Failure!.Kind);
     }
 
-    private static HttpTtsClient CreateClient()
+    private static HttpTtsClient CreateClient(TimeSpan? requestTimeout = null)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var directories = new LocalAppDataDirectoryProvider(root);
         directories.EnsureCreatedAsync(CancellationToken.None).GetAwaiter().GetResult();
-        return new HttpTtsClient(directories);
+        return new HttpTtsClient(directories, requestTimeout: requestTimeout);
     }
 
     private static ParsedTtsRequest CreateRequest(
         long ruleId,
         Uri url,
         string method = "GET",
-        string? declaredContentType = "audio/wav",
-        TimeSpan? timeout = null)
+        string? declaredContentType = "audio/wav")
     {
         return new ParsedTtsRequest(
             ruleId,
@@ -192,7 +169,6 @@ public sealed class HttpTtsClientTests
                 ["User-Agent"] = "NovelSpeaker.Tests"
             },
             ParsedTtsRequestBody.None,
-            declaredContentType,
-            timeout ?? TimeSpan.FromSeconds(2));
+            declaredContentType);
     }
 }

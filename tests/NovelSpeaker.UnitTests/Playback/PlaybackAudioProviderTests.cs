@@ -196,12 +196,9 @@ public sealed class PlaybackAudioProviderTests
     }
 
     [Fact]
-    public async Task GetAudioAsync_passes_persisted_login_info_into_request_context()
+    public async Task GetAudioAsync_passes_source_rule_into_request_context()
     {
-        var rule = CreateRule() with
-        {
-            LoginInfoJson = """{"token":"persisted-secret"}"""
-        };
+        var rule = CreateRule();
         var request = new PlaybackAudioRequest(
             "book-1",
             0,
@@ -228,7 +225,7 @@ public sealed class PlaybackAudioProviderTests
             null,
             CancellationToken.None);
 
-        Assert.Equal("persisted-secret", compiler.LastContext!.LoginInfo["token"]);
+        Assert.Equal("默认规则", compiler.LastContext!.Source.Name);
     }
 
     private static PlaybackAudioRequest CreatePlaybackRequest(
@@ -258,7 +255,6 @@ public sealed class PlaybackAudioProviderTests
             concurrentRate,
             null,
             null,
-            false,
             null,
             """{"name":"默认规则"}""",
             true,
@@ -278,8 +274,7 @@ public sealed class PlaybackAudioProviderTests
                 new Uri("https://example.com/tts"),
                 new Dictionary<string, string>(),
                 ParsedTtsRequestBody.None,
-                "audio/mpeg",
-                TimeSpan.FromSeconds(5)),
+                "audio/mpeg"),
             new TtsRequestPreview("GET", "https://example.com/tts", null, null, "audio/mpeg"),
             [],
             null);
@@ -432,11 +427,6 @@ public sealed class PlaybackAudioProviderTests
             return Task.FromResult(new TtsHttpExecutionResult(
                 new TtsAudioResponse(CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), 200, "audio/mpeg", "mp3"),
                 null));
-        }
-
-        public Task ClearRuleCookiesAsync(long ruleId, CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
         }
 
         public sealed class PendingHttpResult

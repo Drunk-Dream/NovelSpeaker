@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using NAudio.Wave;
@@ -15,16 +14,23 @@ public sealed class HttpTtsClient : IHttpTtsClient, IDisposable
 {
     private const int MaxTransientRetries = 2;
     private const int MaxErrorBodyBytes = 4096;
+    private static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(30);
-    private readonly ConcurrentDictionary<long, HttpClient> _clients = new();
+    private readonly HttpClient _client;
     private readonly string _tempDirectoryPath;
     private readonly TimeProvider _timeProvider;
+    private readonly TimeSpan _requestTimeout;
     private bool _disposed;
 
-    public HttpTtsClient(IAppDataDirectoryProvider directories, TimeProvider? timeProvider = null)
+    public HttpTtsClient(
+        IAppDataDirectoryProvider directories,
+        TimeProvider? timeProvider = null,
+        TimeSpan? requestTimeout = null)
     {
         _tempDirectoryPath = Path.Combine(directories.CacheDirectoryPath, "RuleTests");
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _requestTimeout = requestTimeout ?? DefaultRequestTimeout;
+        _client = CreateClient();
     }
 
     public async Task<TtsHttpExecutionResult> ExecuteAsync(
@@ -40,12 +46,12 @@ public sealed class HttpTtsClient : IHttpTtsClient, IDisposable
             cancellationToken.ThrowIfCancellationRequested();
 
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeoutCts.CancelAfter(request.Timeout);
+            timeoutCts.CancelAfter(_requestTimeout);
 
             try
             {
                 using var message = CreateRequestMessage(request);
-                using var response = await GetClient(request.RuleId).SendAsync(
+                using var response = await _client.SendAsync(
                     message,
                     HttpCompletionOption.ResponseHeadersRead,
                     timeoutCts.Token);
@@ -54,7 +60,7 @@ public sealed class HttpTtsClient : IHttpTtsClient, IDisposable
                 {
                     return Failure(
                         TtsErrorKind.Unauthorized,
-                        "服务拒绝了当前请求，请检查登录信息或鉴权 Header。",
+                        "服务拒绝了当前请求，请检查鉴权 Header。",
                         (int)response.StatusCode,
                         await ReadErrorSummaryAsync(response, cancellationToken),
                         response.Content.Headers.ContentType?.ToString(),
@@ -134,17 +140,6 @@ public sealed class HttpTtsClient : IHttpTtsClient, IDisposable
         }
     }
 
-    public Task ClearRuleCookiesAsync(long ruleId, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (_clients.TryRemove(ruleId, out var client))
-        {
-            client.Dispose();
-        }
-
-        return Task.CompletedTask;
-    }
-
     public void Dispose()
     {
         if (_disposed)
@@ -153,12 +148,7 @@ public sealed class HttpTtsClient : IHttpTtsClient, IDisposable
         }
 
         _disposed = true;
-        foreach (var client in _clients.Values)
-        {
-            client.Dispose();
-        }
-
-        _clients.Clear();
+        _client.Dispose();
     }
 
     private async Task<TtsHttpExecutionResult> DownloadAndValidateAudioAsync(
@@ -238,22 +228,18 @@ public sealed class HttpTtsClient : IHttpTtsClient, IDisposable
         }
     }
 
-    private HttpClient GetClient(long ruleId)
+    private static HttpClient CreateClient()
     {
-        return _clients.GetOrAdd(ruleId, _ =>
+        var handler = new SocketsHttpHandler
         {
-            var handler = new SocketsHttpHandler
-            {
-                UseCookies = true,
-                CookieContainer = new CookieContainer(),
-                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli
-            };
+            UseCookies = false,
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli
+        };
 
-            return new HttpClient(handler, disposeHandler: true)
-            {
-                Timeout = Timeout.InfiniteTimeSpan
-            };
-        });
+        return new HttpClient(handler, disposeHandler: true)
+        {
+            Timeout = Timeout.InfiniteTimeSpan
+        };
     }
 
     private static HttpRequestMessage CreateRequestMessage(ParsedTtsRequest request)

@@ -9,7 +9,6 @@ namespace NovelSpeaker.Infrastructure.Speech.Http;
 /// </summary>
 public sealed class TtsRequestCompiler : ITtsRequestCompiler
 {
-    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);
     private static readonly IReadOnlyDictionary<string, string> DefaultHeaders =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -83,22 +82,20 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
             return Failure(TtsErrorKind.InvalidRule, "GET 请求不能携带 body。");
         }
 
-        var headers = MergeHeaders(DefaultHeaders, ruleHeadersResult.Headers!, requestOptionsResult.Headers!);
+        var headers = MergeHeaders(DefaultHeaders, ruleHeadersResult.Headers!);
         var bodyResult = BuildBody(requestOptionsResult.BodyElement, headers);
         if (!bodyResult.IsSuccess)
         {
             return Failure(bodyResult.Kind!.Value, bodyResult.Message!);
         }
 
-        var timeout = requestOptionsResult.Timeout ?? DefaultTimeout;
         var request = new ParsedTtsRequest(
             rule.RuleId,
             method,
             url,
             headers,
             bodyResult.Body!,
-            rule.DeclaredContentType,
-            timeout);
+            rule.DeclaredContentType);
 
         var preview = new TtsRequestPreview(
             request.Method,
@@ -161,8 +158,6 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
         {
             return RequestOptionsParseResult.Success(
                 null,
-                null,
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
                 null);
         }
 
@@ -175,9 +170,7 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
             }
 
             string? method = null;
-            Dictionary<string, string> headers = new(StringComparer.OrdinalIgnoreCase);
             JsonElement? body = null;
-            TimeSpan? timeout = null;
 
             foreach (var property in document.RootElement.EnumerateObject())
             {
@@ -188,31 +181,11 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
                             ? property.Value.GetString()
                             : property.Value.GetRawText();
                         break;
-                    case "headers":
-                        {
-                            var headerResult = ParseHeadersElement(property.Value, "requestOptions.headers");
-                            if (!headerResult.IsSuccess)
-                            {
-                                return RequestOptionsParseResult.Error(headerResult.Kind!.Value, headerResult.Message!);
-                            }
-
-                            headers = new Dictionary<string, string>(headerResult.Headers!, StringComparer.OrdinalIgnoreCase);
-                            break;
-                        }
                     case "body":
                         body = property.Value.Clone();
                         break;
                     case "timeoutMs":
-                        {
-                            var timeoutResult = ParseTimeout(property.Value);
-                            if (!timeoutResult.IsSuccess)
-                            {
-                                return RequestOptionsParseResult.Error(timeoutResult.Kind!.Value, timeoutResult.Message!);
-                            }
-
-                            timeout = timeoutResult.Timeout;
-                            break;
-                        }
+                        break;
                     default:
                         return RequestOptionsParseResult.Error(
                             TtsErrorKind.InvalidRule,
@@ -220,7 +193,7 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
                 }
             }
 
-            return RequestOptionsParseResult.Success(method, body, headers, timeout);
+            return RequestOptionsParseResult.Success(method, body);
         }
         catch (JsonException exception)
         {
@@ -228,38 +201,6 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
                 TtsErrorKind.InvalidRule,
                 $"requestOptions 不是有效的 JSON 对象：{exception.Message}");
         }
-    }
-
-    private static HeaderParseResult ParseHeadersElement(JsonElement value, string fieldName)
-    {
-        return value.ValueKind switch
-        {
-            JsonValueKind.Object => ParseHeaderDictionary(value.GetRawText(), fieldName),
-            JsonValueKind.String => ParseHeaderDictionary(value.GetString(), fieldName),
-            _ => HeaderParseResult.Error(TtsErrorKind.InvalidRule, $"字段 {fieldName} 必须是 JSON 对象。")
-        };
-    }
-
-    private static TimeoutParseResult ParseTimeout(JsonElement value)
-    {
-        int? timeoutMilliseconds = value.ValueKind switch
-        {
-            JsonValueKind.Number when value.TryGetInt32(out var number) => number,
-            JsonValueKind.String when int.TryParse(value.GetString(), out var parsed) => parsed,
-            _ => null
-        };
-
-        if (timeoutMilliseconds is null || timeoutMilliseconds <= 0)
-        {
-            return TimeoutParseResult.Error(TtsErrorKind.InvalidRule, "timeoutMs 必须是正整数毫秒值。");
-        }
-
-        if (timeoutMilliseconds > 300000)
-        {
-            return TimeoutParseResult.Error(TtsErrorKind.InvalidRule, "timeoutMs 不能超过 300000 毫秒。");
-        }
-
-        return TimeoutParseResult.Success(TimeSpan.FromMilliseconds(timeoutMilliseconds.Value));
     }
 
     private static BodyBuildResult BuildBody(JsonElement? bodyElement, IReadOnlyDictionary<string, string> headers)
@@ -344,8 +285,7 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
 
     private static IReadOnlyDictionary<string, string> MergeHeaders(
         IReadOnlyDictionary<string, string> defaults,
-        IReadOnlyDictionary<string, string> ruleHeaders,
-        IReadOnlyDictionary<string, string> requestOptionHeaders)
+        IReadOnlyDictionary<string, string> ruleHeaders)
     {
         var merged = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var pair in defaults)
@@ -354,11 +294,6 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
         }
 
         foreach (var pair in ruleHeaders)
-        {
-            merged[pair.Key] = pair.Value;
-        }
-
-        foreach (var pair in requestOptionHeaders)
         {
             merged[pair.Key] = pair.Value;
         }
@@ -410,33 +345,16 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
         bool IsSuccess,
         string? Method,
         JsonElement? BodyElement,
-        IReadOnlyDictionary<string, string>? Headers,
-        TimeSpan? Timeout,
         TtsErrorKind? Kind,
         string? Message)
     {
         public static RequestOptionsParseResult Success(
             string? method,
-            JsonElement? bodyElement,
-            IReadOnlyDictionary<string, string> headers,
-            TimeSpan? timeout) =>
-            new(true, method, bodyElement, headers, timeout, null, null);
+            JsonElement? bodyElement) =>
+            new(true, method, bodyElement, null, null);
 
         public static RequestOptionsParseResult Error(TtsErrorKind kind, string message) =>
-            new(false, null, null, null, null, kind, message);
-    }
-
-    private sealed record TimeoutParseResult(
-        bool IsSuccess,
-        TimeSpan? Timeout,
-        TtsErrorKind? Kind,
-        string? Message)
-    {
-        public static TimeoutParseResult Success(TimeSpan timeout) =>
-            new(true, timeout, null, null);
-
-        public static TimeoutParseResult Error(TtsErrorKind kind, string message) =>
-            new(false, null, kind, message);
+            new(false, null, null, kind, message);
     }
 
     private sealed record BodyBuildResult(

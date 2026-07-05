@@ -19,23 +19,22 @@
 - POST JSON
 - POST Form
 - 自定义 Header 和 Body
-- 会话内 Cookie
-- 规则持久化 LoginInfo 输入
 - `speakText`
 - `speakSpeed`
 - `{{ ... }}` 表达式
 - 少量白名单兼容辅助函数
-- 规则页使用固定试听输入与脱敏请求预览
+- 规则页使用固定试听输入
 
 第一版明确不承诺：
 
-- Cookie 持久化
+- Cookie
+- `loginInfo`
 - `jsLib`
 - 动态登录 UI
 - WebView 登录
 - 复杂 `source.get/put` 可变状态语义
 - 零改动兼容所有社区规则
-- 将 `LoginInfo` 扩展为独立登录流程或额外权限模型
+- 将认证输入扩展为独立登录流程或额外权限模型
 
 ## 建议规则模型
 
@@ -53,14 +52,6 @@ public sealed class HttpTtsRule
     public string? ConcurrentRate { get; set; }
 
     public string? Header { get; set; }
-
-    public string? LoginUrl { get; set; }
-
-    public string? LoginUi { get; set; }
-
-    public bool EnabledCookieJar { get; set; }
-
-    public string? LoginCheckJs { get; set; }
 
     public string? JsLib { get; set; }
 
@@ -88,8 +79,7 @@ public sealed record NormalizedHttpTtsRule(
     string Name,
     RequestTemplate Template,
     string? DeclaredContentType,
-    string? ConcurrentRate,
-    bool EnableSessionCookieJar);
+    string? ConcurrentRate);
 ```
 
 播放链路、缓存键和 HTTP 执行只依赖规范化后的运行时模型，不直接理解导入 JSON 的原始细节。
@@ -100,8 +90,7 @@ public sealed record NormalizedHttpTtsRule(
 public sealed record TtsRuleContext(
     string SpeakText,
     int SpeakSpeed,
-    HttpTtsRule Source,
-    IReadOnlyDictionary<string, string> LoginInfo);
+    HttpTtsRule Source);
 ```
 
 第一版至少暴露：
@@ -109,13 +98,11 @@ public sealed record TtsRuleContext(
 - `speakText`
 - `speakSpeed`
 - `source`
-- `loginInfo`
 - 当前时间戳
 - 随机数函数
 
 说明：
 
-- `loginInfo` 是规则中的显式持久化输入，会同时参与试听和正式播放。
 - `source` 在第一版应作为只读兼容外观对象，不暴露任意可变状态。
 
 ## 模板格式
@@ -170,16 +157,6 @@ java.md5Encode(value)
 java.sha256Encode(value)
 ```
 
-```javascript
-source.getLoginInfo()
-source.getLoginInfoMap()
-```
-
-```javascript
-cookie.get(url)
-cookie.set(url, value)
-```
-
 第一版禁止：
 
 - 任意 CLR 类型访问。
@@ -194,7 +171,6 @@ cookie.set(url, value)
 
 第一版建议：
 
-- `source.getLoginInfo()` / `source.getLoginInfoMap()` 若实现，仅作为 `loginInfo` 的只读兼容别名。
 - `java.*` 兼容函数应视为 JavaScript 内辅助对象，而不是外部 Java 服务或进程。
 - `source.get(key)` / `source.put(key, value)` 推迟，不在 MVP 承诺范围内。
 
@@ -243,16 +219,13 @@ public sealed record ParsedTtsRequest(
     HttpMethod Method,
     IReadOnlyDictionary<string, string> Headers,
     HttpContent? Content,
-    TimeSpan Timeout,
     int RetryCount);
 ```
 
 第一版 `requestOptions` 只识别：
 
 - `method`
-- `headers`
 - `body`
-- `timeoutMs`
 
 出现其他字段时，导入规范化阶段直接丢弃这些字段；若字段缺失或值非法导致无法构造请求模型，则拒绝导入或保存。
 
@@ -261,13 +234,12 @@ public sealed record ParsedTtsRequest(
 支持来源：
 
 1. 规则 `Header` 字段。
-2. URL 附加配置中的 `headers`。
-3. 应用默认 Header。
+2. 应用默认 Header。
 
 优先级建议：
 
 ```text
-规则请求配置 > 规则 Header > 应用默认值
+规则 Header > 应用默认值
 ```
 
 敏感 Header 不得记录完整值：
@@ -276,23 +248,8 @@ public sealed record ParsedTtsRequest(
 - Api-Key
 - X-Api-Key
 - Subscription-Key
-- Cookie
-- Set-Cookie
 
-规则页中的请求预览也必须遵守同样的脱敏边界。
-`LoginInfo`、Token 和其它凭据值不得在普通日志、错误摘要或请求预览中明文显示。
-
-## Cookie
-
-第一版建议使用每条规则独立的 CookieContainer。
-
-- 相同规则共享 Cookie。
-- 不同规则默认隔离。
-- 用户可以清除单条规则 Cookie。
-- 第一版仅在应用运行期间保存 Cookie。
-- Cookie 不写入普通日志。
-- 若未来持久化，必须放在受保护的数据存储中。
-- 规则页应允许用户清除单条规则的运行期 Cookie。
+Token 和其它凭据值不得在普通日志或错误摘要中明文显示。
 
 ## 限流
 
@@ -357,7 +314,6 @@ SHA256(
   compatibilityVersion
   + ruleId
   + normalizedRuleUrl
-  + voiceRelatedLoginInfoHash
   + speakSpeed
   + normalizedSpeechText
 )
@@ -379,14 +335,12 @@ SHA256(
 | POST JSON | 支持 |
 | POST Form | 支持 |
 | 自定义 Header | 支持 |
-| 会话内 Cookie | 支持 |
-| Cookie 持久化 | 不支持 |
-| 规则持久化 LoginInfo 输入 | 支持 |
+| Cookie | 不支持 |
+| LoginInfo | 不支持 |
 | `speakText` | 支持 |
 | `speakSpeed` | 支持 |
 | JavaScript 表达式 | 支持 |
 | 基础 `java` 辅助函数 | 支持 |
-| `source.getLoginInfoMap()` | 可作为只读兼容别名 |
 | `source.get/put` 可变状态 | 不支持 |
 | 请求限流 | 支持 |
 | 自动重试 | 支持 |

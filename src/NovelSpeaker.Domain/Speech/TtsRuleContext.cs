@@ -6,5 +6,4 @@ namespace NovelSpeaker.Domain.Speech;
 public sealed record TtsRuleContext(
     string SpeakText,
     int SpeakSpeed,
-    HttpTtsRule Source,
-    IReadOnlyDictionary<string, string> LoginInfo);
+    HttpTtsRule Source);

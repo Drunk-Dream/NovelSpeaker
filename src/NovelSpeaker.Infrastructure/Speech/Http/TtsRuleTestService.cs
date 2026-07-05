@@ -8,7 +8,7 @@ using NovelSpeaker.Infrastructure.Speech.Rules;
 namespace NovelSpeaker.Infrastructure.Speech.Http;
 
 /// <summary>
-/// Provides the rules page with request preview,试听, and cookie-reset capabilities.
+/// Provides the rules page with试听 capability.
 /// </summary>
 public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
 {
@@ -28,52 +28,6 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
         _requestCompiler = requestCompiler;
         _httpTtsClient = httpTtsClient;
         _audioPlayer = audioPlayerFactory.Create();
-    }
-
-    public async Task<TtsRuleTestPreviewResult> CreatePreviewAsync(
-        TtsRuleDraftTestInput input,
-        CancellationToken cancellationToken)
-    {
-        var validation = await _ruleLibraryService.ValidateEditorAsync(input.Editor, cancellationToken);
-        if (!validation.IsValid)
-        {
-            return new TtsRuleTestPreviewResult(
-                false,
-                string.Join(" ", validation.Errors),
-                null,
-                Array.Empty<string>(),
-                TtsErrorKind.InvalidRule);
-        }
-
-        var rule = BuildRuleFromEditor(validation.NormalizedModel);
-        var loginInfo = ParseLoginInfo(validation.NormalizedModel.LoginInfo);
-        TtsRequestCompilationResult compilation;
-        try
-        {
-            compilation = await _requestCompiler.CompileAsync(
-                rule.ToNormalizedRule(),
-                new TtsRuleContext(input.SpeakText, input.SpeakSpeed, rule, loginInfo),
-                cancellationToken);
-        }
-        catch (FormatException exception)
-        {
-            return new TtsRuleTestPreviewResult(
-                false,
-                $"规则模板格式无效：{exception.Message}",
-                null,
-                Array.Empty<string>(),
-                TtsErrorKind.InvalidRule);
-        }
-
-        var preview = RedactPreview(compilation.Preview, loginInfo);
-        return compilation.IsSuccess
-            ? new TtsRuleTestPreviewResult(true, "已生成请求预览。", preview, compilation.Warnings, null)
-            : new TtsRuleTestPreviewResult(
-                false,
-                RedactText(compilation.Failure?.Message ?? "生成请求预览失败。", loginInfo) ?? "生成请求预览失败。",
-                preview,
-                compilation.Warnings,
-                compilation.Failure?.Kind);
     }
 
     public async Task<TtsRuleTestResult> TestAsync(
@@ -96,13 +50,12 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
         }
 
         var rule = BuildRuleFromEditor(validation.NormalizedModel);
-        var loginInfo = ParseLoginInfo(validation.NormalizedModel.LoginInfo);
         TtsRequestCompilationResult compilation;
         try
         {
             compilation = await _requestCompiler.CompileAsync(
                 rule.ToNormalizedRule(),
-                new TtsRuleContext(input.SpeakText, input.SpeakSpeed, rule, loginInfo),
+                new TtsRuleContext(input.SpeakText, input.SpeakSpeed, rule),
                 cancellationToken);
         }
         catch (FormatException exception)
@@ -119,18 +72,17 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
                 null);
         }
 
-        var preview = RedactPreview(compilation.Preview, loginInfo);
         if (!compilation.IsSuccess)
         {
             return new TtsRuleTestResult(
                 false,
-                RedactText(compilation.Failure?.Message ?? "请求编译失败。", loginInfo) ?? "请求编译失败。",
-                preview,
+                compilation.Failure?.Message ?? "请求编译失败。",
+                null,
                 compilation.Warnings,
                 compilation.Failure?.Kind,
                 compilation.Failure?.StatusCode,
                 compilation.Failure?.ResponseContentType,
-                RedactText(compilation.Failure?.ResponseSummary, loginInfo),
+                compilation.Failure?.ResponseSummary,
                 compilation.Failure?.RetryAfter);
         }
 
@@ -139,13 +91,13 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
         {
             return new TtsRuleTestResult(
                 false,
-                RedactText(execution.Failure?.Message ?? "规则测试失败。", loginInfo) ?? "规则测试失败。",
-                preview,
+                execution.Failure?.Message ?? "规则测试失败。",
+                null,
                 compilation.Warnings,
                 execution.Failure?.Kind,
                 execution.Failure?.StatusCode,
                 execution.Failure?.ResponseContentType,
-                RedactText(execution.Failure?.ResponseSummary, loginInfo),
+                execution.Failure?.ResponseSummary,
                 execution.Failure?.RetryAfter);
         }
 
@@ -161,7 +113,7 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
             return new TtsRuleTestResult(
                 false,
                 $"音频已下载，但本地播放失败：{playbackError.Message}",
-                preview,
+                null,
                 compilation.Warnings,
                 TtsErrorKind.AudioDecode,
                 execution.Audio!.StatusCode,
@@ -173,18 +125,13 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
         return new TtsRuleTestResult(
             true,
             "已获取并开始播放试听音频。",
-            preview,
+            null,
             compilation.Warnings,
             null,
             execution.Audio!.StatusCode,
             execution.Audio.ResponseContentType,
-            RedactText(execution.Audio.DetectedAudioFormat, loginInfo),
+            execution.Audio.DetectedAudioFormat,
             null);
-    }
-
-    public Task ClearRuleCookiesAsync(long ruleId, CancellationToken cancellationToken)
-    {
-        return _httpTtsClient.ClearRuleCookiesAsync(ruleId, cancellationToken);
     }
 
     public async ValueTask DisposeAsync()
@@ -209,7 +156,6 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
             editor.ConcurrentRate,
             SerializeKeyValueJson(editor.Headers),
             SerializeRequestOptions(editor.RequestOptions),
-            editor.EnabledCookieJar,
             editor.LastUpdateTime,
             string.Empty,
             editor.IsEnabled,
@@ -217,17 +163,9 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
             editor.UnsupportedFields,
             null,
             utcNow,
-            utcNow)
-        {
-            LoginInfoJson = SerializeKeyValueJson(editor.LoginInfo)
-        };
+            utcNow);
 
         return rule with { RuleJson = NovelSpeakerRuleJsonSerializer.Serialize(rule) };
-    }
-
-    private static IReadOnlyDictionary<string, string> ParseLoginInfo(IReadOnlyList<TtsRuleEditorKeyValue> entries)
-    {
-        return entries.ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.OrdinalIgnoreCase);
     }
 
     private static string? SerializeKeyValueJson(IReadOnlyList<TtsRuleEditorKeyValue> entries)
@@ -244,10 +182,8 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
     private static string? SerializeRequestOptions(TtsRuleRequestOptionsEditor requestOptions)
     {
         var hasMethod = !string.IsNullOrWhiteSpace(requestOptions.Method);
-        var hasHeaders = requestOptions.Headers.Count > 0;
         var hasBody = !string.IsNullOrWhiteSpace(requestOptions.Body);
-        var hasTimeout = requestOptions.TimeoutMs is not null;
-        if (!hasMethod && !hasHeaders && !hasBody && !hasTimeout)
+        if (!hasMethod && !hasBody)
         {
             return null;
         }
@@ -261,27 +197,10 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
             writer.WriteString("method", requestOptions.Method);
         }
 
-        if (hasHeaders)
-        {
-            writer.WritePropertyName("headers");
-            writer.WriteStartObject();
-            foreach (var header in requestOptions.Headers)
-            {
-                writer.WriteString(header.Key, header.Value);
-            }
-
-            writer.WriteEndObject();
-        }
-
         if (hasBody)
         {
             writer.WritePropertyName("body");
             WriteJsonLikeValue(writer, requestOptions.Body!);
-        }
-
-        if (hasTimeout)
-        {
-            writer.WriteNumber("timeoutMs", requestOptions.TimeoutMs!.Value);
         }
 
         writer.WriteEndObject();
@@ -300,28 +219,5 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
         {
             writer.WriteStringValue(text);
         }
-    }
-
-    private static TtsRequestPreview? RedactPreview(
-        TtsRequestPreview? preview,
-        IReadOnlyDictionary<string, string> loginInfo)
-    {
-        if (preview is null)
-        {
-            return null;
-        }
-
-        return preview with
-        {
-            Url = RedactText(preview.Url, loginInfo) ?? string.Empty,
-            HeadersJson = RedactText(preview.HeadersJson, loginInfo),
-            BodyPreview = RedactText(preview.BodyPreview, loginInfo),
-            DeclaredContentType = RedactText(preview.DeclaredContentType, loginInfo)
-        };
-    }
-
-    private static string? RedactText(string? text, IReadOnlyDictionary<string, string> loginInfo)
-    {
-        return SensitiveDataRedactor.RedactKnownSecrets(text, loginInfo.Values);
     }
 }

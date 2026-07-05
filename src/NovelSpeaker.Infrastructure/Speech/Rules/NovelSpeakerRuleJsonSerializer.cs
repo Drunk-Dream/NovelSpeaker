@@ -33,23 +33,11 @@ internal static class NovelSpeakerRuleJsonSerializer
             writer.WriteString("header", rule.Header);
         }
 
-        if (!string.IsNullOrWhiteSpace(rule.LoginInfoJson))
-        {
-            writer.WritePropertyName("loginInfo");
-            using var loginInfoDocument = JsonDocument.Parse(rule.LoginInfoJson);
-            loginInfoDocument.RootElement.WriteTo(writer);
-        }
-
         if (!string.IsNullOrWhiteSpace(rule.RequestOptionsJson))
         {
             writer.WritePropertyName("requestOptions");
             using var document = JsonDocument.Parse(rule.RequestOptionsJson);
             document.RootElement.WriteTo(writer);
-        }
-
-        if (rule.EnabledCookieJar)
-        {
-            writer.WriteBoolean("enabledCookieJar", true);
         }
 
         if (rule.LastUpdateTime is long lastUpdateTime)

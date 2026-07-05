@@ -11,7 +11,6 @@ public sealed record HttpTtsRule(
     string? ConcurrentRate,
     string? Header,
     string? RequestOptionsJson,
-    bool EnabledCookieJar,
     long? LastUpdateTime,
     string RuleJson,
     bool IsEnabled,
@@ -21,8 +20,6 @@ public sealed record HttpTtsRule(
     string CreatedAt,
     string UpdatedAt)
 {
-    public string? LoginInfoJson { get; init; }
-
     public NormalizedHttpTtsRule ToNormalizedRule()
     {
         return new NormalizedHttpTtsRule(
@@ -33,7 +30,6 @@ public sealed record HttpTtsRule(
             RequestOptionsJson is null ? null : NormalizedTemplate.Parse(RequestOptionsJson),
             ContentType,
             ConcurrentRate,
-            EnabledCookieJar,
             UnsupportedFields);
     }
 }

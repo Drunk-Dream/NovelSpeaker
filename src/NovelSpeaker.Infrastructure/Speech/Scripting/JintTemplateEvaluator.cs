@@ -70,15 +70,11 @@ public sealed partial class JintTemplateEvaluator : ITemplateEvaluator
             $$"""
             const speakText = {{JsonSerializer.Serialize(context.SpeakText)}};
             const speakSpeed = {{context.SpeakSpeed}};
-            const loginInfo = Object.freeze({{JsonSerializer.Serialize(context.LoginInfo)}});
             const source = Object.freeze({
               name: {{JsonSerializer.Serialize(context.Source.Name)}},
               url: {{JsonSerializer.Serialize(context.Source.Url)}},
               contentType: {{SerializeNullableString(context.Source.ContentType)}},
-              concurrentRate: {{SerializeNullableString(context.Source.ConcurrentRate)}},
-              enabledCookieJar: {{context.Source.EnabledCookieJar.ToString().ToLowerInvariant()}},
-              getLoginInfo() { return loginInfo; },
-              getLoginInfoMap() { return loginInfo; }
+              concurrentRate: {{SerializeNullableString(context.Source.ConcurrentRate)}}
             });
             const java = Object.freeze({
               encodeURI(value) { return encodeURI(value == null ? "" : String(value)); },

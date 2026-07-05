@@ -9,5 +9,4 @@ public sealed record ParsedTtsRequest(
     Uri Url,
     IReadOnlyDictionary<string, string> Headers,
     ParsedTtsRequestBody Body,
-    string? DeclaredContentType,
-    TimeSpan Timeout);
+    string? DeclaredContentType);

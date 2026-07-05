@@ -85,7 +85,18 @@ public sealed class LocalHttpTtsTestServer : IAsyncDisposable
             }
             finally
             {
-                context.Response.Close();
+                try
+                {
+                    context.Response.Close();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Timeout tests may dispose the listener response while the server is unwinding.
+                }
+                catch (HttpListenerException)
+                {
+                    // The transport may already be torn down after client cancellation.
+                }
             }
         }
     }

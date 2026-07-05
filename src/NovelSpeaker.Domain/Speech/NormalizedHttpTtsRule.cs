@@ -11,5 +11,4 @@ public sealed record NormalizedHttpTtsRule(
     NormalizedTemplate? RequestOptionsTemplate,
     string? DeclaredContentType,
     string? ConcurrentRate,
-    bool EnableSessionCookieJar,
     IReadOnlyList<string> UnsupportedFields);

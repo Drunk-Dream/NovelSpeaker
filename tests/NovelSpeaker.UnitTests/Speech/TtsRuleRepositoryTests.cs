@@ -22,7 +22,6 @@ public sealed class TtsRuleRepositoryTests
             "2/1000",
             "{\"Authorization\":\"Bearer demo\"}",
             """{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"}""",
-            false,
             12345,
             """
             {"name":"示例规则","url":"https://example.com/tts?text={{speakText}}","contentType":"audio/mpeg","concurrentRate":"2/1000","header":"{\"Authorization\":\"Bearer demo\"}","requestOptions":{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"},"lastUpdateTime":12345}
@@ -32,10 +31,7 @@ public sealed class TtsRuleRepositoryTests
             ["loginUrl"],
             utcNow,
             utcNow,
-            utcNow)
-        {
-            LoginInfoJson = """{"token":"secret-token"}"""
-        }, CancellationToken.None);
+            utcNow), CancellationToken.None);
 
         var stored = await repository.GetByIdAsync(ruleId, CancellationToken.None);
 
@@ -47,7 +43,6 @@ public sealed class TtsRuleRepositoryTests
         Assert.Equal(12345, stored.LastUpdateTime);
         Assert.Equal(utcNow, stored.LastUsedAt);
         Assert.Equal("""{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"}""", stored.RequestOptionsJson);
-        Assert.Equal("""{"token":"secret-token"}""", stored.LoginInfoJson);
     }
 
     [Fact]
@@ -63,7 +58,6 @@ public sealed class TtsRuleRepositoryTests
             null,
             null,
             null,
-            false,
             null,
             """{"name":"规则 A","url":"https://example.com/a"}""",
             true,
@@ -81,7 +75,6 @@ public sealed class TtsRuleRepositoryTests
             null,
             null,
             """{"method":"POST"}""",
-            false,
             null,
             """{"name":"规则 A 已更新","url":"https://example.com/a2","requestOptions":{"method":"POST"}}""",
             false,
@@ -115,7 +108,6 @@ public sealed class TtsRuleRepositoryTests
             null,
             null,
             null,
-            false,
             null,
             """{"name":"待删除规则","url":"https://example.com/delete"}""",
             true,

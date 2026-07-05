@@ -630,7 +630,6 @@ public sealed class BookPlaybackCoordinatorTests
             null,
             null,
             null,
-            false,
             null,
             $"{{\"name\":\"{name}\",\"url\":\"https://example.com/tts?text={{{{encodeURIComponent(speakText)}}}}&speed={{{{speakSpeed}}}}\"}}",
             true,

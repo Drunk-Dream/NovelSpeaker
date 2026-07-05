@@ -33,8 +33,7 @@ public sealed class TtsRuleSampleRegressionTests
                 new TtsRuleContext(
                     "sample text",
                     11,
-                    rule,
-                    new Dictionary<string, string> { ["token"] = "demo-token" }),
+                    rule),
                 CancellationToken.None);
 
             Assert.True(compilation.IsSuccess, $"{Path.GetFileName(file)} should compile.");

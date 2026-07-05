@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Encodings.Web;
 
 namespace NovelSpeaker.Infrastructure.Speech.Rules;
 
@@ -7,9 +8,7 @@ internal sealed record RuleJsonMetadata(
     string? ContentType,
     string? ConcurrentRate,
     string? Header,
-    string? LoginInfoJson,
     string? RequestOptionsJson,
-    bool EnabledCookieJar,
     long? LastUpdateTime)
 {
     public static RuleJsonMetadata Parse(string ruleJson)
@@ -22,10 +21,73 @@ internal sealed record RuleJsonMetadata(
             ReadOptionalString(root, "contentType"),
             ReadOptionalString(root, "concurrentRate"),
             ReadOptionalString(root, "header"),
-            ReadOptionalJson(root, "loginInfo"),
-            ReadOptionalJson(root, "requestOptions"),
-            ReadOptionalBoolean(root, "enabledCookieJar"),
+            NormalizeRequestOptionsJson(ReadOptionalJson(root, "requestOptions")),
             ReadOptionalInt64(root, "lastUpdateTime"));
+    }
+
+    private static string? NormalizeRequestOptionsJson(string? requestOptionsJson)
+    {
+        if (string.IsNullOrWhiteSpace(requestOptionsJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(requestOptionsJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            string? method = null;
+            string? body = null;
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                switch (property.Name)
+                {
+                    case "method":
+                        method = property.Value.ValueKind == JsonValueKind.String
+                            ? property.Value.GetString()
+                            : property.Value.GetRawText();
+                        break;
+                    case "body":
+                        body = property.Value.GetRawText();
+                        break;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(method) && string.IsNullOrWhiteSpace(body))
+            {
+                return null;
+            }
+
+            using var stream = new MemoryStream();
+            using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions
+            {
+                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
+            writer.WriteStartObject();
+            if (!string.IsNullOrWhiteSpace(method))
+            {
+                writer.WriteString("method", method);
+            }
+
+            if (!string.IsNullOrWhiteSpace(body))
+            {
+                writer.WritePropertyName("body");
+                using var bodyDocument = JsonDocument.Parse(body);
+                bodyDocument.RootElement.WriteTo(writer);
+            }
+
+            writer.WriteEndObject();
+            writer.Flush();
+            return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static string? ReadOptionalString(JsonElement root, string propertyName)
@@ -52,28 +114,6 @@ internal sealed record RuleJsonMetadata(
         return TryGetProperty(root, propertyName, out var value)
             ? value.GetRawText()
             : null;
-    }
-
-    private static bool ReadOptionalBoolean(JsonElement root, string propertyName)
-    {
-        if (!TryGetProperty(root, propertyName, out var value))
-        {
-            return false;
-        }
-
-        if (value.ValueKind == JsonValueKind.True)
-        {
-            return true;
-        }
-
-        if (value.ValueKind == JsonValueKind.False)
-        {
-            return false;
-        }
-
-        return value.ValueKind == JsonValueKind.String &&
-               bool.TryParse(value.GetString(), out var parsed) &&
-               parsed;
     }
 
     private static long? ReadOptionalInt64(JsonElement root, string propertyName)

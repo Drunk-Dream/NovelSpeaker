@@ -21,7 +21,6 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                false,
                 null,
                 """{"name":"现有规则","url":"https://example.com/old"}""",
                 true,
@@ -85,7 +84,6 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                false,
                 null,
                 """{"name":"现有规则","url":"https://example.com/old"}""",
                 true,
@@ -127,7 +125,6 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                false,
                 null,
                 """{"name":"当前规则","url":"https://example.com/tts"}""",
                 true,
@@ -160,7 +157,6 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                false,
                 null,
                 """{"name":"当前规则","url":"https://example.com/tts"}""",
                 true,
@@ -196,7 +192,6 @@ public sealed class TtsRuleLibraryServiceTests
                 "2/1000",
                 """{"Authorization":"Bearer demo"}""",
                 """{"method":"POST","headers":{"X-Test":"1"},"body":{"text":"{{speakText}}"},"timeoutMs":5000}""",
-                true,
                 123,
                 """{"name":"可编辑规则","url":"https://example.com/tts","contentType":"audio/mpeg","concurrentRate":"2/1000","header":"{\"Authorization\":\"Bearer demo\"}","requestOptions":{"method":"POST","headers":{"X-Test":"1"},"body":{"text":"{{speakText}}"},"timeoutMs":5000},"enabledCookieJar":true,"lastUpdateTime":123}""",
                 true,
@@ -205,9 +200,6 @@ public sealed class TtsRuleLibraryServiceTests
                 utcNow,
                 utcNow,
                 utcNow)
-            {
-                LoginInfoJson = """{"token":"abc"}"""
-            }
         ]);
         var service = new TtsRuleLibraryService(repository, new FakeAppSettingsStore(AppSettings.Default), new LegadoRuleConverter());
 
@@ -215,21 +207,15 @@ public sealed class TtsRuleLibraryServiceTests
         var saved = await service.SaveEditorAsync(editor! with
         {
             Name = "已更新规则",
-            LoginInfo = [new TtsRuleEditorKeyValue("token", "updated-secret")],
-            RequestOptions = editor.RequestOptions with
-            {
-                TimeoutMs = 8000
-            },
             RawRuleJson = string.Empty
         }, CancellationToken.None);
 
         Assert.NotNull(editor);
         Assert.Equal("POST", editor!.RequestOptions.Method);
-        Assert.Single(editor.RequestOptions.Headers);
-        Assert.Single(editor.LoginInfo);
+        Assert.Equal("""{"Authorization":"Bearer demo"}""", repository.Rules.Single().Header);
         Assert.Equal("已更新规则", saved.Name);
-        Assert.Contains(@"""timeoutMs"":8000", saved.RequestOptionsJson);
-        Assert.Equal("""{"token":"updated-secret"}""", saved.LoginInfoJson);
+        Assert.DoesNotContain(@"""timeoutMs""", saved.RequestOptionsJson);
+        Assert.DoesNotContain(@"""headers""", saved.RequestOptionsJson);
     }
 
     [Fact]
@@ -245,7 +231,6 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                false,
                 null,
                 """{"name":"重复名","url":"https://example.com/one"}""",
                 true,
@@ -265,10 +250,9 @@ public sealed class TtsRuleLibraryServiceTests
                 "https://example.com/two",
                 null,
                 null,
-                false,
                 null,
                 [],
-                new TtsRuleRequestOptionsEditor(null, [], null, null),
+                new TtsRuleRequestOptionsEditor(null, null),
                 string.Empty,
                 TtsRuleCompatibilityStatus.Compatible,
                 []),
@@ -291,10 +275,9 @@ public sealed class TtsRuleLibraryServiceTests
             "https://example.com/tts",
             null,
             null,
-            false,
             null,
             [],
-            new TtsRuleRequestOptionsEditor(null, [], null, null),
+            new TtsRuleRequestOptionsEditor(null, null),
             """{"name":"别的规则","url":"https://example.com/tts"}""",
             TtsRuleCompatibilityStatus.Compatible,
             []);
@@ -317,7 +300,6 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                false,
                 null,
                 """{"name":"当前规则","url":"https://example.com/a"}""",
                 true,
@@ -334,7 +316,6 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                false,
                 null,
                 """{"name":"替代规则","url":"https://example.com/b"}""",
                 true,
@@ -371,7 +352,6 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                false,
                 null,
                 """{"name":"当前规则","url":"https://example.com/a"}""",
                 true,
@@ -388,7 +368,6 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                false,
                 null,
                 """{"name":"候选规则","url":"https://example.com/b"}""",
                 true,

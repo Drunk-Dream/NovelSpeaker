@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Text.Json;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Domain.Speech;
@@ -136,8 +135,7 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
                     new TtsRuleContext(
                         request.SpeechText,
                         request.SpeakSpeed,
-                        request.SourceRule,
-                        ParseLoginInfo(request.SourceRule.LoginInfoJson)),
+                        request.SourceRule),
                     operation.ExecutionToken).ConfigureAwait(false);
             }
             catch (FormatException exception)
@@ -259,29 +257,6 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
             request.RuleId,
             request.SpeakSpeed,
             request.SpeechText);
-    }
-
-    private static IReadOnlyDictionary<string, string> ParseLoginInfo(string? loginInfoJson)
-    {
-        if (string.IsNullOrWhiteSpace(loginInfoJson))
-        {
-            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        using var document = JsonDocument.Parse(loginInfoJson);
-        if (document.RootElement.ValueKind != JsonValueKind.Object)
-        {
-            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        return document.RootElement
-            .EnumerateObject()
-            .ToDictionary(
-                property => property.Name,
-                property => property.Value.ValueKind == JsonValueKind.String
-                    ? property.Value.GetString() ?? string.Empty
-                    : property.Value.GetRawText(),
-                StringComparer.OrdinalIgnoreCase);
     }
 
     private sealed class RuleExecutionSlot

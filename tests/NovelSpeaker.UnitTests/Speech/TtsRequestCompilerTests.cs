@@ -14,8 +14,8 @@ public sealed class TtsRequestCompilerTests
     {
         var rule = CreateRule(
             "GET",
-            "https://example.com/tts?token={{loginInfo.token}}&text={{encodeURIComponent(speakText)}}",
-            """{"Authorization":"Bearer {{loginInfo.token}}"}""");
+            "https://example.com/tts?token=super-secret-token&text={{encodeURIComponent(speakText)}}",
+            """{"Authorization":"Bearer super-secret-token"}""");
         var context = CreateContext(rule);
 
         var result = await _compiler.CompileAsync(rule.ToNormalizedRule(), context, CancellationToken.None);
@@ -32,15 +32,15 @@ public sealed class TtsRequestCompilerTests
         var rule = CreateRule(
             "POST JSON",
             "https://example.com/tts",
-            """{"X-Test":"rule"}""",
-            """{"method":"POST","headers":{"X-Test":"request","Content-Type":"application/json"},"body":"{\"text\":\"{{speakText}}\"}"}""");
+            """{"X-Test":"rule","Content-Type":"application/json"}""",
+            """{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"}""");
         var context = CreateContext(rule);
 
         var result = await _compiler.CompileAsync(rule.ToNormalizedRule(), context, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("POST", result.Request!.Method);
-        Assert.Equal("request", result.Request.Headers["X-Test"]);
+        Assert.Equal("rule", result.Request.Headers["X-Test"]);
         Assert.Equal(ParsedTtsRequestBodyKind.Json, result.Request.Body.Kind);
         Assert.Equal("""{"text":"test"}""", result.Request.Body.RawText);
     }
@@ -51,8 +51,8 @@ public sealed class TtsRequestCompilerTests
         var rule = CreateRule(
             "POST Form",
             "https://example.com/tts",
-            null,
-            """{"method":"POST","headers":{"Content-Type":"application/x-www-form-urlencoded"},"body":"text={{encodeURIComponent(speakText)}}&speed={{speakSpeed}}"}""");
+            """{"Content-Type":"application/x-www-form-urlencoded"}""",
+            """{"method":"POST","body":"text={{encodeURIComponent(speakText)}}&speed={{speakSpeed}}"}""");
         var context = CreateContext(rule);
 
         var result = await _compiler.CompileAsync(rule.ToNormalizedRule(), context, CancellationToken.None);
@@ -94,7 +94,6 @@ public sealed class TtsRequestCompilerTests
             null,
             header,
             requestOptionsJson,
-            true,
             null,
             "{}",
             true,
@@ -110,7 +109,6 @@ public sealed class TtsRequestCompilerTests
         return new TtsRuleContext(
             "test",
             10,
-            rule,
-            new Dictionary<string, string> { ["token"] = "super-secret-token" });
+            rule);
     }
 }

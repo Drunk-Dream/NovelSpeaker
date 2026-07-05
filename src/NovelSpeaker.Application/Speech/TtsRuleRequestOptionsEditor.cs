@@ -5,6 +5,4 @@ namespace NovelSpeaker.Application.Speech;
 /// </summary>
 public sealed record TtsRuleRequestOptionsEditor(
     string? Method,
-    IReadOnlyList<TtsRuleEditorKeyValue> Headers,
-    string? Body,
-    int? TimeoutMs);
+    string? Body);

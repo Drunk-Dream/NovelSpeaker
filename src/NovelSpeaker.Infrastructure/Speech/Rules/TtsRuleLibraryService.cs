@@ -148,7 +148,6 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
 
         ValidateNameAndUrl(normalizedEditor, errors);
         ValidateHeaders(normalizedEditor.Headers, "Header", errors);
-        ValidateHeaders(normalizedEditor.LoginInfo, "LoginInfo", errors);
         ValidateRequestOptions(normalizedEditor.RequestOptions, errors);
 
         var normalizedRule = BuildRuleFromEditor(normalizedEditor, existingRule);
@@ -423,7 +422,6 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
                 null,
                 null,
                 null,
-                false,
                 null,
                 "{}",
                 false,
@@ -483,16 +481,12 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             rule.Url,
             rule.ContentType,
             rule.ConcurrentRate,
-            rule.EnabledCookieJar,
             rule.LastUpdateTime,
             ParseKeyValueJson(rule.Header),
             ParseRequestOptions(rule.RequestOptionsJson),
             rule.RuleJson,
             rule.CompatibilityStatus,
-            rule.UnsupportedFields)
-        {
-            LoginInfo = ParseKeyValueJson(rule.LoginInfoJson)
-        };
+            rule.UnsupportedFields);
     }
 
     private static TtsRuleEditorModel NormalizeEditor(TtsRuleEditorModel editor)
@@ -507,18 +501,10 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
                 .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))
                 .Select(entry => new TtsRuleEditorKeyValue(entry.Key.Trim(), entry.Value))
                 .ToArray(),
-            LoginInfo = editor.LoginInfo
-                .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))
-                .Select(entry => new TtsRuleEditorKeyValue(entry.Key.Trim(), entry.Value))
-                .ToArray(),
             RequestOptions = editor.RequestOptions with
             {
                 Method = NormalizeOptionalText(editor.RequestOptions.Method)?.ToUpperInvariant(),
-                Body = NormalizeOptionalText(editor.RequestOptions.Body),
-                Headers = editor.RequestOptions.Headers
-                    .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))
-                    .Select(entry => new TtsRuleEditorKeyValue(entry.Key.Trim(), entry.Value))
-                    .ToArray()
+                Body = NormalizeOptionalText(editor.RequestOptions.Body)
             },
             RawRuleJson = editor.RawRuleJson.Trim()
         };
@@ -577,16 +563,9 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
 
     private static void ValidateRequestOptions(TtsRuleRequestOptionsEditor requestOptions, List<string> errors)
     {
-        ValidateHeaders(requestOptions.Headers, "requestOptions.headers", errors);
-
         if (requestOptions.Method is not null && requestOptions.Method is not ("GET" or "POST"))
         {
             errors.Add("requestOptions.method 仅支持 GET 或 POST。");
-        }
-
-        if (requestOptions.TimeoutMs is <= 0 or > 300000)
-        {
-            errors.Add("requestOptions.timeoutMs 必须在 1 到 300000 之间。");
         }
 
         if (requestOptions.Method == "GET" && !string.IsNullOrWhiteSpace(requestOptions.Body))
@@ -620,7 +599,6 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
     private static HttpTtsRule BuildRuleFromEditor(TtsRuleEditorModel editor, HttpTtsRule? existingRule)
     {
         var headerJson = SerializeKeyValueJson(editor.Headers);
-        var loginInfoJson = SerializeKeyValueJson(editor.LoginInfo);
         var requestOptionsJson = SerializeRequestOptions(editor.RequestOptions);
         var utcNow = DateTime.UtcNow.ToString("O");
 
@@ -632,7 +610,6 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             editor.ConcurrentRate,
             headerJson,
             requestOptionsJson,
-            editor.EnabledCookieJar,
             editor.LastUpdateTime,
             string.Empty,
             editor.IsEnabled,
@@ -640,10 +617,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             editor.UnsupportedFields,
             existingRule?.LastUsedAt,
             existingRule?.CreatedAt ?? utcNow,
-            utcNow)
-        {
-            LoginInfoJson = loginInfoJson
-        };
+            utcNow);
 
         return rule with
         {
@@ -689,19 +663,17 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
     {
         if (string.IsNullOrWhiteSpace(requestOptionsJson))
         {
-            return new TtsRuleRequestOptionsEditor(null, [], null, null);
+            return new TtsRuleRequestOptionsEditor(null, null);
         }
 
         using var document = JsonDocument.Parse(requestOptionsJson);
         if (document.RootElement.ValueKind != JsonValueKind.Object)
         {
-            return new TtsRuleRequestOptionsEditor(null, [], null, null);
+            return new TtsRuleRequestOptionsEditor(null, null);
         }
 
         string? method = null;
-        List<TtsRuleEditorKeyValue> headers = [];
         string? body = null;
-        int? timeoutMs = null;
 
         foreach (var property in document.RootElement.EnumerateObject())
         {
@@ -712,51 +684,23 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
                         ? property.Value.GetString()
                         : property.Value.GetRawText();
                     break;
-                case "headers":
-                    headers = ParseHeadersElement(property.Value).ToList();
-                    break;
                 case "body":
                     body = property.Value.ValueKind == JsonValueKind.String
                         ? property.Value.GetString()
                         : property.Value.GetRawText();
                     break;
-                case "timeoutMs":
-                    timeoutMs = property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetInt32(out var parsed)
-                        ? parsed
-                        : property.Value.ValueKind == JsonValueKind.String && int.TryParse(property.Value.GetString(), out parsed)
-                            ? parsed
-                            : null;
-                    break;
             }
         }
 
-        return new TtsRuleRequestOptionsEditor(method, headers, body, timeoutMs);
-    }
-
-    private static IReadOnlyList<TtsRuleEditorKeyValue> ParseHeadersElement(JsonElement value)
-    {
-        return value.ValueKind switch
-        {
-            JsonValueKind.Object => value.EnumerateObject()
-                .Select(property => new TtsRuleEditorKeyValue(
-                    property.Name,
-                    property.Value.ValueKind == JsonValueKind.String
-                        ? property.Value.GetString() ?? string.Empty
-                        : property.Value.GetRawText()))
-                .ToArray(),
-            JsonValueKind.String => ParseKeyValueJson(value.GetString()),
-            _ => []
-        };
+        return new TtsRuleRequestOptionsEditor(method, body);
     }
 
     private static string? SerializeRequestOptions(TtsRuleRequestOptionsEditor requestOptions)
     {
         var hasMethod = !string.IsNullOrWhiteSpace(requestOptions.Method);
-        var hasHeaders = requestOptions.Headers.Count > 0;
         var hasBody = !string.IsNullOrWhiteSpace(requestOptions.Body);
-        var hasTimeout = requestOptions.TimeoutMs is not null;
 
-        if (!hasMethod && !hasHeaders && !hasBody && !hasTimeout)
+        if (!hasMethod && !hasBody)
         {
             return null;
         }
@@ -770,27 +714,10 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             writer.WriteString("method", requestOptions.Method);
         }
 
-        if (hasHeaders)
-        {
-            writer.WritePropertyName("headers");
-            writer.WriteStartObject();
-            foreach (var header in requestOptions.Headers)
-            {
-                writer.WriteString(header.Key, header.Value);
-            }
-
-            writer.WriteEndObject();
-        }
-
         if (hasBody)
         {
             writer.WritePropertyName("body");
             WriteJsonLikeValue(writer, requestOptions.Body!);
-        }
-
-        if (hasTimeout)
-        {
-            writer.WriteNumber("timeoutMs", requestOptions.TimeoutMs!.Value);
         }
 
         writer.WriteEndObject();
@@ -827,8 +754,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             ReadOptionalString(root, "contentType"),
             ReadOptionalString(root, "concurrentRate"),
             ReadJsonOrString(root, "header"),
-            ReadOptionalJson(root, "requestOptions"),
-            ReadOptionalBoolean(root, "enabledCookieJar"),
+            SanitizeRequestOptionsJson(ReadOptionalJson(root, "requestOptions")),
             ReadOptionalInt64(root, "lastUpdateTime"),
             string.Empty,
             baselineRule.IsEnabled,
@@ -836,10 +762,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             baselineRule.UnsupportedFields,
             baselineRule.LastUsedAt,
             baselineRule.CreatedAt,
-            baselineRule.UpdatedAt)
-        {
-            LoginInfoJson = ReadJsonOrString(root, "loginInfo")
-        };
+            baselineRule.UpdatedAt);
 
         return NovelSpeakerRuleJsonSerializer.Serialize(rawRule);
     }
@@ -881,20 +804,44 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             : null;
     }
 
-    private static bool ReadOptionalBoolean(JsonElement root, string propertyName)
+    private static string? SanitizeRequestOptionsJson(string? requestOptionsJson)
     {
-        if (!TryGetProperty(root, propertyName, out var value))
+        if (string.IsNullOrWhiteSpace(requestOptionsJson))
         {
-            return false;
+            return null;
         }
 
-        return value.ValueKind switch
+        try
         {
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            JsonValueKind.String when bool.TryParse(value.GetString(), out var parsed) => parsed,
-            _ => false
-        };
+            using var document = JsonDocument.Parse(requestOptionsJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            using var stream = new MemoryStream();
+            using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions
+            {
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
+            writer.WriteStartObject();
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (property.NameEquals("method") || property.NameEquals("body"))
+                {
+                    property.WriteTo(writer);
+                }
+            }
+
+            writer.WriteEndObject();
+            writer.Flush();
+            var normalized = System.Text.Encoding.UTF8.GetString(stream.ToArray());
+            return normalized == "{}" ? null : normalized;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static long? ReadOptionalInt64(JsonElement root, string propertyName)

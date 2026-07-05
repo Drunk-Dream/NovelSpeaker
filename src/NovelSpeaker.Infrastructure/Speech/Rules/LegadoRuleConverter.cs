@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using NovelSpeaker.Application.Speech;
@@ -18,8 +19,6 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
         "contentType",
         "concurrentRate",
         "header",
-        "loginInfo",
-        "enabledCookieJar",
         "isEnabled",
         "lastUpdateTime"
     };
@@ -55,7 +54,8 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
 
         var normalizedUrl = NormalizeTemplate(split.Url ?? rawUrl, "url", blockingIssues);
         var normalizedHeader = NormalizeTemplate(ReadOptionalString(ruleElement, "header"), "header", blockingIssues);
-        var normalizedRequestOptions = NormalizeTemplate(split.RequestOptionsJson, "requestOptions", blockingIssues);
+        var normalizedRequestOptions = StripUnsupportedRequestOptions(
+            NormalizeTemplate(split.RequestOptionsJson, "requestOptions", blockingIssues));
 
         var candidateRule = CreateCandidateRule(
             ruleElement,
@@ -153,8 +153,6 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
 
         var normalized = JavaEncodeUriPattern().Replace(expression, "encodeURI(");
         normalized = JavaEncodeURIComponentPattern().Replace(normalized, "encodeURIComponent(");
-        normalized = SourceLoginInfoPattern().Replace(normalized, "loginInfo");
-
         if (UnsupportedJavaPattern().IsMatch(normalized))
         {
             return null;
@@ -249,7 +247,6 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
             ReadOptionalString(ruleElement, "concurrentRate"),
             normalizedHeader,
             normalizedRequestOptions,
-            ReadOptionalBoolean(ruleElement, "enabledCookieJar"),
             ReadOptionalInt64(ruleElement, "lastUpdateTime"),
             string.Empty,
             ReadOptionalBoolean(ruleElement, "isEnabled", defaultValue: true),
@@ -257,31 +254,48 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
             unsupportedFields,
             null,
             utcNow,
-            utcNow)
-        {
-            LoginInfoJson = ReadJsonOrString(ruleElement, "loginInfo")
-        };
+            utcNow);
     }
 
-    private static string? ReadJsonOrString(JsonElement root, string propertyName)
+    private static string? StripUnsupportedRequestOptions(string? requestOptionsJson)
     {
-        foreach (var property in root.EnumerateObject())
+        if (string.IsNullOrWhiteSpace(requestOptionsJson))
         {
-            if (!string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            return property.Value.ValueKind switch
-            {
-                JsonValueKind.Object => property.Value.GetRawText(),
-                JsonValueKind.String => property.Value.GetString(),
-                JsonValueKind.Null => null,
-                _ => property.Value.GetRawText()
-            };
+            return null;
         }
 
-        return null;
+        try
+        {
+            using var document = JsonDocument.Parse(requestOptionsJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            using var stream = new MemoryStream();
+            using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions
+            {
+                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
+            writer.WriteStartObject();
+
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (property.NameEquals("method") || property.NameEquals("body"))
+                {
+                    property.WriteTo(writer);
+                }
+            }
+
+            writer.WriteEndObject();
+            writer.Flush();
+            var normalized = Encoding.UTF8.GetString(stream.ToArray());
+            return normalized == "{}" ? null : normalized;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static HttpTtsRule ApplyCompatibilityStatus(
@@ -308,9 +322,6 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
 
     [GeneratedRegex(@"\bjava\s*\.\s*encodeURIComponent\s*\(", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex JavaEncodeURIComponentPattern();
-
-    [GeneratedRegex(@"\bsource\s*\.\s*getLoginInfo(Map)?\s*\(\s*\)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex SourceLoginInfoPattern();
 
     [GeneratedRegex(@"\bjava\s*\.", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex UnsupportedJavaPattern();
