@@ -612,7 +612,7 @@ public sealed class PlayerViewTests
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
-                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]),
+                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
@@ -707,7 +707,7 @@ public sealed class PlayerViewTests
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
-                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]),
+                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
@@ -805,7 +805,7 @@ public sealed class PlayerViewTests
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
-                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]),
+                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
@@ -900,7 +900,7 @@ public sealed class PlayerViewTests
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
-                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]),
+                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
@@ -1335,6 +1335,7 @@ public sealed class PlayerViewTests
         public Task<TtsRuleImportResult> ImportJsonTextAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<string> ExportEditorJsonAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<TtsRuleValidationResult> ValidateEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();

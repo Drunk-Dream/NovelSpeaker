@@ -21,7 +21,7 @@ public sealed class DiagnosticsAboutViewModelTests
         await viewModel.LoadAsync(CancellationToken.None);
 
         Assert.Equal("NovelSpeaker", viewModel.AppName);
-        Assert.Equal("3", viewModel.DatabaseSchemaVersionText);
+        Assert.Equal("4", viewModel.DatabaseSchemaVersionText);
         Assert.Equal("Warning", viewModel.SelectedLogLevel);
     }
 
@@ -75,7 +75,7 @@ public sealed class DiagnosticsAboutViewModelTests
                 "NovelSpeaker",
                 "1.2.3",
                 "Windows 10/11 桌面小说听书应用。",
-                3,
+                4,
                 @"C:\Data",
                 @"C:\Logs"));
         }

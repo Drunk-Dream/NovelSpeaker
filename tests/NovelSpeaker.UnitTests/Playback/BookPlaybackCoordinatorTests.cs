@@ -631,10 +631,7 @@ public sealed class BookPlaybackCoordinatorTests
             null,
             null,
             null,
-            $"{{\"name\":\"{name}\",\"url\":\"https://example.com/tts?text={{{{encodeURIComponent(speakText)}}}}&speed={{{{speakSpeed}}}}\"}}",
             true,
-            TtsRuleCompatibilityStatus.Compatible,
-            [],
             null,
             "2026-06-24T00:00:00.0000000Z",
             "2026-06-24T00:00:00.0000000Z");

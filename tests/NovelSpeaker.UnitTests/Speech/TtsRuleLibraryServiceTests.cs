@@ -22,10 +22,7 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                """{"name":"现有规则","url":"https://example.com/old"}""",
                 true,
-                TtsRuleCompatibilityStatus.Compatible,
-                [],
                 null,
                 "created",
                 "updated")
@@ -85,10 +82,7 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                """{"name":"现有规则","url":"https://example.com/old"}""",
                 true,
-                TtsRuleCompatibilityStatus.Compatible,
-                [],
                 null,
                 "created",
                 "updated")
@@ -126,10 +120,7 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                """{"name":"当前规则","url":"https://example.com/tts"}""",
                 true,
-                TtsRuleCompatibilityStatus.Compatible,
-                [],
                 null,
                 "created",
                 "updated")
@@ -158,10 +149,7 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                """{"name":"当前规则","url":"https://example.com/tts"}""",
                 true,
-                TtsRuleCompatibilityStatus.Compatible,
-                [],
                 null,
                 "created",
                 "updated")
@@ -193,10 +181,7 @@ public sealed class TtsRuleLibraryServiceTests
                 """{"Authorization":"Bearer demo"}""",
                 """{"method":"POST","headers":{"X-Test":"1"},"body":{"text":"{{speakText}}"},"timeoutMs":5000}""",
                 123,
-                """{"name":"可编辑规则","url":"https://example.com/tts","contentType":"audio/mpeg","concurrentRate":"2/1000","header":"{\"Authorization\":\"Bearer demo\"}","requestOptions":{"method":"POST","headers":{"X-Test":"1"},"body":{"text":"{{speakText}}"},"timeoutMs":5000},"enabledCookieJar":true,"lastUpdateTime":123}""",
                 true,
-                TtsRuleCompatibilityStatus.Compatible,
-                [],
                 utcNow,
                 utcNow,
                 utcNow)
@@ -206,8 +191,7 @@ public sealed class TtsRuleLibraryServiceTests
         var editor = await service.GetEditorAsync(12, CancellationToken.None);
         var saved = await service.SaveEditorAsync(editor! with
         {
-            Name = "已更新规则",
-            RawRuleJson = string.Empty
+            Name = "已更新规则"
         }, CancellationToken.None);
 
         Assert.NotNull(editor);
@@ -232,10 +216,7 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                """{"name":"重复名","url":"https://example.com/one"}""",
                 true,
-                TtsRuleCompatibilityStatus.Compatible,
-                [],
                 null,
                 utcNow,
                 utcNow)
@@ -252,17 +233,14 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 [],
-                new TtsRuleRequestOptionsEditor(null, null),
-                string.Empty,
-                TtsRuleCompatibilityStatus.Compatible,
-                []),
+                new TtsRuleRequestOptionsEditor(null, null)),
             CancellationToken.None);
 
         Assert.Equal("重复名 (2)", saved.Name);
     }
 
     [Fact]
-    public async Task ValidateEditorAsync_rejects_raw_json_mismatch()
+    public async Task ExportEditorJsonAsync_uses_normalized_structured_fields()
     {
         var service = new TtsRuleLibraryService(
             new FakeTtsRuleRepository([]),
@@ -270,22 +248,18 @@ public sealed class TtsRuleLibraryServiceTests
             new LegadoRuleConverter());
         var editor = new TtsRuleEditorModel(
             null,
-            "规则 A",
+            " 规则 A ",
             true,
             "https://example.com/tts",
             null,
-            null,
+            "2/1000",
             null,
             [],
-            new TtsRuleRequestOptionsEditor(null, null),
-            """{"name":"别的规则","url":"https://example.com/tts"}""",
-            TtsRuleCompatibilityStatus.Compatible,
-            []);
+            new TtsRuleRequestOptionsEditor(null, null));
 
-        var validation = await service.ValidateEditorAsync(editor, CancellationToken.None);
+        var exportedJson = await service.ExportEditorJsonAsync(editor, CancellationToken.None);
 
-        Assert.False(validation.IsValid);
-        Assert.Contains(validation.Errors, error => error.Contains("不一致", StringComparison.Ordinal));
+        Assert.Equal("""{"name":"规则 A","url":"https://example.com/tts","concurrentRate":"2/1000"}""", exportedJson);
     }
 
     [Fact]
@@ -301,10 +275,7 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                """{"name":"当前规则","url":"https://example.com/a"}""",
                 true,
-                TtsRuleCompatibilityStatus.Compatible,
-                [],
                 null,
                 "created",
                 "updated"),
@@ -317,10 +288,7 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                """{"name":"替代规则","url":"https://example.com/b"}""",
                 true,
-                TtsRuleCompatibilityStatus.Compatible,
-                [],
                 null,
                 "created",
                 "updated")
@@ -353,10 +321,7 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                """{"name":"当前规则","url":"https://example.com/a"}""",
                 true,
-                TtsRuleCompatibilityStatus.Compatible,
-                [],
                 null,
                 "created",
                 "updated"),
@@ -369,10 +334,7 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 null,
                 null,
-                """{"name":"候选规则","url":"https://example.com/b"}""",
                 true,
-                TtsRuleCompatibilityStatus.Compatible,
-                [],
                 null,
                 "created",
                 "updated")

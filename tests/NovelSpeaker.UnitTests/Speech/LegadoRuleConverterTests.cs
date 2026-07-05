@@ -31,7 +31,7 @@ public sealed class LegadoRuleConverterTests
             result.CandidateRule.Url);
         Assert.Equal(
             """{"name":"Microsoft Server Speech Text to Speech Voice (zh-CN, XiaoxiaoNeural)","url":"https://tts.drudream.top/api/text-to-speech?rate={{(speakSpeed - 10) * 2}}&text={{encodeURI(speakText)}}","contentType":"audio/mpeg","header":"{\"Authorization\":\"Bearer undefined\"}"}""",
-            result.CandidateRule.RuleJson);
+            NovelSpeakerRuleJsonSerializer.Serialize(result.CandidateRule));
     }
 
     [Fact]

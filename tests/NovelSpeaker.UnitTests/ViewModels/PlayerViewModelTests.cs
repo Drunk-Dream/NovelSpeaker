@@ -314,8 +314,8 @@ public sealed class PlayerViewModelTests
                 new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
             ruleService: new FakeTtsRuleLibraryService(
                 [
-                    new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, []),
-                    new TtsRuleSummary(2, "备用规则", true, false, null, TtsRuleCompatibilityStatus.Compatible, [])
+                    new TtsRuleSummary(1, "默认规则", true, true, null),
+                    new TtsRuleSummary(2, "备用规则", true, false, null)
                 ]));
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -595,7 +595,7 @@ public sealed class PlayerViewModelTests
                 new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
                 new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
             ruleService: new FakeTtsRuleLibraryService(
-                [new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]));
+                [new TtsRuleSummary(1, "默认规则", true, true, null)]));
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
@@ -1037,7 +1037,7 @@ public sealed class PlayerViewModelTests
         return new PlayerViewModel(
             coordinator,
             contentService,
-            ruleService ?? new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]),
+            ruleService ?? new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
             settingsService ?? new FakeAppSettingsService(AppSettings.Default),
             feedbackService ?? new FakeAppFeedbackService(),
             navigationService ?? new FakeNavigationService(),
@@ -1411,6 +1411,7 @@ public sealed class PlayerViewModelTests
         public Task<TtsRuleImportResult> ImportJsonTextAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<string> ExportEditorJsonAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<TtsRuleValidationResult> ValidateEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();

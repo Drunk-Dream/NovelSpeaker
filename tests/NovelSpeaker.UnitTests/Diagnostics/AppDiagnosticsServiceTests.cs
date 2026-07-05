@@ -24,7 +24,7 @@ public sealed class AppDiagnosticsServiceTests
                 CREATE TABLE SchemaVersion (
                     Version INTEGER NOT NULL PRIMARY KEY
                 );
-                INSERT INTO SchemaVersion (Version) VALUES (3);
+                INSERT INTO SchemaVersion (Version) VALUES (4);
                 """;
             await command.ExecuteNonQueryAsync(CancellationToken.None);
         }
@@ -34,7 +34,7 @@ public sealed class AppDiagnosticsServiceTests
         var snapshot = await service.GetSnapshotAsync(CancellationToken.None);
 
         Assert.Equal("NovelSpeaker", snapshot.AppName);
-        Assert.Equal(3, snapshot.DatabaseSchemaVersion);
+        Assert.Equal(4, snapshot.DatabaseSchemaVersion);
         Assert.Equal(root, snapshot.AppDataDirectoryPath);
         Assert.Equal(Path.Combine(root, "Logs"), snapshot.LogsDirectoryPath);
     }

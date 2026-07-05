@@ -23,12 +23,7 @@ public sealed class TtsRuleRepositoryTests
             "{\"Authorization\":\"Bearer demo\"}",
             """{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"}""",
             12345,
-            """
-            {"name":"示例规则","url":"https://example.com/tts?text={{speakText}}","contentType":"audio/mpeg","concurrentRate":"2/1000","header":"{\"Authorization\":\"Bearer demo\"}","requestOptions":{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"},"lastUpdateTime":12345}
-            """,
             true,
-            TtsRuleCompatibilityStatus.CompatibleWithWarnings,
-            ["loginUrl"],
             utcNow,
             utcNow,
             utcNow), CancellationToken.None);
@@ -38,8 +33,6 @@ public sealed class TtsRuleRepositoryTests
         Assert.NotNull(stored);
         Assert.Equal("示例规则", stored!.Name);
         Assert.Equal("https://example.com/tts?text={{speakText}}", stored.Url);
-        Assert.Equal(TtsRuleCompatibilityStatus.CompatibleWithWarnings, stored.CompatibilityStatus);
-        Assert.Equal(["loginUrl"], stored.UnsupportedFields);
         Assert.Equal(12345, stored.LastUpdateTime);
         Assert.Equal(utcNow, stored.LastUsedAt);
         Assert.Equal("""{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"}""", stored.RequestOptionsJson);
@@ -59,10 +52,7 @@ public sealed class TtsRuleRepositoryTests
             null,
             null,
             null,
-            """{"name":"规则 A","url":"https://example.com/a"}""",
             true,
-            TtsRuleCompatibilityStatus.Compatible,
-            [],
             null,
             utcNow,
             utcNow), CancellationToken.None);
@@ -76,10 +66,7 @@ public sealed class TtsRuleRepositoryTests
             null,
             """{"method":"POST"}""",
             null,
-            """{"name":"规则 A 已更新","url":"https://example.com/a2","requestOptions":{"method":"POST"}}""",
             false,
-            TtsRuleCompatibilityStatus.CompatibleWithWarnings,
-            ["customField"],
             utcNow,
             utcNow,
             utcNow), CancellationToken.None);
@@ -90,8 +77,6 @@ public sealed class TtsRuleRepositoryTests
         Assert.Equal("规则 A 已更新", stored!.Name);
         Assert.Equal("https://example.com/a2", stored.Url);
         Assert.False(stored.IsEnabled);
-        Assert.Equal(TtsRuleCompatibilityStatus.CompatibleWithWarnings, stored.CompatibilityStatus);
-        Assert.Equal(["customField"], stored.UnsupportedFields);
         Assert.Equal("""{"method":"POST"}""", stored.RequestOptionsJson);
     }
 
@@ -109,10 +94,7 @@ public sealed class TtsRuleRepositoryTests
             null,
             null,
             null,
-            """{"name":"待删除规则","url":"https://example.com/delete"}""",
             true,
-            TtsRuleCompatibilityStatus.Compatible,
-            [],
             null,
             utcNow,
             utcNow), CancellationToken.None);
@@ -120,6 +102,34 @@ public sealed class TtsRuleRepositoryTests
         await repository.DeleteAsync(ruleId, CancellationToken.None);
 
         Assert.Null(await repository.GetByIdAsync(ruleId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ExportRuleJson_roundtrips_from_structured_columns()
+    {
+        var repository = await CreateRepositoryAsync();
+        var utcNow = DateTime.UtcNow.ToString("O");
+
+        var ruleId = await repository.SaveAsync(new HttpTtsRule(
+            0,
+            "导出规则",
+            "https://example.com/export",
+            "audio/mpeg",
+            "2/1000",
+            """{"Authorization":"Bearer demo"}""",
+            """{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"}""",
+            123,
+            true,
+            null,
+            utcNow,
+            utcNow), CancellationToken.None);
+        var stored = (await repository.GetByIdAsync(ruleId, CancellationToken.None))!;
+
+        var exportedJson = NovelSpeakerRuleJsonSerializer.Serialize(stored);
+
+        Assert.Equal(
+            """{"name":"导出规则","url":"https://example.com/export","contentType":"audio/mpeg","concurrentRate":"2/1000","header":"{\"Authorization\":\"Bearer demo\"}","requestOptions":{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"},"lastUpdateTime":123}""",
+            exportedJson);
     }
 
     private static async Task<TtsRuleRepository> CreateRepositoryAsync()

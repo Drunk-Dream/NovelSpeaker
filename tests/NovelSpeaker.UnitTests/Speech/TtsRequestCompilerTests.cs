@@ -95,10 +95,7 @@ public sealed class TtsRequestCompilerTests
             header,
             requestOptionsJson,
             null,
-            "{}",
             true,
-            TtsRuleCompatibilityStatus.Compatible,
-            [],
             null,
             utcNow,
             utcNow);

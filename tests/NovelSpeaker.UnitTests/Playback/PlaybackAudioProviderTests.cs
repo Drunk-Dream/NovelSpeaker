@@ -256,10 +256,7 @@ public sealed class PlaybackAudioProviderTests
             null,
             null,
             null,
-            """{"name":"默认规则"}""",
             true,
-            TtsRuleCompatibilityStatus.Compatible,
-            [],
             null,
             "2026-06-24T00:00:00.0000000Z",
             "2026-06-24T00:00:00.0000000Z");

@@ -65,10 +65,7 @@ public sealed class JintTemplateEvaluatorTests
             header,
             requestOptionsJson,
             null,
-            "{}",
             true,
-            TtsRuleCompatibilityStatus.Compatible,
-            [],
             null,
             utcNow,
             utcNow);

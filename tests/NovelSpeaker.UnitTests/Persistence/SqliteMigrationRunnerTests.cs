@@ -7,7 +7,7 @@ namespace NovelSpeaker.UnitTests.Persistence;
 public sealed class SqliteMigrationRunnerTests
 {
     [Fact]
-    public async Task InitializeAsync_creates_current_schema_as_version_3()
+    public async Task InitializeAsync_creates_current_schema_as_version_4()
     {
         var factory = await CreateInitializedFactoryAsync();
 
@@ -28,11 +28,11 @@ public sealed class SqliteMigrationRunnerTests
         var version = Convert.ToInt32(await versionCommand.ExecuteScalarAsync(CancellationToken.None));
 
         Assert.Equal(8, tableCount);
-        Assert.Equal(3, version);
+        Assert.Equal(4, version);
     }
 
     [Fact]
-    public async Task InitializeAsync_creates_latest_book_columns_audio_cache_indexes_and_chapter_schema()
+    public async Task InitializeAsync_creates_latest_book_columns_audio_cache_indexes_and_tts_rule_columns()
     {
         var factory = await CreateInitializedFactoryAsync();
 
@@ -60,6 +60,20 @@ public sealed class SqliteMigrationRunnerTests
         }
 
         Assert.DoesNotContain("Content", chapterColumns);
+
+        var ttsRulePragma = connection.CreateCommand();
+        ttsRulePragma.CommandText = "PRAGMA table_info(HttpTtsRules);";
+        await using var ttsRuleReader = await ttsRulePragma.ExecuteReaderAsync(CancellationToken.None);
+        var ttsRuleColumns = new List<string>();
+        while (await ttsRuleReader.ReadAsync(CancellationToken.None))
+        {
+            ttsRuleColumns.Add(ttsRuleReader.GetString(1));
+        }
+
+        Assert.Contains("Url", ttsRuleColumns);
+        Assert.Contains("RequestOptionsJson", ttsRuleColumns);
+        Assert.DoesNotContain("RuleJson", ttsRuleColumns);
+        Assert.DoesNotContain("CompatibilityStatus", ttsRuleColumns);
 
         var indexCommand = connection.CreateCommand();
         indexCommand.CommandText =
@@ -93,11 +107,11 @@ public sealed class SqliteMigrationRunnerTests
         command.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
 
         var version = Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
-        Assert.Equal(3, version);
+        Assert.Equal(4, version);
     }
 
     [Fact]
-    public async Task InitializeAsync_rejects_unsupported_version_1_database()
+    public async Task InitializeAsync_rejects_unsupported_version_3_database()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var directories = new LocalAppDataDirectoryProvider(root);
@@ -114,7 +128,7 @@ public sealed class SqliteMigrationRunnerTests
                     Version INTEGER NOT NULL PRIMARY KEY
                 );
 
-                INSERT INTO SchemaVersion (Version) VALUES (1);
+                INSERT INTO SchemaVersion (Version) VALUES (3);
                 """;
             await command.ExecuteNonQueryAsync(CancellationToken.None);
         }
@@ -124,8 +138,8 @@ public sealed class SqliteMigrationRunnerTests
 
         var exception = await Assert.ThrowsAsync<IncompatibleDatabaseSchemaException>(
             () => runner.InitializeAsync(CancellationToken.None));
-        Assert.Equal(1, exception.DetectedVersion);
-        Assert.Equal(3, exception.RequiredVersion);
+        Assert.Equal(3, exception.DetectedVersion);
+        Assert.Equal(4, exception.RequiredVersion);
     }
 
     private static async Task<SqliteConnectionFactory> CreateInitializedFactoryAsync()

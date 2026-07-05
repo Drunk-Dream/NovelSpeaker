@@ -66,7 +66,7 @@ public sealed class NavigationPageLifecycleTests
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-7", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
                     new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
-                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null, TtsRuleCompatibilityStatus.Compatible, [])]),
+                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsService(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
@@ -198,6 +198,7 @@ public sealed class NavigationPageLifecycleTests
         public Task<TtsRuleImportResult> ImportJsonTextAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<string> ExportEditorJsonAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<TtsRuleValidationResult> ValidateEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();
