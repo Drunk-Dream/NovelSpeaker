@@ -1,5 +1,4 @@
 using Microsoft.Data.Sqlite;
-using System.Text.Json;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Domain.Speech;
@@ -11,8 +10,6 @@ namespace NovelSpeaker.Infrastructure.Speech.Rules;
 /// </summary>
 public sealed class TtsRuleRepository : ITtsRuleRepository
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new();
-
     private readonly ISqliteConnectionFactory _connectionFactory;
 
     public TtsRuleRepository(ISqliteConnectionFactory connectionFactory)
@@ -28,10 +25,13 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
             """
             SELECT Id,
                    Name,
-                   RuleJson,
+                   Url,
+                   ContentType,
+                   ConcurrentRate,
+                   Header,
+                   RequestOptionsJson,
+                   LastUpdateTime,
                    IsEnabled,
-                   CompatibilityStatus,
-                   UnsupportedFieldsJson,
                    LastUsedAt,
                    CreatedAt,
                    UpdatedAt
@@ -60,10 +60,13 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
             """
             SELECT Id,
                    Name,
-                   RuleJson,
+                   Url,
+                   ContentType,
+                   ConcurrentRate,
+                   Header,
+                   RequestOptionsJson,
+                   LastUpdateTime,
                    IsEnabled,
-                   CompatibilityStatus,
-                   UnsupportedFieldsJson,
                    LastUsedAt,
                    CreatedAt,
                    UpdatedAt
@@ -89,19 +92,25 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
                 """
                 INSERT INTO HttpTtsRules (
                     Name,
-                    RuleJson,
+                    Url,
+                    ContentType,
+                    ConcurrentRate,
+                    Header,
+                    RequestOptionsJson,
+                    LastUpdateTime,
                     IsEnabled,
-                    CompatibilityStatus,
-                    UnsupportedFieldsJson,
                     LastUsedAt,
                     CreatedAt,
                     UpdatedAt)
                 VALUES (
                     $name,
-                    $ruleJson,
+                    $url,
+                    $contentType,
+                    $concurrentRate,
+                    $header,
+                    $requestOptionsJson,
+                    $lastUpdateTime,
                     $isEnabled,
-                    $compatibilityStatus,
-                    $unsupportedFieldsJson,
                     $lastUsedAt,
                     $createdAt,
                     $updatedAt);
@@ -117,10 +126,13 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
             """
             UPDATE HttpTtsRules
             SET Name = $name,
-                RuleJson = $ruleJson,
+                Url = $url,
+                ContentType = $contentType,
+                ConcurrentRate = $concurrentRate,
+                Header = $header,
+                RequestOptionsJson = $requestOptionsJson,
+                LastUpdateTime = $lastUpdateTime,
                 IsEnabled = $isEnabled,
-                CompatibilityStatus = $compatibilityStatus,
-                UnsupportedFieldsJson = $unsupportedFieldsJson,
                 LastUsedAt = $lastUsedAt,
                 UpdatedAt = $updatedAt
             WHERE Id = $id;
@@ -144,12 +156,13 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
     private static void AddParameters(SqliteCommand command, HttpTtsRule rule)
     {
         command.Parameters.AddWithValue("$name", rule.Name);
-        command.Parameters.AddWithValue("$ruleJson", rule.RuleJson);
+        command.Parameters.AddWithValue("$url", rule.Url);
+        command.Parameters.AddWithValue("$contentType", (object?)rule.ContentType ?? DBNull.Value);
+        command.Parameters.AddWithValue("$concurrentRate", (object?)rule.ConcurrentRate ?? DBNull.Value);
+        command.Parameters.AddWithValue("$header", (object?)rule.Header ?? DBNull.Value);
+        command.Parameters.AddWithValue("$requestOptionsJson", (object?)rule.RequestOptionsJson ?? DBNull.Value);
+        command.Parameters.AddWithValue("$lastUpdateTime", (object?)rule.LastUpdateTime ?? DBNull.Value);
         command.Parameters.AddWithValue("$isEnabled", rule.IsEnabled ? 1 : 0);
-        command.Parameters.AddWithValue("$compatibilityStatus", (int)rule.CompatibilityStatus);
-        command.Parameters.AddWithValue(
-            "$unsupportedFieldsJson",
-            JsonSerializer.Serialize(rule.UnsupportedFields, SerializerOptions));
         command.Parameters.AddWithValue("$lastUsedAt", (object?)rule.LastUsedAt ?? DBNull.Value);
         command.Parameters.AddWithValue("$createdAt", rule.CreatedAt);
         command.Parameters.AddWithValue("$updatedAt", rule.UpdatedAt);
@@ -157,26 +170,18 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
 
     private static HttpTtsRule ReadRule(SqliteDataReader reader)
     {
-        var ruleJson = reader.GetString(2);
-        var metadata = RuleJsonMetadata.Parse(ruleJson);
-        var unsupportedFieldsJson = reader.GetString(5);
-        var unsupportedFields = JsonSerializer.Deserialize<string[]>(unsupportedFieldsJson, SerializerOptions) ?? [];
-
         return new HttpTtsRule(
             reader.GetInt64(0),
             reader.GetString(1),
-            metadata.Url,
-            metadata.ContentType,
-            metadata.ConcurrentRate,
-            metadata.Header,
-            metadata.RequestOptionsJson,
-            metadata.LastUpdateTime,
-            ruleJson,
-            reader.GetInt64(3) == 1,
-            (TtsRuleCompatibilityStatus)reader.GetInt32(4),
-            unsupportedFields,
+            reader.GetString(2),
+            reader.IsDBNull(3) ? null : reader.GetString(3),
+            reader.IsDBNull(4) ? null : reader.GetString(4),
+            reader.IsDBNull(5) ? null : reader.GetString(5),
             reader.IsDBNull(6) ? null : reader.GetString(6),
-            reader.GetString(7),
-            reader.GetString(8));
+            reader.IsDBNull(7) ? null : reader.GetInt64(7),
+            reader.GetInt64(8) == 1,
+            reader.IsDBNull(9) ? null : reader.GetString(9),
+            reader.GetString(10),
+            reader.GetString(11));
     }
 }

@@ -8,12 +8,12 @@ namespace NovelSpeaker.Infrastructure.Persistence;
 /// </summary>
 public sealed class SqliteMigrationRunner : IDatabaseInitializer
 {
-    private const int MinimumSupportedVersion = 2;
-    private const int CurrentSchemaVersion = 3;
+    private const int MinimumSupportedVersion = 4;
+    private const int CurrentSchemaVersion = 4;
     private static readonly SqliteMigration[] Migrations =
     [
         new(
-            2,
+            4,
             """
             CREATE TABLE AppMetadata (
                 Key TEXT NOT NULL PRIMARY KEY,
@@ -65,10 +65,13 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
             CREATE TABLE HttpTtsRules (
                 Id INTEGER NOT NULL PRIMARY KEY,
                 Name TEXT NOT NULL,
-                RuleJson TEXT NOT NULL,
+                Url TEXT NOT NULL,
+                ContentType TEXT NULL,
+                ConcurrentRate TEXT NULL,
+                Header TEXT NULL,
+                RequestOptionsJson TEXT NULL,
+                LastUpdateTime INTEGER NULL,
                 IsEnabled INTEGER NOT NULL,
-                CompatibilityStatus INTEGER NOT NULL,
-                UnsupportedFieldsJson TEXT NOT NULL,
                 LastUsedAt TEXT NULL,
                 CreatedAt TEXT NOT NULL,
                 UpdatedAt TEXT NOT NULL
@@ -104,12 +107,6 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
 
             CREATE INDEX IX_AudioCacheEntries_LastAccessedAt
                 ON AudioCacheEntries(LastAccessedAt);
-            """),
-        new(
-            3,
-            """
-            ALTER TABLE HttpTtsRules
-                ADD COLUMN LoginInfoJson TEXT NULL;
             """)
     ];
 
