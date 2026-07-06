@@ -75,7 +75,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        await LoadBooksAsync(cancellationToken).ConfigureAwait(false);
+        await LoadBooksAsync(cancellationToken);
         ClearSelection();
     }
 
@@ -111,7 +111,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         UpdateBookSelection(item.BookId);
         NotifyVisibilityStateChanged();
 
-        await LoadChaptersAsync(item.BookId, cancellationToken).ConfigureAwait(false);
+        await LoadChaptersAsync(item.BookId, cancellationToken);
     }
 
     [RelayCommand]
@@ -127,7 +127,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
             $"将清理全部音频缓存。{CleanupImpactMessage}",
             "清理全部",
             "取消",
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
         if (decision != AppConfirmationDecision.Confirm)
         {
             return;
@@ -136,7 +136,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         await ExecuteCleanupAsync(
             ct => _cacheWorkspaceService.ClearAllAsync(ct),
             reloadSelectedBook: HasSelection,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
     }
 
     [RelayCommand]
@@ -152,7 +152,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
             $"将清理《{SelectedBookTitle}》的音频缓存。{CleanupImpactMessage}",
             "清理本书",
             "取消",
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
         if (decision != AppConfirmationDecision.Confirm)
         {
             return;
@@ -162,7 +162,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         await ExecuteCleanupAsync(
             ct => _cacheWorkspaceService.ClearBookAsync(selectedBookId!, ct),
             reloadSelectedBook: true,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
     }
 
     [RelayCommand]
@@ -178,7 +178,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
             $"将清理“{item.Title}”的音频缓存。{CleanupImpactMessage}",
             "清理本章",
             "取消",
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
         if (decision != AppConfirmationDecision.Confirm)
         {
             return;
@@ -187,7 +187,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         await ExecuteCleanupAsync(
             ct => _cacheWorkspaceService.ClearChapterAsync(item.BookId, item.ChapterIndex, ct),
             reloadSelectedBook: true,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
     }
 
     private async Task ExecuteCleanupAsync(
@@ -200,8 +200,8 @@ public sealed partial class CacheManagementViewModel : ObservableObject
 
         try
         {
-            var result = await cleanupAsync(cancellationToken).ConfigureAwait(false);
-            await LoadBooksAsync(cancellationToken).ConfigureAwait(false);
+            var result = await cleanupAsync(cancellationToken);
+            await LoadBooksAsync(cancellationToken);
 
             if (reloadSelectedBook && !string.IsNullOrWhiteSpace(_selectedBookId))
             {
@@ -214,7 +214,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
                     SelectedBookChapterCountText = selectedBook.ChapterCountText;
                     SelectedBookHasCache = true;
                     UpdateBookSelection(selectedBook.BookId);
-                    await LoadChaptersAsync(selectedBook.BookId, cancellationToken).ConfigureAwait(false);
+                    await LoadChaptersAsync(selectedBook.BookId, cancellationToken);
                 }
                 else
                 {
@@ -250,7 +250,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         IsLoadingBooks = true;
         try
         {
-            var books = await _cacheWorkspaceService.GetCachedBooksAsync(cancellationToken).ConfigureAwait(false);
+            var books = await _cacheWorkspaceService.GetCachedBooksAsync(cancellationToken);
             Books.Clear();
             foreach (var book in books)
             {
@@ -292,7 +292,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
 
         try
         {
-            var chapters = await _cacheWorkspaceService.GetCachedChaptersAsync(bookId, localCts.Token).ConfigureAwait(false);
+            var chapters = await _cacheWorkspaceService.GetCachedChaptersAsync(bookId, localCts.Token);
             if (version != Volatile.Read(ref _chapterLoadVersion) ||
                 !string.Equals(bookId, _selectedBookId, StringComparison.Ordinal))
             {

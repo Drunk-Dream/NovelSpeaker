@@ -1,5 +1,6 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Feedback;
+using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.ViewModels;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
@@ -101,6 +102,39 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal("缓存已部分清理", feedbackService.LastTitle);
     }
 
+    [Fact]
+    public async Task SelectBookAsync_on_bound_page_loads_async_chapters_without_error()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var workspaceService = new FakeCacheWorkspaceService
+            {
+                BooksResult =
+                [
+                    new CachedBookCacheItem("book-1", "第一本", "作者甲", 1, 1, 1024)
+                ],
+                LoadChaptersOnBackgroundThread = true
+            };
+            workspaceService.ChaptersResult["book-1"] =
+            [
+                new CachedChapterCacheItem("book-1", 0, "第一章", 1, 1, 1024, 1)
+            ];
+            var feedbackService = new FakeFeedbackService();
+            var viewModel = CreateViewModel(workspaceService, feedbackService: feedbackService);
+            var page = new CacheManagementPage(viewModel);
+            page.Measure(new System.Windows.Size(1280, 820));
+            page.Arrange(new System.Windows.Rect(0, 0, 1280, 820));
+            page.UpdateLayout();
+
+            await viewModel.LoadAsync(CancellationToken.None);
+            await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
+
+            Assert.Null(feedbackService.LastTitle);
+            Assert.Single(viewModel.Chapters);
+            Assert.Equal("第一章", viewModel.Chapters[0].Title);
+        });
+    }
+
     private static CacheManagementViewModel CreateViewModel(
         FakeCacheWorkspaceService workspaceService,
         FakeFeedbackService? feedbackService = null,
@@ -140,6 +174,8 @@ public sealed class CacheManagementViewModelTests
 
         public Dictionary<string, TaskCompletionSource<IReadOnlyList<CachedChapterCacheItem>>> PendingChapterTasks { get; } = [];
 
+        public bool LoadChaptersOnBackgroundThread { get; set; }
+
         public CacheCleanupResult ClearBookResult { get; set; } = new(0, 0, 0, 0);
 
         public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -159,6 +195,15 @@ public sealed class CacheManagementViewModelTests
             if (PendingChapterTasks.TryGetValue(bookId, out var pendingTask))
             {
                 return await pendingTask.Task.WaitAsync(cancellationToken);
+            }
+
+            if (LoadChaptersOnBackgroundThread)
+            {
+                return await Task.Run<IReadOnlyList<CachedChapterCacheItem>>(
+                    () => ChaptersResult.TryGetValue(bookId, out var backgroundChapters)
+                        ? backgroundChapters
+                        : [],
+                    cancellationToken);
             }
 
             return ChaptersResult.TryGetValue(bookId, out var chapters)
