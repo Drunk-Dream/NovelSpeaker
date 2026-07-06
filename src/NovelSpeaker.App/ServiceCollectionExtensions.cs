@@ -23,6 +23,8 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<INavigationViewPageProvider, AppNavigationPageProvider>();
         services.AddSingleton<INavigationService, NavigationService>();
+        services.AddSingleton<INavigationGuardService, NavigationGuardService>();
+        services.AddSingleton<IGuardedNavigationService, GuardedNavigationService>();
         services.AddSingleton<IContentDialogService, ContentDialogService>();
         services.AddSingleton<ISnackbarService, SnackbarService>();
         services.AddSingleton<IAppDialogService, AppDialogService>();

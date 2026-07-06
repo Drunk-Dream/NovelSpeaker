@@ -9,6 +9,7 @@ using NovelSpeaker.App.Dialogs;
 using NovelSpeaker.App.Diagnostics;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Library;
+using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.Player;
 using NovelSpeaker.App.Shell;
@@ -32,6 +33,8 @@ public sealed class ServiceCollectionExtensionsTests
             {
                 Assert.IsType<MainWindowViewModel>(provider.GetRequiredService<MainWindowViewModel>());
                 Assert.IsAssignableFrom<INavigationService>(provider.GetRequiredService<INavigationService>());
+                Assert.IsAssignableFrom<INavigationGuardService>(provider.GetRequiredService<INavigationGuardService>());
+                Assert.IsAssignableFrom<IGuardedNavigationService>(provider.GetRequiredService<IGuardedNavigationService>());
                 Assert.IsAssignableFrom<INavigationViewPageProvider>(provider.GetRequiredService<INavigationViewPageProvider>());
                 Assert.IsAssignableFrom<IContentDialogService>(provider.GetRequiredService<IContentDialogService>());
                 Assert.IsAssignableFrom<ISnackbarService>(provider.GetRequiredService<ISnackbarService>());

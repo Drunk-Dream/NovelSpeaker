@@ -21,7 +21,10 @@ public sealed class AppNavigationPageProviderTests
         WpfTestHost.RunInSta(() =>
         {
             var services = new ServiceCollection();
-            services.AddSingleton<INavigationService, FakeNavigationService>();
+            services.AddSingleton<FakeNavigationService>();
+            services.AddSingleton<INavigationService>(provider => provider.GetRequiredService<FakeNavigationService>());
+            services.AddSingleton<IGuardedNavigationService>(provider => provider.GetRequiredService<FakeNavigationService>());
+            services.AddSingleton<INavigationGuardService, FakeNavigationGuardService>();
             services.AddSingleton<IBookManagementService, FakeBookManagementService>();
             services.AddSingleton<ICacheWorkspaceService, FakeCacheWorkspaceService>();
             services.AddSingleton<IBookCoverGenerator, BookCoverGenerator>();
@@ -62,8 +65,10 @@ public sealed class AppNavigationPageProviderTests
     {
     }
 
-    private sealed class FakeNavigationService : INavigationService
+    private sealed class FakeNavigationService : INavigationService, IGuardedNavigationService
     {
+        public bool IsBypassingGuard => false;
+
         public INavigationView GetNavigationControl()
         {
             throw new NotSupportedException();
@@ -88,6 +93,33 @@ public sealed class AppNavigationPageProviderTests
 
         public void SetNavigationControl(INavigationView navigation)
         {
+        }
+
+        public Task<bool> GoBackAsync(CancellationToken cancellationToken, bool bypassGuard = false) => Task.FromResult(false);
+
+        public Task<bool> NavigateAsync(string pageIdOrTargetTag, CancellationToken cancellationToken, bool bypassGuard = false) => Task.FromResult(true);
+
+        public Task<bool> NavigateWithHierarchyAsync(Type pageType, object? dataContext, CancellationToken cancellationToken, bool bypassGuard = false)
+            => Task.FromResult(true);
+    }
+
+    private sealed class FakeNavigationGuardService : INavigationGuardService
+    {
+        public IDisposable Register(Func<CancellationToken, Task<bool>> guard)
+        {
+            return new Registration();
+        }
+
+        public Task<bool> ConfirmNavigationAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(true);
+        }
+
+        private sealed class Registration : IDisposable
+        {
+            public void Dispose()
+            {
+            }
         }
     }
 
