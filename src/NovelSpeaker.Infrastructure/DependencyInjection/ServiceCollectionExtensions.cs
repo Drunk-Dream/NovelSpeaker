@@ -66,7 +66,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IBookManagementService, BookManagementService>();
         services.AddSingleton<IBookFileStore, BookFileStore>();
         services.AddSingleton<BookFileNameMetadataParser>();
-        services.AddSingleton<IBookImportService, BookImportService>();
+        services.AddSingleton<IDirectBookImportService, DirectBookImportService>();
         services.AddSingleton<JsonAppSettingsStore>();
         services.AddSingleton<IAppSettingsStore>(serviceProvider => serviceProvider.GetRequiredService<JsonAppSettingsStore>());
         services.AddSingleton<AppSettingsService>();
