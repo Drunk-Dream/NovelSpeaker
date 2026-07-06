@@ -955,6 +955,8 @@ public sealed partial class PlayerViewModel : ObservableObject
         }
 
         await _playbackCoordinator.ChangeSpeedAsync(parsedSpeed, cancellationToken);
+        SpeakSpeed = parsedSpeed;
+        SpeedEditorText = parsedSpeed.ToString(CultureInfo.InvariantCulture);
         try
         {
             var settings = await _settingsService.UpdateAsync(
