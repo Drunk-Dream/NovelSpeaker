@@ -5,6 +5,8 @@ namespace NovelSpeaker.Application.Books;
 /// </summary>
 public interface IBookManagementService
 {
+    Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken);
+
     Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken);
 
     Task<BookDetails> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken);

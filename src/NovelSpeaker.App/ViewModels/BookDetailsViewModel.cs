@@ -23,6 +23,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
     private readonly IGuardedNavigationService _guardedNavigationService;
     private readonly IPlaybackCoordinator _playbackCoordinator;
+    private CancellationTokenSource? _activeLoadCancellationTokenSource;
+    private BookDetailsHeader? _loadedHeader;
     private BookDetails? _loadedDetails;
     private string? _bookId;
 
@@ -95,36 +97,41 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
     public BookDetailsChapterItemViewModel? CurrentChapterItem => Chapters.FirstOrDefault(chapter => chapter.IsCurrent);
 
-    public bool HasUnsavedChanges => _loadedDetails is not null &&
-        (!string.Equals(_loadedDetails.Title, NormalizeTitle(EditTitle), StringComparison.Ordinal) ||
-         !string.Equals(NormalizeAuthor(_loadedDetails.Author), NormalizeAuthor(EditAuthor), StringComparison.Ordinal));
+    public bool HasUnsavedChanges => _loadedHeader is not null &&
+        (!string.Equals(_loadedHeader.Title, NormalizeTitle(EditTitle), StringComparison.Ordinal) ||
+         !string.Equals(NormalizeAuthor(_loadedHeader.Author), NormalizeAuthor(EditAuthor), StringComparison.Ordinal));
 
-    public bool CanSave => _loadedDetails is not null &&
+    public bool CanSave => _loadedHeader is not null &&
         !IsBusy &&
         !string.IsNullOrWhiteSpace(NormalizeTitle(EditTitle)) &&
         HasUnsavedChanges;
 
-    public bool CanCancelEdit => _loadedDetails is not null && !IsBusy && HasUnsavedChanges;
+    public bool CanCancelEdit => _loadedHeader is not null && !IsBusy && HasUnsavedChanges;
 
     public async Task LoadAsync(string bookId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
 
+        CancelPendingLoad();
         _bookId = bookId;
         IsBusy = true;
         StatusMessage = string.Empty;
 
         try
         {
-            var details = await _bookManagementService.GetBookDetailsAsync(bookId, cancellationToken);
-            if (details is null)
+            var header = await _bookManagementService.GetBookDetailsHeaderAsync(bookId, cancellationToken);
+            if (header is null)
             {
                 ClearBook();
                 StatusMessage = "未找到这本书，可能已经被删除。";
+                IsBusy = false;
+                NotifyCommandStateChanged();
                 return;
             }
 
-            ApplyDetails(details);
+            ApplyHeader(header);
+            ResetDetailSupplementProjection();
+            BeginLoadDetailsSupplement(bookId, cancellationToken);
         }
         catch (Exception exception)
         {
@@ -132,12 +139,16 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             ClearBook();
             StatusMessage = projected.UserMessage;
             _feedbackService.ShowProjectedNotification("加载书籍详情失败", projected);
-        }
-        finally
-        {
             IsBusy = false;
             NotifyCommandStateChanged();
         }
+    }
+
+    public void HandleNavigatedFrom()
+    {
+        CancelPendingLoad();
+        IsBusy = false;
+        NotifyCommandStateChanged();
     }
 
     [RelayCommand]
@@ -149,7 +160,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task SaveAsync(CancellationToken cancellationToken)
     {
-        if (_loadedDetails is null || string.IsNullOrWhiteSpace(_bookId))
+        if (_loadedHeader is null || string.IsNullOrWhiteSpace(_bookId))
         {
             return;
         }
@@ -160,19 +171,19 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanCancelEdit))]
     private void CancelEdit()
     {
-        if (_loadedDetails is null)
+        if (_loadedHeader is null)
         {
             return;
         }
 
-        EditTitle = _loadedDetails.Title;
-        EditAuthor = _loadedDetails.Author ?? string.Empty;
+        EditTitle = _loadedHeader.Title;
+        EditAuthor = _loadedHeader.Author ?? string.Empty;
     }
 
     [RelayCommand]
     private async Task ClearCacheAsync(CancellationToken cancellationToken)
     {
-        if (_loadedDetails is null || string.IsNullOrWhiteSpace(_bookId) || IsBusy)
+        if (_loadedHeader is null || string.IsNullOrWhiteSpace(_bookId) || IsBusy)
         {
             return;
         }
@@ -229,7 +240,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     [RelayCommand]
     private async Task DeleteBookAsync(CancellationToken cancellationToken)
     {
-        if (_loadedDetails is null || string.IsNullOrWhiteSpace(_bookId) || IsBusy)
+        if (_loadedHeader is null || string.IsNullOrWhiteSpace(_bookId) || IsBusy)
         {
             return;
         }
@@ -241,7 +252,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
         var deleteDecision = await _deleteDialogService.ShowAsync(
             new BookDeleteDialogRequest(
-                _loadedDetails.Title,
+                _loadedHeader.Title,
                 IsCurrentPlaybackBook(_bookId)),
             cancellationToken);
         if (!deleteDecision.IsConfirmed)
@@ -269,7 +280,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             }
 
             _catalogInvalidationState.Invalidate();
-            _feedbackService.ShowSuccess("删除成功", $"已删除《{_loadedDetails.Title}》。");
+            _feedbackService.ShowSuccess("删除成功", $"已删除《{_loadedHeader.Title}》。");
             await _guardedNavigationService.GoBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
         }
         catch (Exception exception)
@@ -350,7 +361,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
     private async Task<bool> SaveCoreAsync(CancellationToken cancellationToken)
     {
-        if (_loadedDetails is null || string.IsNullOrWhiteSpace(_bookId))
+        if (_loadedHeader is null || string.IsNullOrWhiteSpace(_bookId))
         {
             return false;
         }
@@ -387,12 +398,82 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         }
     }
 
+    private void BeginLoadDetailsSupplement(string bookId, CancellationToken cancellationToken)
+    {
+        var linkedCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _activeLoadCancellationTokenSource = linkedCancellationTokenSource;
+        _ = LoadDetailsSupplementAsync(bookId, linkedCancellationTokenSource);
+    }
+
+    private async Task LoadDetailsSupplementAsync(string bookId, CancellationTokenSource cancellationTokenSource)
+    {
+        try
+        {
+            await Task.Yield();
+
+            var details = await _bookManagementService.GetBookDetailsAsync(bookId, cancellationTokenSource.Token);
+            if (cancellationTokenSource.IsCancellationRequested || !ReferenceEquals(_activeLoadCancellationTokenSource, cancellationTokenSource))
+            {
+                return;
+            }
+
+            if (details is null)
+            {
+                ClearBook();
+                StatusMessage = "未找到这本书，可能已经被删除。";
+                return;
+            }
+
+            ApplyDetails(details, preserveEditor: true);
+        }
+        catch (OperationCanceledException) when (cancellationTokenSource.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (!ReferenceEquals(_activeLoadCancellationTokenSource, cancellationTokenSource))
+            {
+                return;
+            }
+
+            var projected = _feedbackService.Project(exception);
+            StatusMessage = projected.UserMessage;
+            _feedbackService.ShowProjectedNotification("加载书籍详情失败", projected);
+        }
+        finally
+        {
+            cancellationTokenSource.Dispose();
+            if (ReferenceEquals(_activeLoadCancellationTokenSource, cancellationTokenSource))
+            {
+                _activeLoadCancellationTokenSource = null;
+                IsBusy = false;
+                NotifyCommandStateChanged();
+            }
+        }
+    }
+
+    private void ApplyHeader(BookDetailsHeader header, bool preserveEditor = false)
+    {
+        var hadUnsavedChanges = HasUnsavedChanges;
+        _loadedHeader = header;
+        HasBook = true;
+        Title = header.Title;
+        DisplayAuthor = string.IsNullOrWhiteSpace(header.Author) ? "未知作者" : header.Author.Trim();
+        Cover = _bookCoverGenerator.Generate(header.Title);
+
+        if (!preserveEditor || !hadUnsavedChanges)
+        {
+            EditTitle = header.Title;
+            EditAuthor = header.Author ?? string.Empty;
+        }
+
+        NotifyCommandStateChanged();
+    }
+
     private void ApplyDetails(BookDetails details, bool preserveEditor = false)
     {
+        ApplyHeader(new BookDetailsHeader(details.Id, details.Title, details.Author), preserveEditor);
         _loadedDetails = details;
-        HasBook = true;
-        Title = details.Title;
-        DisplayAuthor = string.IsNullOrWhiteSpace(details.Author) ? "未知作者" : details.Author.Trim();
         TotalChapterCountText = $"共 {details.TotalChapterCount} 章";
         CurrentChapterText = details.HasReadingProgress
             ? details.Chapters.FirstOrDefault(chapter => chapter.IsCurrent)?.Title ?? $"第 {details.CurrentChapterIndex.GetValueOrDefault() + 1} 章"
@@ -412,19 +493,16 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             chapter.IsCurrent));
         OnPropertyChanged(nameof(CurrentChapterItem));
 
-        if (!preserveEditor || !HasUnsavedChanges)
-        {
-            EditTitle = details.Title;
-            EditAuthor = details.Author ?? string.Empty;
-        }
-
         StatusMessage = string.Empty;
         NotifyCommandStateChanged();
     }
 
     private void ClearBook()
     {
+        CancelPendingLoad();
+        _loadedHeader = null;
         _loadedDetails = null;
+        IsBusy = false;
         HasBook = false;
         Title = string.Empty;
         EditTitle = string.Empty;
@@ -440,6 +518,26 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         Chapters.Clear();
         OnPropertyChanged(nameof(CurrentChapterItem));
         NotifyCommandStateChanged();
+    }
+
+    private void CancelPendingLoad()
+    {
+        _activeLoadCancellationTokenSource?.Cancel();
+        _activeLoadCancellationTokenSource?.Dispose();
+        _activeLoadCancellationTokenSource = null;
+    }
+
+    private void ResetDetailSupplementProjection()
+    {
+        _loadedDetails = null;
+        TotalChapterCountText = string.Empty;
+        CurrentChapterText = "未开始";
+        ChapterCatalogSummaryText = string.Empty;
+        ProgressRatio = 0;
+        ProgressText = "0%";
+        CacheSizeText = "0 B";
+        Chapters.Clear();
+        OnPropertyChanged(nameof(CurrentChapterItem));
     }
 
     private bool IsCurrentPlaybackBook(string bookId)

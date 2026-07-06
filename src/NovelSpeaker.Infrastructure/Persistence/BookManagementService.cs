@@ -35,6 +35,33 @@ public sealed class BookManagementService : IBookManagementService
         return await GetBookDetailsCoreAsync(connection, bookId, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT Id, Title, Author
+            FROM Books
+            WHERE Id = $bookId
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("$bookId", bookId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        return new BookDetailsHeader(
+            reader.GetString(0),
+            reader.GetString(1),
+            reader.IsDBNull(2) ? null : reader.GetString(2));
+    }
+
     public async Task<BookDetails> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
