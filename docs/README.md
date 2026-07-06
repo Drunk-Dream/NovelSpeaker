@@ -22,6 +22,8 @@
 14. `11_TASK_BACKLOG.md`
 15. `12_REGEX_REPLACEMENT_PIPELINE.md`
 
+归档内容可按需查看 `archives/`，但归档不作为最新实现依据。
+
 ## UI/UX 设计基线
 
 以下文档是当前项目 UI/UX 设计的基准方案：
@@ -37,7 +39,7 @@
 - 歌词式正文、段落进度和手动滚动后的自动居中规则。
 - Wpf.Ui Fluent 视觉、主题、响应式布局和可访问性基线。
 
-后续正则替换能力的技术规划见 `12_REGEX_REPLACEMENT_PIPELINE.md`。
+后续正则替换能力的技术规划见 `12_REGEX_REPLACEMENT_PIPELINE.md`。已完成或被新方案替代的旧设计和 backlog 摘要见 `archives/`。
 
 ## 项目核心原则
 
