@@ -212,6 +212,12 @@ public sealed partial class PlayerViewModel : ObservableObject
         }
 
         var snapshot = _playbackCoordinator.CurrentSnapshot;
+        if (request.ChapterIndex is not null)
+        {
+            await HandleChapterTargetNavigationAsync(request, snapshot, cancellationToken);
+            return;
+        }
+
         if (request.Mode == PlayerNavigationMode.ReturnToCurrentSession ||
             string.Equals(snapshot.BookId, request.BookId, StringComparison.Ordinal))
         {
@@ -228,6 +234,59 @@ public sealed partial class PlayerViewModel : ObservableObject
                 null,
                 ResolveSpeakSpeedForOpen()),
             cancellationToken);
+
+        snapshot = _playbackCoordinator.CurrentSnapshot;
+        ApplySnapshot(snapshot);
+        await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
+    }
+
+    private async Task HandleChapterTargetNavigationAsync(
+        PlayerNavigationRequest request,
+        PlaybackSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        var targetChapterIndex = request.ChapterIndex.GetValueOrDefault();
+        var targetSegmentIndex = request.SegmentIndex ?? 0;
+        var isCurrentBook = string.Equals(snapshot.BookId, request.BookId, StringComparison.Ordinal);
+
+        if (isCurrentBook)
+        {
+            if (request.SegmentIndex is not null && targetSegmentIndex > 0)
+            {
+                await _playbackCoordinator.JumpToSegmentAsync(targetChapterIndex, targetSegmentIndex, cancellationToken);
+            }
+            else
+            {
+                await _playbackCoordinator.JumpToChapterAsync(targetChapterIndex, cancellationToken);
+            }
+
+            snapshot = _playbackCoordinator.CurrentSnapshot;
+            ApplySnapshot(snapshot);
+            await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
+            return;
+        }
+
+        if (snapshot.State == PlaybackState.Playing)
+        {
+            await _playbackCoordinator.StartAsync(
+                new PlaybackStartRequest(
+                    request.BookId,
+                    targetChapterIndex,
+                    targetSegmentIndex,
+                    null,
+                    ResolveSpeakSpeedForOpen()),
+                cancellationToken);
+        }
+        else
+        {
+            await _playbackCoordinator.OpenPausedAsync(
+                new OpenBookPlaybackRequest(
+                    request.BookId,
+                    targetChapterIndex,
+                    targetSegmentIndex,
+                    ResolveSpeakSpeedForOpen()),
+                cancellationToken);
+        }
 
         snapshot = _playbackCoordinator.CurrentSnapshot;
         ApplySnapshot(snapshot);

@@ -115,6 +115,174 @@ public sealed class PlayerViewModelTests
     }
 
     [Fact]
+    public async Task HandleNavigationAsync_targeted_chapter_on_same_playing_book_keeps_playing_and_jumps()
+    {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Playing,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            1,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            false,
+            "作者甲"));
+        var contentService = new FakeBookPlaybackContentService(
+            new PlaybackBookContent(
+                "book-1",
+                "示例小说",
+                [
+                    new PlaybackChapterContent(0, "第一章", []),
+                    new PlaybackChapterContent(1, "第二章", [])
+                ],
+                "作者甲"),
+            new PlaybackChapterContent(
+                1,
+                "第二章",
+                [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")]));
+        var viewModel = CreateViewModel(coordinator, contentService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.OpenPaused, 1, 0),
+            CancellationToken.None);
+
+        Assert.Equal(1, coordinator.LastJumpedChapterIndex);
+        Assert.Equal(PlaybackState.Playing, viewModel.CurrentPlaybackState);
+        Assert.Equal(0, coordinator.OpenPausedCallCount);
+    }
+
+    [Fact]
+    public async Task HandleNavigationAsync_targeted_chapter_on_same_paused_book_stays_paused_and_jumps()
+    {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            1,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            false,
+            "作者甲"));
+        var contentService = new FakeBookPlaybackContentService(
+            new PlaybackBookContent(
+                "book-1",
+                "示例小说",
+                [
+                    new PlaybackChapterContent(0, "第一章", []),
+                    new PlaybackChapterContent(1, "第二章", [])
+                ],
+                "作者甲"),
+            new PlaybackChapterContent(
+                1,
+                "第二章",
+                [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")]));
+        var viewModel = CreateViewModel(coordinator, contentService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.OpenPaused, 1, 0),
+            CancellationToken.None);
+
+        Assert.Equal(1, coordinator.LastJumpedChapterIndex);
+        Assert.Equal(PlaybackState.Paused, viewModel.CurrentPlaybackState);
+        Assert.Equal(0, coordinator.OpenPausedCallCount);
+    }
+
+    [Fact]
+    public async Task HandleNavigationAsync_targeted_chapter_on_different_playing_book_restarts_playback()
+    {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Playing,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            1,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            false,
+            "作者甲"));
+        var contentService = new FakeBookPlaybackContentService(
+            new PlaybackBookContent("book-2", "另一本书", [new PlaybackChapterContent(1, "第二章", [])], "作者乙"),
+            new PlaybackChapterContent(1, "第二章", [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")]));
+        var viewModel = CreateViewModel(coordinator, contentService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-2", PlayerNavigationMode.OpenPaused, 1, 0),
+            CancellationToken.None);
+
+        Assert.NotNull(coordinator.LastStartRequest);
+        Assert.Equal("book-2", coordinator.LastStartRequest!.BookId);
+        Assert.Equal(1, coordinator.LastStartRequest.ChapterIndex);
+        Assert.Equal(0, coordinator.LastStartRequest.SegmentIndex);
+        Assert.Equal(PlaybackState.Playing, viewModel.CurrentPlaybackState);
+    }
+
+    [Fact]
+    public async Task HandleNavigationAsync_targeted_chapter_on_different_paused_book_opens_paused()
+    {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            1,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            false,
+            "作者甲"));
+        var contentService = new FakeBookPlaybackContentService(
+            new PlaybackBookContent("book-2", "另一本书", [new PlaybackChapterContent(1, "第二章", [])], "作者乙"),
+            new PlaybackChapterContent(1, "第二章", [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")]));
+        var viewModel = CreateViewModel(coordinator, contentService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-2", PlayerNavigationMode.OpenPaused, 1, 0),
+            CancellationToken.None);
+
+        Assert.Null(coordinator.LastStartRequest);
+        Assert.Equal(1, coordinator.OpenPausedCallCount);
+        Assert.Equal(1, coordinator.LastOpenPausedRequest!.ChapterIndex);
+        Assert.Equal(0, coordinator.LastOpenPausedRequest.SegmentIndex);
+        Assert.Equal(PlaybackState.Paused, viewModel.CurrentPlaybackState);
+    }
+
+    [Fact]
     public async Task HandleNavigationAsync_missing_book_navigates_to_library_and_warns()
     {
         var navigationService = new FakeNavigationService();
@@ -1066,6 +1234,8 @@ public sealed class PlayerViewModelTests
 
         public OpenBookPlaybackRequest? LastOpenPausedRequest { get; private set; }
 
+        public PlaybackStartRequest? LastStartRequest { get; private set; }
+
         public int? LastJumpedChapterIndex { get; private set; }
 
         public int? LastJumpedSegmentChapterIndex { get; private set; }
@@ -1092,6 +1262,7 @@ public sealed class PlayerViewModelTests
 
         public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken)
         {
+            LastStartRequest = request;
             Publish(CurrentSnapshot with
             {
                 State = PlaybackState.Playing,
