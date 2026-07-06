@@ -31,7 +31,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     private readonly IBookDeleteDialogService _deleteDialogService;
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
     private readonly IAppFeedbackService _feedbackService;
-    private readonly INavigationService _navigationService;
+    private readonly IGuardedNavigationService _guardedNavigationService;
     private readonly IPlaybackCoordinator _playbackCoordinator;
     private CancellationTokenSource? _searchDebounceCancellationTokenSource;
     private IReadOnlyList<LibraryBookItemViewModel> _allBooks = [];
@@ -49,7 +49,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         IBookDeleteDialogService deleteDialogService,
         IBookCatalogInvalidationState catalogInvalidationState,
         IAppFeedbackService feedbackService,
-        INavigationService navigationService,
+        IGuardedNavigationService guardedNavigationService,
         IPlaybackCoordinator playbackCoordinator,
         LibraryScrollState scrollState)
     {
@@ -60,7 +60,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         _deleteDialogService = deleteDialogService;
         _catalogInvalidationState = catalogInvalidationState;
         _feedbackService = feedbackService;
-        _navigationService = navigationService;
+        _guardedNavigationService = guardedNavigationService;
         _playbackCoordinator = playbackCoordinator;
         ScrollState = scrollState;
         ApplyPlaybackSnapshot(playbackCoordinator.CurrentSnapshot);
@@ -170,27 +170,31 @@ public sealed partial class LibraryViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void OpenBook(LibraryBookItemViewModel? book)
+    private Task OpenBook(LibraryBookItemViewModel? book, CancellationToken cancellationToken)
     {
         if (book is null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        _navigationService.NavigateWithHierarchy(
+        return _guardedNavigationService.NavigateWithHierarchyAsync(
             typeof(PlayerPage),
-            new PlayerNavigationRequest(book.BookId, PlayerNavigationMode.OpenPaused));
+            new PlayerNavigationRequest(book.BookId, PlayerNavigationMode.OpenPaused),
+            cancellationToken);
     }
 
     [RelayCommand]
-    private void OpenBookDetails(LibraryBookItemViewModel? book)
+    private Task OpenBookDetails(LibraryBookItemViewModel? book, CancellationToken cancellationToken)
     {
         if (book is null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        _navigationService.NavigateWithHierarchy(typeof(BookDetailsPage), new BookDetailsNavigationRequest(book.BookId));
+        return _guardedNavigationService.NavigateWithHierarchyAsync(
+            typeof(BookDetailsPage),
+            new BookDetailsNavigationRequest(book.BookId),
+            cancellationToken);
     }
 
     [RelayCommand]

@@ -199,12 +199,30 @@ public sealed class LibraryViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
 
-        viewModel.OpenBookCommand.Execute(viewModel.Books[0]);
+        await viewModel.OpenBookCommand.ExecuteAsync(viewModel.Books[0]);
 
         Assert.Equal(typeof(PlayerPage), navigationService.LastNavigateWithHierarchyPageType);
         var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigateWithHierarchyParameter);
         Assert.Equal("book-1", request.BookId);
         Assert.Equal(PlayerNavigationMode.OpenPaused, request.Mode);
+    }
+
+    [Fact]
+    public async Task OpenBookDetailsCommand_navigates_to_book_details_page_with_book_id()
+    {
+        var navigationService = new FakeNavigationService();
+        var viewModel = CreateViewModel(
+            catalogService: new FakeBookCatalogService(
+                [new BookSummary("book-9", "Delta", null, "章一", DateTime.UtcNow.ToString("O"))]),
+            navigationService: navigationService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        await viewModel.OpenBookDetailsCommand.ExecuteAsync(viewModel.Books[0]);
+
+        Assert.Equal(typeof(BookDetailsPage), navigationService.LastNavigateWithHierarchyPageType);
+        var request = Assert.IsType<BookDetailsNavigationRequest>(navigationService.LastNavigateWithHierarchyParameter);
+        Assert.Equal("book-9", request.BookId);
     }
 
     [Fact]
@@ -388,6 +406,11 @@ public sealed class LibraryViewModelTests
     {
         public List<BookDeleteRequest> Requests { get; } = [];
 
+        public Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
         public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
@@ -449,43 +472,24 @@ public sealed class LibraryViewModelTests
         }
     }
 
-    private sealed class FakeNavigationService : INavigationService
+    private sealed class FakeNavigationService : IGuardedNavigationService
     {
         public Type? LastNavigateWithHierarchyPageType { get; private set; }
 
         public object? LastNavigateWithHierarchyParameter { get; private set; }
 
-        public Wpf.Ui.Controls.INavigationView GetNavigationControl()
-        {
-            throw new NotSupportedException();
-        }
+        public bool IsBypassingGuard => false;
 
-        public bool GoBack() => false;
+        public Task<bool> GoBackAsync(CancellationToken cancellationToken, bool bypassGuard = false) => Task.FromResult(false);
 
-        public bool Navigate(Type pageType) => true;
+        public Task<bool> NavigateAsync(string pageIdOrTargetTag, CancellationToken cancellationToken, bool bypassGuard = false)
+            => Task.FromResult(true);
 
-        public bool Navigate(Type pageType, object? dataContext) => true;
-
-        public bool Navigate(string pageIdOrTargetTag) => true;
-
-        public bool Navigate(string pageIdOrTargetTag, object? dataContext) => true;
-
-        public bool NavigateWithHierarchy(Type pageType)
-        {
-            LastNavigateWithHierarchyPageType = pageType;
-            LastNavigateWithHierarchyParameter = null;
-            return true;
-        }
-
-        public bool NavigateWithHierarchy(Type pageType, object? dataContext)
+        public Task<bool> NavigateWithHierarchyAsync(Type pageType, object? dataContext, CancellationToken cancellationToken, bool bypassGuard = false)
         {
             LastNavigateWithHierarchyPageType = pageType;
             LastNavigateWithHierarchyParameter = dataContext;
-            return true;
-        }
-
-        public void SetNavigationControl(Wpf.Ui.Controls.INavigationView navigation)
-        {
+            return Task.FromResult(true);
         }
     }
 
