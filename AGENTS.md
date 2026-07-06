@@ -103,4 +103,4 @@ dotnet test -c Release
 
 在开发的过程中，遵循以下约束：
 
-- 如果需要探索代码库，优先使用小模型，如`gpt-5.4-mini`，分配subagent，使用explore来探索代码库。同时主agent不要做重复的探索。
+- 如果需要探索代码库，优先使用小模型，如`gpt-5.4-mini`，分配subagent，使用explore来探索代码库。
