@@ -4,10 +4,34 @@
              xmlns:local="clr-namespace:NovelSpeaker.App.Views"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              x:Name="Root">
-    <Border Padding="{StaticResource CardPadding}"
-            Style="{StaticResource CardBorderStyle}">
+    <Border Padding="14"
+            CornerRadius="{StaticResource CardCornerRadius}">
+        <Border.Style>
+            <Style TargetType="Border"
+                   BasedOn="{StaticResource CardBorderStyle}">
+                <Setter Property="BorderThickness"
+                        Value="1"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsMouseOver, ElementName=Root}"
+                                 Value="True">
+                        <Setter Property="BorderBrush"
+                                Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+                        <Setter Property="BorderThickness"
+                                Value="1.5"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=Root}"
+                                 Value="True">
+                        <Setter Property="BorderBrush"
+                                Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+                        <Setter Property="BorderThickness"
+                                Value="1.5"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
         <Grid>
             <Button Padding="0"
+                    AutomationProperties.Name="{Binding Item.AutomationName, ElementName=Root}"
                     Background="Transparent"
                     BorderThickness="0"
                     Command="{Binding OpenBookCommand, ElementName=Root}"
@@ -20,18 +44,19 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <local:BookCoverView Width="{StaticResource CoverMediumWidth}"
-                                         Height="{StaticResource CoverMediumHeight}"
+                    <local:BookCoverView Width="104"
+                                         Height="140"
                                          Cover="{Binding Item.Cover, ElementName=Root}" />
 
                     <StackPanel Grid.Column="1"
-                                Margin="16,0,44,0"
+                                Margin="16,0,42,0"
                                 VerticalAlignment="Center">
                         <TextBlock Style="{StaticResource StrongTextBlockStyle}"
-                                   FontSize="18"
+                                   FontSize="17"
                                    Text="{Binding Item.Title, ElementName=Root}"
+                                   ToolTip="{Binding Item.TitleToolTip, ElementName=Root}"
                                    TextTrimming="CharacterEllipsis"
-                                   TextWrapping="Wrap" />
+                                   TextWrapping="NoWrap" />
                         <TextBlock Margin="0,6,0,0"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="{Binding Item.DisplayAuthor, ElementName=Root}"
@@ -39,13 +64,14 @@
                         <TextBlock Margin="0,10,0,0"
                                    Style="{StaticResource PrimaryTextBlockStyle}"
                                    Text="{Binding Item.CurrentChapterTitle, ElementName=Root}"
+                                   ToolTip="{Binding Item.CurrentChapterToolTip, ElementName=Root}"
                                    TextTrimming="CharacterEllipsis"
-                                   TextWrapping="Wrap" />
+                                   TextWrapping="NoWrap" />
                         <TextBlock Margin="0,6,0,0"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="{Binding Item.RemainingChapterText, ElementName=Root}" />
                         <ProgressBar Margin="0,12,0,0"
-                                     Height="8"
+                                     Style="{StaticResource PlaybackProgressBarStyle}"
                                      Maximum="1"
                                      Value="{Binding Item.ProgressRatio, ElementName=Root, Mode=OneWay}" />
                     </StackPanel>
@@ -57,12 +83,12 @@
                     Height="34"
                     Margin="0,0,0,0"
                     Padding="0"
+                    AutomationProperties.Name="{Binding Item.MoreActionsAutomationName, ElementName=Root}"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Top"
                     Background="{DynamicResource ControlFillColorSecondaryBrush}"
                     BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1"
-                    AutomationProperties.Name="更多书籍操作"
                     Click="MoreButton_OnClick"
                     ToolTip="更多操作">
                 <Button.Style>

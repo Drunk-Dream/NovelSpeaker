@@ -66,6 +66,10 @@ public sealed partial class LibraryBookItemViewModel : ObservableObject
 
     public string CurrentChapterTitle { get; }
 
+    public string TitleToolTip => Title;
+
+    public string CurrentChapterToolTip => CurrentChapterTitle;
+
     public string RemainingChapterText { get; }
 
     public double ProgressRatio { get; }
@@ -79,6 +83,15 @@ public sealed partial class LibraryBookItemViewModel : ObservableObject
     public string SortTitleKey => Cover.NormalizedTitleKey;
 
     public string NormalizedSearchText { get; }
+
+    public string ProgressAutomationText => HasReadingProgress
+        ? $"总体进度 {Math.Round(ProgressRatio * 100d, 0):0}%"
+        : "尚无阅读进度";
+
+    public string AutomationName =>
+        $"打开《{Title}》，作者 {DisplayAuthor}，当前章节 {CurrentChapterTitle}，{RemainingChapterText}，{ProgressAutomationText}";
+
+    public string MoreActionsAutomationName => $"《{Title}》的更多操作";
 
     [ObservableProperty]
     private bool canDelete;
