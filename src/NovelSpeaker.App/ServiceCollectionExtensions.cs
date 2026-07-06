@@ -30,12 +30,14 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IExceptionProjector, ExceptionProjector>();
         services.AddSingleton<IAppFeedbackService, AppFeedbackService>();
         services.AddSingleton<IAppDiagnosticsService, AppDiagnosticsService>();
-        services.AddSingleton<IImportBookDialogService, ImportBookDialogService>();
+        services.AddSingleton<IEncodingSelectionDialogService, EncodingSelectionDialogService>();
+        services.AddSingleton<IImportProgressDialogService, ImportProgressDialogService>();
         services.AddSingleton<IBookDeleteDialogService, BookDeleteDialogService>();
         services.AddSingleton<IShellLayoutController, ShellLayoutController>();
         services.AddSingleton<IPlayerAutoScrollCoordinator, PlayerAutoScrollCoordinator>();
         services.AddSingleton<IBookCoverGenerator, BookCoverGenerator>();
         services.AddSingleton<LibraryScrollState>();
+        services.AddSingleton<ILibraryImportCoordinator, LibraryImportCoordinator>();
         services.AddSingleton<IBookCatalogInvalidationState, BookCatalogInvalidationState>();
         services.AddSingleton<IThemeRuntime, WpfUiThemeRuntime>();
         services.AddSingleton<AppThemeStartupCoordinator>();
@@ -44,7 +46,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMainWindowAppearanceConfigurator, MainWindowAppearanceConfigurator>();
         services.AddSingleton<LibraryViewModel>();
         services.AddTransient<BookDetailsViewModel>();
-        services.AddTransient<ImportBookDialogViewModel>();
         services.AddSingleton<PlayerViewModel>();
         services.AddSingleton<SettingsViewModel>();
         services.AddTransient<CacheAndDataViewModel>();
