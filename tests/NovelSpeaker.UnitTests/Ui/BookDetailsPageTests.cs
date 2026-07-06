@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Dialogs;
@@ -27,19 +28,51 @@ public sealed class BookDetailsPageTests
             PopulateLayoutState(viewModel, chapterCount: 160);
 
             var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService());
+            var frame = new Frame
+            {
+                NavigationUIVisibility = System.Windows.Navigation.NavigationUIVisibility.Hidden
+            };
+            var window = new Window
+            {
+                Width = 1280,
+                Height = 760,
+                Content = frame
+            };
 
-            page.Measure(new Size(1280, 760));
-            page.Arrange(new Rect(0, 0, 1280, 760));
-            page.UpdateLayout();
+            try
+            {
+                window.Show();
+                frame.Navigate(page);
+                page.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                window.UpdateLayout();
 
-            var chaptersListBox = Assert.IsType<ListBox>(page.FindName("ChaptersListBox"));
-            var chaptersScrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(chaptersListBox));
-            var virtualizingPanel = VisualTreeTestHelper.FindDescendant<VirtualizingStackPanel>(chaptersListBox);
+                var chaptersListBox = Assert.IsType<ListBox>(page.FindName("ChaptersListBox"));
+                var rootViewport = Assert.IsType<Border>(page.FindName("RootViewport"));
+                chaptersListBox.ApplyTemplate();
+                chaptersListBox.UpdateLayout();
+                var chaptersScrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(chaptersListBox));
+                var retiredHelperCopy = FindDescendant<TextBlock>(
+                    page,
+                    static text => string.Equals(
+                        text.Text,
+                        "当前版本仅展示已解析章节，点击章节可直接跳转到播放页。",
+                        StringComparison.Ordinal));
+                var layoutSnapshot =
+                    $"inner={chaptersScrollViewer.ScrollableHeight}, frameActual={frame.ActualHeight}, " +
+                    $"rootHeight={rootViewport.Height}, rootActual={rootViewport.ActualHeight}, " +
+                    $"pageActual={page.ActualHeight}, listActual={chaptersListBox.ActualHeight}";
 
-            Assert.False(page.Content is ScrollViewer);
-            Assert.NotNull(virtualizingPanel);
-            Assert.True(chaptersScrollViewer.ScrollableHeight > 0);
-            Assert.True(GetBoundsRelativeToRoot(chaptersListBox, page).Bottom <= page.ActualHeight);
+                Assert.False(page.Content is ScrollViewer);
+                Assert.True(ScrollViewer.GetCanContentScroll(chaptersListBox));
+                Assert.True(chaptersScrollViewer.ScrollableHeight > 0, layoutSnapshot);
+                Assert.Equal(frame.ActualHeight, rootViewport.Height, 3);
+                Assert.True(GetBoundsRelativeToRoot(chaptersListBox, page).Bottom <= rootViewport.ActualHeight, layoutSnapshot);
+                Assert.Null(retiredHelperCopy);
+            }
+            finally
+            {
+                window.Close();
+            }
         });
     }
 
@@ -183,6 +216,9 @@ public sealed class BookDetailsPageTests
 
     private sealed class FakeBookManagementService : IBookManagementService
     {
+        public Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken)
+            => Task.FromResult<BookDetailsHeader?>(null);
+
         public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken) => Task.FromResult<BookDetails?>(null);
 
         public Task<BookDetails> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
