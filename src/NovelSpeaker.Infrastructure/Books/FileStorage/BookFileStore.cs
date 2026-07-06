@@ -48,11 +48,24 @@ public sealed class BookFileStore : IBookFileStore
         return Task.CompletedTask;
     }
 
-    public Task CleanupAsync(BookFileCopyHandle copyHandle)
+    public Task CleanupAsync(BookFileCopyHandle copyHandle, bool includeFinalFile)
     {
         if (File.Exists(copyHandle.TemporaryPath))
         {
             File.Delete(copyHandle.TemporaryPath);
+        }
+
+        if (includeFinalFile && File.Exists(copyHandle.FinalPath))
+        {
+            File.Delete(copyHandle.FinalPath);
+        }
+
+        var directory = Path.GetDirectoryName(copyHandle.FinalPath);
+        if (!string.IsNullOrWhiteSpace(directory) &&
+            Directory.Exists(directory) &&
+            !Directory.EnumerateFileSystemEntries(directory).Any())
+        {
+            Directory.Delete(directory);
         }
 
         return Task.CompletedTask;
