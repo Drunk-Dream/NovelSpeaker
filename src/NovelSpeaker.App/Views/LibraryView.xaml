@@ -9,51 +9,85 @@
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled"
-                  CanContentScroll="False"
-                  Margin="{StaticResource PagePadding}"
-                  AllowDrop="True"
-                  DragEnter="RootScrollViewer_OnDragEnter"
-                  Drop="RootScrollViewer_OnDrop"
-                  PreviewKeyDown="RootScrollViewer_OnPreviewKeyDown"
-                  input:MouseWheelScrollBehavior.Enabled="True"
-                  library:LibraryScrollViewerStateBehavior.ItemsControl="{Binding ElementName=BooksItemsControl}"
-                  library:LibraryScrollViewerStateBehavior.State="{Binding ScrollState}">
-        <StackPanel>
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+    <Grid Margin="{StaticResource PagePadding}"
+          AllowDrop="True"
+          DragEnter="RootGrid_OnDragEnter"
+          Drop="RootGrid_OnDrop"
+          PreviewKeyDown="RootGrid_OnPreviewKeyDown">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-                <TextBlock VerticalAlignment="Center"
-                           Style="{StaticResource PageTitleTextBlockStyle}"
-                           Text="书库"/>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
-                <WrapPanel Grid.Column="1"
-                           HorizontalAlignment="Right"
-                           VerticalAlignment="Center">
-                    <TextBox Width="240"
-                             Margin="0,0,12,0"
+            <TextBlock VerticalAlignment="Center"
+                       Style="{StaticResource PageTitleTextBlockStyle}"
+                       Text="书库"/>
+
+            <WrapPanel Grid.Column="1"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center"
+                       ItemHeight="40">
+                <Grid Width="260"
+                      Margin="0,0,12,0">
+                    <TextBox Padding="12,0,36,0"
                              VerticalContentAlignment="Center"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
-                    <Button Margin="0,0,12,0"
+                    <Button Width="28"
+                            Height="28"
+                            Margin="0,0,6,0"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            AutomationProperties.Name="清空搜索"
+                            Background="Transparent"
+                            BorderThickness="0"
                             Command="{Binding ClearSearchCommand}"
-                            Content="清空"/>
-                    <ComboBox Width="140"
-                              Margin="0,0,12,0"
-                              DisplayMemberPath="DisplayName"
-                              ItemsSource="{Binding AvailableSortOptions}"
-                              SelectedValue="{Binding SelectedSortMode}"
-                              SelectedValuePath="Mode"/>
-                    <Button Width="120"
-                            Click="ImportButton_OnClick"
-                            Content="导入小说"/>
-                </WrapPanel>
-            </Grid>
+                            ToolTip="清空搜索"
+                            Visibility="{Binding HasSearchText, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <ui:SymbolIcon Symbol="Dismiss24"/>
+                    </Button>
+                </Grid>
+                <ComboBox Width="140"
+                          Margin="0,0,12,0"
+                          DisplayMemberPath="DisplayName"
+                          ItemsSource="{Binding AvailableSortOptions}"
+                          SelectedValue="{Binding SelectedSortMode}"
+                          SelectedValuePath="Mode"/>
+                <Button Width="120"
+                        Click="ImportButton_OnClick"
+                        Content="导入小说"/>
+            </WrapPanel>
+        </Grid>
 
-            <TextBlock Margin="0,12,0,0"
+        <StackPanel Grid.Row="1"
+                    Margin="0,10,0,0">
+            <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
+                       Text="{Binding LibrarySummaryText}"/>
+            <TextBlock Margin="0,6,0,0"
+                       Text="{Binding ImportStatusMessage}"
+                       TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock"
+                           BasedOn="{StaticResource SecondaryTextBlockStyle}">
+                        <Setter Property="Visibility"
+                                Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ImportStatusMessage}"
+                                         Value="">
+                                <Setter Property="Visibility"
+                                        Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+            <TextBlock Margin="0,6,0,0"
                        Text="{Binding StatusMessage}"
                        TextWrapping="Wrap">
                 <TextBlock.Style>
@@ -71,100 +105,106 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
-
-            <Border Margin="0,20,0,0"
-                    Padding="{StaticResource CardPaddingLarge}"
-                    Style="{StaticResource CardBorderStyle}">
-                <StackPanel>
-
-                    <StackPanel Margin="0,20,0,0"
-                                HorizontalAlignment="Center">
-                        <StackPanel.Style>
-                            <Style TargetType="StackPanel">
-                                <Setter Property="Visibility"
-                                        Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasBooks}"
-                                                 Value="False">
-                                        <Setter Property="Visibility"
-                                                Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </StackPanel.Style>
-                        <ui:SymbolIcon HorizontalAlignment="Center"
-                                       FontSize="48"
-                                       Symbol="BookOpen24"/>
-                        <TextBlock Margin="0,12,0,0"
-                                   HorizontalAlignment="Center"
-                                   Style="{StaticResource StrongTextBlockStyle}"
-                                   Text="尚未导入小说"/>
-                        <TextBlock Margin="0,8,0,0"
-                                   HorizontalAlignment="Center"
-                                   Style="{StaticResource SecondaryTextBlockStyle}"
-                                   Text="将 TXT 拖到这里，或选择文件导入。"/>
-                        <Button Margin="0,16,0,0"
-                                HorizontalAlignment="Center"
-                                Padding="18,8"
-                                Click="ImportButton_OnClick"
-                                Content="导入小说"/>
-                    </StackPanel>
-
-                    <StackPanel Margin="0,20,0,0"
-                                HorizontalAlignment="Center">
-                        <StackPanel.Style>
-                            <Style TargetType="StackPanel">
-                                <Setter Property="Visibility"
-                                        Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <MultiDataTrigger>
-                                        <MultiDataTrigger.Conditions>
-                                            <Condition Binding="{Binding HasBooks}"
-                                                       Value="True"/>
-                                            <Condition Binding="{Binding HasVisibleBooks}"
-                                                       Value="False"/>
-                                        </MultiDataTrigger.Conditions>
-                                        <Setter Property="Visibility"
-                                                Value="Visible"/>
-                                    </MultiDataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </StackPanel.Style>
-                        <TextBlock HorizontalAlignment="Center"
-                                   Style="{StaticResource StrongTextBlockStyle}"
-                                   Text="没有找到匹配的书籍"/>
-                        <TextBlock Margin="0,8,0,0"
-                                   HorizontalAlignment="Center"
-                                   Style="{StaticResource SecondaryTextBlockStyle}"
-                                   Text="试试修改关键词，或清空搜索条件。"/>
-                    </StackPanel>
-
-                    <ItemsControl x:Name="BooksItemsControl"
-                                  Margin="0,20,0,0"
-                                  ItemsSource="{Binding Books}"
-                                  Visibility="{Binding HasVisibleBooks, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel ItemWidth="340"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemContainerStyle>
-                            <Style TargetType="ContentPresenter">
-                                <Setter Property="Margin"
-                                        Value="0,0,16,16"/>
-                            </Style>
-                        </ItemsControl.ItemContainerStyle>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <views:BookCardView Item="{Binding}"
-                                                    DeleteBookCommand="{Binding DataContext.DeleteBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                    OpenBookCommand="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                    OpenBookDetailsCommand="{Binding DataContext.OpenBookDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
         </StackPanel>
-    </ScrollViewer>
+
+        <Grid Grid.Row="2"
+              Margin="0,20,0,0">
+            <ScrollViewer x:Name="BooksScrollViewer"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          CanContentScroll="False"
+                          Visibility="{Binding HasVisibleBooks, Converter={StaticResource BooleanToVisibilityConverter}}"
+                          input:MouseWheelScrollBehavior.Enabled="True"
+                          library:LibraryScrollViewerStateBehavior.ItemsControl="{Binding ElementName=BooksItemsControl}"
+                          library:LibraryScrollViewerStateBehavior.State="{Binding ScrollState}">
+                <ItemsControl x:Name="BooksItemsControl"
+                              ItemsSource="{Binding Books}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel ItemWidth="360"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemContainerStyle>
+                        <Style TargetType="ContentPresenter">
+                            <Setter Property="Margin"
+                                    Value="0,0,16,16"/>
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <views:BookCardView Item="{Binding}"
+                                                DeleteBookCommand="{Binding DataContext.DeleteBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                OpenBookCommand="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                OpenBookDetailsCommand="{Binding DataContext.OpenBookDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility"
+                                Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasBooks}"
+                                         Value="False">
+                                <Setter Property="Visibility"
+                                        Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <ui:SymbolIcon HorizontalAlignment="Center"
+                               FontSize="48"
+                               Symbol="BookOpen24"/>
+                <TextBlock Margin="0,12,0,0"
+                           HorizontalAlignment="Center"
+                           Style="{StaticResource StrongTextBlockStyle}"
+                           Text="尚未导入小说"/>
+                <TextBlock Margin="0,8,0,0"
+                           HorizontalAlignment="Center"
+                           Style="{StaticResource SecondaryTextBlockStyle}"
+                           Text="将 TXT 拖到这里，或选择文件导入。"/>
+                <Button Margin="0,16,0,0"
+                        HorizontalAlignment="Center"
+                        Padding="18,8"
+                        Click="ImportButton_OnClick"
+                        Content="导入小说"/>
+            </StackPanel>
+
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility"
+                                Value="Collapsed"/>
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding HasBooks}"
+                                               Value="True"/>
+                                    <Condition Binding="{Binding HasVisibleBooks}"
+                                               Value="False"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility"
+                                        Value="Visible"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <TextBlock HorizontalAlignment="Center"
+                           Style="{StaticResource StrongTextBlockStyle}"
+                           Text="没有找到匹配的书籍"/>
+                <TextBlock Margin="0,8,0,0"
+                           HorizontalAlignment="Center"
+                           Style="{StaticResource SecondaryTextBlockStyle}"
+                           Text="试试修改关键词，或清空搜索条件。"/>
+                <Button Margin="0,16,0,0"
+                        Command="{Binding ClearSearchCommand}"
+                        Content="清空搜索"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
 </UserControl>

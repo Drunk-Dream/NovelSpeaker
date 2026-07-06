@@ -18,13 +18,13 @@ public partial class LibraryView : UserControl
         await ShowImportFileDialogAsync();
     }
 
-    private void RootScrollViewer_OnDragEnter(object sender, DragEventArgs e)
+    private void RootGrid_OnDragEnter(object sender, DragEventArgs e)
     {
         e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
-    private async void RootScrollViewer_OnDrop(object sender, DragEventArgs e)
+    private async void RootGrid_OnDrop(object sender, DragEventArgs e)
     {
         if (DataContext is not LibraryViewModel viewModel)
         {
@@ -35,7 +35,7 @@ public partial class LibraryView : UserControl
         await viewModel.ImportFilesAsync(files ?? [], CancellationToken.None);
     }
 
-    private async void RootScrollViewer_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    private async void RootGrid_OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.O || (Keyboard.Modifiers & ModifierKeys.Control) == 0)
         {
