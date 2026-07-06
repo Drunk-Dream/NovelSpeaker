@@ -49,10 +49,13 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IBookCatalogInvalidationState>(provider.GetRequiredService<IBookCatalogInvalidationState>());
                 Assert.IsAssignableFrom<IThemePreferenceService>(provider.GetRequiredService<IThemePreferenceService>());
                 Assert.IsType<BookDetailsViewModel>(provider.GetRequiredService<BookDetailsViewModel>());
+                Assert.IsType<CacheAndDataViewModel>(provider.GetRequiredService<CacheAndDataViewModel>());
+                Assert.IsType<CacheManagementViewModel>(provider.GetRequiredService<CacheManagementViewModel>());
                 Assert.IsType<ChapterRulesViewModel>(provider.GetRequiredService<ChapterRulesViewModel>());
                 Assert.IsType<TtsRulesViewModel>(provider.GetRequiredService<TtsRulesViewModel>());
                 Assert.IsType<LibraryPage>(provider.GetRequiredService<LibraryPage>());
                 Assert.IsType<SettingsPage>(provider.GetRequiredService<SettingsPage>());
+                Assert.IsType<CacheAndDataPage>(provider.GetRequiredService<CacheAndDataPage>());
                 Assert.IsType<PlaybackSettingsPage>(provider.GetRequiredService<PlaybackSettingsPage>());
                 Assert.IsType<ImportTextSettingsPage>(provider.GetRequiredService<ImportTextSettingsPage>());
                 Assert.IsType<AppearanceSettingsPage>(provider.GetRequiredService<AppearanceSettingsPage>());
@@ -70,6 +73,7 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<NovelSpeaker.Application.Speech.ITtsRuleRepository>());
                 Assert.IsAssignableFrom<IAppSettingsStore>(provider.GetRequiredService<IAppSettingsStore>());
                 Assert.IsAssignableFrom<IAppSettingsService>(provider.GetRequiredService<IAppSettingsService>());
+                Assert.IsAssignableFrom<IAudioCacheLimitProvider>(provider.GetRequiredService<IAudioCacheLimitProvider>());
                 Assert.IsAssignableFrom<IBookFileNameTemplateProvider>(
                     provider.GetRequiredService<IBookFileNameTemplateProvider>());
                 Assert.IsAssignableFrom<ITextSegmentationOptionsProvider>(
@@ -85,6 +89,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<ITtsRateLimiter>(provider.GetRequiredService<ITtsRateLimiter>());
                 Assert.IsAssignableFrom<IAudioCache>(provider.GetRequiredService<IAudioCache>());
                 Assert.IsAssignableFrom<IAudioCacheManagementService>(provider.GetRequiredService<IAudioCacheManagementService>());
+                Assert.IsAssignableFrom<ICacheWorkspaceService>(provider.GetRequiredService<ICacheWorkspaceService>());
                 Assert.IsAssignableFrom<IAudioCacheProtectionRegistry>(provider.GetRequiredService<IAudioCacheProtectionRegistry>());
                 Assert.IsAssignableFrom<IPrefetchScheduler>(provider.GetRequiredService<IPrefetchScheduler>());
                 Assert.IsAssignableFrom<IReadingProgressStore>(provider.GetRequiredService<IReadingProgressStore>());

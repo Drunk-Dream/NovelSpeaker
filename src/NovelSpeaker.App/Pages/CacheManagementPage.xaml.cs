@@ -1,30 +1,27 @@
-using Wpf.Ui;
+using NovelSpeaker.App.ViewModels;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Pages;
 
-public partial class CacheManagementPage : System.Windows.Controls.Page, INavigationAware
+public partial class CacheManagementPage : System.Windows.Controls.Page, INavigationAware, INavigableView<CacheManagementViewModel>
 {
-    private readonly INavigationService _navigationService;
-
-    public CacheManagementPage(INavigationService navigationService)
+    public CacheManagementPage(CacheManagementViewModel viewModel)
     {
-        _navigationService = navigationService;
+        ViewModel = viewModel;
+        DataContext = ViewModel;
         InitializeComponent();
     }
 
+    public CacheManagementViewModel ViewModel { get; }
+
     public Task OnNavigatedToAsync()
     {
-        return Task.CompletedTask;
+        return ViewModel.LoadAsync(CancellationToken.None);
     }
 
     public Task OnNavigatedFromAsync()
     {
+        ViewModel.HandleNavigatedFrom();
         return Task.CompletedTask;
-    }
-
-    private void BackButton_OnClick(object sender, System.Windows.RoutedEventArgs e)
-    {
-        _ = _navigationService.GoBack();
     }
 }

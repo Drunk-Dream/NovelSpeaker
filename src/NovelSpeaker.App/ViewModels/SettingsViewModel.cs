@@ -30,7 +30,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             new SettingsNavigationGroupViewModel(
                 "应用",
                 [
-                    new SettingsNavigationItemViewModel("缓存与数据", SymbolRegular.Database24, OpenCacheManagementCommand),
+                    new SettingsNavigationItemViewModel("缓存与数据", SymbolRegular.Database24, OpenCacheAndDataCommand),
                     new SettingsNavigationItemViewModel("外观", SymbolRegular.DarkTheme24, OpenAppearanceSettingsCommand),
                     new SettingsNavigationItemViewModel("诊断与关于", SymbolRegular.Info24, OpenDiagnosticsAboutCommand)
                 ])
@@ -64,9 +64,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void OpenCacheManagement()
+    private void OpenCacheAndData()
     {
-        _navigationService.NavigateWithHierarchy(typeof(CacheManagementPage));
+        _navigationService.NavigateWithHierarchy(typeof(CacheAndDataPage));
     }
 
     [RelayCommand]

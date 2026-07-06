@@ -49,6 +49,20 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
         return Task.CompletedTask;
     }
 
+    public Task OpenAppDataDirectoryAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var info = new ProcessStartInfo
+        {
+            FileName = _directories.RootDirectoryPath,
+            UseShellExecute = true
+        };
+
+        Process.Start(info);
+        return Task.CompletedTask;
+    }
+
     private static string ResolveVersion()
     {
         var assembly = typeof(App).Assembly;

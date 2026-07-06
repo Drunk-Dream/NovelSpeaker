@@ -4,5 +4,7 @@ public interface IAppDiagnosticsService
 {
     Task<AppDiagnosticsSnapshot> GetSnapshotAsync(CancellationToken cancellationToken);
 
+    Task OpenAppDataDirectoryAsync(CancellationToken cancellationToken);
+
     Task OpenLogsDirectoryAsync(CancellationToken cancellationToken);
 }

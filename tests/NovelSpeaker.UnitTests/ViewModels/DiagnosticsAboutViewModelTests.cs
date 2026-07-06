@@ -89,6 +89,16 @@ public sealed class DiagnosticsAboutViewModelTests
 
             return Task.CompletedTask;
         }
+
+        public Task OpenAppDataDirectoryAsync(CancellationToken cancellationToken)
+        {
+            if (OpenException is not null)
+            {
+                throw OpenException;
+            }
+
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeAppSettingsService : IAppSettingsService

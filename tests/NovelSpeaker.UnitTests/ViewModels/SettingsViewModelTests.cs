@@ -60,6 +60,18 @@ public sealed class SettingsViewModelTests
         Assert.True(navigationService.LastUsedHierarchyNavigation);
     }
 
+    [Fact]
+    public void OpenCacheAndDataCommand_navigates_to_cache_and_data_page()
+    {
+        var navigationService = new FakeNavigationService();
+        var viewModel = new SettingsViewModel(navigationService);
+
+        viewModel.OpenCacheAndDataCommand.Execute(null);
+
+        Assert.Equal(typeof(CacheAndDataPage), navigationService.LastNavigationPageType);
+        Assert.True(navigationService.LastUsedHierarchyNavigation);
+    }
+
     private sealed class FakeNavigationService : INavigationService
     {
         public Type? LastNavigationPageType { get; private set; }

@@ -47,6 +47,8 @@ public static class ServiceCollectionExtensions
         services.AddTransient<ImportBookDialogViewModel>();
         services.AddSingleton<PlayerViewModel>();
         services.AddSingleton<SettingsViewModel>();
+        services.AddTransient<CacheAndDataViewModel>();
+        services.AddTransient<CacheManagementViewModel>();
         services.AddTransient<PlaybackSettingsViewModel>();
         services.AddTransient<ImportTextSettingsViewModel>();
         services.AddTransient<AppearanceSettingsViewModel>();
@@ -56,6 +58,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<LibraryPage>();
         services.AddTransient<SettingsPage>();
+        services.AddTransient<CacheAndDataPage>();
         services.AddTransient<PlaybackSettingsPage>();
         services.AddTransient<ImportTextSettingsPage>();
         services.AddTransient<AppearanceSettingsPage>();
