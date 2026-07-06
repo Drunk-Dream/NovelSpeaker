@@ -1,7 +1,7 @@
 namespace NovelSpeaker.Application.Books;
 
 /// <summary>
-/// Copies imported source files into the application-owned book storage.
+/// Writes normalized TXT content into the application-owned book storage.
 /// </summary>
 public interface IBookFileStore
 {
@@ -12,5 +12,5 @@ public interface IBookFileStore
         CancellationToken cancellationToken);
 
     Task FinalizeAsync(BookFileCopyHandle copyHandle, CancellationToken cancellationToken);
-    Task CleanupAsync(BookFileCopyHandle copyHandle);
+    Task CleanupAsync(BookFileCopyHandle copyHandle, bool includeFinalFile);
 }

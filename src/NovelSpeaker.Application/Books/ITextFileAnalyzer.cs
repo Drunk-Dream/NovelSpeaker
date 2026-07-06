@@ -1,7 +1,7 @@
 namespace NovelSpeaker.Application.Books;
 
 /// <summary>
-/// Reads TXT files with automatic encoding detection and preview generation.
+/// Reads TXT files with automatic encoding detection and low-confidence metadata.
 /// </summary>
 public interface ITextFileAnalyzer
 {
