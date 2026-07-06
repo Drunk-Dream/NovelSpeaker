@@ -33,6 +33,7 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
 
     public Task OnNavigatedFromAsync()
     {
+        ViewModel.CancelActiveImport();
         return Task.CompletedTask;
     }
 }

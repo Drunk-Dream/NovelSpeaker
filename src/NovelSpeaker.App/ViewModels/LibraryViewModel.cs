@@ -27,7 +27,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     private readonly IBookCatalogService _bookCatalogService;
     private readonly IBookManagementService _bookManagementService;
     private readonly IBookCoverGenerator _bookCoverGenerator;
-    private readonly IImportBookDialogService _importBookDialogService;
+    private readonly ILibraryImportCoordinator _libraryImportCoordinator;
     private readonly IBookDeleteDialogService _deleteDialogService;
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
     private readonly IAppFeedbackService _feedbackService;
@@ -37,13 +37,15 @@ public sealed partial class LibraryViewModel : ObservableObject
     private IReadOnlyList<LibraryBookItemViewModel> _allBooks = [];
     private string? _activePlaybackBookId;
     private int _searchVersion;
+    private int _importVersion;
     private bool _isDeletingBook;
+    private CancellationTokenSource? _activeImportCancellationTokenSource;
 
     public LibraryViewModel(
         IBookCatalogService bookCatalogService,
         IBookManagementService bookManagementService,
         IBookCoverGenerator bookCoverGenerator,
-        IImportBookDialogService importBookDialogService,
+        ILibraryImportCoordinator libraryImportCoordinator,
         IBookDeleteDialogService deleteDialogService,
         IBookCatalogInvalidationState catalogInvalidationState,
         IAppFeedbackService feedbackService,
@@ -54,7 +56,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         _bookCatalogService = bookCatalogService;
         _bookManagementService = bookManagementService;
         _bookCoverGenerator = bookCoverGenerator;
-        _importBookDialogService = importBookDialogService;
+        _libraryImportCoordinator = libraryImportCoordinator;
         _deleteDialogService = deleteDialogService;
         _catalogInvalidationState = catalogInvalidationState;
         _feedbackService = feedbackService;
@@ -75,6 +77,9 @@ public sealed partial class LibraryViewModel : ObservableObject
     private string statusMessage = string.Empty;
 
     [ObservableProperty]
+    private string importStatusMessage = string.Empty;
+
+    [ObservableProperty]
     private bool isBusy;
 
     [ObservableProperty]
@@ -84,10 +89,16 @@ public sealed partial class LibraryViewModel : ObservableObject
     private bool hasVisibleBooks;
 
     [ObservableProperty]
+    private bool hasSearchText;
+
+    [ObservableProperty]
     private string searchText = string.Empty;
 
     [ObservableProperty]
     private LibrarySortMode selectedSortMode = LibrarySortMode.RecentReading;
+
+    [ObservableProperty]
+    private string librarySummaryText = "共 0 本 · 最近阅读优先";
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -107,22 +118,55 @@ public sealed partial class LibraryViewModel : ObservableObject
             return;
         }
 
+        var version = Interlocked.Increment(ref _importVersion);
+        ReplaceActiveImport(cancellationToken);
+        var activeCancellationTokenSource = _activeImportCancellationTokenSource!;
+        var progress = new Progress<BookImportProgress>(update => ApplyImportProgress(version, activeCancellationTokenSource, update));
         IsBusy = true;
+        ImportStatusMessage = "正在准备导入。";
+        StatusMessage = string.Empty;
         try
         {
-            var outcome = await _importBookDialogService.ShowAsync(validatedPath, cancellationToken);
-            if (outcome != ImportBookDialogOutcome.Imported)
+            var outcome = await _libraryImportCoordinator.ImportAsync(validatedPath, progress, activeCancellationTokenSource.Token);
+            if (!IsCurrentImport(version, activeCancellationTokenSource))
             {
                 return;
             }
 
-            await LoadAsync(cancellationToken);
-            _feedbackService.ShowSuccess("导入成功", "已导入小说。");
+            if (outcome.Status == LibraryImportCoordinatorStatus.Imported)
+            {
+                await LoadAsync(activeCancellationTokenSource.Token);
+                _feedbackService.ShowSuccess("导入成功", "已导入小说。");
+            }
+            else if (outcome.Status == LibraryImportCoordinatorStatus.Failed)
+            {
+                ShowImportFailure(outcome.FailureReason);
+            }
+        }
+        catch (OperationCanceledException) when (activeCancellationTokenSource.IsCancellationRequested || cancellationToken.IsCancellationRequested)
+        {
         }
         finally
         {
-            IsBusy = false;
+            if (ReferenceEquals(_activeImportCancellationTokenSource, activeCancellationTokenSource))
+            {
+                _activeImportCancellationTokenSource = null;
+            }
+
+            activeCancellationTokenSource.Dispose();
+            if (version == Volatile.Read(ref _importVersion))
+            {
+                IsBusy = false;
+                ImportStatusMessage = string.Empty;
+            }
         }
+    }
+
+    public void CancelActiveImport()
+    {
+        ReplaceActiveImport(CancellationToken.None, clearAfterCancel: true);
+        ImportStatusMessage = string.Empty;
+        IsBusy = false;
     }
 
     [RelayCommand]
@@ -212,6 +256,7 @@ public sealed partial class LibraryViewModel : ObservableObject
 
     partial void OnSearchTextChanged(string value)
     {
+        HasSearchText = !string.IsNullOrWhiteSpace(value);
         ScheduleFilterRefresh();
     }
 
@@ -267,6 +312,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         Books.ReplaceWith(visibleBooks, static book => book);
         HasBooks = _allBooks.Count > 0;
         HasVisibleBooks = visibleBooks.Length > 0;
+        LibrarySummaryText = BuildLibrarySummary(_allBooks.Count, SelectedSortMode);
     }
 
     private LibraryBookItemViewModel MapBook(BookSummary book)
@@ -338,5 +384,64 @@ public sealed partial class LibraryViewModel : ObservableObject
     private void ApplyPlaybackSnapshot(PlaybackSnapshot snapshot)
     {
         _activePlaybackBookId = snapshot.BookId;
+    }
+
+    private static string BuildLibrarySummary(int totalBooks, LibrarySortMode sortMode)
+    {
+        return sortMode == LibrarySortMode.Title
+            ? $"共 {totalBooks} 本 · 按书名排序"
+            : $"共 {totalBooks} 本 · 最近阅读优先";
+    }
+
+    private void ReplaceActiveImport(
+        CancellationToken cancellationToken,
+        bool clearAfterCancel = false)
+    {
+        _activeImportCancellationTokenSource?.Cancel();
+        _activeImportCancellationTokenSource?.Dispose();
+        _activeImportCancellationTokenSource = clearAfterCancel
+            ? null
+            : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+    }
+
+    private bool IsCurrentImport(int version, CancellationTokenSource activeCancellationTokenSource)
+    {
+        return version == Volatile.Read(ref _importVersion) &&
+            ReferenceEquals(_activeImportCancellationTokenSource, activeCancellationTokenSource) &&
+            !activeCancellationTokenSource.IsCancellationRequested;
+    }
+
+    private void ApplyImportProgress(
+        int version,
+        CancellationTokenSource activeCancellationTokenSource,
+        BookImportProgress progress)
+    {
+        if (!IsCurrentImport(version, activeCancellationTokenSource))
+        {
+            return;
+        }
+
+        if (progress.IsIndeterminate || progress.TotalBytes <= 0)
+        {
+            ImportStatusMessage = progress.Message;
+            return;
+        }
+
+        var percent = Math.Clamp(progress.BytesProcessed * 100d / progress.TotalBytes, 0, 100);
+        ImportStatusMessage = $"{progress.Message} {percent:0.#}%";
+    }
+
+    private void ShowImportFailure(BookImportFailureReason? failureReason)
+    {
+        var message = failureReason switch
+        {
+            BookImportFailureReason.DuplicateBook => "该小说已经导入",
+            BookImportFailureReason.NoValidChapters => "章节解析失败，请检查文件内容。",
+            BookImportFailureReason.UnsupportedEncoding => "无法识别编码，请手动选择。",
+            BookImportFailureReason.FileReadFailed => "文件无法读取，请确认文件仍可访问。",
+            _ => "导入失败，请重试。"
+        };
+
+        _feedbackService.ShowWarning("无法导入", message);
     }
 }
