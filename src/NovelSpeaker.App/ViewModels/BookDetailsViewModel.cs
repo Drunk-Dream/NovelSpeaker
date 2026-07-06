@@ -14,6 +14,7 @@ namespace NovelSpeaker.App.ViewModels;
 public sealed partial class BookDetailsViewModel : ObservableObject
 {
     private readonly IBookManagementService _bookManagementService;
+    private readonly ICacheWorkspaceService _cacheWorkspaceService;
     private readonly IBookCoverGenerator _bookCoverGenerator;
     private readonly IAppFeedbackService _feedbackService;
     private readonly IAppDialogService _dialogService;
@@ -26,6 +27,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
     public BookDetailsViewModel(
         IBookManagementService bookManagementService,
+        ICacheWorkspaceService cacheWorkspaceService,
         IBookCoverGenerator bookCoverGenerator,
         IAppFeedbackService feedbackService,
         IAppDialogService dialogService,
@@ -35,6 +37,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         INavigationService navigationService)
     {
         _bookManagementService = bookManagementService;
+        _cacheWorkspaceService = cacheWorkspaceService;
         _bookCoverGenerator = bookCoverGenerator;
         _feedbackService = feedbackService;
         _dialogService = dialogService;
@@ -188,20 +191,21 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            var clearedBytes = await _bookManagementService.ClearBookCacheAsync(_bookId, cancellationToken);
+            var result = await _cacheWorkspaceService.ClearBookAsync(_bookId, cancellationToken);
             var details = await _bookManagementService.GetBookDetailsAsync(_bookId, cancellationToken);
             if (details is not null)
             {
                 ApplyDetails(details, preserveEditor: true);
             }
 
-            if (_loadedDetails?.CachedAudioBytes > 0)
+            var feedback = CacheCleanupFeedbackFormatter.Format(result, "缓存已清理", "缓存已部分清理");
+            if (feedback.IsWarning)
             {
-                _feedbackService.ShowWarning("缓存已部分清理", "正在使用的音频已保留，停止播放后可继续清理。");
+                _feedbackService.ShowWarning(feedback.Title, feedback.Message);
             }
             else
             {
-                _feedbackService.ShowSuccess("缓存已清理", $"已释放 {FormatBytes(clearedBytes)}。");
+                _feedbackService.ShowSuccess(feedback.Title, feedback.Message);
             }
         }
         catch (Exception exception)

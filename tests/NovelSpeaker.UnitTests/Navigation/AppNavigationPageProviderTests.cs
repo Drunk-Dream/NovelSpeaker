@@ -23,6 +23,7 @@ public sealed class AppNavigationPageProviderTests
             var services = new ServiceCollection();
             services.AddSingleton<INavigationService, FakeNavigationService>();
             services.AddSingleton<IBookManagementService, FakeBookManagementService>();
+            services.AddSingleton<ICacheWorkspaceService, FakeCacheWorkspaceService>();
             services.AddSingleton<IBookCoverGenerator, BookCoverGenerator>();
             services.AddSingleton<IAppFeedbackService, FakeAppFeedbackService>();
             services.AddSingleton<IAppDialogService, FakeAppDialogService>();
@@ -133,6 +134,17 @@ public sealed class AppNavigationPageProviderTests
         {
             return Task.FromResult(AppConfirmationDecision.Cancel);
         }
+    }
+
+    private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
+    {
+        public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(string bookId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CacheCleanupResult> ClearChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class FakeAppDialogService : IAppDialogService

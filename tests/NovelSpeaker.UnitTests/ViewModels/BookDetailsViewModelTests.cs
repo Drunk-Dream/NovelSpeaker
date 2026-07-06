@@ -138,11 +138,15 @@ public sealed class BookDetailsViewModelTests
         var feedbackService = new FakeFeedbackService();
         var managementService = new FakeBookManagementService
         {
-            ClearCacheResult = 1024,
             NextDetailsAfterClear = CreateDetails(cachedAudioBytes: 512)
+        };
+        var cacheWorkspaceService = new FakeCacheWorkspaceService
+        {
+            ClearBookResult = new CacheCleanupResult(1024, 1, 1, 0)
         };
         var viewModel = CreateViewModel(
             managementService: managementService,
+            cacheWorkspaceService: cacheWorkspaceService,
             dialogService: dialogService,
             feedbackService: feedbackService);
 
@@ -185,6 +189,7 @@ public sealed class BookDetailsViewModelTests
 
     private static BookDetailsViewModel CreateViewModel(
         FakeBookManagementService? managementService = null,
+        FakeCacheWorkspaceService? cacheWorkspaceService = null,
         IAppFeedbackService? feedbackService = null,
         FakeAppDialogService? dialogService = null,
         FakeBookDeleteDialogService? deleteDialogService = null,
@@ -194,6 +199,7 @@ public sealed class BookDetailsViewModelTests
     {
         return new BookDetailsViewModel(
             managementService ?? new FakeBookManagementService(),
+            cacheWorkspaceService ?? new FakeCacheWorkspaceService(),
             new BookCoverGenerator(),
             feedbackService ?? new FakeFeedbackService(),
             dialogService ?? new FakeAppDialogService(),
@@ -236,12 +242,16 @@ public sealed class BookDetailsViewModelTests
 
         public bool ThrowOnUpdate { get; set; }
 
-        public long ClearCacheResult { get; set; } = 2048;
-
         public BookDetails? NextDetailsAfterClear { get; set; }
 
         public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken)
         {
+            if (NextDetailsAfterClear is not null)
+            {
+                _details = NextDetailsAfterClear;
+                NextDetailsAfterClear = null;
+            }
+
             return Task.FromResult<BookDetails?>(_details);
         }
 
@@ -268,12 +278,52 @@ public sealed class BookDetailsViewModelTests
                 _details = NextDetailsAfterClear;
             }
 
-            return Task.FromResult(ClearCacheResult);
+            return Task.FromResult(0L);
         }
 
         public Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)
         {
             return Task.FromResult<BookDeleteResult?>(new BookDeleteResult(request.BookId, request.DeleteAudioCache, 3, true));
+        }
+    }
+
+    private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
+    {
+        public CacheCleanupResult ClearBookResult { get; set; } = new(2048, 1, 0, 0);
+
+        public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(string bookId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(ClearBookResult);
+        }
+
+        public Task<CacheCleanupResult> ClearChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
         }
     }
 
