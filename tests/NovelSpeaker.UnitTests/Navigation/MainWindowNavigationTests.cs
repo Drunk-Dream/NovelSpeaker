@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows.Controls;
 using System.Windows;
+using System.Windows.Threading;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App;
 using NovelSpeaker.App.Navigation;
@@ -126,10 +127,64 @@ public sealed class MainWindowNavigationTests
         });
     }
 
+    [Fact]
+    public async Task Primary_navigation_switch_keeps_only_one_active_menu_item()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            var window = provider.GetRequiredService<MainWindow>();
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                await DrainDispatcherAsync(window.Dispatcher);
+
+                var navigationView = GetNavigationView(window);
+                var libraryItem = Assert.IsType<NavigationViewItem>(navigationView.MenuItems[0]);
+                var settingsItem = Assert.IsType<NavigationViewItem>(navigationView.MenuItems[1]);
+
+                Assert.True(libraryItem.IsActive);
+                Assert.False(settingsItem.IsActive);
+
+                InvokeClick(settingsItem);
+                await DrainDispatcherAsync(window.Dispatcher);
+
+                Assert.False(libraryItem.IsActive);
+                Assert.True(settingsItem.IsActive);
+                Assert.Same(settingsItem, navigationView.SelectedItem);
+
+                InvokeClick(libraryItem);
+                await DrainDispatcherAsync(window.Dispatcher);
+
+                Assert.True(libraryItem.IsActive);
+                Assert.False(settingsItem.IsActive);
+                Assert.Same(libraryItem, navigationView.SelectedItem);
+            }
+            finally
+            {
+                window.Close();
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
     private static NavigationView GetNavigationView(MainWindow window)
     {
         var property = typeof(MainWindow).GetProperty("NavigationViewControl", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         return Assert.IsType<NavigationView>(property?.GetValue(window));
+    }
+
+    private static void InvokeClick(NavigationViewItem item)
+    {
+        var onClick = typeof(NavigationViewItem).GetMethod("OnClick", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(onClick);
+        onClick!.Invoke(item, []);
+    }
+
+    private static Task DrainDispatcherAsync(Dispatcher dispatcher)
+    {
+        return dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ApplicationIdle).Task;
     }
 
     private sealed class FakeNavigationService : INavigationService, IGuardedNavigationService
