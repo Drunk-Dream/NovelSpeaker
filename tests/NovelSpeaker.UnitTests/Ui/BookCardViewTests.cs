@@ -1,4 +1,7 @@
 using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Media;
 using NovelSpeaker.App.Library;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.App.Views;
@@ -9,23 +12,24 @@ namespace NovelSpeaker.UnitTests.Ui;
 public sealed class BookCardViewTests
 {
     [Fact]
-    public void BookCardView_can_render_read_only_progress_ratio()
+    public void BookCardView_exposes_accessible_names_and_keeps_more_button_inside_card()
     {
         WpfTestHost.RunInSta(() =>
         {
+            var item = new LibraryBookItemViewModel(
+                "book-1",
+                "三体",
+                "刘慈欣",
+                "第一章 科学边界",
+                "剩余 5 章",
+                0.5,
+                true,
+                "2026-06-30T00:00:00.0000000Z",
+                new BookCoverGenerator().Generate("三体"),
+                canDelete: true);
             var view = new BookCardView
             {
-                Item = new LibraryBookItemViewModel(
-                    "book-1",
-                    "三体",
-                    "刘慈欣",
-                    "第一章 科学边界",
-                    "剩余 5 章",
-                    0.5,
-                    true,
-                    "2026-06-30T00:00:00.0000000Z",
-                    new BookCoverGenerator().Generate("三体"),
-                    canDelete: true),
+                Item = item,
             };
 
             var window = new Window
@@ -41,11 +45,42 @@ public sealed class BookCardViewTests
             {
                 window.Show();
                 window.UpdateLayout();
+
+                var openButton = FindDescendant<Button>(
+                    view,
+                    candidate => AutomationProperties.GetName(candidate) == item.AutomationName);
+                var moreButton = Assert.IsType<Button>(view.FindName("MoreButton"));
+
+                Assert.NotNull(openButton);
+                Assert.Equal(item.MoreActionsAutomationName, AutomationProperties.GetName(moreButton));
+                Assert.Equal("更多操作", moreButton.ToolTip);
+                Assert.True(moreButton.TransformToAncestor(view).Transform(new Point(0, 0)).X >= 0);
             }
             finally
             {
                 window.Close();
             }
         });
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root, Func<T, bool> predicate)
+        where T : DependencyObject
+    {
+        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
+        {
+            var child = VisualTreeHelper.GetChild(root, childIndex);
+            if (child is T typed && predicate(typed))
+            {
+                return typed;
+            }
+
+            var descendant = FindDescendant(child, predicate);
+            if (descendant is not null)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
     }
 }

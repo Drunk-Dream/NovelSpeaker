@@ -40,12 +40,14 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IExceptionProjector>(provider.GetRequiredService<IExceptionProjector>());
                 Assert.IsAssignableFrom<IAppFeedbackService>(provider.GetRequiredService<IAppFeedbackService>());
                 Assert.IsAssignableFrom<IAppDiagnosticsService>(provider.GetRequiredService<IAppDiagnosticsService>());
-                Assert.IsAssignableFrom<IImportBookDialogService>(provider.GetRequiredService<IImportBookDialogService>());
+                Assert.IsAssignableFrom<IEncodingSelectionDialogService>(provider.GetRequiredService<IEncodingSelectionDialogService>());
+                Assert.IsAssignableFrom<IImportProgressDialogService>(provider.GetRequiredService<IImportProgressDialogService>());
                 Assert.IsAssignableFrom<IBookDeleteDialogService>(provider.GetRequiredService<IBookDeleteDialogService>());
                 Assert.IsAssignableFrom<IShellLayoutController>(provider.GetRequiredService<IShellLayoutController>());
                 Assert.IsAssignableFrom<IPlayerAutoScrollCoordinator>(provider.GetRequiredService<IPlayerAutoScrollCoordinator>());
                 Assert.IsAssignableFrom<IBookCoverGenerator>(provider.GetRequiredService<IBookCoverGenerator>());
                 Assert.IsType<LibraryScrollState>(provider.GetRequiredService<LibraryScrollState>());
+                Assert.IsAssignableFrom<ILibraryImportCoordinator>(provider.GetRequiredService<ILibraryImportCoordinator>());
                 Assert.IsAssignableFrom<IBookCatalogInvalidationState>(provider.GetRequiredService<IBookCatalogInvalidationState>());
                 Assert.IsAssignableFrom<IThemePreferenceService>(provider.GetRequiredService<IThemePreferenceService>());
                 Assert.IsType<BookDetailsViewModel>(provider.GetRequiredService<BookDetailsViewModel>());
@@ -71,6 +73,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IChapterRuleWorkspaceService>(provider.GetRequiredService<IChapterRuleWorkspaceService>());
                 Assert.IsAssignableFrom<NovelSpeaker.Application.Speech.ITtsRuleRepository>(
                     provider.GetRequiredService<NovelSpeaker.Application.Speech.ITtsRuleRepository>());
+                Assert.IsAssignableFrom<IDirectBookImportService>(provider.GetRequiredService<IDirectBookImportService>());
                 Assert.IsAssignableFrom<IAppSettingsStore>(provider.GetRequiredService<IAppSettingsStore>());
                 Assert.IsAssignableFrom<IAppSettingsService>(provider.GetRequiredService<IAppSettingsService>());
                 Assert.IsAssignableFrom<IAudioCacheLimitProvider>(provider.GetRequiredService<IAudioCacheLimitProvider>());

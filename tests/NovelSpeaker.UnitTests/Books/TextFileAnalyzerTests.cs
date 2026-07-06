@@ -16,9 +16,11 @@ public sealed class TextFileAnalyzerTests
         var analyzer = new TextFileAnalyzer();
         var result = await analyzer.AnalyzeAsync(new BookImportRequest(filePath, null), progress: null, CancellationToken.None);
 
-        Assert.Equal("utf-8", result.EncodingName);
+        Assert.Equal("utf-8", result.DetectedEncoding);
         Assert.Contains("第一章 开始", result.PreviewText);
         Assert.Contains("正文一", result.RawText);
+        Assert.Equal(TextEncodingDetectionMode.StrictUtf8, result.DetectionMode);
+        Assert.False(result.IsLowConfidence);
     }
 
     [Fact]
@@ -32,8 +34,11 @@ public sealed class TextFileAnalyzerTests
         var analyzer = new TextFileAnalyzer();
         var result = await analyzer.AnalyzeAsync(new BookImportRequest(filePath, null), progress: null, CancellationToken.None);
 
-        Assert.Equal("gb18030", result.EncodingName);
+        Assert.Equal("gb18030", result.DetectedEncoding);
         Assert.Contains("第一章 回退", result.RawText);
+        Assert.Equal(TextEncodingDetectionMode.Gb18030Fallback, result.DetectionMode);
+        Assert.True(result.IsLowConfidence);
+        Assert.Equal(LowConfidenceReason.FallbackEncoding, result.LowConfidenceReason);
     }
 
     [Fact]
@@ -44,8 +49,9 @@ public sealed class TextFileAnalyzerTests
         var analyzer = new TextFileAnalyzer();
         var result = await analyzer.AnalyzeAsync(new BookImportRequest(filePath, null), progress: null, CancellationToken.None);
 
-        Assert.Equal("utf-16le", result.EncodingName);
+        Assert.Equal("utf-16le", result.DetectedEncoding);
         Assert.StartsWith("第一章 UTF16 LE", result.RawText);
+        Assert.Equal(TextEncodingDetectionMode.BomUtf16Le, result.DetectionMode);
     }
 
     [Fact]
@@ -56,8 +62,9 @@ public sealed class TextFileAnalyzerTests
         var analyzer = new TextFileAnalyzer();
         var result = await analyzer.AnalyzeAsync(new BookImportRequest(filePath, null), progress: null, CancellationToken.None);
 
-        Assert.Equal("utf-16be", result.EncodingName);
+        Assert.Equal("utf-16be", result.DetectedEncoding);
         Assert.StartsWith("第一章 UTF16 BE", result.RawText);
+        Assert.Equal(TextEncodingDetectionMode.BomUtf16Be, result.DetectionMode);
     }
 
     [Fact]
@@ -70,8 +77,24 @@ public sealed class TextFileAnalyzerTests
         var analyzer = new TextFileAnalyzer();
         var result = await analyzer.AnalyzeAsync(new BookImportRequest(filePath, "gb18030"), progress: null, CancellationToken.None);
 
-        Assert.Equal("gb18030", result.EncodingName);
+        Assert.Equal("gb18030", result.DetectedEncoding);
         Assert.Contains("手动编码", result.RawText);
+        Assert.Equal(TextEncodingDetectionMode.ManualOverride, result.DetectionMode);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_marks_strict_utf8_as_low_confidence_when_sample_has_many_suspicious_characters()
+    {
+        var filePath = Path.GetTempFileName();
+        var suspiciousText = "第一章 开始\n" + new string('\uFFFD', 90) + "\n正文";
+        await File.WriteAllTextAsync(filePath, suspiciousText, new UTF8Encoding(false));
+
+        var analyzer = new TextFileAnalyzer();
+        var result = await analyzer.AnalyzeAsync(new BookImportRequest(filePath, null), progress: null, CancellationToken.None);
+
+        Assert.Equal("utf-8", result.DetectedEncoding);
+        Assert.True(result.IsLowConfidence);
+        Assert.Equal(LowConfidenceReason.SuspiciousCharacters, result.LowConfidenceReason);
     }
 
     private static async Task<string> WriteEncodedFileAsync(string text, Encoding encoding)

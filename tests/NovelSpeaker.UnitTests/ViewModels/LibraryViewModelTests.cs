@@ -208,25 +208,79 @@ public sealed class LibraryViewModelTests
     }
 
     [Fact]
-    public async Task ImportFilesAsync_refreshes_books_when_dialog_reports_imported()
+    public async Task ImportFilesAsync_refreshes_books_when_import_coordinator_reports_imported()
     {
         var feedback = new FakeFeedbackService();
-        var dialogService = new FakeImportBookDialogService
+        var importCoordinator = new FakeLibraryImportCoordinator
         {
-            NextOutcome = ImportBookDialogOutcome.Imported
+            NextResult = new LibraryImportCoordinatorResult(LibraryImportCoordinatorStatus.Imported)
         };
         var catalogService = new FakeBookCatalogService([]);
         var viewModel = CreateViewModel(
             catalogService: catalogService,
             feedback: feedback,
-            importDialogService: dialogService);
+            importCoordinator: importCoordinator);
 
         catalogService.Books = [new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"))];
         await viewModel.ImportFilesAsync([CreateTempTxtFile()], CancellationToken.None);
 
         Assert.Equal("导入成功", feedback.LastTitle);
         Assert.Single(viewModel.Books);
-        Assert.Single(dialogService.Requests);
+        Assert.Single(importCoordinator.Requests);
+    }
+
+    [Fact]
+    public async Task ImportFilesAsync_shows_duplicate_warning_without_refreshing_books()
+    {
+        var feedback = new FakeFeedbackService();
+        var importCoordinator = new FakeLibraryImportCoordinator
+        {
+            NextResult = new LibraryImportCoordinatorResult(
+                LibraryImportCoordinatorStatus.Failed,
+                BookImportFailureReason.DuplicateBook)
+        };
+        var catalogService = new FakeBookCatalogService([]);
+        var viewModel = CreateViewModel(
+            catalogService: catalogService,
+            feedback: feedback,
+            importCoordinator: importCoordinator);
+
+        await viewModel.ImportFilesAsync([CreateTempTxtFile()], CancellationToken.None);
+
+        Assert.Equal("无法导入", feedback.LastTitle);
+        Assert.Equal("该小说已经导入", feedback.LastMessage);
+        Assert.Empty(viewModel.Books);
+    }
+
+    [Fact]
+    public async Task ImportFilesAsync_cancels_previous_inflight_import_when_new_request_starts()
+    {
+        var firstResult = new TaskCompletionSource<LibraryImportCoordinatorResult>();
+        var importCoordinator = new FakeLibraryImportCoordinator();
+        importCoordinator.PendingResults.Enqueue(firstResult.Task);
+        importCoordinator.PendingResults.Enqueue(Task.FromResult(new LibraryImportCoordinatorResult(LibraryImportCoordinatorStatus.Imported)));
+
+        var catalogService = new FakeBookCatalogService([]);
+        var viewModel = CreateViewModel(
+            catalogService: catalogService,
+            importCoordinator: importCoordinator);
+
+        var firstFile = CreateTempTxtFile();
+        var secondFile = CreateTempTxtFile();
+        var firstImportTask = viewModel.ImportFilesAsync([firstFile], CancellationToken.None);
+        await WaitForAsync(() => importCoordinator.Requests.Count == 1);
+
+        catalogService.Books = [new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"))];
+        var secondImportTask = viewModel.ImportFilesAsync([secondFile], CancellationToken.None);
+        await WaitForAsync(() => importCoordinator.Requests.Count == 2);
+
+        Assert.True(importCoordinator.RequestTokens[0].IsCancellationRequested);
+
+        firstResult.SetResult(new LibraryImportCoordinatorResult(LibraryImportCoordinatorStatus.Cancelled));
+        await firstImportTask;
+        await secondImportTask;
+
+        Assert.Single(viewModel.Books);
     }
 
     public static IEnumerable<object[]> InvalidImportInputs()
@@ -241,20 +295,20 @@ public sealed class LibraryViewModelTests
     public async Task ImportFilesAsync_rejects_invalid_inputs(string[] inputs, string expectedMessage)
     {
         var feedback = new FakeFeedbackService();
-        var dialogService = new FakeImportBookDialogService();
-        var viewModel = CreateViewModel(feedback: feedback, importDialogService: dialogService);
+        var importCoordinator = new FakeLibraryImportCoordinator();
+        var viewModel = CreateViewModel(feedback: feedback, importCoordinator: importCoordinator);
 
         await viewModel.ImportFilesAsync(inputs, CancellationToken.None);
 
         Assert.Equal("无法导入", feedback.LastTitle);
         Assert.Equal(expectedMessage, feedback.LastMessage);
-        Assert.Empty(dialogService.Requests);
+        Assert.Empty(importCoordinator.Requests);
     }
 
     private static LibraryViewModel CreateViewModel(
         FakeBookCatalogService? catalogService = null,
         FakeBookManagementService? managementService = null,
-        FakeImportBookDialogService? importDialogService = null,
+        FakeLibraryImportCoordinator? importCoordinator = null,
         FakeBookDeleteDialogService? deleteDialogService = null,
         FakeFeedbackService? feedback = null,
         FakeNavigationService? navigationService = null,
@@ -264,7 +318,7 @@ public sealed class LibraryViewModelTests
             catalogService ?? new FakeBookCatalogService([]),
             managementService ?? new FakeBookManagementService(),
             new BookCoverGenerator(),
-            importDialogService ?? new FakeImportBookDialogService(),
+            importCoordinator ?? new FakeLibraryImportCoordinator(),
             deleteDialogService ?? new FakeBookDeleteDialogService(),
             new BookCatalogInvalidationState(),
             feedback ?? new FakeFeedbackService(),
@@ -295,16 +349,25 @@ public sealed class LibraryViewModelTests
         }
     }
 
-    private sealed class FakeImportBookDialogService : IImportBookDialogService
+    private sealed class FakeLibraryImportCoordinator : ILibraryImportCoordinator
     {
         public List<string> Requests { get; } = [];
+        public List<CancellationToken> RequestTokens { get; } = [];
+        public Queue<Task<LibraryImportCoordinatorResult>> PendingResults { get; } = new();
 
-        public ImportBookDialogOutcome NextOutcome { get; set; } = ImportBookDialogOutcome.Cancelled;
+        public LibraryImportCoordinatorResult NextResult { get; set; } =
+            new(LibraryImportCoordinatorStatus.Cancelled);
 
-        public Task<ImportBookDialogOutcome> ShowAsync(string filePath, CancellationToken cancellationToken)
+        public Task<LibraryImportCoordinatorResult> ImportAsync(
+            string filePath,
+            IProgress<BookImportProgress>? inlineProgress,
+            CancellationToken cancellationToken)
         {
             Requests.Add(filePath);
-            return Task.FromResult(NextOutcome);
+            RequestTokens.Add(cancellationToken);
+            return PendingResults.Count > 0
+                ? PendingResults.Dequeue()
+                : Task.FromResult(NextResult);
         }
     }
 
@@ -488,6 +551,20 @@ public sealed class LibraryViewModelTests
             LastHandledDeletedBookId = bookId;
             CurrentSnapshot = PlaybackSnapshot.Idle;
             return Task.CompletedTask;
+        }
+    }
+
+    private static async Task WaitForAsync(Func<bool> condition)
+    {
+        var startedAt = DateTime.UtcNow;
+        while (!condition())
+        {
+            if (DateTime.UtcNow - startedAt > TimeSpan.FromSeconds(1))
+            {
+                throw new TimeoutException("Condition was not met within the timeout.");
+            }
+
+            await Task.Delay(10);
         }
     }
 }
