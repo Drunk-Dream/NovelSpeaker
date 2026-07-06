@@ -33,6 +33,7 @@ public sealed class MainWindowNavigationTests
                 new MainWindowViewModel(new FakePlaybackCoordinator(), navigationService),
                 contentDialogService,
                 navigationService,
+                navigationService,
                 pageProvider,
                 snackbarService,
                 serviceProvider,
@@ -63,10 +64,12 @@ public sealed class MainWindowNavigationTests
             using var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
             var contentDialogService = new FakeContentDialogService();
             var snackbarService = new FakeSnackbarService();
+            var navigationService = new FakeNavigationService();
             var window = new MainWindow(
-                new MainWindowViewModel(new FakePlaybackCoordinator(), new FakeNavigationService()),
+                new MainWindowViewModel(new FakePlaybackCoordinator(), navigationService),
                 contentDialogService,
-                new FakeNavigationService(),
+                navigationService,
+                navigationService,
                 new FakeNavigationViewPageProvider(),
                 snackbarService,
                 serviceProvider,
@@ -94,9 +97,9 @@ public sealed class MainWindowNavigationTests
     }
 
     [Fact]
-    public void Real_shell_navigation_to_player_page_keeps_navigation_content_presenter_configuration()
+    public async Task Real_guarded_navigation_to_player_page_keeps_navigation_content_presenter_configuration()
     {
-        WpfTestHost.RunInSta(() =>
+        await WpfTestHost.RunInStaAsync(async () =>
         {
             var provider = WpfTestHost.BuildServiceProvider();
             var window = provider.GetRequiredService<MainWindow>();
@@ -105,8 +108,8 @@ public sealed class MainWindowNavigationTests
                 window.Show();
                 window.UpdateLayout();
 
-                var navigationService = provider.GetRequiredService<INavigationService>();
-                Assert.True(navigationService.Navigate(typeof(PlayerPage)));
+                var navigationService = provider.GetRequiredService<IGuardedNavigationService>();
+                Assert.True(await navigationService.NavigateWithHierarchyAsync(typeof(PlayerPage), null, CancellationToken.None));
 
                 window.UpdateLayout();
 
@@ -129,13 +132,15 @@ public sealed class MainWindowNavigationTests
         return Assert.IsType<NavigationView>(property?.GetValue(window));
     }
 
-    private sealed class FakeNavigationService : INavigationService
+    private sealed class FakeNavigationService : INavigationService, IGuardedNavigationService
     {
         public INavigationView? NavigationControl { get; private set; }
 
         public Type? LastNavigationPageType { get; private set; }
 
         public int NavigateCallCount { get; private set; }
+
+        public bool IsBypassingGuard => false;
 
         public INavigationView GetNavigationControl()
         {
@@ -172,6 +177,23 @@ public sealed class MainWindowNavigationTests
         public void SetNavigationControl(INavigationView navigation)
         {
             NavigationControl = navigation;
+        }
+
+        public Task<bool> GoBackAsync(CancellationToken cancellationToken, bool bypassGuard = false)
+        {
+            return Task.FromResult(false);
+        }
+
+        public Task<bool> NavigateAsync(string pageIdOrTargetTag, CancellationToken cancellationToken, bool bypassGuard = false)
+        {
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> NavigateWithHierarchyAsync(Type pageType, object? dataContext, CancellationToken cancellationToken, bool bypassGuard = false)
+        {
+            LastNavigationPageType = pageType;
+            NavigateCallCount++;
+            return Task.FromResult(true);
         }
     }
 

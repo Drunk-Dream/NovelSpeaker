@@ -13,14 +13,14 @@ namespace NovelSpeaker.App.ViewModels;
 /// </summary>
 public sealed partial class MainWindowViewModel : ObservableObject
 {
-    private readonly INavigationService _navigationService;
+    private readonly IGuardedNavigationService _guardedNavigationService;
     private string? _currentBookId;
 
     public MainWindowViewModel(
         IPlaybackCoordinator playbackCoordinator,
-        INavigationService navigationService)
+        IGuardedNavigationService guardedNavigationService)
     {
-        _navigationService = navigationService;
+        _guardedNavigationService = guardedNavigationService;
         ApplySnapshot(playbackCoordinator.CurrentSnapshot);
         playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
     }
@@ -38,16 +38,17 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private SymbolRegular nowPlayingSymbol = SymbolRegular.Headphones24;
 
     [RelayCommand]
-    private void NavigateToNowPlaying()
+    private async Task NavigateToNowPlayingAsync(CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_currentBookId))
         {
             return;
         }
 
-        _navigationService.NavigateWithHierarchy(
+        await _guardedNavigationService.NavigateWithHierarchyAsync(
             typeof(PlayerPage),
-            new PlayerNavigationRequest(_currentBookId, PlayerNavigationMode.ReturnToCurrentSession));
+            new PlayerNavigationRequest(_currentBookId, PlayerNavigationMode.ReturnToCurrentSession),
+            cancellationToken).ConfigureAwait(true);
     }
 
     private void OnSnapshotChanged(object? sender, PlaybackSnapshot snapshot)

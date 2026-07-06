@@ -66,9 +66,9 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
-    public void NavigateToNowPlayingCommand_uses_player_request_without_playback_control()
+    public async Task NavigateToNowPlayingCommand_uses_player_request_without_playback_control()
     {
-        WpfTestHost.RunInSta(() =>
+        await WpfTestHost.RunInStaAsync(async () =>
         {
             var navigationService = new FakeNavigationService();
             var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
@@ -90,7 +90,7 @@ public sealed class MainWindowViewModelTests
                 false));
             var viewModel = new MainWindowViewModel(coordinator, navigationService);
 
-            viewModel.NavigateToNowPlayingCommand.Execute(null);
+            await viewModel.NavigateToNowPlayingCommand.ExecuteAsync(null);
 
             Assert.Equal(typeof(PlayerPage), navigationService.LastNavigationPageType);
             var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigationData);
@@ -189,40 +189,29 @@ public sealed class MainWindowViewModelTests
         public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class FakeNavigationService : INavigationService
+    private sealed class FakeNavigationService : IGuardedNavigationService
     {
         public Type? LastNavigationPageType { get; private set; }
 
         public object? LastNavigationData { get; private set; }
 
-        public INavigationView GetNavigationControl() => throw new NotSupportedException();
+        public bool IsBypassingGuard => false;
 
-        public bool GoBack() => false;
-
-        public bool Navigate(Type pageType) => true;
-
-        public bool Navigate(Type pageType, object? dataContext) => true;
-
-        public bool Navigate(string pageIdOrTargetTag) => true;
-
-        public bool Navigate(string pageIdOrTargetTag, object? dataContext) => true;
-
-        public bool NavigateWithHierarchy(Type pageType)
+        public Task<bool> GoBackAsync(CancellationToken cancellationToken, bool bypassGuard = false)
         {
-            LastNavigationPageType = pageType;
-            LastNavigationData = null;
-            return true;
+            return Task.FromResult(false);
         }
 
-        public bool NavigateWithHierarchy(Type pageType, object? dataContext)
+        public Task<bool> NavigateAsync(string pageIdOrTargetTag, CancellationToken cancellationToken, bool bypassGuard = false)
+        {
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> NavigateWithHierarchyAsync(Type pageType, object? dataContext, CancellationToken cancellationToken, bool bypassGuard = false)
         {
             LastNavigationPageType = pageType;
             LastNavigationData = dataContext;
-            return true;
-        }
-
-        public void SetNavigationControl(INavigationView navigation)
-        {
+            return Task.FromResult(true);
         }
     }
 }
