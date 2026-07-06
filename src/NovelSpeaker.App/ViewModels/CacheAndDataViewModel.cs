@@ -85,10 +85,10 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
         try
         {
-            var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var settings = await _settingsService.LoadAsync(cancellationToken);
             _savedCacheLimitBytes = settings.CacheLimitBytes;
             ApplyCacheLimit(_savedCacheLimitBytes);
-            await RefreshOverviewAsync(cancellationToken).ConfigureAwait(false);
+            await RefreshOverviewAsync(cancellationToken);
             IsOverviewLoaded = true;
         }
         catch (OperationCanceledException)
@@ -123,7 +123,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     {
         try
         {
-            await _diagnosticsService.OpenAppDataDirectoryAsync(cancellationToken).ConfigureAwait(false);
+            await _diagnosticsService.OpenAppDataDirectoryAsync(cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -183,7 +183,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
                 "新的缓存上限低于当前占用。保存后会按最近最少使用顺序立即清理缓存；不会删除书籍、章节、阅读进度、TTS 规则或章节规则。",
                 "保存并清理",
                 "取消",
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
             if (decision != AppConfirmationDecision.Confirm)
             {
                 if (version == Volatile.Read(ref _cacheLimitVersion))
@@ -203,7 +203,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
                 {
                     CacheLimitBytes = cacheLimitBytes
                 },
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
 
             if (version != Volatile.Read(ref _cacheLimitVersion))
             {
@@ -216,10 +216,10 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
             if (requiresTrim)
             {
-                await _cacheWorkspaceService.TrimToConfiguredLimitAsync(cancellationToken).ConfigureAwait(false);
+                await _cacheWorkspaceService.TrimToConfiguredLimitAsync(cancellationToken);
             }
 
-            await RefreshOverviewAsync(cancellationToken).ConfigureAwait(false);
+            await RefreshOverviewAsync(cancellationToken);
             if (requiresTrim && _overview?.IsOverLimit == true)
             {
                 _feedbackService.ShowWarning("缓存仍高于上限", "仍有受保护的正在使用缓存，停止播放后可继续清理。");
@@ -249,7 +249,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
     private async Task RefreshOverviewAsync(CancellationToken cancellationToken)
     {
-        _overview = await _cacheWorkspaceService.GetOverviewAsync(cancellationToken).ConfigureAwait(false);
+        _overview = await _cacheWorkspaceService.GetOverviewAsync(cancellationToken);
         TotalCacheSizeText = CacheCleanupFeedbackFormatter.FormatBytes(_overview.TotalSizeBytes);
         CacheEntryCountText = $"{_overview.EntryCount} 项缓存";
         UsageText = $"已用 {CacheCleanupFeedbackFormatter.FormatBytes(_overview.TotalSizeBytes)} / 上限 {CacheCleanupFeedbackFormatter.FormatBytes(_overview.LimitBytes)}";
@@ -284,19 +284,21 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     {
         CancelPendingSave();
         _cacheLimitDebounceCts = new CancellationTokenSource();
-        var localCts = _cacheLimitDebounceCts;
+        var token = _cacheLimitDebounceCts.Token;
 
-        _ = Task.Run(async () =>
+        _ = RunDebouncedCommitAsync(token);
+    }
+
+    private async Task RunDebouncedCommitAsync(CancellationToken cancellationToken)
+    {
+        try
         {
-            try
-            {
-                await Task.Delay(DebounceDelayMilliseconds, localCts.Token).ConfigureAwait(false);
-                await CommitCacheLimitAsync(localCts.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-        });
+            await Task.Delay(DebounceDelayMilliseconds, cancellationToken);
+            await CommitCacheLimitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
     }
 
     private void CancelPendingSave()

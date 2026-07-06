@@ -103,6 +103,22 @@ public sealed class CacheAndDataViewModelTests
         Assert.Equal("缓存仍高于上限", feedbackService.LastTitle);
     }
 
+    [Fact]
+    public async Task CacheLimitValueText_change_debounces_and_saves_latest_value()
+    {
+        var settingsService = new FakeAppSettingsService(AppSettings.Default);
+        var viewModel = CreateViewModel(settingsService);
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        viewModel.CacheLimitValueText = "3";
+        viewModel.CacheLimitValueText = "4";
+
+        await Task.Delay(700);
+
+        Assert.Equal(4L * 1024 * 1024 * 1024, settingsService.CurrentSettings.CacheLimitBytes);
+        Assert.Equal("4", viewModel.CacheLimitValueText);
+    }
+
     private static CacheAndDataViewModel CreateViewModel(
         FakeAppSettingsService? settingsService = null,
         FakeCacheWorkspaceService? workspaceService = null,
