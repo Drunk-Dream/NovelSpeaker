@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Books;
@@ -6,8 +7,8 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Dialogs;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Library;
+using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.Pages;
-using Wpf.Ui;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -20,8 +21,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private readonly IAppDialogService _dialogService;
     private readonly IBookDeleteDialogService _deleteDialogService;
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
+    private readonly IGuardedNavigationService _guardedNavigationService;
     private readonly IPlaybackCoordinator _playbackCoordinator;
-    private readonly INavigationService _navigationService;
     private BookDetails? _loadedDetails;
     private string? _bookId;
 
@@ -34,7 +35,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         IBookDeleteDialogService deleteDialogService,
         IBookCatalogInvalidationState catalogInvalidationState,
         IPlaybackCoordinator playbackCoordinator,
-        INavigationService navigationService)
+        IGuardedNavigationService guardedNavigationService)
     {
         _bookManagementService = bookManagementService;
         _cacheWorkspaceService = cacheWorkspaceService;
@@ -44,7 +45,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         _deleteDialogService = deleteDialogService;
         _catalogInvalidationState = catalogInvalidationState;
         _playbackCoordinator = playbackCoordinator;
-        _navigationService = navigationService;
+        _guardedNavigationService = guardedNavigationService;
         Cover = _bookCoverGenerator.Generate("未命名书籍");
     }
 
@@ -72,16 +73,13 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private string displayAuthor = "未知作者";
 
     [ObservableProperty]
-    private string originalFileName = string.Empty;
-
-    [ObservableProperty]
-    private string encoding = string.Empty;
-
-    [ObservableProperty]
     private string totalChapterCountText = string.Empty;
 
     [ObservableProperty]
     private string currentChapterText = "未开始";
+
+    [ObservableProperty]
+    private string chapterCatalogSummaryText = string.Empty;
 
     [ObservableProperty]
     private double progressRatio;
@@ -94,6 +92,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
     [ObservableProperty]
     private GeneratedBookCover cover;
+
+    public BookDetailsChapterItemViewModel? CurrentChapterItem => Chapters.FirstOrDefault(chapter => chapter.IsCurrent);
 
     public bool HasUnsavedChanges => _loadedDetails is not null &&
         (!string.Equals(_loadedDetails.Title, NormalizeTitle(EditTitle), StringComparison.Ordinal) ||
@@ -177,6 +177,11 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             return;
         }
 
+        if (!await ConfirmLeaveAsync(cancellationToken).ConfigureAwait(true))
+        {
+            return;
+        }
+
         var decision = await _dialogService.ShowConfirmationAsync(
             "清理本书缓存",
             "将删除这本书的音频缓存，不会删除书籍、阅读进度或内部 TXT。",
@@ -229,6 +234,11 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             return;
         }
 
+        if (!await ConfirmLeaveAsync(cancellationToken).ConfigureAwait(true))
+        {
+            return;
+        }
+
         var deleteDecision = await _deleteDialogService.ShowAsync(
             new BookDeleteDialogRequest(
                 _loadedDetails.Title,
@@ -254,13 +264,13 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             {
                 StatusMessage = "这本书已不存在。";
                 _catalogInvalidationState.Invalidate();
-                _ = _navigationService.GoBack();
+                await _guardedNavigationService.GoBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
                 return;
             }
 
             _catalogInvalidationState.Invalidate();
             _feedbackService.ShowSuccess("删除成功", $"已删除《{_loadedDetails.Title}》。");
-            _ = _navigationService.GoBack();
+            await _guardedNavigationService.GoBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
         }
         catch (Exception exception)
         {
@@ -277,36 +287,55 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
     public async Task RequestNavigateBackAsync(CancellationToken cancellationToken)
     {
+        if (!await ConfirmLeaveAsync(cancellationToken).ConfigureAwait(true))
+        {
+            return;
+        }
+
+        await _guardedNavigationService.GoBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
+    }
+
+    [RelayCommand]
+    private async Task SelectChapterAsync(BookDetailsChapterItemViewModel? chapter, CancellationToken cancellationToken)
+    {
+        if (chapter is null || string.IsNullOrWhiteSpace(_bookId) || IsBusy)
+        {
+            return;
+        }
+
+        if (!await ConfirmLeaveAsync(cancellationToken).ConfigureAwait(true))
+        {
+            return;
+        }
+
+        await _guardedNavigationService.NavigateWithHierarchyAsync(
+            typeof(PlayerPage),
+            new PlayerNavigationRequest(_bookId, PlayerNavigationMode.OpenPaused, chapter.ChapterIndex, 0),
+            cancellationToken,
+            bypassGuard: true).ConfigureAwait(true);
+    }
+
+    public async Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken)
+    {
         if (!HasUnsavedChanges)
         {
-            _ = _navigationService.GoBack();
-            return;
+            return true;
         }
 
         var decision = await _dialogService.ShowUnsavedChangesAsync(
             "未保存的修改",
-            "书名或作者尚未保存。要先保存再返回吗？",
+            "书名或作者尚未保存。要先保存再继续当前操作吗？",
             "保存",
             "放弃",
             "取消",
-            cancellationToken);
+            cancellationToken).ConfigureAwait(true);
 
-        switch (decision)
+        return decision switch
         {
-            case UnsavedChangesDecision.Save:
-                if (await SaveCoreAsync(cancellationToken))
-                {
-                    _ = _navigationService.GoBack();
-                }
-
-                break;
-            case UnsavedChangesDecision.Discard:
-                CancelEdit();
-                _ = _navigationService.GoBack();
-                break;
-            default:
-                break;
-        }
+            UnsavedChangesDecision.Save => await SaveCoreAsync(cancellationToken).ConfigureAwait(true),
+            UnsavedChangesDecision.Discard => DiscardChangesAndContinue(),
+            _ => false
+        };
     }
 
     partial void OnEditTitleChanged(string value)
@@ -364,12 +393,13 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         HasBook = true;
         Title = details.Title;
         DisplayAuthor = string.IsNullOrWhiteSpace(details.Author) ? "未知作者" : details.Author.Trim();
-        OriginalFileName = details.OriginalFileName;
-        Encoding = details.Encoding;
         TotalChapterCountText = $"共 {details.TotalChapterCount} 章";
         CurrentChapterText = details.HasReadingProgress
             ? details.Chapters.FirstOrDefault(chapter => chapter.IsCurrent)?.Title ?? $"第 {details.CurrentChapterIndex.GetValueOrDefault() + 1} 章"
             : "未开始";
+        ChapterCatalogSummaryText = details.HasReadingProgress && details.CurrentChapterIndex is not null
+            ? $"共 {details.TotalChapterCount} 章 · 当前第 {details.CurrentChapterIndex.Value + 1} 章"
+            : $"共 {details.TotalChapterCount} 章 · 未开始";
         ProgressRatio = Math.Clamp(details.OverallProgress, 0, 1);
         ProgressText = $"{ProgressRatio:P0}";
         CacheSizeText = FormatBytes(details.CachedAudioBytes);
@@ -379,8 +409,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             chapter.ChapterIndex,
             $"第 {chapter.ChapterIndex + 1} 章",
             chapter.Title,
-            $"偏移 {chapter.StartOffset} · 长度 {chapter.Length}",
             chapter.IsCurrent));
+        OnPropertyChanged(nameof(CurrentChapterItem));
 
         if (!preserveEditor || !HasUnsavedChanges)
         {
@@ -400,21 +430,27 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         EditTitle = string.Empty;
         EditAuthor = string.Empty;
         DisplayAuthor = "未知作者";
-        OriginalFileName = string.Empty;
-        Encoding = string.Empty;
         TotalChapterCountText = string.Empty;
         CurrentChapterText = "未开始";
+        ChapterCatalogSummaryText = string.Empty;
         ProgressRatio = 0;
         ProgressText = "0%";
         CacheSizeText = "0 B";
         Cover = _bookCoverGenerator.Generate("未命名书籍");
         Chapters.Clear();
+        OnPropertyChanged(nameof(CurrentChapterItem));
         NotifyCommandStateChanged();
     }
 
     private bool IsCurrentPlaybackBook(string bookId)
     {
         return string.Equals(_playbackCoordinator.CurrentSnapshot.BookId, bookId, StringComparison.Ordinal);
+    }
+
+    private bool DiscardChangesAndContinue()
+    {
+        CancelEdit();
+        return true;
     }
 
     private void NotifyCommandStateChanged()

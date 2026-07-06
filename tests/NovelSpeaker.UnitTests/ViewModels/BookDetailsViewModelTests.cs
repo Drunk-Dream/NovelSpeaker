@@ -3,6 +3,8 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Dialogs;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Library;
+using NovelSpeaker.App.Navigation;
+using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.ViewModels;
 using Wpf.Ui;
 using Xunit;
@@ -20,14 +22,14 @@ public sealed class BookDetailsViewModelTests
 
         Assert.Equal("示例小说", viewModel.Title);
         Assert.Equal("作者甲", viewModel.DisplayAuthor);
-        Assert.Equal("sample.txt", viewModel.OriginalFileName);
-        Assert.Equal("utf-8", viewModel.Encoding);
         Assert.Equal("共 3 章", viewModel.TotalChapterCountText);
         Assert.Equal("第二章 继续", viewModel.CurrentChapterText);
+        Assert.Equal("共 3 章 · 当前第 2 章", viewModel.ChapterCatalogSummaryText);
         Assert.Contains("40", viewModel.ProgressText);
         Assert.Equal("2 KB", viewModel.CacheSizeText);
         Assert.Equal(3, viewModel.Chapters.Count);
         Assert.True(viewModel.Chapters[1].IsCurrent);
+        Assert.Equal("第二章 继续", viewModel.Chapters[1].TitleToolTip);
     }
 
     [Fact]
@@ -62,10 +64,10 @@ public sealed class BookDetailsViewModelTests
         {
             NextUnsavedDecision = UnsavedChangesDecision.Save
         };
-        var navigationService = new FakeNavigationService();
+        var navigationService = new FakeGuardedNavigationService();
         var viewModel = CreateViewModel(
             dialogService: dialogService,
-            navigationService: navigationService);
+            guardedNavigationService: navigationService);
 
         await viewModel.LoadAsync("book-1", CancellationToken.None);
         viewModel.EditTitle = "已保存后返回";
@@ -78,14 +80,14 @@ public sealed class BookDetailsViewModelTests
     [Fact]
     public async Task BackCommand_with_unsaved_changes_can_discard_or_cancel()
     {
-        var navigationService = new FakeNavigationService();
+        var navigationService = new FakeGuardedNavigationService();
         var dialogService = new FakeAppDialogService
         {
             NextUnsavedDecision = UnsavedChangesDecision.Discard
         };
         var viewModel = CreateViewModel(
             dialogService: dialogService,
-            navigationService: navigationService);
+            guardedNavigationService: navigationService);
 
         await viewModel.LoadAsync("book-1", CancellationToken.None);
         viewModel.EditTitle = "未保存标题";
@@ -111,11 +113,9 @@ public sealed class BookDetailsViewModelTests
         {
             ThrowOnUpdate = true
         };
-        var navigationService = new FakeNavigationService();
         var feedbackService = new FakeFeedbackService();
         var viewModel = CreateViewModel(
             managementService: managementService,
-            navigationService: navigationService,
             feedbackService: feedbackService);
 
         await viewModel.LoadAsync("book-1", CancellationToken.None);
@@ -124,7 +124,6 @@ public sealed class BookDetailsViewModelTests
         await viewModel.SaveCommand.ExecuteAsync(null);
 
         Assert.Equal("失败后的标题", viewModel.EditTitle);
-        Assert.Equal(0, navigationService.GoBackCallCount);
         Assert.Equal("保存书籍信息失败", feedbackService.LastTitle);
     }
 
@@ -171,12 +170,12 @@ public sealed class BookDetailsViewModelTests
                 BookId = "book-1",
                 BookTitle = "示例小说"
             });
-        var navigationService = new FakeNavigationService();
+        var navigationService = new FakeGuardedNavigationService();
         var invalidationState = new BookCatalogInvalidationState();
         var viewModel = CreateViewModel(
             deleteDialogService: deleteDialogService,
             playbackCoordinator: playbackCoordinator,
-            navigationService: navigationService,
+            guardedNavigationService: navigationService,
             invalidationState: invalidationState);
 
         await viewModel.LoadAsync("book-1", CancellationToken.None);
@@ -187,6 +186,95 @@ public sealed class BookDetailsViewModelTests
         Assert.True(invalidationState.IsInvalidated);
     }
 
+    [Fact]
+    public async Task SelectChapterCommand_navigates_to_player_with_first_segment_after_confirming_unsaved_changes()
+    {
+        var dialogService = new FakeAppDialogService
+        {
+            NextUnsavedDecision = UnsavedChangesDecision.Discard
+        };
+        var guardedNavigationService = new FakeGuardedNavigationService();
+        var viewModel = CreateViewModel(
+            dialogService: dialogService,
+            guardedNavigationService: guardedNavigationService);
+
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        viewModel.EditTitle = "待保存的新标题";
+
+        await viewModel.SelectChapterCommand.ExecuteAsync(viewModel.Chapters[2]);
+
+        Assert.Equal("示例小说", viewModel.EditTitle);
+        Assert.Equal(typeof(PlayerPage), guardedNavigationService.LastNavigateWithHierarchyPageType);
+        var request = Assert.IsType<PlayerNavigationRequest>(guardedNavigationService.LastNavigateWithHierarchyParameter);
+        Assert.Equal("book-1", request.BookId);
+        Assert.Equal(2, request.ChapterIndex);
+        Assert.Equal(0, request.SegmentIndex);
+    }
+
+    [Fact]
+    public async Task ConfirmLeaveAsync_save_failure_returns_false_and_preserves_edit_copy()
+    {
+        var managementService = new FakeBookManagementService
+        {
+            ThrowOnUpdate = true
+        };
+        var dialogService = new FakeAppDialogService
+        {
+            NextUnsavedDecision = UnsavedChangesDecision.Save
+        };
+        var viewModel = CreateViewModel(
+            managementService: managementService,
+            dialogService: dialogService);
+
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        viewModel.EditTitle = "保存失败后仍保留";
+
+        var result = await viewModel.ConfirmLeaveAsync(CancellationToken.None);
+
+        Assert.False(result);
+        Assert.Equal("保存失败后仍保留", viewModel.EditTitle);
+    }
+
+    [Fact]
+    public async Task ClearCacheCommand_cancelled_unsaved_changes_does_not_clear_cache()
+    {
+        var dialogService = new FakeAppDialogService
+        {
+            NextUnsavedDecision = UnsavedChangesDecision.Cancel
+        };
+        var cacheWorkspaceService = new FakeCacheWorkspaceService();
+        var viewModel = CreateViewModel(
+            dialogService: dialogService,
+            cacheWorkspaceService: cacheWorkspaceService);
+
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        viewModel.EditTitle = "未保存标题";
+
+        await viewModel.ClearCacheCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, cacheWorkspaceService.ClearBookCallCount);
+    }
+
+    [Fact]
+    public async Task DeleteBookCommand_cancelled_unsaved_changes_does_not_delete_book()
+    {
+        var dialogService = new FakeAppDialogService
+        {
+            NextUnsavedDecision = UnsavedChangesDecision.Cancel
+        };
+        var managementService = new FakeBookManagementService();
+        var viewModel = CreateViewModel(
+            dialogService: dialogService,
+            managementService: managementService);
+
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        viewModel.EditTitle = "未保存标题";
+
+        await viewModel.DeleteBookCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, managementService.DeleteCallCount);
+    }
+
     private static BookDetailsViewModel CreateViewModel(
         FakeBookManagementService? managementService = null,
         FakeCacheWorkspaceService? cacheWorkspaceService = null,
@@ -194,7 +282,7 @@ public sealed class BookDetailsViewModelTests
         FakeAppDialogService? dialogService = null,
         FakeBookDeleteDialogService? deleteDialogService = null,
         FakePlaybackCoordinator? playbackCoordinator = null,
-        FakeNavigationService? navigationService = null,
+        FakeGuardedNavigationService? guardedNavigationService = null,
         IBookCatalogInvalidationState? invalidationState = null)
     {
         return new BookDetailsViewModel(
@@ -206,7 +294,7 @@ public sealed class BookDetailsViewModelTests
             deleteDialogService ?? new FakeBookDeleteDialogService(),
             invalidationState ?? new BookCatalogInvalidationState(),
             playbackCoordinator ?? new FakePlaybackCoordinator(),
-            navigationService ?? new FakeNavigationService());
+            guardedNavigationService ?? new FakeGuardedNavigationService());
     }
 
     private static BookDetails CreateDetails(
@@ -243,6 +331,8 @@ public sealed class BookDetailsViewModelTests
         public bool ThrowOnUpdate { get; set; }
 
         public BookDetails? NextDetailsAfterClear { get; set; }
+
+        public int DeleteCallCount { get; private set; }
 
         public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken)
         {
@@ -283,6 +373,7 @@ public sealed class BookDetailsViewModelTests
 
         public Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)
         {
+            DeleteCallCount++;
             return Task.FromResult<BookDeleteResult?>(new BookDeleteResult(request.BookId, request.DeleteAudioCache, 3, true));
         }
     }
@@ -290,6 +381,8 @@ public sealed class BookDetailsViewModelTests
     private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
     {
         public CacheCleanupResult ClearBookResult { get; set; } = new(2048, 1, 0, 0);
+
+        public int ClearBookCallCount { get; private set; }
 
         public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken)
         {
@@ -313,6 +406,7 @@ public sealed class BookDetailsViewModelTests
 
         public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken)
         {
+            ClearBookCallCount++;
             return Task.FromResult(ClearBookResult);
         }
 
@@ -456,26 +550,36 @@ public sealed class BookDetailsViewModelTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class FakeNavigationService : INavigationService
+    private sealed class FakeGuardedNavigationService : IGuardedNavigationService
     {
+        public Type? LastNavigateWithHierarchyPageType { get; private set; }
+
+        public object? LastNavigateWithHierarchyParameter { get; private set; }
+
         public int GoBackCallCount { get; private set; }
 
-        public Wpf.Ui.Controls.INavigationView GetNavigationControl() => throw new NotSupportedException();
+        public bool IsBypassingGuard => false;
 
-        public bool GoBack()
+        public Task<bool> GoBackAsync(CancellationToken cancellationToken, bool bypassGuard = false)
         {
             GoBackCallCount++;
-            return true;
+            return Task.FromResult(true);
         }
 
-        public bool Navigate(Type pageType) => true;
-        public bool Navigate(Type pageType, object? dataContext) => true;
-        public bool Navigate(string pageIdOrTargetTag) => true;
-        public bool Navigate(string pageIdOrTargetTag, object? dataContext) => true;
-        public bool NavigateWithHierarchy(Type pageType) => true;
-        public bool NavigateWithHierarchy(Type pageType, object? dataContext) => true;
-        public void SetNavigationControl(Wpf.Ui.Controls.INavigationView navigation)
+        public Task<bool> NavigateAsync(string pageIdOrTargetTag, CancellationToken cancellationToken, bool bypassGuard = false)
         {
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> NavigateWithHierarchyAsync(
+            Type pageType,
+            object? dataContext,
+            CancellationToken cancellationToken,
+            bool bypassGuard = false)
+        {
+            LastNavigateWithHierarchyPageType = pageType;
+            LastNavigateWithHierarchyParameter = dataContext;
+            return Task.FromResult(true);
         }
     }
 }
