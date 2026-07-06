@@ -43,7 +43,7 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
         _isLoading = true;
         try
         {
-            var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var settings = await _settingsService.LoadAsync(cancellationToken);
             BookFileNameTemplateText = settings.BookFileNameTemplate ?? string.Empty;
             EnableLongParagraphSplitting = settings.EnableLongParagraphSplitting;
             LongParagraphThresholdText = settings.LongParagraphThreshold.ToString();
@@ -67,7 +67,7 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
                 {
                     BookFileNameTemplate = BookFileNameTemplateText
                 },
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
 
             if (version != Volatile.Read(ref _templateVersion))
             {
@@ -106,7 +106,7 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
                 {
                     LongParagraphThreshold = parsedThreshold
                 },
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
 
             if (version != Volatile.Read(ref _thresholdVersion))
             {
@@ -168,7 +168,7 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
                 {
                     EnableLongParagraphSplitting = value
                 },
-                CancellationToken.None).ConfigureAwait(false);
+                CancellationToken.None);
 
             if (version != Volatile.Read(ref _longParagraphSplitVersion))
             {
@@ -190,19 +190,23 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
     {
         CancelPendingSave(ref cancellationTokenSource);
         cancellationTokenSource = new CancellationTokenSource();
-        var localCts = cancellationTokenSource;
+        var token = cancellationTokenSource.Token;
 
-        _ = Task.Run(async () =>
+        _ = RunDebouncedCommitAsync(token, commitAsync);
+    }
+
+    private static async Task RunDebouncedCommitAsync(
+        CancellationToken cancellationToken,
+        Func<CancellationToken, Task> commitAsync)
+    {
+        try
         {
-            try
-            {
-                await Task.Delay(DebounceDelayMilliseconds, localCts.Token).ConfigureAwait(false);
-                await commitAsync(localCts.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-        });
+            await Task.Delay(DebounceDelayMilliseconds, cancellationToken);
+            await commitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
     }
 
     private static void CancelPendingSave(ref CancellationTokenSource? cancellationTokenSource)

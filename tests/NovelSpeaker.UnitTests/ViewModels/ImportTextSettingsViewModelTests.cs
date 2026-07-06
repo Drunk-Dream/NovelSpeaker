@@ -51,6 +51,22 @@ public sealed class ImportTextSettingsViewModelTests
         Assert.False(service.CurrentSettings.EnableLongParagraphSplitting);
     }
 
+    [Fact]
+    public async Task BookFileNameTemplateText_change_debounces_and_saves_latest_value()
+    {
+        var service = new FakeAppSettingsService(AppSettings.Default);
+        var viewModel = CreateViewModel(service);
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        viewModel.BookFileNameTemplateText = "{title}";
+        viewModel.BookFileNameTemplateText = "{author}-{title}";
+
+        await Task.Delay(700);
+
+        Assert.Equal("{author}-{title}", service.CurrentSettings.BookFileNameTemplate);
+        Assert.Equal("{author}-{title}", viewModel.BookFileNameTemplateText);
+    }
+
     private static ImportTextSettingsViewModel CreateViewModel(FakeAppSettingsService settingsService)
     {
         return new ImportTextSettingsViewModel(

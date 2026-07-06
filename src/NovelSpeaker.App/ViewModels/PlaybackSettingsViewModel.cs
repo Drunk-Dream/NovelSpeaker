@@ -47,7 +47,7 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
         _isLoading = true;
         try
         {
-            var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var settings = await _settingsService.LoadAsync(cancellationToken);
             DefaultSpeakSpeedText = settings.DefaultSpeakSpeed.ToString();
             DefaultSpeakSpeedErrorText = string.Empty;
             PrefetchCountText = settings.PrefetchCount.ToString();
@@ -83,7 +83,7 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
                 {
                     DefaultSpeakSpeed = parsedSpeed
                 },
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
 
             if (version != Volatile.Read(ref _defaultSpeakSpeedVersion))
             {
@@ -123,7 +123,7 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
                 {
                     PrefetchCount = parsedCount
                 },
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
 
             if (version != Volatile.Read(ref _prefetchCountVersion))
             {
@@ -171,19 +171,23 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
     {
         CancelPendingSave(ref cancellationTokenSource);
         cancellationTokenSource = new CancellationTokenSource();
-        var localCts = cancellationTokenSource;
+        var token = cancellationTokenSource.Token;
 
-        _ = Task.Run(async () =>
+        _ = RunDebouncedCommitAsync(token, commitAsync);
+    }
+
+    private static async Task RunDebouncedCommitAsync(
+        CancellationToken cancellationToken,
+        Func<CancellationToken, Task> commitAsync)
+    {
+        try
         {
-            try
-            {
-                await Task.Delay(DebounceDelayMilliseconds, localCts.Token).ConfigureAwait(false);
-                await commitAsync(localCts.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-        });
+            await Task.Delay(DebounceDelayMilliseconds, cancellationToken);
+            await commitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
     }
 
     private static void CancelPendingSave(ref CancellationTokenSource? cancellationTokenSource)
