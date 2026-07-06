@@ -77,10 +77,8 @@ public sealed class BookManagementService : IBookManagementService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
 
-        var cachedBefore = await GetBookCachedBytesAsync(bookId, cancellationToken).ConfigureAwait(false);
-        await _audioCacheManagementService.ClearBookAsync(bookId, cancellationToken).ConfigureAwait(false);
-        var cachedAfter = await GetBookCachedBytesAsync(bookId, cancellationToken).ConfigureAwait(false);
-        return Math.Max(0, cachedBefore - cachedAfter);
+        var result = await _audioCacheManagementService.ClearBookAsync(bookId, cancellationToken).ConfigureAwait(false);
+        return result.DeletedBytes;
     }
 
     public async Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)

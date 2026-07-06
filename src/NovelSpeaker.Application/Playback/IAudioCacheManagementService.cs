@@ -11,11 +11,11 @@ public interface IAudioCacheManagementService
 
     Task<IReadOnlyList<CachedChapterSummary>> GetChaptersAsync(string bookId, CancellationToken cancellationToken);
 
-    Task ClearChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken);
+    Task<AudioCacheCleanupResult> ClearChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken);
 
-    Task ClearBookAsync(string bookId, CancellationToken cancellationToken);
+    Task<AudioCacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken);
 
-    Task ClearAllAsync(CancellationToken cancellationToken);
+    Task<AudioCacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken);
 
     Task RunMaintenanceAsync(CancellationToken cancellationToken);
 }

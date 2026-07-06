@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.Infrastructure.Settings;
@@ -6,7 +7,7 @@ namespace NovelSpeaker.Infrastructure.Settings;
 /// <summary>
 /// Serializes partial settings updates so concurrent callers do not overwrite newer values.
 /// </summary>
-public sealed class AppSettingsService : IAppSettingsService
+public sealed class AppSettingsService : IAppSettingsService, IAudioCacheLimitProvider
 {
     private readonly IAppSettingsStore _store;
     private readonly SemaphoreSlim _mutex = new(1, 1);
@@ -23,6 +24,25 @@ public sealed class AppSettingsService : IAppSettingsService
         try
         {
             return await LoadCurrentAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _mutex.Release();
+        }
+    }
+
+    public long GetCurrentLimitBytes()
+    {
+        if (_cachedSettings is not null)
+        {
+            return _cachedSettings.CacheLimitBytes;
+        }
+
+        _mutex.Wait();
+        try
+        {
+            _cachedSettings ??= _store.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            return _cachedSettings.CacheLimitBytes;
         }
         finally
         {
@@ -71,6 +91,7 @@ public sealed class AppSettingsService : IAppSettingsService
             LogLevel = update.LogLevel ?? current.LogLevel,
             Theme = update.Theme ?? current.Theme,
             BookFileNameTemplate = update.BookFileNameTemplate ?? current.BookFileNameTemplate,
+            CacheLimitBytes = update.CacheLimitBytes ?? current.CacheLimitBytes,
             SelectedTtsRuleId = update.ClearSelectedTtsRuleId ? null : update.SelectedTtsRuleId ?? current.SelectedTtsRuleId
         };
     }

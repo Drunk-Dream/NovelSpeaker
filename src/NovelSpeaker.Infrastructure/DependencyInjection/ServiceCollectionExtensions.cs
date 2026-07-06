@@ -36,11 +36,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IBookPlaybackContentService, BookPlaybackContentService>();
         services.AddSingleton<ISelectedTtsRuleProvider, SelectedTtsRuleProvider>();
         services.AddSingleton<IPlaybackAudioProvider, PlaybackAudioProvider>();
-        services.AddSingleton(AudioCacheOptions.Default);
         services.AddSingleton<IAudioCacheProtectionRegistry, AudioCacheProtectionRegistry>();
         services.AddSingleton<SqliteAudioCache>();
         services.AddSingleton<IAudioCache>(serviceProvider => serviceProvider.GetRequiredService<SqliteAudioCache>());
         services.AddSingleton<IAudioCacheManagementService>(serviceProvider => serviceProvider.GetRequiredService<SqliteAudioCache>());
+        services.AddSingleton<ICacheWorkspaceService, CacheWorkspaceService>();
         services.AddSingleton<IPrefetchScheduler, PrefetchScheduler>();
         services.AddSingleton<IReadingProgressStore, SqliteReadingProgressStore>();
         services.AddSingleton<ITextSegmenter, TextSegmenter>();
@@ -69,7 +69,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IBookImportService, BookImportService>();
         services.AddSingleton<JsonAppSettingsStore>();
         services.AddSingleton<IAppSettingsStore>(serviceProvider => serviceProvider.GetRequiredService<JsonAppSettingsStore>());
-        services.AddSingleton<IAppSettingsService, AppSettingsService>();
+        services.AddSingleton<AppSettingsService>();
+        services.AddSingleton<IAppSettingsService>(serviceProvider => serviceProvider.GetRequiredService<AppSettingsService>());
+        services.AddSingleton<IAudioCacheLimitProvider>(serviceProvider => serviceProvider.GetRequiredService<AppSettingsService>());
         services.AddSingleton<IBookFileNameTemplateProvider>(serviceProvider => serviceProvider.GetRequiredService<JsonAppSettingsStore>());
         services.AddSingleton<ITextSegmentationOptionsProvider>(serviceProvider => serviceProvider.GetRequiredService<JsonAppSettingsStore>());
         services.AddSingleton<DefaultChapterRuleSeeder>();

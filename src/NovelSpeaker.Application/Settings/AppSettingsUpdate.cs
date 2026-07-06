@@ -19,6 +19,8 @@ public sealed record AppSettingsUpdate
 
     public string? BookFileNameTemplate { get; init; }
 
+    public long? CacheLimitBytes { get; init; }
+
     public long? SelectedTtsRuleId { get; init; }
 
     public bool ClearSelectedTtsRuleId { get; init; }

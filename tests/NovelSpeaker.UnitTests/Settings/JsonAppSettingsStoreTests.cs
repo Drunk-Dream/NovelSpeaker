@@ -24,6 +24,7 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal("Information", settings.LogLevel);
         Assert.Equal("System", settings.Theme);
         Assert.Equal(AppSettings.DefaultBookFileNameTemplate, settings.BookFileNameTemplate);
+        Assert.Equal(AppSettings.DefaultCacheLimitBytes, settings.CacheLimitBytes);
     }
 
     [Fact]
@@ -59,6 +60,20 @@ public sealed class JsonAppSettingsStoreTests
         var reloaded = await store.LoadAsync(CancellationToken.None);
 
         Assert.Equal(42, reloaded.SelectedTtsRuleId);
+    }
+
+    [Fact]
+    public async Task SaveAsync_persists_cache_limit()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new LocalAppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new JsonAppSettingsStore(directories);
+
+        await store.SaveAsync(AppSettings.Default with { CacheLimitBytes = 512L * 1024 * 1024 }, CancellationToken.None);
+        var reloaded = await store.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(512L * 1024 * 1024, reloaded.CacheLimitBytes);
     }
 
     [Fact]
@@ -109,7 +124,8 @@ public sealed class JsonAppSettingsStoreTests
               "PrefetchCount": -5,
               "LogLevel": "Verbose",
               "Theme": "Blue",
-              "BookFileNameTemplate": null
+              "BookFileNameTemplate": null,
+              "CacheLimitBytes": 1024
             }
             """,
             CancellationToken.None);
@@ -123,6 +139,7 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal("Information", settings.LogLevel);
         Assert.Equal("System", settings.Theme);
         Assert.Equal(AppSettings.DefaultBookFileNameTemplate, settings.BookFileNameTemplate);
+        Assert.Equal(AppSettings.MinCacheLimitBytes, settings.CacheLimitBytes);
     }
 
     [Fact]

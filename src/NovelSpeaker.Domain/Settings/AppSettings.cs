@@ -13,6 +13,7 @@ public sealed record AppSettings(
     string LogLevel = "Information",
     string Theme = "System",
     string? BookFileNameTemplate = "{{name}} 作者：{{author}}",
+    long CacheLimitBytes = 2L * 1024 * 1024 * 1024,
     long? SelectedTtsRuleId = null)
 {
     public const int MinSpeakSpeed = 1;
@@ -22,6 +23,8 @@ public sealed record AppSettings(
     public const string DefaultLogLevel = "Information";
     public const string DefaultTheme = "System";
     public const string DefaultBookFileNameTemplate = "{{name}} 作者：{{author}}";
+    public const long DefaultCacheLimitBytes = 2L * 1024 * 1024 * 1024;
+    public const long MinCacheLimitBytes = 256L * 1024 * 1024;
 
     public static IReadOnlyList<string> SupportedLogLevels { get; } =
         ["Trace", "Debug", "Information", "Warning", "Error", "Critical"];
@@ -38,6 +41,7 @@ public sealed record AppSettings(
             DefaultLogLevel,
             DefaultTheme,
             DefaultBookFileNameTemplate,
+            DefaultCacheLimitBytes,
             null);
 
     public TextSegmentationOptions ToTextSegmentationOptions()
@@ -75,8 +79,19 @@ public sealed record AppSettings(
                 : Math.Min(PrefetchCount, DefaultPrefetchCountValue),
             LogLevel = NormalizeOption(LogLevel, SupportedLogLevels, DefaultLogLevel),
             Theme = NormalizeOption(Theme, SupportedThemes, DefaultTheme),
-            BookFileNameTemplate = NormalizeFileNameTemplate(BookFileNameTemplate)
+            BookFileNameTemplate = NormalizeFileNameTemplate(BookFileNameTemplate),
+            CacheLimitBytes = NormalizeCacheLimitBytes(CacheLimitBytes)
         };
+    }
+
+    public static long NormalizeCacheLimitBytes(long cacheLimitBytes)
+    {
+        if (cacheLimitBytes <= 0)
+        {
+            return DefaultCacheLimitBytes;
+        }
+
+        return Math.Max(MinCacheLimitBytes, cacheLimitBytes);
     }
 
     private static string NormalizeFileNameTemplate(string? value)

@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Playback;
@@ -162,7 +163,11 @@ public sealed class BookManagementServiceTests
         await initializer.InitializeAsync(CancellationToken.None);
 
         var protectionRegistry = new AudioCacheProtectionRegistry();
-        var cache = new SqliteAudioCache(factory, directories, AudioCacheOptions.Default, protectionRegistry);
+        var cache = new SqliteAudioCache(
+            factory,
+            directories,
+            new FixedAudioCacheLimitProvider(AppSettings.DefaultCacheLimitBytes),
+            protectionRegistry);
         var progressStore = new SqliteReadingProgressStore(factory);
         var service = new BookManagementService(factory, directories, cache, protectionRegistry);
         return new TestFixture(directories, factory, cache, progressStore, protectionRegistry, service);
@@ -214,4 +219,16 @@ public sealed class BookManagementServiceTests
         SqliteReadingProgressStore ProgressStore,
         AudioCacheProtectionRegistry ProtectionRegistry,
         BookManagementService Service);
+
+    private sealed class FixedAudioCacheLimitProvider : IAudioCacheLimitProvider
+    {
+        public FixedAudioCacheLimitProvider(long currentLimitBytes)
+        {
+            CurrentLimitBytes = currentLimitBytes;
+        }
+
+        public long CurrentLimitBytes { get; }
+
+        public long GetCurrentLimitBytes() => CurrentLimitBytes;
+    }
 }

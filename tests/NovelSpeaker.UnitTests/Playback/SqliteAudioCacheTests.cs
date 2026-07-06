@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Playback;
@@ -67,6 +68,7 @@ public sealed class SqliteAudioCacheTests
         var fixture = await CreateFixtureAsync();
         var key1 = AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段");
         var key2 = AudioCacheKey.FromPlayback("book-1", 1, 0, 1, 10, "第二章");
+        var key4 = AudioCacheKey.FromPlayback("book-1", 1, 1, 1, 10, "第二章第二段");
         var key3 = AudioCacheKey.FromPlayback("book-2", 0, 0, 1, 10, "其他书");
 
         await fixture.Cache.StoreAsync(
@@ -76,6 +78,9 @@ public sealed class SqliteAudioCacheTests
             new AudioCacheWriteRequest(key2, "book-1", 1, 0, 1, CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"),
             CancellationToken.None);
         await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(key4, "book-1", 1, 1, 1, CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"),
+            CancellationToken.None);
+        await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(key3, "book-2", 0, 0, 1, CopyAudioToTempFile(PlaybackTestAudio.DemoWavPath), "audio/wav"),
             CancellationToken.None);
 
@@ -83,17 +88,20 @@ public sealed class SqliteAudioCacheTests
         var book1 = Assert.Single(books, item => item.BookId == "book-1");
         Assert.Equal(2, books.Count);
         Assert.Equal(2, book1.ChapterCount);
-        Assert.Equal(2, book1.EntryCount);
+        Assert.Equal(3, book1.EntryCount);
 
         var chapters = await fixture.Cache.GetChaptersAsync("book-1", CancellationToken.None);
         Assert.Equal([0, 1], chapters.Select(item => item.ChapterIndex).ToArray());
+        Assert.Equal(2, Assert.Single(chapters, item => item.ChapterIndex == 1).DistinctSegmentCount);
 
-        await fixture.Cache.ClearChapterAsync("book-1", 0, CancellationToken.None);
+        var chapterCleanup = await fixture.Cache.ClearChapterAsync("book-1", 0, CancellationToken.None);
         Assert.Null(await fixture.Cache.TryGetAsync(key1, CancellationToken.None));
         Assert.NotNull(await fixture.Cache.TryGetAsync(key2, CancellationToken.None));
+        Assert.Equal(1, chapterCleanup.DeletedEntryCount);
 
-        await fixture.Cache.ClearBookAsync("book-2", CancellationToken.None);
+        var bookCleanup = await fixture.Cache.ClearBookAsync("book-2", CancellationToken.None);
         Assert.Null(await fixture.Cache.TryGetAsync(key3, CancellationToken.None));
+        Assert.Equal(1, bookCleanup.DeletedEntryCount);
     }
 
     [Fact]
@@ -120,7 +128,7 @@ public sealed class SqliteAudioCacheTests
     {
         var registry = new AudioCacheProtectionRegistry();
         var limit = new FileInfo(PlaybackTestAudio.DemoMp3Path).Length + 1;
-        var fixture = await CreateFixtureAsync(new AudioCacheOptions(limit), registry);
+        var fixture = await CreateFixtureAsync(limit, registry);
         var key1 = AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段");
         var key2 = AudioCacheKey.FromPlayback("book-1", 0, 1, 1, 10, "第二段");
 
@@ -140,6 +148,17 @@ public sealed class SqliteAudioCacheTests
     }
 
     [Fact]
+    public async Task GetSummaryAsync_returns_current_runtime_limit()
+    {
+        var fixture = await CreateFixtureAsync();
+        fixture.LimitProvider.CurrentLimitBytes = 512L * 1024 * 1024;
+
+        var summary = await fixture.Cache.GetSummaryAsync(CancellationToken.None);
+
+        Assert.Equal(512L * 1024 * 1024, summary.LimitBytes);
+    }
+
+    [Fact]
     public async Task ClearAllAsync_removes_tracked_entries_and_orphans()
     {
         var fixture = await CreateFixtureAsync();
@@ -154,15 +173,16 @@ public sealed class SqliteAudioCacheTests
         var orphanFile = Path.Combine(orphanDirectory, "orphan.wav");
         File.Copy(PlaybackTestAudio.DemoWavPath, orphanFile, overwrite: true);
 
-        await fixture.Cache.ClearAllAsync(CancellationToken.None);
+        var cleanup = await fixture.Cache.ClearAllAsync(CancellationToken.None);
 
         var summary = await fixture.Cache.GetSummaryAsync(CancellationToken.None);
         Assert.Equal(0, summary.EntryCount);
         Assert.False(File.Exists(orphanFile));
+        Assert.True(cleanup.DeletedEntryCount > 0);
     }
 
     private static async Task<CacheFixture> CreateFixtureAsync(
-        AudioCacheOptions? options = null,
+        long? cacheLimitBytes = null,
         AudioCacheProtectionRegistry? registry = null)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -175,8 +195,12 @@ public sealed class SqliteAudioCacheTests
         await initializer.InitializeAsync(CancellationToken.None);
 
         registry ??= new AudioCacheProtectionRegistry();
-        var cache = new SqliteAudioCache(factory, directories, options ?? AudioCacheOptions.Default, registry);
-        return new CacheFixture(directories, cache);
+        var limitProvider = new MutableAudioCacheLimitProvider
+        {
+            CurrentLimitBytes = cacheLimitBytes ?? AppSettings.DefaultCacheLimitBytes
+        };
+        var cache = new SqliteAudioCache(factory, directories, limitProvider, registry);
+        return new CacheFixture(directories, cache, limitProvider);
     }
 
     private static string CopyAudioToTempFile(string sourcePath)
@@ -189,5 +213,13 @@ public sealed class SqliteAudioCacheTests
 
     private sealed record CacheFixture(
         LocalAppDataDirectoryProvider Directories,
-        SqliteAudioCache Cache);
+        SqliteAudioCache Cache,
+        MutableAudioCacheLimitProvider LimitProvider);
+
+    private sealed class MutableAudioCacheLimitProvider : IAudioCacheLimitProvider
+    {
+        public long CurrentLimitBytes { get; set; } = AppSettings.DefaultCacheLimitBytes;
+
+        public long GetCurrentLimitBytes() => CurrentLimitBytes;
+    }
 }

@@ -28,6 +28,23 @@ public sealed class AppSettingsServiceTests
     }
 
     [Fact]
+    public async Task UpdateAsync_normalizes_cache_limit_to_minimum()
+    {
+        var store = new FakeAppSettingsStore(AppSettings.Default);
+        var service = new AppSettingsService(store);
+
+        var settings = await service.UpdateAsync(
+            new AppSettingsUpdate
+            {
+                CacheLimitBytes = 16 * 1024 * 1024
+            },
+            CancellationToken.None);
+
+        Assert.Equal(AppSettings.MinCacheLimitBytes, settings.CacheLimitBytes);
+        Assert.Equal(AppSettings.MinCacheLimitBytes, service.GetCurrentLimitBytes());
+    }
+
+    [Fact]
     public async Task UpdateAsync_keeps_latest_value_for_same_field()
     {
         var firstSaveGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

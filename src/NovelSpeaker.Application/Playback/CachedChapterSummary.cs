@@ -6,5 +6,6 @@ namespace NovelSpeaker.Application.Playback;
 public sealed record CachedChapterSummary(
     string BookId,
     int ChapterIndex,
+    int DistinctSegmentCount,
     int EntryCount,
     long TotalSizeBytes);
