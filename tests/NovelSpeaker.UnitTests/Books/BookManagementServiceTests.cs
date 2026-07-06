@@ -29,11 +29,15 @@ public sealed class BookManagementServiceTests
                 "audio/mpeg"),
             CancellationToken.None);
 
+        var header = await fixture.Service.GetBookDetailsHeaderAsync("book-1", CancellationToken.None);
         var details = await fixture.Service.GetBookDetailsAsync("book-1", CancellationToken.None);
         var updated = await fixture.Service.UpdateMetadataAsync(
             new BookMetadataUpdateRequest("book-1", "  新书名  ", "  作者甲  "),
             CancellationToken.None);
 
+        Assert.NotNull(header);
+        Assert.Equal("原书名", header!.Title);
+        Assert.Null(header.Author);
         Assert.NotNull(details);
         Assert.Equal(2, details!.TotalChapterCount);
         Assert.Equal(1, details.CurrentChapterIndex);

@@ -18,7 +18,7 @@ public sealed class BookDetailsViewModelTests
     {
         var viewModel = CreateViewModel();
 
-        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await LoadViewModelAsync(viewModel);
 
         Assert.Equal("示例小说", viewModel.Title);
         Assert.Equal("作者甲", viewModel.DisplayAuthor);
@@ -33,6 +33,33 @@ public sealed class BookDetailsViewModelTests
     }
 
     [Fact]
+    public async Task LoadAsync_returns_after_header_and_populates_catalog_when_background_load_finishes()
+    {
+        var managementService = new FakeBookManagementService
+        {
+            BlockDetailsLoad = true
+        };
+        var viewModel = CreateViewModel(managementService: managementService);
+
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await Task.Yield();
+
+        Assert.Equal("示例小说", viewModel.Title);
+        Assert.Equal("作者甲", viewModel.DisplayAuthor);
+        Assert.Empty(viewModel.Chapters);
+        Assert.True(viewModel.IsBusy);
+        Assert.Equal(1, managementService.GetBookDetailsHeaderCallCount);
+        Assert.Equal(1, managementService.GetBookDetailsCallCount);
+
+        managementService.ReleaseBlockedDetailsLoad();
+        await WaitForConditionAsync(() => viewModel.Chapters.Count == 3 && !viewModel.IsBusy);
+
+        Assert.Equal("共 3 章", viewModel.TotalChapterCountText);
+        Assert.Equal(3, viewModel.Chapters.Count);
+        Assert.False(viewModel.IsBusy);
+    }
+
+    [Fact]
     public async Task SaveCommand_trims_metadata_and_refreshes_playback_metadata()
     {
         var managementService = new FakeBookManagementService();
@@ -43,7 +70,7 @@ public sealed class BookDetailsViewModelTests
             playbackCoordinator: playbackCoordinator,
             invalidationState: invalidationState);
 
-        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await LoadViewModelAsync(viewModel);
         viewModel.EditTitle = "  新书名  ";
         viewModel.EditAuthor = "  新作者  ";
 
@@ -69,7 +96,7 @@ public sealed class BookDetailsViewModelTests
             dialogService: dialogService,
             guardedNavigationService: navigationService);
 
-        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await LoadViewModelAsync(viewModel);
         viewModel.EditTitle = "已保存后返回";
 
         await viewModel.BackCommand.ExecuteAsync(null);
@@ -89,7 +116,7 @@ public sealed class BookDetailsViewModelTests
             dialogService: dialogService,
             guardedNavigationService: navigationService);
 
-        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await LoadViewModelAsync(viewModel);
         viewModel.EditTitle = "未保存标题";
 
         await viewModel.BackCommand.ExecuteAsync(null);
@@ -118,7 +145,7 @@ public sealed class BookDetailsViewModelTests
             managementService: managementService,
             feedbackService: feedbackService);
 
-        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await LoadViewModelAsync(viewModel);
         viewModel.EditTitle = "失败后的标题";
 
         await viewModel.SaveCommand.ExecuteAsync(null);
@@ -149,7 +176,7 @@ public sealed class BookDetailsViewModelTests
             dialogService: dialogService,
             feedbackService: feedbackService);
 
-        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await LoadViewModelAsync(viewModel);
         await viewModel.ClearCacheCommand.ExecuteAsync(null);
 
         Assert.Equal("缓存已部分清理", feedbackService.LastTitle);
@@ -178,7 +205,7 @@ public sealed class BookDetailsViewModelTests
             guardedNavigationService: navigationService,
             invalidationState: invalidationState);
 
-        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await LoadViewModelAsync(viewModel);
         await viewModel.DeleteBookCommand.ExecuteAsync(null);
 
         Assert.Equal("book-1", playbackCoordinator.LastDeletedBookId);
@@ -198,7 +225,7 @@ public sealed class BookDetailsViewModelTests
             dialogService: dialogService,
             guardedNavigationService: guardedNavigationService);
 
-        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await LoadViewModelAsync(viewModel);
         viewModel.EditTitle = "待保存的新标题";
 
         await viewModel.SelectChapterCommand.ExecuteAsync(viewModel.Chapters[2]);
@@ -226,7 +253,7 @@ public sealed class BookDetailsViewModelTests
             managementService: managementService,
             dialogService: dialogService);
 
-        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await LoadViewModelAsync(viewModel);
         viewModel.EditTitle = "保存失败后仍保留";
 
         var result = await viewModel.ConfirmLeaveAsync(CancellationToken.None);
@@ -247,7 +274,7 @@ public sealed class BookDetailsViewModelTests
             dialogService: dialogService,
             cacheWorkspaceService: cacheWorkspaceService);
 
-        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await LoadViewModelAsync(viewModel);
         viewModel.EditTitle = "未保存标题";
 
         await viewModel.ClearCacheCommand.ExecuteAsync(null);
@@ -267,7 +294,7 @@ public sealed class BookDetailsViewModelTests
             dialogService: dialogService,
             managementService: managementService);
 
-        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await LoadViewModelAsync(viewModel);
         viewModel.EditTitle = "未保存标题";
 
         await viewModel.DeleteBookCommand.ExecuteAsync(null);
@@ -322,9 +349,31 @@ public sealed class BookDetailsViewModelTests
             ]);
     }
 
+    private static async Task WaitForConditionAsync(Func<bool> predicate)
+    {
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            if (predicate())
+            {
+                return;
+            }
+
+            await Task.Delay(10);
+        }
+
+        Assert.True(predicate());
+    }
+
+    private static async Task LoadViewModelAsync(BookDetailsViewModel viewModel)
+    {
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await WaitForConditionAsync(() => !viewModel.IsBusy && viewModel.Chapters.Count == 3);
+    }
+
     private sealed class FakeBookManagementService : IBookManagementService
     {
         private BookDetails _details = CreateDetails();
+        private TaskCompletionSource<BookDetails?>? _blockedDetailsLoadSource;
 
         public BookMetadataUpdateRequest? LastUpdateRequest { get; private set; }
 
@@ -332,17 +381,43 @@ public sealed class BookDetailsViewModelTests
 
         public BookDetails? NextDetailsAfterClear { get; set; }
 
+        public bool BlockDetailsLoad { get; set; }
+
         public int DeleteCallCount { get; private set; }
+
+        public int GetBookDetailsHeaderCallCount { get; private set; }
+
+        public int GetBookDetailsCallCount { get; private set; }
+
+        public Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken)
+        {
+            GetBookDetailsHeaderCallCount++;
+            return Task.FromResult<BookDetailsHeader?>(new BookDetailsHeader(_details.Id, _details.Title, _details.Author));
+        }
 
         public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken)
         {
+            GetBookDetailsCallCount++;
             if (NextDetailsAfterClear is not null)
             {
                 _details = NextDetailsAfterClear;
                 NextDetailsAfterClear = null;
             }
 
+            if (BlockDetailsLoad)
+            {
+                _blockedDetailsLoadSource = new TaskCompletionSource<BookDetails?>(TaskCreationOptions.RunContinuationsAsynchronously);
+                cancellationToken.Register(() => _blockedDetailsLoadSource.TrySetCanceled(cancellationToken));
+                return _blockedDetailsLoadSource.Task;
+            }
+
             return Task.FromResult<BookDetails?>(_details);
+        }
+
+        public void ReleaseBlockedDetailsLoad()
+        {
+            BlockDetailsLoad = false;
+            _blockedDetailsLoadSource?.TrySetResult(_details);
         }
 
         public Task<BookDetails> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)

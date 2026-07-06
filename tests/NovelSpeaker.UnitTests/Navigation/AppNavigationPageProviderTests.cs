@@ -125,6 +125,11 @@ public sealed class AppNavigationPageProviderTests
 
     private sealed class FakeBookManagementService : IBookManagementService
     {
+        public Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult<BookDetailsHeader?>(null);
+        }
+
         public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken)
         {
             return Task.FromResult<BookDetails?>(null);
