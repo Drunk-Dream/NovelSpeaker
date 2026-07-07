@@ -270,43 +270,28 @@
                             <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
                                        Text="规则编辑" />
 
-                            <Grid Margin="0,20,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="16" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock Style="{StaticResource StrongTextBlockStyle}"
-                                               Text="名称" />
-                                    <TextBox Margin="0,6,0,0"
-                                             Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Margin="0,6,0,0"
-                                               Foreground="{DynamicResource SystemFillColorCriticalBrush}"
-                                               Text="{Binding NameValidationMessage}"
-                                               TextWrapping="Wrap">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock"
-                                                   BasedOn="{StaticResource SecondaryTextBlockStyle}">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding NameValidationMessage}" Value="">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </StackPanel>
-
-                                <StackPanel Grid.Column="2">
-                                    <TextBlock Style="{StaticResource StrongTextBlockStyle}"
-                                               Text="启用" />
-                                    <CheckBox Margin="0,8,0,0"
-                                              IsChecked="{Binding DraftIsEnabled}" />
-                                </StackPanel>
-                            </Grid>
+                            <StackPanel Margin="0,20,0,0">
+                                <TextBlock Style="{StaticResource StrongTextBlockStyle}"
+                                           Text="名称" />
+                                <TextBox Margin="0,6,0,0"
+                                         Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                           Text="{Binding NameValidationMessage}"
+                                           TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock"
+                                               BasedOn="{StaticResource SecondaryTextBlockStyle}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding NameValidationMessage}" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
 
                             <TextBlock Margin="0,18,0,0"
                                        Style="{StaticResource StrongTextBlockStyle}"
@@ -334,20 +319,10 @@
                             </TextBlock>
 
                             <TextBlock Margin="0,18,0,0"
+                                       Style="{StaticResource SecondaryTextBlockStyle}"
                                        Text="{Binding DeleteRestrictionMessage}"
-                                       TextWrapping="Wrap">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock"
-                                           BasedOn="{StaticResource SecondaryTextBlockStyle}">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding DeleteRestrictionMessage}" Value="">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+                                       TextWrapping="Wrap"
+                                       Visibility="{Binding ShowDeleteRestrictionMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
                             <Grid Margin="0,24,0,0">
                                 <Grid.ColumnDefinitions>

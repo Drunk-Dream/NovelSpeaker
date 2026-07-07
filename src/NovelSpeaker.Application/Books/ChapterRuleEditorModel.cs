@@ -7,6 +7,5 @@ public sealed record ChapterRuleEditorModel(
     string? Id,
     string Name,
     string Pattern,
-    bool IsEnabled,
     bool IsBuiltIn,
     bool CanDelete);

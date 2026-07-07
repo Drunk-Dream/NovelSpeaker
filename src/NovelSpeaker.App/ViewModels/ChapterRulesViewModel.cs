@@ -61,9 +61,6 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     private string draftPattern = string.Empty;
 
     [ObservableProperty]
-    private bool draftIsEnabled = true;
-
-    [ObservableProperty]
     private bool draftIsBuiltIn;
 
     [ObservableProperty]
@@ -87,6 +84,8 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     public string DeleteRestrictionMessage => DraftIsBuiltIn
         ? "内置规则不可删除，可禁用或恢复默认。"
         : string.Empty;
+
+    public bool ShowDeleteRestrictionMessage => DraftIsBuiltIn;
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -406,16 +405,6 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         UpdateUnsavedChanges();
     }
 
-    partial void OnDraftIsEnabledChanged(bool value)
-    {
-        if (_suppressDraftStateUpdates)
-        {
-            return;
-        }
-
-        UpdateUnsavedChanges();
-    }
-
     private async Task ApplyDefaultsAsync(ChapterRuleDefaultsMode mode, CancellationToken cancellationToken)
     {
         var preferredRuleId = CurrentRuleId;
@@ -502,7 +491,6 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         _suppressDraftStateUpdates = true;
         DraftName = editor.Name;
         DraftPattern = editor.Pattern;
-        DraftIsEnabled = editor.IsEnabled;
         DraftIsBuiltIn = editor.IsBuiltIn;
         _suppressDraftStateUpdates = false;
 
@@ -523,7 +511,6 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         _suppressDraftStateUpdates = true;
         DraftName = string.Empty;
         DraftPattern = string.Empty;
-        DraftIsEnabled = true;
         DraftIsBuiltIn = false;
         NameValidationMessage = string.Empty;
         PatternValidationMessage = string.Empty;
@@ -540,7 +527,6 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             null,
             "新建规则",
             string.Empty,
-            true,
             false,
             true);
     }
@@ -627,7 +613,6 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             CurrentRuleId,
             DraftName,
             DraftPattern,
-            DraftIsEnabled,
             DraftIsBuiltIn,
             !DraftIsBuiltIn);
     }
@@ -671,18 +656,18 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         return string.Equals(left.Id, right.Id, StringComparison.Ordinal) &&
                string.Equals(left.Name, right.Name, StringComparison.Ordinal) &&
                string.Equals(left.Pattern, right.Pattern, StringComparison.Ordinal) &&
-               left.IsEnabled == right.IsEnabled &&
                left.IsBuiltIn == right.IsBuiltIn &&
                left.CanDelete == right.CanDelete;
     }
 
     private async Task SaveRuleOrderAsync(IReadOnlyList<string> orderedIds, CancellationToken cancellationToken)
     {
+        ApplyRuleOrder(orderedIds);
+
         try
         {
             SetBusy(true);
             await _workspaceService.SaveOrderAsync(orderedIds, cancellationToken);
-            await RefreshRulesAsync(null, openEditorIfNeeded: false, cancellationToken);
         }
         catch (Exception exception)
         {
@@ -694,6 +679,23 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             SetBusy(false);
             ClearDragTarget();
         }
+    }
+
+    private void ApplyRuleOrder(IReadOnlyList<string> orderedIds)
+    {
+        var byId = Rules.ToDictionary(rule => rule.Id, StringComparer.Ordinal);
+        var reordered = orderedIds
+            .Where(id => byId.ContainsKey(id))
+            .Select(id => byId[id])
+            .ToList();
+        if (reordered.Count != Rules.Count)
+        {
+            return;
+        }
+
+        Rules.ReplaceWith(reordered, rule => rule);
+        UpdateRuleItemStates();
+        NotifyUiStateChanged();
     }
 
     private void SetBusy(bool value)
@@ -712,7 +714,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
                               HighlightedRuleId is not null &&
                               string.Equals(rule.Id, HighlightedRuleId, StringComparison.Ordinal);
 
-            var canQuickActions = !IsBusy && !rule.IsSelected;
+            var canQuickActions = !IsBusy;
             rule.CanQuickActions = canQuickActions;
             rule.CanMoveUp = canQuickActions && index > 0;
             rule.CanMoveDown = canQuickActions && index < Rules.Count - 1;
@@ -753,6 +755,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         OnPropertyChanged(nameof(CanDeleteCurrentRule));
         OnPropertyChanged(nameof(CurrentRuleId));
         OnPropertyChanged(nameof(DeleteRestrictionMessage));
+        OnPropertyChanged(nameof(ShowDeleteRestrictionMessage));
     }
 
     private void HandleProjectedError(string title, Exception exception)

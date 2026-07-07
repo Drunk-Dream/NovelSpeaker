@@ -67,7 +67,7 @@ public sealed class ChapterRuleWorkspaceService : IChapterRuleWorkspaceService
             DeduplicateName(normalizedName, id, allRules),
             normalizedPattern,
             existing?.SortOrder ?? GetNextSortOrder(allRules),
-            editor.IsEnabled,
+            existing?.IsEnabled ?? true,
             existing?.CreatedAt ?? utcNow,
             utcNow);
 
@@ -76,7 +76,6 @@ public sealed class ChapterRuleWorkspaceService : IChapterRuleWorkspaceService
             savedRule.Id,
             savedRule.Name,
             savedRule.Pattern,
-            savedRule.IsEnabled,
             isBuiltIn,
             !isBuiltIn);
     }
@@ -163,7 +162,6 @@ public sealed class ChapterRuleWorkspaceService : IChapterRuleWorkspaceService
             rule.Id,
             rule.Name,
             rule.Pattern,
-            rule.IsEnabled,
             isBuiltIn,
             !isBuiltIn);
     }
