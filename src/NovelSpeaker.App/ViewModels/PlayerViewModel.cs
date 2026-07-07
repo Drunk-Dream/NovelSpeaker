@@ -34,6 +34,11 @@ public sealed partial class PlayerViewModel : ObservableObject
     private int _defaultSpeakSpeed = AppSettings.DefaultSpeakSpeedValue;
     private int _bookLoadVersion;
     private int _chapterLoadVersion;
+    private int _segmentCenterRequestVersion;
+    private bool _animateNextSegmentCenterRequest;
+    private bool _suppressNextStateDrivenAutoCenterRequest;
+    private PlayerAutoScrollState _lastAppliedAutoScrollState;
+    private PlaybackSnapshot _lastAppliedSnapshot = PlaybackSnapshot.Idle;
 
     public PlayerViewModel(
         IPlaybackCoordinator playbackCoordinator,
@@ -51,6 +56,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         _feedbackService = feedbackService;
         _navigationService = navigationService;
         _autoScrollCoordinator = autoScrollCoordinator;
+        _lastAppliedAutoScrollState = _autoScrollCoordinator.State;
 
         ApplyAutoScrollState();
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
@@ -104,6 +110,10 @@ public sealed partial class PlayerViewModel : ObservableObject
     };
 
     public double SegmentProgressMaximum => Math.Max(CurrentChapterSegmentCount - 1, 0);
+
+    public int SegmentCenterRequestVersion => _segmentCenterRequestVersion;
+
+    public bool AnimateNextSegmentCenterRequest => _animateNextSegmentCenterRequest;
 
     [ObservableProperty]
     private string currentTitle = "未打开书籍";
@@ -238,6 +248,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         snapshot = _playbackCoordinator.CurrentSnapshot;
         ApplySnapshot(snapshot);
         await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
+        RequestCurrentSegmentCentering(animate: true);
     }
 
     private async Task HandleChapterTargetNavigationAsync(
@@ -363,12 +374,12 @@ public sealed partial class PlayerViewModel : ObservableObject
         if (targetSegmentIndex == CurrentSegmentIndex)
         {
             SegmentProgressValue = targetSegmentIndex;
-            _autoScrollCoordinator.ResumeAutoCenter();
+            ResumeAutoCenterAndRequest(animate: true);
             return;
         }
 
         await _playbackCoordinator.JumpToSegmentAsync(CurrentChapterIndex, targetSegmentIndex, cancellationToken);
-        _autoScrollCoordinator.ResumeAutoCenter();
+        ResumeAutoCenterAndRequest(animate: true);
     }
 
     public void CancelSegmentProgressInteraction()
@@ -467,28 +478,28 @@ public sealed partial class PlayerViewModel : ObservableObject
     private async Task PreviousSegmentAsync(CancellationToken cancellationToken)
     {
         await _playbackCoordinator.PreviousSegmentAsync(cancellationToken);
-        _autoScrollCoordinator.ResumeAutoCenter();
+        ResumeAutoCenterAndRequest(animate: true);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task NextSegmentAsync(CancellationToken cancellationToken)
     {
         await _playbackCoordinator.NextSegmentAsync(cancellationToken);
-        _autoScrollCoordinator.ResumeAutoCenter();
+        ResumeAutoCenterAndRequest(animate: true);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task PreviousChapterAsync(CancellationToken cancellationToken)
     {
         await _playbackCoordinator.PreviousChapterAsync(cancellationToken);
-        _autoScrollCoordinator.ResumeAutoCenter();
+        ResumeAutoCenterAndRequest(animate: true);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task NextChapterAsync(CancellationToken cancellationToken)
     {
         await _playbackCoordinator.NextChapterAsync(cancellationToken);
-        _autoScrollCoordinator.ResumeAutoCenter();
+        ResumeAutoCenterAndRequest(animate: true);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -555,12 +566,12 @@ public sealed partial class PlayerViewModel : ObservableObject
 
         if (chapter.ChapterIndex == CurrentChapterIndex)
         {
-            _autoScrollCoordinator.ResumeAutoCenter();
+            ResumeAutoCenterAndRequest(animate: true);
             return;
         }
 
         await _playbackCoordinator.JumpToChapterAsync(chapter.ChapterIndex, cancellationToken);
-        _autoScrollCoordinator.ResumeAutoCenter();
+        ResumeAutoCenterAndRequest(animate: true);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -573,18 +584,18 @@ public sealed partial class PlayerViewModel : ObservableObject
 
         if (segment.ChapterIndex == CurrentChapterIndex && segment.SegmentIndex == CurrentSegmentIndex)
         {
-            _autoScrollCoordinator.ResumeAutoCenter();
+            ResumeAutoCenterAndRequest(animate: true);
             return;
         }
 
         await _playbackCoordinator.JumpToSegmentAsync(segment.ChapterIndex, segment.SegmentIndex, cancellationToken);
-        _autoScrollCoordinator.ResumeAutoCenter();
+        ResumeAutoCenterAndRequest(animate: true);
     }
 
     [RelayCommand]
     private void ReturnToCurrentSegment()
     {
-        _autoScrollCoordinator.ResumeAutoCenter();
+        ResumeAutoCenterAndRequest(animate: false);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -677,6 +688,7 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     private async Task HandleSnapshotUpdateAsync(PlaybackSnapshot snapshot)
     {
+        var previousSnapshot = _lastAppliedSnapshot;
         ApplySnapshot(snapshot);
 
         if (string.IsNullOrWhiteSpace(snapshot.BookId))
@@ -687,6 +699,11 @@ public sealed partial class PlayerViewModel : ObservableObject
         try
         {
             await EnsureContentLoadedForSnapshotAsync(snapshot, CancellationToken.None);
+            if (_autoScrollCoordinator.ShouldAutoCenter &&
+                ShouldAnimateCenteringForSnapshotUpdate(previousSnapshot, snapshot))
+            {
+                RequestCurrentSegmentCentering(animate: true);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -853,6 +870,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         UpdateChapterProjection(snapshot.ChapterIndex);
         UpdateSegmentProjection(snapshot.SegmentIndex);
         UpdateNavigationAvailability();
+        _lastAppliedSnapshot = snapshot;
     }
 
     private void ApplyRuleSelection(long? selectedRuleId)
@@ -967,9 +985,59 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     private void ApplyAutoScrollState()
     {
+        var currentState = _autoScrollCoordinator.State;
         ShowReturnToCurrentSegment = _autoScrollCoordinator.ShowReturnToCurrentSegment;
         OnPropertyChanged(nameof(AutoScrollState));
         OnPropertyChanged(nameof(ShouldAutoCenterCurrentSegment));
+
+        if (currentState == PlayerAutoScrollState.AutoCentering &&
+            _lastAppliedAutoScrollState != PlayerAutoScrollState.AutoCentering)
+        {
+            if (_suppressNextStateDrivenAutoCenterRequest)
+            {
+                _suppressNextStateDrivenAutoCenterRequest = false;
+            }
+            else
+            {
+                RequestCurrentSegmentCentering(animate: false);
+            }
+        }
+        else if (currentState != PlayerAutoScrollState.AutoCentering)
+        {
+            _suppressNextStateDrivenAutoCenterRequest = false;
+        }
+
+        _lastAppliedAutoScrollState = currentState;
+    }
+
+    private void ResumeAutoCenterAndRequest(bool animate)
+    {
+        if (_autoScrollCoordinator.State != PlayerAutoScrollState.AutoCentering)
+        {
+            _suppressNextStateDrivenAutoCenterRequest = true;
+        }
+
+        _autoScrollCoordinator.ResumeAutoCenter();
+        RequestCurrentSegmentCentering(animate);
+    }
+
+    private void RequestCurrentSegmentCentering(bool animate)
+    {
+        _animateNextSegmentCenterRequest = animate;
+        _segmentCenterRequestVersion++;
+        OnPropertyChanged(nameof(AnimateNextSegmentCenterRequest));
+        OnPropertyChanged(nameof(SegmentCenterRequestVersion));
+    }
+
+    private static bool ShouldAnimateCenteringForSnapshotUpdate(PlaybackSnapshot previousSnapshot, PlaybackSnapshot snapshot)
+    {
+        if (!string.Equals(previousSnapshot.BookId, snapshot.BookId, StringComparison.Ordinal))
+        {
+            return !string.IsNullOrWhiteSpace(snapshot.BookId);
+        }
+
+        return previousSnapshot.ChapterIndex != snapshot.ChapterIndex ||
+               previousSnapshot.SegmentIndex != snapshot.SegmentIndex;
     }
 
     private void CloseTransientPanels()

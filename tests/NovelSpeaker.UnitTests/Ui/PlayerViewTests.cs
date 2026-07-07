@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.Threading;
 using System.Windows.Automation;
 using System.Windows;
 using System.Windows.Controls;
@@ -649,7 +651,8 @@ public sealed class PlayerViewTests
                     SegmentCount = 90
                 });
 
-                DoEvents();
+                Pump(TimeSpan.FromMilliseconds(80));
+                WaitUntil(() => !view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(1200));
                 view.UpdateLayout();
                 DoEvents();
 
@@ -941,7 +944,8 @@ public sealed class PlayerViewTests
                 Assert.True(viewModel.ShowReturnToCurrentSegment);
 
                 viewModel.NextSegmentCommand.ExecuteAsync(null).GetAwaiter().GetResult();
-                DoEvents();
+                Pump(TimeSpan.FromMilliseconds(80));
+                WaitUntil(() => !view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(1200));
                 view.UpdateLayout();
                 DoEvents();
 
@@ -958,6 +962,378 @@ public sealed class PlayerViewTests
             {
                 window.Close();
             }
+        });
+    }
+
+    [Fact]
+    public void PlayerView_consecutive_navigation_requests_cancel_previous_segment_animation()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+                PlaybackState.Paused,
+                "book-1",
+                "信息全知者",
+                0,
+                "第三章 来自星空的压力",
+                18,
+                90,
+                1,
+                "默认规则",
+                10,
+                0,
+                0,
+                null,
+                false,
+                false,
+                false,
+                "魔性沧月",
+                true));
+            var chapter = new PlaybackChapterContent(
+                0,
+                "第三章 来自星空的压力",
+                Enumerable.Range(0, 90)
+                    .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证连续跳转会取消旧动画。"))
+                    .ToArray());
+            var viewModel = new PlayerViewModel(
+                coordinator,
+                new FakeBookPlaybackContentService(
+                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    chapter),
+                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
+                new FakeAppSettingsStore(AppSettings.Default),
+                new FakeAppFeedbackService(),
+                new FakeNavigationService(),
+                new PlayerAutoScrollCoordinator(TimeProvider.System));
+
+            viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            viewModel.HandleNavigationAsync(
+                new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+                CancellationToken.None).GetAwaiter().GetResult();
+
+            var view = new PlayerView
+            {
+                DataContext = viewModel,
+                SegmentAutoCenterAnimationDuration = TimeSpan.FromMilliseconds(260)
+            };
+            var window = new Window
+            {
+                Content = view,
+                Width = 1280,
+                Height = 760,
+                WindowStyle = WindowStyle.None,
+                ShowInTaskbar = false,
+                ShowActivated = false
+            };
+
+            try
+            {
+                window.Show();
+                DoEvents();
+                view.UpdateLayout();
+
+                var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
+                var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
+
+                scrollViewer.ScrollToBottom();
+                DoEvents();
+                view.UpdateLayout();
+
+                viewModel.NextSegmentCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+                WaitUntil(() => view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(400));
+
+                viewModel.NextSegmentCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+                Pump(TimeSpan.FromMilliseconds(80));
+                WaitUntil(() => !view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(1200));
+                DoEvents();
+                view.UpdateLayout();
+
+                var currentContainer = Assert.IsAssignableFrom<FrameworkElement>(
+                    segmentsListBox.ItemContainerGenerator.ContainerFromItem(viewModel.CurrentSegmentItem));
+                var itemTop = currentContainer.TranslatePoint(new Point(0, 0), scrollViewer).Y;
+                var itemCenter = itemTop + (currentContainer.ActualHeight / 2d);
+                var viewportCenter = scrollViewer.ViewportHeight / 2d;
+
+                Assert.Equal(20, viewModel.CurrentSegmentIndex);
+                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 48d);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void PlayerView_reduce_motion_prefers_direct_positioning_over_animation()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+                PlaybackState.Paused,
+                "book-1",
+                "信息全知者",
+                0,
+                "第三章 来自星空的压力",
+                18,
+                90,
+                1,
+                "默认规则",
+                10,
+                0,
+                0,
+                null,
+                false,
+                false,
+                false,
+                "魔性沧月",
+                true));
+            var chapter = new PlaybackChapterContent(
+                0,
+                "第三章 来自星空的压力",
+                Enumerable.Range(0, 90)
+                    .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证减少动画时直接定位。"))
+                    .ToArray());
+            var viewModel = new PlayerViewModel(
+                coordinator,
+                new FakeBookPlaybackContentService(
+                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    chapter),
+                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
+                new FakeAppSettingsStore(AppSettings.Default),
+                new FakeAppFeedbackService(),
+                new FakeNavigationService(),
+                new PlayerAutoScrollCoordinator(TimeProvider.System));
+
+            viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            viewModel.HandleNavigationAsync(
+                new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+                CancellationToken.None).GetAwaiter().GetResult();
+
+            var view = new PlayerView
+            {
+                DataContext = viewModel,
+                SegmentAutoCenterAnimationDuration = TimeSpan.FromMilliseconds(260),
+                ReduceMotionOverride = true
+            };
+            var window = new Window
+            {
+                Content = view,
+                Width = 1280,
+                Height = 760,
+                WindowStyle = WindowStyle.None,
+                ShowInTaskbar = false,
+                ShowActivated = false
+            };
+
+            try
+            {
+                window.Show();
+                DoEvents();
+                view.UpdateLayout();
+
+                var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
+                var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
+
+                scrollViewer.ScrollToBottom();
+                DoEvents();
+                view.UpdateLayout();
+
+                viewModel.NextSegmentCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+                DoEvents();
+                view.UpdateLayout();
+
+                var currentContainer = Assert.IsAssignableFrom<FrameworkElement>(
+                    segmentsListBox.ItemContainerGenerator.ContainerFromItem(viewModel.CurrentSegmentItem));
+                var itemTop = currentContainer.TranslatePoint(new Point(0, 0), scrollViewer).Y;
+                var itemCenter = itemTop + (currentContainer.ActualHeight / 2d);
+                var viewportCenter = scrollViewer.ViewportHeight / 2d;
+
+                Assert.False(view.HasActiveSegmentScrollAnimation);
+                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 48d);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void PlayerView_virtualized_target_uses_deferred_realization_and_short_animation()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+                PlaybackState.Playing,
+                "book-1",
+                "信息全知者",
+                0,
+                "第三章 来自星空的压力",
+                2,
+                120,
+                1,
+                "默认规则",
+                10,
+                0,
+                0,
+                null,
+                false,
+                false,
+                false,
+                "魔性沧月",
+                true));
+            var chapter = new PlaybackChapterContent(
+                0,
+                "第三章 来自星空的压力",
+                Enumerable.Range(0, 120)
+                    .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证虚拟化目标延迟生成时仍能平滑居中。"))
+                    .ToArray());
+            var viewModel = new PlayerViewModel(
+                coordinator,
+                new FakeBookPlaybackContentService(
+                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    chapter),
+                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
+                new FakeAppSettingsStore(AppSettings.Default),
+                new FakeAppFeedbackService(),
+                new FakeNavigationService(),
+                new PlayerAutoScrollCoordinator(TimeProvider.System));
+
+            viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            viewModel.HandleNavigationAsync(
+                new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+                CancellationToken.None).GetAwaiter().GetResult();
+
+            var view = new PlayerView
+            {
+                DataContext = viewModel,
+                SegmentAutoCenterAnimationDuration = TimeSpan.FromMilliseconds(180)
+            };
+            var window = new Window
+            {
+                Content = view,
+                Width = 1280,
+                Height = 760,
+                WindowStyle = WindowStyle.None,
+                ShowInTaskbar = false,
+                ShowActivated = false
+            };
+
+            try
+            {
+                window.Show();
+                DoEvents();
+                view.UpdateLayout();
+
+                coordinator.Publish(coordinator.CurrentSnapshot with
+                {
+                    SegmentIndex = 88,
+                    SegmentCount = 120
+                });
+
+                WaitUntil(() => view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(500));
+                WaitUntil(() => !view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(1200));
+                DoEvents();
+                view.UpdateLayout();
+
+                var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
+                var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
+                var currentContainer = Assert.IsAssignableFrom<FrameworkElement>(
+                    segmentsListBox.ItemContainerGenerator.ContainerFromItem(viewModel.CurrentSegmentItem));
+                var itemTop = currentContainer.TranslatePoint(new Point(0, 0), scrollViewer).Y;
+                var itemCenter = itemTop + (currentContainer.ActualHeight / 2d);
+                var viewportCenter = scrollViewer.ViewportHeight / 2d;
+
+                Assert.Equal(88, viewModel.CurrentSegmentIndex);
+                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 48d);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void PlayerView_page_unload_cancels_active_segment_animation()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+                PlaybackState.Paused,
+                "book-1",
+                "信息全知者",
+                0,
+                "第三章 来自星空的压力",
+                18,
+                90,
+                1,
+                "默认规则",
+                10,
+                0,
+                0,
+                null,
+                false,
+                false,
+                false,
+                "魔性沧月",
+                true));
+            var chapter = new PlaybackChapterContent(
+                0,
+                "第三章 来自星空的压力",
+                Enumerable.Range(0, 90)
+                    .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证页面离开会取消滚动动画。"))
+                    .ToArray());
+            var viewModel = new PlayerViewModel(
+                coordinator,
+                new FakeBookPlaybackContentService(
+                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    chapter),
+                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
+                new FakeAppSettingsStore(AppSettings.Default),
+                new FakeAppFeedbackService(),
+                new FakeNavigationService(),
+                new PlayerAutoScrollCoordinator(TimeProvider.System));
+
+            viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            viewModel.HandleNavigationAsync(
+                new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+                CancellationToken.None).GetAwaiter().GetResult();
+
+            var view = new PlayerView
+            {
+                DataContext = viewModel,
+                SegmentAutoCenterAnimationDuration = TimeSpan.FromMilliseconds(260)
+            };
+            var window = new Window
+            {
+                Content = view,
+                Width = 1280,
+                Height = 760,
+                WindowStyle = WindowStyle.None,
+                ShowInTaskbar = false,
+                ShowActivated = false
+            };
+
+            window.Show();
+            DoEvents();
+            view.UpdateLayout();
+
+            var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
+            var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
+
+            scrollViewer.ScrollToBottom();
+            DoEvents();
+            view.UpdateLayout();
+
+            viewModel.NextSegmentCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+            WaitUntil(() => view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(400));
+
+            window.Close();
+            DoEvents();
+
+            Assert.False(view.HasActiveSegmentScrollAnimation);
         });
     }
 
@@ -1068,6 +1444,34 @@ public sealed class PlayerViewTests
             DispatcherPriority.ApplicationIdle,
             new Action(() => frame.Continue = false));
         Dispatcher.PushFrame(frame);
+    }
+
+    private static void WaitUntil(Func<bool> predicate, TimeSpan timeout)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        while (stopwatch.Elapsed < timeout)
+        {
+            if (predicate())
+            {
+                return;
+            }
+
+            DoEvents();
+            Thread.Sleep(15);
+        }
+
+        DoEvents();
+        Assert.True(predicate());
+    }
+
+    private static void Pump(TimeSpan duration)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        while (stopwatch.Elapsed < duration)
+        {
+            DoEvents();
+            Thread.Sleep(15);
+        }
     }
 
     private sealed class PlayerViewLayoutTestContext
