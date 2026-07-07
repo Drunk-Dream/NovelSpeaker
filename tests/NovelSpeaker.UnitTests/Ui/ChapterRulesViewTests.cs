@@ -79,6 +79,34 @@ public sealed partial class ChapterRulesViewTests
     }
 
     [Fact]
+    public void ChapterRulesView_shows_enable_checkbox_only_in_left_rule_list()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new ChapterRulesView
+            {
+                DataContext = new ChapterRulesViewLayoutContext
+                {
+                    HasEditor = true,
+                    Rules =
+                    [
+                        new ChapterRuleListItemViewModel("custom:one", "规则一", @"^\s*一$", true, false, true)
+                    ]
+                }
+            };
+
+            view.Measure(new Size(960, 680));
+            view.Arrange(new Rect(0, 0, 960, 680));
+            view.UpdateLayout();
+
+            var checkBoxes = FindDescendants<CheckBox>(view, _ => true).ToArray();
+
+            Assert.Single(checkBoxes);
+            Assert.Equal("启用", checkBoxes[0].Content);
+        });
+    }
+
+    [Fact]
     public void ChapterRulesView_toggles_help_drawer_visibility()
     {
         WpfTestHost.RunInSta(() =>
@@ -217,8 +245,6 @@ public sealed partial class ChapterRulesViewTests
 
         public string DraftPattern { get; init; } = @"^\s*第一章$";
 
-        public bool DraftIsEnabled { get; init; } = true;
-
         public bool CanSaveDraft => true;
 
         public bool CanCancelEditing => true;
@@ -230,5 +256,7 @@ public sealed partial class ChapterRulesViewTests
         public string PatternValidationMessage { get; init; } = string.Empty;
 
         public string DeleteRestrictionMessage { get; init; } = string.Empty;
+
+        public bool ShowDeleteRestrictionMessage => !string.IsNullOrWhiteSpace(DeleteRestrictionMessage);
     }
 }

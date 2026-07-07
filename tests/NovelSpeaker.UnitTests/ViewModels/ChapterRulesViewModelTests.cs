@@ -21,7 +21,7 @@ public sealed class ChapterRulesViewModelTests
         {
             EditorsById =
             {
-                ["builtin:one"] = new ChapterRuleEditorModel("builtin:one", "内置规则", @"^\s*第一章$", true, true, false)
+                ["builtin:one"] = new ChapterRuleEditorModel("builtin:one", "内置规则", @"^\s*第一章$", true, false)
             }
         };
         var viewModel = CreateViewModel(workspaceService: workspace);
@@ -44,7 +44,7 @@ public sealed class ChapterRulesViewModelTests
         {
             EditorsById =
             {
-                ["custom:existing"] = new ChapterRuleEditorModel("custom:existing", "新建规则", @"^\s*旧规则$", true, false, true)
+                ["custom:existing"] = new ChapterRuleEditorModel("custom:existing", "新建规则", @"^\s*旧规则$", false, true)
             }
         };
         var feedback = new FakeFeedbackService();
@@ -72,8 +72,8 @@ public sealed class ChapterRulesViewModelTests
         {
             EditorsById =
             {
-                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", true, false, true),
-                ["custom:two"] = new ChapterRuleEditorModel("custom:two", "规则二", @"^\s*二$", true, false, true)
+                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", false, true),
+                ["custom:two"] = new ChapterRuleEditorModel("custom:two", "规则二", @"^\s*二$", false, true)
             }
         };
         var dialogService = new FakeAppDialogService
@@ -100,7 +100,7 @@ public sealed class ChapterRulesViewModelTests
         {
             EditorsById =
             {
-                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", true, false, true)
+                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", false, true)
             }
         };
         var viewModel = CreateViewModel(workspaceService: workspace);
@@ -123,7 +123,7 @@ public sealed class ChapterRulesViewModelTests
         {
             EditorsById =
             {
-                ["builtin:one"] = new ChapterRuleEditorModel("builtin:one", "内置规则", @"^\s*一$", true, true, false)
+                ["builtin:one"] = new ChapterRuleEditorModel("builtin:one", "内置规则", @"^\s*一$", true, false)
             }
         };
         var viewModel = CreateViewModel(workspaceService: workspace);
@@ -132,6 +132,37 @@ public sealed class ChapterRulesViewModelTests
         Assert.True(viewModel.DraftIsBuiltIn);
         Assert.False(viewModel.CanDeleteCurrentRule);
         Assert.Equal("内置规则不可删除，可禁用或恢复默认。", viewModel.DeleteRestrictionMessage);
+    }
+
+    [Fact]
+    public async Task ToggleRuleEnabledAsync_on_selected_rule_keeps_editor_draft_and_skips_unsaved_prompt()
+    {
+        var workspace = new FakeChapterRuleWorkspaceService(
+        [
+            new ChapterRuleListItem("custom:selected", "选中规则", @"^\s*一$", true, 10, false),
+            new ChapterRuleListItem("custom:other", "其他规则", @"^\s*二$", true, 20, false)
+        ])
+        {
+            EditorsById =
+            {
+                ["custom:selected"] = new ChapterRuleEditorModel("custom:selected", "选中规则", @"^\s*一$", false, true)
+            }
+        };
+        var dialogService = new FakeAppDialogService
+        {
+            NextUnsavedDecision = UnsavedChangesDecision.Cancel
+        };
+        var viewModel = CreateViewModel(workspaceService: workspace, dialogService: dialogService);
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.DraftPattern = @"^\s*已修改$";
+
+        var selectedRule = viewModel.Rules.Single(rule => rule.Id == "custom:selected");
+        await viewModel.ToggleRuleEnabledCommand.ExecuteAsync(selectedRule);
+
+        Assert.False(selectedRule.IsEnabled);
+        Assert.Equal(@"^\s*已修改$", viewModel.DraftPattern);
+        Assert.True(viewModel.HasUnsavedChanges);
+        Assert.Equal(0, dialogService.UnsavedChangesPromptCount);
     }
 
     [Fact]
@@ -146,7 +177,7 @@ public sealed class ChapterRulesViewModelTests
             ThrowOnSetRuleEnabled = true,
             EditorsById =
             {
-                ["builtin:selected"] = new ChapterRuleEditorModel("builtin:selected", "选中规则", @"^\s*一$", true, true, false)
+                ["builtin:selected"] = new ChapterRuleEditorModel("builtin:selected", "选中规则", @"^\s*一$", true, false)
             }
         };
         var feedback = new FakeFeedbackService();
@@ -173,7 +204,7 @@ public sealed class ChapterRulesViewModelTests
             ThrowOnSaveOrder = true,
             EditorsById =
             {
-                ["builtin:selected"] = new ChapterRuleEditorModel("builtin:selected", "选中规则", @"^\s*一$", true, true, false)
+                ["builtin:selected"] = new ChapterRuleEditorModel("builtin:selected", "选中规则", @"^\s*一$", true, false)
             }
         };
         var feedback = new FakeFeedbackService();
@@ -199,7 +230,7 @@ public sealed class ChapterRulesViewModelTests
         {
             EditorsById =
             {
-                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", true, false, true)
+                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", false, true)
             }
         };
         var dialogService = new FakeAppDialogService
@@ -228,7 +259,7 @@ public sealed class ChapterRulesViewModelTests
         {
             EditorsById =
             {
-                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", true, false, true)
+                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", false, true)
             }
         };
         var navigationService = new FakeNavigationService();
@@ -246,6 +277,67 @@ public sealed class ChapterRulesViewModelTests
         await viewModel.BackCommand.ExecuteAsync(null);
 
         Assert.Equal(0, navigationService.GoBackCallCount);
+    }
+
+    [Fact]
+    public async Task MoveRuleUpAndSaveDraftAsync_preserves_reordered_selection_and_skips_unsaved_prompt()
+    {
+        var workspace = new FakeChapterRuleWorkspaceService(
+        [
+            new ChapterRuleListItem("custom:first", "第一条", @"^\s*一$", true, 10, false),
+            new ChapterRuleListItem("custom:selected", "第二条", @"^\s*二$", true, 20, false),
+            new ChapterRuleListItem("custom:third", "第三条", @"^\s*三$", true, 30, false)
+        ])
+        {
+            EditorsById =
+            {
+                ["custom:first"] = new ChapterRuleEditorModel("custom:first", "第一条", @"^\s*一$", false, true),
+                ["custom:selected"] = new ChapterRuleEditorModel("custom:selected", "第二条", @"^\s*二$", false, true)
+            }
+        };
+        var dialogService = new FakeAppDialogService
+        {
+            NextUnsavedDecision = UnsavedChangesDecision.Cancel
+        };
+        var viewModel = CreateViewModel(workspaceService: workspace, dialogService: dialogService);
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        await viewModel.SelectRuleCommand.ExecuteAsync(viewModel.Rules.Single(rule => rule.Id == "custom:selected"));
+        viewModel.DraftName = "第二条-已改";
+        await viewModel.MoveRuleUpCommand.ExecuteAsync(viewModel.Rules.Single(rule => rule.Id == "custom:selected"));
+        await viewModel.SaveDraftCommand.ExecuteAsync(null);
+
+        Assert.Equal(["custom:selected", "custom:first", "custom:third"], viewModel.Rules.Select(rule => rule.Id));
+        Assert.Equal("custom:selected", viewModel.HighlightedRuleId);
+        Assert.Equal("第二条-已改", workspace.EditorsById["custom:selected"].Name);
+        Assert.Equal(0, dialogService.UnsavedChangesPromptCount);
+    }
+
+    [Fact]
+    public async Task CancelEditingAsync_does_not_rollback_left_saved_enabled_state()
+    {
+        var workspace = new FakeChapterRuleWorkspaceService(
+        [
+            new ChapterRuleListItem("custom:selected", "选中规则", @"^\s*一$", true, 10, false),
+            new ChapterRuleListItem("custom:other", "其他规则", @"^\s*二$", true, 20, false)
+        ])
+        {
+            EditorsById =
+            {
+                ["custom:selected"] = new ChapterRuleEditorModel("custom:selected", "选中规则", @"^\s*一$", false, true)
+            }
+        };
+        var viewModel = CreateViewModel(workspaceService: workspace);
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.DraftName = "选中规则-草稿";
+
+        var selectedRule = viewModel.Rules.Single(rule => rule.Id == "custom:selected");
+        await viewModel.ToggleRuleEnabledCommand.ExecuteAsync(selectedRule);
+        await viewModel.CancelEditingCommand.ExecuteAsync(null);
+
+        Assert.False(selectedRule.IsEnabled);
+        Assert.Equal("选中规则", viewModel.DraftName);
+        Assert.False(viewModel.HasUnsavedChanges);
     }
 
     private static ChapterRulesViewModel CreateViewModel(
@@ -302,11 +394,11 @@ public sealed class ChapterRulesViewModelTests
 
             var id = editor.Id ?? $"custom:new-{_nextCustomId++}";
             var savedName = BuildDeduplicatedName(editor.Name.Trim(), id);
+            var existingRule = _rules.FirstOrDefault(rule => rule.Id == id);
             var savedEditor = new ChapterRuleEditorModel(
                 id,
                 savedName,
                 editor.Pattern.Trim(),
-                editor.IsEnabled,
                 false,
                 true);
 
@@ -316,8 +408,8 @@ public sealed class ChapterRulesViewModelTests
                 id,
                 savedName,
                 editor.Pattern.Trim(),
-                editor.IsEnabled,
-                editor.Id is null ? (_rules.Count + 1) * 10 : _rules.Where(rule => rule.Id == id).Select(rule => rule.SortOrder).DefaultIfEmpty((_rules.Count + 1) * 10).First(),
+                existingRule?.IsEnabled ?? true,
+                existingRule?.SortOrder ?? (_rules.Count + 1) * 10,
                 false));
             NormalizeOrder();
             return Task.FromResult(savedEditor);
@@ -341,10 +433,6 @@ public sealed class ChapterRulesViewModelTests
             var rule = _rules.Single(item => item.Id == ruleId);
             var index = _rules.IndexOf(rule);
             _rules[index] = rule with { IsEnabled = isEnabled };
-            if (EditorsById.TryGetValue(ruleId, out var editor))
-            {
-                EditorsById[ruleId] = editor with { IsEnabled = isEnabled };
-            }
 
             return Task.CompletedTask;
         }
@@ -370,7 +458,7 @@ public sealed class ChapterRulesViewModelTests
             if (_rules.All(rule => rule.Id != "builtin:imported"))
             {
                 _rules.Add(new ChapterRuleListItem("builtin:imported", "导入默认规则", @"^\s*导入默认$", true, (_rules.Count + 1) * 10, true));
-                EditorsById["builtin:imported"] = new ChapterRuleEditorModel("builtin:imported", "导入默认规则", @"^\s*导入默认$", true, true, false);
+                EditorsById["builtin:imported"] = new ChapterRuleEditorModel("builtin:imported", "导入默认规则", @"^\s*导入默认$", true, false);
                 NormalizeOrder();
             }
 
@@ -453,6 +541,8 @@ public sealed class ChapterRulesViewModelTests
 
         public AppConfirmationDecision NextConfirmationDecision { get; set; } = AppConfirmationDecision.Confirm;
 
+        public int UnsavedChangesPromptCount { get; private set; }
+
         public Task<AppConfirmationDecision> ShowConfirmationAsync(
             string title,
             string message,
@@ -471,6 +561,7 @@ public sealed class ChapterRulesViewModelTests
             string cancelButtonText,
             CancellationToken cancellationToken)
         {
+            UnsavedChangesPromptCount++;
             return Task.FromResult(NextUnsavedDecision);
         }
     }

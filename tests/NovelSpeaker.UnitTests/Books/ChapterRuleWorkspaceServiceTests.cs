@@ -17,7 +17,7 @@ public sealed class ChapterRuleWorkspaceServiceTests
         var service = new ChapterRuleWorkspaceService(repository, new FakeChapterRuleManagementService());
 
         var saved = await service.SaveEditorAsync(
-            new ChapterRuleEditorModel(null, "新建规则", @"^\s*新规则$", true, false, true),
+            new ChapterRuleEditorModel(null, "新建规则", @"^\s*新规则$", false, true),
             CancellationToken.None);
 
         Assert.Equal("新建规则(2)", saved.Name);
@@ -32,7 +32,7 @@ public sealed class ChapterRuleWorkspaceServiceTests
             new FakeChapterRuleManagementService());
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.SaveEditorAsync(
-            new ChapterRuleEditorModel(null, "规则", "[", true, false, true),
+            new ChapterRuleEditorModel(null, "规则", "[", false, true),
             CancellationToken.None));
 
         Assert.Contains("正则表达式无效", exception.Message);
@@ -70,6 +70,27 @@ public sealed class ChapterRuleWorkspaceServiceTests
             ("b", 30)
         ],
             repository.Rules.OrderBy(rule => rule.SortOrder).Select(rule => (rule.Id, rule.SortOrder)).ToArray());
+    }
+
+    [Fact]
+    public async Task SaveEditorAsync_existing_rule_preserves_latest_enabled_state_and_sort_order()
+    {
+        var repository = new FakeChapterRuleRepository(
+        [
+            new ChapterRule("custom:one", "规则一", @"^\s*一$", 70, false, "now", "now")
+        ]);
+        var service = new ChapterRuleWorkspaceService(repository, new FakeChapterRuleManagementService());
+
+        var saved = await service.SaveEditorAsync(
+            new ChapterRuleEditorModel("custom:one", "规则一-已改", @"^\s*已改$", false, true),
+            CancellationToken.None);
+
+        var persisted = Assert.Single(repository.Rules);
+        Assert.Equal("规则一-已改", saved.Name);
+        Assert.Equal("规则一-已改", persisted.Name);
+        Assert.Equal(@"^\s*已改$", persisted.Pattern);
+        Assert.False(persisted.IsEnabled);
+        Assert.Equal(70, persisted.SortOrder);
     }
 
     private sealed class FakeChapterRuleRepository : IChapterRuleRepository
