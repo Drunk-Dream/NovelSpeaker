@@ -149,6 +149,11 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         return RunSerializedAsync(ct => RefreshBookMetadataCoreAsync(bookId, ct), cancellationToken);
     }
 
+    public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken)
+    {
+        return RunSerializedAsync(RefreshRegexReplacementCoreAsync, cancellationToken);
+    }
+
     public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
@@ -429,6 +434,59 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             BookTitle = _currentBook.BookTitle,
             BookAuthor = _currentBook.BookAuthor
         });
+    }
+
+    private async Task RefreshRegexReplacementCoreAsync(CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        if (_currentBook is null || _currentSession is null)
+        {
+            return;
+        }
+
+        var session = _currentSession;
+        var chapterIndex = session.ChapterIndex;
+        var previousChapter = GetChapter(_currentBook, chapterIndex);
+        var previousSegment = previousChapter is not null && session.SegmentIndex >= 0 && session.SegmentIndex < previousChapter.Segments.Count
+            ? previousChapter.Segments[session.SegmentIndex]
+            : null;
+        var characterOffset = previousSegment?.StartOffset ?? 0;
+        var replacement = await _bookContentService.GetChapterAsync(_currentBook.BookId, chapterIndex, cancellationToken).ConfigureAwait(false);
+        if (replacement is null || replacement.Segments.Count == 0)
+        {
+            return;
+        }
+
+        var mappedIndex = FindClosestSegmentIndex(replacement, characterOffset);
+        var mappedSegment = replacement.Segments[mappedIndex];
+        var speechChanged = previousSegment is null || !string.Equals(previousSegment.SpeechText, mappedSegment.SpeechText, StringComparison.Ordinal);
+        _currentBook = ReplaceChapter(_currentBook, replacement);
+        if (!speechChanged)
+        {
+            await _prefetchScheduler.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
+            await RefreshPrefetchWindowAsync(session, null, cancellationToken).ConfigureAwait(false);
+            PublishSnapshot(_currentSnapshot with { SegmentCount = replacement.Segments.Count, Message = "正则替换规则已应用。" });
+            return;
+        }
+
+        var wasPlaying = _currentSnapshot.State == PlaybackState.Playing;
+        if (_currentRule is null)
+        {
+            return;
+        }
+
+        await StartNewSessionAsync(
+            _currentBook,
+            chapterIndex,
+            mappedIndex,
+            0,
+            _currentRule,
+            session.SpeakSpeed,
+            forceInvalidate: false,
+            playImmediately: wasPlaying,
+            pausedState: PlaybackState.Paused,
+            pausedMessage: "正则替换规则已应用，等待播放。",
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task HandleBookDeletedCoreAsync(string bookId, CancellationToken cancellationToken)
