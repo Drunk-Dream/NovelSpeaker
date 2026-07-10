@@ -1,4 +1,5 @@
 using NovelSpeaker.App.Library;
+using NovelSpeaker.App.Input;
 using NovelSpeaker.App.ViewModels;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
@@ -10,12 +11,16 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
     private bool _hasLoaded;
 
-    public LibraryPage(LibraryViewModel viewModel, IBookCatalogInvalidationState catalogInvalidationState)
+    public LibraryPage(
+        LibraryViewModel viewModel,
+        IBookCatalogInvalidationState catalogInvalidationState,
+        ITextFilePicker textFilePicker)
     {
         _catalogInvalidationState = catalogInvalidationState;
         ViewModel = viewModel;
         InitializeComponent();
         LibraryView.DataContext = ViewModel;
+        LibraryView.TextFilePicker = textFilePicker;
     }
 
     public LibraryViewModel ViewModel { get; }

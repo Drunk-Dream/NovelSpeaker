@@ -12,8 +12,7 @@
     <Grid Margin="{StaticResource PagePadding}"
           AllowDrop="True"
           DragEnter="RootGrid_OnDragEnter"
-          Drop="RootGrid_OnDrop"
-          PreviewKeyDown="RootGrid_OnPreviewKeyDown">
+          Drop="RootGrid_OnDrop">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>

@@ -1,13 +1,14 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
-using Microsoft.Win32;
+using NovelSpeaker.App.Input;
 using NovelSpeaker.App.ViewModels;
 
 namespace NovelSpeaker.App.Views;
 
 public partial class LibraryView : UserControl
 {
+    public ITextFilePicker? TextFilePicker { get; set; }
+
     public LibraryView()
     {
         InitializeComponent();
@@ -35,17 +36,6 @@ public partial class LibraryView : UserControl
         await viewModel.ImportFilesAsync(files ?? [], CancellationToken.None);
     }
 
-    private async void RootGrid_OnPreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.O || (Keyboard.Modifiers & ModifierKeys.Control) == 0)
-        {
-            return;
-        }
-
-        e.Handled = true;
-        await ShowImportFileDialogAsync();
-    }
-
     private async Task ShowImportFileDialogAsync()
     {
         if (DataContext is not LibraryViewModel viewModel)
@@ -53,15 +43,15 @@ public partial class LibraryView : UserControl
             return;
         }
 
-        var dialog = new OpenFileDialog
+        if (TextFilePicker is null)
         {
-            Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
-            Multiselect = false
-        };
+            return;
+        }
 
-        if (dialog.ShowDialog() == true)
+        var filePath = await TextFilePicker.PickSingleTextFileAsync(CancellationToken.None);
+        if (!string.IsNullOrWhiteSpace(filePath))
         {
-            await viewModel.ImportFilesAsync([dialog.FileName], CancellationToken.None);
+            await viewModel.ImportFilesAsync([filePath], CancellationToken.None);
         }
     }
 }
