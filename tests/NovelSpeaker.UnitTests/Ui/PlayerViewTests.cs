@@ -928,7 +928,8 @@ public sealed class PlayerViewTests
             var view = new PlayerView
             {
                 DataContext = viewModel,
-                SegmentAutoCenterAnimationDuration = TimeSpan.FromMilliseconds(500)
+                SegmentAutoCenterAnimationDuration = TimeSpan.FromMilliseconds(500),
+                ReduceMotionOverride = false
             };
             var window = new Window
             {
@@ -1142,7 +1143,8 @@ public sealed class PlayerViewTests
             var view = new PlayerView
             {
                 DataContext = viewModel,
-                SegmentAutoCenterAnimationDuration = TimeSpan.FromMilliseconds(260)
+                SegmentAutoCenterAnimationDuration = TimeSpan.FromMilliseconds(260),
+                ReduceMotionOverride = false
             };
             var window = new Window
             {
@@ -1343,7 +1345,8 @@ public sealed class PlayerViewTests
             var view = new PlayerView
             {
                 DataContext = viewModel,
-                SegmentAutoCenterAnimationDuration = TimeSpan.FromMilliseconds(180)
+                SegmentAutoCenterAnimationDuration = TimeSpan.FromMilliseconds(180),
+                ReduceMotionOverride = false
             };
             var window = new Window
             {
@@ -1461,7 +1464,8 @@ public sealed class PlayerViewTests
             var view = new PlayerView
             {
                 DataContext = viewModel,
-                SegmentAutoCenterAnimationDuration = TimeSpan.FromMilliseconds(260)
+                SegmentAutoCenterAnimationDuration = TimeSpan.FromMilliseconds(260),
+                ReduceMotionOverride = false
             };
             var window = new Window
             {
