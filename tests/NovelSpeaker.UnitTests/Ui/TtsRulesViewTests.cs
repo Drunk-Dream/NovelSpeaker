@@ -101,8 +101,11 @@ public sealed partial class TtsRulesViewTests
             view.UpdateLayout();
 
             var helpDrawer = Assert.IsType<Border>(view.FindName("HelpDrawerBorder"));
+            var dismissOverlay = Assert.IsType<Button>(view.FindName("HelpDrawerDismissOverlay"));
             Assert.Equal(Visibility.Visible, helpDrawer.Visibility);
             Assert.Equal(Visibility.Visible, ((UIElement)helpDrawer.Parent).Visibility);
+            Assert.NotEqual(Brushes.Transparent, helpDrawer.Background);
+            Assert.Equal(1d, dismissOverlay.Opacity);
 
             context.IsHelpDrawerOpen = false;
             view.UpdateLayout();

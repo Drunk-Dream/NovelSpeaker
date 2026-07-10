@@ -379,10 +379,10 @@
                     <ColumnDefinition Width="380" />
                 </Grid.ColumnDefinitions>
 
-                <Button Grid.Column="0"
-                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                <Button x:Name="HelpDrawerDismissOverlay"
+                        Grid.Column="0"
+                        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
                         BorderThickness="0"
-                        Opacity="0.72"
                         Command="{Binding CloseHelpCommand}" />
 
                 <Border x:Name="HelpDrawerBorder"
