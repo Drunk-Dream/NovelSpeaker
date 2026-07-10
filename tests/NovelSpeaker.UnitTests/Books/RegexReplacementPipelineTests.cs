@@ -59,6 +59,44 @@ public sealed class RegexReplacementPipelineTests
         Assert.DoesNotContain("秘密正文", result.RuleErrors[id]);
     }
 
+    [Fact]
+    public async Task ApplyAsync_keeps_single_projection_empty_so_the_consumer_can_skip_or_hide_it()
+    {
+        var pipeline = new RegexReplacementPipeline(new FakeRepository(
+        [
+            Rule(Guid.NewGuid(), 10, "隐藏", string.Empty, RegexReplacementScope.Display),
+            Rule(Guid.NewGuid(), 20, "静音", string.Empty, RegexReplacementScope.Speech)
+        ]));
+
+        var result = await pipeline.ApplyAsync(
+        [
+            new SpeechSegment(0, 0, 2, "隐藏", "隐藏"),
+            new SpeechSegment(1, 3, 2, "静音", "静音")
+        ],
+        CancellationToken.None);
+
+        Assert.Equal(2, result.Segments.Count);
+        Assert.Equal(string.Empty, result.Segments[0].DisplayText);
+        Assert.Equal("隐藏", result.Segments[0].SpeechText);
+        Assert.Equal("静音", result.Segments[1].DisplayText);
+        Assert.Equal(string.Empty, result.Segments[1].SpeechText);
+    }
+
+    [Fact]
+    public async Task ApplyAsync_reports_safe_runtime_errors_to_the_workspace_error_store()
+    {
+        var id = Guid.NewGuid();
+        var errors = new RegexReplacementRuleErrorStore();
+        var pipeline = new RegexReplacementPipeline(
+            new FakeRepository([Rule(id, 10, "[", string.Empty, RegexReplacementScope.Both)]),
+            errors);
+
+        await pipeline.ApplyAsync([new SpeechSegment(0, 0, 4, "正文", "正文")], CancellationToken.None);
+
+        Assert.True(errors.Current.TryGetValue(id, out var message));
+        Assert.DoesNotContain("正文", message);
+    }
+
     private static RegexReplacementRule Rule(Guid id, int order, string pattern, string replacement, RegexReplacementScope scope) =>
         new(id, id.ToString(), true, order, pattern, replacement, scope, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
 

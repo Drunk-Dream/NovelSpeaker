@@ -9,8 +9,13 @@ public sealed class RegexReplacementPipeline : IRegexReplacementPipeline
 {
     private static readonly TimeSpan RuleTimeout = TimeSpan.FromMilliseconds(100);
     private readonly IRegexReplacementRuleRepository _repository;
+    private readonly IRegexReplacementRuleErrorStore? _errorStore;
 
-    public RegexReplacementPipeline(IRegexReplacementRuleRepository repository) => _repository = repository;
+    public RegexReplacementPipeline(IRegexReplacementRuleRepository repository, IRegexReplacementRuleErrorStore? errorStore = null)
+    {
+        _repository = repository;
+        _errorStore = errorStore;
+    }
 
     public async Task<RegexReplacementPipelineResult> ApplyAsync(IReadOnlyList<SpeechSegment> sourceSegments, CancellationToken cancellationToken)
     {
@@ -25,6 +30,7 @@ public sealed class RegexReplacementPipeline : IRegexReplacementPipeline
             if (string.IsNullOrEmpty(display) && string.IsNullOrEmpty(speech)) continue;
             output.Add(new SpeechSegment(output.Count, source.StartOffset, source.Length, display, speech));
         }
+        _errorStore?.Replace(errors);
         return new RegexReplacementPipelineResult(output, errors);
     }
 
