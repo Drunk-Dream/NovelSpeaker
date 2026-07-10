@@ -774,6 +774,14 @@ public sealed partial class PlayerViewModel : ObservableObject
             return;
         }
 
+        // Playback emits several state snapshots for one segment transition. Once this chapter has
+        // been projected, those snapshots only need to update the existing item state; replacing
+        // the collection would discard virtualized containers while an auto-centering request runs.
+        if (_loadedChapterIndex == chapterIndex)
+        {
+            return;
+        }
+
         if (_chapterCache.TryGetValue(chapterIndex, out var cachedChapter))
         {
             ApplyChapterContent(cachedChapter);

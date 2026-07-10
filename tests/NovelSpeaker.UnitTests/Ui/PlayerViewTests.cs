@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading;
@@ -1359,6 +1360,8 @@ public sealed class PlayerViewTests
                 var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
                 var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
                 var observedOffsets = new List<double>();
+                var originalSegmentItems = viewModel.Segments.ToArray();
+                var collectionChanges = new List<NotifyCollectionChangedAction>();
                 ScrollChangedEventHandler captureOffset = (_, eventArgs) =>
                 {
                     if (eventArgs.VerticalChange != 0)
@@ -1367,14 +1370,18 @@ public sealed class PlayerViewTests
                     }
                 };
                 scrollViewer.ScrollChanged += captureOffset;
+                viewModel.Segments.CollectionChanged += (_, eventArgs) => collectionChanges.Add(eventArgs.Action);
 
                 coordinator.Publish(coordinator.CurrentSnapshot with
                 {
+                    State = PlaybackState.Buffering,
                     SegmentIndex = 88,
                     SegmentCount = 120
                 });
 
                 WaitUntil(() => view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(500));
+                coordinator.Publish(coordinator.CurrentSnapshot with { State = PlaybackState.Preparing });
+                coordinator.Publish(coordinator.CurrentSnapshot with { State = PlaybackState.Playing });
                 WaitUntil(() => !view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(1200));
                 DoEvents();
                 view.UpdateLayout();
@@ -1386,6 +1393,10 @@ public sealed class PlayerViewTests
                 var viewportCenter = scrollViewer.ViewportHeight / 2d;
 
                 Assert.Equal(88, viewModel.CurrentSegmentIndex);
+                Assert.Empty(collectionChanges);
+                Assert.All(originalSegmentItems.Select((item, index) => (item, index)), pair =>
+                    Assert.Same(pair.item, viewModel.Segments[pair.index]));
+                Assert.Same(originalSegmentItems[88], viewModel.CurrentSegmentItem);
                 Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 1d);
                 Assert.All(observedOffsets.Zip(observedOffsets.Skip(1)), pair => Assert.True(pair.Second >= pair.First));
                 scrollViewer.ScrollChanged -= captureOffset;
