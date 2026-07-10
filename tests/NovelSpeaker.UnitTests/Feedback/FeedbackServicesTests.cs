@@ -88,6 +88,15 @@ public sealed class FeedbackServicesTests
         Assert.Equal("操作失败，请稍后重试。", unexpected.UserMessage);
     }
 
+    [Fact]
+    public void ExceptionProjector_does_not_expose_invalid_operation_messages()
+    {
+        var projected = new ExceptionProjector().Project(new InvalidOperationException("Token=secret"));
+
+        Assert.Equal("当前操作无法完成，请检查相关设置后重试。", projected.UserMessage);
+        Assert.DoesNotContain("secret", projected.UserMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class FakeContentDialogService : IContentDialogService
     {
         private readonly ContentPresenter _presenter = new();
