@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Feedback;
+using NovelSpeaker.App.Pages;
 using Wpf.Ui;
 
 namespace NovelSpeaker.App.ViewModels;
@@ -86,6 +87,12 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
                 ShowSaveFailure("保存文件名模板失败", exception);
             }
         }
+    }
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void OpenRegexReplacementRules()
+    {
+        NavigationService.NavigateWithHierarchy(typeof(RegexReplacementRulesPage));
     }
 
     public async Task CommitLongParagraphThresholdAsync(CancellationToken cancellationToken)

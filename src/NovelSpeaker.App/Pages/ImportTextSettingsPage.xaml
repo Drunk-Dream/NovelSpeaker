@@ -83,6 +83,17 @@
                             </TextBlock>
                         </StackPanel>
                     </Border>
+
+                    <Border Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="正则替换" />
+                            <Button Margin="0,10,0,0"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding OpenRegexReplacementRulesCommand}"
+                                    Content="管理正则替换规则" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

@@ -19,6 +19,8 @@ public abstract partial class SettingsSubpageViewModelBase : ObservableObject
         _feedbackService = feedbackService;
     }
 
+    protected INavigationService NavigationService => _navigationService;
+
     [RelayCommand]
     private void Back()
     {
