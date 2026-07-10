@@ -9,7 +9,7 @@ namespace NovelSpeaker.Infrastructure.Persistence;
 public sealed class SqliteMigrationRunner : IDatabaseInitializer
 {
     private const int MinimumSupportedVersion = 4;
-    private const int CurrentSchemaVersion = 4;
+    private const int CurrentSchemaVersion = 5;
     private static readonly SqliteMigration[] Migrations =
     [
         new(
@@ -107,6 +107,24 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
 
             CREATE INDEX IX_AudioCacheEntries_LastAccessedAt
                 ON AudioCacheEntries(LastAccessedAt);
+            """),
+        new(
+            5,
+            """
+            CREATE TABLE RegexReplacementRules (
+                Id TEXT NOT NULL PRIMARY KEY,
+                Name TEXT NOT NULL,
+                IsEnabled INTEGER NOT NULL,
+                SortOrder INTEGER NOT NULL,
+                Pattern TEXT NOT NULL,
+                Replacement TEXT NOT NULL,
+                Scope TEXT NOT NULL,
+                CreatedAt TEXT NOT NULL,
+                UpdatedAt TEXT NOT NULL
+            );
+
+            CREATE INDEX IX_RegexReplacementRules_SortOrder
+                ON RegexReplacementRules(SortOrder);
             """)
     ];
 

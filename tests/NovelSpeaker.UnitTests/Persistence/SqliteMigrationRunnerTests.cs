@@ -7,7 +7,7 @@ namespace NovelSpeaker.UnitTests.Persistence;
 public sealed class SqliteMigrationRunnerTests
 {
     [Fact]
-    public async Task InitializeAsync_creates_current_schema_as_version_4()
+    public async Task InitializeAsync_creates_current_schema_as_version_5()
     {
         var factory = await CreateInitializedFactoryAsync();
 
@@ -18,7 +18,7 @@ public sealed class SqliteMigrationRunnerTests
             SELECT COUNT(*)
             FROM sqlite_master
             WHERE type = 'table'
-              AND name IN ('SchemaVersion', 'AppMetadata', 'Books', 'Chapters', 'ChapterRules', 'HttpTtsRules', 'ReadingProgress', 'AudioCacheEntries');
+              AND name IN ('SchemaVersion', 'AppMetadata', 'Books', 'Chapters', 'ChapterRules', 'HttpTtsRules', 'ReadingProgress', 'AudioCacheEntries', 'RegexReplacementRules');
             """;
 
         var tableCount = Convert.ToInt32(await tableCommand.ExecuteScalarAsync(CancellationToken.None));
@@ -27,8 +27,8 @@ public sealed class SqliteMigrationRunnerTests
         versionCommand.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
         var version = Convert.ToInt32(await versionCommand.ExecuteScalarAsync(CancellationToken.None));
 
-        Assert.Equal(8, tableCount);
-        Assert.Equal(4, version);
+        Assert.Equal(9, tableCount);
+        Assert.Equal(5, version);
     }
 
     [Fact]
@@ -86,6 +86,10 @@ public sealed class SqliteMigrationRunnerTests
 
         var indexCount = Convert.ToInt32(await indexCommand.ExecuteScalarAsync(CancellationToken.None));
         Assert.Equal(2, indexCount);
+
+        var regexIndexCommand = connection.CreateCommand();
+        regexIndexCommand.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'IX_RegexReplacementRules_SortOrder';";
+        Assert.Equal(1, Convert.ToInt32(await regexIndexCommand.ExecuteScalarAsync(CancellationToken.None)));
     }
 
     [Fact]
@@ -107,7 +111,7 @@ public sealed class SqliteMigrationRunnerTests
         command.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
 
         var version = Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
-        Assert.Equal(4, version);
+        Assert.Equal(5, version);
     }
 
     [Fact]
@@ -139,7 +143,7 @@ public sealed class SqliteMigrationRunnerTests
         var exception = await Assert.ThrowsAsync<IncompatibleDatabaseSchemaException>(
             () => runner.InitializeAsync(CancellationToken.None));
         Assert.Equal(3, exception.DetectedVersion);
-        Assert.Equal(4, exception.RequiredVersion);
+        Assert.Equal(5, exception.RequiredVersion);
     }
 
     private static async Task<SqliteConnectionFactory> CreateInitializedFactoryAsync()
