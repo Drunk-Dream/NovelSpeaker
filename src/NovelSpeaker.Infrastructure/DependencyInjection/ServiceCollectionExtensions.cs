@@ -48,6 +48,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IChapterRuleManagementService, ChapterRuleManagementService>();
         services.AddSingleton<IChapterRuleWorkspaceService, ChapterRuleWorkspaceService>();
         services.AddSingleton<IRegexReplacementRuleRepository, RegexReplacementRuleRepository>();
+        services.AddSingleton<IRegexReplacementRuleErrorStore, RegexReplacementRuleErrorStore>();
         services.AddSingleton<IRegexReplacementRuleWorkspaceService, RegexReplacementRuleWorkspaceService>();
         services.AddSingleton<IRegexReplacementPipeline, RegexReplacementPipeline>();
         services.AddSingleton<ITtsRuleRepository, TtsRuleRepository>();

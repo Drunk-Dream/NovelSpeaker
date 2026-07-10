@@ -9,14 +9,26 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
 {
     private const int SortOrderStep = 10;
     private readonly IRegexReplacementRuleRepository _repository;
+    private readonly IRegexReplacementRuleErrorStore? _errorStore;
 
-    public RegexReplacementRuleWorkspaceService(IRegexReplacementRuleRepository repository) => _repository = repository;
+    public RegexReplacementRuleWorkspaceService(IRegexReplacementRuleRepository repository, IRegexReplacementRuleErrorStore? errorStore = null)
+    {
+        _repository = repository;
+        _errorStore = errorStore;
+    }
 
     public async Task<IReadOnlyList<RegexReplacementRuleListItem>> GetRulesAsync(CancellationToken cancellationToken)
     {
         var rules = await _repository.GetAllAsync(cancellationToken);
         return rules.OrderBy(rule => rule.SortOrder).ThenBy(rule => rule.Id)
-            .Select(rule => new RegexReplacementRuleListItem(rule.Id, rule.Name, Summarize(rule.Pattern), rule.IsEnabled, rule.SortOrder, rule.Scope))
+            .Select(rule => new RegexReplacementRuleListItem(
+                rule.Id,
+                rule.Name,
+                Summarize(rule.Pattern),
+                rule.IsEnabled,
+                rule.SortOrder,
+                rule.Scope,
+                _errorStore?.Current.GetValueOrDefault(rule.Id)))
             .ToArray();
     }
 
