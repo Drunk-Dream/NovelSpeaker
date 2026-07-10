@@ -30,6 +30,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     private IDisposable? _currentAudioProtection;
     private TtsErrorKind? _lastFailureKind;
     private string? _lastRecoveredCorruptSegmentKey;
+    private long _contentRevision;
     private bool _disposed;
 
     public PlaybackCoordinator(
@@ -452,24 +453,70 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             : null;
         var characterOffset = previousSegment?.StartOffset ?? 0;
         var replacement = await _bookContentService.GetChapterAsync(_currentBook.BookId, chapterIndex, cancellationToken).ConfigureAwait(false);
-        if (replacement is null || replacement.Segments.Count == 0)
+        if (replacement is null)
         {
             return;
         }
 
-        var mappedIndex = FindClosestSegmentIndex(replacement, characterOffset);
+        _currentBook = ReplaceChapter(_currentBook, replacement);
+        _contentRevision++;
+        var wasPlaying = _currentSnapshot.State == PlaybackState.Playing;
+
+        if (replacement.Segments.Count == 0)
+        {
+            var target = await ResolveNearestAvailablePositionAsync(_currentBook, chapterIndex, cancellationToken).ConfigureAwait(false);
+            if (target is null || _currentRule is null)
+            {
+                if (session.HasLoadedAudio)
+                {
+                    await _localAudioPlaybackCoordinator.StopAsync(cancellationToken).ConfigureAwait(false);
+                }
+
+                await _prefetchScheduler.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
+                await DisposeSessionAsync().ConfigureAwait(false);
+                PublishSnapshot(_currentSnapshot with
+                {
+                    State = PlaybackState.Stopped,
+                    SegmentCount = 0,
+                    ContentRevision = _contentRevision,
+                    Message = "正则替换后没有可播放的段落。",
+                    CanRetry = false,
+                    CanSkip = false
+                });
+                return;
+            }
+
+            await StartNewSessionAsync(
+                target.Value.Book,
+                target.Value.ChapterIndex,
+                target.Value.SegmentIndex,
+                0,
+                _currentRule,
+                session.SpeakSpeed,
+                forceInvalidate: false,
+                playImmediately: wasPlaying,
+                pausedState: PlaybackState.Paused,
+                pausedMessage: "正则替换规则已应用，等待播放。",
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var mappedIndex = FindMappedSegmentIndex(replacement, characterOffset);
         var mappedSegment = replacement.Segments[mappedIndex];
         var speechChanged = previousSegment is null || !string.Equals(previousSegment.SpeechText, mappedSegment.SpeechText, StringComparison.Ordinal);
-        _currentBook = ReplaceChapter(_currentBook, replacement);
         if (!speechChanged)
         {
             await _prefetchScheduler.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
             await RefreshPrefetchWindowAsync(session, null, cancellationToken).ConfigureAwait(false);
-            PublishSnapshot(_currentSnapshot with { SegmentCount = replacement.Segments.Count, Message = "正则替换规则已应用。" });
+            PublishSnapshot(_currentSnapshot with
+            {
+                SegmentCount = replacement.Segments.Count,
+                ContentRevision = _contentRevision,
+                Message = "正则替换规则已应用。"
+            });
             return;
         }
 
-        var wasPlaying = _currentSnapshot.State == PlaybackState.Playing;
         if (_currentRule is null)
         {
             return;
@@ -910,6 +957,38 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
 
         _currentBook = await EnsureChapterLoadedAsync(_currentBook, session.ChapterIndex, cancellationToken);
         var chapter = GetChapter(_currentBook, session.ChapterIndex);
+        while (chapter is not null &&
+               session.SegmentIndex >= 0 &&
+               session.SegmentIndex < chapter.Segments.Count &&
+               string.IsNullOrWhiteSpace(chapter.Segments[session.SegmentIndex].SpeechText))
+        {
+            var next = await ResolveRelativeSegmentAsync(
+                _currentBook,
+                session.ChapterIndex,
+                session.SegmentIndex,
+                1,
+                cancellationToken).ConfigureAwait(false);
+            if (next is null)
+            {
+                await _prefetchScheduler.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
+                await DisposeSessionAsync().ConfigureAwait(false);
+                PublishSnapshot(_currentSnapshot with
+                {
+                    State = PlaybackState.Stopped,
+                    Message = "已跳过没有语音内容的段落，播放结束。",
+                    CanRetry = false,
+                    CanSkip = false
+                });
+                return;
+            }
+
+            _currentBook = next.Value.Book;
+            session.ChapterIndex = next.Value.ChapterIndex;
+            session.SegmentIndex = next.Value.SegmentIndex;
+            session.ResumePositionMilliseconds = 0;
+            chapter = GetChapter(_currentBook, session.ChapterIndex);
+        }
+
         if (chapter is null)
         {
             PublishPlaybackFailure("未找到要播放的章节。", TtsErrorKind.InvalidRule, canSkip: false);
@@ -1107,7 +1186,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         var book = _currentBook;
         var chapterIndex = session.ChapterIndex;
         var segmentIndex = session.SegmentIndex;
-        for (var index = 0; index < prefetchCount; index++)
+        while (requests.Count < prefetchCount)
         {
             var next = await ResolveRelativeSegmentAsync(
                 book,
@@ -1152,11 +1231,17 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             return;
         }
 
+        var speechText = chapter.Segments[segmentIndex].SpeechText;
+        if (string.IsNullOrWhiteSpace(speechText))
+        {
+            return;
+        }
+
         requests.Add(new PlaybackAudioRequest(
             book.BookId,
             chapterIndex,
             segmentIndex,
-            chapter.Segments[segmentIndex].SpeechText,
+            speechText,
             _currentRule.RuleId,
             _currentRule.SourceRule,
             _currentRule.NormalizedRule,
@@ -1327,7 +1412,8 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             canRetry,
             canSkip,
             book.BookAuthor,
-            true);
+            true,
+            _contentRevision);
     }
 
     private (int ChapterIndex, int SegmentIndex) GetCurrentPosition()
@@ -1423,6 +1509,43 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         return null;
     }
 
+    /// <summary>
+    /// Finds the next chapter with runtime content, then falls back to the preceding chapter.
+    /// This is used when a rule filters every consumable segment from the active chapter.
+    /// </summary>
+    private async Task<(PlaybackBookContent Book, PlaybackChapterContent Chapter, int ChapterIndex, int SegmentIndex)?> ResolveNearestAvailablePositionAsync(
+        PlaybackBookContent book,
+        int chapterIndex,
+        CancellationToken cancellationToken)
+    {
+        var nextChapterIndex = FindRelativeChapterIndex(book, chapterIndex, 1);
+        if (nextChapterIndex is not null)
+        {
+            var next = await ResolvePlayablePositionAsync(
+                book,
+                nextChapterIndex.Value,
+                preferredSegmentIndex: null,
+                searchDirection: 1,
+                preferLastSegmentWhenSearchingBackward: false,
+                cancellationToken).ConfigureAwait(false);
+            if (next is not null)
+            {
+                return next;
+            }
+        }
+
+        var previousChapterIndex = FindRelativeChapterIndex(book, chapterIndex, -1);
+        return previousChapterIndex is null
+            ? null
+            : await ResolvePlayablePositionAsync(
+                book,
+                previousChapterIndex.Value,
+                preferredSegmentIndex: null,
+                searchDirection: -1,
+                preferLastSegmentWhenSearchingBackward: true,
+                cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task<(PlaybackBookContent Book, PlaybackChapterContent Chapter, int ChapterIndex, int SegmentIndex, long ResumePositionMilliseconds)?> ResolveRestoredPositionAsync(
         PlaybackBookContent book,
         ReadingProgressEntry progress,
@@ -1432,13 +1555,13 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         var chapter = GetChapter(book, progress.ChapterIndex);
         if (chapter is not null && chapter.Segments.Count > 0)
         {
-            if (progress.SegmentIndex >= 0 && progress.SegmentIndex < chapter.Segments.Count)
-            {
-                return (book, chapter, chapter.ChapterIndex, progress.SegmentIndex, progress.AudioPositionMilliseconds);
-            }
-
-            var remappedSegmentIndex = FindClosestSegmentIndex(chapter, progress.CharacterOffset);
-            return (book, chapter, chapter.ChapterIndex, remappedSegmentIndex, 0);
+            var remappedSegmentIndex = FindMappedSegmentIndex(chapter, progress.CharacterOffset);
+            var resumePosition = progress.SegmentIndex >= 0 &&
+                                 progress.SegmentIndex < chapter.Segments.Count &&
+                                 chapter.Segments[progress.SegmentIndex].StartOffset == progress.CharacterOffset
+                ? progress.AudioPositionMilliseconds
+                : 0;
+            return (book, chapter, chapter.ChapterIndex, remappedSegmentIndex, resumePosition);
         }
 
         var fallback = await ResolvePlayablePositionAsync(
@@ -1602,28 +1725,17 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         return 0;
     }
 
-    private static int FindClosestSegmentIndex(PlaybackChapterContent chapter, int characterOffset)
+    private static int FindMappedSegmentIndex(PlaybackChapterContent chapter, int characterOffset)
     {
-        var bestIndex = 0;
-        var bestDistance = int.MaxValue;
-
         for (var index = 0; index < chapter.Segments.Count; index++)
         {
-            var segment = chapter.Segments[index];
-            if (characterOffset >= segment.StartOffset && characterOffset < segment.StartOffset + segment.Length)
+            if (chapter.Segments[index].StartOffset >= characterOffset)
             {
                 return index;
             }
-
-            var distance = Math.Abs(segment.StartOffset - characterOffset);
-            if (distance < bestDistance)
-            {
-                bestDistance = distance;
-                bestIndex = index;
-            }
         }
 
-        return bestIndex;
+        return chapter.Segments.Count - 1;
     }
 
     private bool IsSessionCurrent(Guid sessionId)

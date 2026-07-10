@@ -35,6 +35,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private int _bookLoadVersion;
     private int _chapterLoadVersion;
     private int _segmentCenterRequestVersion;
+    private long _lastContentRevision;
     private bool _animateNextSegmentCenterRequest;
     private bool _suppressNextStateDrivenAutoCenterRequest;
     private PlayerAutoScrollState _lastAppliedAutoScrollState;
@@ -736,6 +737,17 @@ public sealed partial class PlayerViewModel : ObservableObject
             return;
         }
 
+        if (snapshot.ContentRevision != _lastContentRevision)
+        {
+            _chapterCache.Remove(snapshot.ChapterIndex);
+            if (_loadedChapterIndex == snapshot.ChapterIndex)
+            {
+                _loadedChapterIndex = -1;
+            }
+
+            _lastContentRevision = snapshot.ContentRevision;
+        }
+
         await EnsureChapterLoadedAsync(book.BookId, snapshot.ChapterIndex, cancellationToken);
         lock (_projectionSyncRoot)
         {
@@ -810,6 +822,7 @@ public sealed partial class PlayerViewModel : ObservableObject
             {
                 _chapterCache.Clear();
                 _loadedChapterIndex = -1;
+                _lastContentRevision = 0;
                 Segments.Clear();
             }
 
@@ -837,7 +850,7 @@ public sealed partial class PlayerViewModel : ObservableObject
             _loadedChapterIndex = chapter.ChapterIndex;
             CurrentChapterSegmentCount = chapter.Segments.Count;
             CurrentChapterTitle = chapter.Title;
-            Segments.ReplaceWith(chapter.Segments, segment =>
+            Segments.ReplaceWith(chapter.Segments.Where(segment => !string.IsNullOrEmpty(segment.DisplayText)), segment =>
                 new PlayerSegmentItemViewModel(chapter.ChapterIndex, segment.SegmentIndex, segment.DisplayText));
             UpdateSegmentProjection(CurrentSegmentIndex);
             UpdateNavigationAvailability();

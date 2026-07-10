@@ -21,7 +21,8 @@ public sealed record PlaybackSnapshot(
     bool CanRetry,
     bool CanSkip,
     string? BookAuthor = null,
-    bool HasAvailableRule = true)
+    bool HasAvailableRule = true,
+    long ContentRevision = 0)
 {
     public static PlaybackSnapshot Idle { get; } = new(
         PlaybackState.Idle,
