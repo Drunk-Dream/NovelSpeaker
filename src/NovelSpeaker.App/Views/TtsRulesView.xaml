@@ -381,6 +381,8 @@
 
                 <Button x:Name="HelpDrawerDismissOverlay"
                         Grid.Column="0"
+                        AutomationProperties.Name="关闭规则帮助"
+                        ToolTip="关闭规则帮助"
                         Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
                         BorderThickness="0"
                         Command="{Binding CloseHelpCommand}" />

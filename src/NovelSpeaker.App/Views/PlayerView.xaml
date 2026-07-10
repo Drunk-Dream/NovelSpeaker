@@ -464,6 +464,8 @@
                                              VerticalAlignment="Center"
                                              IsIndeterminate="True" />
                                 <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
+                                           AutomationProperties.LiveSetting="Polite"
+                                           AutomationProperties.Name="播放加载状态"
                                            Text="{Binding InlineLoadingText}" />
                             </StackPanel>
                         </Grid>
