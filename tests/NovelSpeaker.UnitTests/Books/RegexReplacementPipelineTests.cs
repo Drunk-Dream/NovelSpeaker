@@ -1,0 +1,75 @@
+using NovelSpeaker.Application.Books;
+using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Infrastructure.Books;
+using Xunit;
+
+namespace NovelSpeaker.UnitTests.Books;
+
+public sealed class RegexReplacementPipelineTests
+{
+    [Fact]
+    public async Task ApplyAsync_applies_display_and_speech_chains_independently_in_stable_order()
+    {
+        var displayId = Guid.NewGuid();
+        var bothId = Guid.NewGuid();
+        var pipeline = new RegexReplacementPipeline(new FakeRepository(
+        [
+            Rule(displayId, 10, "a", "b", RegexReplacementScope.Display),
+            Rule(bothId, 20, "b", "c", RegexReplacementScope.Both),
+            Rule(Guid.NewGuid(), 30, "a", "x", RegexReplacementScope.Speech)
+        ]));
+
+        var result = await pipeline.ApplyAsync([new SpeechSegment(0, 7, 1, "a", "a")], CancellationToken.None);
+
+        var segment = Assert.Single(result.Segments);
+        Assert.Equal("c", segment.DisplayText);
+        Assert.Equal("x", segment.SpeechText);
+        Assert.Equal(7, segment.StartOffset);
+        Assert.Empty(result.RuleErrors);
+    }
+
+    [Fact]
+    public async Task ApplyAsync_filters_only_segments_where_both_projections_are_empty_and_reindexes_runtime_list()
+    {
+        var pipeline = new RegexReplacementPipeline(new FakeRepository(
+        [Rule(Guid.NewGuid(), 10, "skip", "", RegexReplacementScope.Both)]));
+
+        var result = await pipeline.ApplyAsync(
+        [
+            new SpeechSegment(0, 0, 4, "skip", "skip"),
+            new SpeechSegment(1, 5, 4, "keep", "keep")
+        ], CancellationToken.None);
+
+        var segment = Assert.Single(result.Segments);
+        Assert.Equal(0, segment.SegmentIndex);
+        Assert.Equal(5, segment.StartOffset);
+        Assert.Equal("keep", segment.DisplayText);
+    }
+
+    [Fact]
+    public async Task ApplyAsync_skips_malformed_historical_rule_without_exposing_source_text()
+    {
+        var id = Guid.NewGuid();
+        var pipeline = new RegexReplacementPipeline(new FakeRepository([Rule(id, 10, "[", "", RegexReplacementScope.Both)]));
+
+        var result = await pipeline.ApplyAsync([new SpeechSegment(0, 0, 6, "秘密正文", "秘密正文")], CancellationToken.None);
+
+        Assert.Equal("秘密正文", Assert.Single(result.Segments).SpeechText);
+        Assert.Contains(id, result.RuleErrors.Keys);
+        Assert.DoesNotContain("秘密正文", result.RuleErrors[id]);
+    }
+
+    private static RegexReplacementRule Rule(Guid id, int order, string pattern, string replacement, RegexReplacementScope scope) =>
+        new(id, id.ToString(), true, order, pattern, replacement, scope, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+
+    private sealed class FakeRepository : IRegexReplacementRuleRepository
+    {
+        private readonly IReadOnlyList<RegexReplacementRule> _rules;
+        public FakeRepository(IReadOnlyList<RegexReplacementRule> rules) => _rules = rules;
+        public Task<IReadOnlyList<RegexReplacementRule>> GetAllAsync(CancellationToken cancellationToken) => Task.FromResult(_rules);
+        public Task SaveAsync(RegexReplacementRule rule, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task UpdateEnabledAsync(Guid ruleId, bool isEnabled, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SaveOrderAsync(IReadOnlyList<(Guid RuleId, int SortOrder)> order, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task DeleteAsync(Guid ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+}
