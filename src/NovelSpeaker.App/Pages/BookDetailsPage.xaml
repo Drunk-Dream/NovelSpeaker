@@ -6,30 +6,6 @@
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
 
-        <Style x:Key="ChapterListItemBorderStyle"
-               TargetType="Border"
-               BasedOn="{StaticResource CardBorderStyle}">
-            <Setter Property="Margin" Value="0,0,0,10" />
-            <Setter Property="Padding" Value="14,12" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                    <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                    <Setter Property="BorderThickness" Value="2" />
-                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="ChapterListButtonStyle"
-               TargetType="Button"
-               BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="VerticalContentAlignment" Value="Stretch" />
-        </Style>
     </Page.Resources>
 
     <Border x:Name="RootViewport"
@@ -260,8 +236,8 @@
                             </ListBox.ItemContainerStyle>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Style="{StaticResource ChapterListItemBorderStyle}">
-                                        <Button Style="{StaticResource ChapterListButtonStyle}"
+                                    <Border Style="{StaticResource CurrentListItemContainerStyle}">
+                                        <Button Style="{StaticResource BorderlessListItemButtonStyle}"
                                                 ToolTip="{Binding TitleToolTip}"
                                                 AutomationProperties.Name="{Binding AutomationName}"
                                                 Command="{Binding DataContext.SelectChapterCommand, ElementName=RootLayout}"

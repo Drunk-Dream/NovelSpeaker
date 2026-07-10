@@ -5,28 +5,6 @@
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
 
-        <Style x:Key="CachedBookBorderStyle"
-               TargetType="Border"
-               BasedOn="{StaticResource CardBorderStyle}">
-            <Setter Property="Margin" Value="0,0,0,10" />
-            <Setter Property="Padding" Value="14,12" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                    <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                    <Setter Property="BorderThickness" Value="2" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="TransparentStretchButtonStyle"
-               TargetType="Button"
-               BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        </Style>
     </Page.Resources>
 
     <Grid Margin="{StaticResource PagePadding}"
@@ -111,9 +89,9 @@
                         <ItemsControl ItemsSource="{Binding Books}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Style="{StaticResource CachedBookBorderStyle}"
+                                    <Border Style="{StaticResource SelectableListItemContainerStyle}"
                                             AutomationProperties.Name="{Binding AutomationName}">
-                                        <Button Style="{StaticResource TransparentStretchButtonStyle}"
+                                        <Button Style="{StaticResource BorderlessListItemButtonStyle}"
                                                 Command="{Binding DataContext.SelectBookCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                 CommandParameter="{Binding}">
                                             <StackPanel>
