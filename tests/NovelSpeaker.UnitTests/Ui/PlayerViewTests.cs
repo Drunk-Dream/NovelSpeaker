@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading;
 using System.Windows.Automation;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
@@ -607,7 +609,12 @@ public sealed class PlayerViewTests
                 0,
                 "第三章 来自星空的压力",
                 Enumerable.Range(0, 90)
-                    .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证自动居中不会把列表滚到最底部。"))
+                    .Select(index => new SpeechSegment(
+                        index,
+                        index * 10,
+                        10,
+                        $"第 {index + 1} 段",
+                        string.Join(' ', Enumerable.Repeat($"这是第 {index + 1} 段长度不同的正文", (index % 7) + 1))))
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
@@ -666,7 +673,7 @@ public sealed class PlayerViewTests
                 var viewportCenter = scrollViewer.ViewportHeight / 2d;
 
                 Assert.True(scrollViewer.VerticalOffset < scrollViewer.ScrollableHeight - 1d);
-                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 48d);
+                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 1d);
             }
             finally
             {
@@ -743,7 +750,6 @@ public sealed class PlayerViewTests
 
                 var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
                 var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
-
                 scrollViewer.ScrollToBottom();
                 DoEvents();
                 view.UpdateLayout();
@@ -764,7 +770,7 @@ public sealed class PlayerViewTests
 
                 Assert.False(viewModel.ShowReturnToCurrentSegment);
                 Assert.True(scrollViewer.VerticalOffset < scrollViewer.ScrollableHeight - 1d);
-                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 48d);
+                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 1d);
             }
             finally
             {
@@ -869,17 +875,17 @@ public sealed class PlayerViewTests
     }
 
     [Fact]
-    public void PlayerView_next_segment_recenters_after_active_navigation()
+    public void PlayerView_user_scroll_during_animation_cancels_centering_and_shows_return_button()
     {
         WpfTestHost.RunInSta(() =>
         {
             var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-                PlaybackState.Paused,
+                PlaybackState.Playing,
                 "book-1",
                 "信息全知者",
                 0,
                 "第三章 来自星空的压力",
-                18,
+                2,
                 90,
                 1,
                 "默认规则",
@@ -896,7 +902,104 @@ public sealed class PlayerViewTests
                 0,
                 "第三章 来自星空的压力",
                 Enumerable.Range(0, 90)
-                    .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证主动切换段落后会重新居中。"))
+                    .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证滚动输入会中断动画并显示恢复居中按钮。"))
+                    .ToArray());
+            var viewModel = new PlayerViewModel(
+                coordinator,
+                new FakeBookPlaybackContentService(
+                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    chapter),
+                new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
+                new FakeAppSettingsStore(AppSettings.Default),
+                new FakeAppFeedbackService(),
+                new FakeNavigationService(),
+                new PlayerAutoScrollCoordinator(TimeProvider.System));
+
+            viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            viewModel.HandleNavigationAsync(
+                new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+                CancellationToken.None).GetAwaiter().GetResult();
+
+            var view = new PlayerView
+            {
+                DataContext = viewModel,
+                SegmentAutoCenterAnimationDuration = TimeSpan.FromMilliseconds(500)
+            };
+            var window = new Window
+            {
+                Content = view,
+                Width = 1280,
+                Height = 760,
+                WindowStyle = WindowStyle.None,
+                ShowInTaskbar = false,
+                ShowActivated = false
+            };
+
+            try
+            {
+                window.Show();
+                DoEvents();
+                view.UpdateLayout();
+
+                coordinator.Publish(coordinator.CurrentSnapshot with
+                {
+                    SegmentIndex = 70,
+                    SegmentCount = 90
+                });
+
+                WaitUntil(() => view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(500));
+
+                var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
+                segmentsListBox.RaiseEvent(new MouseWheelEventArgs(Mouse.PrimaryDevice, Environment.TickCount, -120)
+                {
+                    RoutedEvent = UIElement.PreviewMouseWheelEvent
+                });
+                DoEvents();
+
+                Assert.False(view.HasActiveSegmentScrollAnimation);
+                Assert.True(viewModel.ShowReturnToCurrentSegment);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void PlayerView_next_segment_recenters_after_active_navigation()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+                PlaybackState.Paused,
+                "book-1",
+                "信息全知者",
+                0,
+                "第三章 来自星空的压力",
+                70,
+                138,
+                1,
+                "默认规则",
+                10,
+                0,
+                0,
+                null,
+                false,
+                false,
+                false,
+                "魔性沧月",
+                true));
+            var chapter = new PlaybackChapterContent(
+                0,
+                "第三章 来自星空的压力",
+                Enumerable.Range(0, 138)
+                    .Select(index => new SpeechSegment(
+                        index,
+                        index * 10,
+                        10,
+                        $"第 {index + 1} 段",
+                        string.Join(' ', Enumerable.Repeat($"这是第 {index + 1} 段长度不同的正文，用来模拟实际章节中长短差异很大的段落。", (index % 17) + 1))))
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
@@ -936,16 +1039,32 @@ public sealed class PlayerViewTests
 
                 var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
                 var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
+                var observedOffsets = new List<double>();
+                ScrollChangedEventHandler captureOffset = (_, eventArgs) =>
+                {
+                    if (eventArgs.VerticalChange != 0)
+                    {
+                        observedOffsets.Add(eventArgs.VerticalOffset);
+                    }
+                };
+                scrollViewer.ScrollChanged += captureOffset;
 
-                scrollViewer.ScrollToBottom();
-                DoEvents();
-                view.UpdateLayout();
-
-                Assert.True(viewModel.ShowReturnToCurrentSegment);
+                Pump(TimeSpan.FromMilliseconds(300));
+                observedOffsets.Clear();
+                var centerRequestCount = 0;
+                PropertyChangedEventHandler captureCenterRequest = (_, eventArgs) =>
+                {
+                    if (eventArgs.PropertyName == nameof(PlayerViewModel.SegmentCenterRequestVersion))
+                    {
+                        centerRequestCount++;
+                    }
+                };
+                viewModel.PropertyChanged += captureCenterRequest;
 
                 viewModel.NextSegmentCommand.ExecuteAsync(null).GetAwaiter().GetResult();
                 Pump(TimeSpan.FromMilliseconds(80));
                 WaitUntil(() => !view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(1200));
+                Pump(TimeSpan.FromMilliseconds(100));
                 view.UpdateLayout();
                 DoEvents();
 
@@ -956,7 +1075,11 @@ public sealed class PlayerViewTests
                 var viewportCenter = scrollViewer.ViewportHeight / 2d;
 
                 Assert.False(viewModel.ShowReturnToCurrentSegment);
-                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 48d);
+                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 1d);
+                Assert.Equal(1, centerRequestCount);
+                Assert.All(observedOffsets.Zip(observedOffsets.Skip(1)), pair => Assert.True(pair.Second >= pair.First));
+                viewModel.PropertyChanged -= captureCenterRequest;
+                scrollViewer.ScrollChanged -= captureOffset;
             }
             finally
             {
@@ -1055,7 +1178,7 @@ public sealed class PlayerViewTests
                 var viewportCenter = scrollViewer.ViewportHeight / 2d;
 
                 Assert.Equal(20, viewModel.CurrentSegmentIndex);
-                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 48d);
+                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 1d);
             }
             finally
             {
@@ -1150,7 +1273,7 @@ public sealed class PlayerViewTests
                 var viewportCenter = scrollViewer.ViewportHeight / 2d;
 
                 Assert.False(view.HasActiveSegmentScrollAnimation);
-                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 48d);
+                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 1d);
             }
             finally
             {
@@ -1160,7 +1283,7 @@ public sealed class PlayerViewTests
     }
 
     [Fact]
-    public void PlayerView_virtualized_target_uses_deferred_realization_and_short_animation()
+    public void PlayerView_virtualized_target_moves_toward_center_without_direction_reversal()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -1187,7 +1310,14 @@ public sealed class PlayerViewTests
                 0,
                 "第三章 来自星空的压力",
                 Enumerable.Range(0, 120)
-                    .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证虚拟化目标延迟生成时仍能平滑居中。"))
+                    .Select(index => new SpeechSegment(
+                        index,
+                        index * 10,
+                        10,
+                        $"第 {index + 1} 段",
+                        string.Join(' ', Enumerable.Repeat(
+                            $"这是第 {index + 1} 段长度差异很大的正文，用来验证虚拟化目标延迟生成时不会越过目标再反向回滚。",
+                            ((index * 7) % 19) + 1))))
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
@@ -1226,6 +1356,18 @@ public sealed class PlayerViewTests
                 DoEvents();
                 view.UpdateLayout();
 
+                var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
+                var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
+                var observedOffsets = new List<double>();
+                ScrollChangedEventHandler captureOffset = (_, eventArgs) =>
+                {
+                    if (eventArgs.VerticalChange != 0)
+                    {
+                        observedOffsets.Add(eventArgs.VerticalOffset);
+                    }
+                };
+                scrollViewer.ScrollChanged += captureOffset;
+
                 coordinator.Publish(coordinator.CurrentSnapshot with
                 {
                     SegmentIndex = 88,
@@ -1237,8 +1379,6 @@ public sealed class PlayerViewTests
                 DoEvents();
                 view.UpdateLayout();
 
-                var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
-                var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
                 var currentContainer = Assert.IsAssignableFrom<FrameworkElement>(
                     segmentsListBox.ItemContainerGenerator.ContainerFromItem(viewModel.CurrentSegmentItem));
                 var itemTop = currentContainer.TranslatePoint(new Point(0, 0), scrollViewer).Y;
@@ -1246,7 +1386,9 @@ public sealed class PlayerViewTests
                 var viewportCenter = scrollViewer.ViewportHeight / 2d;
 
                 Assert.Equal(88, viewModel.CurrentSegmentIndex);
-                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 48d);
+                Assert.InRange(Math.Abs(itemCenter - viewportCenter), 0d, 1d);
+                Assert.All(observedOffsets.Zip(observedOffsets.Skip(1)), pair => Assert.True(pair.Second >= pair.First));
+                scrollViewer.ScrollChanged -= captureOffset;
             }
             finally
             {
@@ -1835,6 +1977,10 @@ public sealed class PlayerViewTests
         }
 
         public void NotifyUserScrollInput()
+        {
+        }
+
+        public void NotifyPassiveScrollChange()
         {
         }
 

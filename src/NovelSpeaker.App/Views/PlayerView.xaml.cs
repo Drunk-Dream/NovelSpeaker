@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -15,17 +14,21 @@ public partial class PlayerView : UserControl
     private static readonly TimeSpan DefaultSegmentAutoCenterAnimationDuration = TimeSpan.FromMilliseconds(220);
 
     private PlayerViewModel? _viewModel;
+    private readonly SegmentAutoCenterController _segmentAutoCenterController;
     private ScrollViewer? _segmentScrollViewer;
-    private DispatcherTimer? _segmentScrollAnimationTimer;
-    private Action? _segmentScrollAnimationCleanup;
     private bool _isKeyboardAdjustingSegmentProgress;
-    private int _segmentEnsureRequestVersion;
-    private int _segmentAutoCenterSuppressionDepth;
-    private int _segmentProgrammaticScrollDepth;
 
     public PlayerView()
     {
         InitializeComponent();
+        _segmentAutoCenterController = new SegmentAutoCenterController(
+            SegmentListBox,
+            Dispatcher,
+            () => _segmentScrollViewer,
+            () => _viewModel?.NotifyProgrammaticScrollStarted(),
+            () => _viewModel?.NotifyProgrammaticScrollCompleted(),
+            IsReducedMotionEnabled,
+            () => SegmentAutoCenterAnimationDuration);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         DataContextChanged += OnDataContextChanged;
@@ -35,19 +38,19 @@ public partial class PlayerView : UserControl
 
     internal bool? ReduceMotionOverride { get; set; }
 
-    internal bool HasActiveSegmentScrollAnimation => _segmentScrollAnimationTimer is not null;
+    internal bool HasActiveSegmentScrollAnimation => _segmentAutoCenterController.HasActiveAnimation;
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         AttachViewModel(DataContext as PlayerViewModel);
         EnsureCurrentChapterVisible();
         InitializeSegmentScrollViewer();
-        ScheduleEnsureCurrentSegmentVisible(animate: false);
+        RequestCurrentSegmentCentering(animate: false);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        CancelSegmentScrollAnimation();
+        _segmentAutoCenterController.Cancel();
         DetachSegmentScrollViewer();
         DetachViewModel();
     }
@@ -60,7 +63,7 @@ public partial class PlayerView : UserControl
 
     private void SegmentListBox_OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        CancelSegmentScrollAnimation();
+        _segmentAutoCenterController.Cancel();
         _viewModel?.NotifyUserScrollInput();
     }
 
@@ -68,7 +71,7 @@ public partial class PlayerView : UserControl
     {
         if (IsScrollKey(e.Key))
         {
-            CancelSegmentScrollAnimation();
+            _segmentAutoCenterController.Cancel();
             _viewModel?.NotifyUserScrollInput();
         }
     }
@@ -172,7 +175,7 @@ public partial class PlayerView : UserControl
 
     private void DetachViewModel()
     {
-        CancelSegmentScrollAnimation();
+        _segmentAutoCenterController.Cancel();
         if (_viewModel is null)
         {
             return;
@@ -190,21 +193,11 @@ public partial class PlayerView : UserControl
             return;
         }
 
-        if (e.PropertyName == nameof(PlayerViewModel.CurrentSegmentItem))
-        {
-            if (_viewModel?.ShouldAutoCenterCurrentSegment == true)
-            {
-                ScheduleEnsureCurrentSegmentVisible(animate: true);
-            }
-
-            return;
-        }
-
         if (e.PropertyName == nameof(PlayerViewModel.SegmentCenterRequestVersion))
         {
             if (_viewModel?.ShouldAutoCenterCurrentSegment == true)
             {
-                ScheduleEnsureCurrentSegmentVisible(_viewModel.AnimateNextSegmentCenterRequest);
+                RequestCurrentSegmentCentering(_viewModel.AnimateNextSegmentCenterRequest);
             }
         }
     }
@@ -219,86 +212,10 @@ public partial class PlayerView : UserControl
         WideChaptersListBox.ScrollIntoView(_viewModel.CurrentChapterItem);
     }
 
-    private void ScheduleEnsureCurrentSegmentVisible(bool animate)
+    private void RequestCurrentSegmentCentering(bool animate)
     {
-        CancelSegmentScrollAnimation();
-        BeginSegmentAutoCenterSuppression();
-        ScheduleEnsureCurrentSegmentVisible(Interlocked.Increment(ref _segmentEnsureRequestVersion), 0, animate);
-    }
-
-    private void ScheduleEnsureCurrentSegmentVisible(int requestVersion, int attempt, bool animate)
-    {
-        Dispatcher.BeginInvoke(
-            DispatcherPriority.Loaded,
-            new Action(() => EnsureCurrentSegmentVisible(requestVersion, attempt, animate)));
-    }
-
-    private void EnsureCurrentSegmentVisible(int requestVersion, int attempt, bool animate)
-    {
-        if (requestVersion != _segmentEnsureRequestVersion ||
-            _viewModel?.CurrentSegmentItem is null ||
-            !_viewModel.ShouldAutoCenterCurrentSegment)
-        {
-            CompleteSegmentAutoCenterSuppression();
-            return;
-        }
-
         InitializeSegmentScrollViewer();
-        if (_segmentScrollViewer is null)
-        {
-            CompleteSegmentAutoCenterSuppression();
-            return;
-        }
-
-        var container = SegmentListBox.ItemContainerGenerator.ContainerFromItem(_viewModel.CurrentSegmentItem) as FrameworkElement;
-        if (container is null)
-        {
-            ScrollCurrentSegmentIntoApproximateView(attempt);
-            if (attempt < 6)
-            {
-                ScheduleEnsureCurrentSegmentVisible(requestVersion, attempt + 1, animate);
-                CompleteSegmentAutoCenterSuppression();
-                return;
-            }
-
-            CompleteSegmentAutoCenterSuppression();
-            return;
-        }
-
-        if (container.ActualHeight <= 0 || _segmentScrollViewer.ViewportHeight <= 0)
-        {
-            if (attempt < 6)
-            {
-                ScheduleEnsureCurrentSegmentVisible(requestVersion, attempt + 1, animate);
-                CompleteSegmentAutoCenterSuppression();
-                return;
-            }
-
-            CompleteSegmentAutoCenterSuppression();
-            return;
-        }
-
-        var top = container.TranslatePoint(new Point(0, 0), _segmentScrollViewer).Y;
-        var targetOffset = _segmentScrollViewer.VerticalOffset +
-                           top -
-                           Math.Max(0d, (_segmentScrollViewer.ViewportHeight - container.ActualHeight) / 2d);
-        var clampedOffset = Math.Clamp(targetOffset, 0d, _segmentScrollViewer.ScrollableHeight);
-        if (Math.Abs(clampedOffset - _segmentScrollViewer.VerticalOffset) < 0.5d)
-        {
-            CompleteSegmentAutoCenterSuppression();
-            return;
-        }
-
-        if (ShouldAnimateSegmentScroll(animate, clampedOffset, attempt))
-        {
-            StartAnimatedSegmentScroll(clampedOffset, requestVersion, attempt > 0);
-        }
-        else
-        {
-            RunProgrammaticSegmentScroll(() => _segmentScrollViewer.ScrollToVerticalOffset(clampedOffset));
-        }
-
-        CompleteSegmentAutoCenterSuppression();
+        _segmentAutoCenterController.Request(_viewModel?.CurrentSegmentItem, animate);
     }
 
     private void InitializeSegmentScrollViewer()
@@ -339,18 +256,17 @@ public partial class PlayerView : UserControl
             return;
         }
 
-        if (Volatile.Read(ref _segmentProgrammaticScrollDepth) > 0 ||
-            Volatile.Read(ref _segmentAutoCenterSuppressionDepth) > 0)
+        if (_segmentAutoCenterController.IsSuppressingPassiveScroll)
         {
             return;
         }
 
-        _viewModel?.NotifyUserScrollInput();
+        _viewModel?.NotifyPassiveSegmentScrollChange();
     }
 
     private void SegmentScrollViewer_OnThumbDragStarted(object sender, DragStartedEventArgs e)
     {
-        CancelSegmentScrollAnimation();
+        _segmentAutoCenterController.Cancel();
         _viewModel?.NotifyScrollbarDragStarted();
     }
 
@@ -374,196 +290,9 @@ public partial class PlayerView : UserControl
         return key is Key.Left or Key.Right or Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End;
     }
 
-    private void RunProgrammaticSegmentScroll(Action action)
-    {
-        BeginProgrammaticSegmentScroll();
-
-        try
-        {
-            action();
-        }
-        finally
-        {
-            EndProgrammaticSegmentScroll();
-        }
-    }
-
-    private void BeginSegmentAutoCenterSuppression()
-    {
-        Interlocked.Increment(ref _segmentAutoCenterSuppressionDepth);
-    }
-
-    private void CompleteSegmentAutoCenterSuppression()
-    {
-        Dispatcher.BeginInvoke(
-            DispatcherPriority.ContextIdle,
-            new Action(() => InterlockedExtensions.DecrementIfPositive(ref _segmentAutoCenterSuppressionDepth)));
-    }
-
-    private void BeginProgrammaticSegmentScroll()
-    {
-        _viewModel?.NotifyProgrammaticScrollStarted();
-        Interlocked.Increment(ref _segmentProgrammaticScrollDepth);
-    }
-
-    private void EndProgrammaticSegmentScroll()
-    {
-        Dispatcher.BeginInvoke(
-            DispatcherPriority.ContextIdle,
-            new Action(() =>
-            {
-                InterlockedExtensions.DecrementIfPositive(ref _segmentProgrammaticScrollDepth);
-                _viewModel?.NotifyProgrammaticScrollCompleted();
-            }));
-    }
-
-    private void ScrollCurrentSegmentIntoApproximateView(int attempt)
-    {
-        if (_viewModel?.CurrentSegmentItem is null || _segmentScrollViewer is null)
-        {
-            return;
-        }
-
-        if (attempt == 0)
-        {
-            var targetIndex = SegmentListBox.Items.IndexOf(_viewModel.CurrentSegmentItem);
-            if (targetIndex >= 0)
-            {
-                var estimatedHeight = EstimateSegmentItemHeight();
-                var estimatedOffset = (targetIndex * estimatedHeight) -
-                                      Math.Max(0d, (_segmentScrollViewer.ViewportHeight - estimatedHeight) / 2d);
-                RunProgrammaticSegmentScroll(() =>
-                    _segmentScrollViewer.ScrollToVerticalOffset(
-                        Math.Clamp(estimatedOffset, 0d, _segmentScrollViewer.ScrollableHeight)));
-            }
-        }
-
-        RunProgrammaticSegmentScroll(() => SegmentListBox.ScrollIntoView(_viewModel.CurrentSegmentItem));
-    }
-
-    private double EstimateSegmentItemHeight()
-    {
-        double totalHeight = 0d;
-        var measuredCount = 0;
-
-        for (var index = 0; index < SegmentListBox.Items.Count; index++)
-        {
-            if (SegmentListBox.ItemContainerGenerator.ContainerFromIndex(index) is not FrameworkElement container ||
-                container.ActualHeight <= 0)
-            {
-                continue;
-            }
-
-            totalHeight += container.ActualHeight;
-            measuredCount++;
-            if (measuredCount >= 8)
-            {
-                break;
-            }
-        }
-
-        return measuredCount > 0 ? totalHeight / measuredCount : 88d;
-    }
-
-    private bool ShouldAnimateSegmentScroll(bool animate, double targetOffset, int attempt)
-    {
-        if (!animate || _segmentScrollViewer is null || IsReducedMotionEnabled())
-        {
-            return false;
-        }
-
-        if (attempt > 0)
-        {
-            return true;
-        }
-
-        return Math.Abs(targetOffset - _segmentScrollViewer.VerticalOffset) >= 12d;
-    }
-
     private bool IsReducedMotionEnabled()
     {
         return ReduceMotionOverride ?? !SystemParameters.ClientAreaAnimation;
-    }
-
-    private void StartAnimatedSegmentScroll(double targetOffset, int requestVersion, bool useShortDuration)
-    {
-        if (_segmentScrollViewer is null)
-        {
-            return;
-        }
-
-        CancelSegmentScrollAnimation();
-
-        var scrollViewer = _segmentScrollViewer;
-        var startOffset = scrollViewer.VerticalOffset;
-        if (Math.Abs(targetOffset - startOffset) < 0.5d)
-        {
-            return;
-        }
-
-        var duration = useShortDuration
-            ? TimeSpan.FromMilliseconds(Math.Min(SegmentAutoCenterAnimationDuration.TotalMilliseconds, 140d))
-            : SegmentAutoCenterAnimationDuration;
-        var stopwatch = Stopwatch.StartNew();
-        var timer = new DispatcherTimer(DispatcherPriority.Render, Dispatcher)
-        {
-            Interval = TimeSpan.FromMilliseconds(16d)
-        };
-
-        var isCompleted = false;
-
-        void Cleanup()
-        {
-            if (isCompleted)
-            {
-                return;
-            }
-
-            isCompleted = true;
-            timer.Stop();
-            if (ReferenceEquals(_segmentScrollAnimationTimer, timer))
-            {
-                _segmentScrollAnimationTimer = null;
-                _segmentScrollAnimationCleanup = null;
-            }
-
-            EndProgrammaticSegmentScroll();
-        }
-
-        _segmentScrollAnimationTimer = timer;
-        _segmentScrollAnimationCleanup = Cleanup;
-        BeginProgrammaticSegmentScroll();
-
-        timer.Tick += (_, _) =>
-        {
-            if (requestVersion != _segmentEnsureRequestVersion ||
-                _segmentScrollViewer is null ||
-                !ReferenceEquals(scrollViewer, _segmentScrollViewer) ||
-                _viewModel?.ShouldAutoCenterCurrentSegment != true)
-            {
-                Cleanup();
-                return;
-            }
-
-            var progress = Math.Clamp(stopwatch.Elapsed.TotalMilliseconds / duration.TotalMilliseconds, 0d, 1d);
-            var easedProgress = 1d - Math.Pow(1d - progress, 3d);
-            var nextOffset = startOffset + ((targetOffset - startOffset) * easedProgress);
-            scrollViewer.ScrollToVerticalOffset(nextOffset);
-
-            if (progress >= 1d)
-            {
-                scrollViewer.ScrollToVerticalOffset(targetOffset);
-                Cleanup();
-            }
-        };
-
-        timer.Start();
-    }
-
-    private void CancelSegmentScrollAnimation()
-    {
-        var cleanup = _segmentScrollAnimationCleanup;
-        cleanup?.Invoke();
     }
 
     private static T? FindDescendant<T>(DependencyObject root)
@@ -587,23 +316,4 @@ public partial class PlayerView : UserControl
         return null;
     }
 
-    private static class InterlockedExtensions
-    {
-        public static void DecrementIfPositive(ref int value)
-        {
-            while (true)
-            {
-                var current = Volatile.Read(ref value);
-                if (current <= 0)
-                {
-                    return;
-                }
-
-                if (Interlocked.CompareExchange(ref value, current - 1, current) == current)
-                {
-                    return;
-                }
-            }
-        }
-    }
 }
