@@ -8,6 +8,7 @@ using NovelSpeaker.Infrastructure.DependencyInjection;
 using NovelSpeaker.App.Theming;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Settings;
+using NovelSpeaker.App.Input;
 using NovelSpeaker.App.ViewModels;
 
 namespace NovelSpeaker.App;
@@ -24,6 +25,7 @@ public partial class App : System.Windows.Application
 
     public App()
     {
+        MouseWheelScrollBehavior.EnableApplicationWideHandling();
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnCurrentDomainUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;

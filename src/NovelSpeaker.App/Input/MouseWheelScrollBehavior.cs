@@ -8,6 +8,9 @@ namespace NovelSpeaker.App.Input;
 
 public static class MouseWheelScrollBehavior
 {
+    private static readonly object ApplicationWideHandlerRegistrationGate = new();
+    private static bool _isApplicationWideHandlerRegistered;
+
     public static readonly DependencyProperty EnabledProperty =
         DependencyProperty.RegisterAttached(
             "Enabled",
@@ -23,6 +26,29 @@ public static class MouseWheelScrollBehavior
     public static bool GetEnabled(DependencyObject element)
     {
         return (bool)element.GetValue(EnabledProperty);
+    }
+
+    /// <summary>
+    /// Enables consistent mouse-wheel scrolling for every scroll viewer in the application.
+    /// Nested regions keep priority while they can scroll; at their boundary the wheel input
+    /// is forwarded to the containing region.
+    /// </summary>
+    internal static void EnableApplicationWideHandling()
+    {
+        lock (ApplicationWideHandlerRegistrationGate)
+        {
+            if (_isApplicationWideHandlerRegistered)
+            {
+                return;
+            }
+
+            EventManager.RegisterClassHandler(
+                typeof(ScrollViewer),
+                UIElement.PreviewMouseWheelEvent,
+                new MouseWheelEventHandler(OnPreviewMouseWheel),
+                handledEventsToo: true);
+            _isApplicationWideHandlerRegistered = true;
+        }
     }
 
     private static void OnEnabledChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)

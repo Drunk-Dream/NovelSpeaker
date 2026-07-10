@@ -1,7 +1,6 @@
 <UserControl x:Class="NovelSpeaker.App.Views.LibraryView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:input="clr-namespace:NovelSpeaker.App.Input"
              xmlns:library="clr-namespace:NovelSpeaker.App.Library"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:views="clr-namespace:NovelSpeaker.App.Views">
@@ -112,7 +111,6 @@
                           HorizontalScrollBarVisibility="Disabled"
                           CanContentScroll="False"
                           Visibility="{Binding HasVisibleBooks, Converter={StaticResource BooleanToVisibilityConverter}}"
-                          input:MouseWheelScrollBehavior.Enabled="True"
                           library:LibraryScrollViewerStateBehavior.ItemsControl="{Binding ElementName=BooksItemsControl}"
                           library:LibraryScrollViewerStateBehavior.State="{Binding ScrollState}">
                 <ItemsControl x:Name="BooksItemsControl"
