@@ -47,6 +47,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IChapterRuleRepository, ChapterRuleRepository>();
         services.AddSingleton<IChapterRuleManagementService, ChapterRuleManagementService>();
         services.AddSingleton<IChapterRuleWorkspaceService, ChapterRuleWorkspaceService>();
+        services.AddSingleton<IRegexReplacementRuleRepository, RegexReplacementRuleRepository>();
+        services.AddSingleton<IRegexReplacementRuleWorkspaceService, RegexReplacementRuleWorkspaceService>();
+        services.AddSingleton<IRegexReplacementPipeline, RegexReplacementPipeline>();
         services.AddSingleton<ITtsRuleRepository, TtsRuleRepository>();
         services.AddSingleton<ITtsRuleConverter, LegadoRuleConverter>();
         services.AddSingleton<ITemplateEvaluator, JintTemplateEvaluator>();
