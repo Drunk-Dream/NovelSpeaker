@@ -168,32 +168,34 @@ On completed: save progress and advance
 - 旧语速缓存继续保留，交给 LRU 清理。
 
 
-## 正则替换预留
+## 正则替换
 
-第一版不实现正则替换，但播放链路需要为后续扩展保留边界。
-
-正则替换位于章节正文读取和内容消费之间：
+正则替换属于当前主线，位于动态段落切分和内容消费之间：
 
 ```text
 Load chapter text by StartOffset/Length
   ↓
 Create raw runtime segments with original offsets
   ↓
-Apply enabled regex replacement rules
+Apply enabled global regex replacement rules per segment
   ├─ DisplayText for UI
   └─ SpeechText for TTS
   ↓
-Build TTS request and audio cache key from final SpeechText
+Filter empty display/speech results and map progress by original offset
+  ↓
+Build TTS request and position-related audio cache key from final SpeechText
 ```
 
 要求：
 
-- 正则替换不改写 `content.txt`。
-- 正则替换不改写 `Chapters.StartOffset` 和 `Chapters.Length`。
-- 展示和语音可以使用不同作用范围的替换结果。
-- 语音文本变化必须形成新的音频缓存键。
-- 缓存键使用最终处理后的 `SpeechText` 哈希，不使用正则规则配置哈希。
-- 不同正则规则组合如果产生完全相同的最终语音文本，可以复用同一音频缓存。
+- 不改写 `content.txt`、`Chapters.StartOffset`、`Chapters.Length` 或原始段落边界。
+- 固定使用 `RegexOptions.CultureInvariant` 和每条规则每段 `100 ms` 超时。
+- 展示和语音可以使用不同作用范围的结果。
+- 空 DisplayText 不显示；空 SpeechText 不请求 TTS；两者都为空时完全跳过。
+- 执行字段、启用状态、排序或删除变化后立即重建当前章节，并取消受影响章节的旧预取。
+- 当前映射段 SpeechText 变化或被过滤时才停止当前音频并从段首重建会话；仅 DisplayText 变化时当前音频继续。
+- 修改前播放中则保持播放，修改前暂停中则保持暂停。
+- 音频缓存键保持现有位置相关结构，并使用最终 `SpeechText`；不实现跨位置复用。
 
 详细设计见 `12_REGEX_REPLACEMENT_PIPELINE.md`。
 

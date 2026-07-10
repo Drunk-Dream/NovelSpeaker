@@ -307,25 +307,29 @@ public interface ITtsRateLimiter
 
 ## 缓存键
 
-建议：
+当前实现保持位置相关缓存键：
 
 ```text
 SHA256(
-  compatibilityVersion
+  bookId
+  + chapterIndex
+  + segmentIndex
   + ruleId
-  + normalizedRuleUrl
   + speakSpeed
-  + normalizedSpeechText
+  + finalSpeechText
 )
 ```
 
+缓存文件同时使用 `AudioCacheKey.CurrentVersion` 作为版本命名空间。
+
 注意：
 
+- `finalSpeechText` 是正则替换语音链执行后的最终文本。
 - 不把敏感凭据直接写入缓存键字符串或文件名。
-- 如果凭据影响音色，应使用不可逆摘要。
-- 兼容规则语义改变时增加 `compatibilityVersion`。
-- 后续启用正则替换后，`normalizedSpeechText` 指最终处理后的语音文本，而不是原始正文。
-- 正则替换不使用规则配置哈希进入缓存键；多个规则组合只要产生相同最终语音文本，就可以复用同一音频缓存。
+- 语音文本变化会生成新缓存键；只改变展示文本不会改变同一位置的缓存键。
+- 不把正则规则配置哈希放入缓存键。
+- 相同语音文本位于不同书籍、章节或段落时仍使用不同缓存键，不进行跨位置复用。
+- 本策略保持现有按书籍/章节统计、完整度计算和清理语义；内容寻址缓存不属于当前主线。
 
 ## 第一版兼容矩阵
 

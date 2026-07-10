@@ -56,7 +56,7 @@ MainWindow / AppShell
    ├─ PlaybackSettingsPage             二级页
    ├─ TtsRulesPage                     二级页，左侧规则列表 + 右侧规则编辑 + 页内帮助浮层
    ├─ ImportTextSettingsPage           二级页
-   │  └─ RegexReplacementRulesPage     三级页，后续规划
+   │  └─ RegexReplacementRulesPage     三级页，左侧规则列表 + 右侧编辑区
    ├─ ChapterRulesPage                 二级页，左侧规则列表 + 右侧规则编辑 + 页内帮助浮层
    ├─ CacheAndDataPage                 二级页，总览 + 缓存管理入口
    │  └─ CacheManagementPage           三级页，左侧书籍列表 + 右侧章节缓存管理

@@ -16,7 +16,6 @@
 │     ├─ ab\
 │     │  └─ <sha256>.mp3
 │     └─ ...
-├─ Secrets\
 └─ Logs\
 ```
 
@@ -131,23 +130,17 @@ Status INTEGER NOT NULL
 
 ## 登录信息与密钥
 
-可采用：
+当前主线不实现 SecretStore，也不引入 DPAPI 或 Windows Credential Manager。
 
-- Windows DPAPI。
-- Windows Credential Manager。
+当前边界：
 
-第一版建议封装：
+- TTS 规则的 URL、Header、Body、LoginInfo 等结构化字段继续保存在 SQLite。
+- 这些字段可能包含敏感值，当前版本不提供静态加密或秘密引用。
+- `settings.json` 不保存凭据。
+- 日志、错误界面、请求预览和复制诊断摘要必须经过脱敏，且不得记录小说正文。
+- 发布文档必须明确“规则敏感值未静态加密”这一已知限制。
 
-```csharp
-public interface ISecretStore
-{
-    Task SetAsync(string key, string value);
-    Task<string?> GetAsync(string key);
-    Task DeleteAsync(string key);
-}
-```
-
-规则 JSON 中只保留引用，不保留明文密钥。
+SecretStore 和 `${secret:name}` 一类引用模型保留为未来安全增强，不属于当前主线任务。
 
 ## 小说导入
 
@@ -182,7 +175,7 @@ public sealed record SpeechSegment(
     string SpeechText);
 ```
 
-`StartOffset` 和 `Length` 指向原始规范化正文。后续正则替换启用后，只改变运行时生成的 `DisplayText` 和 `SpeechText`，不改写原始内容和章节偏移。详细设计见 `12_REGEX_REPLACEMENT_PIPELINE.md`。
+`StartOffset` 和 `Length` 指向原始规范化正文。当前主线的正则替换在动态分段后逐段执行，只改变运行时生成的 `DisplayText` 和 `SpeechText`，不改写原始内容、章节偏移或段落边界。详细设计见 `12_REGEX_REPLACEMENT_PIPELINE.md`。
 
 好处：
 
@@ -201,11 +194,11 @@ public sealed record SpeechSegment(
 - 恢复时优先根据字符偏移寻找最近段落。
 
 
-## 正则替换持久化预留
+## 正则替换持久化
 
-第一版不实现正则替换。后续实现时，可将正则替换规则保存到 SQLite，而不是 `settings.json`，以便支持排序、启用状态、规则校验和未来扩展。
+正则替换规则保存在 SQLite，而不是 `settings.json`。当前只支持全局规则，因此不增加 `BookId`。
 
-建议字段：
+字段：
 
 ```text
 RegexReplacementRules
@@ -216,18 +209,18 @@ SortOrder INTEGER NOT NULL
 Pattern TEXT NOT NULL
 Replacement TEXT NOT NULL
 Scope TEXT NOT NULL        -- Display / Speech / Both
-Options INTEGER NOT NULL
 CreatedAt TEXT NOT NULL
 UpdatedAt TEXT NOT NULL
 ```
 
 要求：
 
-- 规则变更不触发重新导入书籍。
-- 规则变更不改写 `content.txt`。
-- 规则按 `SortOrder` 稳定执行。
-- 语音范围规则影响最终 `SpeechText`，从而影响音频缓存键。
-- 缓存键使用最终处理后的 `SpeechText` 哈希，不使用规则配置哈希。
+- 不保存 `RegexOptions`；运行时统一使用 `RegexOptions.CultureInvariant`。
+- 规则变更不触发重新导入书籍，也不改写 `content.txt`。
+- 规则按 `SortOrder` 和稳定 ID 顺序执行。
+- 启用和排序使用字段级即时更新，右侧编辑保存不得覆盖它们。
+- 语音范围规则影响最终 `SpeechText`，从而影响同一位置的音频缓存键。
+- 缓存键继续包含 `bookId + chapterIndex + segmentIndex + ruleId + speakSpeed + finalSpeechText`，不使用规则配置哈希，也不跨位置复用。
 
 详细设计见 `12_REGEX_REPLACEMENT_PIPELINE.md`。
 

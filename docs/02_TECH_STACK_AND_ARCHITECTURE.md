@@ -73,7 +73,7 @@ Novel Import
 ├─ TxtNormalizer
 ├─ ChapterSplitter
 ├─ TextSegmenter
-└─ RegexReplacementPipeline            后续规划
+└─ RegexReplacementPipeline
 
 TTS Rules
 ├─ RuleImporter
@@ -103,7 +103,7 @@ Persistence
 ├─ TtsRuleRepository
 ├─ SettingsRepository
 ├─ CacheRepository
-└─ RegexReplacementRuleRepository      后续规划
+└─ RegexReplacementRuleRepository
 ```
 
 ## 推荐目录结构
@@ -199,7 +199,7 @@ public interface IRegexReplacementPipeline
 }
 ```
 
-`IRegexReplacementPipeline` 为后续规划接口，第一版不实现。它位于章节正文读取和展示/TTS 消费之间，不改写 `content.txt` 或章节偏移；音频缓存键使用最终处理后的 `SpeechText` 哈希。
+`IRegexReplacementPipeline` 是当前主线接口。它在动态段落切分之后逐段执行，分别生成 `DisplayText` 和 `SpeechText`，不改写 `content.txt`、章节偏移或段落原始偏移。实现固定使用 `RegexOptions.CultureInvariant` 和每条规则每段 `100 ms` 超时，并返回安全的规则错误状态。音频缓存继续使用包含书籍、章节、段落位置和最终 `SpeechText` 的现有键。
 
 ```csharp
 public interface ITtsRequestCompiler
