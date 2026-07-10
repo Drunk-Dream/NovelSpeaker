@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Dialogs;
 using NovelSpeaker.App.Diagnostics;
 using NovelSpeaker.App.Feedback;
+using NovelSpeaker.App.Input;
 using NovelSpeaker.App.Library;
 using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.Pages;
@@ -31,6 +32,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAppNotificationService, AppNotificationService>();
         services.AddSingleton<IExceptionProjector, ExceptionProjector>();
         services.AddSingleton<IAppFeedbackService, AppFeedbackService>();
+        services.AddSingleton<ITextFilePicker, TextFilePicker>();
+        services.AddSingleton<IKeyboardShortcutCoordinator, KeyboardShortcutCoordinator>();
         services.AddSingleton<IAppDiagnosticsService, AppDiagnosticsService>();
         services.AddSingleton<IEncodingSelectionDialogService, EncodingSelectionDialogService>();
         services.AddSingleton<IImportProgressDialogService, ImportProgressDialogService>();
