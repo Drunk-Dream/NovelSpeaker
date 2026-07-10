@@ -17,14 +17,28 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     private readonly IRegexReplacementRuleWorkspaceService _workspace;
     private readonly IPlaybackCoordinator _playback;
     private readonly IAppFeedbackService _feedback;
+    private readonly IAppDialogService _dialogs;
     private readonly INavigationService _navigation;
     private RegexReplacementRuleEditorModel? _baseline;
+    private Guid? _fallbackRuleId;
     private bool _loading;
 
-    public RegexReplacementRulesViewModel(IRegexReplacementRuleWorkspaceService workspace, IPlaybackCoordinator playback, IAppFeedbackService feedback, INavigationService navigation)
-    { _workspace = workspace; _playback = playback; _feedback = feedback; _navigation = navigation; }
+    public RegexReplacementRulesViewModel(
+        IRegexReplacementRuleWorkspaceService workspace,
+        IPlaybackCoordinator playback,
+        IAppFeedbackService feedback,
+        IAppDialogService dialogs,
+        INavigationService navigation)
+    {
+        _workspace = workspace;
+        _playback = playback;
+        _feedback = feedback;
+        _dialogs = dialogs;
+        _navigation = navigation;
+    }
 
     public ObservableCollection<RegexReplacementRuleListItemViewModel> Rules { get; } = [];
+
     [ObservableProperty] private bool hasEditor;
     [ObservableProperty] private bool isEditingNewRule;
     [ObservableProperty] private bool hasUnsavedChanges;
@@ -35,52 +49,312 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     [ObservableProperty] private string draftReplacement = string.Empty;
     [ObservableProperty] private RegexReplacementScope draftScope = RegexReplacementScope.Both;
     [ObservableProperty] private string validationMessage = string.Empty;
+
     public Array Scopes => Enum.GetValues(typeof(RegexReplacementScope));
     public bool CanSave => HasEditor && !IsBusy && string.IsNullOrEmpty(ValidationMessage) && (HasUnsavedChanges || IsEditingNewRule);
     public bool CanDelete => HasEditor && !IsEditingNewRule && SelectedRuleId is not null && !IsBusy;
 
     public async Task LoadAsync(CancellationToken cancellationToken) => await RefreshAsync(SelectedRuleId, !HasEditor, cancellationToken);
 
-    [RelayCommand] private void Back() { if (!_navigation.GoBack()) _navigation.NavigateWithHierarchy(typeof(ImportTextSettingsPage)); }
-    [RelayCommand] private void NewRule() => Open(new RegexReplacementRuleEditorModel(null, string.Empty, string.Empty, string.Empty, RegexReplacementScope.Both), true);
+    [RelayCommand]
+    private async Task BackAsync(CancellationToken cancellationToken)
+    {
+        if (!await ConfirmLeaveDraftAsync(cancellationToken)) return;
+        if (!_navigation.GoBack()) _navigation.NavigateWithHierarchy(typeof(ImportTextSettingsPage));
+    }
+
+    [RelayCommand]
+    private async Task NewRuleAsync(CancellationToken cancellationToken)
+    {
+        if (!await ConfirmLeaveDraftAsync(cancellationToken)) return;
+        Open(new RegexReplacementRuleEditorModel(null, "新建规则", string.Empty, string.Empty, RegexReplacementScope.Both), true, SelectedRuleId);
+    }
+
     [RelayCommand]
     private async Task SelectRuleAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken)
-    { if (rule is not null && (!HasUnsavedChanges || rule.Id == SelectedRuleId)) await LoadEditorAsync(rule.Id, cancellationToken); }
+    {
+        if (rule is null || (!IsEditingNewRule && rule.Id == SelectedRuleId)) return;
+        if (!await ConfirmLeaveDraftAsync(cancellationToken)) return;
+        await LoadEditorAsync(rule.Id, cancellationToken);
+    }
+
     [RelayCommand]
     private async Task ToggleEnabledAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken)
     {
-        if (rule is null) return; var old = rule.IsEnabled; rule.IsEnabled = !old;
-        try { await _workspace.SetRuleEnabledAsync(rule.Id, rule.IsEnabled, cancellationToken); await RefreshAsync(SelectedRuleId, false, cancellationToken); await _playback.RefreshRegexReplacementAsync(cancellationToken); }
-        catch (Exception exception) { rule.IsEnabled = old; _feedback.ShowProjectedNotification("保存启用状态失败", _feedback.Project(exception)); }
+        if (rule is null || IsBusy) return;
+        var old = rule.IsEnabled;
+        rule.IsEnabled = !old;
+        try
+        {
+            IsBusy = true;
+            await _workspace.SetRuleEnabledAsync(rule.Id, rule.IsEnabled, cancellationToken);
+            await RefreshAsync(SelectedRuleId, false, cancellationToken);
+            await _playback.RefreshRegexReplacementAsync(cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            rule.IsEnabled = old;
+            _feedback.ShowProjectedNotification("保存启用状态失败", _feedback.Project(exception));
+        }
+        finally { IsBusy = false; NotifyCommandState(); }
     }
-    [RelayCommand] private async Task MoveUpAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken) => await MoveAsync(rule, -1, cancellationToken);
-    [RelayCommand] private async Task MoveDownAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken) => await MoveAsync(rule, 1, cancellationToken);
+
+    [RelayCommand] private Task MoveUpAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken) => MoveAsync(rule, -1, cancellationToken);
+    [RelayCommand] private Task MoveDownAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken) => MoveAsync(rule, 1, cancellationToken);
+
+    public async Task ReorderByDropAsync(RegexReplacementRuleListItemViewModel? source, RegexReplacementRuleListItemViewModel? target, CancellationToken cancellationToken)
+    {
+        if (source is null || target is null || source.Id == target.Id || IsBusy) return;
+        var ids = Rules.Select(rule => rule.Id).ToList();
+        var sourceIndex = ids.IndexOf(source.Id);
+        var targetIndex = ids.IndexOf(target.Id);
+        if (sourceIndex < 0 || targetIndex < 0) return;
+        ids.RemoveAt(sourceIndex);
+        ids.Insert(targetIndex, source.Id);
+        await SaveOrderAsync(ids, cancellationToken);
+    }
+
     [RelayCommand]
     private async Task SaveAsync(CancellationToken cancellationToken)
     {
-        Validate(); if (!CanSave) return;
-        try { IsBusy = true; var prior = _baseline; var saved = await _workspace.SaveEditorAsync(new RegexReplacementRuleEditorModel(SelectedRuleId, DraftName, DraftPattern, DraftReplacement, DraftScope), cancellationToken); Open(saved, false); await RefreshAsync(saved.Id, false, cancellationToken); if (prior is null || prior.Pattern != saved.Pattern || prior.Replacement != saved.Replacement || prior.Scope != saved.Scope) await _playback.RefreshRegexReplacementAsync(cancellationToken); _feedback.ShowSuccess("正则替换规则已保存", saved.Name); }
-        catch (Exception exception) { _feedback.ShowProjectedNotification("保存正则替换规则失败", _feedback.Project(exception)); }
-        finally { IsBusy = false; }
+        await SaveCoreAsync(cancellationToken);
     }
-    [RelayCommand] private void Cancel() { if (_baseline is not null) Open(_baseline, false); else { HasEditor = false; IsEditingNewRule = false; } }
+
+    [RelayCommand]
+    private async Task CancelAsync(CancellationToken cancellationToken)
+    {
+        if (!HasEditor) return;
+        await DiscardDraftAsync(cancellationToken);
+    }
+
     [RelayCommand]
     private async Task DeleteAsync(CancellationToken cancellationToken)
     {
         if (SelectedRuleId is not Guid id || !CanDelete) return;
-        var item = Rules.FirstOrDefault(rule => rule.Id == id); if (item is null || await _feedback.ConfirmDeletionAsync("删除正则替换规则", $"将删除规则“{item.Name}”。此操作不可撤销。", cancellationToken) != AppConfirmationDecision.Confirm) return;
-        try { await _workspace.DeleteRuleAsync(id, cancellationToken); HasEditor = false; SelectedRuleId = null; await RefreshAsync(null, true, cancellationToken); await _playback.RefreshRegexReplacementAsync(cancellationToken); }
+        if (!await ConfirmLeaveDraftAsync(cancellationToken)) return;
+        var item = Rules.FirstOrDefault(rule => rule.Id == id);
+        if (item is null || await _feedback.ConfirmDeletionAsync("删除正则替换规则", $"将删除规则“{item.Name}”。此操作不可撤销。", cancellationToken) != AppConfirmationDecision.Confirm) return;
+
+        var fallback = GetAdjacentRuleId(id);
+        try
+        {
+            IsBusy = true;
+            await _workspace.DeleteRuleAsync(id, cancellationToken);
+            HasEditor = false;
+            SelectedRuleId = null;
+            await RefreshAsync(fallback, true, cancellationToken);
+            await _playback.RefreshRegexReplacementAsync(cancellationToken);
+            _feedback.ShowSuccess("正则替换规则已删除", item.Name);
+        }
         catch (Exception exception) { _feedback.ShowProjectedNotification("删除正则替换规则失败", _feedback.Project(exception)); }
+        finally { IsBusy = false; NotifyCommandState(); }
     }
 
     partial void OnDraftNameChanged(string value) => Changed();
     partial void OnDraftPatternChanged(string value) => Changed();
     partial void OnDraftReplacementChanged(string value) => Changed();
     partial void OnDraftScopeChanged(RegexReplacementScope value) => Changed();
-    private void Changed() { if (!_loading) { Validate(); HasUnsavedChanges = _baseline is null || _baseline.Name != DraftName || _baseline.Pattern != DraftPattern || _baseline.Replacement != DraftReplacement || _baseline.Scope != DraftScope; OnPropertyChanged(nameof(CanSave)); } }
-    private void Validate() { try { if (string.IsNullOrWhiteSpace(DraftName)) throw new ArgumentException("规则名称不能为空。"); if (string.IsNullOrWhiteSpace(DraftPattern)) throw new ArgumentException("正则表达式不能为空。"); _ = new Regex(DraftPattern, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100)); ValidationMessage = string.Empty; } catch (ArgumentException exception) { ValidationMessage = exception.Message; } OnPropertyChanged(nameof(CanSave)); }
-    private async Task MoveAsync(RegexReplacementRuleListItemViewModel? rule, int delta, CancellationToken ct) { if (rule is null) return; var ids = Rules.Select(item => item.Id).ToList(); var index = ids.IndexOf(rule.Id); var target = index + delta; if (target < 0 || target >= ids.Count) return; (ids[index], ids[target]) = (ids[target], ids[index]); try { await _workspace.SaveOrderAsync(ids, ct); await RefreshAsync(SelectedRuleId, false, ct); await _playback.RefreshRegexReplacementAsync(ct); } catch (Exception ex) { _feedback.ShowProjectedNotification("保存排序失败", _feedback.Project(ex)); } }
-    private async Task LoadEditorAsync(Guid id, CancellationToken ct) { var editor = await _workspace.GetEditorAsync(id, ct); if (editor is not null) Open(editor, false); }
-    private void Open(RegexReplacementRuleEditorModel editor, bool isNew) { _loading = true; _baseline = isNew ? null : editor; SelectedRuleId = editor.Id; DraftName = editor.Name; DraftPattern = editor.Pattern; DraftReplacement = editor.Replacement; DraftScope = editor.Scope; IsEditingNewRule = isNew; HasEditor = true; HasUnsavedChanges = false; _loading = false; Validate(); foreach (var rule in Rules) rule.IsSelected = rule.Id == editor.Id; }
-    private async Task RefreshAsync(Guid? preferred, bool selectFirst, CancellationToken ct) { var items = await _workspace.GetRulesAsync(ct); Rules.Clear(); foreach (var item in items) Rules.Add(new RegexReplacementRuleListItemViewModel(item.Id, item.Name, item.PatternSummary, item.IsEnabled, item.Scope, item.Id == SelectedRuleId, item.ErrorMessage)); if (selectFirst && !IsEditingNewRule && items.FirstOrDefault() is { } first) await LoadEditorAsync(preferred is Guid id && items.Any(item => item.Id == id) ? id : first.Id, ct); }
+    partial void OnHasEditorChanged(bool value) => NotifyCommandState();
+    partial void OnHasUnsavedChangesChanged(bool value) => NotifyCommandState();
+    partial void OnIsBusyChanged(bool value) => NotifyCommandState();
+    partial void OnSelectedRuleIdChanged(Guid? value) => NotifyCommandState();
+
+    private async Task<RegexReplacementRuleEditorModel?> SaveCoreAsync(CancellationToken cancellationToken)
+    {
+        Validate();
+        if (!CanSave) return null;
+        try
+        {
+            IsBusy = true;
+            var previous = _baseline;
+            var saved = await _workspace.SaveEditorAsync(new RegexReplacementRuleEditorModel(SelectedRuleId, DraftName, DraftPattern, DraftReplacement, DraftScope), cancellationToken);
+            await RefreshAsync(saved.Id, false, cancellationToken);
+            Open(saved, false, saved.Id);
+            if (previous is null || ExecutionFieldsChanged(previous, saved))
+            {
+                await _playback.RefreshRegexReplacementAsync(cancellationToken);
+            }
+
+            _feedback.ShowSuccess("正则替换规则已保存", saved.Name);
+            return saved;
+        }
+        catch (Exception exception)
+        {
+            _feedback.ShowProjectedNotification("保存正则替换规则失败", _feedback.Project(exception));
+            return null;
+        }
+        finally { IsBusy = false; NotifyCommandState(); }
+    }
+
+    private async Task MoveAsync(RegexReplacementRuleListItemViewModel? rule, int delta, CancellationToken cancellationToken)
+    {
+        if (rule is null || IsBusy) return;
+        var ids = Rules.Select(item => item.Id).ToList();
+        var index = ids.IndexOf(rule.Id);
+        var target = index + delta;
+        if (target < 0 || target >= ids.Count) return;
+        (ids[index], ids[target]) = (ids[target], ids[index]);
+        await SaveOrderAsync(ids, cancellationToken);
+    }
+
+    private async Task SaveOrderAsync(IReadOnlyList<Guid> orderedIds, CancellationToken cancellationToken)
+    {
+        try
+        {
+            IsBusy = true;
+            await _workspace.SaveOrderAsync(orderedIds, cancellationToken);
+            await RefreshAsync(SelectedRuleId, false, cancellationToken);
+            await _playback.RefreshRegexReplacementAsync(cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            await RefreshAsync(SelectedRuleId, false, cancellationToken);
+            _feedback.ShowProjectedNotification("保存排序失败", _feedback.Project(exception));
+        }
+        finally { IsBusy = false; NotifyCommandState(); }
+    }
+
+    private async Task<bool> ConfirmLeaveDraftAsync(CancellationToken cancellationToken)
+    {
+        if (!HasUnsavedChanges) return true;
+        var decision = await _dialogs.ShowUnsavedChangesAsync(
+            "未保存的修改",
+            "当前正则替换规则有未保存的修改。要先保存再继续吗？",
+            "保存",
+            "放弃",
+            "取消",
+            cancellationToken);
+        return decision switch
+        {
+            UnsavedChangesDecision.Save => await SaveCoreAsync(cancellationToken) is not null,
+            UnsavedChangesDecision.Discard => await DiscardDraftAndReturnAsync(cancellationToken),
+            _ => false
+        };
+    }
+
+    private async Task<bool> DiscardDraftAndReturnAsync(CancellationToken cancellationToken)
+    {
+        await DiscardDraftAsync(cancellationToken);
+        return true;
+    }
+
+    private async Task DiscardDraftAsync(CancellationToken cancellationToken)
+    {
+        if (IsEditingNewRule)
+        {
+            if (_fallbackRuleId is Guid fallback) await LoadEditorAsync(fallback, cancellationToken);
+            else CloseEditor();
+            return;
+        }
+
+        if (_baseline is not null) Open(_baseline, false, _fallbackRuleId);
+    }
+
+    private void Changed()
+    {
+        if (_loading) return;
+        Validate();
+        HasUnsavedChanges = HasEditor && (_baseline is null || !EditorsEqual(_baseline, BuildEditor()));
+        NotifyCommandState();
+    }
+
+    private void Validate()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(DraftName)) throw new ArgumentException("规则名称不能为空。");
+            if (string.IsNullOrWhiteSpace(DraftPattern)) throw new ArgumentException("正则表达式不能为空。");
+            _ = new Regex(DraftPattern, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+            ValidationMessage = string.Empty;
+        }
+        catch (ArgumentException exception) { ValidationMessage = exception.Message; }
+    }
+
+    private RegexReplacementRuleEditorModel BuildEditor() => new(SelectedRuleId, DraftName, DraftPattern, DraftReplacement, DraftScope);
+
+    private async Task LoadEditorAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var editor = await _workspace.GetEditorAsync(id, cancellationToken);
+        if (editor is not null) Open(editor, false, id);
+    }
+
+    private void Open(RegexReplacementRuleEditorModel editor, bool isNew, Guid? fallback)
+    {
+        _loading = true;
+        _baseline = isNew ? null : editor;
+        _fallbackRuleId = fallback;
+        SelectedRuleId = editor.Id;
+        DraftName = editor.Name;
+        DraftPattern = editor.Pattern;
+        DraftReplacement = editor.Replacement;
+        DraftScope = editor.Scope;
+        IsEditingNewRule = isNew;
+        HasEditor = true;
+        _loading = false;
+        Validate();
+        HasUnsavedChanges = false;
+        foreach (var rule in Rules) rule.IsSelected = rule.Id == editor.Id;
+        NotifyCommandState();
+    }
+
+    private void CloseEditor()
+    {
+        _loading = true;
+        _baseline = null;
+        _fallbackRuleId = null;
+        SelectedRuleId = null;
+        DraftName = string.Empty;
+        DraftPattern = string.Empty;
+        DraftReplacement = string.Empty;
+        DraftScope = RegexReplacementScope.Both;
+        HasEditor = false;
+        IsEditingNewRule = false;
+        HasUnsavedChanges = false;
+        ValidationMessage = string.Empty;
+        _loading = false;
+        foreach (var rule in Rules) rule.IsSelected = false;
+        NotifyCommandState();
+    }
+
+    private async Task RefreshAsync(Guid? preferred, bool selectFirst, CancellationToken cancellationToken)
+    {
+        var items = await _workspace.GetRulesAsync(cancellationToken);
+        Rules.Clear();
+        foreach (var item in items)
+        {
+            Rules.Add(new RegexReplacementRuleListItemViewModel(item.Id, item.Name, item.PatternSummary, item.IsEnabled, item.Scope, item.Id == SelectedRuleId, item.ErrorMessage));
+        }
+
+        if (selectFirst && !IsEditingNewRule)
+        {
+            var target = items.FirstOrDefault(item => item.Id == preferred) ?? items.FirstOrDefault();
+            if (target is not null) await LoadEditorAsync(target.Id, cancellationToken);
+            else CloseEditor();
+        }
+    }
+
+    private Guid? GetAdjacentRuleId(Guid id)
+    {
+        var index = Rules.ToList().FindIndex(rule => rule.Id == id);
+        if (index < 0) return null;
+        return index + 1 < Rules.Count ? Rules[index + 1].Id : index > 0 ? Rules[index - 1].Id : null;
+    }
+
+    private static bool ExecutionFieldsChanged(RegexReplacementRuleEditorModel before, RegexReplacementRuleEditorModel after) =>
+        !string.Equals(before.Pattern, after.Pattern, StringComparison.Ordinal) ||
+        !string.Equals(before.Replacement, after.Replacement, StringComparison.Ordinal) ||
+        before.Scope != after.Scope;
+
+    private static bool EditorsEqual(RegexReplacementRuleEditorModel left, RegexReplacementRuleEditorModel right) =>
+        left.Id == right.Id &&
+        string.Equals(left.Name, right.Name, StringComparison.Ordinal) &&
+        string.Equals(left.Pattern, right.Pattern, StringComparison.Ordinal) &&
+        string.Equals(left.Replacement, right.Replacement, StringComparison.Ordinal) &&
+        left.Scope == right.Scope;
+
+    private void NotifyCommandState()
+    {
+        OnPropertyChanged(nameof(CanSave));
+        OnPropertyChanged(nameof(CanDelete));
+    }
 }

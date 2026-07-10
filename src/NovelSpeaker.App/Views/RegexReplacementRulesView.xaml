@@ -78,6 +78,11 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Style="{StaticResource SelectableListItemContainerStyle}"
+                                            AllowDrop="True"
+                                            DragEnter="RuleItem_OnDragEnter"
+                                            DragLeave="RuleItem_OnDragLeave"
+                                            DragOver="RuleItem_OnDragOver"
+                                            Drop="RuleItem_OnDrop"
                                             AutomationProperties.Name="{Binding AutomationName}">
                                         <Grid>
                                             <Grid.RowDefinitions>
@@ -104,6 +109,7 @@
                                                   Margin="0,12,0,0">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="8" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="8" />
@@ -121,6 +127,16 @@
 
                                                 <Button Grid.Column="2"
                                                         Style="{StaticResource SecondaryIconButtonStyle}"
+                                                        Tag="{Binding}"
+                                                        PreviewMouseLeftButtonDown="DragHandle_OnPreviewMouseLeftButtonDown"
+                                                        PreviewMouseMove="DragHandle_OnPreviewMouseMove"
+                                                        ToolTip="拖动排序"
+                                                        AutomationProperties.Name="拖动排序">
+                                                    <ui:SymbolIcon Symbol="ReOrder24" />
+                                                </Button>
+
+                                                <Button Grid.Column="3"
+                                                        Style="{StaticResource SecondaryIconButtonStyle}"
                                                         Command="{Binding DataContext.MoveUpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         CommandParameter="{Binding}"
                                                         ToolTip="上移"
@@ -128,7 +144,7 @@
                                                     <ui:SymbolIcon Symbol="ArrowUp24" />
                                                 </Button>
 
-                                                <Button Grid.Column="4"
+                                                <Button Grid.Column="5"
                                                         Style="{StaticResource SecondaryIconButtonStyle}"
                                                         Command="{Binding DataContext.MoveDownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         CommandParameter="{Binding}"
@@ -204,11 +220,14 @@
                                     Orientation="Horizontal">
                             <Button Margin="0,0,8,0"
                                     Command="{Binding DeleteCommand}"
+                                    IsEnabled="{Binding CanDelete}"
                                     Content="删除" />
                             <Button Margin="0,0,8,0"
                                     Command="{Binding CancelCommand}"
+                                    IsEnabled="{Binding HasEditor}"
                                     Content="取消" />
                             <Button Command="{Binding SaveCommand}"
+                                    IsEnabled="{Binding CanSave}"
                                     Content="保存" />
                         </StackPanel>
                     </StackPanel>
