@@ -213,6 +213,7 @@ public sealed partial class PlayerViewModel : ObservableObject
 
         _requestedBookId = request.BookId;
         CloseTransientPanels();
+        ResumeAutoCenterForExplicitNavigation();
 
         var book = await EnsureBookLoadedAsync(request.BookId, cancellationToken);
         if (book is null)
@@ -248,7 +249,6 @@ public sealed partial class PlayerViewModel : ObservableObject
         snapshot = _playbackCoordinator.CurrentSnapshot;
         ApplySnapshot(snapshot);
         await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
-        RequestCurrentSegmentCentering(animate: true);
     }
 
     private async Task HandleChapterTargetNavigationAsync(
@@ -383,8 +383,8 @@ public sealed partial class PlayerViewModel : ObservableObject
             return;
         }
 
+        ResumeAutoCenterForExplicitNavigation();
         await _playbackCoordinator.JumpToSegmentAsync(CurrentChapterIndex, targetSegmentIndex, cancellationToken);
-        ResumeAutoCenterAndRequest(animate: true);
     }
 
     public void CancelSegmentProgressInteraction()
@@ -482,29 +482,29 @@ public sealed partial class PlayerViewModel : ObservableObject
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task PreviousSegmentAsync(CancellationToken cancellationToken)
     {
+        ResumeAutoCenterForExplicitNavigation();
         await _playbackCoordinator.PreviousSegmentAsync(cancellationToken);
-        ResumeAutoCenterAndRequest(animate: true);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task NextSegmentAsync(CancellationToken cancellationToken)
     {
+        ResumeAutoCenterForExplicitNavigation();
         await _playbackCoordinator.NextSegmentAsync(cancellationToken);
-        ResumeAutoCenterAndRequest(animate: true);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task PreviousChapterAsync(CancellationToken cancellationToken)
     {
+        ResumeAutoCenterForExplicitNavigation();
         await _playbackCoordinator.PreviousChapterAsync(cancellationToken);
-        ResumeAutoCenterAndRequest(animate: true);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task NextChapterAsync(CancellationToken cancellationToken)
     {
+        ResumeAutoCenterForExplicitNavigation();
         await _playbackCoordinator.NextChapterAsync(cancellationToken);
-        ResumeAutoCenterAndRequest(animate: true);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -575,8 +575,8 @@ public sealed partial class PlayerViewModel : ObservableObject
             return;
         }
 
+        ResumeAutoCenterForExplicitNavigation();
         await _playbackCoordinator.JumpToChapterAsync(chapter.ChapterIndex, cancellationToken);
-        ResumeAutoCenterAndRequest(animate: true);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -593,8 +593,8 @@ public sealed partial class PlayerViewModel : ObservableObject
             return;
         }
 
+        ResumeAutoCenterForExplicitNavigation();
         await _playbackCoordinator.JumpToSegmentAsync(segment.ChapterIndex, segment.SegmentIndex, cancellationToken);
-        ResumeAutoCenterAndRequest(animate: true);
     }
 
     [RelayCommand]
@@ -1017,13 +1017,19 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     private void ResumeAutoCenterAndRequest(bool animate)
     {
-        if (_autoScrollCoordinator.State != PlayerAutoScrollState.AutoCentering)
+        ResumeAutoCenterForExplicitNavigation();
+        RequestCurrentSegmentCentering(animate);
+    }
+
+    private void ResumeAutoCenterForExplicitNavigation()
+    {
+        if (_autoScrollCoordinator.State == PlayerAutoScrollState.AutoCentering)
         {
-            _suppressNextStateDrivenAutoCenterRequest = true;
+            return;
         }
 
+        _suppressNextStateDrivenAutoCenterRequest = true;
         _autoScrollCoordinator.ResumeAutoCenter();
-        RequestCurrentSegmentCentering(animate);
     }
 
     private void RequestCurrentSegmentCentering(bool animate)

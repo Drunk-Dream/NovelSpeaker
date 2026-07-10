@@ -920,7 +920,7 @@ public sealed class PlayerViewModelTests
 
         Assert.Equal(2, coordinator.LastJumpedSegmentIndex);
         Assert.Equal(0, coordinator.LastJumpedSegmentChapterIndex);
-        Assert.Equal(PlayerAutoScrollState.ManualBrowsing, coordinator.AutoScrollStateObservedDuringLastJumpToSegment);
+        Assert.Equal(PlayerAutoScrollState.AutoCentering, coordinator.AutoScrollStateObservedDuringLastJumpToSegment);
         Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
         Assert.Equal(1, autoScrollCoordinator.ResumeAutoCenterCallCount);
     }
