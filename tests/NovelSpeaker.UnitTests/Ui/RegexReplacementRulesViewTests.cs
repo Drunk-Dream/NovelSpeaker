@@ -45,7 +45,9 @@ public sealed class RegexReplacementRulesViewTests
             view.UpdateLayout();
 
             Assert.Null(VisualTreeTestHelper.FindDescendant<DataGrid>(view));
-            Assert.Null(VisualTreeTestHelper.FindDescendant<ListBox>(view));
+            var rulesList = Assert.IsType<ListBox>(VisualTreeTestHelper.FindDescendant<ListBox>(view));
+            Assert.True(VirtualizingPanel.GetIsVirtualizing(rulesList));
+            Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(rulesList));
 
             var statusBoxes = FindDescendants<CheckBox>(view).ToArray();
             Assert.Equal(["已启用", "已禁用"], statusBoxes.Select(box => box.Content).ToArray());
