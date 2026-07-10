@@ -31,17 +31,6 @@
            BasedOn="{StaticResource PrimaryTextBlockStyle}">
     </Style>
 
-    <Style x:Key="SettingsEntryButtonStyle"
-           TargetType="Button"
-           BasedOn="{StaticResource {x:Type Button}}">
-        <Setter Property="Padding" Value="0,14" />
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="HorizontalAlignment" Value="Stretch" />
-        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
-    </Style>
-
     <Style x:Key="SettingsEntryTitleTextBlockStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource StrongTextBlockStyle}">
@@ -172,46 +161,182 @@
         </Setter>
     </Style>
 
-    <Style x:Key="BackIconButtonStyle"
+    <!--
+        These styles deliberately retain the Wpf.Ui Button template.  They only remove
+        the resting chrome; hover, pressed, disabled, and keyboard-focus states are
+        expressed through theme resources so borderless controls stay discoverable.
+    -->
+    <Style x:Key="BorderlessIconButtonStyle"
            TargetType="Button"
            BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Width" Value="40" />
         <Setter Property="Height" Value="40" />
         <Setter Property="Padding" Value="0" />
-        <Setter Property="HorizontalAlignment" Value="Left" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.5" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="BackIconButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource BorderlessIconButtonStyle}">
+        <Setter Property="HorizontalAlignment" Value="Left" />
     </Style>
 
     <Style x:Key="SecondaryIconButtonStyle"
            TargetType="Button"
-           BasedOn="{StaticResource {x:Type Button}}">
+           BasedOn="{StaticResource BorderlessIconButtonStyle}">
         <Setter Property="Width" Value="44" />
         <Setter Property="Height" Value="44" />
+    </Style>
+
+    <Style x:Key="BorderlessListItemButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.5" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="SettingsEntryButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource BorderlessListItemButtonStyle}">
+        <Setter Property="Padding" Value="0,14" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="SelectableListItemButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource BorderlessListItemButtonStyle}">
+        <Setter Property="Margin" Value="0,0,0,10" />
+        <Setter Property="Padding" Value="14,12" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="0,0,0,2" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="SelectableListItemContainerStyle" TargetType="Border">
+        <Setter Property="Margin" Value="0,0,0,10" />
+        <Setter Property="Padding" Value="14,12" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="0,0,0,2" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                <Setter Property="Opacity" Value="0.5" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="CurrentListItemContainerStyle" TargetType="Border">
+        <Setter Property="Margin" Value="0,0,0,10" />
+        <Setter Property="Padding" Value="14,12" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="0,0,0,2" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="DropTargetListItemContainerStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource SelectableListItemContainerStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
+                <Setter Property="BorderBrush" Value="{x:Static SystemColors.HighlightBrush}" />
+                <Setter Property="Background" Value="{x:Static SystemColors.HighlightBrush}" />
+                <Setter Property="BorderThickness" Value="0,0,0,2" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="PlaybackSpeedPillButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Height" Value="44" />
+        <Setter Property="MinWidth" Value="76" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
+    <Style x:Key="ToolbarValueButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource PlaybackSpeedPillButtonStyle}" />
+
+    <Style x:Key="PrimaryPlaybackIconButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource BorderlessIconButtonStyle}">
+        <Setter Property="Width" Value="52" />
+        <Setter Property="Height" Value="52" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
 
-    <Style x:Key="ToolbarValueButtonStyle"
-           TargetType="Button"
-           BasedOn="{StaticResource {x:Type Button}}">
-        <Setter Property="Height" Value="44" />
-        <Setter Property="MinWidth" Value="76" />
-        <Setter Property="Padding" Value="14,0" />
-        <Setter Property="HorizontalContentAlignment" Value="Center" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
-    </Style>
-
-    <Style x:Key="PrimaryPlaybackIconButtonStyle"
-           TargetType="Button"
-           BasedOn="{StaticResource SecondaryIconButtonStyle}">
-        <Setter Property="Width" Value="52" />
-        <Setter Property="Height" Value="52" />
-    </Style>
-
     <Style x:Key="FloatingIconButtonStyle"
            TargetType="Button"
-           BasedOn="{StaticResource SecondaryIconButtonStyle}">
+           BasedOn="{StaticResource BorderlessIconButtonStyle}">
+        <Setter Property="Width" Value="44" />
+        <Setter Property="Height" Value="44" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
 </ResourceDictionary>

@@ -42,11 +42,10 @@
                     <Button Width="28"
                             Height="28"
                             Margin="0,0,6,0"
+                            Style="{StaticResource BorderlessIconButtonStyle}"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"
                             AutomationProperties.Name="清空搜索"
-                            Background="Transparent"
-                            BorderThickness="0"
                             Command="{Binding ClearSearchCommand}"
                             ToolTip="清空搜索"
                             Visibility="{Binding HasSearchText, Converter={StaticResource BooleanToVisibilityConverter}}">

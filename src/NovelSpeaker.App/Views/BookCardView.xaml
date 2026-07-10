@@ -31,9 +31,8 @@
         </Border.Style>
         <Grid>
             <Button Padding="0"
+                    Style="{StaticResource BorderlessListItemButtonStyle}"
                     AutomationProperties.Name="{Binding Item.AutomationName, ElementName=Root}"
-                    Background="Transparent"
-                    BorderThickness="0"
                     Command="{Binding OpenBookCommand, ElementName=Root}"
                     CommandParameter="{Binding Item, ElementName=Root}"
                     HorizontalContentAlignment="Stretch"
@@ -86,13 +85,11 @@
                     AutomationProperties.Name="{Binding Item.MoreActionsAutomationName, ElementName=Root}"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Top"
-                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
                     Click="MoreButton_OnClick"
                     ToolTip="更多操作">
                 <Button.Style>
-                    <Style TargetType="Button">
+                    <Style TargetType="Button"
+                           BasedOn="{StaticResource BorderlessIconButtonStyle}">
                         <Setter Property="Opacity" Value="0" />
                         <Setter Property="IsHitTestVisible" Value="False" />
                         <Setter Property="Margin" Value="0,2,2,0" />

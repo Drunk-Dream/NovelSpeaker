@@ -45,6 +45,44 @@ public sealed class ThemeResourceTests
     }
 
     [Fact]
+    public void Borderless_button_styles_keep_theme_backed_interaction_states()
+    {
+        var content = File.ReadAllText(Path.Combine(
+            GetRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Resources",
+            "SemanticStyles.xaml"));
+
+        Assert.Contains("x:Key=\"BorderlessIconButtonStyle\"", content);
+        Assert.Contains("x:Key=\"BorderlessListItemButtonStyle\"", content);
+        Assert.Contains("Property=\"IsMouseOver\"", content);
+        Assert.Contains("Property=\"IsPressed\"", content);
+        Assert.Contains("Property=\"IsKeyboardFocused\"", content);
+        Assert.Contains("Property=\"IsEnabled\" Value=\"False\"", content);
+        Assert.Contains("AccentFillColorDefaultBrush", content);
+    }
+
+    [Fact]
+    public void Icon_and_list_buttons_use_shared_semantic_styles()
+    {
+        var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
+        var playerView = File.ReadAllText(Path.Combine(appRoot, "Views", "PlayerView.xaml"));
+        var chapterRulesView = File.ReadAllText(Path.Combine(appRoot, "Views", "ChapterRulesView.xaml"));
+        var libraryView = File.ReadAllText(Path.Combine(appRoot, "Views", "LibraryView.xaml"));
+        var bookCardView = File.ReadAllText(Path.Combine(appRoot, "Views", "BookCardView.xaml"));
+
+        Assert.Contains("ToolbarValueButtonStyle", playerView);
+        Assert.Contains("PrimaryPlaybackIconButtonStyle", playerView);
+        Assert.Contains("FloatingIconButtonStyle", playerView);
+        Assert.Contains("BorderlessIconButtonStyle", libraryView);
+        Assert.Contains("BorderlessListItemButtonStyle", bookCardView);
+        Assert.Contains("ReOrder24", chapterRulesView);
+        Assert.Contains("AutomationProperties.Name=\"上移\"", chapterRulesView);
+        Assert.Contains("AutomationProperties.Name=\"下移\"", chapterRulesView);
+    }
+
+    [Fact]
     public void App_textblocks_explicitly_bind_to_semantic_text_styles()
     {
         var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
