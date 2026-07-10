@@ -54,6 +54,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<CacheManagementViewModel>();
         services.AddTransient<PlaybackSettingsViewModel>();
         services.AddTransient<ImportTextSettingsViewModel>();
+        services.AddSingleton<RegexReplacementRulesViewModel>();
         services.AddTransient<AppearanceSettingsViewModel>();
         services.AddTransient<DiagnosticsAboutViewModel>();
         services.AddSingleton<ChapterRulesViewModel>();
@@ -64,6 +65,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<CacheAndDataPage>();
         services.AddTransient<PlaybackSettingsPage>();
         services.AddTransient<ImportTextSettingsPage>();
+        services.AddTransient<RegexReplacementRulesPage>();
         services.AddTransient<AppearanceSettingsPage>();
         services.AddTransient<DiagnosticsAboutPage>();
         services.AddTransient<PlayerPage>();

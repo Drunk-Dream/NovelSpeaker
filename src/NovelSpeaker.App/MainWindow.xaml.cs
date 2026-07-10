@@ -257,6 +257,7 @@ public partial class MainWindow : FluentWindow
             || pageType == typeof(PlaybackSettingsPage)
             || pageType == typeof(TtsRulesPage)
             || pageType == typeof(ImportTextSettingsPage)
+            || pageType == typeof(RegexReplacementRulesPage)
             || pageType == typeof(ChapterRulesPage)
             || pageType == typeof(CacheAndDataPage)
             || pageType == typeof(CacheManagementPage)
