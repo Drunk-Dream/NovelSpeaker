@@ -1,9 +1,14 @@
-﻿using NovelSpeaker.App.Navigation;
+﻿using NovelSpeaker.App.Input;
+using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Theming;
 using NovelSpeaker.App.ViewModels;
+using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Media;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
@@ -16,6 +21,7 @@ namespace NovelSpeaker.App;
 public partial class MainWindow : FluentWindow
 {
     private readonly IMainWindowAppearanceConfigurator _appearanceConfigurator;
+    private readonly IKeyboardShortcutCoordinator _keyboardShortcutCoordinator;
     private readonly IContentDialogService _contentDialogService;
     private readonly IGuardedNavigationService _guardedNavigationService;
     private readonly INavigationService _navigationService;
@@ -27,6 +33,7 @@ public partial class MainWindow : FluentWindow
     private NavigationViewItem? _currentPrimaryNavigationItem;
     private bool _isShellInfrastructureConfigured;
     private bool _isNavigationInitialized;
+    private bool _isPlayerPageActive;
 
     public MainWindow(
         MainWindowViewModel viewModel,
@@ -37,9 +44,11 @@ public partial class MainWindow : FluentWindow
         ISnackbarService snackbarService,
         IServiceProvider serviceProvider,
         IMainWindowAppearanceConfigurator appearanceConfigurator,
-        IShellLayoutController shellLayoutController)
+        IShellLayoutController shellLayoutController,
+        IKeyboardShortcutCoordinator keyboardShortcutCoordinator)
     {
         _appearanceConfigurator = appearanceConfigurator;
+        _keyboardShortcutCoordinator = keyboardShortcutCoordinator;
         _contentDialogService = contentDialogService;
         _guardedNavigationService = guardedNavigationService;
         _navigationService = navigationService;
@@ -53,6 +62,7 @@ public partial class MainWindow : FluentWindow
         DataContext = _viewModel;
         Loaded += OnLoaded;
         SizeChanged += OnSizeChanged;
+        PreviewKeyDown += OnPreviewKeyDown;
         RootNavigationView.PaneOpened += OnPaneOpened;
         RootNavigationView.PaneClosed += OnPaneClosed;
         _shellLayoutController.PaneStateChanged += OnPaneStateChanged;
@@ -93,6 +103,83 @@ public partial class MainWindow : FluentWindow
     private void OnSizeChanged(object sender, System.Windows.SizeChangedEventArgs e)
     {
         _shellLayoutController.UpdateWindowWidth(e.NewSize.Width);
+    }
+
+    private async void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Handled)
+        {
+            return;
+        }
+
+        var handled = await _keyboardShortcutCoordinator.TryHandleAsync(
+            e.Key == Key.System ? e.SystemKey : e.Key,
+            Keyboard.Modifiers,
+            CreateKeyboardShortcutContext(),
+            CancellationToken.None);
+        e.Handled = handled;
+    }
+
+    private KeyboardShortcutContext CreateKeyboardShortcutContext()
+    {
+        var focusedElement = Keyboard.FocusedElement as DependencyObject;
+        return new KeyboardShortcutContext(
+            _isPlayerPageActive,
+            IsTextEditingElement(focusedElement),
+            IsTransientUiOpen(focusedElement) || HasOpenContentDialog());
+    }
+
+    private static bool IsTextEditingElement(DependencyObject? element)
+    {
+        for (var current = element; current is not null; current = LogicalTreeHelper.GetParent(current) ?? VisualTreeHelper.GetParent(current))
+        {
+            if (current is TextBoxBase or System.Windows.Controls.PasswordBox || current is ComboBox { IsEditable: true })
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsTransientUiOpen(DependencyObject? focusedElement)
+    {
+        for (var current = focusedElement; current is not null; current = LogicalTreeHelper.GetParent(current) ?? VisualTreeHelper.GetParent(current))
+        {
+            if (current is ComboBox { IsDropDownOpen: true } ||
+                current is ContextMenu { IsOpen: true } ||
+                current is System.Windows.Controls.MenuItem)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool HasOpenContentDialog()
+    {
+        return FindVisibleContentDialog(RootContentDialogHost) is not null;
+    }
+
+    private static ContentDialog? FindVisibleContentDialog(DependencyObject root)
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is ContentDialog dialog && dialog.IsVisible)
+            {
+                return dialog;
+            }
+
+            var nested = FindVisibleContentDialog(child);
+            if (nested is not null)
+            {
+                return nested;
+            }
+        }
+
+        return null;
     }
 
     private void OnPaneOpened(object sender, System.Windows.RoutedEventArgs e)
@@ -198,6 +285,7 @@ public partial class MainWindow : FluentWindow
 
     private void TryApplyPrimaryNavigationSelection(Type? pageType)
     {
+        _isPlayerPageActive = pageType == typeof(PlayerPage);
         var primaryItem = ResolvePrimaryNavigationItem(pageType);
         if (primaryItem is null)
         {

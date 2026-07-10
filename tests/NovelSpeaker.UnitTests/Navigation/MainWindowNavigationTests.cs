@@ -1,10 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows.Controls;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Threading;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App;
 using NovelSpeaker.App.Navigation;
+using NovelSpeaker.App.Input;
 using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Theming;
@@ -39,7 +41,8 @@ public sealed class MainWindowNavigationTests
                 snackbarService,
                 serviceProvider,
                 appearanceConfigurator,
-                new ShellLayoutController());
+                new ShellLayoutController(),
+                new FakeKeyboardShortcutCoordinator());
 
             window.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.FrameworkElement.LoadedEvent));
             window.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.FrameworkElement.LoadedEvent));
@@ -75,7 +78,8 @@ public sealed class MainWindowNavigationTests
                 snackbarService,
                 serviceProvider,
                 new FakeMainWindowAppearanceConfigurator(),
-                new ShellLayoutController());
+                new ShellLayoutController(),
+                new FakeKeyboardShortcutCoordinator());
 
             var navigationView = GetNavigationView(window);
 
@@ -257,6 +261,14 @@ public sealed class MainWindowNavigationTests
         public object GetPage(Type pageType)
         {
             throw new NotSupportedException();
+        }
+    }
+
+    private sealed class FakeKeyboardShortcutCoordinator : IKeyboardShortcutCoordinator
+    {
+        public Task<bool> TryHandleAsync(Key key, ModifierKeys modifiers, KeyboardShortcutContext context, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(false);
         }
     }
 
