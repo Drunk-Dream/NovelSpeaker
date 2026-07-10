@@ -16,9 +16,20 @@ public sealed partial class RegexReplacementRuleListItemViewModel : ObservableOb
     public RegexReplacementScope Scope { get; }
     public string? ErrorMessage { get; }
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
+    public string ScopeDisplayName => Scope switch
+    {
+        RegexReplacementScope.Display => "仅显示",
+        RegexReplacementScope.Speech => "仅朗读",
+        _ => "显示与朗读"
+    };
+    public string EnabledStateText => IsEnabled ? "已启用" : "已禁用";
     [ObservableProperty] private bool isEnabled;
     [ObservableProperty] private bool isSelected;
-    public string AutomationName => $"{Name}，{(IsEnabled ? "已启用" : "已禁用")}，{Scope}{(HasError ? "，规则错误" : string.Empty)}{(IsSelected ? "，已选中" : string.Empty)}";
-    partial void OnIsEnabledChanged(bool value) => OnPropertyChanged(nameof(AutomationName));
+    public string AutomationName => $"{Name}，{EnabledStateText}，{ScopeDisplayName}{(HasError ? "，规则错误" : string.Empty)}{(IsSelected ? "，已选中" : string.Empty)}";
+    partial void OnIsEnabledChanged(bool value)
+    {
+        OnPropertyChanged(nameof(EnabledStateText));
+        OnPropertyChanged(nameof(AutomationName));
+    }
     partial void OnIsSelectedChanged(bool value) => OnPropertyChanged(nameof(AutomationName));
 }
