@@ -5,26 +5,6 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
 
-        <Style x:Key="RuleListButtonStyle"
-               TargetType="Button"
-               BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Margin" Value="0,0,0,10" />
-            <Setter Property="Padding" Value="14,12" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                    <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                    <Setter Property="BorderThickness" Value="2" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                    <Setter Property="Opacity" Value="0.66" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
     </UserControl.Resources>
 
     <Grid Margin="{StaticResource PagePadding}"
@@ -130,7 +110,7 @@
                         <ItemsControl ItemsSource="{Binding Rules}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Button Style="{StaticResource RuleListButtonStyle}"
+                                    <Button Style="{StaticResource SelectableListItemButtonStyle}"
                                             Command="{Binding DataContext.SelectRuleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}"
                                             AutomationProperties.Name="{Binding AutomationName}">
@@ -319,10 +299,13 @@
                                             <TextBox Grid.Column="2"
                                                      Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" />
                                             <Button Grid.Column="4"
-                                                    Padding="12,8"
+                                                    Style="{StaticResource BorderlessIconButtonStyle}"
                                                     Command="{Binding DataContext.RemoveHeaderEntryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                     CommandParameter="{Binding}"
-                                                    Content="删除" />
+                                                    ToolTip="删除 Header"
+                                                    AutomationProperties.Name="删除 Header">
+                                                <ui:SymbolIcon Symbol="Delete24" />
+                                            </Button>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

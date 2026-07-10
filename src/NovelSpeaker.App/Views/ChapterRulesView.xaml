@@ -5,35 +5,6 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
 
-        <Style x:Key="ChapterRuleListBorderStyle"
-               TargetType="Border"
-               BasedOn="{StaticResource CardBorderStyle}">
-            <Setter Property="Margin" Value="0,0,0,10" />
-            <Setter Property="Padding" Value="14,12" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                    <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                    <Setter Property="BorderThickness" Value="2" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                    <Setter Property="Opacity" Value="0.66" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
-                    <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="ChapterRuleSelectButtonStyle"
-               TargetType="Button"
-               BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        </Style>
     </UserControl.Resources>
 
     <Grid Margin="{StaticResource PagePadding}"
@@ -137,7 +108,7 @@
                         <ItemsControl ItemsSource="{Binding Rules}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Style="{StaticResource ChapterRuleListBorderStyle}"
+                                    <Border Style="{StaticResource DropTargetListItemContainerStyle}"
                                             AllowDrop="True"
                                             DragEnter="RuleItem_OnDragEnter"
                                             DragLeave="RuleItem_OnDragLeave"
@@ -150,7 +121,7 @@
                                                 <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
 
-                                            <Button Style="{StaticResource ChapterRuleSelectButtonStyle}"
+                                            <Button Style="{StaticResource BorderlessListItemButtonStyle}"
                                                     Command="{Binding DataContext.SelectRuleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                     CommandParameter="{Binding}">
                                                 <StackPanel>
@@ -185,30 +156,35 @@
                                                           Content="启用" />
 
                                                 <Button Grid.Column="2"
-                                                        Padding="10,6"
+                                                        Style="{StaticResource SecondaryIconButtonStyle}"
                                                         ToolTip="拖动排序"
                                                         AutomationProperties.Name="拖动排序"
                                                         IsEnabled="{Binding CanQuickActions}"
                                                         PreviewMouseLeftButtonDown="DragHandle_OnPreviewMouseLeftButtonDown"
                                                         PreviewMouseMove="DragHandle_OnPreviewMouseMove"
                                                         Tag="{Binding}">
-                                                    <TextBlock Style="{StaticResource StrongTextBlockStyle}"
-                                                               Text="≡" />
+                                                    <ui:SymbolIcon Symbol="ReOrder24" />
                                                 </Button>
 
                                                 <Button Grid.Column="4"
-                                                        Padding="10,6"
+                                                        Style="{StaticResource SecondaryIconButtonStyle}"
                                                         Command="{Binding DataContext.MoveRuleUpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         CommandParameter="{Binding}"
                                                         IsEnabled="{Binding CanMoveUp}"
-                                                        Content="上移" />
+                                                        ToolTip="上移"
+                                                        AutomationProperties.Name="上移">
+                                                    <ui:SymbolIcon Symbol="ArrowUp24" />
+                                                </Button>
 
                                                 <Button Grid.Column="6"
-                                                        Padding="10,6"
+                                                        Style="{StaticResource SecondaryIconButtonStyle}"
                                                         Command="{Binding DataContext.MoveRuleDownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         CommandParameter="{Binding}"
                                                         IsEnabled="{Binding CanMoveDown}"
-                                                        Content="下移" />
+                                                        ToolTip="下移"
+                                                        AutomationProperties.Name="下移">
+                                                    <ui:SymbolIcon Symbol="ArrowDown24" />
+                                                </Button>
                                             </Grid>
                                         </Grid>
                                     </Border>

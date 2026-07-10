@@ -158,12 +158,14 @@ public sealed partial class ChapterRulesViewTests
             view.Arrange(new Rect(0, 0, 960, 680));
             view.UpdateLayout();
 
-            var borders = FindDescendants<Border>(
+            var firstBorder = Assert.Single(FindDescendants<Border>(
                 view,
-                candidate => candidate.DataContext is ChapterRuleListItemViewModel).ToArray();
+                candidate => ReferenceEquals(candidate.DataContext, first) && candidate.Child is Grid));
+            var secondBorder = Assert.Single(FindDescendants<Border>(
+                view,
+                candidate => ReferenceEquals(candidate.DataContext, second) && candidate.Child is Grid));
 
-            Assert.True(borders.Length >= 2);
-            Assert.NotEqual(borders[0].Background, borders[1].Background);
+            Assert.NotEqual(firstBorder.Background, secondBorder.Background);
         });
     }
 
