@@ -68,17 +68,30 @@ public sealed class PlayerAutoScrollCoordinatorTests
     }
 
     [Fact]
-    public void Programmatic_scroll_is_ignored()
+    public void Passive_scroll_change_during_programmatic_scroll_is_ignored()
     {
         var timeProvider = new ManualTimeProvider();
         var coordinator = new PlayerAutoScrollCoordinator(timeProvider);
 
         coordinator.BeginProgrammaticScroll();
-        coordinator.NotifyUserScrollInput();
+        coordinator.NotifyPassiveScrollChange();
         coordinator.EndProgrammaticScroll();
 
         Assert.True(coordinator.ShouldAutoCenter);
         Assert.False(coordinator.ShowReturnToCurrentSegment);
+    }
+
+    [Fact]
+    public void Explicit_user_scroll_input_is_not_ignored_during_programmatic_scroll()
+    {
+        var coordinator = new PlayerAutoScrollCoordinator(new ManualTimeProvider());
+
+        coordinator.BeginProgrammaticScroll();
+        coordinator.NotifyUserScrollInput();
+        coordinator.EndProgrammaticScroll();
+
+        Assert.Equal(PlayerAutoScrollState.ManualBrowsing, coordinator.State);
+        Assert.True(coordinator.ShowReturnToCurrentSegment);
     }
 
     [Fact]

@@ -1491,6 +1491,12 @@ public sealed class PlayerViewModelTests
             StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
+        public void NotifyPassiveScrollChange()
+        {
+            OperationLog.Add("NotifyPassiveScrollChange");
+            NotifyUserScrollInput();
+        }
+
         public void BeginScrollbarDrag()
         {
             OperationLog.Add("BeginScrollbarDrag");

@@ -14,6 +14,8 @@ public interface IPlayerAutoScrollCoordinator
 
     void NotifyUserScrollInput();
 
+    void NotifyPassiveScrollChange();
+
     void BeginScrollbarDrag();
 
     void EndScrollbarDrag();

@@ -159,6 +159,10 @@ public sealed class NavigationPageLifecycleTests
         {
         }
 
+        public void NotifyPassiveScrollChange()
+        {
+        }
+
         public void BeginScrollbarDrag()
         {
         }

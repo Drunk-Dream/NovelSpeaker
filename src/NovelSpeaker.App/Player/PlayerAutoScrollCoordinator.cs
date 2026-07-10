@@ -65,11 +65,22 @@ public sealed class PlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator, 
 
     public void NotifyUserScrollInput()
     {
+        NotifyScrollInput(ignoreProgrammaticScroll: false);
+    }
+
+    public void NotifyPassiveScrollChange()
+    {
+        NotifyScrollInput(ignoreProgrammaticScroll: true);
+    }
+
+    private void NotifyScrollInput(bool ignoreProgrammaticScroll)
+    {
         var shouldRaise = false;
 
         lock (_syncRoot)
         {
-            if (_programmaticScrollDepth > 0 || _state == PlayerAutoScrollState.ScrollbarDragging)
+            if ((ignoreProgrammaticScroll && _programmaticScrollDepth > 0) ||
+                _state == PlayerAutoScrollState.ScrollbarDragging)
             {
                 return;
             }

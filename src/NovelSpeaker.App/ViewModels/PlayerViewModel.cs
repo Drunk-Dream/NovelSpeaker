@@ -315,6 +315,11 @@ public sealed partial class PlayerViewModel : ObservableObject
         _autoScrollCoordinator.NotifyUserScrollInput();
     }
 
+    public void NotifyPassiveSegmentScrollChange()
+    {
+        _autoScrollCoordinator.NotifyPassiveScrollChange();
+    }
+
     public void NotifyScrollbarDragStarted()
     {
         _autoScrollCoordinator.BeginScrollbarDrag();
