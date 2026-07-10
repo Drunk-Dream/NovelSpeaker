@@ -82,7 +82,8 @@
     <Style x:Key="PopupSurfaceBorderStyle"
            TargetType="Border"
            BasedOn="{StaticResource CardBorderStyle}">
-        <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+        <!-- Keep transient panels fully opaque so their content remains legible over page content. -->
+        <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorBaseBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
         <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
     </Style>
@@ -307,7 +308,7 @@
            TargetType="Button"
            BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Height" Value="44" />
-        <Setter Property="MinWidth" Value="76" />
+        <Setter Property="MinWidth" Value="80" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />

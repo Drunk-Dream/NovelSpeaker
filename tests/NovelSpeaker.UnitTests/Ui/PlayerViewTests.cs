@@ -6,6 +6,7 @@ using System.Threading;
 using System.Windows.Automation;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -481,8 +482,34 @@ public sealed class PlayerViewTests
 
             var ruleButton = Assert.IsType<Button>(view.FindName("RuleMenuButton"));
             var speedButton = Assert.IsType<Button>(view.FindName("SpeedMenuButton"));
+            var speedPill = Assert.IsType<Border>(view.FindName("SpeedMenuPillBorder"));
 
             Assert.InRange(Math.Abs(ruleButton.ActualHeight - speedButton.ActualHeight), 0d, 1d);
+            Assert.Equal(80d, speedPill.ActualWidth);
+            Assert.Equal(40d, speedPill.ActualHeight);
+            Assert.Equal(new CornerRadius(12), speedPill.CornerRadius);
+        });
+    }
+
+    [Fact]
+    public void PlayerView_uses_opaque_surfaces_for_rule_and_speed_popups()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(
+                    [new PlayerChapterItemViewModel(0, "第一章")],
+                    [new PlayerSegmentItemViewModel(0, 0, "第一段")])
+            };
+
+            var rulePopup = Assert.IsType<Popup>(view.FindName("RuleMenuPopup"));
+            var speedPopup = Assert.IsType<Popup>(view.FindName("SpeedMenuPopup"));
+
+            Assert.True(rulePopup.AllowsTransparency);
+            Assert.True(speedPopup.AllowsTransparency);
+            Assert.NotEqual(Brushes.Transparent, Assert.IsType<Border>(rulePopup.Child).Background);
+            Assert.NotEqual(Brushes.Transparent, Assert.IsType<Border>(speedPopup.Child).Background);
         });
     }
 
