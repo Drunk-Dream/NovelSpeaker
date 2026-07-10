@@ -265,7 +265,9 @@ public sealed class PlayerViewTests
             faultedView.UpdateLayout();
 
             Assert.NotNull(FindVisibleDescendantByContent(faultedView, "再次尝试"));
-            Assert.NotNull(FindVisibleDescendantByContent(faultedView, "切换规则"));
+            Assert.True(IsEffectivelyVisible(
+                Assert.IsType<Button>(faultedView.FindName("ErrorRuleMenuButton")),
+                faultedView));
 
             var normalView = new PlayerView
             {
@@ -277,7 +279,9 @@ public sealed class PlayerViewTests
             normalView.UpdateLayout();
 
             Assert.Null(FindVisibleDescendantByContent(normalView, "再次尝试"));
-            Assert.Null(FindVisibleDescendantByContent(normalView, "切换规则"));
+            Assert.False(IsEffectivelyVisible(
+                Assert.IsType<Button>(normalView.FindName("ErrorRuleMenuButton")),
+                normalView));
         });
     }
 
