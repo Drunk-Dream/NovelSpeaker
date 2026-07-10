@@ -109,16 +109,16 @@
 
 正则替换已经进入当前主线。功能范围以 `12_REGEX_REPLACEMENT_PIPELINE.md` 为准。
 
-- [ ] **REGEX-001：建立全局正则替换规则模型和数据库迁移。** 新增 `RegexReplacementRule`、`RegexReplacementScope` 和 `RegexReplacementRules` 表；字段包括稳定 ID、名称、启用、排序、Pattern、Replacement、Scope 和时间戳；不增加 BookId 或 RegexOptions。
-- [ ] **REGEX-002：实现规则仓储和字段级更新。** 支持列表读取、新建、删除、启用即时保存、排序即时保存，以及右侧名称、Pattern、Replacement、Scope 字段级保存；右侧旧副本不得覆盖左侧状态。
-- [ ] **REGEX-003：实现分段后的正则替换管线。** 对每个运行时段落分别生成 DisplayText 和 SpeechText；固定使用 `RegexOptions.CultureInvariant` 和每条规则每段 `100 ms` 超时；无效 Pattern 不允许保存，运行时错误跳过当前规则并记录安全错误状态。
-- [ ] **REGEX-004：接入章节内容加载、正文展示和 TTS。** 正则替换在动态分段之后执行，不改变章节或段落原始偏移；展示、朗读和播放推进均消费处理后的运行时段落。
-- [ ] **REGEX-005：实现空结果和进度映射。** 空 DisplayText 不显示，空 SpeechText 不请求 TTS，两者都为空时完全跳过；连续空段不会死循环；规则变更后根据原始字符偏移映射到最近可消费段。
-- [ ] **REGEX-006：实现正则替换三级管理页。** 入口为“设置 → 导入与文本 → 正则替换”；左侧规则列表负责选择、启用、排序和错误状态，右侧编辑名称、Pattern、Replacement 和 Scope；不提供预览、导入、导出、默认规则、RegexOptions 或单本书范围。
-- [ ] **REGEX-007：实现保存保护和当前章节即时刷新。** 左侧操作即时保存；右侧保存/取消并提供未保存修改保护；执行字段变化后重建当前章节并取消受影响的旧预取。当前映射段 SpeechText 变化或被过滤时才停止当前音频并从段首重建会话；仅 DisplayText 变化时不中断音频；保持修改前播放/暂停状态。
-- [ ] **REGEX-008：接入现有位置相关音频缓存键。** 缓存键继续包含 bookId、chapterIndex、segmentIndex、ruleId、speakSpeed 和最终 SpeechText；不加入规则配置哈希，也不实现跨书籍或跨段落内容复用。
-- [ ] **REGEX-009：补齐正则替换自动测试。** 覆盖仓储、排序、字段级保存、作用范围、组合顺序、错误与超时、空结果、进度映射、播放状态保持、缓存键和页面交互。
-- [ ] **REGEX-010：完成正则替换手动验收和文档同步。** 使用广告过滤、符号朗读规范化、展示隐藏和语音跳过等代表规则验收；确认长章节、快速切段、规则连续编辑和重启恢复稳定。
+- [x] **REGEX-001：建立全局正则替换规则模型和数据库迁移。** 新增 `RegexReplacementRule`、`RegexReplacementScope` 和 `RegexReplacementRules` 表；字段包括稳定 ID、名称、启用、排序、Pattern、Replacement、Scope 和时间戳；不增加 BookId 或 RegexOptions。
+- [x] **REGEX-002：实现规则仓储和字段级更新。** 支持列表读取、新建、删除、启用即时保存、排序即时保存，以及右侧名称、Pattern、Replacement、Scope 字段级保存；右侧旧副本不得覆盖左侧状态。
+- [x] **REGEX-003：实现分段后的正则替换管线。** 对每个运行时段落分别生成 DisplayText 和 SpeechText；固定使用 `RegexOptions.CultureInvariant` 和每条规则每段 `100 ms` 超时；无效 Pattern 不允许保存，运行时错误跳过当前规则并记录安全错误状态。
+- [x] **REGEX-004：接入章节内容加载、正文展示和 TTS。** 正则替换在动态分段之后执行，不改变章节或段落原始偏移；展示、朗读和播放推进均消费处理后的运行时段落。
+- [x] **REGEX-005：实现空结果和进度映射。** 空 DisplayText 不显示，空 SpeechText 不请求 TTS，两者都为空时完全跳过；连续空段不会死循环；规则变更后根据原始字符偏移映射到最近可消费段。
+- [x] **REGEX-006：实现正则替换三级管理页。** 入口为“设置 → 导入与文本 → 正则替换”；左侧规则列表负责选择、启用、排序和错误状态，右侧编辑名称、Pattern、Replacement 和 Scope；不提供预览、导入、导出、默认规则、RegexOptions 或单本书范围。
+- [x] **REGEX-007：实现保存保护和当前章节即时刷新。** 左侧操作即时保存；右侧保存/取消并提供未保存修改保护；执行字段变化后重建当前章节并取消受影响的旧预取。当前映射段 SpeechText 变化或被过滤时才停止当前音频并从段首重建会话；仅 DisplayText 变化时不中断音频；保持修改前播放/暂停状态。
+- [x] **REGEX-008：接入现有位置相关音频缓存键。** 缓存键继续包含 bookId、chapterIndex、segmentIndex、ruleId、speakSpeed 和最终 SpeechText；不加入规则配置哈希，也不实现跨书籍或跨段落内容复用。
+- [x] **REGEX-009：补齐正则替换自动测试。** 覆盖仓储、排序、字段级保存、作用范围、组合顺序、错误与超时、空结果、进度映射、播放状态保持、缓存键和页面交互。
+- [~] **REGEX-010：完成正则替换手动验收和文档同步。** 已补充 [手动验收清单](13_REGEX_REPLACEMENT_MANUAL_ACCEPTANCE.md)；仍需在 Windows 10/11 上使用真实 TXT 与 HTTP TTS 服务执行并记录结果。
 
 ### Epic AB 验收
 
