@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release tag and main ancestry
+        shell: pwsh
+        run: |
+          if ('${{ github.ref_name }}' -notmatch '^v\d+\.\d+\.\d+$') { throw 'Release tags must use vX.Y.Z.' }
+          git fetch origin main
+          git merge-base --is-ancestor '${{ github.sha }}' origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'Release tag must point to a commit reachable from main.' }
+          "RELEASE_VERSION=${{ github.ref_name }}".Substring(1) | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore --locked-mode -r win-x64
+
+      - name: Format
+        run: dotnet format --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore -p:Version=${{ env.RELEASE_VERSION }} -p:AssemblyVersion=${{ env.RELEASE_VERSION }}.0 -p:FileVersion=${{ env.RELEASE_VERSION }}.0 -p:InformationalVersion=${{ env.RELEASE_VERSION }}
+
+      - name: Test
+        run: dotnet test -c Release --no-build
+
+      - name: Publish portable package
+        run: dotnet publish src/NovelSpeaker.App/NovelSpeaker.App.csproj -c Release -r win-x64 --self-contained true --no-restore -p:Version=${{ env.RELEASE_VERSION }} -p:AssemblyVersion=${{ env.RELEASE_VERSION }}.0 -p:FileVersion=${{ env.RELEASE_VERSION }}.0 -p:InformationalVersion=${{ env.RELEASE_VERSION }} -o artifacts/publish
+
+      - name: Package and verify
+        shell: pwsh
+        run: |
+          $zip = "artifacts/NovelSpeaker-v${{ env.RELEASE_VERSION }}-win-x64.zip"
+          Compress-Archive -Path artifacts/publish/* -DestinationPath $zip -Force
+          $entries = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip)).Entries.FullName
+          foreach ($required in @('NovelSpeaker.App.exe', 'LICENSE', 'THIRD-PARTY-NOTICES.txt')) {
+            if ($entries -notcontains $required) { throw "Package is missing $required" }
+          }
+          (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() + "  " + [System.IO.Path]::GetFileName($zip) | Out-File "$zip.sha256" -Encoding ascii
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create '${{ github.ref_name }}' 'artifacts/*.zip' 'artifacts/*.sha256' --generate-notes --title 'NovelSpeaker ${{ github.ref_name }}'
