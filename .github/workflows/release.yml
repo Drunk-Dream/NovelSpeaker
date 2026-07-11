@@ -24,7 +24,8 @@ jobs:
           git fetch origin main
           git merge-base --is-ancestor '${{ github.sha }}' origin/main
           if ($LASTEXITCODE -ne 0) { throw 'Release tag must point to a commit reachable from main.' }
-          "RELEASE_VERSION=${{ github.ref_name }}".Substring(1) | Out-File -FilePath $env:GITHUB_ENV -Append
+          $releaseVersion = '${{ github.ref_name }}'.Substring(1)
+          "RELEASE_VERSION=$releaseVersion" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
