@@ -219,6 +219,8 @@ dotnet build -c Release
 dotnet test -c Release
 ```
 
+发布自动化还应使用 `dotnet restore --locked-mode`，并在标签发布前验证便携 ZIP 包含应用程序、`LICENSE`、`THIRD-PARTY-NOTICES.txt` 和 SHA-256 校验和。
+
 另外手动验证：
 
 - 全新用户数据目录。
