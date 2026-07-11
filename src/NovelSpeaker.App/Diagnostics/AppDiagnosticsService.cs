@@ -1,6 +1,9 @@
 using System.Diagnostics;
+using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using NovelSpeaker.Application.Abstractions;
+using NovelSpeaker.Application.Settings;
 
 namespace NovelSpeaker.App.Diagnostics;
 
@@ -10,13 +13,16 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
 
     private readonly IAppDataDirectoryProvider _directories;
     private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly IAppSettingsService _settingsService;
 
     public AppDiagnosticsService(
         IAppDataDirectoryProvider directories,
-        ISqliteConnectionFactory connectionFactory)
+        ISqliteConnectionFactory connectionFactory,
+        IAppSettingsService settingsService)
     {
         _directories = directories;
         _connectionFactory = connectionFactory;
+        _settingsService = settingsService;
     }
 
     public async Task<AppDiagnosticsSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
@@ -49,6 +55,24 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
         return Task.CompletedTask;
     }
 
+    public async Task<string> GetRedactedSummaryAsync(CancellationToken cancellationToken)
+    {
+        var snapshot = await GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+
+        return string.Join(
+            Environment.NewLine,
+            $"应用：{snapshot.AppName}",
+            $"应用版本：{snapshot.AppVersion}",
+            $"数据库版本：{snapshot.DatabaseSchemaVersion}",
+            $"Windows：{RuntimeInformation.OSDescription}",
+            $".NET：{RuntimeInformation.FrameworkDescription}",
+            $"主题：{settings.Theme}",
+            $"日志级别：{settings.LogLevel}",
+            $"应用数据目录：{snapshot.AppDataDirectoryPath}",
+            $"日志目录：{snapshot.LogsDirectoryPath}");
+    }
+
     public Task OpenAppDataDirectoryAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -60,6 +84,24 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
         };
 
         Process.Start(info);
+        return Task.CompletedTask;
+    }
+
+    public Task OpenThirdPartyNoticesAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var noticesPath = Path.Combine(AppContext.BaseDirectory, "THIRD-PARTY-NOTICES.txt");
+        if (!File.Exists(noticesPath))
+        {
+            throw new FileNotFoundException("未找到第三方许可证文件。", noticesPath);
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = noticesPath,
+            UseShellExecute = true
+        });
         return Task.CompletedTask;
     }
 

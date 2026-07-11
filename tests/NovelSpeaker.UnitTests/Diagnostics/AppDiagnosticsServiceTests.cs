@@ -1,5 +1,7 @@
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.App.Diagnostics;
+using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 using Xunit;
@@ -29,7 +31,10 @@ public sealed class AppDiagnosticsServiceTests
             await command.ExecuteNonQueryAsync(CancellationToken.None);
         }
 
-        var service = new AppDiagnosticsService(directories, new SqliteConnectionFactory(directories));
+        var service = new AppDiagnosticsService(
+            directories,
+            new SqliteConnectionFactory(directories),
+            new FakeAppSettingsService(AppSettings.Default with { Theme = "Dark", LogLevel = "Warning" }));
 
         var snapshot = await service.GetSnapshotAsync(CancellationToken.None);
 
@@ -37,5 +42,21 @@ public sealed class AppDiagnosticsServiceTests
         Assert.Equal(4, snapshot.DatabaseSchemaVersion);
         Assert.Equal(root, snapshot.AppDataDirectoryPath);
         Assert.Equal(Path.Combine(root, "Logs"), snapshot.LogsDirectoryPath);
+
+        var summary = await service.GetRedactedSummaryAsync(CancellationToken.None);
+        Assert.Contains("主题：Dark", summary);
+        Assert.Contains("日志级别：Warning", summary);
+        Assert.DoesNotContain("Authorization", summary, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class FakeAppSettingsService : IAppSettingsService
+    {
+        private readonly AppSettings _settings;
+
+        public FakeAppSettingsService(AppSettings settings) => _settings = settings;
+
+        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(_settings);
+
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) => Task.FromResult(_settings);
     }
 }
