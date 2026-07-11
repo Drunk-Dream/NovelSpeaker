@@ -53,14 +53,33 @@ public sealed class DiagnosticsAboutViewModelTests
         Assert.Equal("打开日志目录失败", feedback.LastTitle);
     }
 
+    [Fact]
+    public async Task CopyRedactedSummaryCommand_copies_service_summary_and_notifies_user()
+    {
+        var clipboard = new FakeClipboardService();
+        var feedback = new FakeFeedbackService();
+        var viewModel = CreateViewModel(
+            new FakeDiagnosticsService(),
+            new FakeAppSettingsService(AppSettings.Default),
+            feedbackService: feedback,
+            clipboardService: clipboard);
+
+        await viewModel.CopyRedactedSummaryCommand.ExecuteAsync(null);
+
+        Assert.Equal("诊断摘要", clipboard.Text);
+        Assert.Equal("诊断摘要已复制", feedback.LastTitle);
+    }
+
     private static DiagnosticsAboutViewModel CreateViewModel(
         FakeDiagnosticsService diagnosticsService,
         FakeAppSettingsService settingsService,
-        FakeFeedbackService? feedbackService = null)
+        FakeFeedbackService? feedbackService = null,
+        FakeClipboardService? clipboardService = null)
     {
         return new DiagnosticsAboutViewModel(
             diagnosticsService,
             settingsService,
+            clipboardService ?? new FakeClipboardService(),
             new FakeNavigationService(),
             feedbackService ?? new FakeFeedbackService());
     }
@@ -90,6 +109,18 @@ public sealed class DiagnosticsAboutViewModelTests
             return Task.CompletedTask;
         }
 
+        public Task<string> GetRedactedSummaryAsync(CancellationToken cancellationToken) => Task.FromResult("诊断摘要");
+
+        public Task OpenThirdPartyNoticesAsync(CancellationToken cancellationToken)
+        {
+            if (OpenException is not null)
+            {
+                throw OpenException;
+            }
+
+            return Task.CompletedTask;
+        }
+
         public Task OpenAppDataDirectoryAsync(CancellationToken cancellationToken)
         {
             if (OpenException is not null)
@@ -99,6 +130,13 @@ public sealed class DiagnosticsAboutViewModelTests
 
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class FakeClipboardService : IClipboardService
+    {
+        public string? Text { get; private set; }
+
+        public void SetText(string text) => Text = text;
     }
 
     private sealed class FakeAppSettingsService : IAppSettingsService

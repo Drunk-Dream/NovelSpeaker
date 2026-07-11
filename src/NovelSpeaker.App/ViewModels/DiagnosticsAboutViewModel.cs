@@ -12,18 +12,21 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
 {
     private readonly IAppDiagnosticsService _diagnosticsService;
     private readonly IAppSettingsService _settingsService;
+    private readonly IClipboardService _clipboardService;
     private bool _isLoading;
     private int _logLevelVersion;
 
     public DiagnosticsAboutViewModel(
         IAppDiagnosticsService diagnosticsService,
         IAppSettingsService settingsService,
+        IClipboardService clipboardService,
         INavigationService navigationService,
         IAppFeedbackService feedbackService)
         : base(navigationService, feedbackService)
     {
         _diagnosticsService = diagnosticsService;
         _settingsService = settingsService;
+        _clipboardService = clipboardService;
     }
 
     public IReadOnlyList<string> AvailableLogLevels => AppSettings.SupportedLogLevels;
@@ -84,6 +87,40 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
         catch (Exception exception)
         {
             ShowSaveFailure("打开日志目录失败", exception);
+        }
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task CopyRedactedSummaryAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var summary = await _diagnosticsService.GetRedactedSummaryAsync(cancellationToken).ConfigureAwait(false);
+            _clipboardService.SetText(summary);
+            ShowSuccess("诊断摘要已复制", "已复制不含正文、规则和凭据的诊断摘要。");
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            ShowSaveFailure("复制诊断摘要失败", exception);
+        }
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task OpenThirdPartyNoticesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _diagnosticsService.OpenThirdPartyNoticesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            ShowSaveFailure("打开第三方许可证失败", exception);
         }
     }
 
