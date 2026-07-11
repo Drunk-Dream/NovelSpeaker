@@ -35,6 +35,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITextFilePicker, TextFilePicker>();
         services.AddSingleton<IKeyboardShortcutCoordinator, KeyboardShortcutCoordinator>();
         services.AddSingleton<IAppDiagnosticsService, AppDiagnosticsService>();
+        services.AddSingleton<IClipboardService, WpfClipboardService>();
         services.AddSingleton<IEncodingSelectionDialogService, EncodingSelectionDialogService>();
         services.AddSingleton<IImportProgressDialogService, ImportProgressDialogService>();
         services.AddSingleton<IBookDeleteDialogService, BookDeleteDialogService>();

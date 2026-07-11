@@ -10,6 +10,7 @@ using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Settings;
 using NovelSpeaker.App.Input;
 using NovelSpeaker.App.ViewModels;
+using NovelSpeaker.Infrastructure.Diagnostics;
 
 namespace NovelSpeaker.App;
 
@@ -78,6 +79,7 @@ public partial class App : System.Windows.Application
             builder.AddDebug();
         });
         services.AddNovelSpeakerInfrastructure();
+        services.AddSingleton<ILoggerProvider, RollingFileLoggerProvider>();
         services.AddNovelSpeakerDesktop();
 
         await ReportStartupStageAsync("dependency-injection", "正在创建服务容器。", "正在装配应用服务。");

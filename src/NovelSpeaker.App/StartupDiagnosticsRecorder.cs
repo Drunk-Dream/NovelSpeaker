@@ -1,6 +1,7 @@
 using System.Text;
 using System.IO;
 using NovelSpeaker.Application.Abstractions;
+using NovelSpeaker.Infrastructure.Speech;
 
 namespace NovelSpeaker.App;
 
@@ -37,13 +38,13 @@ public sealed class StartupDiagnosticsRecorder
             .Append("] ")
             .Append(stage)
             .Append(" - ")
-            .Append(message);
+            .Append(SensitiveDataRedactor.RedactPlainText(message));
 
         if (exception is not null)
         {
             builder
                 .Append(" (")
-                .Append(exception)
+                .Append(SensitiveDataRedactor.RedactPlainText(exception.ToString()))
                 .Append(')');
         }
 
