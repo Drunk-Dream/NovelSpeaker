@@ -110,6 +110,36 @@
                                       SelectedItem="{Binding SelectedLogLevel}" />
                         </StackPanel>
                     </Border>
+
+                    <Border x:Name="DiagnosticsSummaryItemBorder"
+                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="脱敏诊断摘要" />
+                            <TextBlock Margin="0,10,0,0"
+                                       Style="{StaticResource SecondaryTextBlockStyle}"
+                                       Text="仅包含版本、运行环境和目录信息，不包含小说正文、规则或凭据。"
+                                       TextWrapping="Wrap" />
+                            <Button Margin="0,10,0,0"
+                                    Width="180"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding CopyRedactedSummaryCommand}"
+                                    Content="复制脱敏诊断摘要" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="ThirdPartyNoticesItemBorder"
+                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
+                                       Text="第三方许可证" />
+                            <Button Margin="0,10,0,0"
+                                    Width="180"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding OpenThirdPartyNoticesCommand}"
+                                    Content="打开第三方许可证" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

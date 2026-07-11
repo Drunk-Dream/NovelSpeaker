@@ -36,6 +36,11 @@ public abstract partial class SettingsSubpageViewModelBase : ObservableObject
         _feedbackService.ShowProjectedNotification(title, projected);
     }
 
+    protected void ShowSuccess(string title, string message)
+    {
+        _feedbackService.ShowSuccess(title, message);
+    }
+
     public virtual Task LoadAsync(CancellationToken cancellationToken)
     {
         return Task.CompletedTask;

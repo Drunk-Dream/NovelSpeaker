@@ -228,6 +228,10 @@ public sealed class CacheAndDataViewModelTests
         public Task<AppDiagnosticsSnapshot> GetSnapshotAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task OpenAppDataDirectoryAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task OpenLogsDirectoryAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<string> GetRedactedSummaryAsync(CancellationToken cancellationToken) => Task.FromResult("诊断摘要");
+
+        public Task OpenThirdPartyNoticesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class FakeAppDialogService : IAppDialogService
