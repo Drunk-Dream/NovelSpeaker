@@ -1,0 +1,39 @@
+NovelSpeaker third-party notices
+
+This distribution includes third-party components. Their license terms remain applicable.
+
+Runtime dependencies
+--------------------
+CommunityToolkit.Mvvm 8.4.0 — MIT License
+Jint 4.2.0 — BSD 3-Clause License
+Acornima 1.1.1 — MIT License
+Microsoft.Data.Sqlite.Core 9.0.6 — MIT License
+Microsoft.Extensions.DependencyInjection 9.0.6 — MIT License
+Microsoft.Extensions.DependencyInjection.Abstractions 9.0.6 — MIT License
+Microsoft.Extensions.Logging 9.0.6 — MIT License
+Microsoft.Extensions.Logging.Abstractions 9.0.6 — MIT License
+Microsoft.Extensions.Logging.Debug 9.0.6 — MIT License
+Microsoft.Extensions.Options 9.0.6 — MIT License
+Microsoft.Extensions.Primitives 9.0.6 — MIT License
+NAudio 2.2.1 — MIT License
+NAudio.Asio 2.2.1 — MIT License
+NAudio.Core 2.2.1 — MIT License
+NAudio.Midi 2.2.1 — MIT License
+NAudio.Wasapi 2.2.1 — MIT License
+NAudio.WinForms 2.2.1 — MIT License
+NAudio.WinMM 2.2.1 — MIT License
+SQLitePCLRaw.bundle_winsqlite3 2.1.11 — Apache License 2.0
+SQLitePCLRaw.core 2.1.11 — Apache License 2.0
+SQLitePCLRaw.provider.winsqlite3 2.1.11 — Apache License 2.0
+Wpf.Ui 4.3.0 — MIT License
+WPF-UI.Abstractions 4.3.0 — MIT License
+
+Test-only dependencies
+----------------------
+Microsoft.NET.Test.Sdk 17.14.1 — MIT License
+xunit 2.9.3 — Apache License 2.0
+xunit.runner.visualstudio 3.1.3 — Apache License 2.0
+coverlet.collector 6.0.4 — MIT License
+
+The dependency lock files in this repository identify the resolved package graph.
+License metadata is reviewed from the corresponding NuGet package before every release.
