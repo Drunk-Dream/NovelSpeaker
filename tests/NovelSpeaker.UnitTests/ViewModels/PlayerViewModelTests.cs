@@ -459,64 +459,65 @@ public sealed class PlayerViewModelTests
     [Fact]
     public async Task Same_chapter_snapshot_sequence_preserves_segment_items_while_updating_current_segment()
     {
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
-            "book-1",
-            "示例小说",
-            0,
-            "第一章",
-            0,
-            3,
-            1,
-            "默认规则",
-            10,
-            0,
-            0,
-            null,
-            false,
-            false,
-            false,
-            "作者甲"));
-        var viewModel = CreateViewModel(
-            coordinator,
-            new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(
-                    0,
-                    "第一章",
-                    [
-                        new SpeechSegment(0, 0, 4, "第一段", "第一段"),
-                        new SpeechSegment(1, 4, 4, "第二段", "第二段"),
-                        new SpeechSegment(2, 8, 4, "第三段", "第三段")
-                    ])));
-
-        await viewModel.LoadAsync(CancellationToken.None);
-        await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
-            CancellationToken.None);
-
-        var originalItems = viewModel.Segments.ToArray();
-        var collectionChanges = new List<NotifyCollectionChangedAction>();
-        viewModel.Segments.CollectionChanged += (_, eventArgs) => collectionChanges.Add(eventArgs.Action);
-
-        coordinator.Publish(coordinator.CurrentSnapshot with
+        await WpfTestHost.RunInStaAsync(async () =>
         {
-            State = PlaybackState.Buffering,
-            SegmentIndex = 1,
-            SegmentCount = 3
+            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+                PlaybackState.Paused,
+                "book-1",
+                "示例小说",
+                0,
+                "第一章",
+                0,
+                3,
+                1,
+                "默认规则",
+                10,
+                0,
+                0,
+                null,
+                false,
+                false,
+                false,
+                "作者甲"));
+            var viewModel = CreateViewModel(
+                coordinator,
+                new FakeBookPlaybackContentService(
+                    new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
+                    new PlaybackChapterContent(
+                        0,
+                        "第一章",
+                        [
+                            new SpeechSegment(0, 0, 4, "第一段", "第一段"),
+                            new SpeechSegment(1, 4, 4, "第二段", "第二段"),
+                            new SpeechSegment(2, 8, 4, "第三段", "第三段")
+                        ])));
+
+            await viewModel.LoadAsync(CancellationToken.None);
+            await viewModel.HandleNavigationAsync(
+                new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+                CancellationToken.None);
+
+            var originalItems = viewModel.Segments.ToArray();
+            var collectionChanges = new List<NotifyCollectionChangedAction>();
+            viewModel.Segments.CollectionChanged += (_, eventArgs) => collectionChanges.Add(eventArgs.Action);
+
+            coordinator.Publish(coordinator.CurrentSnapshot with
+            {
+                State = PlaybackState.Buffering,
+                SegmentIndex = 1,
+                SegmentCount = 3
+            });
+            coordinator.Publish(coordinator.CurrentSnapshot with { State = PlaybackState.Preparing });
+            coordinator.Publish(coordinator.CurrentSnapshot with { State = PlaybackState.Playing });
+
+            Assert.Empty(collectionChanges);
+            Assert.Equal(originalItems.Length, viewModel.Segments.Count);
+            Assert.All(originalItems.Select((item, index) => (item, index)), pair =>
+                Assert.Same(pair.item, viewModel.Segments[pair.index]));
+            Assert.Same(originalItems[1], viewModel.CurrentSegmentItem);
+            Assert.True(viewModel.Segments[1].IsCurrent);
+            Assert.False(viewModel.Segments[0].IsCurrent);
         });
-        coordinator.Publish(coordinator.CurrentSnapshot with { State = PlaybackState.Preparing });
-        coordinator.Publish(coordinator.CurrentSnapshot with { State = PlaybackState.Playing });
-
-        await Task.Delay(20);
-
-        Assert.Empty(collectionChanges);
-        Assert.Equal(originalItems.Length, viewModel.Segments.Count);
-        Assert.All(originalItems.Select((item, index) => (item, index)), pair =>
-            Assert.Same(pair.item, viewModel.Segments[pair.index]));
-        Assert.Same(originalItems[1], viewModel.CurrentSegmentItem);
-        Assert.True(viewModel.Segments[1].IsCurrent);
-        Assert.False(viewModel.Segments[0].IsCurrent);
     }
 
     [Fact]
