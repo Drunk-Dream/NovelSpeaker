@@ -4,7 +4,10 @@ using System.Text.RegularExpressions;
 
 namespace NovelSpeaker.Infrastructure.Speech;
 
-internal static partial class SensitiveDataRedactor
+/// <summary>
+/// Removes credentials and user-provided text before diagnostic data leaves the request pipeline.
+/// </summary>
+public static partial class SensitiveDataRedactor
 {
     public static string RedactUrl(string url)
     {
@@ -27,7 +30,7 @@ internal static partial class SensitiveDataRedactor
                 }
 
                 var key = pair[..equalsIndex];
-                return IsSensitiveKey(key)
+                return IsSensitiveKey(key) || IsContentKey(key)
                     ? $"{key}=***"
                     : pair;
             });
@@ -71,6 +74,7 @@ internal static partial class SensitiveDataRedactor
             var separator = match.Groups["separator"].Value;
             return $"{key}{separator}***";
         });
+        redacted = ContentAssignmentPattern().Replace(redacted, "${key}${separator}***");
 
         return redacted;
     }
@@ -86,7 +90,9 @@ internal static partial class SensitiveDataRedactor
             .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 pair => pair.Key,
-                pair => IsSensitiveKey(pair.Key) ? "***" : pair.Value,
+                pair => IsSensitiveKey(pair.Key) || IsContentKey(pair.Key)
+                    ? "***"
+                    : RedactPlainText(pair.Value),
                 StringComparer.OrdinalIgnoreCase);
 
         return JsonSerializer.Serialize(ordered);
@@ -113,13 +119,25 @@ internal static partial class SensitiveDataRedactor
     public static bool IsSensitiveKey(string key)
     {
         return key.Contains("authorization", StringComparison.OrdinalIgnoreCase) ||
+               key.Contains("auth", StringComparison.OrdinalIgnoreCase) ||
                key.Contains("cookie", StringComparison.OrdinalIgnoreCase) ||
                key.Contains("token", StringComparison.OrdinalIgnoreCase) ||
                key.Contains("secret", StringComparison.OrdinalIgnoreCase) ||
                key.Contains("password", StringComparison.OrdinalIgnoreCase) ||
                key.Contains("login", StringComparison.OrdinalIgnoreCase) ||
+               key.Contains("credential", StringComparison.OrdinalIgnoreCase) ||
+               key.EndsWith("key", StringComparison.OrdinalIgnoreCase) ||
                key.Contains("api-key", StringComparison.OrdinalIgnoreCase) ||
                key.Contains("apikey", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsContentKey(string key)
+    {
+        return key.Equals("text", StringComparison.OrdinalIgnoreCase) ||
+               key.Equals("content", StringComparison.OrdinalIgnoreCase) ||
+               key.Equals("body", StringComparison.OrdinalIgnoreCase) ||
+               key.Equals("speakText", StringComparison.OrdinalIgnoreCase) ||
+               key.Equals("message", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void WriteRedactedElement(Utf8JsonWriter writer, string? propertyName, JsonElement element)
@@ -145,7 +163,8 @@ internal static partial class SensitiveDataRedactor
 
                 writer.WriteEndArray();
                 break;
-            case JsonValueKind.String when propertyName is not null && IsSensitiveKey(propertyName):
+            case JsonValueKind.String when propertyName is not null &&
+                                            (IsSensitiveKey(propertyName) || IsContentKey(propertyName)):
                 writer.WriteStringValue("***");
                 break;
             default:
@@ -159,4 +178,7 @@ internal static partial class SensitiveDataRedactor
 
     [GeneratedRegex(@"(?im)(?<key>[A-Za-z0-9_\-\.]*(authorization|cookie|token|secret|password|login|api[_\-]?key)[A-Za-z0-9_\-\.]*)\s*(?<separator>[:=])\s*[^\r\n&;, ]+")]
     private static partial Regex SensitiveAssignmentPattern();
+
+    [GeneratedRegex(@"(?im)(?<key>\b(speakText|text|body|content|message)\b)\s*(?<separator>[:=])\s*[^\r\n&;, ]+")]
+    private static partial Regex ContentAssignmentPattern();
 }

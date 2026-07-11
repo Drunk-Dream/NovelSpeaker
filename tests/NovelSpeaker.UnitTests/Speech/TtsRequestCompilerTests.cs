@@ -22,7 +22,7 @@ public sealed class TtsRequestCompilerTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal("GET", result.Request!.Method);
-        Assert.Equal("https://example.com/tts?token=***&text=test", result.Preview!.Url);
+        Assert.Equal("https://example.com/tts?token=***&text=***", result.Preview!.Url);
         Assert.Equal("""{"Accept":"*/*","Authorization":"***","User-Agent":"NovelSpeaker/1.0"}""", result.Preview.HeadersJson);
     }
 
