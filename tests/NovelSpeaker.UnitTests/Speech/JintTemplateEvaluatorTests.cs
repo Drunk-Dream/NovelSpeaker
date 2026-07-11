@@ -47,6 +47,28 @@ public sealed class JintTemplateEvaluatorTests
             NormalizedTemplate.Parse("{{System.IO.File.ReadAllText('test.txt')}}"),
             context,
             CancellationToken.None));
+
+        await Assert.ThrowsAnyAsync<Exception>(() => _evaluator.EvaluateAsync(
+            NormalizedTemplate.Parse("{{process.start('cmd.exe')}}"),
+            context,
+            CancellationToken.None));
+
+        await Assert.ThrowsAnyAsync<Exception>(() => _evaluator.EvaluateAsync(
+            NormalizedTemplate.Parse("{{typeof(System.Reflection.Assembly)}}"),
+            context,
+            CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_rejects_excessive_output()
+    {
+        var rule = CreateRule("安全规则", "https://example.com/tts");
+        var context = new TtsRuleContext("test", 10, rule);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _evaluator.EvaluateAsync(
+            NormalizedTemplate.Parse("{{'x'.repeat(9000)}}"),
+            context,
+            CancellationToken.None));
     }
 
     private static HttpTtsRule CreateRule(
