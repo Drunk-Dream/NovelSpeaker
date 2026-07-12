@@ -116,12 +116,13 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.Sqlite.Core": "[9.0.6, )",
-          "NovelSpeaker.Domain": "[0.1.0, )"
+          "NovelSpeaker.Domain": "[0.1.1, )"
         }
       },
       "novelspeaker.domain": {
         "type": "Project"
       }
-    }
+    },
+    "net10.0/win-x64": {}
   }
 }
