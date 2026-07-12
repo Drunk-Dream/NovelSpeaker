@@ -16,6 +16,7 @@ using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Navigation;
+using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.Player;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.App.Views;
@@ -614,7 +615,7 @@ public sealed class PlayerViewTests
     }
 
     [Fact]
-    public void PlayerView_auto_centering_keeps_current_segment_near_viewport_middle_instead_of_scrolling_to_bottom()
+    public void PlayerPage_first_navigation_centers_restored_current_segment_after_initial_layout()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -659,18 +660,17 @@ public sealed class PlayerViewTests
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator());
 
-            viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
-            viewModel.HandleNavigationAsync(
-                new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
-                CancellationToken.None).GetAwaiter().GetResult();
-
-            var view = new PlayerView
+            var page = new PlayerPage(viewModel)
             {
-                DataContext = viewModel,
+                DataContext = new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
             };
+
+            Assert.False(page.IsLoaded);
+            page.OnNavigatedToAsync().GetAwaiter().GetResult();
+            Assert.False(page.IsLoaded);
             var window = new Window
             {
-                Content = view,
+                Content = page,
                 Width = 1280,
                 Height = 760,
                 WindowStyle = WindowStyle.None,
@@ -682,15 +682,10 @@ public sealed class PlayerViewTests
             {
                 window.Show();
                 DoEvents();
-                view.UpdateLayout();
-
-                coordinator.Publish(coordinator.CurrentSnapshot with
-                {
-                    SegmentIndex = 40,
-                    SegmentCount = 90
-                });
+                page.UpdateLayout();
 
                 Pump(TimeSpan.FromMilliseconds(80));
+                var view = Assert.IsType<PlayerView>(VisualTreeTestHelper.FindDescendant<PlayerView>(page));
                 WaitUntil(() => !view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(1200));
                 view.UpdateLayout();
                 DoEvents();
@@ -1678,7 +1673,7 @@ public sealed class PlayerViewTests
             Chapters = chapters;
             Segments = segments;
             CurrentChapterItem = chapters.Count > 10 ? chapters[10] : chapters[0];
-            CurrentSegmentItem = segments.Count > 32 ? segments[32] : segments[0];
+            CurrentSegmentItem = (segments.Count > 32 ? segments[32] : segments[0])!;
             ShowReturnToCurrentSegment = showReturnToCurrentSegment;
             ShowPlaybackControls = showPlaybackControls;
             ShowNoRuleState = showNoRuleState;

@@ -24,7 +24,12 @@ public partial class PlayerView : UserControl
         _segmentAutoCenterController = new SegmentAutoCenterController(
             SegmentListBox,
             Dispatcher,
-            () => _segmentScrollViewer,
+            () =>
+            {
+                InitializeSegmentScrollViewer();
+                return _segmentScrollViewer;
+            },
+            () => IsLoaded && ActualHeight > 0 && SegmentListBox.ActualHeight > 0,
             () => _viewModel?.NotifyProgrammaticScrollStarted(),
             () => _viewModel?.NotifyProgrammaticScrollCompleted(),
             IsReducedMotionEnabled,
@@ -190,6 +195,16 @@ public partial class PlayerView : UserControl
         if (e.PropertyName == nameof(PlayerViewModel.CurrentChapterItem))
         {
             Dispatcher.BeginInvoke(EnsureCurrentChapterVisible, DispatcherPriority.Background);
+            return;
+        }
+
+        if (e.PropertyName == nameof(PlayerViewModel.CurrentSegmentItem))
+        {
+            if (_viewModel?.ShouldAutoCenterCurrentSegment == true)
+            {
+                RequestCurrentSegmentCentering(animate: false);
+            }
+
             return;
         }
 

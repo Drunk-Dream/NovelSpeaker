@@ -6,29 +6,34 @@ using System.Windows.Threading;
 namespace NovelSpeaker.App.Views;
 
 /// <summary>
-/// Owns the preview list's visual centering lifecycle. It only coordinates WPF layout and scrolling;
-/// playback state and user-browsing state remain outside this class.
+/// Owns the preview list's visual centering lifecycle. It retains the latest target until the
+/// view, scroll host, and virtualized item container are all ready for a reliable calculation.
+/// Playback state and user-browsing state remain outside this class.
 /// </summary>
 internal sealed class SegmentAutoCenterController
 {
     private readonly ListBox _segmentListBox;
     private readonly Dispatcher _dispatcher;
     private readonly Func<ScrollViewer?> _getScrollViewer;
+    private readonly Func<bool> _isViewReady;
     private readonly Action _programmaticScrollStarted;
     private readonly Action _programmaticScrollCompleted;
     private readonly Func<bool> _isReducedMotionEnabled;
     private readonly Func<TimeSpan> _getAnimationDuration;
 
     private DispatcherTimer? _animationTimer;
-    private EventHandler? _layoutUpdatedHandler;
+    private object? _pendingTargetItem;
+    private bool _pendingAnimate;
+    private bool _isEvaluationQueued;
+    private bool _areReadinessEventsAttached;
     private int _requestVersion;
     private int _programmaticScrollDepth;
-    private bool _isCenteringRequestPending;
 
     public SegmentAutoCenterController(
         ListBox segmentListBox,
         Dispatcher dispatcher,
         Func<ScrollViewer?> getScrollViewer,
+        Func<bool> isViewReady,
         Action programmaticScrollStarted,
         Action programmaticScrollCompleted,
         Func<bool> isReducedMotionEnabled,
@@ -37,6 +42,7 @@ internal sealed class SegmentAutoCenterController
         _segmentListBox = segmentListBox;
         _dispatcher = dispatcher;
         _getScrollViewer = getScrollViewer;
+        _isViewReady = isViewReady;
         _programmaticScrollStarted = programmaticScrollStarted;
         _programmaticScrollCompleted = programmaticScrollCompleted;
         _isReducedMotionEnabled = isReducedMotionEnabled;
@@ -45,7 +51,7 @@ internal sealed class SegmentAutoCenterController
 
     public bool HasActiveAnimation => _animationTimer is not null;
 
-    public bool IsSuppressingPassiveScroll => _isCenteringRequestPending || _programmaticScrollDepth > 0;
+    public bool IsSuppressingPassiveScroll => _pendingTargetItem is not null || _programmaticScrollDepth > 0;
 
     public void Request(object? targetItem, bool animate)
     {
@@ -55,45 +61,125 @@ internal sealed class SegmentAutoCenterController
             return;
         }
 
-        var requestVersion = ++_requestVersion;
-        _isCenteringRequestPending = true;
-        _dispatcher.BeginInvoke(
-            DispatcherPriority.Loaded,
-            new Action(() => CenterTarget(requestVersion, targetItem, animate)));
+        _pendingTargetItem = targetItem;
+        _pendingAnimate = animate;
+        _requestVersion++;
+        AttachReadinessEvents();
+        ScheduleEvaluation();
     }
 
     public void Cancel()
     {
         _requestVersion++;
-        _isCenteringRequestPending = false;
-        CancelLayoutWait();
+        _pendingTargetItem = null;
+        _isEvaluationQueued = false;
+        DetachReadinessEvents();
         StopAnimation();
     }
 
-    private void CenterTarget(int requestVersion, object targetItem, bool animate)
+    private void AttachReadinessEvents()
     {
-        if (!IsCurrentRequest(requestVersion))
+        if (_areReadinessEventsAttached)
+        {
+            return;
+        }
+
+        _segmentListBox.Loaded += SegmentListBox_OnReadinessChanged;
+        _segmentListBox.SizeChanged += SegmentListBox_OnReadinessChanged;
+        _segmentListBox.LayoutUpdated += SegmentListBox_OnLayoutUpdated;
+        _segmentListBox.ItemContainerGenerator.StatusChanged += ItemContainerGenerator_OnStatusChanged;
+        _areReadinessEventsAttached = true;
+    }
+
+    private void DetachReadinessEvents()
+    {
+        if (!_areReadinessEventsAttached)
+        {
+            return;
+        }
+
+        _segmentListBox.Loaded -= SegmentListBox_OnReadinessChanged;
+        _segmentListBox.SizeChanged -= SegmentListBox_OnReadinessChanged;
+        _segmentListBox.LayoutUpdated -= SegmentListBox_OnLayoutUpdated;
+        _segmentListBox.ItemContainerGenerator.StatusChanged -= ItemContainerGenerator_OnStatusChanged;
+        _areReadinessEventsAttached = false;
+    }
+
+    private void SegmentListBox_OnReadinessChanged(object sender, RoutedEventArgs e)
+    {
+        ScheduleEvaluation();
+    }
+
+    private void SegmentListBox_OnReadinessChanged(object sender, SizeChangedEventArgs e)
+    {
+        ScheduleEvaluation();
+    }
+
+    private void SegmentListBox_OnLayoutUpdated(object? sender, EventArgs e)
+    {
+        ScheduleEvaluation();
+    }
+
+    private void ItemContainerGenerator_OnStatusChanged(object? sender, EventArgs e)
+    {
+        ScheduleEvaluation();
+    }
+
+    private void ScheduleEvaluation()
+    {
+        if (_pendingTargetItem is null || _isEvaluationQueued)
+        {
+            return;
+        }
+
+        _isEvaluationQueued = true;
+        var requestVersion = _requestVersion;
+        _dispatcher.BeginInvoke(
+            DispatcherPriority.Loaded,
+            new Action(() =>
+            {
+                _isEvaluationQueued = false;
+                TryCenter(requestVersion);
+            }));
+    }
+
+    private void TryCenter(int requestVersion)
+    {
+        if (!IsCurrentRequest(requestVersion) || _pendingTargetItem is null)
+        {
+            return;
+        }
+
+        if (!_isViewReady())
         {
             return;
         }
 
         var scrollViewer = _getScrollViewer();
-        if (scrollViewer is null)
+        if (scrollViewer is null || scrollViewer.ViewportHeight <= 0)
         {
-            _isCenteringRequestPending = false;
             return;
         }
 
+        var targetItem = _pendingTargetItem;
         var container = _segmentListBox.ItemContainerGenerator.ContainerFromItem(targetItem) as FrameworkElement;
-        if (container is null || container.ActualHeight <= 0 || scrollViewer.ViewportHeight <= 0)
+        if (container is null || container.ActualHeight <= 0)
         {
-            MoveTargetNearViewportCenter(targetItem, scrollViewer);
-            WaitForLayout(requestVersion, targetItem, animate);
+            if (_segmentListBox.Items.Contains(targetItem))
+            {
+                _segmentListBox.ScrollIntoView(targetItem);
+            }
+            else
+            {
+                CompletePendingRequest();
+            }
+
             return;
         }
 
         var targetOffset = CalculateCenteredOffset(container, scrollViewer);
-        _isCenteringRequestPending = false;
+        var animate = _pendingAnimate;
+        CompletePendingRequest();
 
         if (!animate || _isReducedMotionEnabled() || Math.Abs(targetOffset - scrollViewer.VerticalOffset) < 0.5d)
         {
@@ -104,73 +190,11 @@ internal sealed class SegmentAutoCenterController
         StartAnimation(requestVersion, scrollViewer, targetOffset);
     }
 
-    private void MoveTargetNearViewportCenter(object targetItem, ScrollViewer scrollViewer)
+    private void CompletePendingRequest()
     {
-        var targetIndex = _segmentListBox.Items.IndexOf(targetItem);
-        if (targetIndex < 0)
-        {
-            _isCenteringRequestPending = false;
-            return;
-        }
-
-        var (anchorIndex, anchorTop, estimatedItemHeight) = FindVisibleAnchor(scrollViewer);
-        var estimatedTargetOffset = scrollViewer.VerticalOffset +
-                                    anchorTop +
-                                    ((targetIndex - anchorIndex) * estimatedItemHeight) -
-                                    (scrollViewer.ViewportHeight / 2d);
-        var clampedOffset = Math.Clamp(estimatedTargetOffset, 0d, scrollViewer.ScrollableHeight);
-
-        if (Math.Abs(clampedOffset - scrollViewer.VerticalOffset) >= 0.5d)
-        {
-            RunProgrammaticScroll(() => scrollViewer.ScrollToVerticalOffset(clampedOffset));
-        }
-    }
-
-    private (int Index, double Top, double ItemHeight) FindVisibleAnchor(ScrollViewer scrollViewer)
-    {
-        var totalHeight = 0d;
-        var measuredCount = 0;
-        var anchorIndex = 0;
-        var anchorTop = 0d;
-
-        for (var index = 0; index < _segmentListBox.Items.Count; index++)
-        {
-            if (_segmentListBox.ItemContainerGenerator.ContainerFromIndex(index) is not FrameworkElement container ||
-                container.ActualHeight <= 0)
-            {
-                continue;
-            }
-
-            if (measuredCount == 0)
-            {
-                anchorIndex = index;
-                anchorTop = container.TranslatePoint(new Point(0, 0), scrollViewer).Y;
-            }
-
-            totalHeight += container.ActualHeight;
-            measuredCount++;
-        }
-
-        return measuredCount > 0
-            ? (anchorIndex, anchorTop, totalHeight / measuredCount)
-            : (0, 0d, 88d);
-    }
-
-    private void WaitForLayout(int requestVersion, object targetItem, bool animate)
-    {
-        CancelLayoutWait();
-        _layoutUpdatedHandler = (_, _) =>
-        {
-            CancelLayoutWait();
-            if (IsCurrentRequest(requestVersion))
-            {
-                _dispatcher.BeginInvoke(
-                    DispatcherPriority.Render,
-                    new Action(() => CenterTarget(requestVersion, targetItem, animate)));
-            }
-        };
-
-        _segmentListBox.LayoutUpdated += _layoutUpdatedHandler;
+        _pendingTargetItem = null;
+        _pendingAnimate = false;
+        DetachReadinessEvents();
     }
 
     private void StartAnimation(int requestVersion, ScrollViewer scrollViewer, double targetOffset)
@@ -209,7 +233,7 @@ internal sealed class SegmentAutoCenterController
         timer.Start();
     }
 
-    private double CalculateCenteredOffset(FrameworkElement container, ScrollViewer scrollViewer)
+    private static double CalculateCenteredOffset(FrameworkElement container, ScrollViewer scrollViewer)
     {
         var top = container.TranslatePoint(new Point(0, 0), scrollViewer).Y;
         var targetOffset = scrollViewer.VerticalOffset +
@@ -219,17 +243,6 @@ internal sealed class SegmentAutoCenterController
     }
 
     private bool IsCurrentRequest(int requestVersion) => requestVersion == _requestVersion;
-
-    private void CancelLayoutWait()
-    {
-        if (_layoutUpdatedHandler is null)
-        {
-            return;
-        }
-
-        _segmentListBox.LayoutUpdated -= _layoutUpdatedHandler;
-        _layoutUpdatedHandler = null;
-    }
 
     private void RunProgrammaticScroll(Action action)
     {
