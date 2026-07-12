@@ -116,6 +116,50 @@ public sealed class PlayerViewModelTests
     }
 
     [Fact]
+    public async Task HandleNavigationAsync_restored_session_projects_current_segment_without_view_lifecycle_state()
+    {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            1,
+            3,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            false,
+            "作者甲"));
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
+                new PlaybackChapterContent(
+                    0,
+                    "第一章",
+                    [
+                        new SpeechSegment(0, 0, 3, "第一段", "第一段"),
+                        new SpeechSegment(1, 3, 3, "第二段", "第二段"),
+                        new SpeechSegment(2, 6, 3, "第三段", "第三段")
+                    ])));
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
+
+        Assert.NotNull(viewModel.CurrentSegmentItem);
+        Assert.Equal(1, viewModel.CurrentSegmentItem!.SegmentIndex);
+        Assert.False(viewModel.ShowReturnToCurrentSegment);
+    }
+
+    [Fact]
     public async Task HandleNavigationAsync_targeted_chapter_on_same_playing_book_keeps_playing_and_jumps()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
