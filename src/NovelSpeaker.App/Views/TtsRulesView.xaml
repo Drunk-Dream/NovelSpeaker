@@ -418,10 +418,50 @@
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
                             <StackPanel>
-                                <TextBlock Style="{StaticResource StrongTextBlockStyle}" Text="基础字段" />
+                                <TextBlock Style="{StaticResource StrongTextBlockStyle}" Text="从零开始" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="名称和请求 URL / 模板为必填。URL、Header 和请求体支持 {{ ... }} 模板表达式。"
+                                           Text="先新建规则，填写名称和服务商提供的完整 HTTP/HTTPS 地址；再选择 GET 或 POST，填入服务要求的参数，保存后点击“试听”。试听成功后再设为当前规则。"
+                                           TextWrapping="Wrap" />
+
+                                <TextBlock Margin="0,18,0,0"
+                                           Style="{StaticResource StrongTextBlockStyle}"
+                                           Text="GET 示例" />
+                                <TextBlock Margin="0,8,0,0"
+                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                           Text="适用于服务把文本和语速放在 URL 查询参数中的情况。将地址替换为你的服务地址，保留模板部分。"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Margin="0,8,0,0"
+                                           FontFamily="Consolas"
+                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                           TextWrapping="Wrap">https://example.com/tts?text={{encodeURIComponent(speakText)}}&amp;speed={{speakSpeed}}</TextBlock>
+
+                                <TextBlock Margin="0,18,0,0"
+                                           Style="{StaticResource StrongTextBlockStyle}"
+                                           Text="POST JSON 示例" />
+                                <TextBlock Margin="0,8,0,0"
+                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                           Text="请求方法选择 POST；Header 添加 Content-Type：application/json；请求体填写以下内容。JSON.stringify 会正确处理文本中的引号和换行。"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Margin="0,8,0,0"
+                                           FontFamily="Consolas"
+                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                           TextWrapping="Wrap">{{&quot;text&quot;:{{JSON.stringify(speakText)}},&quot;speed&quot;:{{speakSpeed}}}}</TextBlock>
+
+                                <TextBlock Margin="0,18,0,0"
+                                           Style="{StaticResource StrongTextBlockStyle}"
+                                           Text="字段怎么填" />
+                                <TextBlock Margin="0,8,0,0"
+                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                           Text="名称和 URL 必填，URL 必须是绝对地址。Content-Type 用来声明期望返回的音频类型，例如 audio/mpeg；它不是请求体格式。Header 可填写鉴权信息，但不要在截图、导出内容或日志中泄露密钥。请求体只用于 POST。"
+                                           TextWrapping="Wrap" />
+
+                                <TextBlock Margin="0,18,0,0"
+                                           Style="{StaticResource StrongTextBlockStyle}"
+                                           Text="Header、请求体与限流" />
+                                <TextBlock Margin="0,8,0,0"
+                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                           Text="请求体格式由 Header 中的 Content-Type 决定：application/json 发送 JSON，application/x-www-form-urlencoded 发送表单，其它类型按原始文本发送。GET 不能携带请求体。并发限制可留空；1000 表示两次请求至少间隔 1000 毫秒，2/1000 表示 1000 毫秒内最多 2 次请求。"
                                            TextWrapping="Wrap" />
 
                                 <TextBlock Margin="0,18,0,0"
@@ -429,39 +469,31 @@
                                            Text="模板表达式" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="可使用 speakText、speakSpeed，以及 encodeURIComponent 等白名单函数。表达式执行失败会导致保存或试听失败。"
+                                           Text="URL、Header 和请求体都可使用 {{ JavaScript 表达式 }}。可用值有 speakText、speakSpeed，以及只读的 source.name、source.url、source.contentType、source.concurrentRate。可使用 JSON、Math、Date、encodeURI、encodeURIComponent，也兼容 java.encodeURI 和 java.encodeURIComponent。模板只能写表达式，不能写多条语句。"
                                            TextWrapping="Wrap" />
 
                                 <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
-                                           Text="Header 与请求体" />
+                                           Text="不支持的模板能力" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="Header 会在保存与试听前做结构化校验。GET 请求不能携带 body；请求体仅在 POST 时生效。"
+                                           Text="不支持 Cookie、source.get/put、其它 java.* 辅助函数，也不能访问 CLR、文件、进程或网络。包含这些能力的导入规则需要改写，或无法导入。"
                                            TextWrapping="Wrap" />
 
                                 <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
-                                           Text="试听" />
+                                           Text="试听与导入" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="试听固定使用“你好，欢迎试听。”和当前默认语速。未保存草稿可以直接试听，但不会自动保存；再次试听会取消旧请求。"
+                                           Text="试听固定使用“你好，欢迎试听。”和当前默认语速。未保存的草稿可以直接试听，不会自动保存；再次试听会取消上一次请求。导入支持单个 JSON 对象或数组，只保留名称、URL、Content-Type、并发限制、Header、启用状态和请求方法/请求体；未知字段会丢弃。"
                                            TextWrapping="Wrap" />
 
                                 <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
-                                           Text="导入限制" />
+                                           Text="失败时按这个顺序检查" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="支持单个对象和数组；多余字段会被丢弃；缺少必填字段、字段类型错误或模板无法解析时，该项会记为失败；完全重复项会跳过；同名不同内容会自动改名。"
-                                           TextWrapping="Wrap" />
-
-                                <TextBlock Margin="0,18,0,0"
-                                           Style="{StaticResource StrongTextBlockStyle}"
-                                           Text="常见错误" />
-                                <TextBlock Margin="0,8,0,0"
-                                           Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="常见问题包括：URL 不是绝对地址、模板括号未闭合、Header 重复键、GET 携带 body、并发限制格式错误。"
+                                           Text="先确认 URL 是完整地址和请求方法正确；再检查 {{ }} 是否闭合、Header 名称是否重复、GET 是否误填请求体，以及并发限制是否为 1000 或 2/1000 这类格式。若服务返回鉴权错误，请核对 Header 的值，但不要把密钥发到日志或反馈中。"
                                            TextWrapping="Wrap" />
                             </StackPanel>
                         </ScrollViewer>

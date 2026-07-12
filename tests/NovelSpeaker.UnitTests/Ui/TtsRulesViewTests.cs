@@ -116,6 +116,35 @@ public sealed partial class TtsRulesViewTests
     }
 
     [Fact]
+    public void TtsRulesView_help_drawer_contains_guided_get_and_post_examples()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new TtsRulesView
+            {
+                DataContext = new TtsRulesViewLayoutContext
+                {
+                    IsHelpDrawerOpen = true
+                }
+            };
+
+            view.Measure(new Size(1000, 700));
+            view.Arrange(new Rect(0, 0, 1000, 700));
+            view.UpdateLayout();
+
+            var helpTexts = FindDescendants<TextBlock>(view, _ => true)
+                .Select(textBlock => textBlock.Text)
+                .ToHashSet(StringComparer.Ordinal);
+
+            Assert.Contains("从零开始", helpTexts);
+            Assert.Contains("GET 示例", helpTexts);
+            Assert.Contains("POST JSON 示例", helpTexts);
+            Assert.Contains("https://example.com/tts?text={{encodeURIComponent(speakText)}}&speed={{speakSpeed}}", helpTexts);
+            Assert.Contains("失败时按这个顺序检查", helpTexts);
+        });
+    }
+
+    [Fact]
     public void TtsRulesView_keeps_both_panes_visible_at_minimum_supported_width()
     {
         WpfTestHost.RunInSta(() =>
@@ -255,6 +284,24 @@ public sealed partial class TtsRulesViewTests
         }
 
         return null;
+    }
+
+    private static IEnumerable<T> FindDescendants<T>(DependencyObject root, Func<T, bool> predicate)
+        where T : DependencyObject
+    {
+        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
+        {
+            var child = VisualTreeHelper.GetChild(root, childIndex);
+            if (child is T typed && predicate(typed))
+            {
+                yield return typed;
+            }
+
+            foreach (var descendant in FindDescendants(child, predicate))
+            {
+                yield return descendant;
+            }
+        }
     }
 
     private sealed partial class TtsRulesViewLayoutContext : ObservableObject
