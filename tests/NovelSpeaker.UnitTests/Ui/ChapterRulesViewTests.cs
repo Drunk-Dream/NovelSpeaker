@@ -140,6 +140,34 @@ public sealed partial class ChapterRulesViewTests
     }
 
     [Fact]
+    public void ChapterRulesView_help_drawer_explains_matching_order_and_regex_starting_point()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new ChapterRulesView
+            {
+                DataContext = new ChapterRulesViewLayoutContext
+                {
+                    IsHelpDrawerOpen = true
+                }
+            };
+
+            view.Measure(new Size(1000, 700));
+            view.Arrange(new Rect(0, 0, 1000, 700));
+            view.UpdateLayout();
+
+            var helpTexts = FindDescendants<TextBlock>(view, _ => true)
+                .Select(textBlock => textBlock.Text)
+                .ToHashSet(StringComparer.Ordinal);
+
+            Assert.Contains("规则如何生效", helpTexts);
+            Assert.Contains("从一个规则开始", helpTexts);
+            Assert.Contains(@"^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$", helpTexts);
+            Assert.Contains("排序与误识别", helpTexts);
+        });
+    }
+
+    [Fact]
     public void ChapterRulesView_marks_drag_target_visually()
     {
         WpfTestHost.RunInSta(() =>

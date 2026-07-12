@@ -378,50 +378,55 @@
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
                             <StackPanel>
-                                <TextBlock Style="{StaticResource StrongTextBlockStyle}" Text="作用范围" />
+                                <TextBlock Style="{StaticResource StrongTextBlockStyle}" Text="规则如何生效" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="章节规则只用于识别章节标题，不参与正文正则替换，也不会直接修改已导入的 content.txt。"
+                                           Text="导入 TXT 时，应用会逐行检查标题。只使用已启用的规则，并按列表排序从前到后尝试；一行被第一个规则命中后，就会成为章节标题，该标题行不会进入章节正文。若完全没有识别到章节，会将整本书作为“全文”单章导入。"
                                            TextWrapping="Wrap" />
 
                                 <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
-                                           Text="正则基本写法" />
+                                           Text="从一个规则开始" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="建议使用 ^ 和 $ 约束整行，避免误匹配正文。保存前会按 CultureInvariant 规则即时校验。"
+                                           Text="名称可写“中文章节”。正则可从下面的模式开始，再按小说标题调整："
+                                           TextWrapping="Wrap" />
+                                <TextBlock Margin="0,8,0,0"
+                                           FontFamily="Consolas"
+                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                           Text="^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$"
                                            TextWrapping="Wrap" />
 
                                 <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
-                                           Text="标题示例" />
+                                           Text="正则小抄" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="常见标题包括“第一章 初见”“第十卷 风起”“序章”“后记”“番外 特别篇”等。"
+                                           Text="^ 和 $ 分别限定行首、行尾，建议同时使用以免正文中的短语被误判；\s* 匹配可有可无的空白；(?:甲|乙) 表示匹配其中之一；(?:\s+.+)? 表示可选的标题副标题。保存时会按 CultureInvariant 规则校验正则是否有效。"
                                            TextWrapping="Wrap" />
 
                                 <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
-                                           Text="排序优先级" />
+                                           Text="内置规则覆盖什么" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="规则按排序从前到后依次尝试；越具体的规则应放在越前面，避免被宽泛规则提前命中。"
+                                           Text="默认规则分别识别“第一章 初见”这类章节数字标题、“第十卷 风起”这类卷标，以及“序章”“楔子”“前言”“尾声”“后记”“番外 特别篇”等独立标题。它们可以编辑、启用和排序，但不能删除。"
                                            TextWrapping="Wrap" />
 
                                 <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
-                                           Text="内置规则限制" />
+                                           Text="排序与误识别" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="内置规则可以编辑、启用和排序，但不能删除；如需回到初始配置，请使用“恢复默认”。"
+                                           Text="越具体的规则应排在越前面，宽泛规则放在后面。若正文被误识别为标题，先加入 ^ 和 $，再收紧“第…章”等必要文字；若有标题漏掉，新建对应规则并上移到可能抢先命中的宽泛规则之前。"
                                            TextWrapping="Wrap" />
 
                                 <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
-                                           Text="误识别处理" />
+                                           Text="与正文正则替换的区别" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="若章节被误判，可先收紧正则条件，再把更具体的规则上移；恢复默认不会删除你的自定义规则。"
+                                           Text="章节规则只负责划分章节，不参与“正则替换”中的正文清理，也不会直接修改已导入的 content.txt。需要恢复初始内置配置时使用“恢复默认”；它不会删除你的自定义规则。"
                                            TextWrapping="Wrap" />
                             </StackPanel>
                         </ScrollViewer>
