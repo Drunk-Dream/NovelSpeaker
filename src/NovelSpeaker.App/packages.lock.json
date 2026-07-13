@@ -134,7 +134,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.Sqlite.Core": "[9.0.6, )",
-          "NovelSpeaker.Domain": "[0.1.1, )"
+          "NovelSpeaker.Domain": "[0.1.2, )"
         }
       },
       "novelspeaker.domain": {
@@ -148,8 +148,8 @@
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[9.0.6, )",
           "Microsoft.Extensions.Logging.Abstractions": "[9.0.6, )",
           "NAudio": "[2.2.1, )",
-          "NovelSpeaker.Application": "[0.1.1, )",
-          "NovelSpeaker.Domain": "[0.1.1, )",
+          "NovelSpeaker.Application": "[0.1.2, )",
+          "NovelSpeaker.Domain": "[0.1.2, )",
           "SQLitePCLRaw.bundle_winsqlite3": "[2.1.11, )"
         }
       },

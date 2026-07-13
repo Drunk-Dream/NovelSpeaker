@@ -116,7 +116,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.Sqlite.Core": "[9.0.6, )",
-          "NovelSpeaker.Domain": "[0.1.1, )"
+          "NovelSpeaker.Domain": "[0.1.2, )"
         }
       },
       "novelspeaker.domain": {
