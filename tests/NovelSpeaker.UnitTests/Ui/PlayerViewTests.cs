@@ -71,6 +71,7 @@ public sealed class PlayerViewTests
 
             Assert.True(chaptersListBox.ActualHeight > 0);
             Assert.True(segmentListBox.ActualHeight > 0);
+            Assert.Equal(ScrollUnit.Pixel, VirtualizingPanel.GetScrollUnit(chaptersListBox));
 
             var chaptersScrollViewer = VisualTreeTestHelper.FindDescendant<ScrollViewer>(chaptersListBox);
             var segmentsScrollViewer = VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentListBox);
