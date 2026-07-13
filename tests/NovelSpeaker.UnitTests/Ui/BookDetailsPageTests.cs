@@ -64,6 +64,7 @@ public sealed class BookDetailsPageTests
 
                 Assert.False(page.Content is ScrollViewer);
                 Assert.True(ScrollViewer.GetCanContentScroll(chaptersListBox));
+                Assert.Equal(ScrollUnit.Pixel, VirtualizingPanel.GetScrollUnit(chaptersListBox));
                 Assert.True(chaptersScrollViewer.ScrollableHeight > 0, layoutSnapshot);
                 Assert.Equal(frame.ActualHeight, rootViewport.Height, 3);
                 Assert.True(GetBoundsRelativeToRoot(chaptersListBox, page).Bottom <= rootViewport.ActualHeight, layoutSnapshot);
