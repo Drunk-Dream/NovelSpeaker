@@ -1,8 +1,24 @@
 # 数据模型与持久化
 
-## 应用数据目录
+## 1. 文档定位
 
-建议：
+本文定义 NovelSpeaker 的数据所有权、当前兼容 schema 和持久化终态约束。架构重组不得改写已发布迁移、破坏现有用户数据，或把 SQLite/文件系统细节重新泄露到 Application。需要新增迁移、恢复日志或路径格式时，实施步骤写入 `TASK_BACKLOG.md`。
+
+## 2. 数据所有权
+
+| 数据 | 真相源 | 说明 |
+|---|---|---|
+| 书籍、章节元数据 | SQLite | 章节正文不存入数据库 |
+| 规范化小说正文 | `Books/<book-id>/content.txt` | UTF-8，章节偏移基于此文件的字符位置 |
+| 阅读进度 | SQLite | 同时保存段落索引、原始字符偏移和段内时间 |
+| 章节规则、正则规则、TTS 规则 | SQLite | 保存结构化字段，不保存原始导入 JSON |
+| 音频文件 | `Cache/Tts` | 数据库只保存索引和统计元数据 |
+| 非敏感设置 | `settings.json` | 启动时加载为内存快照，保存采用原子替换 |
+| 日志 | `Logs` | 滚动、脱敏，不包含正文或凭据 |
+
+SQLite 与文件系统无法共享真正的原子事务。跨两者的导入、删除和缓存写入必须使用暂存、操作状态和幂等恢复协议，不能仅以“数据库事务成功”宣称整体操作原子。
+
+## 3. 应用数据目录
 
 ```text
 %LocalAppData%\NovelSpeaker\
@@ -13,15 +29,38 @@
 │     └─ content.txt
 ├─ Cache\
 │  └─ Tts\
-│     ├─ ab\
-│     │  └─ <sha256>.mp3
-│     └─ ...
+│     └─ <shard>\<cache-key>.<extension>
+├─ Operations\
+│  └─ 跨数据库/文件操作恢复记录
 └─ Logs\
 ```
 
-## 数据库表
+路径要求：
 
-### Books
+- 新的持久化模型优先保存相对于应用数据根目录的 storage key，而不是任意绝对路径。
+- 读取旧绝对路径记录时必须通过集中路径解析器做规范化、根目录包含检查和迁移兼容。
+- 删除、移动和覆盖文件前必须确认目标位于应用数据根目录内，并定义符号链接/reparse point 策略。
+- 用户最初选择的外部 TXT 只读，导入和删除永远不能修改它。
+- 路径格式调整必须新增迁移或兼容读取，不能改写已发布迁移 SQL。
+
+## 4. 当前 SQLite 兼容基线
+
+当前代码的 `CurrentSchemaVersion` 为 `5`，最低支持版本为 `4`。版本 `1–3` 会拒绝启动并要求清理旧数据；高于应用支持版本的数据库也必须拒绝启动，不能按旧代码继续写入。
+
+已发布的迁移 `4` 和 `5` 是兼容资产，只能追加迁移，不能为整理代码而编辑、合并或重编号。
+
+### 4.1 SchemaVersion 与 AppMetadata
+
+```text
+SchemaVersion
+Version INTEGER PRIMARY KEY
+
+AppMetadata
+Key TEXT PRIMARY KEY
+Value TEXT NULL
+```
+
+### 4.2 Books
 
 ```text
 Id TEXT PRIMARY KEY
@@ -29,7 +68,7 @@ Title TEXT NOT NULL
 Author TEXT NULL
 OriginalFileName TEXT NOT NULL
 StoredFilePath TEXT NOT NULL
-SourceHash TEXT NOT NULL
+SourceHash TEXT NOT NULL UNIQUE
 Encoding TEXT NOT NULL
 ImportedAt TEXT NOT NULL
 UpdatedAt TEXT NOT NULL
@@ -37,35 +76,50 @@ LastImportedAt TEXT NULL
 LastPlayedAt TEXT NULL
 ```
 
-`StoredFilePath` 指向该书规范化后的 UTF-8 正文文件 `content.txt`。
+`StoredFilePath` 当前为兼容字段。终态所有使用都必须经过应用存储路径解析器；后续迁移可增加 storage key，但不得让旧记录失效。
 
-### Chapters
+### 4.3 Chapters
 
 ```text
 Id TEXT PRIMARY KEY
-BookId TEXT NOT NULL
+BookId TEXT NOT NULL REFERENCES Books(Id) ON DELETE CASCADE
 ChapterIndex INTEGER NOT NULL
 SortOrder INTEGER NOT NULL
 Title TEXT NOT NULL
-StartOffset INTEGER NOT NULL
-Length INTEGER NOT NULL
+StartOffset INTEGER NOT NULL CHECK(StartOffset >= 0)
+Length INTEGER NOT NULL CHECK(Length > 0)
 UNIQUE(BookId, ChapterIndex)
 ```
 
-章节正文不再存入 SQLite。`StartOffset` 和 `Length` 基于 `content.txt` 中规范化后的全文字符偏移。
+`StartOffset` 和 `Length` 基于规范化 `content.txt` 的字符偏移。正文不存入 SQLite。
 
-### ReadingProgress
+### 4.4 ChapterRules
 
 ```text
-BookId TEXT PRIMARY KEY
-ChapterIndex INTEGER NOT NULL
-SegmentIndex INTEGER NOT NULL
-CharacterOffset INTEGER NOT NULL
-AudioPositionMilliseconds INTEGER NOT NULL
+Id TEXT PRIMARY KEY
+Name TEXT NOT NULL
+Pattern TEXT NOT NULL
+SortOrder INTEGER NOT NULL
+IsEnabled INTEGER NOT NULL
+CreatedAt TEXT NOT NULL
 UpdatedAt TEXT NOT NULL
 ```
 
-### HttpTtsRules
+### 4.5 RegexReplacementRules
+
+```text
+Id TEXT PRIMARY KEY
+Name TEXT NOT NULL
+IsEnabled INTEGER NOT NULL
+SortOrder INTEGER NOT NULL
+Pattern TEXT NOT NULL
+Replacement TEXT NOT NULL
+Scope TEXT NOT NULL              -- Display / Speech / Both
+CreatedAt TEXT NOT NULL
+UpdatedAt TEXT NOT NULL
+```
+
+### 4.6 HttpTtsRules
 
 ```text
 Id INTEGER PRIMARY KEY
@@ -82,183 +136,187 @@ CreatedAt TEXT NOT NULL
 UpdatedAt TEXT NOT NULL
 ```
 
-SQLite 直接保存规则的结构化字段，不再把完整规则 JSON 作为数据库真相源。
-Legado 或 NovelSpeaker JSON 只作为导入输入；导出时再根据结构化字段生成规范 JSON。
+当前 schema 没有 LoginInfo 或 Cookie 持久化字段。Cookie/LoginInfo 当前也不属于已实现兼容能力；若以后实现，必须单独设计结构化字段、迁移、脱敏和生命周期，不能复用不透明原始 JSON 绕过边界。
 
-### AudioCacheEntries
+### 4.7 ReadingProgress
+
+```text
+BookId TEXT PRIMARY KEY REFERENCES Books(Id) ON DELETE CASCADE
+ChapterIndex INTEGER NOT NULL
+SegmentIndex INTEGER NOT NULL
+CharacterOffset INTEGER NOT NULL
+AudioPositionMilliseconds INTEGER NOT NULL
+UpdatedAt TEXT NOT NULL
+```
+
+### 4.8 AudioCacheEntries
 
 ```text
 CacheKey TEXT PRIMARY KEY
-BookId TEXT NULL
+BookId TEXT NOT NULL
+ChapterIndex INTEGER NOT NULL
+SegmentIndex INTEGER NOT NULL
 RuleId INTEGER NOT NULL
 FilePath TEXT NOT NULL
 ContentType TEXT NULL
-FileSize INTEGER NOT NULL
+FileSize INTEGER NOT NULL CHECK(FileSize >= 0)
 DurationMilliseconds INTEGER NULL
 CreatedAt TEXT NOT NULL
 LastAccessedAt TEXT NOT NULL
 Status INTEGER NOT NULL
 ```
 
-## 设置存储
+索引至少包括：
 
-非敏感设置可以保存到 `settings.json`：
+- `(BookId, ChapterIndex)`，用于按书籍/章节统计和清理。
+- `LastAccessedAt`，用于 LRU。
+
+`FilePath` 与 `StoredFilePath` 一样属于兼容字段，所有访问必须通过根目录约束的路径解析器。
+
+## 5. SQLite 连接与迁移
+
+SQLite 完全属于 Infrastructure：
+
+- 连接工厂不暴露到 Application。
+- 每个连接显式启用 `foreign_keys`，配置合理的 busy timeout；是否启用 WAL 由并发测试决定。
+- 所有 SQL 参数化。
+- 查询按用途映射为明确 read model，不建立万能动态 mapper。
+- 写入和批处理使用显式事务。
+- migration runner 必须拒绝低于最低支持版本和高于当前版本的数据库。
+- 迁移失败回滚，不部分写入版本号。
+- 时间在 Application 使用 `TimeProvider`/`DateTimeOffset`，Infrastructure 负责稳定序列化，不在用例中散落 `DateTime.UtcNow.ToString("O")`。
+
+## 6. 小说导入
+
+导入语义顺序：
+
+1. 验证用户选择文件并分析编码。
+2. 规范化换行与控制字符。
+3. 计算源文件 SHA-256 并检查重复。
+4. 按启用章节规则识别章节；无标题时使用整书回退。
+5. 在应用数据目录暂存规范化正文。
+6. 创建可恢复操作记录。
+7. 提交 Books/Chapters 元数据事务并完成文件切换。
+8. 标记操作完成并清理暂存文件。
+
+任何阶段失败或进程中断后，启动恢复都必须幂等地得到以下一种结果：
+
+- 书籍元数据和最终 `content.txt` 均存在；或
+- 两者均不存在且暂存已清理。
+
+不得留下书库记录指向缺失文件，也不得长期留下无数据库记录的正式书籍目录。
+
+## 7. 动态分段与正则替换
+
+段落不持久化为数据库记录。打开章节时：
+
+```text
+Stored content
+  → 按章节原始偏移读取
+  → 动态分段并保留原始偏移
+  → 应用正则替换 Display/Speech 链
+  → 生成运行时可消费段落
+```
+
+要求：
+
+- 分段算法变化不要求迁移章节正文。
+- 阅读进度以原始字符偏移作为稳定恢复锚点，段落索引用于快速定位。
+- “未加载章节”和“已加载但没有可消费段落”使用显式状态区分，不能都用空集合表示。
+- 正则替换不改写 `content.txt`、章节偏移或原始段落边界。
+
+详细语义见 `12_REGEX_REPLACEMENT_PIPELINE.md`。
+
+## 8. 音频缓存
+
+缓存键保持现有位置相关语义：
+
+```text
+SHA256(
+  bookId
+  + chapterIndex
+  + segmentIndex
+  + ruleId
+  + speakSpeed
+  + finalSpeechText
+)
+```
+
+并使用 `AudioCacheKey.CurrentVersion` 作为版本命名空间。不得借架构重构改为跨位置内容寻址、规则配置哈希或凭据哈希。
+
+写入协议：
+
+1. 在缓存目录创建唯一 `.tmp` 文件。
+2. 完整复制并刷新文件。
+3. 验证文件头和 NAudio 可解码性。
+4. 在同卷原子切换为最终文件。
+5. 最后写入或更新索引。
+6. 失败时清理临时文件；启动维护修复索引/文件不一致。
+
+缓存实现终态分为：
+
+- 音频文件存储与路径策略。
+- SQLite 缓存索引和查询。
+- LRU/残留文件维护。
+- Application 缓存管理用例和 UI read model。
+
+当前播放、正在生成和正在写入的文件继续受保护。LRU 和手动清理不得绕过保护注册表。
+
+## 9. 设置存储
+
+当前 `settings.json` 字段为：
 
 ```json
 {
-  "selectedRuleId": 10001,
-  "speechSpeed": 10,
-  "cacheLimitBytes": 2147483648,
+  "enableLongParagraphSplitting": true,
+  "longParagraphThreshold": 280,
+  "defaultSpeakSpeed": 10,
   "prefetchCount": 2,
-  "theme": "System",
   "logLevel": "Information",
-  "closeBehavior": "Exit"
+  "theme": "System",
+  "bookFileNameTemplate": "{{name}} 作者：{{author}}",
+  "cacheLimitBytes": 2147483648,
+  "selectedTtsRuleId": null
 }
 ```
 
-敏感信息不得放在该文件中。
+要求：
 
-字段归属：
+- 设置只包含非敏感数据。
+- 启动时只加载一次规范化快照；日志初始化和 DI 内消费者复用同一快照。
+- 同步读取只访问内存，不通过 `GetAwaiter().GetResult()` 阻塞异步文件 I/O。
+- 更新串行化并发布变更通知；旧自动保存不得覆盖新值。
+- 保存使用同目录临时文件、flush 和原子替换；损坏文件保留安全恢复策略。
+- `settings.json` 不保存凭据、Cookie、LoginInfo 或规则正文。
 
-- `selectedRuleId`：TTS 规则页设置当前规则，播放页快速切换规则也写入该字段。
-- `speechSpeed`：播放设置中的默认语速，播放页修改语速也写入该字段。
-- `prefetchCount`：播放设置中的预取段落数量。
-- `cacheLimitBytes`：缓存与数据页的缓存上限，默认 `2 GB`，最小 `256 MB`。
-- `theme`：外观页主题。
-- `logLevel`：诊断与关于页日志级别。
-- `closeBehavior`：外观页后续规划字段；第一版暂不实现 UI。可选值为 `Exit`、`MinimizeToTray`。
+## 10. 删除与恢复
 
-## 登录信息与密钥
-
-当前主线不实现 SecretStore，也不引入 DPAPI 或 Windows Credential Manager。
-
-当前边界：
-
-- TTS 规则的 URL、Header、Body、LoginInfo 等结构化字段继续保存在 SQLite。
-- 这些字段可能包含敏感值，当前版本不提供静态加密或秘密引用。
-- `settings.json` 不保存凭据。
-- 日志、错误界面、请求预览和复制诊断摘要必须经过脱敏，且不得记录小说正文。
-- 发布文档必须明确“规则敏感值未静态加密”这一已知限制。
-
-SecretStore 和 `${secret:name}` 一类引用模型保留为未来安全增强，不属于当前主线任务。
-
-## 小说导入
-
-步骤：
-
-1. 读取少量字节检测 BOM。
-2. 严格尝试 UTF-8。
-3. 回退到 GB18030。
-4. 规范化换行。
-5. 清除不可见控制字符，但保留合理空白。
-6. 计算源文件 SHA-256。
-7. 检查重复。
-8. 解析章节。
-9. 将规范化后的全文写入 `Books/<book-id>/content.txt`。
-10. 在事务中写入 Books 和 Chapters 元数据。
-11. 导入失败时回滚数据库和临时文件。
-
-当前版本不兼容旧的 `SchemaVersion = 1` 本地库。升级到该版本前，需要删除 `%LocalAppData%\NovelSpeaker` 数据目录并重新导入书籍。
-
-## 文本分段
-
-不建议保存每个段落为数据库记录。
-
-打开章节时，先根据 `StoredFilePath + StartOffset + Length` 从 `content.txt` 切出章节正文，再动态生成运行时段落：
-
-```csharp
-public sealed record SpeechSegment(
-    int SegmentIndex,
-    int StartOffset,
-    int Length,
-    string DisplayText,
-    string SpeechText);
-```
-
-`StartOffset` 和 `Length` 指向原始规范化正文。当前主线的正则替换在动态分段后逐段执行，只改变运行时生成的 `DisplayText` 和 `SpeechText`，不改写原始内容、章节偏移或段落边界。详细设计见 `12_REGEX_REPLACEMENT_PIPELINE.md`。
-
-好处：
-
-- 数据库更小。
-- 分段算法更新后不必迁移大量记录。
-- 可使用算法版本号管理缓存兼容性。
-
-风险：
-
-- 分段算法改变后旧段落索引可能漂移。
-
-解决：
-
-- 保存字符偏移。
-- 每个分段算法定义版本号。
-- 恢复时优先根据字符偏移寻找最近段落。
-
-
-## 正则替换持久化
-
-正则替换规则保存在 SQLite，而不是 `settings.json`。当前只支持全局规则，因此不增加 `BookId`。
-
-字段：
-
-```text
-RegexReplacementRules
-Id TEXT PRIMARY KEY
-Name TEXT NOT NULL
-IsEnabled INTEGER NOT NULL
-SortOrder INTEGER NOT NULL
-Pattern TEXT NOT NULL
-Replacement TEXT NOT NULL
-Scope TEXT NOT NULL        -- Display / Speech / Both
-CreatedAt TEXT NOT NULL
-UpdatedAt TEXT NOT NULL
-```
+删除书籍必须协调：书籍/章节/进度记录、内部正文、可选音频缓存和当前播放保护。流程使用可恢复 journal，而不是只依赖进程内补偿列表。
 
 要求：
 
-- 不保存 `RegexOptions`；运行时统一使用 `RegexOptions.CultureInvariant`。
-- 规则变更不触发重新导入书籍，也不改写 `content.txt`。
-- 规则按 `SortOrder` 和稳定 ID 顺序执行。
-- 启用和排序使用字段级即时更新，右侧编辑保存不得覆盖它们。
-- 语音范围规则影响最终 `SpeechText`，从而影响同一位置的音频缓存键。
-- 缓存键继续包含 `bookId + chapterIndex + segmentIndex + ruleId + speakSpeed + finalSpeechText`，不使用规则配置哈希，也不跨位置复用。
+- 删除前确认路径位于应用数据根目录。
+- 正在播放的书籍先由 Application 停止/结束会话。
+- 数据库事务只处理数据库记录；文件 staging 和恢复状态显式记录。
+- 启动时扫描未完成操作并幂等完成或回滚。
+- 永不删除用户外部源 TXT。
+- 部分失败不得向 UI 报告完全成功。
 
-详细设计见 `12_REGEX_REPLACEMENT_PIPELINE.md`。
+## 11. 敏感信息
 
-## 缓存写入
+当前没有 SecretStore，TTS 规则 URL、Header、Body 等结构化字段可能以明文保存在本地 SQLite。这是已知限制。
 
-要求：
+- 普通日志、异常摘要、请求预览、Snackbar 和诊断摘要必须统一脱敏。
+- 数据库、规则和小说正文不得附加到崩溃报告。
+- 安全脱敏器继续识别 Cookie/LoginInfo 等敏感键，即使当前版本不执行这些功能。
+- SecretStore、DPAPI 或 Windows Credential Manager 必须作为独立安全设计和迁移实现，不能在架构移动中顺带加入。
 
-1. 先下载到 `<cache-key>.tmp`。
-2. 完成后刷新并关闭流。
-3. 可选执行基础音频验证。
-4. 原子重命名为最终文件。
-5. 最后写入数据库状态。
-6. 启动时清理残留 `.tmp`。
-7. 数据库记录存在但文件缺失时删除记录。
-8. 文件存在但记录缺失时可延迟清理。
+## 12. 持久化验收
 
-## LRU 清理
-
-清理触发：
-
-- 应用启动后延迟执行。
-- 新缓存写入后超过上限。
-- 用户手动清理。
-
-清理顺序：
-
-- `LastAccessedAt` 最早优先。
-- 不删除当前播放文件。
-- 不删除当前预取正在写入的文件。
-- 清理失败写日志，但不阻止播放。
-
-## 数据库迁移
-
-使用简单显式迁移即可：
-
-```text
-SchemaVersion
-2 → file-backed chapter content metadata schema
-```
-
-不需要第一版引入复杂 ORM。可以使用原始 SQL 和小型映射层。
+- schema 4/5 升级和新库创建均通过；未来版本数据库被安全拒绝。
+- foreign keys 在每个连接上生效，级联/约束有集成测试。
+- 导入、删除、设置保存和缓存写入均覆盖故障注入与启动恢复。
+- 被篡改的数据库路径不能导致应用数据根目录外文件被读取、移动或删除。
+- Application 不引用 SQLite 类型或包。
+- 所有存储操作传递取消令牌，取消不被通用 `catch` 吞掉。
+- 音频缓存键、现有用户数据和阅读进度在重组后保持兼容。
