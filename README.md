@@ -73,6 +73,7 @@ TTS 规则可能包含服务凭据。NovelSpeaker 会对常规日志、错误摘
 
 - 仅支持 TXT；不支持 EPUB、PDF、MOBI 和在线书源。
 - 仅支持 HTTP GET/POST TTS，不支持 WebSocket 和真正的边生成边播放。
+- 当前不支持会话 Cookie、Cookie 持久化、LoginInfo、`jsLib` 或复杂 `source.get/put` 规则。
 - 不提供用户账户、云同步、语音克隆、有声书导出、插件市场、自动更新或 Windows 本地 TTS 回退。
 - 首发版本未进行代码签名，且规则敏感值尚未静态加密。
 
@@ -81,11 +82,11 @@ TTS 规则可能包含服务凭据。NovelSpeaker 会对常规日志、错误摘
 需要 Windows、.NET SDK `10.0.301`（由 `global.json` 固定）和 x64 环境。
 
 ```powershell
-dotnet restore --locked-mode
+dotnet restore --locked-mode -r win-x64
 dotnet format --verify-no-changes --no-restore
 dotnet build -c Release --no-restore
 dotnet test -c Release --no-build
-dotnet run --project src/NovelSpeaker.App
+dotnet run --project src/NovelSpeaker.App --no-restore
 ```
 
 ## 架构与文档

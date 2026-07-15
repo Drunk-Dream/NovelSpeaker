@@ -53,8 +53,7 @@
 - 支持 POST Form。
 - 支持自定义 Header。
 - 支持自定义 Body。
-- 支持会话内 Cookie。
-- 支持只读 LoginInfo 输入。
+- 对依赖 Cookie 或 LoginInfo 的规则给出明确不兼容结果，不静默保存为可用规则。
 - 支持请求超时和重试。
 - 支持规则级限流。
 - 支持 `speakText` 和 `speakSpeed`。
@@ -112,6 +111,7 @@
 - 输出设备选择。
 - 可配置预取数量。
 - 规则登录信息表单。
+- 会话内 Cookie 和只读 LoginInfo 输入。
 - 更高兼容度的 Legado `source`、`java` 和 `cookie` API。
 
 ## 明确推迟
