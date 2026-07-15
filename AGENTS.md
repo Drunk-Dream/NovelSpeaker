@@ -102,6 +102,7 @@ UI 事件和平台能力通过可测试的 presentation port 转交；不得在�
 /mnt/c/Program Files/dotnet//dotnet.exe
 ```
 
+codex需要提权在沙箱外执行。
 仓库为 `win-x64` 保留锁定还原目标。不得执行会隐式进行无 RID 还原的普通 build/test。完整质量门禁严格按以下顺序执行：
 
 ```powershell
