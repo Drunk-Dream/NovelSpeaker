@@ -4,7 +4,7 @@
 
 本文定义 NovelSpeaker 当前主线中的 **正则替换** 功能。该功能统一使用“正则替换”命名，不再使用“文本清理规则”。
 
-正则替换已经进入主线任务，具体实施任务见 `TASK_BACKLOG.md` 的 **Epic AB：正则替换**。
+正则替换已经是当前产品基线。本文只描述稳定行为和终态边界；架构重组中的迁移任务与状态见 `TASK_BACKLOG.md`。
 
 ---
 
@@ -67,7 +67,7 @@ Books/<book-id>/content.txt
 
 ## 4. 规则模型
 
-建议使用以下领域模型：
+领域使用以下规则模型：
 
 ```csharp
 public enum RegexReplacementScope
@@ -384,3 +384,14 @@ UpdatedAt TEXT NOT NULL
 - 右侧保存/取消与未保存修改保护。
 - 页面不出现预览、导入、导出、默认规则和正则选项。
 - 错误状态可被键盘和屏幕阅读器识别。
+
+---
+
+## 12. 架构边界
+
+- `RegexReplacementRule` 与 `RegexReplacementScope` 是 Domain 业务模型。
+- 编辑副本、列表项、保存结果和错误投影属于 Application/TextProcessing 合同。
+- Workspace、字段级保存和规则变更后的播放刷新编排属于 Application。
+- SQLite repository、row mapper 和 migration 属于 Infrastructure。
+- App 只维护页面编辑会话和语义状态，不直接读取 repository 或调用播放实现细节。
+- 正则执行管线是纯、可测试的 Application/Domain 文本处理能力；错误状态存储必须作为必需依赖，不能用可选依赖静默关闭主线行为。

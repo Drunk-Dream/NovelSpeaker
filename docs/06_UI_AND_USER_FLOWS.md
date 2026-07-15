@@ -910,68 +910,93 @@ TTS 规则是设置页下的二级页面，也是当前 TTS 规则的正式管�
 
 ---
 
-## 17. 页面和 ViewModel 边界
+## 17. App 代码组织和边界
 
-建议页面/组件：
+App 按功能切片组织页面、ViewModel、组件、页面控制器和功能注册，不再把所有 Page、View 和 ViewModel 分散到三个全局目录：
 
 ```text
-Views/
+NovelSpeaker.App/
+├─ Bootstrap/
 ├─ Shell/
-│  └─ MainWindow.xaml
-├─ Library/
-│  ├─ LibraryPage.xaml
-│  ├─ BookCard.xaml
-│  ├─ EncodingSelectionDialog.xaml
-│  └─ BookDetailsPage.xaml
-├─ Player/
-│  ├─ PlayerPage.xaml
-│  ├─ ChapterList.xaml
-│  ├─ LyricsTextView.xaml
-│  └─ PlaybackControls.xaml
-└─ Settings/
-   ├─ SettingsPage.xaml
-   ├─ PlaybackSettingsPage.xaml
-   ├─ TtsRulesPage.xaml
-   ├─ TtsRulesView.xaml
-   ├─ ImportTextSettingsPage.xaml
-   ├─ ChapterRulesPage.xaml
-   ├─ CacheAndDataPage.xaml
-   ├─ CacheManagementPage.xaml
-   ├─ AppearanceSettingsPage.xaml
-   └─ DiagnosticsAboutPage.xaml
+│  ├─ Navigation/
+│  ├─ Activation/
+│  └─ Input/
+├─ Features/
+│  ├─ Library/
+│  ├─ BookDetails/
+│  ├─ Playback/
+│  │  ├─ Components/
+│  │  ├─ Presentation/
+│  │  └─ Scrolling/
+│  ├─ TtsRules/
+│  ├─ ChapterRules/
+│  ├─ RegexReplacementRules/
+│  ├─ Cache/
+│  ├─ PlaybackSettings/
+│  ├─ ImportTextSettings/
+│  ├─ Appearance/
+│  └─ Diagnostics/
+└─ Shared/
+   ├─ Feedback/
+   ├─ Theming/
+   ├─ Dialogs/
+   ├─ Behaviors/
+   └─ Presentation/
 ```
 
-建议 ViewModel 职责：
+准入规则：
 
-- ViewModel 不直接操作 Window、文件系统、SQLite、NAudio 或 HttpClient。
-- 页面导航通过 Wpf.Ui 官方导航服务传递强类型参数；`NovelSpeaker.App` 内的 ViewModel 可直接依赖其导航接口，但不得直接创建 View。
-- 对话框通过抽象服务或 Wpf.Ui 对话框服务调用，危险操作结果可测试。
-- 书库卡片只暴露展示字段和命令，不持有仓储。
-- 播放正文只消费应用层提供的章节和 `SpeechSegment`，不自行分段。
-- 自动滚动的输入检测和视觉定位属于 View 行为；状态与恢复时机应封装为可测试协调器或独立类。
+- Feature 目录包含该功能的 Page、ViewModel、可复用组件、presentation-only service 和 DI 注册模块。
+- `Shared` 类型必须有两个以上稳定消费者；单功能 helper 留在功能内部。
+- Page 是导航、页面激活、取消和未保存保护边界。
+- UserControl 只用于复用组件或拥有独立视觉行为/测试价值的复杂区域；不保留仅把整页包进同名 UserControl 的一对一 wrapper。
+- 页面离开时取消 activation 内的加载、导入、试听、自动保存和动画任务；跨页面播放会话不随 Page 取消。
+
+### 17.1 导航
+
+- App 定义自己的强类型 route 和参数，ViewModel 不引用具体 Page 类型。
+- Wpf.Ui 的 Page 映射、选中项和兼容处理集中在 Shell 导航适配器。
+- 所有离开路径统一经过导航守卫：页面返回、一级导航、快捷键、正在播放入口、功能跳转和窗口关闭。
+- TTS、章节、正则和书籍详情的编辑副本使用同一离开协议；不能只在 BackCommand 内检查未保存状态。
+
+### 17.2 ViewModel
+
+ViewModel 可以：
+
+- 暴露语义状态、编辑副本和命令。
+- 调用 Application 用例并投影结果。
+- 进行页面级轻量校验。
+
+ViewModel 不可以：
+
+- 直接操作 Window、Dispatcher、文件系统、SQLite、NAudio、Jint 或 HttpClient。
+- 引用具体 Page，或公开 `FontWeight`、Brush、Wpf.Ui 图标等视觉类型。
+- 自己维护核心播放状态机、分段正文或缓存策略。
+- 依赖 Singleton 生命周期偶然保存页面状态。
+
+播放页 ViewModel 是页面门面；正文/章节投影、Snapshot 投影、规则/语速设置控制等职责使用功能内部协作者拆分，滚动输入和视觉定位仍属于 View/Scrolling 协调器。
+
+### 17.3 Code-behind 和平台适配
+
+- code-behind 只处理 WPF 生命周期、焦点、拖放、虚拟化、滚动、动画和事件桥接。
+- 文件打开/保存、剪贴板、目录打开、对话框和 Snackbar 使用统一 presentation port，不在各页面直接调用不同平台 API。
+- 事件桥接传递页面/操作 Token；迟到结果按 activation/operation version 隔离。
+- 图标、字重、颜色和可见性由 XAML 资源、触发器或转换器根据语义状态映射。
 
 ---
 
-## 18. 应用层能力补充
+## 18. UI 与 Application 合同
 
-当前后端主链路已完成，但新 UI 需要补齐以下应用层能力：
+UI 只消费面向用例的 Application 合同：
 
-- 书库摘要返回总章节数、当前章节索引、剩余章节数和总体进度。
-- 获取书籍详情、章节摘要和章节跳转目标。
-- 更新书名和作者。
-- 原子删除书籍、章节、阅读进度和内部文件。
-- 可选清理删除书籍对应缓存。
-- 按书名/作者进行本地筛选所需字段。
-- 打开指定书籍但保持暂停的播放会话 API。
-- 按章节索引或段落索引跳转且保持原播放状态。
-- TTS 规则完整编辑、克隆和验证 API。
-- 当前规则删除/禁用的保护结果。
-- 章节规则左右分栏编辑模型、左侧启用即时保存、排序即时保存、右侧名称/正则字段级保存和默认规则操作结果摘要。
-- 缓存管理摘要模型：书籍摘要需包含书名、作者、缓存占用和已缓存章节数；章节摘要需包含章节序号、标题、缓存占用、缓存条目数和章节缓存完整度。
-- 按书籍、按章节和全部缓存清理的统一应用服务，并复用播放/生成/写入缓存保护策略。
-- 直接导入小说应用服务：编码高置信度直接导入，低置信度返回需要用户选择编码的结果；重复书籍直接拒绝。
+- 书库摘要、书籍详情、章节摘要和元信息更新。
+- 可恢复的导入、删除和缓存清理结果。
+- 播放命令、不可变 Snapshot 和章节/段落只读投影。
+- TTS、章节、正则规则的列表、编辑副本、校验和保护结果。
+- 设置读取、规范化更新和变更通知。
+- 缓存总览、书籍/章节统计和清理结果。
 
-这些能力应放入 Application/Infrastructure，不应在 code-behind 中拼接 SQL 或协调播放。
+Application 合同不包含 SQLite connection、绝对存储路径、`HttpRequestMessage`、NAudio、WPF/Wpf.Ui 类型或用户视觉文案。Infrastructure 负责具体存储/设备适配，App 负责将安全结果映射为可访问的页面反馈。
 
 ---
 
