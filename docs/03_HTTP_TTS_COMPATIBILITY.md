@@ -36,33 +36,25 @@
 - 零改动兼容所有社区规则
 - 将认证输入扩展为独立登录流程或额外权限模型
 
-## 建议规则模型
+## 规则模型与架构边界
 
 ```csharp
-public sealed class HttpTtsRule
-{
-    public long Id { get; set; }
-
-    public string Name { get; set; } = string.Empty;
-
-    public string Url { get; set; } = string.Empty;
-
-    public string? ContentType { get; set; }
-
-    public string? ConcurrentRate { get; set; }
-
-    public string? Header { get; set; }
-
-    public string? JsLib { get; set; }
-
-    public long LastUpdateTime { get; set; }
-
-    public bool IsEnabled { get; set; } = true;
-}
+public sealed record HttpTtsRule(
+    long Id,
+    string Name,
+    string Url,
+    string? ContentType,
+    string? ConcurrentRate,
+    string? Header,
+    string? RequestOptionsJson,
+    long? LastUpdateTime,
+    bool IsEnabled,
+    string? LastUsedAt,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
 ```
 
-上面的 `HttpTtsRule` 更适合作为导入并转换后的持久化规则模型。
-第一版中，Legado 规则只作为导入来源；成功导入后，SQLite 直接保存结构化字段，导出时再生成 NovelSpeaker 自有规则 JSON，而不是长期保留原始导入 JSON 或数据库中的整条规则 JSON。
+`HttpTtsRule` 是导入并转换后的业务规则模型。Legado 规则只作为导入来源；成功导入后，SQLite 保存结构化字段，导出时再生成 NovelSpeaker 自有规则 JSON，而不是长期保留原始导入 JSON 或数据库中的整条规则 JSON。Infrastructure 的 row mapper 负责将 SQLite 字符串时间转换为该模型，不把持久化格式泄露到 Domain/Application。
 
 并非所有导入源字段都必须在第一版执行。第一版导入采用“规范化后保存”的策略：
 
@@ -71,7 +63,7 @@ public sealed class HttpTtsRule
 - 缺少必需字段、字段类型错误、请求模板无法解析或无法转换为内部模型时，不允许导入或保存。
 - 不得把无法执行的字段静默保存为可用规则。
 
-运行时应再规范化为内部模型，例如：
+运行时再规范化为 Application 内部模型，例如：
 
 ```csharp
 public sealed record NormalizedHttpTtsRule(
@@ -83,6 +75,20 @@ public sealed record NormalizedHttpTtsRule(
 ```
 
 播放链路、缓存键和 HTTP 执行只依赖规范化后的运行时模型，不直接理解导入 JSON 的原始细节。
+
+稳定职责分离如下：
+
+```text
+Infrastructure Legado/JSON source DTO
+  → Application 规则导入/验证用例
+  → Domain HttpTtsRule
+  → Application Normalized rule / compiled request contract
+  → Infrastructure Jint evaluator / HTTP transport / audio probe
+```
+
+- 导入预览、编辑器模型、测试结果和请求预览属于 Application 合同，不属于 Domain。
+- `ParsedTtsRequest` 是 Application 与 HTTP adapter 之间的传输中立合同，不引用 `HttpRequestMessage` 或 `HttpContent`。
+- JSON 解析、SQLite 行、`HttpClient`、Jint Engine 和 NAudio 探测均留在 Infrastructure。
 
 ## 规则上下文
 
@@ -211,15 +217,16 @@ java.sha256Encode(value)
 
 由于 URL 与附加配置的具体分隔格式可能存在兼容差异，解析器必须独立封装并添加测试。不要在播放层直接拆字符串。
 
-建议内部规范化为：
+Application 与 HTTP adapter 之间规范化为：
 
 ```csharp
 public sealed record ParsedTtsRequest(
+    long RuleId,
     Uri Url,
-    HttpMethod Method,
+    string Method,
     IReadOnlyDictionary<string, string> Headers,
-    HttpContent? Content,
-    int RetryCount);
+    ParsedTtsRequestBody Body,
+    string? DeclaredContentType);
 ```
 
 第一版 `requestOptions` 只识别：
@@ -228,6 +235,8 @@ public sealed record ParsedTtsRequest(
 - `body`
 
 出现其他字段时，导入规范化阶段直接丢弃这些字段；若字段缺失或值非法导致无法构造请求模型，则拒绝导入或保存。
+
+当前没有 LoginInfo 字段或 CookieContainer。`enabledCookieJar`、`cookie.*`、LoginInfo 等来源字段不能仅因被脱敏器识别就视为已实现；转换器必须报告不支持。
 
 ## Header 处理
 

@@ -84,7 +84,7 @@ Load chapter text from Books.StoredFilePath using chapter StartOffset/Length
   ↓
 Build runtime segment DisplayText/SpeechText
   ↓
-Apply regex replacement pipeline when enabled in a later version
+Apply enabled regex replacement rules
   ↓
 Resolve selected rule and speak speed
   ↓
@@ -210,10 +210,10 @@ Build TTS request and position-related audio cache key from final SpeechText
 | JSON/Text 错误响应 | 显示截断后的服务端错误 |
 | 空音频 | 重试一次 |
 | 缓存损坏 | 删除缓存并重新请求一次 |
-| 当前段长期失败 | 允许用户跳过、重试或停止 |
+| 当前段长期失败 | 暂停并提供再次尝试或切换规则；UI 不提供跳过 |
 | 连续多段失败 | 自动暂停并显示汇总错误 |
 
-不要自动无限跳过，否则用户可能在不知情的情况下漏听大量内容。
+不要自动跳过失败段落，否则用户可能在不知情的情况下漏听内容。协调器内部遗留的 skip API 不属于目标公共交互，应在调用审计和特征测试后收敛。
 
 ## 进度保存
 
@@ -274,20 +274,39 @@ public sealed record PlaybackSnapshot(
 
 ViewModel 订阅快照，而不是直接读取多个可变服务字段。
 
-## 当前实现边界
+## 播放代码边界
 
-Epic H 当前已落地：
+`PlaybackCoordinator` 是 Application 的稳定门面和唯一命令串行化入口。它保留会话状态所有权，但把可独立验证的职责交给内部协作者：
 
-- 上层 `PlaybackCoordinator`。
-- 下层 `ILocalAudioPlaybackCoordinator`。
-- 运行时章节分段读取。
-- 当前规则解析。
-- 在线 TTS 播放闭环。
-- 重试、跳过、跨章和语速/规则切换。
+| 协作者 | 职责 |
+|---|---|
+| PlaybackSessionState | 当前书籍、章节、段落、规则、语速、SessionId 与取消源 |
+| PlaybackPositionResolver | 相邻位置、恢复位置、章节边界和原始字符偏移映射的纯计算 |
+| PlaybackSegmentRunner | 当前段音频获取、缓存损坏恢复和本地播放调用 |
+| PlaybackPrefetchController | 预取窗口、优先级、去重和会话取消 |
+| PlaybackProgressService | 统一保存/恢复进度 |
+| PlaybackSnapshotProjector | 从内部状态生成不可变快照 |
 
-仍保留为后续 Epic 的能力：
+Infrastructure 只实现：
 
-- 持久化缓存及 LRU。
-- 真正的预取调度和去重。
-- 阅读进度恢复。
-- 限流与 `Retry-After` 协同。
+- SQLite 阅读进度与缓存索引。
+- 文件缓存和原子写入。
+- HTTP TTS、Jint 和音频验证。
+- NAudio 单文件设备适配。
+
+ViewModel 只消费 Application 快照与命令，不自行加载正文、维护核心状态机或拼装缓存/HTTP 请求。完整分层见 `02_TECH_STACK_AND_ARCHITECTURE.md`。
+
+## 章节加载状态
+
+运行时必须明确区分：
+
+- 章节摘要尚未加载正文。
+- 正文已加载且包含可消费段落。
+- 正文已加载，但正则规则使其没有可展示/可朗读段落。
+- 章节加载失败或已被取消。
+
+不得继续使用 `Segments.Count == 0` 同时表示“未加载”和“已加载为空”，否则空章节会被反复读取、分段并干扰自动推进。
+
+## 当前能力基线
+
+当前产品已经具有：双层本地/书籍播放协调、动态章节分段、正则展示/语音文本、完整下载后缓存、LRU、后续段预取、阅读进度恢复、限流、错误分类、规则/语速切换和旧会话隔离。架构重组必须保持这些行为，不得把它们重新列为待实现功能。
