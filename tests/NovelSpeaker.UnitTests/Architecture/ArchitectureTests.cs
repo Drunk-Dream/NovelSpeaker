@@ -1,0 +1,136 @@
+using NovelSpeaker.App.ViewModels;
+using Xunit;
+
+namespace NovelSpeaker.UnitTests.Architecture;
+
+public sealed class ArchitectureTests
+{
+    private static readonly ArchitectureTestRepository Repository = ArchitectureTestRepository.Locate();
+
+    [Fact]
+    public void SolutionContainsExpectedProjects()
+    {
+        var expected = new[]
+        {
+            "src/NovelSpeaker.App/NovelSpeaker.App.csproj",
+            "src/NovelSpeaker.Application/NovelSpeaker.Application.csproj",
+            "src/NovelSpeaker.Domain/NovelSpeaker.Domain.csproj",
+            "src/NovelSpeaker.Infrastructure/NovelSpeaker.Infrastructure.csproj",
+            "tests/NovelSpeaker.UnitTests/NovelSpeaker.UnitTests.csproj"
+        };
+
+        AssertEqualSet(expected, Repository.ReadSolutionProjectPaths());
+    }
+
+    [Fact]
+    public void DomainHasNoProductOrTechnicalDependencies()
+    {
+        var project = Repository.ReadProject("src/NovelSpeaker.Domain/NovelSpeaker.Domain.csproj");
+
+        Assert.Empty(project.ProjectReferences);
+        Assert.Empty(project.PackageReferences);
+        Assert.Empty(project.FrameworkReferences);
+        Assert.False(ArchitectureRules.UsesWpf(project));
+    }
+
+    [Fact]
+    public void ApplicationOnlyHasDomainAndDocumentedSqliteDependency()
+    {
+        var project = Repository.ReadProject("src/NovelSpeaker.Application/NovelSpeaker.Application.csproj");
+
+        AssertEqualSet(
+            ["src/NovelSpeaker.Domain/NovelSpeaker.Domain.csproj"],
+            project.ProjectReferences);
+        AssertEqualSet(["Microsoft.Data.Sqlite.Core"], project.PackageReferences);
+        Assert.Empty(project.FrameworkReferences);
+        Assert.False(ArchitectureRules.UsesWpf(project));
+
+        var files = Repository.ReadProductSourceFiles()
+            .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.Application");
+        var actual = ArchitectureRules.FindForbiddenSourceDependencies(
+            files,
+            [
+                "Microsoft.Data.Sqlite",
+                "Jint",
+                "NAudio",
+                "System.Windows",
+                "Wpf.Ui",
+                "NovelSpeaker.Infrastructure"
+            ]);
+
+        AssertEqualSet(KnownArchitectureBaseline.ApplicationForbiddenSourceDependencies, actual);
+    }
+
+    [Fact]
+    public void InfrastructureDoesNotDependOnAppOrWpf()
+    {
+        var project = Repository.ReadProject("src/NovelSpeaker.Infrastructure/NovelSpeaker.Infrastructure.csproj");
+
+        AssertEqualSet(
+            [
+                "src/NovelSpeaker.Application/NovelSpeaker.Application.csproj",
+                "src/NovelSpeaker.Domain/NovelSpeaker.Domain.csproj"
+            ],
+            project.ProjectReferences);
+        Assert.DoesNotContain(project.PackageReferences, package =>
+            package.Equals("wpf-ui", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(project.FrameworkReferences, reference =>
+            reference.Contains("WindowsDesktop", StringComparison.OrdinalIgnoreCase));
+        Assert.False(ArchitectureRules.UsesWpf(project));
+
+        var files = Repository.ReadProductSourceFiles()
+            .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.Infrastructure");
+        var actual = ArchitectureRules.FindForbiddenSourceDependencies(
+            files,
+            ["NovelSpeaker.App", "System.Windows", "Wpf.Ui"]);
+
+        Assert.Empty(actual);
+    }
+
+    [Fact]
+    public void AppOnlyUsesInfrastructureFromStartupCompositionBoundary()
+    {
+        var project = Repository.ReadProject("src/NovelSpeaker.App/NovelSpeaker.App.csproj");
+
+        AssertEqualSet(
+            [
+                "src/NovelSpeaker.Application/NovelSpeaker.Application.csproj",
+                "src/NovelSpeaker.Infrastructure/NovelSpeaker.Infrastructure.csproj"
+            ],
+            project.ProjectReferences);
+
+        var files = Repository.ReadProductSourceFiles()
+            .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.App");
+        var actual = ArchitectureRules.FindAppInfrastructureDependencies(files);
+
+        AssertEqualSet(KnownArchitectureBaseline.AppInfrastructureSourceFiles, actual);
+    }
+
+    [Fact]
+    public void ViewModelsDoNotAddWpfOrWpfUiTypesToPublicApi()
+    {
+        var actual = ArchitectureRules.FindForbiddenPublicApiDependencies(
+            typeof(PlayerViewModel).Assembly,
+            "NovelSpeaker.App.ViewModels");
+
+        AssertEqualSet(KnownArchitectureBaseline.ViewModelForbiddenPublicApiDependencies, actual);
+    }
+
+    [Fact]
+    public void ProductionSourceFilesMatchNamespacesAndPrimaryPublicTypes()
+    {
+        var actual = ArchitectureRules.FindSourceLayoutViolations(Repository.ReadProductSourceFiles());
+
+        AssertEqualSet(KnownArchitectureBaseline.SourceLayoutViolations, actual);
+    }
+
+    private static void AssertEqualSet(IEnumerable<string> expected, IEnumerable<string> actual)
+    {
+        var expectedArray = expected.Order(StringComparer.Ordinal).ToArray();
+        var actualArray = actual.Order(StringComparer.Ordinal).ToArray();
+        Assert.True(
+            expectedArray.SequenceEqual(actualArray, StringComparer.Ordinal),
+            $"Expected:{Environment.NewLine}{string.Join(Environment.NewLine, expectedArray)}" +
+            $"{Environment.NewLine}Actual:{Environment.NewLine}{string.Join(Environment.NewLine, actualArray)}");
+    }
+}
