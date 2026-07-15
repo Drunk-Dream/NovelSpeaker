@@ -5,8 +5,8 @@
 最新实现依据：
 
 - `../06_UI_AND_USER_FLOWS.md`
-- `../06A_SETTINGS_PAGES.md`
-- `../11_TASK_BACKLOG.md`
+- `../07_SETTINGS_PAGES.md`
+- `../TASK_BACKLOG.md`
 
 归档索引：
 

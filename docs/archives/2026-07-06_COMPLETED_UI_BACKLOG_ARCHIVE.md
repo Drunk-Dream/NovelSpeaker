@@ -1,6 +1,6 @@
 # 已完成 UI / 功能改造归档（2026-07-06）
 
-本归档用于保存 `11_TASK_BACKLOG.md` 清理前已经完成的 UI 和功能改造背景。归档内容只作为历史参考，不再作为当前待办来源。最新产品行为以 `06_UI_AND_USER_FLOWS.md` 和 `06A_SETTINGS_PAGES.md` 为准；最新待办以 `11_TASK_BACKLOG.md` 为准。
+本归档用于保存 `TASK_BACKLOG.md` 清理前已经完成的 UI 和功能改造背景。归档内容只作为历史参考，不再作为当前待办来源。最新产品行为以 `06_UI_AND_USER_FLOWS.md` 和 `07_SETTINGS_PAGES.md` 为准；最新待办以 `TASK_BACKLOG.md` 为准。
 
 ## 已完成基线总结
 

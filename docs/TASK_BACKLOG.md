@@ -7,7 +7,7 @@
 产品行为以以下文档为准：
 
 - `06_UI_AND_USER_FLOWS.md`
-- `06A_SETTINGS_PAGES.md`
+- `07_SETTINGS_PAGES.md`
 - `12_REGEX_REPLACEMENT_PIPELINE.md`
 
 若本文与设计文档冲突，以设计文档为准，并同步修正本文。
@@ -166,7 +166,7 @@
 以下条件同时满足时，才可认为新版 UI 达到发布候选：
 
 - 当前 backlog 中阻塞级任务已关闭，非阻塞项已明确写入已知限制。
-- `06_UI_AND_USER_FLOWS.md`、`06A_SETTINGS_PAGES.md`、产品范围、正则替换设计、决策文档和实际实现一致。
+- `06_UI_AND_USER_FLOWS.md`、`07_SETTINGS_PAGES.md`、产品范围、正则替换设计、决策文档和实际实现一致。
 - 书库、TTS 规则、章节规则和正则替换中不存在 `DataGrid`。
 - 书库使用优化后的横向书籍卡片网格，常见编码 TXT 可直接导入。
 - 书籍详情页全局不滚动，章节目录虚拟化，并支持章节跳转播放。

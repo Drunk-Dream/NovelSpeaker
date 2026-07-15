@@ -4,7 +4,7 @@
 
 本文件是 NovelSpeaker 仓库的开发约束和当前实现基线，供 Codex、Claude Code 等编程 Agent 使用。它描述的是仓库现在实际拥有的能力，不是早期的功能愿望清单。
 
-如果实现、设计文档和本文件不一致，应先确认实际代码和测试，再同步更新相关文档；不要通过扩大本文件描述来掩盖实现差异。涉及产品行为时，以设计文档为准；涉及当前任务状态时，以 `docs/11_TASK_BACKLOG.md` 和代码/测试为准。
+如果实现、设计文档和本文件不一致，应先确认实际代码和测试，再同步更新相关文档；不要通过扩大本文件描述来掩盖实现差异。涉及产品行为时，以设计文档为准；涉及当前任务状态时，以 `docs/TASK_BACKLOG.md` 和代码/测试为准。
 
 ## 项目目标
 
@@ -76,7 +76,7 @@ docs/                            产品、架构、UI、测试、决策和任务
 凡是涉及页面结构、导航、视觉方向、状态反馈、滚动、快捷键、可访问性或交互模式，必须先阅读并遵循：
 
 - `docs/06_UI_AND_USER_FLOWS.md`
-- `docs/06A_SETTINGS_PAGES.md`
+- `docs/07_SETTINGS_PAGES.md`
 - 正则替换相关改动还必须阅读 `docs/12_REGEX_REPLACEMENT_PIPELINE.md`
 
 当前 UI 信息架构为：一级导航只有“书库”和“设置”；播放页、书籍详情和设置页是上下文/二级页；设置下有播放设置、TTS 规则、导入与文本、章节规则、缓存与数据、外观、诊断与关于；正则替换和缓存管理是三级页。
@@ -119,16 +119,16 @@ docs/                            产品、架构、UI、测试、决策和任务
 - SecretStore、规则敏感值静态加密、插件市场和自动更新。
 - 单本书专属 TTS 规则/语速、托盘图标、定时停止、媒体键、输出设备选择等第二阶段功能。
 
-当前发布风险必须保持可见：不保证兼容所有社区 Legado 规则；规则敏感值未静态加密；发布包未代码签名，Windows SmartScreen 可能提示。修改这些限制的描述时要同步 `README.md`、`docs/01_PRODUCT_SCOPE.md` 和 `docs/10_DECISIONS_RISKS_OPEN_QUESTIONS.md`。
+当前发布风险必须保持可见：不保证兼容所有社区 Legado 规则；规则敏感值未静态加密；发布包未代码签名，Windows SmartScreen 可能提示。修改这些限制的描述时要同步 `README.md`、`docs/01_PRODUCT_SCOPE.md` 和 `docs/11_DECISIONS_RISKS_OPEN_QUESTIONS.md`。
 
 ## 文档阅读和修改规则
 
 开始编码前，根据任务至少阅读：
 
 1. `docs/README.md` 和本文件。
-2. 对应领域设计文档：书籍/解析读 `00`、`01`、`05`；播放读 `04`；TTS 读 `03`；UI 读 `06`、`06A`；正则读 `12`。
-3. `docs/08_TESTING_AND_QUALITY.md` 和 `docs/09_ENGINEERING_CONVENTIONS.md`。
-4. `docs/10_DECISIONS_RISKS_OPEN_QUESTIONS.md`、`docs/11_TASK_BACKLOG.md`，确认没有违反既有决策。
+2. 对应领域设计文档：书籍/解析读 `00`、`01`、`05`；播放读 `04`；TTS 读 `03`；UI 读 `06`、`07`；正则读 `12`。
+3. `docs/09_TESTING_AND_QUALITY.md` 和 `docs/10_ENGINEERING_CONVENTIONS.md`。
+4. `docs/11_DECISIONS_RISKS_OPEN_QUESTIONS.md`、`docs/TASK_BACKLOG.md`，确认没有违反既有决策。
 5. 相关现有测试，尤其是要修改的服务、ViewModel、页面和仓储测试。
 
 完成行为变化后，必要时同步 README、设计文档、测试策略、决策记录和 backlog。已完成的大量历史任务保存在 `docs/archives/`，归档不是新的实现依据。
@@ -190,5 +190,3 @@ dotnet restore -r win-x64 --force-evaluate
 - 添加或更新了哪些测试；如果只是文档修改，明确写“未修改测试代码”。
 - 如何手动验证和自动验证结果。
 - 尚未解决的风险、环境限制或未执行的检查。
-
-
