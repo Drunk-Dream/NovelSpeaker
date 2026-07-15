@@ -1,6 +1,6 @@
 # NovelSpeaker 项目上下文
 
-本目录用于向 Codex、Claude Code 等 AI 编程 Agent 提供稳定、可重复读取的项目上下文。
+本目录是 NovelSpeaker 项目信息的唯一文档入口，用于向开发者和编程 Agent 提供稳定、可重复读取的产品、架构、数据、UI、运行时、质量和任务上下文。仓库根目录的 `AGENTS.md` 只记录开发约束，不重复维护项目事实。
 
 项目目标是开发一个轻量、简洁、可快速迭代的 Windows 小说听书应用。第一版以本地 TXT 小说和兼容 Legado 风格的 HTTP 在线 TTS 规则为核心，不实现完整阅读器、在线书源或云端书库。
 
@@ -15,12 +15,14 @@
 7. `05_DATA_AND_PERSISTENCE.md`
 8. `06_UI_AND_USER_FLOWS.md`
 9. `07_SETTINGS_PAGES.md`
-10. `08_DEVELOPMENT_MILESTONES.md`
+10. `08_RUNTIME_AND_LIFECYCLE.md`
 11. `09_TESTING_AND_QUALITY.md`
 12. `10_ENGINEERING_CONVENTIONS.md`
 13. `11_DECISIONS_RISKS_OPEN_QUESTIONS.md`
 14. `12_REGEX_REPLACEMENT_PIPELINE.md`
 15. `TASK_BACKLOG.md`
+
+数字编号文档描述产品、架构、数据、UI、运行时、安全和质量的稳定终态，不记录某次重构的执行波次或临时过渡方案。所有仍需执行的任务、依赖、风险门和验收状态统一维护在 `TASK_BACKLOG.md`；已完成历史移入 `archives/`。
 
 归档内容可按需查看 `archives/`，但归档不作为最新实现依据。
 
