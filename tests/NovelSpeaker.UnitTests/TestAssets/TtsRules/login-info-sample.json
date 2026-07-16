@@ -1,6 +1,8 @@
 {
-  "name": "Header Sample",
-  "url": "https://example.com/tts?text={{encodeURIComponent(speakText)}}",
-  "header": "{\"Authorization\":\"Bearer demo-token\"}",
-  "contentType": "audio/wav"
+  "name": "LoginInfo Sample",
+  "url": "https://example.com/tts?text={{encodeURIComponent(speakText)}}&token={{loginInfo.token}}",
+  "contentType": "audio/wav",
+  "loginInfo": {
+    "token": "sanitized-demo-token"
+  }
 }
