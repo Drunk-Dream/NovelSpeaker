@@ -1,9 +1,11 @@
-﻿using NovelSpeaker.App.Input;
+﻿using NovelSpeaker.App.Feedback;
+using NovelSpeaker.App.Input;
 using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Theming;
 using NovelSpeaker.App.ViewModels;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -23,7 +25,9 @@ public partial class MainWindow : FluentWindow
     private readonly IMainWindowAppearanceConfigurator _appearanceConfigurator;
     private readonly IKeyboardShortcutCoordinator _keyboardShortcutCoordinator;
     private readonly IContentDialogService _contentDialogService;
+    private readonly IAppFeedbackService _feedbackService;
     private readonly IGuardedNavigationService _guardedNavigationService;
+    private readonly INavigationGuardService _navigationGuardService;
     private readonly INavigationService _navigationService;
     private readonly INavigationViewPageProvider _pageProvider;
     private readonly IShellLayoutController _shellLayoutController;
@@ -34,10 +38,14 @@ public partial class MainWindow : FluentWindow
     private bool _isShellInfrastructureConfigured;
     private bool _isNavigationInitialized;
     private bool _isPlayerPageActive;
+    private bool _isCloseConfirmationInProgress;
+    private bool _isCloseApproved;
 
     public MainWindow(
         MainWindowViewModel viewModel,
         IContentDialogService contentDialogService,
+        IAppFeedbackService feedbackService,
+        INavigationGuardService navigationGuardService,
         IGuardedNavigationService guardedNavigationService,
         INavigationService navigationService,
         INavigationViewPageProvider pageProvider,
@@ -50,7 +58,9 @@ public partial class MainWindow : FluentWindow
         _appearanceConfigurator = appearanceConfigurator;
         _keyboardShortcutCoordinator = keyboardShortcutCoordinator;
         _contentDialogService = contentDialogService;
+        _feedbackService = feedbackService;
         _guardedNavigationService = guardedNavigationService;
+        _navigationGuardService = navigationGuardService;
         _navigationService = navigationService;
         _pageProvider = pageProvider;
         _shellLayoutController = shellLayoutController;
@@ -61,6 +71,7 @@ public partial class MainWindow : FluentWindow
         InitializeComponent();
         DataContext = _viewModel;
         Loaded += OnLoaded;
+        Closing += OnClosing;
         SizeChanged += OnSizeChanged;
         PreviewKeyDown += OnPreviewKeyDown;
         RootNavigationView.PaneOpened += OnPaneOpened;
@@ -69,6 +80,46 @@ public partial class MainWindow : FluentWindow
     }
 
     internal NavigationView NavigationViewControl => RootNavigationView;
+
+    private async void OnClosing(object? sender, CancelEventArgs e)
+    {
+        if (_isCloseApproved)
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        if (_isCloseConfirmationInProgress)
+        {
+            return;
+        }
+
+        _isCloseConfirmationInProgress = true;
+        try
+        {
+            if (!await _navigationGuardService.ConfirmNavigationAsync(CancellationToken.None).ConfigureAwait(true))
+            {
+                return;
+            }
+
+            _isCloseApproved = true;
+            await Dispatcher.InvokeAsync(Close);
+        }
+        catch (OperationCanceledException)
+        {
+            _isCloseApproved = false;
+            // Window-close cancellation is normal control flow; the window remains open.
+        }
+        catch (Exception exception)
+        {
+            _isCloseApproved = false;
+            _feedbackService.ShowProjectedNotification("关闭应用失败", _feedbackService.Project(exception));
+        }
+        finally
+        {
+            _isCloseConfirmationInProgress = false;
+        }
+    }
 
     private void OnLoaded(object sender, System.Windows.RoutedEventArgs e)
     {

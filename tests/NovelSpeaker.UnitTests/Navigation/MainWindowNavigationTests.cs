@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using NovelSpeaker.App.Feedback;
 using System.Windows.Controls;
 using System.Windows;
 using System.Windows.Input;
@@ -21,6 +22,95 @@ namespace NovelSpeaker.UnitTests.Navigation;
 public sealed class MainWindowNavigationTests
 {
     [Fact]
+    public async Task Closing_window_uses_guard_and_keeps_window_open_when_navigation_is_cancelled()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var guard = new FakeNavigationGuardService { NextResult = false };
+            var feedback = new FakeAppFeedbackService();
+            var window = CreateWindow(guard, feedback);
+            window.Show();
+
+            window.Close();
+            await DrainDispatcherAsync(window.Dispatcher);
+
+            Assert.True(window.IsVisible);
+            Assert.Equal(1, guard.ConfirmationCount);
+            Assert.Null(feedback.LastProjectedTitle);
+
+            guard.NextResult = true;
+            window.Close();
+            await DrainDispatcherAsync(window.Dispatcher);
+        });
+    }
+
+    [Fact]
+    public async Task Closing_window_closes_after_guard_approval()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var guard = new FakeNavigationGuardService { NextResult = true };
+            var window = CreateWindow(guard, new FakeAppFeedbackService());
+            window.Show();
+
+            window.Close();
+            await DrainDispatcherAsync(window.Dispatcher);
+
+            Assert.False(window.IsVisible);
+            Assert.Equal(1, guard.ConfirmationCount);
+        });
+    }
+
+    [Fact]
+    public async Task Repeated_close_requests_share_one_pending_confirmation()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var confirmation = new TaskCompletionSource<bool>();
+            var guard = new FakeNavigationGuardService { PendingConfirmation = confirmation.Task };
+            var window = CreateWindow(guard, new FakeAppFeedbackService());
+            window.Show();
+
+            window.Close();
+            window.Close();
+
+            Assert.True(window.IsVisible);
+            Assert.Equal(1, guard.ConfirmationCount);
+
+            confirmation.SetResult(false);
+            await DrainDispatcherAsync(window.Dispatcher);
+
+            guard.PendingConfirmation = null;
+            guard.NextResult = true;
+            window.Close();
+            await DrainDispatcherAsync(window.Dispatcher);
+        });
+    }
+
+    [Fact]
+    public async Task Closing_guard_failure_is_projected_and_keeps_window_open()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var guard = new FakeNavigationGuardService { Exception = new InvalidOperationException("sensitive detail") };
+            var feedback = new FakeAppFeedbackService();
+            var window = CreateWindow(guard, feedback);
+            window.Show();
+
+            window.Close();
+            await DrainDispatcherAsync(window.Dispatcher);
+
+            Assert.True(window.IsVisible);
+            Assert.Equal("关闭应用失败", feedback.LastProjectedTitle);
+
+            guard.Exception = null;
+            guard.NextResult = true;
+            window.Close();
+            await DrainDispatcherAsync(window.Dispatcher);
+        });
+    }
+
+    [Fact]
     public void Loaded_initializes_navigation_once_and_targets_library_page()
     {
         WpfTestHost.RunInSta(() =>
@@ -35,6 +125,8 @@ public sealed class MainWindowNavigationTests
             var window = new MainWindow(
                 new MainWindowViewModel(new FakePlaybackCoordinator(), navigationService),
                 contentDialogService,
+                new FakeAppFeedbackService(),
+                new FakeNavigationGuardService { NextResult = true },
                 navigationService,
                 navigationService,
                 pageProvider,
@@ -72,6 +164,8 @@ public sealed class MainWindowNavigationTests
             var window = new MainWindow(
                 new MainWindowViewModel(new FakePlaybackCoordinator(), navigationService),
                 contentDialogService,
+                new FakeAppFeedbackService(),
+                new FakeNavigationGuardService { NextResult = true },
                 navigationService,
                 navigationService,
                 new FakeNavigationViewPageProvider(),
@@ -179,6 +273,27 @@ public sealed class MainWindowNavigationTests
         return Assert.IsType<NavigationView>(property?.GetValue(window));
     }
 
+    private static MainWindow CreateWindow(
+        INavigationGuardService navigationGuardService,
+        IAppFeedbackService feedbackService)
+    {
+        var navigationService = new FakeNavigationService();
+        var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
+        return new MainWindow(
+            new MainWindowViewModel(new FakePlaybackCoordinator(), navigationService),
+            new FakeContentDialogService(),
+            feedbackService,
+            navigationGuardService,
+            navigationService,
+            navigationService,
+            new FakeNavigationViewPageProvider(),
+            new FakeSnackbarService(),
+            serviceProvider,
+            new FakeMainWindowAppearanceConfigurator(),
+            new ShellLayoutController(),
+            new FakeKeyboardShortcutCoordinator());
+    }
+
     private static void InvokeClick(NavigationViewItem item)
     {
         var onClick = typeof(NavigationViewItem).GetMethod("OnClick", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
@@ -254,6 +369,51 @@ public sealed class MainWindowNavigationTests
             NavigateCallCount++;
             return Task.FromResult(true);
         }
+    }
+
+    private sealed class FakeNavigationGuardService : INavigationGuardService
+    {
+        public bool NextResult { get; set; }
+
+        public Task<bool>? PendingConfirmation { get; set; }
+
+        public Exception? Exception { get; set; }
+
+        public int ConfirmationCount { get; private set; }
+
+        public IDisposable Register(Func<CancellationToken, Task<bool>> guard) => throw new NotSupportedException();
+
+        public Task<bool> ConfirmNavigationAsync(CancellationToken cancellationToken)
+        {
+            ConfirmationCount++;
+            if (Exception is not null)
+            {
+                throw Exception;
+            }
+
+            return PendingConfirmation ?? Task.FromResult(NextResult);
+        }
+    }
+
+    private sealed class FakeAppFeedbackService : IAppFeedbackService
+    {
+        public string? LastProjectedTitle { get; private set; }
+
+        public ProjectedUiError Project(Exception exception) => new("操作失败。", UiMessageSeverity.Error, false);
+
+        public void ShowProjectedNotification(string title, ProjectedUiError projected)
+        {
+            LastProjectedTitle = title;
+        }
+
+        public void ShowSuccess(string title, string message) { }
+
+        public void ShowWarning(string title, string message) { }
+
+        public Task<AppConfirmationDecision> ConfirmDeletionAsync(
+            string title,
+            string message,
+            CancellationToken cancellationToken) => Task.FromResult(AppConfirmationDecision.Cancel);
     }
 
     private sealed class FakeNavigationViewPageProvider : INavigationViewPageProvider
