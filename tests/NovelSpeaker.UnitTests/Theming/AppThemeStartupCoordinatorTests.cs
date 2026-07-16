@@ -38,7 +38,7 @@ public sealed class AppThemeStartupCoordinatorTests
         Assert.Equal(0, runtime.DarkCalls);
     }
 
-    private sealed class FakeAppSettingsStore : IAppSettingsStore
+    private sealed class FakeAppSettingsStore : IAppSettingsService
     {
         private readonly AppSettings _settings;
 
@@ -47,9 +47,10 @@ public sealed class AppThemeStartupCoordinatorTests
             _settings = settings;
         }
 
-        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(_settings);
-
-        public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken) => Task.CompletedTask;
+        public AppSettings Current => _settings;
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) =>
+            Task.FromResult(_settings);
     }
 
     private sealed class FakeThemeRuntime : IThemeRuntime

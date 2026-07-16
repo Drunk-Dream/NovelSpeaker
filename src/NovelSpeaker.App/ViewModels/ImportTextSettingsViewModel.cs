@@ -44,7 +44,8 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
         _isLoading = true;
         try
         {
-            var settings = await _settingsService.LoadAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            var settings = _settingsService.Current;
             BookFileNameTemplateText = settings.BookFileNameTemplate ?? string.Empty;
             EnableLongParagraphSplitting = settings.EnableLongParagraphSplitting;
             LongParagraphThresholdText = settings.LongParagraphThreshold.ToString();

@@ -1717,8 +1717,8 @@ public sealed class PlayerViewModelTests
         }
 
         public AppSettings Settings { get; private set; }
-
-        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(Settings);
+        public AppSettings Current => Settings;
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
 
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {

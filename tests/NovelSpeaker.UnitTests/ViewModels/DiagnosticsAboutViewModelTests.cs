@@ -147,8 +147,8 @@ public sealed class DiagnosticsAboutViewModelTests
         }
 
         public AppSettings CurrentSettings { get; private set; }
-
-        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(CurrentSettings);
+        public AppSettings Current => CurrentSettings;
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
 
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {

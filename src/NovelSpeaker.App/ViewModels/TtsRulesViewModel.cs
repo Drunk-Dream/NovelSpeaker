@@ -111,7 +111,8 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        var settings = await _settingsService.LoadAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var settings = _settingsService.Current;
         _defaultSpeakSpeed = settings.DefaultSpeakSpeed;
 
         await RefreshRulesAsync(

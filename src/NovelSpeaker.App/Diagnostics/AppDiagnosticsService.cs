@@ -58,7 +58,7 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
     public async Task<string> GetRedactedSummaryAsync(CancellationToken cancellationToken)
     {
         var snapshot = await GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
-        var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var settings = _settingsService.Current;
 
         return string.Join(
             Environment.NewLine,

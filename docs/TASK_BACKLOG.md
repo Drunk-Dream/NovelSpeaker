@@ -276,7 +276,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：`SqliteConnectionFactory` 现对每个连接启用外键、设置 5 秒命令默认超时和 5000 ms busy timeout，初始化失败会释放连接并原样传播异常，预取消也在打开前终止。Migration runner 在执行新迁移前统一拒绝版本 1–3 与高于当前版本 5 的数据库；仅增加 Infrastructure internal 的故障迁移测试入口，迁移 4/5 内容保持不变。独立连接测试证明默认 rollback journal 下等待中的写入可在持锁事务释放后成功，且 journal mode 未切换为 WAL，因此本任务不启用 WAL。回归测试覆盖逐连接 PRAGMA、非法外键、Books 删除对 Chapters/ReadingProgress 的级联、版本 3/6 安全拒绝、busy 等待/释放、预取消，以及失败迁移对 DDL、数据和版本号的完整回滚。
 
-### [ ] SETTINGS-104（P0）：建立单一设置快照和原子 JSON 保存
+### [x] SETTINGS-104（P0）：建立单一设置快照和原子 JSON 保存
 
 前置：ARCH-101。
 
@@ -289,6 +289,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 使用 `TimeProvider` 处理更新时间或防抖。
 
 测试：并发更新、旧保存晚到、取消、写入中断、损坏 JSON、SynchronizationContext 下不死锁。
+
+完成说明：Application 的 `AppSettingsService` 现拥有唯一进程级规范化快照，公开同步只读 `Current`、串行 `UpdateAsync` 和带 previous/current 的变更通知；缓存限额、文件名模板、分段选项、主题、诊断、页面与播放消费者均只读该内存快照，不再同步阻塞或重复加载 JSON。启动复用同一目录 provider 与 `JsonAppSettingsStore`，仅加载一次并将同一快照用于日志和 DI。JSON 保存使用同目录唯一临时文件、异步序列化、flush/落盘刷新、提交前取消检查和同卷覆盖移动；失败清理临时文件且保留旧文件。损坏 JSON 使用 `TimeProvider` 的 UTC 时间戳隔离为唯一 `.corrupt` 备份，当前进程采用默认快照，首次成功更新再创建新文件。回归测试覆盖零读盘同步 provider、并发合并与旧保存顺序、等待/保存及 flush 后提交前取消、通知顺序、首次创建/替换、write/flush/replace 故障、临时文件清理、损坏隔离与同一时间戳冲突，以及自定义 `SynchronizationContext` 下无死锁。
 
 ### [ ] INFRA-105（P0）：修复取消和安全错误投影基础缺陷
 

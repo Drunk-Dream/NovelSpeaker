@@ -85,7 +85,8 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
         try
         {
-            var settings = await _settingsService.LoadAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            var settings = _settingsService.Current;
             _savedCacheLimitBytes = settings.CacheLimitBytes;
             ApplyCacheLimit(_savedCacheLimitBytes);
             await RefreshOverviewAsync(cancellationToken);

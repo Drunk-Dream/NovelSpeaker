@@ -114,6 +114,12 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<IAppSettingsService>(),
                     provider.GetRequiredService<IAudioCacheLimitProvider>());
                 Assert.Same(
+                    provider.GetRequiredService<IAppSettingsService>(),
+                    provider.GetRequiredService<IBookFileNameTemplateProvider>());
+                Assert.Same(
+                    provider.GetRequiredService<IAppSettingsService>(),
+                    provider.GetRequiredService<ITextSegmentationOptionsProvider>());
+                Assert.Same(
                     provider.GetRequiredService<IAudioCache>(),
                     provider.GetRequiredService<IAudioCacheManagementService>());
                 Assert.Same(

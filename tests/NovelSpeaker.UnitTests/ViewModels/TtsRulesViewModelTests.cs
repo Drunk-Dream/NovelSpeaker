@@ -625,10 +625,8 @@ public sealed class TtsRulesViewModelTests
 
     private sealed class FakeAppSettingsService : IAppSettingsService
     {
-        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(AppSettings.Default with { DefaultSpeakSpeed = 12 });
-        }
+        public AppSettings Current => AppSettings.Default with { DefaultSpeakSpeed = 12 };
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
 
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {

@@ -29,7 +29,8 @@ public sealed class SelectedTtsRuleProvider : ISelectedTtsRuleProvider
 
     public async Task<SelectedPlaybackRule?> GetSelectedRuleAsync(CancellationToken cancellationToken)
     {
-        var settings = await _settingsService.LoadAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var settings = _settingsService.Current;
         if (settings.SelectedTtsRuleId is null)
         {
             return null;

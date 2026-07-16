@@ -5,19 +5,20 @@ namespace NovelSpeaker.App.Theming;
 
 public sealed class AppThemeStartupCoordinator
 {
-    private readonly IAppSettingsStore _settingsStore;
+    private readonly IAppSettingsService _settingsService;
     private readonly IThemeRuntime _themeRuntime;
 
-    public AppThemeStartupCoordinator(IAppSettingsStore settingsStore, IThemeRuntime themeRuntime)
+    public AppThemeStartupCoordinator(IAppSettingsService settingsService, IThemeRuntime themeRuntime)
     {
-        _settingsStore = settingsStore;
+        _settingsService = settingsService;
         _themeRuntime = themeRuntime;
     }
 
-    public async Task ApplyAsync(CancellationToken cancellationToken)
+    public Task ApplyAsync(CancellationToken cancellationToken)
     {
-        var settings = await _settingsStore.LoadAsync(cancellationToken);
-        Apply(settings.Theme);
+        cancellationToken.ThrowIfCancellationRequested();
+        Apply(_settingsService.Current.Theme);
+        return Task.CompletedTask;
     }
 
     public void Apply(string? theme)

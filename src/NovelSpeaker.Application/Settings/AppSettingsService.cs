@@ -1,53 +1,42 @@
-using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 
-namespace NovelSpeaker.Infrastructure.Settings;
+namespace NovelSpeaker.Application.Settings;
 
 /// <summary>
-/// Serializes partial settings updates so concurrent callers do not overwrite newer values.
+/// Owns the process-wide normalized settings snapshot and serializes persisted updates.
 /// </summary>
-public sealed class AppSettingsService : IAppSettingsService, IAudioCacheLimitProvider
+public sealed class AppSettingsService :
+    IAppSettingsService,
+    IAudioCacheLimitProvider,
+    IBookFileNameTemplateProvider,
+    ITextSegmentationOptionsProvider,
+    IDisposable
 {
     private readonly IAppSettingsStore _store;
     private readonly SemaphoreSlim _mutex = new(1, 1);
-    private AppSettings? _cachedSettings;
+    private AppSettings _current;
 
-    public AppSettingsService(IAppSettingsStore store)
+    public AppSettingsService(IAppSettingsStore store, AppSettings startupSnapshot)
     {
         _store = store;
+        _current = (startupSnapshot ?? throw new ArgumentNullException(nameof(startupSnapshot))).Normalize();
     }
 
-    public async Task<AppSettings> LoadAsync(CancellationToken cancellationToken)
-    {
-        await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            return await LoadCurrentAsync(cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            _mutex.Release();
-        }
-    }
+    public AppSettings Current => Volatile.Read(ref _current);
 
-    public long GetCurrentLimitBytes()
-    {
-        if (_cachedSettings is not null)
-        {
-            return _cachedSettings.CacheLimitBytes;
-        }
+    public event EventHandler<AppSettingsChangedEventArgs>? Changed;
 
-        _mutex.Wait();
-        try
-        {
-            _cachedSettings ??= _store.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
-            return _cachedSettings.CacheLimitBytes;
-        }
-        finally
-        {
-            _mutex.Release();
-        }
+    public long GetCurrentLimitBytes() => Current.CacheLimitBytes;
+
+    public TextSegmentationOptions GetCurrent() => Current.ToTextSegmentationOptions();
+
+    public Task<string> GetCurrentTemplateAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(Current.BookFileNameTemplate!);
     }
 
     public async Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
@@ -57,10 +46,11 @@ public sealed class AppSettingsService : IAppSettingsService, IAudioCacheLimitPr
         await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var current = await LoadCurrentAsync(cancellationToken).ConfigureAwait(false);
-            var next = ApplyUpdate(current, update).Normalize();
+            var previous = Current;
+            var next = ApplyUpdate(previous, update).Normalize();
             await _store.SaveAsync(next, cancellationToken).ConfigureAwait(false);
-            _cachedSettings = next;
+            Volatile.Write(ref _current, next);
+            Changed?.Invoke(this, new AppSettingsChangedEventArgs(previous, next));
             return next;
         }
         finally
@@ -69,16 +59,7 @@ public sealed class AppSettingsService : IAppSettingsService, IAudioCacheLimitPr
         }
     }
 
-    private async Task<AppSettings> LoadCurrentAsync(CancellationToken cancellationToken)
-    {
-        if (_cachedSettings is not null)
-        {
-            return _cachedSettings;
-        }
-
-        _cachedSettings = await _store.LoadAsync(cancellationToken).ConfigureAwait(false);
-        return _cachedSettings;
-    }
+    public void Dispose() => _mutex.Dispose();
 
     private static AppSettings ApplyUpdate(AppSettings current, AppSettingsUpdate update)
     {

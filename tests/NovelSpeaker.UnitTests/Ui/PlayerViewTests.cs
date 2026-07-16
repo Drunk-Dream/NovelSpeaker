@@ -1943,11 +1943,8 @@ public sealed class PlayerViewTests
         }
 
         public AppSettings Settings { get; private set; }
-
-        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(Settings);
-        }
+        public AppSettings Current => Settings;
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
 
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {

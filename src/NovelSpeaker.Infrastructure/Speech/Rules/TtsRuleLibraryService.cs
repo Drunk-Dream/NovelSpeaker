@@ -32,7 +32,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
     public async Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken)
     {
         var rules = await _repository.GetAllAsync(cancellationToken);
-        var settings = await _settingsService.LoadAsync(cancellationToken);
+        var settings = _settingsService.Current;
 
         return rules.Select(rule => TtsRuleModelMapper.ToSummary(rule, settings.SelectedTtsRuleId)).ToArray();
     }
@@ -122,7 +122,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
 
         if (firstImportedEnabledRuleId is not null)
         {
-            var settings = await _settingsService.LoadAsync(cancellationToken);
+            var settings = _settingsService.Current;
             if (settings.SelectedTtsRuleId is null)
             {
                 await SelectRuleAsync(firstImportedEnabledRuleId.Value, cancellationToken);
@@ -204,7 +204,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
 
         if (existingRule is null && savedRule.IsEnabled)
         {
-            var settings = await _settingsService.LoadAsync(cancellationToken);
+            var settings = _settingsService.Current;
             if (settings.SelectedTtsRuleId is null)
             {
                 await SelectRuleAsync(savedRule.Id, cancellationToken);
@@ -220,7 +220,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
         TtsRuleMutationAction action,
         CancellationToken cancellationToken)
     {
-        var settings = await _settingsService.LoadAsync(cancellationToken);
+        var settings = _settingsService.Current;
         var isCurrentRule = settings.SelectedTtsRuleId == ruleId;
         var rules = await GetRulesAsync(cancellationToken);
         var replacementCandidates = rules
@@ -299,7 +299,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             await UpdateSelectedRuleAsync(null, cancellationToken);
         }
 
-        var settings = await _settingsService.LoadAsync(cancellationToken);
+        var settings = _settingsService.Current;
         return new TtsRuleMutationResult(
             decision.RuleId,
             decision.Action,
@@ -530,7 +530,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
 
     private async Task ClearSelectedRuleIfNeededAsync(long ruleId, CancellationToken cancellationToken)
     {
-        var settings = await _settingsService.LoadAsync(cancellationToken);
+        var settings = _settingsService.Current;
         if (settings.SelectedTtsRuleId == ruleId)
         {
             await _settingsService.UpdateAsync(

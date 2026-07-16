@@ -12,6 +12,7 @@ using NovelSpeaker.Infrastructure.Settings;
 using NovelSpeaker.App.Input;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.Infrastructure.Diagnostics;
+using NovelSpeaker.Application.Settings;
 
 namespace NovelSpeaker.App;
 
@@ -24,6 +25,7 @@ public partial class App : System.Windows.Application
     private StartupDiagnosticsRecorder? _startupDiagnostics;
     private StartupStatusViewModel? _startupStatusViewModel;
     private StartupStatusWindow? _startupStatusWindow;
+    private LocalAppDataDirectoryProvider? _directories;
 
     public App()
     {
@@ -37,8 +39,8 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
-        var directories = new LocalAppDataDirectoryProvider();
-        _startupDiagnostics = new StartupDiagnosticsRecorder(directories);
+        _directories = new LocalAppDataDirectoryProvider();
+        _startupDiagnostics = new StartupDiagnosticsRecorder(_directories);
         _startupStatusViewModel = new StartupStatusViewModel();
         _startupStatusWindow = new StartupStatusWindow(_startupStatusViewModel);
         _startupStatusWindow.Show();
@@ -72,14 +74,18 @@ public partial class App : System.Windows.Application
         await ReportStartupStageAsync("startup", "正在准备启动日志目录。", "正在建立启动诊断日志。");
 
         var services = new ServiceCollection();
-        var bootstrapSettings = await new JsonAppSettingsStore(new LocalAppDataDirectoryProvider())
-            .LoadAsync(CancellationToken.None);
+        var directories = _directories ?? throw new InvalidOperationException("应用数据目录尚未初始化。");
+        var settingsStore = new JsonAppSettingsStore(directories);
+        var bootstrapSettings = await settingsStore.LoadAsync(CancellationToken.None);
         services.AddLogging(builder =>
         {
             builder.SetMinimumLevel(ParseLogLevel(bootstrapSettings.LogLevel));
             builder.AddDebug();
         });
-        services.AddNovelSpeakerApplication();
+        services.AddSingleton<IAppDataDirectoryProvider>(directories);
+        services.AddSingleton(settingsStore);
+        services.AddSingleton<IAppSettingsStore>(settingsStore);
+        services.AddNovelSpeakerApplication(bootstrapSettings);
         services.AddNovelSpeakerInfrastructure();
         services.AddSingleton<ILoggerProvider, RollingFileLoggerProvider>();
         services.AddNovelSpeakerDesktop();
@@ -87,11 +93,11 @@ public partial class App : System.Windows.Application
         await ReportStartupStageAsync("dependency-injection", "正在创建服务容器。", "正在装配应用服务。");
         _serviceProvider = services.BuildServiceProvider();
 
-        var directories = _serviceProvider.GetRequiredService<IAppDataDirectoryProvider>();
-        _startupDiagnostics?.RecordStage("paths", $"Root={directories.RootDirectoryPath}; Database={directories.DatabasePath}; Logs={directories.LogsDirectoryPath}");
+        var resolvedDirectories = _serviceProvider.GetRequiredService<IAppDataDirectoryProvider>();
+        _startupDiagnostics?.RecordStage("paths", $"Root={resolvedDirectories.RootDirectoryPath}; Database={resolvedDirectories.DatabasePath}; Logs={resolvedDirectories.LogsDirectoryPath}");
 
         await ReportStartupStageAsync("storage", "正在初始化应用数据目录。", "正在准备数据库和本地目录。");
-        await directories.EnsureCreatedAsync(CancellationToken.None);
+        await resolvedDirectories.EnsureCreatedAsync(CancellationToken.None);
 
         await ReportStartupStageAsync("database-initialization", "正在初始化数据库。", "正在运行数据库迁移并准备默认数据。");
         var initializer = _serviceProvider.GetRequiredService<IDatabaseInitializer>();

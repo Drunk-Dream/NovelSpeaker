@@ -47,7 +47,8 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
         _isLoading = true;
         try
         {
-            var settings = await _settingsService.LoadAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            var settings = _settingsService.Current;
             DefaultSpeakSpeedText = settings.DefaultSpeakSpeed.ToString();
             DefaultSpeakSpeedErrorText = string.Empty;
             PrefetchCountText = settings.PrefetchCount.ToString();

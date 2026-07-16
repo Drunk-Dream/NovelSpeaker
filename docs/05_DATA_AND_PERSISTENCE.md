@@ -287,6 +287,7 @@ SHA256(
 - 同步读取只访问内存，不通过 `GetAwaiter().GetResult()` 阻塞异步文件 I/O。
 - 更新串行化并发布变更通知；旧自动保存不得覆盖新值。
 - 保存使用同目录临时文件、flush 和原子替换；损坏文件保留安全恢复策略。
+- JSON 无法解析时，将原文件按 UTC 时间戳改名为唯一的 `settings.json.<timestamp>[.<n>].corrupt` 备份，当前进程使用规范化默认快照；首次成功更新再原子创建新的 `settings.json`。
 - `settings.json` 不保存凭据、Cookie、LoginInfo 或规则正文。
 
 ## 10. 删除与恢复

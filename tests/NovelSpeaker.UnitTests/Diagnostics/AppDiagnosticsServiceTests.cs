@@ -55,7 +55,8 @@ public sealed class AppDiagnosticsServiceTests
 
         public FakeAppSettingsService(AppSettings settings) => _settings = settings;
 
-        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(_settings);
+        public AppSettings Current => _settings;
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
 
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) => Task.FromResult(_settings);
     }

@@ -67,6 +67,9 @@ public sealed class ThemePreferenceServiceTests
 
         public AppSettings Settings { get; protected set; }
 
+        public AppSettings Current => Settings;
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
+
         public Exception? SaveException { get; set; }
 
         public Task<AppSettings> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(Settings);

@@ -196,7 +196,8 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        var settings = await _settingsService.LoadAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var settings = _settingsService.Current;
         _defaultSpeakSpeed = settings.DefaultSpeakSpeed;
 
         if (!AppSettings.IsValidSpeakSpeed(_playbackCoordinator.CurrentSnapshot.SpeakSpeed))

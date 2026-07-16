@@ -31,7 +31,7 @@ public sealed class ThemePreferenceService : IThemePreferenceService
         await _saveLock.WaitAsync(cancellationToken);
         try
         {
-            var currentSettings = await _settingsService.LoadAsync(cancellationToken);
+            var currentSettings = _settingsService.Current;
             fallbackTheme = currentSettings.Theme;
 
             var persistedSettings = await _settingsService.UpdateAsync(

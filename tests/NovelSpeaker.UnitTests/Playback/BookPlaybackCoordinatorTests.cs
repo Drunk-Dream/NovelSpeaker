@@ -1100,7 +1100,7 @@ public sealed class BookPlaybackCoordinatorTests
         }
     }
 
-    private sealed class FakeAppSettingsStore : IAppSettingsStore
+    private sealed class FakeAppSettingsStore : IAppSettingsService
     {
         public FakeAppSettingsStore(AppSettings settings)
         {
@@ -1108,16 +1108,9 @@ public sealed class BookPlaybackCoordinatorTests
         }
 
         public AppSettings Settings { get; private set; }
-
-        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(Settings);
-        }
-
-        public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
-        {
-            Settings = settings;
-            return Task.CompletedTask;
-        }
+        public AppSettings Current => Settings;
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) =>
+            Task.FromResult(Settings);
     }
 }

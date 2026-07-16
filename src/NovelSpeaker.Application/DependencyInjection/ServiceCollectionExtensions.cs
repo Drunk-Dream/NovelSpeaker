@@ -4,6 +4,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.Application.DependencyInjection;
 
@@ -12,7 +13,9 @@ namespace NovelSpeaker.Application.DependencyInjection;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddNovelSpeakerApplication(this IServiceCollection services)
+    public static IServiceCollection AddNovelSpeakerApplication(
+        this IServiceCollection services,
+        AppSettings? startupSettings = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -20,7 +23,7 @@ public static class ServiceCollectionExtensions
         services.AddNovelSpeakerBooksApplication();
         services.AddNovelSpeakerSpeechApplication();
         services.AddNovelSpeakerPlaybackApplication();
-        services.AddNovelSpeakerSettingsApplication();
+        services.AddNovelSpeakerSettingsApplication(startupSettings);
 
         return services;
     }

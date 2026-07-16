@@ -448,8 +448,7 @@ public sealed class TtsRuleLibraryServiceTests
         }
 
         public AppSettings Current { get; set; }
-
-        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(Current);
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
 
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {

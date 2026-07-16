@@ -58,7 +58,7 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
         try
         {
             var snapshot = await _diagnosticsService.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
-            var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var settings = _settingsService.Current;
 
             AppName = snapshot.AppName;
             AppVersion = snapshot.AppVersion;

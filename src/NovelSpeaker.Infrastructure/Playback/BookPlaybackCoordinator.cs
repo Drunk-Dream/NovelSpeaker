@@ -21,7 +21,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     private readonly ILocalAudioPlaybackCoordinator _localAudioPlaybackCoordinator;
     private readonly IReadingProgressStore _readingProgressStore;
     private readonly IPrefetchScheduler _prefetchScheduler;
-    private readonly IAppSettingsStore _appSettingsStore;
+    private readonly IAppSettingsService _appSettingsService;
     private readonly SemaphoreSlim _mutex = new(1, 1);
 
     private PlaybackSnapshot _currentSnapshot = PlaybackSnapshot.Idle;
@@ -42,7 +42,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         ILocalAudioPlaybackCoordinator localAudioPlaybackCoordinator,
         IReadingProgressStore readingProgressStore,
         IPrefetchScheduler prefetchScheduler,
-        IAppSettingsStore appSettingsStore)
+        IAppSettingsService appSettingsService)
     {
         _bookContentService = bookContentService;
         _selectedRuleProvider = selectedRuleProvider;
@@ -51,7 +51,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         _localAudioPlaybackCoordinator = localAudioPlaybackCoordinator;
         _readingProgressStore = readingProgressStore;
         _prefetchScheduler = prefetchScheduler;
-        _appSettingsStore = appSettingsStore;
+        _appSettingsService = appSettingsService;
 
         _localAudioPlaybackCoordinator.SnapshotChanged += OnLocalSnapshotChanged;
         _localAudioPlaybackCoordinator.PlaybackCompleted += OnLocalPlaybackCompleted;
@@ -1437,13 +1437,14 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         return AppSettings.NormalizeSpeakSpeed(speakSpeed);
     }
 
-    private async Task<int> GetPrefetchCountAsync(int? maxCountOverride, CancellationToken cancellationToken)
+    private Task<int> GetPrefetchCountAsync(int? maxCountOverride, CancellationToken cancellationToken)
     {
-        var settings = await _appSettingsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        var settings = _appSettingsService.Current;
         var prefetchCount = Math.Clamp(settings.PrefetchCount, 0, AppSettings.DefaultPrefetchCountValue);
-        return maxCountOverride is null
+        return Task.FromResult(maxCountOverride is null
             ? prefetchCount
-            : Math.Min(prefetchCount, maxCountOverride.Value);
+            : Math.Min(prefetchCount, maxCountOverride.Value));
     }
 
     private static PlaybackChapterContent? GetChapter(PlaybackBookContent book, int chapterIndex)

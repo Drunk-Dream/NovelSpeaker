@@ -7,7 +7,9 @@ namespace NovelSpeaker.Application.Settings;
 /// </summary>
 public interface IAppSettingsService
 {
-    Task<AppSettings> LoadAsync(CancellationToken cancellationToken);
+    AppSettings Current { get; }
+
+    event EventHandler<AppSettingsChangedEventArgs>? Changed;
 
     Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken);
 }

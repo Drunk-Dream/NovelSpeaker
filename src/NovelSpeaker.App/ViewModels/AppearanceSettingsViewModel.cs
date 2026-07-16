@@ -36,7 +36,8 @@ public sealed partial class AppearanceSettingsViewModel : SettingsSubpageViewMod
         _isLoading = true;
         try
         {
-            var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            var settings = _settingsService.Current;
             SetSelectedThemeWithoutApplying(settings.Theme);
         }
         finally
