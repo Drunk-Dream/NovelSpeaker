@@ -127,7 +127,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
     public async Task ImportFromFileAsync(string filePath, CancellationToken cancellationToken)
     {
-        if (!await ConfirmLeaveDraftAsync(cancellationToken))
+        if (!await ConfirmLeaveAsync(cancellationToken))
         {
             return;
         }
@@ -145,7 +145,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
     public async Task ImportJsonTextAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken)
     {
-        if (!await ConfirmLeaveDraftAsync(cancellationToken))
+        if (!await ConfirmLeaveAsync(cancellationToken))
         {
             return;
         }
@@ -182,7 +182,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     [RelayCommand]
     private async Task BackAsync(CancellationToken cancellationToken)
     {
-        if (!await ConfirmLeaveDraftAsync(cancellationToken))
+        if (!await ConfirmLeaveAsync(cancellationToken))
         {
             return;
         }
@@ -197,7 +197,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     [RelayCommand]
     private async Task NewRuleAsync(CancellationToken cancellationToken)
     {
-        if (!await ConfirmLeaveDraftAsync(cancellationToken))
+        if (!await ConfirmLeaveAsync(cancellationToken))
         {
             return;
         }
@@ -219,7 +219,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             return;
         }
 
-        if (!await ConfirmLeaveDraftAsync(cancellationToken))
+        if (!await ConfirmLeaveAsync(cancellationToken))
         {
             return;
         }
@@ -660,7 +660,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         }
     }
 
-    private async Task<bool> ConfirmLeaveDraftAsync(CancellationToken cancellationToken)
+    public async Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken)
     {
         if (!HasUnsavedChanges)
         {

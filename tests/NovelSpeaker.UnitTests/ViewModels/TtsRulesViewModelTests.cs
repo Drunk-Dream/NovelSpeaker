@@ -13,6 +13,39 @@ namespace NovelSpeaker.UnitTests.ViewModels;
 
 public sealed class TtsRulesViewModelTests
 {
+    [Theory]
+    [InlineData(UnsavedChangesDecision.Save, true)]
+    [InlineData(UnsavedChangesDecision.Discard, true)]
+    [InlineData(UnsavedChangesDecision.Cancel, false)]
+    public async Task ConfirmLeaveAsync_applies_global_navigation_decision(
+        UnsavedChangesDecision decision,
+        bool expectedCanLeave)
+    {
+        var editor = new TtsRuleEditorModel(
+            1,
+            "规则一",
+            true,
+            "https://example.com/one",
+            null,
+            null,
+            null,
+            [],
+            new TtsRuleRequestOptionsEditor("GET", null));
+        var libraryService = new FakeTtsRuleLibraryService(
+            [new TtsRuleSummary(1, "规则一", true, true, null)],
+            editor);
+        var viewModel = CreateViewModel(
+            libraryService: libraryService,
+            dialogService: new FakeAppDialogService { NextUnsavedDecision = decision });
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.DraftName = "已修改";
+
+        var canLeave = await viewModel.ConfirmLeaveAsync(CancellationToken.None);
+
+        Assert.Equal(expectedCanLeave, canLeave);
+        Assert.Equal(!expectedCanLeave, viewModel.HasUnsavedChanges);
+    }
+
     [Fact]
     public async Task LoadAsync_opens_current_rule_and_marks_selected_list_item()
     {
