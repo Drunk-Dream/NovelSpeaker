@@ -169,6 +169,20 @@ public sealed class JsonAppSettingsStoreTests
     }
 
     [Fact]
+    public async Task LoadAsync_returns_defaults_when_settings_json_is_corrupt()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new LocalAppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        await File.WriteAllTextAsync(directories.SettingsPath, "{ invalid json", CancellationToken.None);
+        var store = new JsonAppSettingsStore(directories);
+
+        var settings = await store.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(AppSettings.Default, settings);
+    }
+
+    [Fact]
     public async Task GetCurrent_does_not_resume_on_the_callers_synchronization_context()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());

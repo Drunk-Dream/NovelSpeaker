@@ -105,6 +105,30 @@ public sealed class AppSettingsServiceTests
         Assert.Equal(1, settings.PrefetchCount);
     }
 
+    [Fact]
+    public async Task UpdateAsync_propagates_cancellation_without_replacing_the_last_successful_snapshot()
+    {
+        var saveStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var store = new CancellableAppSettingsStore(AppSettings.Default, saveStarted);
+        var service = new AppSettingsService(store);
+        using var cancellation = new CancellationTokenSource();
+
+        var updateTask = service.UpdateAsync(
+            new AppSettingsUpdate { DefaultSpeakSpeed = 16 },
+            cancellation.Token);
+        await saveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => updateTask);
+        store.AllowSave = true;
+        var settings = await service.UpdateAsync(
+            new AppSettingsUpdate { PrefetchCount = 1 },
+            CancellationToken.None);
+
+        Assert.Equal(AppSettings.DefaultSpeakSpeedValue, settings.DefaultSpeakSpeed);
+        Assert.Equal(1, settings.PrefetchCount);
+    }
+
     private class FakeAppSettingsStore : IAppSettingsStore
     {
         public FakeAppSettingsStore(AppSettings currentSettings)
@@ -148,6 +172,31 @@ public sealed class AppSettingsServiceTests
             if (_saveGates.TryDequeue(out var gate))
             {
                 await gate.WaitAsync(cancellationToken);
+            }
+
+            await base.SaveAsync(settings, cancellationToken);
+        }
+    }
+
+    private sealed class CancellableAppSettingsStore : FakeAppSettingsStore
+    {
+        private readonly TaskCompletionSource _saveStarted;
+        private readonly TaskCompletionSource _saveRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public CancellableAppSettingsStore(AppSettings currentSettings, TaskCompletionSource saveStarted)
+            : base(currentSettings)
+        {
+            _saveStarted = saveStarted;
+        }
+
+        public bool AllowSave { get; set; }
+
+        public override async Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
+        {
+            if (!AllowSave)
+            {
+                _saveStarted.TrySetResult();
+                await _saveRelease.Task.WaitAsync(cancellationToken);
             }
 
             await base.SaveAsync(settings, cancellationToken);
