@@ -215,7 +215,7 @@ WPF 测试共享一个明确的 STA Host 和视觉树 helper。测试文件不�
 
 ## 12. 质量门禁
 
-必须严格按以下顺序执行，避免无 RID 隐式还原破坏锁文件目标：
+必须严格按以下顺序执行：
 
 ```powershell
 dotnet restore --locked-mode -r win-x64
@@ -225,6 +225,8 @@ dotnet test -c Release --no-build
 ```
 
 CI 和本地日常验证使用同一顺序。只有依赖或版本确实变化时才允许 `--force-evaluate`，并必须审查全部 `packages.lock.json`。
+
+`Directory.Build.props` 必须通过 `RuntimeIdentifiers` 声明 `win-x64`，使普通 build/run、IDE 设计时构建和显式 CI 还原使用同一锁文件目标集合。不要依赖每个调用入口单独传递 `-r win-x64` 来维持锁文件稳定。
 
 发布还需验证：
 

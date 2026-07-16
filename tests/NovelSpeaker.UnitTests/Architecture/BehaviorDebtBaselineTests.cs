@@ -8,6 +8,18 @@ public sealed class BehaviorDebtBaselineTests
     private static readonly ArchitectureTestRepository Repository = ArchitectureTestRepository.Locate();
 
     [Fact]
+    public void Restore_graph_always_includes_the_release_runtime_identifier()
+    {
+        var buildProperties = XDocument.Load(Absolute("Directory.Build.props"));
+        var properties = buildProperties.Descendants("PropertyGroup")
+            .Elements()
+            .ToDictionary(element => element.Name.LocalName, element => element.Value, StringComparer.Ordinal);
+
+        Assert.Equal("true", properties["RestorePackagesWithLockFile"]);
+        Assert.Equal("win-x64", properties["RuntimeIdentifiers"]);
+    }
+
+    [Fact]
     public void Rule_pages_register_and_unregister_the_global_navigation_guard()
     {
         var pagePaths = new[]

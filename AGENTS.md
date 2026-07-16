@@ -103,7 +103,7 @@ UI 事件和平台能力通过可测试的 presentation port 转交；不得在�
 ```
 
 codex需要提权在沙箱外执行。
-仓库为 `win-x64` 保留锁定还原目标。不得执行会隐式进行无 RID 还原的普通 build/test。完整质量门禁严格按以下顺序执行：
+仓库通过 `Directory.Build.props` 的 `RuntimeIdentifiers` 为所有还原入口保留 `win-x64` 锁文件目标，普通 build/run 和 IDE 隐式还原不得覆盖该属性。完整质量门禁严格按以下顺序执行：
 
 ```powershell
 dotnet restore --locked-mode -r win-x64
@@ -115,7 +115,7 @@ dotnet test -c Release --no-build
 手动启动使用：
 
 ```powershell
-dotnet run --project src/NovelSpeaker.App --no-restore
+dotnet run --project src/NovelSpeaker.App
 ```
 
 只有依赖或版本确实变化时才允许：

@@ -86,8 +86,10 @@ dotnet restore --locked-mode -r win-x64
 dotnet format --verify-no-changes --no-restore
 dotnet build -c Release --no-restore
 dotnet test -c Release --no-build
-dotnet run --project src/NovelSpeaker.App --no-restore
+dotnet run --project src/NovelSpeaker.App
 ```
+
+仓库级 `RuntimeIdentifiers` 会让命令行和 IDE 的隐式还原都保留 `win-x64` 锁文件目标；日常启动不需要额外指定 `-r` 或 `--no-restore`。
 
 ## 架构与文档
 
