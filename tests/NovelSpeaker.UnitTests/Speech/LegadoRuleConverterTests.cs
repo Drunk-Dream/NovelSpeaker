@@ -70,6 +70,49 @@ public sealed class LegadoRuleConverterTests
         Assert.NotEmpty(result.BlockingIssues);
     }
 
+    [Theory]
+    [InlineData("{\"name\":\"Cookie Jar\",\"url\":\"https://example.com/tts\",\"enabledCookieJar\":true}")]
+    [InlineData("{\"name\":\"Login\",\"url\":\"https://example.com/tts\",\"loginInfo\":{\"token\":\"secret\"}}")]
+    [InlineData("{\"name\":\"Login template\",\"url\":\"https://example.com/tts?token={{loginInfo.token}}\"}")]
+    [InlineData("{\"name\":\"Bare cookie\",\"url\":\"https://example.com/tts?token={{ COOKIE }}\"}")]
+    [InlineData("{\"name\":\"Bracket cookie\",\"url\":\"https://example.com/tts?token={{ cookie ['session'] }}\"}")]
+    [InlineData("{\"name\":\"Cookie header\",\"url\":\"https://example.com/tts\",\"header\":{\"Cookie\":\"session=secret\"}}")]
+    [InlineData("{\"name\":\"Cookie option header\",\"url\":\"https://example.com/tts,{\\\"headers\\\":{\\\"Cookie\\\":\\\"session=secret\\\"}}\"}")]
+    public void Convert_blocks_all_cookie_and_login_info_dependencies(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+
+        var result = _converter.Convert(document.RootElement);
+
+        Assert.False(result.CanImport);
+        Assert.Equal(TtsRuleCompatibilityStatus.NeedsManualAdjustment, result.CompatibilityStatus);
+        Assert.Contains(result.BlockingIssues, issue =>
+            issue.Contains("Cookie/LoginInfo", StringComparison.Ordinal));
+        Assert.DoesNotContain(result.BlockingIssues, issue => issue.Contains("secret", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Convert_keeps_authorization_header_supported()
+    {
+        using var document = JsonDocument.Parse(
+            """{"name":"Authorization","url":"https://example.com/tts","header":{"Authorization":"Bearer demo"}}""");
+
+        var result = _converter.Convert(document.RootElement);
+
+        Assert.True(result.CanImport);
+    }
+
+    [Fact]
+    public void Convert_does_not_scan_cookie_or_login_info_in_plain_url_text()
+    {
+        using var document = JsonDocument.Parse(
+            """{"name":"Plain URL","url":"https://example.com/cookie/loginInfo/tts"}""");
+
+        var result = _converter.Convert(document.RootElement);
+
+        Assert.True(result.CanImport);
+    }
+
     [Fact]
     public void Convert_blocks_invalid_template_syntax()
     {

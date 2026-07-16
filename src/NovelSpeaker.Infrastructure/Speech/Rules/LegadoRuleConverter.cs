@@ -35,6 +35,7 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
 
         var name = ReadOptionalString(ruleElement, "name");
         var rawUrl = ReadOptionalString(ruleElement, "url");
+        var rawHeader = ReadOptionalString(ruleElement, "header");
 
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -52,8 +53,17 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
             blockingIssues.Add(split.ErrorMessage);
         }
 
+        if (TtsRuleCompatibilityChecker.HasUnsupportedImportDependency(
+                ruleElement,
+                rawUrl,
+                rawHeader,
+                split.RequestOptionsJson))
+        {
+            blockingIssues.Add(TtsRuleCompatibilityChecker.UnsupportedCookieLoginInfoMessage);
+        }
+
         var normalizedUrl = NormalizeTemplate(split.Url ?? rawUrl, "url", blockingIssues);
-        var normalizedHeader = NormalizeTemplate(ReadOptionalString(ruleElement, "header"), "header", blockingIssues);
+        var normalizedHeader = NormalizeTemplate(rawHeader, "header", blockingIssues);
         var normalizedRequestOptions = StripUnsupportedRequestOptions(
             NormalizeTemplate(split.RequestOptionsJson, "requestOptions", blockingIssues));
 
@@ -119,6 +129,14 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
                         builder.Append(literal.Text);
                         break;
                     case ExpressionTemplateSegment expression:
+                        if (TtsRuleCompatibilityChecker.IsUnsupportedExpression(expression.Expression))
+                        {
+                            builder.Append("{{");
+                            builder.Append(expression.Expression);
+                            builder.Append("}}");
+                            break;
+                        }
+
                         var normalizedExpression = NormalizeExpression(expression.Expression);
                         if (normalizedExpression is null)
                         {
@@ -144,11 +162,6 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
 
     private static string? NormalizeExpression(string expression)
     {
-        if (CookiePattern().IsMatch(expression))
-        {
-            return null;
-        }
-
         var normalized = JavaEncodeUriPattern().Replace(expression, "encodeURI(");
         normalized = JavaEncodeURIComponentPattern().Replace(normalized, "encodeURIComponent(");
         if (UnsupportedJavaPattern().IsMatch(normalized))
@@ -291,9 +304,6 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
             return null;
         }
     }
-
-    [GeneratedRegex(@"\bcookie\s*\.", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex CookiePattern();
 
     [GeneratedRegex(@"\bjava\s*\.\s*encodeURI\s*\(", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex JavaEncodeUriPattern();
