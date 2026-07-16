@@ -1,8 +1,11 @@
+using System.Net;
+using Microsoft.Extensions.Logging;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Speech.Http;
+using NovelSpeaker.UnitTests.Common;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Speech;
@@ -168,12 +171,93 @@ public sealed class HttpTtsClientTests
         Assert.Equal(0, server.GetRequestCount("/cookie-required"));
     }
 
+    [Fact]
+    public async Task ExecuteAsync_projects_safe_network_failure_and_redacts_diagnostic_log()
+    {
+        const string token = "fixture-token-3218";
+        const string body = "fixture-body-4790";
+        const string novelText = "fixture-novel-text-6527";
+        var logger = new CapturingLogger<HttpTtsClient>();
+        var exceptionText = $"Authorization=Bearer {token}; query={token}; body={body}; text={novelText}";
+        using var client = CreateClient(new ThrowingHandler(new HttpRequestException(exceptionText)), logger);
+        var request = new ParsedTtsRequest(
+            1,
+            "POST",
+            new Uri($"https://example.com/tts?token={token}"),
+            new Dictionary<string, string> { ["Authorization"] = $"Bearer {token}" },
+            new ParsedTtsRequestBody(ParsedTtsRequestBodyKind.Json, $"{{\"body\":\"{body}\",\"text\":\"{novelText}\"}}", null),
+            "audio/mpeg");
+
+        var result = await client.ExecuteAsync(request, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(TtsErrorKind.Network, result.Failure!.Kind);
+        Assert.Equal("网络请求失败，请检查网络连接后重试。", result.Failure.Message);
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Error, entry.Level);
+        Assert.Null(entry.Exception);
+        AssertSensitiveValuesAbsent(entry.Message, token, body, novelText);
+        AssertSensitiveValuesAbsent(result.Failure.Message, token, body, novelText);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_does_not_log_user_cancellation_as_error()
+    {
+        var logger = new CapturingLogger<HttpTtsClient>();
+        using var cancellation = new CancellationTokenSource();
+        using var client = CreateClient(new CancellingHandler(cancellation), logger);
+
+        var result = await client.ExecuteAsync(
+            CreateRequest(1, new Uri("https://example.com/tts")),
+            cancellation.Token);
+
+        Assert.Equal(TtsErrorKind.Cancelled, result.Failure!.Kind);
+        Assert.DoesNotContain(logger.Entries, entry => entry.Level == LogLevel.Error);
+    }
+
     private static HttpTtsClient CreateClient(TimeSpan? requestTimeout = null)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var directories = new LocalAppDataDirectoryProvider(root);
         directories.EnsureCreatedAsync(CancellationToken.None).GetAwaiter().GetResult();
         return new HttpTtsClient(directories, requestTimeout: requestTimeout);
+    }
+
+    private static HttpTtsClient CreateClient(
+        HttpMessageHandler handler,
+        Microsoft.Extensions.Logging.ILogger<HttpTtsClient> logger)
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new LocalAppDataDirectoryProvider(root);
+        directories.EnsureCreatedAsync(CancellationToken.None).GetAwaiter().GetResult();
+        return new HttpTtsClient(directories, handler, logger: logger);
+    }
+
+    private static void AssertSensitiveValuesAbsent(string value, params string[] sensitiveValues)
+    {
+        foreach (var sensitiveValue in sensitiveValues)
+        {
+            Assert.DoesNotContain(sensitiveValue, value, StringComparison.Ordinal);
+        }
+    }
+
+    private sealed class ThrowingHandler(Exception exception) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) =>
+            Task.FromException<HttpResponseMessage>(exception);
+    }
+
+    private sealed class CancellingHandler(CancellationTokenSource cancellation) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellation.Cancel();
+            return Task.FromCanceled<HttpResponseMessage>(cancellation.Token);
+        }
     }
 
     private static ParsedTtsRequest CreateRequest(

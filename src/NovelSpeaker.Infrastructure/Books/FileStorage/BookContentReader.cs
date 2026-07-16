@@ -26,12 +26,12 @@ public sealed class BookContentReader : IBookContentReader
         var text = await GetBookTextAsync(storedFilePath, cancellationToken).ConfigureAwait(false);
         if (startOffset > text.Length)
         {
-            throw new InvalidOperationException($"章节起始偏移 {startOffset} 超出正文长度 {text.Length}。");
+            throw new InvalidDataException($"章节起始偏移 {startOffset} 超出正文长度 {text.Length}。");
         }
 
         if (startOffset + length > text.Length)
         {
-            throw new InvalidOperationException(
+            throw new InvalidDataException(
                 $"章节范围 [{startOffset}, {startOffset + length}) 超出正文长度 {text.Length}。");
         }
 

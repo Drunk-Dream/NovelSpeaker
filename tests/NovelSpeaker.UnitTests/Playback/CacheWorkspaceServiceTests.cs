@@ -68,6 +68,49 @@ public sealed class CacheWorkspaceServiceTests
         Assert.Equal(2, second.CachedSegmentCount);
     }
 
+    [Fact]
+    public async Task GetCachedChaptersAsync_propagates_cancellation_from_segment_estimation()
+    {
+        var fixture = await CreateFixtureAsync();
+        await SeedBookAsync(fixture, "book-1", "示例书", "作者甲");
+        using var cancellation = new CancellationTokenSource();
+        var reader = new FakeBookContentReader();
+        reader.ExceptionByStartOffset[0] = new OperationCanceledException(cancellation.Token);
+        var service = CreateChapterService(fixture, reader);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.GetCachedChaptersAsync("book-1", cancellation.Token));
+        Assert.Equal(1, reader.CallCount);
+    }
+
+    [Fact]
+    public async Task GetCachedChaptersAsync_propagates_unexpected_estimation_failures()
+    {
+        var fixture = await CreateFixtureAsync();
+        await SeedBookAsync(fixture, "book-1", "示例书", "作者甲");
+        var reader = new FakeBookContentReader();
+        reader.ExceptionByStartOffset[0] = new ApplicationException("unexpected defect");
+        var service = CreateChapterService(fixture, reader);
+
+        var exception = await Assert.ThrowsAsync<ApplicationException>(() =>
+            service.GetCachedChaptersAsync("book-1", CancellationToken.None));
+
+        Assert.Equal("unexpected defect", exception.Message);
+    }
+
+    private static CacheWorkspaceService CreateChapterService(TestFixture fixture, IBookContentReader reader)
+    {
+        return new CacheWorkspaceService(
+            new FakeAudioCacheManagementService
+            {
+                ChaptersResult = [new CachedChapterSummary("book-1", 0, 1, 1, 1024)]
+            },
+            fixture.Factory,
+            reader,
+            new TextSegmenter(),
+            new FixedSegmentationOptionsProvider());
+    }
+
     private static async Task<TestFixture> CreateFixtureAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -128,12 +171,15 @@ public sealed class CacheWorkspaceServiceTests
 
     private sealed class FakeBookContentReader : IBookContentReader
     {
+        public int CallCount { get; private set; }
+
         public Dictionary<int, string> TextByStartOffset { get; } = [];
 
         public Dictionary<int, Exception> ExceptionByStartOffset { get; } = [];
 
         public Task<string> ReadChapterTextAsync(string storedFilePath, int startOffset, int length, CancellationToken cancellationToken)
         {
+            CallCount++;
             if (ExceptionByStartOffset.TryGetValue(startOffset, out var exception))
             {
                 throw exception;

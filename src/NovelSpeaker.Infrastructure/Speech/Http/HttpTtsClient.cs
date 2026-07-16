@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using NAudio.Wave;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Speech;
@@ -23,17 +25,33 @@ public sealed class HttpTtsClient : IHttpTtsClient, IDisposable
     private readonly string _tempDirectoryPath;
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _requestTimeout;
+    private readonly ILogger<HttpTtsClient> _logger;
     private bool _disposed;
 
     public HttpTtsClient(
         IAppDataDirectoryProvider directories,
         TimeProvider? timeProvider = null,
-        TimeSpan? requestTimeout = null)
+        TimeSpan? requestTimeout = null,
+        ILogger<HttpTtsClient>? logger = null)
+        : this(directories, CreateHandler(), timeProvider, requestTimeout, logger)
+    {
+    }
+
+    internal HttpTtsClient(
+        IAppDataDirectoryProvider directories,
+        HttpMessageHandler handler,
+        TimeProvider? timeProvider = null,
+        TimeSpan? requestTimeout = null,
+        ILogger<HttpTtsClient>? logger = null)
     {
         _tempDirectoryPath = Path.Combine(directories.CacheDirectoryPath, "RuleTests");
         _timeProvider = timeProvider ?? TimeProvider.System;
         _requestTimeout = requestTimeout ?? DefaultRequestTimeout;
-        _client = CreateClient();
+        _logger = logger ?? NullLogger<HttpTtsClient>.Instance;
+        _client = new HttpClient(handler, disposeHandler: true)
+        {
+            Timeout = Timeout.InfiniteTimeSpan
+        };
     }
 
     public async Task<TtsHttpExecutionResult> ExecuteAsync(
@@ -145,11 +163,13 @@ public sealed class HttpTtsClient : IHttpTtsClient, IDisposable
                     continue;
                 }
 
-                return Failure(TtsErrorKind.Network, $"网络请求失败：{exception.Message}", null, null, null, null);
+                LogFailure(request, exception, "HTTP TTS network request");
+                return Failure(TtsErrorKind.Network, "网络请求失败，请检查网络连接后重试。", null, null, null, null);
             }
             catch (Exception exception)
             {
-                return Failure(TtsErrorKind.Unknown, $"HTTP TTS 执行失败：{exception.Message}", null, null, null, null);
+                LogFailure(request, exception, "HTTP TTS execution");
+                return Failure(TtsErrorKind.Unknown, "HTTP TTS 执行失败，请稍后重试。", null, null, null, null);
             }
         }
     }
@@ -242,18 +262,43 @@ public sealed class HttpTtsClient : IHttpTtsClient, IDisposable
         }
     }
 
-    private static HttpClient CreateClient()
+    private static HttpMessageHandler CreateHandler()
     {
-        var handler = new SocketsHttpHandler
+        return new SocketsHttpHandler
         {
             UseCookies = false,
             AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli
         };
+    }
 
-        return new HttpClient(handler, disposeHandler: true)
+    private void LogFailure(ParsedTtsRequest request, Exception exception, string operation)
+    {
+        SensitiveFailureLogger.LogError(
+            _logger,
+            operation,
+            exception,
+            EnumerateKnownSecrets(request));
+    }
+
+    private static IEnumerable<string?> EnumerateKnownSecrets(ParsedTtsRequest request)
+    {
+        yield return request.Url.ToString();
+        yield return request.Body.RawText;
+
+        foreach (var header in request.Headers)
         {
-            Timeout = Timeout.InfiniteTimeSpan
-        };
+            yield return header.Key;
+            yield return header.Value;
+        }
+
+        if (request.Body.FormFields is not null)
+        {
+            foreach (var field in request.Body.FormFields)
+            {
+                yield return field.Key;
+                yield return field.Value;
+            }
+        }
     }
 
     private static HttpRequestMessage CreateRequestMessage(ParsedTtsRequest request)

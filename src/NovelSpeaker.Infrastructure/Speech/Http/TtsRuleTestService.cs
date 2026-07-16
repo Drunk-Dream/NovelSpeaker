@@ -1,6 +1,9 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Playback;
@@ -19,6 +22,7 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
     private readonly ITtsRuleNormalizer _ruleNormalizer;
     private readonly TimeProvider _timeProvider;
     private readonly IAudioPlayer _audioPlayer;
+    private readonly ILogger<TtsRuleTestService> _logger;
     private bool _disposed;
 
     public TtsRuleTestService(
@@ -27,7 +31,8 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
         IHttpTtsClient httpTtsClient,
         IAudioPlayerFactory audioPlayerFactory,
         ITtsRuleNormalizer? ruleNormalizer = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ILogger<TtsRuleTestService>? logger = null)
     {
         _ruleLibraryService = ruleLibraryService;
         _requestCompiler = requestCompiler;
@@ -35,6 +40,7 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
         _ruleNormalizer = ruleNormalizer ?? new TtsRuleNormalizer();
         _timeProvider = timeProvider ?? TimeProvider.System;
         _audioPlayer = audioPlayerFactory.Create();
+        _logger = logger ?? NullLogger<TtsRuleTestService>.Instance;
     }
 
     public async Task<TtsRuleTestResult> TestAsync(
@@ -67,9 +73,10 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
         }
         catch (FormatException exception)
         {
+            LogFailure(input, exception, "TTS rule test normalization");
             return new TtsRuleTestResult(
                 false,
-                $"规则模板格式无效：{exception.Message}",
+                "规则模板格式无效，请检查规则后重试。",
                 null,
                 Array.Empty<string>(),
                 TtsErrorKind.InvalidRule,
@@ -77,6 +84,15 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
                 null,
                 null,
                 null);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            LogFailure(input, exception, "TTS rule test compilation");
+            return CreateUnexpectedFailureResult();
         }
 
         if (!compilation.IsSuccess)
@@ -93,7 +109,20 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
                 compilation.Failure?.RetryAfter);
         }
 
-        var execution = await _httpTtsClient.ExecuteAsync(compilation.Request!, cancellationToken);
+        TtsHttpExecutionResult execution;
+        try
+        {
+            execution = await _httpTtsClient.ExecuteAsync(compilation.Request!, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            LogFailure(input, exception, "TTS rule test HTTP execution");
+            return CreateUnexpectedFailureResult();
+        }
         if (!execution.IsSuccess)
         {
             return new TtsRuleTestResult(
@@ -114,9 +143,14 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
             await _audioPlayer.LoadAsync(execution.Audio!.FilePath, cancellationToken);
             _audioPlayer.Play();
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception exception)
         {
             var playbackError = PlaybackErrorMapper.Map(exception);
+            LogFailure(input, exception, "TTS rule test audio playback");
             return new TtsRuleTestResult(
                 false,
                 $"音频已下载，但本地播放失败：{playbackError.Message}",
@@ -138,6 +172,34 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
             execution.Audio!.StatusCode,
             execution.Audio.ResponseContentType,
             execution.Audio.DetectedAudioFormat,
+            null);
+    }
+
+    private void LogFailure(TtsRuleDraftTestInput input, Exception exception, string operation)
+    {
+        SensitiveFailureLogger.LogError(
+            _logger,
+            operation,
+            exception,
+            [
+                input.SpeakText,
+                input.Editor.Url,
+                input.Editor.RequestOptions.Body,
+                .. input.Editor.Headers.SelectMany(static pair => new[] { pair.Key, pair.Value })
+            ]);
+    }
+
+    private static TtsRuleTestResult CreateUnexpectedFailureResult()
+    {
+        return new TtsRuleTestResult(
+            false,
+            "规则测试失败，请稍后重试。",
+            null,
+            [],
+            TtsErrorKind.Unknown,
+            null,
+            null,
+            null,
             null);
     }
 

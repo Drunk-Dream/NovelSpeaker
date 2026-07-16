@@ -191,9 +191,9 @@ internal static partial class TtsRuleModelMapper
         {
             NormalizedTemplate.Parse(value);
         }
-        catch (FormatException exception)
+        catch (FormatException)
         {
-            errors.Add($"{fieldName} 模板格式无效：{exception.Message}");
+            errors.Add($"{fieldName} 模板格式无效，请检查模板语法。");
         }
     }
 

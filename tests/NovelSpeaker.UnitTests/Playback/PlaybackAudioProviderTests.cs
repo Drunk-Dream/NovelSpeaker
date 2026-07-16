@@ -6,6 +6,7 @@ using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Playback;
 using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.UnitTests.Common;
+using Microsoft.Extensions.Logging;
 using NovelSpeaker.UnitTests.Speech;
 using Xunit;
 
@@ -231,6 +232,85 @@ public sealed class PlaybackAudioProviderTests
         Assert.Equal("默认规则", compiler.LastContext!.Source.Name);
     }
 
+    [Fact]
+    public async Task GetAudioAsync_projects_safe_unexpected_failure_and_redacts_log()
+    {
+        const string token = "fixture-token-4371";
+        const string novelText = "fixture-novel-text-5982";
+        var rule = CreateRule() with
+        {
+            Url = $"https://example.com/tts?token={token}",
+            Headers = new Dictionary<string, string> { ["Authorization"] = $"Bearer {token}" }
+        };
+        var request = new PlaybackAudioRequest(
+            "book-1",
+            0,
+            0,
+            novelText,
+            rule.Id,
+            rule,
+            rule.Normalize(),
+            10,
+            Guid.NewGuid());
+        var logger = new CapturingLogger<PlaybackAudioProvider>();
+        var provider = new PlaybackAudioProvider(
+            new FakeTtsRequestCompiler
+            {
+                ExceptionToThrow = new InvalidOperationException(
+                    $"Authorization=Bearer {token}; query={token}; text={novelText}")
+            },
+            new FakeHttpTtsClient(),
+            new FakeAudioCache(),
+            new CountingRateLimiter(),
+            logger);
+
+        var result = await provider.GetAudioAsync(
+            request,
+            PlaybackAudioPriority.Current,
+            null,
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(TtsErrorKind.Unknown, result.Failure!.Kind);
+        Assert.Equal("音频生成失败，请稍后重试。", result.Failure.Message);
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Error, entry.Level);
+        Assert.Null(entry.Exception);
+        Assert.DoesNotContain(token, entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(novelText, entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(token, result.Failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(novelText, result.Failure.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetAudioAsync_projects_safe_initial_cache_failure()
+    {
+        const string novelText = "fixture-novel-text-2195";
+        var request = CreatePlaybackRequest(speechText: novelText);
+        var logger = new CapturingLogger<PlaybackAudioProvider>();
+        var provider = new PlaybackAudioProvider(
+            new FakeTtsRequestCompiler(),
+            new FakeHttpTtsClient(),
+            new FakeAudioCache
+            {
+                LookupException = new IOException($"cache path contains {novelText}")
+            },
+            new CountingRateLimiter(),
+            logger);
+
+        var result = await provider.GetAudioAsync(
+            request,
+            PlaybackAudioPriority.Current,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(TtsErrorKind.Unknown, result.Failure!.Kind);
+        Assert.Equal("音频生成失败，请稍后重试。", result.Failure.Message);
+        var entry = Assert.Single(logger.Entries);
+        Assert.Null(entry.Exception);
+        Assert.DoesNotContain(novelText, entry.Message, StringComparison.Ordinal);
+    }
+
     private static PlaybackAudioRequest CreatePlaybackRequest(
         int segmentIndex = 0,
         string speechText = "第一段")
@@ -313,6 +393,8 @@ public sealed class PlaybackAudioProviderTests
     {
         public AudioCacheEntry? EntryToReturn { get; set; }
 
+        public Exception? LookupException { get; init; }
+
         public AudioCacheWriteRequest? StoredRequest { get; private set; }
 
         public AudioCacheEntry? StoredResult { get; private set; }
@@ -321,6 +403,11 @@ public sealed class PlaybackAudioProviderTests
 
         public Task<AudioCacheEntry?> TryGetAsync(AudioCacheKey key, CancellationToken cancellationToken)
         {
+            if (LookupException is not null)
+            {
+                throw LookupException;
+            }
+
             return Task.FromResult(EntryToReturn);
         }
 
@@ -347,6 +434,8 @@ public sealed class PlaybackAudioProviderTests
         public TtsRequestCompilationResult CompilationResult { get; set; } =
             CreateSuccessfulCompilationResult();
 
+        public Exception? ExceptionToThrow { get; init; }
+
         public Task<TtsRequestCompilationResult> CompileAsync(
             NormalizedHttpTtsRule rule,
             TtsRuleContext context,
@@ -354,6 +443,11 @@ public sealed class PlaybackAudioProviderTests
         {
             CallCount++;
             LastContext = context;
+            if (ExceptionToThrow is not null)
+            {
+                throw ExceptionToThrow;
+            }
+
             return Task.FromResult(CompilationResult);
         }
     }

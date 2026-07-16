@@ -260,6 +260,8 @@ public sealed record ParsedTtsRequest(
 
 Token 和其它凭据值不得在普通日志或错误摘要中明文显示。
 
+模板、规则规范化、HTTP 运输和本地试听异常只向用户投影稳定的错误类别与固定文案；不得把原始 `Exception.Message` 写入测试结果、请求预览或播放错误。诊断日志不接收原始异常对象，只记录异常类型和经统一脱敏器处理的摘要，并再次清除当前 URL、Header、Body、模板原文与试听正文等已知敏感输入。用户取消不记录为 Error。
+
 ## 限流
 
 `concurrentRate` 支持：

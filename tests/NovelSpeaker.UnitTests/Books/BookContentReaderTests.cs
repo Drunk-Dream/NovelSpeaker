@@ -23,7 +23,7 @@ public sealed class BookContentReaderTests
         var path = await CreateContentFileAsync("正文");
         IBookContentReader reader = new BookContentReader();
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(
             () => reader.ReadChapterTextAsync(path, 3, 1, CancellationToken.None));
         Assert.Contains("超出正文长度", exception.Message);
     }
@@ -34,7 +34,7 @@ public sealed class BookContentReaderTests
         var path = await CreateContentFileAsync("正文");
         IBookContentReader reader = new BookContentReader();
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(
             () => reader.ReadChapterTextAsync(path, 1, 2, CancellationToken.None));
         Assert.Contains("超出正文长度", exception.Message);
     }

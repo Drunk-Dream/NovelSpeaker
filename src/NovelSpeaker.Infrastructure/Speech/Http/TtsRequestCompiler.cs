@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
@@ -20,10 +22,14 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
         };
 
     private readonly ITemplateEvaluator _templateEvaluator;
+    private readonly ILogger<TtsRequestCompiler> _logger;
 
-    public TtsRequestCompiler(ITemplateEvaluator templateEvaluator)
+    public TtsRequestCompiler(
+        ITemplateEvaluator templateEvaluator,
+        ILogger<TtsRequestCompiler>? logger = null)
     {
         _templateEvaluator = templateEvaluator;
+        _logger = logger ?? NullLogger<TtsRequestCompiler>.Instance;
     }
 
     public async Task<TtsRequestCompilationResult> CompileAsync(
@@ -57,11 +63,16 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
         }
         catch (OperationCanceledException)
         {
-            return Failure(TtsErrorKind.Cancelled, "已取消当前请求编译。");
+            throw;
         }
         catch (Exception exception)
         {
-            return Failure(TtsErrorKind.ScriptError, $"模板求值失败：{exception.Message}");
+            SensitiveFailureLogger.LogError(
+                _logger,
+                "TTS request template evaluation",
+                exception,
+                EnumerateKnownSecrets(rule, context));
+            return Failure(TtsErrorKind.ScriptError, "模板求值失败，请检查规则模板后重试。");
         }
 
         if (!Uri.TryCreate(urlText, UriKind.Absolute, out var url))
@@ -120,6 +131,21 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
         return new TtsRequestCompilationResult(request, preview, Array.Empty<string>(), null);
     }
 
+    private static IEnumerable<string?> EnumerateKnownSecrets(
+        NormalizedHttpTtsRule rule,
+        TtsRuleContext context)
+    {
+        yield return rule.UrlTemplate.RawText;
+        yield return rule.RequestBodyTemplate?.RawText;
+        yield return context.SpeakText;
+
+        foreach (var header in rule.HeaderTemplates)
+        {
+            yield return header.Key;
+            yield return header.Value.RawText;
+        }
+    }
+
     private static TtsRequestCompilationResult Failure(TtsErrorKind kind, string message)
     {
         return new TtsRequestCompilationResult(
@@ -138,8 +164,15 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
 
         if (isJsonStructure)
         {
-            using var document = JsonDocument.Parse(text);
-            return BodyParseResult.Success(document.RootElement.Clone());
+            try
+            {
+                using var document = JsonDocument.Parse(text);
+                return BodyParseResult.Success(document.RootElement.Clone());
+            }
+            catch (JsonException)
+            {
+                return BodyParseResult.Error("POST JSON 的 body 不是有效的 JSON。");
+            }
         }
 
         using var stringDocument = JsonDocument.Parse(JsonSerializer.Serialize(text));
@@ -210,17 +243,24 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
         }
 
         var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var pair in (bodyElement.GetString() ?? string.Empty).Split('&', StringSplitOptions.RemoveEmptyEntries))
+        try
         {
-            var equalsIndex = pair.IndexOf('=', StringComparison.Ordinal);
-            if (equalsIndex < 0)
+            foreach (var pair in (bodyElement.GetString() ?? string.Empty).Split('&', StringSplitOptions.RemoveEmptyEntries))
             {
-                fields[Uri.UnescapeDataString(pair)] = string.Empty;
-                continue;
-            }
+                var equalsIndex = pair.IndexOf('=', StringComparison.Ordinal);
+                if (equalsIndex < 0)
+                {
+                    fields[Uri.UnescapeDataString(pair)] = string.Empty;
+                    continue;
+                }
 
-            fields[Uri.UnescapeDataString(pair[..equalsIndex])] =
-                Uri.UnescapeDataString(pair[(equalsIndex + 1)..]);
+                fields[Uri.UnescapeDataString(pair[..equalsIndex])] =
+                    Uri.UnescapeDataString(pair[(equalsIndex + 1)..]);
+            }
+        }
+        catch (UriFormatException)
+        {
+            return null;
         }
 
         return fields;
@@ -274,6 +314,8 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
     private sealed record BodyParseResult(bool IsSuccess, JsonElement? BodyElement, string? Message)
     {
         public static BodyParseResult Success(JsonElement? bodyElement) => new(true, bodyElement, null);
+
+        public static BodyParseResult Error(string message) => new(false, null, message);
     }
 
     private sealed record BodyBuildResult(

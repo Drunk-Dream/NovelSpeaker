@@ -1,7 +1,9 @@
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.Infrastructure.Speech.Scripting;
+using NovelSpeaker.UnitTests.Common;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Speech;
@@ -80,6 +82,28 @@ public sealed class TtsRequestCompilerTests
         Assert.Equal("POST", result.Request!.Method);
     }
 
+    [Fact]
+    public async Task CompileAsync_projects_malformed_structured_body_as_safe_invalid_rule()
+    {
+        var rule = CreateRule("Malformed body", "https://example.com/tts") with
+        {
+            RequestMethod = "POST",
+            RequestBody = "{sensitive-body-fragment",
+            RequestBodyIsJsonStructure = true
+        };
+
+        var result = await _compiler.CompileAsync(
+            rule.Normalize(),
+            CreateContext(rule),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(TtsErrorKind.InvalidRule, result.Failure!.Kind);
+        Assert.Equal("POST JSON 的 body 不是有效的 JSON。", result.Failure.Message);
+        Assert.DoesNotContain("sensitive-body-fragment", result.Failure.Message, StringComparison.Ordinal);
+        Assert.Null(result.Preview);
+    }
+
     [Theory]
     [InlineData("https://example.com/tts?token={{loginInfo.token}}", null, null)]
     [InlineData("https://example.com/tts?token={{ cookie }}", null, null)]
@@ -103,6 +127,85 @@ public sealed class TtsRequestCompilerTests
         Assert.Equal(TtsErrorKind.InvalidRule, result.Failure!.Kind);
         Assert.Contains("Cookie/LoginInfo", result.Failure.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("secret", result.Failure.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CompileAsync_projects_safe_template_failure_and_redacts_diagnostic_log()
+    {
+        const string token = "fixture-token-9482";
+        const string body = "fixture-body-2751";
+        const string novelText = "fixture-novel-text-8364";
+        var rule = CreateRule(
+            "Sensitive",
+            $"https://example.com/tts?query={token}&text={{{{speakText}}}}",
+            $"{{\"Authorization\":\"Bearer {token}\"}}",
+            $"{{\"method\":\"POST\",\"body\":\"{body}\"}}");
+        var logger = new CapturingLogger<TtsRequestCompiler>();
+        var exceptionText = $"Authorization=Bearer {token}; query={token}; body={body}; text={novelText}";
+        var compiler = new TtsRequestCompiler(new ThrowingTemplateEvaluator(exceptionText), logger);
+
+        var result = await compiler.CompileAsync(
+            rule.Normalize(),
+            new TtsRuleContext(novelText, 10, rule),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(TtsErrorKind.ScriptError, result.Failure!.Kind);
+        Assert.Equal("模板求值失败，请检查规则模板后重试。", result.Failure.Message);
+        Assert.Null(result.Preview);
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Error, entry.Level);
+        Assert.Null(entry.Exception);
+        AssertSensitiveValuesAbsent(entry.Message, token, body, novelText);
+        AssertSensitiveValuesAbsent(result.Failure.Message, token, body, novelText);
+    }
+
+    [Fact]
+    public async Task CompileAsync_does_not_log_user_cancellation_as_error()
+    {
+        var rule = CreateRule("Cancelled", "https://example.com/{{speakText}}");
+        var logger = new CapturingLogger<TtsRequestCompiler>();
+        var evaluator = new CancellingTemplateEvaluator();
+        var compiler = new TtsRequestCompiler(evaluator, logger);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => compiler.CompileAsync(
+            rule.Normalize(),
+            CreateContext(rule),
+            CancellationToken.None));
+
+        Assert.Equal(1, evaluator.CallCount);
+        Assert.DoesNotContain(logger.Entries, entry => entry.Level == Microsoft.Extensions.Logging.LogLevel.Error);
+    }
+
+    private static void AssertSensitiveValuesAbsent(string value, params string[] sensitiveValues)
+    {
+        foreach (var sensitiveValue in sensitiveValues)
+        {
+            Assert.DoesNotContain(sensitiveValue, value, StringComparison.Ordinal);
+        }
+    }
+
+    private sealed class ThrowingTemplateEvaluator(string message) : ITemplateEvaluator
+    {
+        public Task<string> EvaluateAsync(
+            NormalizedTemplate template,
+            TtsRuleContext context,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(message);
+    }
+
+    private sealed class CancellingTemplateEvaluator : ITemplateEvaluator
+    {
+        public int CallCount { get; private set; }
+
+        public Task<string> EvaluateAsync(
+            NormalizedTemplate template,
+            TtsRuleContext context,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            throw new OperationCanceledException(cancellationToken);
+        }
     }
 
     private static HttpTtsRule CreateRule(

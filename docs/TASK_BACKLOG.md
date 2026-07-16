@@ -292,7 +292,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：Application 的 `AppSettingsService` 现拥有唯一进程级规范化快照，公开同步只读 `Current`、串行 `UpdateAsync` 和带 previous/current 的变更通知；缓存限额、文件名模板、分段选项、主题、诊断、页面与播放消费者均只读该内存快照，不再同步阻塞或重复加载 JSON。启动复用同一目录 provider 与 `JsonAppSettingsStore`，仅加载一次并将同一快照用于日志和 DI。JSON 保存使用同目录唯一临时文件、异步序列化、flush/落盘刷新、提交前取消检查和同卷覆盖移动；失败清理临时文件且保留旧文件。损坏 JSON 使用 `TimeProvider` 的 UTC 时间戳隔离为唯一 `.corrupt` 备份，当前进程采用默认快照，首次成功更新再创建新文件。回归测试覆盖零读盘同步 provider、并发合并与旧保存顺序、等待/保存及 flush 后提交前取消、通知顺序、首次创建/替换、write/flush/replace 故障、临时文件清理、损坏隔离与同一时间戳冲突，以及自定义 `SynchronizationContext` 下无死锁。
 
-### [ ] INFRA-105（P0）：修复取消和安全错误投影基础缺陷
+### [x] INFRA-105（P0）：修复取消和安全错误投影基础缺陷
 
 前置：ARC-002。
 
@@ -304,6 +304,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 增加异常文本含 token/query/body/正文的回归测试。
 
 非目标：不在本任务拆分整个 HTTP client 或 Cache 服务。
+
+完成说明：`CacheWorkspaceService` 的章节段落估算现显式传播取消，仅对文件缺失/目录缺失、无权限、I/O、损坏 UTF-8、损坏正文范围等列明异常降级为未知估算；负偏移/非正长度直接视为不可估算，其它异常继续传播。模板编译、规则规范化、HTTP 执行、试听及播放音频生成边界不再把 `Exception.Message` 拼入用户结果，统一保留稳定 `TtsErrorKind`、固定安全文案以及既有状态码、Content-Type、Retry-After 和已脱敏响应摘要。各边界使用 typed logger，日志不传原始异常对象，只记录异常类型和经 `SensitiveDataRedactor` 及当前 URL/Header/Body/模板/`SpeakText` known-secret 集合二次清理的摘要；取消不记录 Error。回归测试覆盖 token、Authorization、query、body、Cookie/LoginInfo 与小说正文不会进入用户消息、preview/result、播放错误或捕获日志，并覆盖缓存估算取消/预期降级/意外异常、编译 body 输入错误和初始缓存故障的安全语义。
 
 ---
 

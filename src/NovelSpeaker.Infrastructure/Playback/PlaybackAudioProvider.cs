@@ -1,9 +1,12 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Infrastructure.Speech;
 
 namespace NovelSpeaker.Infrastructure.Playback;
 
@@ -16,6 +19,7 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
     private readonly IHttpTtsClient _httpTtsClient;
     private readonly IAudioCache _audioCache;
     private readonly ITtsRateLimiter _rateLimiter;
+    private readonly ILogger<PlaybackAudioProvider> _logger;
     private readonly ConcurrentDictionary<AudioCacheKey, InFlightOperation> _inFlight = new();
     private readonly ConcurrentDictionary<long, RuleExecutionSlot> _ruleSlots = new();
 
@@ -23,12 +27,14 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
         ITtsRequestCompiler requestCompiler,
         IHttpTtsClient httpTtsClient,
         IAudioCache audioCache,
-        ITtsRateLimiter rateLimiter)
+        ITtsRateLimiter rateLimiter,
+        ILogger<PlaybackAudioProvider>? logger = null)
     {
         _requestCompiler = requestCompiler;
         _httpTtsClient = httpTtsClient;
         _audioCache = audioCache;
         _rateLimiter = rateLimiter;
+        _logger = logger ?? NullLogger<PlaybackAudioProvider>.Instance;
     }
 
     public async Task<PlaybackAudioResult> GetAudioAsync(
@@ -38,7 +44,21 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
         CancellationToken cancellationToken)
     {
         var cacheKey = CreateCacheKey(request);
-        var cached = await _audioCache.TryGetAsync(cacheKey, cancellationToken).ConfigureAwait(false);
+        AudioCacheEntry? cached;
+        try
+        {
+            cached = await _audioCache.TryGetAsync(cacheKey, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            LogFailure(request, exception, "Playback audio cache lookup");
+            return CreateUnexpectedFailureResult();
+        }
+
         if (cached is not null)
         {
             return new PlaybackAudioResult(cached.FilePath, true, null);
@@ -142,7 +162,8 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
             }
             catch (FormatException exception)
             {
-                return CreateInvalidRuleResult($"规则模板格式无效：{exception.Message}");
+                LogFailure(request, exception, "Playback TTS rule normalization");
+                return CreateInvalidRuleResult("规则模板格式无效，请检查规则后重试。");
             }
 
             if (!compilation.IsSuccess)
@@ -161,7 +182,8 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
                 }
                 catch (FormatException exception)
                 {
-                    return CreateInvalidRuleResult($"规则限流格式无效：{exception.Message}");
+                    LogFailure(request, exception, "Playback TTS rate limit parsing");
+                    return CreateInvalidRuleResult("规则限流格式无效，请检查规则后重试。");
                 }
                 catch (OperationCanceledException)
                 {
@@ -213,6 +235,11 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
         {
             return CreateCancelledResult();
         }
+        catch (Exception exception)
+        {
+            LogFailure(request, exception, "Playback audio generation");
+            return CreateUnexpectedFailureResult();
+        }
         finally
         {
             lock (slot.SyncRoot)
@@ -225,6 +252,20 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
 
             slot.Gate.Release();
         }
+    }
+
+    private void LogFailure(PlaybackAudioRequest request, Exception exception, string operation)
+    {
+        SensitiveFailureLogger.LogError(
+            _logger,
+            operation,
+            exception,
+            [
+                request.SpeechText,
+                request.SourceRule.Url,
+                request.SourceRule.RequestBody,
+                .. request.SourceRule.Headers.SelectMany(static pair => new[] { pair.Key, pair.Value })
+            ]);
     }
 
     private static string BuildRateLimitedMessage(TimeSpan retryAfter)
@@ -248,6 +289,20 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
             null,
             false,
             new TtsExecutionFailure(TtsErrorKind.InvalidRule, message, null, null, null, null));
+    }
+
+    private static PlaybackAudioResult CreateUnexpectedFailureResult()
+    {
+        return new PlaybackAudioResult(
+            null,
+            false,
+            new TtsExecutionFailure(
+                TtsErrorKind.Unknown,
+                "音频生成失败，请稍后重试。",
+                null,
+                null,
+                null,
+                null));
     }
 
     private static AudioCacheKey CreateCacheKey(PlaybackAudioRequest request)

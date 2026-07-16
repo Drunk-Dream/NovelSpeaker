@@ -156,9 +156,9 @@ public sealed partial class LegadoRuleConverter
 
             return builder.ToString();
         }
-        catch (FormatException exception)
+        catch (FormatException)
         {
-            blockingIssues.Add($"字段 {fieldName} 的模板格式无效：{exception.Message}");
+            blockingIssues.Add($"字段 {fieldName} 的模板格式无效，请检查模板语法。");
             return templateText;
         }
     }

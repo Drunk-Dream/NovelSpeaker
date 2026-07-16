@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using System.Text;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
@@ -194,6 +195,11 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
         Domain.Books.TextSegmentationOptions options,
         CancellationToken cancellationToken)
     {
+        if (metadata.StartOffset < 0 || metadata.Length <= 0)
+        {
+            return null;
+        }
+
         try
         {
             var text = await _bookContentReader.ReadChapterTextAsync(
@@ -208,10 +214,24 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
                 return _textSegmenter.Segment(text, options).Count;
             }, cancellationToken).ConfigureAwait(false);
         }
-        catch
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (IsExpectedEstimationFailure(exception))
         {
             return null;
         }
+    }
+
+    private static bool IsExpectedEstimationFailure(Exception exception)
+    {
+        return exception is FileNotFoundException or
+            DirectoryNotFoundException or
+            UnauthorizedAccessException or
+            IOException or
+            DecoderFallbackException or
+            InvalidDataException;
     }
 
     private static CacheCleanupResult MapCleanupResult(AudioCacheCleanupResult result)
