@@ -79,6 +79,32 @@ public sealed class TtsRequestCompilerTests
         Assert.Equal(TtsErrorKind.InvalidRule, result.Failure!.Kind);
     }
 
+    [Theory]
+    [InlineData("https://example.com/tts?token={{loginInfo.token}}", null, null)]
+    [InlineData("https://example.com/tts?token={{ cookie }}", null, null)]
+    [InlineData("https://example.com/tts?token={{ COOKIE [ 'session' ] }}", null, null)]
+    [InlineData("https://example.com/tts", "{\"Cookie\":\"session=secret\"}", null)]
+    [InlineData("https://example.com/tts", "{\"X-Token\":\"{{cookie.value}}\"}", null)]
+    [InlineData("https://example.com/tts", null, "{\"method\":\"POST\",\"body\":\"{{loginInfo.token}}\"}")]
+    [InlineData("https://example.com/tts", null, "{\"headers\":{\"Cookie\":\"session=secret\"}}")]
+    public async Task CompileAsync_rejects_cookie_and_login_info_in_legacy_persisted_rules(
+        string url,
+        string? header,
+        string? requestOptionsJson)
+    {
+        var rule = CreateRule("Legacy", url, header, requestOptionsJson);
+
+        var result = await _compiler.CompileAsync(
+            rule.ToNormalizedRule(),
+            CreateContext(rule),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(TtsErrorKind.InvalidRule, result.Failure!.Kind);
+        Assert.Contains("Cookie/LoginInfo", result.Failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret", result.Failure.Message, StringComparison.Ordinal);
+    }
+
     private static HttpTtsRule CreateRule(
         string name,
         string url,

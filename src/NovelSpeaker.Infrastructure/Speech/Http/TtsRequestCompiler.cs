@@ -1,6 +1,7 @@
 using System.Text.Json;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Infrastructure.Speech.Rules;
 
 namespace NovelSpeaker.Infrastructure.Speech.Http;
 
@@ -29,6 +30,13 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (TtsRuleCompatibilityChecker.HasUnsupportedRuntimeDependency(rule))
+        {
+            return Failure(
+                TtsErrorKind.InvalidRule,
+                TtsRuleCompatibilityChecker.UnsupportedCookieLoginInfoMessage);
+        }
 
         string urlText;
         string? headerText;
@@ -83,6 +91,13 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
         }
 
         var headers = MergeHeaders(DefaultHeaders, ruleHeadersResult.Headers!);
+        if (TtsRuleCompatibilityChecker.ContainsCookieHeader(headers))
+        {
+            return Failure(
+                TtsErrorKind.InvalidRule,
+                TtsRuleCompatibilityChecker.UnsupportedCookieLoginInfoMessage);
+        }
+
         var bodyResult = BuildBody(requestOptionsResult.BodyElement, headers);
         if (!bodyResult.IsSuccess)
         {
