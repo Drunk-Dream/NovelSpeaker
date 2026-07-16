@@ -3,6 +3,7 @@ using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Abstractions;
+using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using NovelSpeaker.App.Theming;
@@ -78,6 +79,7 @@ public partial class App : System.Windows.Application
             builder.SetMinimumLevel(ParseLogLevel(bootstrapSettings.LogLevel));
             builder.AddDebug();
         });
+        services.AddNovelSpeakerApplication();
         services.AddNovelSpeakerInfrastructure();
         services.AddSingleton<ILoggerProvider, RollingFileLoggerProvider>();
         services.AddNovelSpeakerDesktop();

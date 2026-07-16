@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
@@ -15,6 +16,7 @@ using NovelSpeaker.App.Player;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Theming;
 using NovelSpeaker.App.ViewModels;
+using NovelSpeaker.Infrastructure.DependencyInjection;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Xunit;
@@ -24,7 +26,7 @@ namespace NovelSpeaker.UnitTests.DependencyInjection;
 public sealed class ServiceCollectionExtensionsTests
 {
     [Fact]
-    public void AddNovelSpeakerInfrastructure_registers_core_services()
+    public void Composition_root_registers_and_validates_core_services()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -109,6 +111,12 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<IAppSettingsService>(),
                     provider.GetRequiredService<IAppSettingsService>());
                 Assert.Same(
+                    provider.GetRequiredService<IAppSettingsService>(),
+                    provider.GetRequiredService<IAudioCacheLimitProvider>());
+                Assert.Same(
+                    provider.GetRequiredService<IAudioCache>(),
+                    provider.GetRequiredService<IAudioCacheManagementService>());
+                Assert.Same(
                     provider.GetRequiredService<INavigationGuardService>(),
                     provider.GetRequiredService<INavigationGuardService>());
                 Assert.NotSame(
@@ -123,5 +131,22 @@ public sealed class ServiceCollectionExtensionsTests
                 provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
         });
+    }
+
+    [Fact]
+    public void Registration_methods_are_idempotent()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddNovelSpeakerApplication();
+        services.AddNovelSpeakerInfrastructure();
+        services.AddNovelSpeakerDesktop();
+        var descriptorCount = services.Count;
+
+        services.AddNovelSpeakerApplication();
+        services.AddNovelSpeakerInfrastructure();
+        services.AddNovelSpeakerDesktop();
+
+        Assert.Equal(descriptorCount, services.Count);
     }
 }

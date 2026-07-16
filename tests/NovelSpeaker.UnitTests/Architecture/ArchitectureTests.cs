@@ -34,14 +34,16 @@ public sealed class ArchitectureTests
     }
 
     [Fact]
-    public void ApplicationOnlyHasDomainAndDocumentedSqliteDependency()
+    public void ApplicationOnlyHasDomainAndDocumentedDependencies()
     {
         var project = Repository.ReadProject("src/NovelSpeaker.Application/NovelSpeaker.Application.csproj");
 
         AssertEqualSet(
             ["src/NovelSpeaker.Domain/NovelSpeaker.Domain.csproj"],
             project.ProjectReferences);
-        AssertEqualSet(["Microsoft.Data.Sqlite.Core"], project.PackageReferences);
+        AssertEqualSet(
+            ["Microsoft.Data.Sqlite.Core", "Microsoft.Extensions.DependencyInjection.Abstractions"],
+            project.PackageReferences);
         Assert.Empty(project.FrameworkReferences);
         Assert.False(ArchitectureRules.UsesWpf(project));
 

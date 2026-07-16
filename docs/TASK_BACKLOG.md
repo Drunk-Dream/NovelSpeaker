@@ -229,7 +229,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 ## Wave 1：架构骨架与基础加固
 
-### [ ] ARCH-101（P1）：建立目标功能命名空间与模块化注册骨架
+### [x] ARCH-101（P1）：建立目标功能命名空间与模块化注册骨架
 
 前置：Wave 0 全部完成。
 
@@ -241,6 +241,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 记录每个 Singleton/Page/operation/session 的状态所有权。
 
 验收：仅结构和注册重排；所有旧测试与 DI 可解析测试通过；不出现循环注册或 service locator。
+
+完成说明：Application 已提供幂等的 `AddNovelSpeakerApplication()`，按 Books、Speech、Playback、Settings 功能边界组合注册并统一提供进程级 `TimeProvider`。Infrastructure 原单体清单已拆为 Persistence、FileStorage、Books、Speech、Audio、Settings 适配器模块，顶层方法只按固定顺序组合；App 与 WPF Test Host 统一按 Application、Infrastructure、Desktop 三层装配。现有服务映射和 Singleton/Transient 生命周期保持不变，所有注册入口可重复调用；DI 测试覆盖容器 scope/build 校验、关键服务解析、共享实现映射和瞬态实例。运行时文档已登记 process/page/operation/playback session 的实际状态所有权，以及仍为 Singleton 的页面 ViewModel 迁移债务。
 
 ### [ ] DOMAIN-102（P1）：清理 Domain 中的流程/传输/UI 模型
 

@@ -1,0 +1,15 @@
+using Microsoft.Extensions.DependencyInjection;
+
+namespace NovelSpeaker.Application.Playback;
+
+/// <summary>
+/// Defines the composition boundary for playback application use cases.
+/// </summary>
+public static class PlaybackRegistration
+{
+    public static IServiceCollection AddNovelSpeakerPlaybackApplication(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        return services;
+    }
+}

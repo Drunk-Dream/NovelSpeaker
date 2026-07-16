@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.App;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using System.Reflection;
@@ -58,6 +59,7 @@ internal static class WpfTestHost
 
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddNovelSpeakerApplication();
         services.AddNovelSpeakerInfrastructure();
         services.AddNovelSpeakerDesktop();
         return services.BuildServiceProvider(new ServiceProviderOptions
