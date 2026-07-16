@@ -10,6 +10,36 @@ namespace NovelSpeaker.UnitTests.ViewModels;
 
 public sealed class ChapterRulesViewModelTests
 {
+    [Theory]
+    [InlineData(UnsavedChangesDecision.Save, true)]
+    [InlineData(UnsavedChangesDecision.Discard, true)]
+    [InlineData(UnsavedChangesDecision.Cancel, false)]
+    public async Task ConfirmLeaveAsync_applies_global_navigation_decision(
+        UnsavedChangesDecision decision,
+        bool expectedCanLeave)
+    {
+        var workspace = new FakeChapterRuleWorkspaceService(
+        [
+            new ChapterRuleListItem("custom:one", "规则一", @"^\s*一$", true, 10, false)
+        ])
+        {
+            EditorsById =
+            {
+                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", false, true)
+            }
+        };
+        var viewModel = CreateViewModel(
+            workspaceService: workspace,
+            dialogService: new FakeAppDialogService { NextUnsavedDecision = decision });
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.DraftName = "已修改";
+
+        var canLeave = await viewModel.ConfirmLeaveAsync(CancellationToken.None);
+
+        Assert.Equal(expectedCanLeave, canLeave);
+        Assert.Equal(!expectedCanLeave, viewModel.HasUnsavedChanges);
+    }
+
     [Fact]
     public async Task LoadAsync_selects_first_rule_and_opens_editor()
     {

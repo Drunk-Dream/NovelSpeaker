@@ -148,7 +148,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     [RelayCommand]
     private async Task BackAsync(CancellationToken cancellationToken)
     {
-        if (!await ConfirmLeaveDraftAsync(cancellationToken))
+        if (!await ConfirmLeaveAsync(cancellationToken))
         {
             return;
         }
@@ -162,7 +162,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     [RelayCommand]
     private async Task NewRuleAsync(CancellationToken cancellationToken)
     {
-        if (!await ConfirmLeaveDraftAsync(cancellationToken))
+        if (!await ConfirmLeaveAsync(cancellationToken))
         {
             return;
         }
@@ -178,7 +178,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             return;
         }
 
-        if (!await ConfirmLeaveDraftAsync(cancellationToken))
+        if (!await ConfirmLeaveAsync(cancellationToken))
         {
             return;
         }
@@ -233,7 +233,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             return;
         }
 
-        if (!await ConfirmLeaveDraftAsync(cancellationToken))
+        if (!await ConfirmLeaveAsync(cancellationToken))
         {
             return;
         }
@@ -275,7 +275,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     [RelayCommand]
     private async Task ImportDefaultsAsync(CancellationToken cancellationToken)
     {
-        if (!await ConfirmLeaveDraftAsync(cancellationToken))
+        if (!await ConfirmLeaveAsync(cancellationToken))
         {
             return;
         }
@@ -286,7 +286,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     [RelayCommand]
     private async Task RestoreDefaultsAsync(CancellationToken cancellationToken)
     {
-        if (!await ConfirmLeaveDraftAsync(cancellationToken))
+        if (!await ConfirmLeaveAsync(cancellationToken))
         {
             return;
         }
@@ -531,7 +531,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             true);
     }
 
-    private async Task<bool> ConfirmLeaveDraftAsync(CancellationToken cancellationToken)
+    public async Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken)
     {
         if (!HasUnsavedChanges)
         {
