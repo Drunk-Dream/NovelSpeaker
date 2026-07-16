@@ -8,7 +8,7 @@ public sealed class BehaviorDebtBaselineTests
     private static readonly ArchitectureTestRepository Repository = ArchitectureTestRepository.Locate();
 
     [Fact]
-    public void Rule_pages_without_global_navigation_guard_match_the_known_debt()
+    public void Rule_pages_register_and_unregister_the_global_navigation_guard()
     {
         var pagePaths = new[]
         {
@@ -16,12 +16,15 @@ public sealed class BehaviorDebtBaselineTests
             "src/NovelSpeaker.App/Pages/RegexReplacementRulesPage.xaml.cs",
             "src/NovelSpeaker.App/Pages/TtsRulesPage.xaml.cs"
         };
-        var actual = pagePaths
-            .Where(relativePath => !File.ReadAllText(Absolute(relativePath))
-                .Contains("INavigationGuardService", StringComparison.Ordinal))
-            .ToHashSet(StringComparer.Ordinal);
-
-        AssertEqualSet(KnownBehaviorDebtBaseline.RulePagesWithoutGlobalNavigationGuard, actual);
+        foreach (var relativePath in pagePaths)
+        {
+            var page = File.ReadAllText(Absolute(relativePath));
+            Assert.Contains("INavigationGuardService", page, StringComparison.Ordinal);
+            Assert.Contains("Register(ViewModel.ConfirmLeaveAsync)", page, StringComparison.Ordinal);
+            Assert.Contains("_guardRegistration?.Dispose()", page, StringComparison.Ordinal);
+            Assert.Contains("Loaded += OnLoaded", page, StringComparison.Ordinal);
+            Assert.Contains("Unloaded += OnUnloaded", page, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
