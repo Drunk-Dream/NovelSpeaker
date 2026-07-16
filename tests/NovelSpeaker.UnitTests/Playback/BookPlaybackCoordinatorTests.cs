@@ -602,6 +602,91 @@ public sealed class BookPlaybackCoordinatorTests
         Assert.Contains(sessionId, prefetchScheduler.CancelledSessions);
     }
 
+    [Fact]
+    public async Task Rapid_jump_commands_finish_at_the_latest_requested_segment()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var audioProvider = new FakePlaybackAudioProvider();
+        var initialAudio = audioProvider.EnqueuePendingSuccess("delayed-initial.mp3");
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            audioProvider: audioProvider,
+            book: CreateThreeSegmentBook());
+
+        var startTask = coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", 0, 0, null, 10),
+            CancellationToken.None);
+        Assert.Single(audioProvider.Requests);
+
+        var firstJump = coordinator.JumpToSegmentAsync(0, 1, CancellationToken.None);
+        var latestJump = coordinator.JumpToSegmentAsync(0, 2, CancellationToken.None);
+        initialAudio.CompleteSuccess();
+
+        await Task.WhenAll(startTask, firstJump, latestJump).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal([0, 1, 2], audioProvider.Requests.Select(request => request.SegmentIndex));
+        Assert.Equal(3, audioProvider.Requests.Select(request => request.SessionId).Distinct().Count());
+        Assert.Equal(2, localCoordinator.StopCallCount);
+    }
+
+    [Fact]
+    public async Task Repeated_audio_decode_failure_invalidates_only_once_and_enters_faulted_state()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var audioProvider = new FakePlaybackAudioProvider();
+        audioProvider.EnqueueCachedSuccess("cached-corrupt.mp3");
+        audioProvider.EnqueueFailure(TtsErrorKind.AudioDecode, "重新生成的音频仍然损坏。");
+        await using var coordinator = CreateCoordinator(localCoordinator, audioProvider: audioProvider);
+        var faulted = new TaskCompletionSource<PlaybackSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.SnapshotChanged += (_, snapshot) =>
+        {
+            if (snapshot.State == PlaybackState.Faulted)
+            {
+                faulted.TrySetResult(snapshot);
+            }
+        };
+
+        await coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", null, null, null, 10),
+            CancellationToken.None);
+        localCoordinator.RaiseFailed(PlaybackErrorKind.AudioDecode, "缓存音频损坏。");
+
+        var firstFailure = await faulted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("重新生成的音频仍然损坏。", firstFailure.Message);
+        Assert.Equal(1, audioProvider.InvalidateCallCount);
+
+        var secondFaulted = new TaskCompletionSource<PlaybackSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.SnapshotChanged += (_, snapshot) =>
+        {
+            if (snapshot.State == PlaybackState.Faulted && snapshot.Message == "缓存音频再次损坏。")
+            {
+                secondFaulted.TrySetResult(snapshot);
+            }
+        };
+        localCoordinator.RaiseFailed(PlaybackErrorKind.AudioDecode, "缓存音频再次损坏。");
+
+        var secondFailure = await secondFaulted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PlaybackState.Faulted, secondFailure.State);
+        Assert.True(secondFailure.CanRetry);
+        Assert.Equal(1, audioProvider.InvalidateCallCount);
+    }
+
+    [Fact]
+    public async Task Snapshot_subscriber_failure_is_observed_by_the_command_caller()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        await using var coordinator = CreateCoordinator(localCoordinator);
+        coordinator.SnapshotChanged += static (_, _) => throw new InvalidOperationException("subscriber failed");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", null, null, null, 10),
+            CancellationToken.None));
+
+        Assert.Equal("subscriber failed", exception.Message);
+    }
+
     private static PlaybackCoordinator CreateCoordinator(
         FakeLocalAudioPlaybackCoordinator localCoordinator,
         FakeBookPlaybackContentService? bookContentService = null,
