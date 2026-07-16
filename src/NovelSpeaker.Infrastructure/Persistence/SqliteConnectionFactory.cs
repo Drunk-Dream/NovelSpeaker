@@ -18,8 +18,30 @@ public sealed class SqliteConnectionFactory : ISqliteConnectionFactory
 
     public async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
-        var connection = new SqliteConnection($"Data Source={_directories.DatabasePath}");
-        await connection.OpenAsync(cancellationToken);
-        return connection;
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var connection = new SqliteConnection($"Data Source={_directories.DatabasePath}")
+        {
+            DefaultTimeout = 5
+        };
+
+        try
+        {
+            await connection.OpenAsync(cancellationToken);
+
+            using var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                PRAGMA foreign_keys=ON;
+                PRAGMA busy_timeout=5000;
+                """;
+            await command.ExecuteNonQueryAsync(cancellationToken);
+            return connection;
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
     }
 }

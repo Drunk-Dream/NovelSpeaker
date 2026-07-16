@@ -129,10 +129,19 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
     ];
 
     private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly IReadOnlyList<SqliteMigration> _migrations;
 
     public SqliteMigrationRunner(ISqliteConnectionFactory connectionFactory)
+        : this(connectionFactory, Migrations)
+    {
+    }
+
+    internal SqliteMigrationRunner(
+        ISqliteConnectionFactory connectionFactory,
+        IReadOnlyList<SqliteMigration> migrations)
     {
         _connectionFactory = connectionFactory;
+        _migrations = migrations;
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
@@ -141,12 +150,16 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
         await EnsureMigrationTableAsync(connection, cancellationToken);
 
         var currentVersion = await GetCurrentVersionAsync(connection, cancellationToken);
-        if (currentVersion > 0 && currentVersion < MinimumSupportedVersion)
+        if (currentVersion > 0 &&
+            (currentVersion < MinimumSupportedVersion || currentVersion > CurrentSchemaVersion))
         {
-            throw new IncompatibleDatabaseSchemaException(currentVersion, CurrentSchemaVersion);
+            throw new IncompatibleDatabaseSchemaException(
+                currentVersion,
+                MinimumSupportedVersion,
+                CurrentSchemaVersion);
         }
 
-        foreach (var migration in Migrations.Where(migration => migration.Version > currentVersion))
+        foreach (var migration in _migrations.Where(migration => migration.Version > currentVersion))
         {
             await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
 

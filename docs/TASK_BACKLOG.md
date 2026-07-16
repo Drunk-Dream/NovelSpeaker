@@ -261,7 +261,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：Domain/Speech 现仅保留结构化 `HttpTtsRule` 与 `TtsErrorKind`；规则导入/列表/测试投影、模板规范化、请求编译模型和 HTTP 执行结果已一次迁入 Application 的 Rules、Compilation、Execution 切片，并由 `ITtsRuleNormalizer` 负责实体到运行时模板的转换。Infrastructure 新增 Legado JSON source DTO、TTS SQLite/JSON mapper 和统一 SQLite 时间 mapper，继续按既有 `Header`、`RequestOptionsJson`、ISO round-trip 格式读写且导出 JSON 语义不变；Domain 仅保存语义化 body 文本及其结构值标志，不保存 JSON 引号编码。Book、ChapterRule、BookSummary、ReadingProgressEntry 与 TTS 元数据已改用 `DateTimeOffset`，导入、章节规则、规则保存、书籍元数据和进度流程通过 `TimeProvider` 获取时间；迁移 4/5 与 schema 未修改。架构测试锁定 Domain/Speech 类型白名单并禁止 transport/SQLite DTO，Speech/Books 特征与持久化 round-trip 测试及完整测试均通过。
 
-### [ ] DB-103（P0）：加固 SQLite 连接和版本检查
+### [x] DB-103（P0）：加固 SQLite 连接和版本检查
 
 前置：ARC-002，可与 DOMAIN-102 并行。
 
@@ -273,6 +273,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 保留并追加 migration，绝不改写 4/5。
 
 测试：FK 约束/级联、版本 3/6 拒绝、并发 busy/cancel、迁移回滚。
+
+完成说明：`SqliteConnectionFactory` 现对每个连接启用外键、设置 5 秒命令默认超时和 5000 ms busy timeout，初始化失败会释放连接并原样传播异常，预取消也在打开前终止。Migration runner 在执行新迁移前统一拒绝版本 1–3 与高于当前版本 5 的数据库；仅增加 Infrastructure internal 的故障迁移测试入口，迁移 4/5 内容保持不变。独立连接测试证明默认 rollback journal 下等待中的写入可在持锁事务释放后成功，且 journal mode 未切换为 WAL，因此本任务不启用 WAL。回归测试覆盖逐连接 PRAGMA、非法外键、Books 删除对 Chapters/ReadingProgress 的级联、版本 3/6 安全拒绝、busy 等待/释放、预取消，以及失败迁移对 DDL、数据和版本号的完整回滚。
 
 ### [ ] SETTINGS-104（P0）：建立单一设置快照和原子 JSON 保存
 
