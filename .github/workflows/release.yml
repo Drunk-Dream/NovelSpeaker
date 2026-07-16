@@ -50,12 +50,17 @@ jobs:
       - name: Package and verify
         shell: pwsh
         run: |
+          $forbiddenFixtures = @('demo-tone.wav', 'demo-tone.mp3', 'corrupt-tone.mp3')
+          $publishedFixtures = Get-ChildItem artifacts/publish -Recurse -File | Where-Object { $_.Name -in $forbiddenFixtures }
+          if ($publishedFixtures) { throw "Package contains test audio fixture: $($publishedFixtures.FullName -join ', ')" }
           $zip = "artifacts/NovelSpeaker-v${{ env.RELEASE_VERSION }}-win-x64.zip"
           Compress-Archive -Path artifacts/publish/* -DestinationPath $zip -Force
           $entries = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip)).Entries.FullName
           foreach ($required in @('NovelSpeaker.App.exe', 'LICENSE', 'THIRD-PARTY-NOTICES.txt')) {
             if ($entries -notcontains $required) { throw "Package is missing $required" }
           }
+          $packagedFixtures = $entries | Where-Object { [System.IO.Path]::GetFileName($_) -in $forbiddenFixtures }
+          if ($packagedFixtures) { throw "Package contains test audio fixture: $($packagedFixtures -join ', ')" }
           (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() + "  " + [System.IO.Path]::GetFileName($zip) | Out-File "$zip.sha256" -Encoding ascii
 
       - name: Create GitHub release
