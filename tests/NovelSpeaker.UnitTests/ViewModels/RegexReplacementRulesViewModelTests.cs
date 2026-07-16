@@ -12,6 +12,24 @@ namespace NovelSpeaker.UnitTests.ViewModels;
 public sealed class RegexReplacementRulesViewModelTests
 {
     [Theory]
+    [InlineData(UnsavedChangesDecision.Save, true)]
+    [InlineData(UnsavedChangesDecision.Discard, true)]
+    [InlineData(UnsavedChangesDecision.Cancel, false)]
+    public async Task ConfirmLeaveAsync_applies_global_navigation_decision(
+        UnsavedChangesDecision decision,
+        bool expectedCanLeave)
+    {
+        var fixture = CreateFixture(decision);
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        fixture.ViewModel.DraftName = "已修改";
+
+        var canLeave = await fixture.ViewModel.ConfirmLeaveAsync(CancellationToken.None);
+
+        Assert.Equal(expectedCanLeave, canLeave);
+        Assert.Equal(!expectedCanLeave, fixture.ViewModel.HasUnsavedChanges);
+    }
+
+    [Theory]
     [InlineData(UnsavedChangesDecision.Save, 1)]
     [InlineData(UnsavedChangesDecision.Discard, 0)]
     public async Task SelectRuleAsync_with_unsaved_changes_applies_leave_decision(

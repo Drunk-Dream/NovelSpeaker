@@ -59,14 +59,14 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     [RelayCommand]
     private async Task BackAsync(CancellationToken cancellationToken)
     {
-        if (!await ConfirmLeaveDraftAsync(cancellationToken)) return;
+        if (!await ConfirmLeaveAsync(cancellationToken)) return;
         if (!_navigation.GoBack()) _navigation.NavigateWithHierarchy(typeof(ImportTextSettingsPage));
     }
 
     [RelayCommand]
     private async Task NewRuleAsync(CancellationToken cancellationToken)
     {
-        if (!await ConfirmLeaveDraftAsync(cancellationToken)) return;
+        if (!await ConfirmLeaveAsync(cancellationToken)) return;
         Open(new RegexReplacementRuleEditorModel(null, "新建规则", string.Empty, string.Empty, RegexReplacementScope.Both), true, SelectedRuleId);
     }
 
@@ -74,7 +74,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     private async Task SelectRuleAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken)
     {
         if (rule is null || (!IsEditingNewRule && rule.Id == SelectedRuleId)) return;
-        if (!await ConfirmLeaveDraftAsync(cancellationToken)) return;
+        if (!await ConfirmLeaveAsync(cancellationToken)) return;
         await LoadEditorAsync(rule.Id, cancellationToken);
     }
 
@@ -131,7 +131,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     private async Task DeleteAsync(CancellationToken cancellationToken)
     {
         if (SelectedRuleId is not Guid id || !CanDelete) return;
-        if (!await ConfirmLeaveDraftAsync(cancellationToken)) return;
+        if (!await ConfirmLeaveAsync(cancellationToken)) return;
         var item = Rules.FirstOrDefault(rule => rule.Id == id);
         if (item is null || await _feedback.ConfirmDeletionAsync("删除正则替换规则", $"将删除规则“{item.Name}”。此操作不可撤销。", cancellationToken) != AppConfirmationDecision.Confirm) return;
 
@@ -214,7 +214,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
         finally { IsBusy = false; NotifyCommandState(); }
     }
 
-    private async Task<bool> ConfirmLeaveDraftAsync(CancellationToken cancellationToken)
+    public async Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken)
     {
         if (!HasUnsavedChanges) return true;
         var decision = await _dialogs.ShowUnsavedChangesAsync(
