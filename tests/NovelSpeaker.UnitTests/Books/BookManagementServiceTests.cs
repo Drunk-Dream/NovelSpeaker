@@ -155,6 +155,33 @@ public sealed class BookManagementServiceTests
         Assert.NotNull(await fixture.Service.GetBookDetailsAsync("book-1", CancellationToken.None));
     }
 
+    [Fact]
+    public async Task DeleteAsync_restores_book_and_cache_when_a_cache_file_is_protected()
+    {
+        var fixture = await CreateFixtureAsync();
+        var storedFilePath = await SeedBookAsync(fixture, "book-1", title: "受保护缓存", author: null);
+        var cacheEntry = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段"),
+                "book-1",
+                0,
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        using var protection = fixture.ProtectionRegistry.Protect(cacheEntry.FilePath);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.DeleteAsync(
+            new BookDeleteRequest("book-1", true),
+            CancellationToken.None));
+
+        Assert.True(File.Exists(storedFilePath));
+        Assert.True(File.Exists(cacheEntry.FilePath));
+        Assert.NotNull(await fixture.Cache.TryGetAsync(cacheEntry.Key, CancellationToken.None));
+        Assert.NotNull(await fixture.Service.GetBookDetailsAsync("book-1", CancellationToken.None));
+    }
+
     private static async Task<TestFixture> CreateFixtureAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());

@@ -97,6 +97,32 @@ public sealed class BookImportServiceTests
         Assert.True(fileStore.CleanupIncludedFinalFile);
     }
 
+    [Fact]
+    public async Task ImportAsync_cleans_up_staged_files_when_finalize_fails()
+    {
+        var fileStore = new FakeBookFileStore
+        {
+            FinalizeException = new IOException("finalize failed")
+        };
+        var repository = new CapturingBookImportRepository();
+        var service = CreateService(
+            fileStore: fileStore,
+            repository: repository,
+            splitter: new FakeChapterSplitter([new BookImportChapter(0, 0, "全文", 0, 2)]));
+
+        var result = await service.ImportAsync(
+            new DirectBookImportRequest("external-source.txt", null),
+            progress: null,
+            CancellationToken.None);
+
+        Assert.Equal(DirectBookImportStatus.Failed, result.Status);
+        Assert.Equal(BookImportFailureReason.FileReadFailed, result.FailureReason);
+        Assert.True(fileStore.FinalizeCalled);
+        Assert.True(fileStore.CleanupCalled);
+        Assert.True(fileStore.CleanupIncludedFinalFile);
+        Assert.Null(repository.SavedBook);
+    }
+
     private static DirectBookImportService CreateService(
         FakeTextFileAnalyzer? analyzer = null,
         FakeTextNormalizer? normalizer = null,
@@ -235,6 +261,7 @@ public sealed class BookImportServiceTests
         public bool FinalizeCalled { get; private set; }
         public bool CleanupCalled { get; private set; }
         public bool CleanupIncludedFinalFile { get; private set; }
+        public Exception? FinalizeException { get; init; }
 
         public Task<BookFileCopyHandle> StageNormalizedTextAsync(
             string normalizedText,
@@ -249,6 +276,11 @@ public sealed class BookImportServiceTests
         public Task FinalizeAsync(BookFileCopyHandle copyHandle, CancellationToken cancellationToken)
         {
             FinalizeCalled = true;
+            if (FinalizeException is not null)
+            {
+                throw FinalizeException;
+            }
+
             return Task.CompletedTask;
         }
 
