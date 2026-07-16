@@ -34,6 +34,27 @@ public sealed class ArchitectureTests
     }
 
     [Fact]
+    public void DomainContainsOnlyStableSpeechTypesAndNoTransportOrPersistenceModels()
+    {
+        var domainFiles = Repository.ReadProductSourceFiles()
+            .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.Domain")
+            .ToArray();
+        var speechFiles = domainFiles
+            .Where(file => file.RelativePath.StartsWith("src/NovelSpeaker.Domain/Speech/", StringComparison.Ordinal))
+            .Select(file => Path.GetFileName(file.RelativePath))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(["HttpTtsRule.cs", "TtsErrorKind.cs"], speechFiles);
+        Assert.DoesNotContain(domainFiles, file =>
+            file.Content.Contains("ParsedTtsRequest", StringComparison.Ordinal) ||
+            file.Content.Contains("TtsRequestPreview", StringComparison.Ordinal) ||
+            file.Content.Contains("ImportPreview", StringComparison.Ordinal) ||
+            file.Content.Contains("RequestOptionsJson", StringComparison.Ordinal) ||
+            file.Content.Contains("Sqlite", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ApplicationOnlyHasDomainAndDocumentedDependencies()
     {
         var project = Repository.ReadProject("src/NovelSpeaker.Application/NovelSpeaker.Application.csproj");

@@ -1,4 +1,6 @@
-namespace NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Domain.Speech;
+
+namespace NovelSpeaker.Application.Speech.Rules;
 
 /// <summary>
 /// Describes the outcome of converting an imported rule into the application's persisted format.

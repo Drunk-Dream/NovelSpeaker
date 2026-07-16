@@ -1,4 +1,6 @@
-namespace NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Domain.Speech;
+
+namespace NovelSpeaker.Application.Speech.Execution;
 
 /// <summary>
 /// Captures a classified HTTP TTS failure and any safe diagnostic details for the UI.

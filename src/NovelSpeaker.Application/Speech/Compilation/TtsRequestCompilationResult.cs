@@ -1,4 +1,6 @@
-namespace NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Application.Speech.Execution;
+
+namespace NovelSpeaker.Application.Speech.Compilation;
 
 /// <summary>
 /// Represents either a compiled request plus preview or a classified compilation failure.

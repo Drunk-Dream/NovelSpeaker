@@ -12,13 +12,16 @@ public sealed class ChapterRuleWorkspaceService : IChapterRuleWorkspaceService
     private const int SortOrderStep = 10;
     private readonly IChapterRuleRepository _repository;
     private readonly IChapterRuleManagementService _managementService;
+    private readonly TimeProvider _timeProvider;
 
     public ChapterRuleWorkspaceService(
         IChapterRuleRepository repository,
-        IChapterRuleManagementService managementService)
+        IChapterRuleManagementService managementService,
+        TimeProvider? timeProvider = null)
     {
         _repository = repository;
         _managementService = managementService;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<IReadOnlyList<ChapterRuleListItem>> GetRulesAsync(CancellationToken cancellationToken)
@@ -61,7 +64,7 @@ public sealed class ChapterRuleWorkspaceService : IChapterRuleWorkspaceService
 
         var id = existing?.Id ?? $"custom:{Guid.NewGuid():N}";
         var isBuiltIn = DefaultChapterRules.IsBuiltInId(id);
-        var utcNow = DateTime.UtcNow.ToString("O");
+        var utcNow = _timeProvider.GetUtcNow();
         var savedRule = new ChapterRule(
             id,
             DeduplicateName(normalizedName, id, allRules),
@@ -108,7 +111,7 @@ public sealed class ChapterRuleWorkspaceService : IChapterRuleWorkspaceService
             rule with
             {
                 IsEnabled = isEnabled,
-                UpdatedAt = DateTime.UtcNow.ToString("O")
+                UpdatedAt = _timeProvider.GetUtcNow()
             },
             cancellationToken);
     }

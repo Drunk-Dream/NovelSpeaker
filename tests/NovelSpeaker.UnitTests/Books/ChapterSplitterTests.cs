@@ -11,7 +11,7 @@ public sealed class ChapterSplitterTests
     {
         ChapterRule[] rules =
         [
-            new ChapterRule("1", "章节", @"^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$", 10, true, "now", "now")
+            new ChapterRule("1", "章节", @"^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$", 10, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
         ];
 
         var text = "第一章 开始\n正文甲\n第二章 继续\n正文乙\n";
@@ -32,7 +32,7 @@ public sealed class ChapterSplitterTests
     {
         ChapterRule[] rules =
         [
-            new ChapterRule("1", "章节", @"^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$", 10, true, "now", "now")
+            new ChapterRule("1", "章节", @"^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$", 10, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
         ];
 
         var text = "第一章 开始\n\n第二章 继续\n\n";
@@ -51,7 +51,7 @@ public sealed class ChapterSplitterTests
     {
         ChapterRule[] rules =
         [
-            new ChapterRule("1", "章节", @"^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$", 10, true, "now", "now")
+            new ChapterRule("1", "章节", @"^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$", 10, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
         ];
 
         var text = "  第一章   开始  \n正文甲\n";

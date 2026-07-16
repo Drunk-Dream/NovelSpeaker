@@ -155,22 +155,23 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
 
     private static void AddParameters(SqliteCommand command, HttpTtsRule rule)
     {
-        command.Parameters.AddWithValue("$name", rule.Name);
-        command.Parameters.AddWithValue("$url", rule.Url);
-        command.Parameters.AddWithValue("$contentType", (object?)rule.ContentType ?? DBNull.Value);
-        command.Parameters.AddWithValue("$concurrentRate", (object?)rule.ConcurrentRate ?? DBNull.Value);
-        command.Parameters.AddWithValue("$header", (object?)rule.Header ?? DBNull.Value);
-        command.Parameters.AddWithValue("$requestOptionsJson", (object?)rule.RequestOptionsJson ?? DBNull.Value);
-        command.Parameters.AddWithValue("$lastUpdateTime", (object?)rule.LastUpdateTime ?? DBNull.Value);
-        command.Parameters.AddWithValue("$isEnabled", rule.IsEnabled ? 1 : 0);
-        command.Parameters.AddWithValue("$lastUsedAt", (object?)rule.LastUsedAt ?? DBNull.Value);
-        command.Parameters.AddWithValue("$createdAt", rule.CreatedAt);
-        command.Parameters.AddWithValue("$updatedAt", rule.UpdatedAt);
+        var row = TtsRulePersistenceMapper.FromDomain(rule);
+        command.Parameters.AddWithValue("$name", row.Name);
+        command.Parameters.AddWithValue("$url", row.Url);
+        command.Parameters.AddWithValue("$contentType", (object?)row.ContentType ?? DBNull.Value);
+        command.Parameters.AddWithValue("$concurrentRate", (object?)row.ConcurrentRate ?? DBNull.Value);
+        command.Parameters.AddWithValue("$header", (object?)row.Header ?? DBNull.Value);
+        command.Parameters.AddWithValue("$requestOptionsJson", (object?)row.RequestOptionsJson ?? DBNull.Value);
+        command.Parameters.AddWithValue("$lastUpdateTime", (object?)row.LastUpdateTime ?? DBNull.Value);
+        command.Parameters.AddWithValue("$isEnabled", row.IsEnabled ? 1 : 0);
+        command.Parameters.AddWithValue("$lastUsedAt", (object?)row.LastUsedAt ?? DBNull.Value);
+        command.Parameters.AddWithValue("$createdAt", row.CreatedAt);
+        command.Parameters.AddWithValue("$updatedAt", row.UpdatedAt);
     }
 
     private static HttpTtsRule ReadRule(SqliteDataReader reader)
     {
-        return new HttpTtsRule(
+        var row = new TtsRuleRow(
             reader.GetInt64(0),
             reader.GetString(1),
             reader.GetString(2),
@@ -183,5 +184,6 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
             reader.IsDBNull(9) ? null : reader.GetString(9),
             reader.GetString(10),
             reader.GetString(11));
+        return TtsRulePersistenceMapper.ToDomain(row);
     }
 }

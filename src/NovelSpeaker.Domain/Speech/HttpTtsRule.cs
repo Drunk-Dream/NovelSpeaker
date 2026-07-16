@@ -1,7 +1,7 @@
 namespace NovelSpeaker.Domain.Speech;
 
 /// <summary>
-/// Persists a converted NovelSpeaker HTTP TTS rule and its canonical rule JSON.
+/// Represents one persisted HTTP TTS rule without transport or persistence encoding details.
 /// </summary>
 public sealed record HttpTtsRule(
     long Id,
@@ -9,23 +9,12 @@ public sealed record HttpTtsRule(
     string Url,
     string? ContentType,
     string? ConcurrentRate,
-    string? Header,
-    string? RequestOptionsJson,
+    IReadOnlyDictionary<string, string> Headers,
+    string? RequestMethod,
+    string? RequestBody,
+    bool RequestBodyIsJsonStructure,
     long? LastUpdateTime,
     bool IsEnabled,
-    string? LastUsedAt,
-    string CreatedAt,
-    string UpdatedAt)
-{
-    public NormalizedHttpTtsRule ToNormalizedRule()
-    {
-        return new NormalizedHttpTtsRule(
-            Id,
-            Name,
-            NormalizedTemplate.Parse(Url),
-            Header is null ? null : NormalizedTemplate.Parse(Header),
-            RequestOptionsJson is null ? null : NormalizedTemplate.Parse(RequestOptionsJson),
-            ContentType,
-            ConcurrentRate);
-    }
-}
+    DateTimeOffset? LastUsedAt,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);

@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Domain.Speech;
+namespace NovelSpeaker.Application.Speech.Execution;
 
 /// <summary>
 /// Represents either a validated audio result or a classified execution failure.

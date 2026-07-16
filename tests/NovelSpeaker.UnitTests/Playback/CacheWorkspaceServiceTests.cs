@@ -89,7 +89,7 @@ public sealed class CacheWorkspaceServiceTests
         await File.WriteAllTextAsync(storedFilePath, "第一章内容第二章内容", CancellationToken.None);
 
         var repository = new BookImportRepository(fixture.Factory);
-        var now = DateTime.UtcNow.ToString("O");
+        var now = DateTimeOffset.UtcNow;
         await repository.SaveAsync(
             new Domain.Books.Book(
                 bookId,

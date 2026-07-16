@@ -18,7 +18,7 @@ public sealed class ChapterRuleManagementServiceTests
         await repository.SaveAsync(existing.Single(rule => rule.Id == "builtin:chapter-number") with
         {
             Pattern = @"^\s*变更后的正则$",
-            UpdatedAt = DateTime.UtcNow.ToString("O")
+            UpdatedAt = DateTimeOffset.UtcNow
         }, CancellationToken.None);
 
         var preview = await service.PreviewDefaultsAsync(ChapterRuleDefaultsMode.ImportDefaults, CancellationToken.None);
@@ -38,7 +38,7 @@ public sealed class ChapterRuleManagementServiceTests
             Pattern = @"^\s*已被修改$",
             SortOrder = 999,
             IsEnabled = false,
-            UpdatedAt = DateTime.UtcNow.ToString("O")
+            UpdatedAt = DateTimeOffset.UtcNow
         }, CancellationToken.None);
         await repository.SaveAsync(new ChapterRule(
             "custom:demo",
@@ -46,8 +46,8 @@ public sealed class ChapterRuleManagementServiceTests
             @"^\s*自定义$",
             500,
             true,
-            DateTime.UtcNow.ToString("O"),
-            DateTime.UtcNow.ToString("O")), CancellationToken.None);
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow), CancellationToken.None);
 
         var result = await service.ApplyDefaultsAsync(ChapterRuleDefaultsMode.RestoreDefaults, CancellationToken.None);
         var allRules = await repository.GetAllAsync(CancellationToken.None);

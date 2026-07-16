@@ -1,4 +1,5 @@
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.Infrastructure.Speech.Scripting;
 using Xunit;
@@ -18,7 +19,7 @@ public sealed class TtsRequestCompilerTests
             """{"Authorization":"Bearer super-secret-token"}""");
         var context = CreateContext(rule);
 
-        var result = await _compiler.CompileAsync(rule.ToNormalizedRule(), context, CancellationToken.None);
+        var result = await _compiler.CompileAsync(rule.Normalize(), context, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("GET", result.Request!.Method);
@@ -36,7 +37,7 @@ public sealed class TtsRequestCompilerTests
             """{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"}""");
         var context = CreateContext(rule);
 
-        var result = await _compiler.CompileAsync(rule.ToNormalizedRule(), context, CancellationToken.None);
+        var result = await _compiler.CompileAsync(rule.Normalize(), context, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("POST", result.Request!.Method);
@@ -55,7 +56,7 @@ public sealed class TtsRequestCompilerTests
             """{"method":"POST","body":"text={{encodeURIComponent(speakText)}}&speed={{speakSpeed}}"}""");
         var context = CreateContext(rule);
 
-        var result = await _compiler.CompileAsync(rule.ToNormalizedRule(), context, CancellationToken.None);
+        var result = await _compiler.CompileAsync(rule.Normalize(), context, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(ParsedTtsRequestBodyKind.FormUrlEncoded, result.Request!.Body.Kind);
@@ -64,7 +65,7 @@ public sealed class TtsRequestCompilerTests
     }
 
     [Fact]
-    public async Task CompileAsync_rejects_unsupported_request_option_fields()
+    public async Task CompileAsync_uses_only_structured_request_method_and_body()
     {
         var rule = CreateRule(
             "Bad",
@@ -73,10 +74,10 @@ public sealed class TtsRequestCompilerTests
             """{"method":"POST","unknown":true}""");
         var context = CreateContext(rule);
 
-        var result = await _compiler.CompileAsync(rule.ToNormalizedRule(), context, CancellationToken.None);
+        var result = await _compiler.CompileAsync(rule.Normalize(), context, CancellationToken.None);
 
-        Assert.False(result.IsSuccess);
-        Assert.Equal(TtsErrorKind.InvalidRule, result.Failure!.Kind);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("POST", result.Request!.Method);
     }
 
     [Theory]
@@ -86,7 +87,6 @@ public sealed class TtsRequestCompilerTests
     [InlineData("https://example.com/tts", "{\"Cookie\":\"session=secret\"}", null)]
     [InlineData("https://example.com/tts", "{\"X-Token\":\"{{cookie.value}}\"}", null)]
     [InlineData("https://example.com/tts", null, "{\"method\":\"POST\",\"body\":\"{{loginInfo.token}}\"}")]
-    [InlineData("https://example.com/tts", null, "{\"headers\":{\"Cookie\":\"session=secret\"}}")]
     public async Task CompileAsync_rejects_cookie_and_login_info_in_legacy_persisted_rules(
         string url,
         string? header,
@@ -95,7 +95,7 @@ public sealed class TtsRequestCompilerTests
         var rule = CreateRule("Legacy", url, header, requestOptionsJson);
 
         var result = await _compiler.CompileAsync(
-            rule.ToNormalizedRule(),
+            rule.Normalize(),
             CreateContext(rule),
             CancellationToken.None);
 
@@ -112,7 +112,7 @@ public sealed class TtsRequestCompilerTests
         string? requestOptionsJson = null)
     {
         var utcNow = DateTime.UtcNow.ToString("O");
-        return new HttpTtsRule(
+        return TestHttpTtsRules.Create(
             42,
             name,
             url,

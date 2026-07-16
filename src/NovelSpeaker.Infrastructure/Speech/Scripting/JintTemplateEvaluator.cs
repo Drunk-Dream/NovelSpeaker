@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using Jint;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Speech;
 
 namespace NovelSpeaker.Infrastructure.Speech.Scripting;

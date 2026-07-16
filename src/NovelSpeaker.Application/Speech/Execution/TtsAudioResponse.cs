@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Domain.Speech;
+namespace NovelSpeaker.Application.Speech.Execution;
 
 /// <summary>
 /// Describes one validated local audio file returned from an HTTP TTS backend.

@@ -14,17 +14,20 @@ public sealed class BookManagementService : IBookManagementService
     private readonly IAppDataDirectoryProvider _directories;
     private readonly IAudioCacheManagementService _audioCacheManagementService;
     private readonly IAudioCacheProtectionRegistry _audioCacheProtectionRegistry;
+    private readonly TimeProvider _timeProvider;
 
     public BookManagementService(
         ISqliteConnectionFactory connectionFactory,
         IAppDataDirectoryProvider directories,
         IAudioCacheManagementService audioCacheManagementService,
-        IAudioCacheProtectionRegistry audioCacheProtectionRegistry)
+        IAudioCacheProtectionRegistry audioCacheProtectionRegistry,
+        TimeProvider? timeProvider = null)
     {
         _connectionFactory = connectionFactory;
         _directories = directories;
         _audioCacheManagementService = audioCacheManagementService;
         _audioCacheProtectionRegistry = audioCacheProtectionRegistry;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken)
@@ -89,7 +92,7 @@ public sealed class BookManagementService : IBookManagementService
         updateCommand.Parameters.AddWithValue("$bookId", request.BookId);
         updateCommand.Parameters.AddWithValue("$title", trimmedTitle);
         updateCommand.Parameters.AddWithValue("$author", (object?)normalizedAuthor ?? DBNull.Value);
-        updateCommand.Parameters.AddWithValue("$updatedAt", DateTime.UtcNow.ToString("O"));
+        updateCommand.Parameters.AddWithValue("$updatedAt", SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow()));
 
         var affectedRows = await updateCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         if (affectedRows == 0)

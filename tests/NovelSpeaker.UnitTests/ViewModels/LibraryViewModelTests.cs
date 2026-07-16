@@ -24,8 +24,8 @@ public sealed class LibraryViewModelTests
                         "三体",
                         null,
                         "第一章 科学边界",
-                        DateTime.UtcNow.ToString("O"),
-                        LastPlayedAt: "2026-06-29T10:00:00.0000000Z",
+                        DateTimeOffset.UtcNow,
+                        LastPlayedAt: DateTimeOffset.Parse("2026-06-29T10:00:00.0000000Z"),
                         TotalChapterCount: 8,
                         CurrentChapterIndex: 7,
                         RemainingChapterCount: 0,
@@ -51,8 +51,8 @@ public sealed class LibraryViewModelTests
         var viewModel = CreateViewModel(
             catalogService: new FakeBookCatalogService(
                 [
-                    new BookSummary("book-1", "球状闪电", "刘慈欣", "章一", DateTime.UtcNow.ToString("O")),
-                    new BookSummary("book-2", "沙丘", "Frank Herbert", "章一", DateTime.UtcNow.ToString("O"))
+                    new BookSummary("book-1", "球状闪电", "刘慈欣", "章一", DateTimeOffset.UtcNow),
+                    new BookSummary("book-2", "沙丘", "Frank Herbert", "章一", DateTimeOffset.UtcNow)
                 ]));
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -69,9 +69,9 @@ public sealed class LibraryViewModelTests
         var viewModel = CreateViewModel(
             catalogService: new FakeBookCatalogService(
                 [
-                    new BookSummary("book-a", "Beta", null, "章一", DateTime.UtcNow.ToString("O"), "2026-06-29T11:00:00.0000000Z", 8, 1, 6, 0.25, true),
-                    new BookSummary("book-b", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"), "2026-06-29T12:00:00.0000000Z", 8, 2, 5, 0.375, true),
-                    new BookSummary("book-c", "Gamma", null, "章一", DateTime.UtcNow.ToString("O"), null, 8, null, 8, 0, false)
+                    new BookSummary("book-a", "Beta", null, "章一", DateTimeOffset.UtcNow, DateTimeOffset.Parse("2026-06-29T11:00:00.0000000Z"), 8, 1, 6, 0.25, true),
+                    new BookSummary("book-b", "Alpha", null, "章一", DateTimeOffset.UtcNow, DateTimeOffset.Parse("2026-06-29T12:00:00.0000000Z"), 8, 2, 5, 0.375, true),
+                    new BookSummary("book-c", "Gamma", null, "章一", DateTimeOffset.UtcNow, null, 8, null, 8, 0, false)
                 ]));
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -85,9 +85,9 @@ public sealed class LibraryViewModelTests
         var viewModel = CreateViewModel(
             catalogService: new FakeBookCatalogService(
                 [
-                    new BookSummary("book-2", "beta", null, "章一", DateTime.UtcNow.ToString("O")),
-                    new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
-                    new BookSummary("book-3", "charlie", null, "章一", DateTime.UtcNow.ToString("O"))
+                    new BookSummary("book-2", "beta", null, "章一", DateTimeOffset.UtcNow),
+                    new BookSummary("book-1", "Alpha", null, "章一", DateTimeOffset.UtcNow),
+                    new BookSummary("book-3", "charlie", null, "章一", DateTimeOffset.UtcNow)
                 ]));
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -106,8 +106,8 @@ public sealed class LibraryViewModelTests
         var managementService = new FakeBookManagementService();
         var catalogService = new FakeBookCatalogService(
             [
-                new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
-                new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
+                new BookSummary("book-1", "Alpha", null, "章一", DateTimeOffset.UtcNow),
+                new BookSummary("book-2", "Beta", null, "章一", DateTimeOffset.UtcNow)
             ]);
         var viewModel = CreateViewModel(
             catalogService: catalogService,
@@ -117,7 +117,7 @@ public sealed class LibraryViewModelTests
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SearchText = "Alpha";
         await Task.Delay(180);
-        catalogService.Books = [new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))];
+        catalogService.Books = [new BookSummary("book-2", "Beta", null, "章一", DateTimeOffset.UtcNow)];
 
         await viewModel.DeleteBookCommand.ExecuteAsync(viewModel.Books[0]);
 
@@ -133,8 +133,8 @@ public sealed class LibraryViewModelTests
     {
         var catalogService = new FakeBookCatalogService(
             [
-                new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
-                new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
+                new BookSummary("book-1", "Alpha", null, "章一", DateTimeOffset.UtcNow),
+                new BookSummary("book-2", "Beta", null, "章一", DateTimeOffset.UtcNow)
             ]);
         var viewModel = CreateViewModel(catalogService: catalogService);
 
@@ -144,8 +144,8 @@ public sealed class LibraryViewModelTests
         await Task.Delay(180);
         catalogService.Books =
         [
-            new BookSummary("book-3", "Gamma", null, "章一", DateTime.UtcNow.ToString("O")),
-            new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
+            new BookSummary("book-3", "Gamma", null, "章一", DateTimeOffset.UtcNow),
+            new BookSummary("book-2", "Beta", null, "章一", DateTimeOffset.UtcNow)
         ];
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -174,8 +174,8 @@ public sealed class LibraryViewModelTests
         var viewModel = CreateViewModel(
             catalogService: new FakeBookCatalogService(
                 [
-                    new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O")),
-                    new BookSummary("book-2", "Beta", null, "章一", DateTime.UtcNow.ToString("O"))
+                    new BookSummary("book-1", "Alpha", null, "章一", DateTimeOffset.UtcNow),
+                    new BookSummary("book-2", "Beta", null, "章一", DateTimeOffset.UtcNow)
                 ]),
             managementService: managementService,
             playbackCoordinator: playbackCoordinator,
@@ -194,7 +194,7 @@ public sealed class LibraryViewModelTests
         var navigationService = new FakeNavigationService();
         var viewModel = CreateViewModel(
             catalogService: new FakeBookCatalogService(
-                [new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"))]),
+                [new BookSummary("book-1", "Alpha", null, "章一", DateTimeOffset.UtcNow)]),
             navigationService: navigationService);
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -213,7 +213,7 @@ public sealed class LibraryViewModelTests
         var navigationService = new FakeNavigationService();
         var viewModel = CreateViewModel(
             catalogService: new FakeBookCatalogService(
-                [new BookSummary("book-9", "Delta", null, "章一", DateTime.UtcNow.ToString("O"))]),
+                [new BookSummary("book-9", "Delta", null, "章一", DateTimeOffset.UtcNow)]),
             navigationService: navigationService);
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -239,7 +239,7 @@ public sealed class LibraryViewModelTests
             feedback: feedback,
             importCoordinator: importCoordinator);
 
-        catalogService.Books = [new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"))];
+        catalogService.Books = [new BookSummary("book-1", "Alpha", null, "章一", DateTimeOffset.UtcNow)];
         await viewModel.ImportFilesAsync([CreateTempTxtFile()], CancellationToken.None);
 
         Assert.Equal("导入成功", feedback.LastTitle);
@@ -288,7 +288,7 @@ public sealed class LibraryViewModelTests
         var firstImportTask = viewModel.ImportFilesAsync([firstFile], CancellationToken.None);
         await WaitForAsync(() => importCoordinator.Requests.Count == 1);
 
-        catalogService.Books = [new BookSummary("book-1", "Alpha", null, "章一", DateTime.UtcNow.ToString("O"))];
+        catalogService.Books = [new BookSummary("book-1", "Alpha", null, "章一", DateTimeOffset.UtcNow)];
         var secondImportTask = viewModel.ImportFilesAsync([secondFile], CancellationToken.None);
         await WaitForAsync(() => importCoordinator.Requests.Count == 2);
 

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 
@@ -13,16 +14,19 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
 {
     private readonly ITtsRuleRepository _repository;
     private readonly IAppSettingsService _settingsService;
-    private readonly ITtsRuleConverter _ruleConverter;
+    private readonly LegadoRuleConverter _ruleConverter;
+    private readonly TimeProvider _timeProvider;
 
     public TtsRuleLibraryService(
         ITtsRuleRepository repository,
         IAppSettingsService settingsService,
-        ITtsRuleConverter ruleConverter)
+        LegadoRuleConverter ruleConverter,
+        TimeProvider? timeProvider = null)
     {
         _repository = repository;
         _settingsService = settingsService;
         _ruleConverter = ruleConverter;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken)
@@ -149,7 +153,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
         var existingRule = validation.NormalizedModel.Id is > 0
             ? await _repository.GetByIdAsync(validation.NormalizedModel.Id.Value, cancellationToken)
             : null;
-        var rule = TtsRuleModelMapper.BuildRuleFromEditor(validation.NormalizedModel, existingRule);
+        var rule = TtsRuleModelMapper.BuildRuleFromEditor(validation.NormalizedModel, existingRule, _timeProvider);
         return TtsRuleModelMapper.ExportRuleJson(rule);
     }
 
@@ -191,7 +195,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
         var existingRule = validation.NormalizedModel.Id is > 0
             ? await _repository.GetByIdAsync(validation.NormalizedModel.Id.Value, cancellationToken)
             : null;
-        var rule = TtsRuleModelMapper.BuildRuleFromEditor(validation.NormalizedModel, existingRule);
+        var rule = TtsRuleModelMapper.BuildRuleFromEditor(validation.NormalizedModel, existingRule, _timeProvider);
         var existingRules = await _repository.GetAllAsync(cancellationToken);
         rule = EnsureUniqueRuleName(rule, existingRules, existingRule?.Id);
 
@@ -265,7 +269,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
                         throw new InvalidOperationException("未找到要禁用的规则。");
                     }
 
-                    var utcNow = DateTime.UtcNow.ToString("O");
+                    var utcNow = _timeProvider.GetUtcNow();
                     await _repository.SaveAsync(rule with
                     {
                         IsEnabled = false,
@@ -317,7 +321,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             throw new InvalidOperationException("只能将存在且已启用的规则设为当前规则。");
         }
 
-        var utcNow = DateTime.UtcNow.ToString("O");
+        var utcNow = _timeProvider.GetUtcNow();
         await _repository.SaveAsync(rule with { LastUsedAt = utcNow, UpdatedAt = utcNow }, cancellationToken);
 
         await UpdateSelectedRuleAsync(rule.Id, cancellationToken);
@@ -331,7 +335,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             return;
         }
 
-        var utcNow = DateTime.UtcNow.ToString("O");
+        var utcNow = _timeProvider.GetUtcNow();
         await _repository.SaveAsync(rule with
         {
             IsEnabled = isEnabled,
@@ -376,9 +380,9 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
             candidateRule);
     }
 
-    private static TtsRuleImportItem CreateInvalidItem(int index, string statusMessage)
+    private TtsRuleImportItem CreateInvalidItem(int index, string statusMessage)
     {
-        var utcNow = DateTime.UtcNow.ToString("O");
+        var utcNow = _timeProvider.GetUtcNow();
 
         return new TtsRuleImportItem(
             index,
@@ -396,8 +400,10 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
                 string.Empty,
                 null,
                 null,
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
                 null,
                 null,
+                false,
                 null,
                 false,
                 null,
@@ -472,7 +478,7 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
         IReadOnlyList<HttpTtsRule> existingRules,
         CancellationToken cancellationToken)
     {
-        var utcNow = DateTime.UtcNow.ToString("O");
+        var utcNow = _timeProvider.GetUtcNow();
         var normalizedRule = EnsureUniqueRuleName(rule, existingRules, null) with
         {
             CreatedAt = utcNow,

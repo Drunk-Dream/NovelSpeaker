@@ -9,4 +9,4 @@ public sealed record ReadingProgressEntry(
     int SegmentIndex,
     int CharacterOffset,
     long AudioPositionMilliseconds,
-    string UpdatedAt);
+    DateTimeOffset UpdatedAt);

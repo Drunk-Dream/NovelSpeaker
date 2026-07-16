@@ -1,9 +1,11 @@
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.UnitTests.Speech;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
 using Wpf.Ui.Controls;
@@ -412,7 +414,7 @@ public sealed class TtsRulesViewModelTests
             false,
             false,
             statusMessage,
-            new HttpTtsRule(
+            TestHttpTtsRules.Create(
                 0,
                 $"规则 {index}",
                 "https://example.com/tts",
@@ -509,7 +511,7 @@ public sealed class TtsRulesViewModelTests
         {
             SaveCallCount++;
             var ruleId = editor.Id ?? (_rules.Count == 0 ? 1 : _rules.Max(rule => rule.Id) + 1);
-            var savedRule = new HttpTtsRule(
+            var savedRule = TestHttpTtsRules.Create(
                 ruleId,
                 editor.Name,
                 editor.Url,

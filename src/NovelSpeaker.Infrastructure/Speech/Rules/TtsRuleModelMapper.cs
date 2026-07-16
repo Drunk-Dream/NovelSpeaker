@@ -1,15 +1,14 @@
-using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Speech;
 
 namespace NovelSpeaker.Infrastructure.Speech.Rules;
 
 internal static partial class TtsRuleModelMapper
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new();
-
     public static TtsRuleEditorModel ToEditor(HttpTtsRule rule)
     {
         return new TtsRuleEditorModel(
@@ -20,8 +19,8 @@ internal static partial class TtsRuleModelMapper
             rule.ContentType,
             rule.ConcurrentRate,
             rule.LastUpdateTime,
-            ParseKeyValueJson(rule.Header),
-            ParseRequestOptions(rule.RequestOptionsJson));
+            rule.Headers.Select(pair => new TtsRuleEditorKeyValue(pair.Key, pair.Value)).ToArray(),
+            new TtsRuleRequestOptionsEditor(rule.RequestMethod, rule.RequestBody));
     }
 
     public static TtsRuleSummary ToSummary(HttpTtsRule rule, long? selectedRuleId)
@@ -83,18 +82,24 @@ internal static partial class TtsRuleModelMapper
         return errors;
     }
 
-    public static HttpTtsRule BuildRuleFromEditor(TtsRuleEditorModel editor, HttpTtsRule? existingRule)
+    public static HttpTtsRule BuildRuleFromEditor(
+        TtsRuleEditorModel editor,
+        HttpTtsRule? existingRule,
+        TimeProvider? timeProvider = null)
     {
-        var utcNow = DateTime.UtcNow.ToString("O");
+        var utcNow = (timeProvider ?? TimeProvider.System).GetUtcNow();
 
+        var body = ToPersistedBody(editor.RequestOptions.Body);
         return new HttpTtsRule(
             editor.Id ?? 0,
             editor.Name,
             editor.Url,
             editor.ContentType,
             editor.ConcurrentRate,
-            SerializeKeyValueJson(editor.Headers),
-            SerializeRequestOptions(editor.RequestOptions),
+            editor.Headers.ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.OrdinalIgnoreCase),
+            editor.RequestOptions.Method,
+            body.Text,
+            body.IsJsonStructure,
             editor.LastUpdateTime,
             editor.IsEnabled,
             existingRule?.LastUsedAt,
@@ -111,6 +116,28 @@ internal static partial class TtsRuleModelMapper
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
+
+    private static PersistedBody ToPersistedBody(string? editorBody)
+    {
+        if (string.IsNullOrWhiteSpace(editorBody))
+        {
+            return new PersistedBody(null, false);
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(editorBody);
+            return document.RootElement.ValueKind == JsonValueKind.String
+                ? new PersistedBody(document.RootElement.GetString(), false)
+                : new PersistedBody(document.RootElement.GetRawText(), true);
+        }
+        catch (JsonException)
+        {
+            return new PersistedBody(editorBody, false);
+        }
+    }
+
+    private sealed record PersistedBody(string? Text, bool IsJsonStructure);
 
     private static void ValidateHeaders(
         IReadOnlyList<TtsRuleEditorKeyValue> headers,
@@ -167,122 +194,6 @@ internal static partial class TtsRuleModelMapper
         catch (FormatException exception)
         {
             errors.Add($"{fieldName} 模板格式无效：{exception.Message}");
-        }
-    }
-
-    private static IReadOnlyList<TtsRuleEditorKeyValue> ParseKeyValueJson(string? jsonText)
-    {
-        if (string.IsNullOrWhiteSpace(jsonText))
-        {
-            return [];
-        }
-
-        using var document = JsonDocument.Parse(jsonText);
-        if (document.RootElement.ValueKind != JsonValueKind.Object)
-        {
-            return [];
-        }
-
-        return document.RootElement
-            .EnumerateObject()
-            .Select(property => new TtsRuleEditorKeyValue(
-                property.Name,
-                property.Value.ValueKind == JsonValueKind.String
-                    ? property.Value.GetString() ?? string.Empty
-                    : property.Value.GetRawText()))
-            .ToArray();
-    }
-
-    private static string? SerializeKeyValueJson(IReadOnlyList<TtsRuleEditorKeyValue> entries)
-    {
-        if (entries.Count == 0)
-        {
-            return null;
-        }
-
-        var dictionary = entries.ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.OrdinalIgnoreCase);
-        return JsonSerializer.Serialize(dictionary, SerializerOptions);
-    }
-
-    private static TtsRuleRequestOptionsEditor ParseRequestOptions(string? requestOptionsJson)
-    {
-        if (string.IsNullOrWhiteSpace(requestOptionsJson))
-        {
-            return new TtsRuleRequestOptionsEditor(null, null);
-        }
-
-        using var document = JsonDocument.Parse(requestOptionsJson);
-        if (document.RootElement.ValueKind != JsonValueKind.Object)
-        {
-            return new TtsRuleRequestOptionsEditor(null, null);
-        }
-
-        string? method = null;
-        string? body = null;
-
-        foreach (var property in document.RootElement.EnumerateObject())
-        {
-            switch (property.Name)
-            {
-                case "method":
-                    method = property.Value.ValueKind == JsonValueKind.String
-                        ? property.Value.GetString()
-                        : property.Value.GetRawText();
-                    break;
-                case "body":
-                    body = property.Value.ValueKind == JsonValueKind.String
-                        ? property.Value.GetString()
-                        : property.Value.GetRawText();
-                    break;
-            }
-        }
-
-        return new TtsRuleRequestOptionsEditor(method, body);
-    }
-
-    private static string? SerializeRequestOptions(TtsRuleRequestOptionsEditor requestOptions)
-    {
-        var hasMethod = !string.IsNullOrWhiteSpace(requestOptions.Method);
-        var hasBody = !string.IsNullOrWhiteSpace(requestOptions.Body);
-
-        if (!hasMethod && !hasBody)
-        {
-            return null;
-        }
-
-        using var stream = new MemoryStream();
-        using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions
-        {
-            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-        });
-
-        writer.WriteStartObject();
-        if (hasMethod)
-        {
-            writer.WriteString("method", requestOptions.Method);
-        }
-
-        if (hasBody)
-        {
-            writer.WritePropertyName("body");
-            WriteJsonLikeValue(writer, requestOptions.Body!);
-        }
-
-        writer.WriteEndObject();
-        writer.Flush();
-        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
-    }
-
-    private static void WriteJsonLikeValue(Utf8JsonWriter writer, string text)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(text);
-            document.RootElement.WriteTo(writer);
-        }
-        catch (JsonException)
-        {
-            writer.WriteStringValue(text);
         }
     }
 

@@ -27,8 +27,8 @@ public sealed class ChapterRuleRepositoryTests
             @"^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$",
             90,
             false,
-            DateTime.UtcNow.ToString("O"),
-            DateTime.UtcNow.ToString("O"));
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow);
 
         await repository.SaveAsync(existing, CancellationToken.None);
 
@@ -61,16 +61,16 @@ public sealed class ChapterRuleRepositoryTests
             @"^\s*一$",
             100,
             true,
-            DateTime.UtcNow.ToString("O"),
-            DateTime.UtcNow.ToString("O")), CancellationToken.None);
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow), CancellationToken.None);
         await repository.SaveAsync(new ChapterRule(
             "custom:two",
             "自定义二",
             @"^\s*二$",
             200,
             true,
-            DateTime.UtcNow.ToString("O"),
-            DateTime.UtcNow.ToString("O")), CancellationToken.None);
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow), CancellationToken.None);
 
         await repository.SaveOrderAsync(
         [

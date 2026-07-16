@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Domain.Speech;
+namespace NovelSpeaker.Application.Speech.Rules;
 
 /// <summary>
 /// Provides the lightweight information needed by the rules list page.
@@ -8,4 +8,4 @@ public sealed record TtsRuleSummary(
     string Name,
     bool IsEnabled,
     bool IsSelected,
-    string? LastUsedAt);
+    DateTimeOffset? LastUsedAt);

@@ -9,5 +9,5 @@ public sealed record ChapterRule(
     string Pattern,
     int SortOrder,
     bool IsEnabled,
-    string CreatedAt,
-    string UpdatedAt);
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);

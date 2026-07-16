@@ -1,4 +1,6 @@
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Speech.Http;
 using Xunit;

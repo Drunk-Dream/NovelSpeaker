@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Domain.Speech;
+namespace NovelSpeaker.Application.Speech.Compilation;
 
 /// <summary>
 /// Represents a validated template that mixes literal text with JavaScript expressions.

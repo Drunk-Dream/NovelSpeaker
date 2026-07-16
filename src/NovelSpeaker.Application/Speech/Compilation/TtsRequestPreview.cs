@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Domain.Speech;
+namespace NovelSpeaker.Application.Speech.Compilation;
 
 /// <summary>
 /// Contains a redacted preview of a converted request after template evaluation.

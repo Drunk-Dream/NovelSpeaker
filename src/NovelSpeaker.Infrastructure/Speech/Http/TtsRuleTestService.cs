@@ -1,5 +1,7 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Playback;
 using NovelSpeaker.Infrastructure.Speech.Rules;
@@ -14,6 +16,8 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
     private readonly ITtsRuleLibraryService _ruleLibraryService;
     private readonly ITtsRequestCompiler _requestCompiler;
     private readonly IHttpTtsClient _httpTtsClient;
+    private readonly ITtsRuleNormalizer _ruleNormalizer;
+    private readonly TimeProvider _timeProvider;
     private readonly IAudioPlayer _audioPlayer;
     private bool _disposed;
 
@@ -21,11 +25,15 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
         ITtsRuleLibraryService ruleLibraryService,
         ITtsRequestCompiler requestCompiler,
         IHttpTtsClient httpTtsClient,
-        IAudioPlayerFactory audioPlayerFactory)
+        IAudioPlayerFactory audioPlayerFactory,
+        ITtsRuleNormalizer? ruleNormalizer = null,
+        TimeProvider? timeProvider = null)
     {
         _ruleLibraryService = ruleLibraryService;
         _requestCompiler = requestCompiler;
         _httpTtsClient = httpTtsClient;
+        _ruleNormalizer = ruleNormalizer ?? new TtsRuleNormalizer();
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _audioPlayer = audioPlayerFactory.Create();
     }
 
@@ -53,7 +61,7 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
         try
         {
             compilation = await _requestCompiler.CompileAsync(
-                rule.ToNormalizedRule(),
+                _ruleNormalizer.Normalize(rule),
                 new TtsRuleContext(input.SpeakText, input.SpeakSpeed, rule),
                 cancellationToken);
         }
@@ -144,9 +152,9 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
         await _audioPlayer.DisposeAsync();
     }
 
-    private static HttpTtsRule BuildRuleFromEditor(TtsRuleEditorModel editor)
+    private HttpTtsRule BuildRuleFromEditor(TtsRuleEditorModel editor)
     {
         var normalizedEditor = TtsRuleModelMapper.NormalizeEditor(editor);
-        return TtsRuleModelMapper.BuildRuleFromEditor(normalizedEditor, existingRule: null);
+        return TtsRuleModelMapper.BuildRuleFromEditor(normalizedEditor, existingRule: null, _timeProvider);
     }
 }

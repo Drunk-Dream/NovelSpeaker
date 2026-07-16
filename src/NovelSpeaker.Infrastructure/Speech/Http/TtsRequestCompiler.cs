@@ -1,5 +1,7 @@
 using System.Text.Json;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Speech.Rules;
 
@@ -39,17 +41,19 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
         }
 
         string urlText;
-        string? headerText;
-        string? requestOptionsText;
+        var evaluatedHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        string? requestBodyText;
         try
         {
             urlText = await _templateEvaluator.EvaluateAsync(rule.UrlTemplate, context, cancellationToken);
-            headerText = rule.HeaderTemplate is null
+            foreach (var header in rule.HeaderTemplates)
+            {
+                evaluatedHeaders[header.Key] = await _templateEvaluator.EvaluateAsync(header.Value, context, cancellationToken);
+            }
+
+            requestBodyText = rule.RequestBodyTemplate is null
                 ? null
-                : await _templateEvaluator.EvaluateAsync(rule.HeaderTemplate, context, cancellationToken);
-            requestOptionsText = rule.RequestOptionsTemplate is null
-                ? null
-                : await _templateEvaluator.EvaluateAsync(rule.RequestOptionsTemplate, context, cancellationToken);
+                : await _templateEvaluator.EvaluateAsync(rule.RequestBodyTemplate, context, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -65,32 +69,26 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
             return Failure(TtsErrorKind.InvalidRule, "规则 URL 不是有效的绝对地址。");
         }
 
-        var ruleHeadersResult = ParseHeaderDictionary(headerText, "header");
-        if (!ruleHeadersResult.IsSuccess)
+        var bodyElementResult = ParseBody(requestBodyText, rule.RequestBodyIsJsonStructure);
+        if (!bodyElementResult.IsSuccess)
         {
-            return Failure(ruleHeadersResult.Kind!.Value, ruleHeadersResult.Message!);
+            return Failure(TtsErrorKind.InvalidRule, bodyElementResult.Message!);
         }
 
-        var requestOptionsResult = ParseRequestOptions(requestOptionsText);
-        if (!requestOptionsResult.IsSuccess)
-        {
-            return Failure(requestOptionsResult.Kind!.Value, requestOptionsResult.Message!);
-        }
-
-        var method = string.IsNullOrWhiteSpace(requestOptionsResult.Method)
-            ? requestOptionsResult.BodyElement is null ? "GET" : "POST"
-            : requestOptionsResult.Method!.Trim().ToUpperInvariant();
+        var method = string.IsNullOrWhiteSpace(rule.RequestMethod)
+            ? bodyElementResult.BodyElement is null ? "GET" : "POST"
+            : rule.RequestMethod.Trim().ToUpperInvariant();
         if (method is not ("GET" or "POST"))
         {
             return Failure(TtsErrorKind.InvalidRule, $"当前版本仅支持 GET 和 POST，请求方法 {method} 不受支持。");
         }
 
-        if (method == "GET" && requestOptionsResult.BodyElement is not null)
+        if (method == "GET" && bodyElementResult.BodyElement is not null)
         {
             return Failure(TtsErrorKind.InvalidRule, "GET 请求不能携带 body。");
         }
 
-        var headers = MergeHeaders(DefaultHeaders, ruleHeadersResult.Headers!);
+        var headers = MergeHeaders(DefaultHeaders, evaluatedHeaders);
         if (TtsRuleCompatibilityChecker.ContainsCookieHeader(headers))
         {
             return Failure(
@@ -98,7 +96,7 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
                 TtsRuleCompatibilityChecker.UnsupportedCookieLoginInfoMessage);
         }
 
-        var bodyResult = BuildBody(requestOptionsResult.BodyElement, headers);
+        var bodyResult = BuildBody(bodyElementResult.BodyElement, headers);
         if (!bodyResult.IsSuccess)
         {
             return Failure(bodyResult.Kind!.Value, bodyResult.Message!);
@@ -131,91 +129,21 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
             new TtsExecutionFailure(kind, message, null, null, null, null));
     }
 
-    private static HeaderParseResult ParseHeaderDictionary(string? headerText, string fieldName)
+    private static BodyParseResult ParseBody(string? text, bool isJsonStructure)
     {
-        if (string.IsNullOrWhiteSpace(headerText))
+        if (string.IsNullOrWhiteSpace(text))
         {
-            return HeaderParseResult.Success(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+            return BodyParseResult.Success(null);
         }
 
-        try
+        if (isJsonStructure)
         {
-            using var document = JsonDocument.Parse(headerText);
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                return HeaderParseResult.Error(TtsErrorKind.InvalidRule, $"字段 {fieldName} 必须是 JSON 对象。");
-            }
-
-            var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var property in document.RootElement.EnumerateObject())
-            {
-                headers[property.Name] = property.Value.ValueKind switch
-                {
-                    JsonValueKind.String => property.Value.GetString() ?? string.Empty,
-                    JsonValueKind.Null => string.Empty,
-                    _ => property.Value.GetRawText()
-                };
-            }
-
-            return HeaderParseResult.Success(headers);
-        }
-        catch (JsonException exception)
-        {
-            return HeaderParseResult.Error(
-                TtsErrorKind.InvalidRule,
-                $"字段 {fieldName} 不是有效的 JSON 对象：{exception.Message}");
-        }
-    }
-
-    private static RequestOptionsParseResult ParseRequestOptions(string? requestOptionsText)
-    {
-        if (string.IsNullOrWhiteSpace(requestOptionsText))
-        {
-            return RequestOptionsParseResult.Success(
-                null,
-                null);
+            using var document = JsonDocument.Parse(text);
+            return BodyParseResult.Success(document.RootElement.Clone());
         }
 
-        try
-        {
-            using var document = JsonDocument.Parse(requestOptionsText);
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                return RequestOptionsParseResult.Error(TtsErrorKind.InvalidRule, "requestOptions 必须是 JSON 对象。");
-            }
-
-            string? method = null;
-            JsonElement? body = null;
-
-            foreach (var property in document.RootElement.EnumerateObject())
-            {
-                switch (property.Name)
-                {
-                    case "method":
-                        method = property.Value.ValueKind == JsonValueKind.String
-                            ? property.Value.GetString()
-                            : property.Value.GetRawText();
-                        break;
-                    case "body":
-                        body = property.Value.Clone();
-                        break;
-                    case "timeoutMs":
-                        break;
-                    default:
-                        return RequestOptionsParseResult.Error(
-                            TtsErrorKind.InvalidRule,
-                            $"requestOptions 包含当前版本不支持的字段：{property.Name}");
-                }
-            }
-
-            return RequestOptionsParseResult.Success(method, body);
-        }
-        catch (JsonException exception)
-        {
-            return RequestOptionsParseResult.Error(
-                TtsErrorKind.InvalidRule,
-                $"requestOptions 不是有效的 JSON 对象：{exception.Message}");
-        }
+        using var stringDocument = JsonDocument.Parse(JsonSerializer.Serialize(text));
+        return BodyParseResult.Success(stringDocument.RootElement.Clone());
     }
 
     private static BodyBuildResult BuildBody(JsonElement? bodyElement, IReadOnlyDictionary<string, string> headers)
@@ -343,33 +271,9 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
                contentType.Contains("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase);
     }
 
-    private sealed record HeaderParseResult(
-        bool IsSuccess,
-        IReadOnlyDictionary<string, string>? Headers,
-        TtsErrorKind? Kind,
-        string? Message)
+    private sealed record BodyParseResult(bool IsSuccess, JsonElement? BodyElement, string? Message)
     {
-        public static HeaderParseResult Success(IReadOnlyDictionary<string, string> headers) =>
-            new(true, headers, null, null);
-
-        public static HeaderParseResult Error(TtsErrorKind kind, string message) =>
-            new(false, null, kind, message);
-    }
-
-    private sealed record RequestOptionsParseResult(
-        bool IsSuccess,
-        string? Method,
-        JsonElement? BodyElement,
-        TtsErrorKind? Kind,
-        string? Message)
-    {
-        public static RequestOptionsParseResult Success(
-            string? method,
-            JsonElement? bodyElement) =>
-            new(true, method, bodyElement, null, null);
-
-        public static RequestOptionsParseResult Error(TtsErrorKind kind, string message) =>
-            new(false, null, null, kind, message);
+        public static BodyParseResult Success(JsonElement? bodyElement) => new(true, bodyElement, null);
     }
 
     private sealed record BodyBuildResult(

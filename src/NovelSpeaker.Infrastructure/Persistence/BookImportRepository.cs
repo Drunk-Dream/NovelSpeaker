@@ -38,10 +38,10 @@ public sealed class BookImportRepository : IBookImportRepository
             bookCommand.Parameters.AddWithValue("$storedFilePath", book.StoredFilePath);
             bookCommand.Parameters.AddWithValue("$sourceHash", book.SourceHash);
             bookCommand.Parameters.AddWithValue("$encoding", book.Encoding);
-            bookCommand.Parameters.AddWithValue("$importedAt", book.ImportedAt);
-            bookCommand.Parameters.AddWithValue("$lastImportedAt", book.LastImportedAt);
-            bookCommand.Parameters.AddWithValue("$lastPlayedAt", (object?)book.LastPlayedAt ?? DBNull.Value);
-            bookCommand.Parameters.AddWithValue("$updatedAt", book.UpdatedAt);
+            bookCommand.Parameters.AddWithValue("$importedAt", SqliteDateTimeMapper.Format(book.ImportedAt));
+            bookCommand.Parameters.AddWithValue("$lastImportedAt", SqliteDateTimeMapper.Format(book.LastImportedAt));
+            bookCommand.Parameters.AddWithValue("$lastPlayedAt", book.LastPlayedAt is null ? DBNull.Value : SqliteDateTimeMapper.Format(book.LastPlayedAt.Value));
+            bookCommand.Parameters.AddWithValue("$updatedAt", SqliteDateTimeMapper.Format(book.UpdatedAt));
             await bookCommand.ExecuteNonQueryAsync(cancellationToken);
 
             foreach (var chapter in chapters)

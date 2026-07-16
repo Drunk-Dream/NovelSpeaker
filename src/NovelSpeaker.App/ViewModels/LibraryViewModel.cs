@@ -307,7 +307,7 @@ public sealed partial class LibraryViewModel : ObservableObject
                 .ThenBy(static book => book.BookId, StringComparer.Ordinal),
             _ => filteredBooks
                 .OrderByDescending(static book => book.HasReadingProgress)
-                .ThenByDescending(static book => book.LastPlayedAt, StringComparer.Ordinal)
+                .ThenByDescending(static book => book.LastPlayedAt)
                 .ThenBy(static book => book.SortTitleKey, StringComparer.Ordinal)
                 .ThenBy(static book => book.BookId, StringComparer.Ordinal)
         };
@@ -329,7 +329,7 @@ public sealed partial class LibraryViewModel : ObservableObject
             BuildRemainingChapterText(book),
             book.OverallProgress,
             book.HasReadingProgress,
-            book.LastPlayedAt,
+            book.LastPlayedAt?.ToString("O"),
             _bookCoverGenerator.Generate(book.Title),
             canDelete: true);
     }

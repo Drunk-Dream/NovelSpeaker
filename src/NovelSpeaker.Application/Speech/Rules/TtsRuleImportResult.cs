@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Domain.Speech;
+namespace NovelSpeaker.Application.Speech.Rules;
 
 /// <summary>
 /// Summarizes the persisted outcome of a confirmed rule import.

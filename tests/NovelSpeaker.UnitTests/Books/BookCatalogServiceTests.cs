@@ -18,7 +18,7 @@ public sealed class BookCatalogServiceTests
         var book = Assert.Single(books);
 
         Assert.Equal("第二章", book.CurrentChapterTitle);
-        Assert.Equal("2026-06-25T09:00:00.0000000Z", book.LastPlayedAt);
+        Assert.Equal(DateTimeOffset.Parse("2026-06-25T09:00:00.0000000Z"), book.LastPlayedAt);
         Assert.Equal(2, book.TotalChapterCount);
         Assert.Equal(1, book.CurrentChapterIndex);
         Assert.Equal(0, book.RemainingChapterCount);
@@ -42,7 +42,7 @@ public sealed class BookCatalogServiceTests
     private static async Task SeedBookAsync(SqliteConnectionFactory factory, string bookId, string firstChapterTitle, string secondChapterTitle)
     {
         var repository = new BookImportRepository(factory);
-        var now = DateTime.UtcNow.ToString("O");
+        var now = DateTimeOffset.UtcNow;
         await repository.SaveAsync(
             new Book(bookId, $"书籍 {bookId}", null, $"{bookId}.txt", $"{bookId}.txt", $"{bookId}-hash", "utf-8", now, now, null, now),
             [

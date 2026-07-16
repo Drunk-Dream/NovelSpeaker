@@ -1,5 +1,6 @@
 using System.Text.Json;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.Infrastructure.Speech.Rules;
 using NovelSpeaker.Infrastructure.Speech.Scripting;
@@ -36,7 +37,7 @@ public sealed class TtsRuleSampleRegressionTests
 
             var rule = conversion.CandidateRule;
             var compilation = await _compiler.CompileAsync(
-                rule.ToNormalizedRule(),
+                rule.Normalize(),
                 new TtsRuleContext(
                     "sample text",
                     11,

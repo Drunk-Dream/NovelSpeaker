@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Domain.Speech;
+namespace NovelSpeaker.Application.Speech.Compilation;
 
 /// <summary>
 /// Describes how a compiled request body should be sent over HTTP.

@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Domain.Speech;
+namespace NovelSpeaker.Application.Speech.Rules;
 
 /// <summary>
 /// Describes how well an imported TTS rule fits the current MVP compatibility envelope.

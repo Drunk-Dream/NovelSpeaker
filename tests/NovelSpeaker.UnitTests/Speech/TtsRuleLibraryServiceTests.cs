@@ -1,5 +1,6 @@
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Speech.Rules;
@@ -13,7 +14,7 @@ public sealed class TtsRuleLibraryServiceTests
     public async Task CreateImportPreviewAsync_marks_duplicates_name_conflicts_and_unsupported_fields()
     {
         var repository = new FakeTtsRuleRepository([
-            new HttpTtsRule(
+            TestHttpTtsRules.Create(
                 7,
                 "现有规则",
                 "https://example.com/old",
@@ -73,7 +74,7 @@ public sealed class TtsRuleLibraryServiceTests
     public async Task ImportJsonTextAsync_renames_same_name_rules_and_reports_counts()
     {
         var repository = new FakeTtsRuleRepository([
-            new HttpTtsRule(
+            TestHttpTtsRules.Create(
                 3,
                 "现有规则",
                 "https://example.com/old",
@@ -197,7 +198,7 @@ public sealed class TtsRuleLibraryServiceTests
     public async Task SelectRuleAsync_updates_last_used_and_settings()
     {
         var repository = new FakeTtsRuleRepository([
-            new HttpTtsRule(
+            TestHttpTtsRules.Create(
                 5,
                 "当前规则",
                 "https://example.com/tts",
@@ -226,7 +227,7 @@ public sealed class TtsRuleLibraryServiceTests
     public async Task SetRuleEnabledAsync_and_DeleteRuleAsync_clear_selected_rule()
     {
         var repository = new FakeTtsRuleRepository([
-            new HttpTtsRule(
+            TestHttpTtsRules.Create(
                 9,
                 "当前规则",
                 "https://example.com/tts",
@@ -258,7 +259,7 @@ public sealed class TtsRuleLibraryServiceTests
     {
         var utcNow = DateTime.UtcNow.ToString("O");
         var repository = new FakeTtsRuleRepository([
-            new HttpTtsRule(
+            TestHttpTtsRules.Create(
                 12,
                 "可编辑规则",
                 "https://example.com/tts",
@@ -282,10 +283,10 @@ public sealed class TtsRuleLibraryServiceTests
 
         Assert.NotNull(editor);
         Assert.Equal("POST", editor!.RequestOptions.Method);
-        Assert.Equal("""{"Authorization":"Bearer demo"}""", repository.Rules.Single().Header);
+        Assert.Equal("Bearer demo", repository.Rules.Single().Headers["Authorization"]);
         Assert.Equal("已更新规则", saved.Name);
-        Assert.DoesNotContain(@"""timeoutMs""", saved.RequestOptionsJson);
-        Assert.DoesNotContain(@"""headers""", saved.RequestOptionsJson);
+        Assert.Equal("POST", saved.RequestMethod);
+        Assert.NotNull(saved.RequestBody);
     }
 
     [Fact]
@@ -293,7 +294,7 @@ public sealed class TtsRuleLibraryServiceTests
     {
         var utcNow = DateTime.UtcNow.ToString("O");
         var repository = new FakeTtsRuleRepository([
-            new HttpTtsRule(
+            TestHttpTtsRules.Create(
                 1,
                 "重复名",
                 "https://example.com/one",
@@ -352,7 +353,7 @@ public sealed class TtsRuleLibraryServiceTests
     public async Task ApplyRuleMutationAsync_switches_to_replacement_when_disabling_current_rule()
     {
         var repository = new FakeTtsRuleRepository([
-            new HttpTtsRule(
+            TestHttpTtsRules.Create(
                 1,
                 "当前规则",
                 "https://example.com/a",
@@ -365,7 +366,7 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 "created",
                 "updated"),
-            new HttpTtsRule(
+            TestHttpTtsRules.Create(
                 2,
                 "替代规则",
                 "https://example.com/b",
@@ -398,7 +399,7 @@ public sealed class TtsRuleLibraryServiceTests
     public async Task ApplyRuleMutationAsync_can_clear_current_rule_even_when_replacements_exist()
     {
         var repository = new FakeTtsRuleRepository([
-            new HttpTtsRule(
+            TestHttpTtsRules.Create(
                 1,
                 "当前规则",
                 "https://example.com/a",
@@ -411,7 +412,7 @@ public sealed class TtsRuleLibraryServiceTests
                 null,
                 "created",
                 "updated"),
-            new HttpTtsRule(
+            TestHttpTtsRules.Create(
                 2,
                 "候选规则",
                 "https://example.com/b",

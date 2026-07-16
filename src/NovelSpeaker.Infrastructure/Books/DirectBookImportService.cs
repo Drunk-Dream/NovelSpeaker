@@ -22,6 +22,7 @@ public sealed class DirectBookImportService : IDirectBookImportService
     private readonly IBookImportRepository _bookImportRepository;
     private readonly IBookFileNameTemplateProvider _bookFileNameTemplateProvider;
     private readonly BookFileNameMetadataParser _bookFileNameMetadataParser;
+    private readonly TimeProvider _timeProvider;
 
     public DirectBookImportService(
         ITextFileAnalyzer textFileAnalyzer,
@@ -33,7 +34,8 @@ public sealed class DirectBookImportService : IDirectBookImportService
         IBookFileStore bookFileStore,
         IBookImportRepository bookImportRepository,
         IBookFileNameTemplateProvider bookFileNameTemplateProvider,
-        BookFileNameMetadataParser bookFileNameMetadataParser)
+        BookFileNameMetadataParser bookFileNameMetadataParser,
+        TimeProvider? timeProvider = null)
     {
         _textFileAnalyzer = textFileAnalyzer;
         _textNormalizer = textNormalizer;
@@ -45,6 +47,7 @@ public sealed class DirectBookImportService : IDirectBookImportService
         _bookImportRepository = bookImportRepository;
         _bookFileNameTemplateProvider = bookFileNameTemplateProvider;
         _bookFileNameMetadataParser = bookFileNameMetadataParser;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<DirectBookImportResult> ImportAsync(
@@ -130,7 +133,7 @@ public sealed class DirectBookImportService : IDirectBookImportService
 
         var bookId = Guid.NewGuid().ToString();
         var copyHandle = await _bookFileStore.StageNormalizedTextAsync(normalizedText, bookId, progress, cancellationToken);
-        var now = DateTime.UtcNow.ToString("O");
+        var now = _timeProvider.GetUtcNow();
 
         var book = new Book(
             bookId,

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Infrastructure.Speech.Rules;
 using Xunit;
 
@@ -49,7 +50,9 @@ public sealed class LegadoRuleConverterTests
 
         Assert.True(result.CanImport);
         Assert.Equal("https://example.com/tts", result.CandidateRule.Url);
-        Assert.Equal("""{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"}""", result.CandidateRule.RequestOptionsJson);
+        Assert.Equal("POST", result.CandidateRule.RequestMethod);
+        Assert.Equal("""{"text":"{{speakText}}"}""", result.CandidateRule.RequestBody);
+        Assert.False(result.CandidateRule.RequestBodyIsJsonStructure);
     }
 
     [Fact]

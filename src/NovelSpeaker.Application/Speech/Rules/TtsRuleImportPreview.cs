@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Domain.Speech;
+namespace NovelSpeaker.Application.Speech.Rules;
 
 /// <summary>
 /// Represents the result of parsing a JSON import payload before it is committed.

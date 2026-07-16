@@ -1,9 +1,11 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Playback;
+using NovelSpeaker.UnitTests.Speech;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Playback;
@@ -370,7 +372,7 @@ public sealed class BookPlaybackCoordinatorTests
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var readingProgressStore = new FakeReadingProgressStore
         {
-            StoredProgress = new ReadingProgressEntry("book-1", 0, 1, 6, 333, "2026-06-25T00:00:00.0000000Z")
+            StoredProgress = new ReadingProgressEntry("book-1", 0, 1, 6, 333, DateTimeOffset.Parse("2026-06-25T00:00:00.0000000Z"))
         };
         await using var coordinator = CreateCoordinator(localCoordinator, readingProgressStore: readingProgressStore);
 
@@ -386,7 +388,7 @@ public sealed class BookPlaybackCoordinatorTests
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var readingProgressStore = new FakeReadingProgressStore
         {
-            StoredProgress = new ReadingProgressEntry("book-1", 0, 1, 6, 333, "2026-06-25T00:00:00.0000000Z")
+            StoredProgress = new ReadingProgressEntry("book-1", 0, 1, 6, 333, DateTimeOffset.Parse("2026-06-25T00:00:00.0000000Z"))
         };
         await using var coordinator = CreateCoordinator(localCoordinator, readingProgressStore: readingProgressStore);
 
@@ -402,7 +404,7 @@ public sealed class BookPlaybackCoordinatorTests
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var readingProgressStore = new FakeReadingProgressStore
         {
-            StoredProgress = new ReadingProgressEntry("book-1", 0, 8, 6, 333, "2026-06-25T00:00:00.0000000Z")
+            StoredProgress = new ReadingProgressEntry("book-1", 0, 8, 6, 333, DateTimeOffset.Parse("2026-06-25T00:00:00.0000000Z"))
         };
         await using var coordinator = CreateCoordinator(
             localCoordinator,
@@ -493,7 +495,7 @@ public sealed class BookPlaybackCoordinatorTests
         var audioProvider = new FakePlaybackAudioProvider();
         var readingProgressStore = new FakeReadingProgressStore
         {
-            StoredProgress = new ReadingProgressEntry("book-1", 0, 1, 6, 333, "2026-06-25T00:00:00.0000000Z")
+            StoredProgress = new ReadingProgressEntry("book-1", 0, 1, 6, 333, DateTimeOffset.Parse("2026-06-25T00:00:00.0000000Z"))
         };
         await using var coordinator = CreateCoordinator(
             localCoordinator,
@@ -776,7 +778,7 @@ public sealed class BookPlaybackCoordinatorTests
 
     private static SelectedPlaybackRule CreateRuleSelection(long id, string name)
     {
-        var rule = new HttpTtsRule(
+        var rule = TestHttpTtsRules.Create(
             id,
             name,
             "https://example.com/tts?text={{encodeURIComponent(speakText)}}&speed={{speakSpeed}}",
@@ -790,7 +792,7 @@ public sealed class BookPlaybackCoordinatorTests
             "2026-06-24T00:00:00.0000000Z",
             "2026-06-24T00:00:00.0000000Z");
 
-        return new SelectedPlaybackRule(id, name, rule, rule.ToNormalizedRule());
+        return new SelectedPlaybackRule(id, name, rule, rule.Normalize());
     }
 
     private static async Task WaitForAsync(Func<bool> condition)
@@ -1061,7 +1063,7 @@ public sealed class BookPlaybackCoordinatorTests
                 progress.SegmentIndex,
                 progress.CharacterOffset,
                 progress.AudioPositionMilliseconds,
-                DateTime.UtcNow.ToString("O"));
+                DateTimeOffset.UtcNow);
             return Task.CompletedTask;
         }
 

@@ -244,7 +244,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：Application 已提供幂等的 `AddNovelSpeakerApplication()`，按 Books、Speech、Playback、Settings 功能边界组合注册并统一提供进程级 `TimeProvider`。Infrastructure 原单体清单已拆为 Persistence、FileStorage、Books、Speech、Audio、Settings 适配器模块，顶层方法只按固定顺序组合；App 与 WPF Test Host 统一按 Application、Infrastructure、Desktop 三层装配。现有服务映射和 Singleton/Transient 生命周期保持不变，所有注册入口可重复调用；DI 测试覆盖容器 scope/build 校验、关键服务解析、共享实现映射和瞬态实例。运行时文档已登记 process/page/operation/playback session 的实际状态所有权，以及仍为 Singleton 的页面 ViewModel 迁移债务。
 
-### [ ] DOMAIN-102（P1）：清理 Domain 中的流程/传输/UI 模型
+### [x] DOMAIN-102（P1）：清理 Domain 中的流程/传输/UI 模型
 
 前置：ARCH-101。
 
@@ -258,6 +258,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 统一新代码的 `DateTimeOffset`/`TimeProvider` 边界；数据库字段保持兼容。
 
 验收：Domain 不包含 UI/HTTP/SQLite DTO；schema 和序列化输出不变；调用者/测试一次迁完，无兼容副本。
+
+完成说明：Domain/Speech 现仅保留结构化 `HttpTtsRule` 与 `TtsErrorKind`；规则导入/列表/测试投影、模板规范化、请求编译模型和 HTTP 执行结果已一次迁入 Application 的 Rules、Compilation、Execution 切片，并由 `ITtsRuleNormalizer` 负责实体到运行时模板的转换。Infrastructure 新增 Legado JSON source DTO、TTS SQLite/JSON mapper 和统一 SQLite 时间 mapper，继续按既有 `Header`、`RequestOptionsJson`、ISO round-trip 格式读写且导出 JSON 语义不变；Domain 仅保存语义化 body 文本及其结构值标志，不保存 JSON 引号编码。Book、ChapterRule、BookSummary、ReadingProgressEntry 与 TTS 元数据已改用 `DateTimeOffset`，导入、章节规则、规则保存、书籍元数据和进度流程通过 `TimeProvider` 获取时间；迁移 4/5 与 schema 未修改。架构测试锁定 Domain/Speech 类型白名单并禁止 transport/SQLite DTO，Speech/Books 特征与持久化 round-trip 测试及完整测试均通过。
 
 ### [ ] DB-103（P0）：加固 SQLite 连接和版本检查
 

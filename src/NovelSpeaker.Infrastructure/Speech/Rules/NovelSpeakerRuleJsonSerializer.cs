@@ -28,15 +28,19 @@ internal static class NovelSpeakerRuleJsonSerializer
             writer.WriteString("concurrentRate", rule.ConcurrentRate);
         }
 
-        if (!string.IsNullOrWhiteSpace(rule.Header))
+        if (rule.Headers.Count > 0)
         {
-            writer.WriteString("header", rule.Header);
+            writer.WriteString("header", TtsRulePersistenceMapper.SerializeHeaders(rule.Headers));
         }
 
-        if (!string.IsNullOrWhiteSpace(rule.RequestOptionsJson))
+        var requestOptionsJson = TtsRulePersistenceMapper.SerializeRequestOptions(
+            rule.RequestMethod,
+            rule.RequestBody,
+            rule.RequestBodyIsJsonStructure);
+        if (!string.IsNullOrWhiteSpace(requestOptionsJson))
         {
             writer.WritePropertyName("requestOptions");
-            using var document = JsonDocument.Parse(rule.RequestOptionsJson);
+            using var document = JsonDocument.Parse(requestOptionsJson);
             document.RootElement.WriteTo(writer);
         }
 

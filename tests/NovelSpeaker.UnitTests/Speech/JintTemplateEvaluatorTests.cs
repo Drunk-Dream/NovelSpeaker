@@ -1,4 +1,5 @@
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Infrastructure.Speech.Scripting;
 using Xunit;
 
@@ -78,7 +79,7 @@ public sealed class JintTemplateEvaluatorTests
         string? requestOptionsJson = null)
     {
         var utcNow = DateTime.UtcNow.ToString("O");
-        return new HttpTtsRule(
+        return TestHttpTtsRules.Create(
             1,
             name,
             url,

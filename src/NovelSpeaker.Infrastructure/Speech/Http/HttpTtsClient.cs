@@ -3,6 +3,8 @@ using System.Net.Http.Headers;
 using NAudio.Wave;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Speech.Rules;
 

@@ -14,7 +14,7 @@ public sealed class TtsRuleRepositoryTests
         var repository = await CreateRepositoryAsync();
         var utcNow = DateTime.UtcNow.ToString("O");
 
-        var ruleId = await repository.SaveAsync(new HttpTtsRule(
+        var ruleId = await repository.SaveAsync(TestHttpTtsRules.Create(
             0,
             "示例规则",
             "https://example.com/tts?text={{speakText}}",
@@ -34,8 +34,10 @@ public sealed class TtsRuleRepositoryTests
         Assert.Equal("示例规则", stored!.Name);
         Assert.Equal("https://example.com/tts?text={{speakText}}", stored.Url);
         Assert.Equal(12345, stored.LastUpdateTime);
-        Assert.Equal(utcNow, stored.LastUsedAt);
-        Assert.Equal("""{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"}""", stored.RequestOptionsJson);
+        Assert.Equal(DateTimeOffset.Parse(utcNow), stored.LastUsedAt);
+        Assert.Equal("POST", stored.RequestMethod);
+        Assert.Equal("""{"text":"{{speakText}}"}""", stored.RequestBody);
+        Assert.False(stored.RequestBodyIsJsonStructure);
     }
 
     [Fact]
@@ -43,7 +45,7 @@ public sealed class TtsRuleRepositoryTests
     {
         var repository = await CreateRepositoryAsync();
         var utcNow = DateTime.UtcNow.ToString("O");
-        var ruleId = await repository.SaveAsync(new HttpTtsRule(
+        var ruleId = await repository.SaveAsync(TestHttpTtsRules.Create(
             0,
             "规则 A",
             "https://example.com/a",
@@ -57,7 +59,7 @@ public sealed class TtsRuleRepositoryTests
             utcNow,
             utcNow), CancellationToken.None);
 
-        await repository.SaveAsync(new HttpTtsRule(
+        await repository.SaveAsync(TestHttpTtsRules.Create(
             ruleId,
             "规则 A 已更新",
             "https://example.com/a2",
@@ -77,7 +79,8 @@ public sealed class TtsRuleRepositoryTests
         Assert.Equal("规则 A 已更新", stored!.Name);
         Assert.Equal("https://example.com/a2", stored.Url);
         Assert.False(stored.IsEnabled);
-        Assert.Equal("""{"method":"POST"}""", stored.RequestOptionsJson);
+        Assert.Equal("POST", stored.RequestMethod);
+        Assert.Null(stored.RequestBody);
     }
 
     [Fact]
@@ -85,7 +88,7 @@ public sealed class TtsRuleRepositoryTests
     {
         var repository = await CreateRepositoryAsync();
         var utcNow = DateTime.UtcNow.ToString("O");
-        var ruleId = await repository.SaveAsync(new HttpTtsRule(
+        var ruleId = await repository.SaveAsync(TestHttpTtsRules.Create(
             0,
             "待删除规则",
             "https://example.com/delete",
@@ -110,7 +113,7 @@ public sealed class TtsRuleRepositoryTests
         var repository = await CreateRepositoryAsync();
         var utcNow = DateTime.UtcNow.ToString("O");
 
-        var ruleId = await repository.SaveAsync(new HttpTtsRule(
+        var ruleId = await repository.SaveAsync(TestHttpTtsRules.Create(
             0,
             "导出规则",
             "https://example.com/export",
@@ -130,6 +133,34 @@ public sealed class TtsRuleRepositoryTests
         Assert.Equal(
             """{"name":"导出规则","url":"https://example.com/export","contentType":"audio/mpeg","concurrentRate":"2/1000","header":"{\"Authorization\":\"Bearer demo\"}","requestOptions":{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"},"lastUpdateTime":123}""",
             exportedJson);
+    }
+
+    [Fact]
+    public async Task SaveAsync_preserves_structured_json_body_shape()
+    {
+        var repository = await CreateRepositoryAsync();
+        var utcNow = DateTimeOffset.UtcNow.ToString("O");
+        var ruleId = await repository.SaveAsync(TestHttpTtsRules.Create(
+            0,
+            "结构化 Body",
+            "https://example.com/tts",
+            "audio/mpeg",
+            null,
+            null,
+            """{"method":"POST","body":{"text":"{{speakText}}"}}""",
+            null,
+            true,
+            null,
+            utcNow,
+            utcNow), CancellationToken.None);
+
+        var stored = (await repository.GetByIdAsync(ruleId, CancellationToken.None))!;
+
+        Assert.Equal("""{"text":"{{speakText}}"}""", stored.RequestBody);
+        Assert.True(stored.RequestBodyIsJsonStructure);
+        Assert.Equal(
+            """{"name":"结构化 Body","url":"https://example.com/tts","contentType":"audio/mpeg","requestOptions":{"method":"POST","body":{"text":"{{speakText}}"}}}""",
+            NovelSpeakerRuleJsonSerializer.Serialize(stored));
     }
 
     private static async Task<TtsRuleRepository> CreateRepositoryAsync()

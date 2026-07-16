@@ -12,7 +12,7 @@ public sealed class ChapterRuleWorkspaceServiceTests
     {
         var repository = new FakeChapterRuleRepository(
         [
-            new ChapterRule("custom:existing", "新建规则", @"^\s*旧规则$", 10, true, "now", "now")
+            new ChapterRule("custom:existing", "新建规则", @"^\s*旧规则$", 10, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
         ]);
         var service = new ChapterRuleWorkspaceService(repository, new FakeChapterRuleManagementService());
 
@@ -55,9 +55,9 @@ public sealed class ChapterRuleWorkspaceServiceTests
     {
         var repository = new FakeChapterRuleRepository(
         [
-            new ChapterRule("a", "A", @"^A$", 100, true, "now", "now"),
-            new ChapterRule("b", "B", @"^B$", 200, true, "now", "now"),
-            new ChapterRule("c", "C", @"^C$", 300, true, "now", "now")
+            new ChapterRule("a", "A", @"^A$", 100, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
+            new ChapterRule("b", "B", @"^B$", 200, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
+            new ChapterRule("c", "C", @"^C$", 300, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
         ]);
         var service = new ChapterRuleWorkspaceService(repository, new FakeChapterRuleManagementService());
 
@@ -77,7 +77,7 @@ public sealed class ChapterRuleWorkspaceServiceTests
     {
         var repository = new FakeChapterRuleRepository(
         [
-            new ChapterRule("custom:one", "规则一", @"^\s*一$", 70, false, "now", "now")
+            new ChapterRule("custom:one", "规则一", @"^\s*一$", 70, false, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
         ]);
         var service = new ChapterRuleWorkspaceService(repository, new FakeChapterRuleManagementService());
 

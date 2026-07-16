@@ -212,7 +212,7 @@ public sealed class BookManagementServiceTests
         await File.WriteAllTextAsync(storedFilePath, "第一章 第一段第二章 第一段", CancellationToken.None);
 
         var repository = new BookImportRepository(fixture.Factory);
-        var now = DateTime.UtcNow.ToString("O");
+        var now = DateTimeOffset.UtcNow;
         await repository.SaveAsync(
             new Domain.Books.Book(
                 bookId,

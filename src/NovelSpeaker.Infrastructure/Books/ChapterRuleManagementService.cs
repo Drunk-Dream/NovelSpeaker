@@ -9,10 +9,12 @@ namespace NovelSpeaker.Infrastructure.Books;
 public sealed class ChapterRuleManagementService : IChapterRuleManagementService
 {
     private readonly IChapterRuleRepository _repository;
+    private readonly TimeProvider _timeProvider;
 
-    public ChapterRuleManagementService(IChapterRuleRepository repository)
+    public ChapterRuleManagementService(IChapterRuleRepository repository, TimeProvider? timeProvider = null)
     {
         _repository = repository;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<ChapterRuleDefaultsPreview> PreviewDefaultsAsync(
@@ -97,7 +99,7 @@ public sealed class ChapterRuleManagementService : IChapterRuleManagementService
         foreach (var definition in DefaultChapterRules.All)
         {
             var existing = existingRules.FirstOrDefault(rule => string.Equals(rule.Id, definition.Id, StringComparison.Ordinal));
-            var utcNow = DateTime.UtcNow.ToString("O");
+            var utcNow = _timeProvider.GetUtcNow();
             await _repository.SaveAsync(new ChapterRule(
                 definition.Id,
                 definition.Name,

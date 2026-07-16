@@ -2,6 +2,7 @@ using System.Collections.Specialized;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.Pages;

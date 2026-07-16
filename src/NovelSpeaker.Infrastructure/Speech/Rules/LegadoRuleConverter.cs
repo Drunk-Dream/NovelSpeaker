@@ -3,6 +3,8 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Speech;
 
 namespace NovelSpeaker.Infrastructure.Speech.Rules;
@@ -10,8 +12,15 @@ namespace NovelSpeaker.Infrastructure.Speech.Rules;
 /// <summary>
 /// Converts imported Legado-style rules into the application's canonical rule format.
 /// </summary>
-public sealed partial class LegadoRuleConverter : ITtsRuleConverter
+public sealed partial class LegadoRuleConverter
 {
+    private readonly TimeProvider _timeProvider;
+
+    public LegadoRuleConverter(TimeProvider? timeProvider = null)
+    {
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
+
     private static readonly HashSet<string> SupportedFields = new(StringComparer.OrdinalIgnoreCase)
     {
         "name",
@@ -25,17 +34,11 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
 
     public TtsRuleConversionResult Convert(JsonElement ruleElement)
     {
+        var source = LegadoRuleSourceDto.FromJson(ruleElement, SupportedFields);
         var blockingIssues = new List<string>();
-        var unsupportedFields = ruleElement.EnumerateObject()
-            .Where(property => !SupportedFields.Contains(property.Name))
-            .Select(property => property.Name)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        var name = ReadOptionalString(ruleElement, "name");
-        var rawUrl = ReadOptionalString(ruleElement, "url");
-        var rawHeader = ReadOptionalString(ruleElement, "header");
+        var name = source.Name;
+        var rawUrl = source.Url;
+        var rawHeader = source.Header;
 
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -54,7 +57,7 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
         }
 
         if (TtsRuleCompatibilityChecker.HasUnsupportedImportDependency(
-                ruleElement,
+                source.Element,
                 rawUrl,
                 rawHeader,
                 split.RequestOptionsJson))
@@ -68,13 +71,13 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
             NormalizeTemplate(split.RequestOptionsJson, "requestOptions", blockingIssues));
 
         var candidateRule = CreateCandidateRule(
-            ruleElement,
+            source,
             name,
             normalizedUrl,
             normalizedHeader,
             normalizedRequestOptions);
 
-        return new TtsRuleConversionResult(candidateRule, unsupportedFields, blockingIssues);
+        return new TtsRuleConversionResult(candidateRule, source.UnsupportedFields, blockingIssues);
     }
 
     private static (string? Url, string? RequestOptionsJson, string? ErrorMessage) ExtractRequestOptions(string? rawUrl)
@@ -174,91 +177,27 @@ public sealed partial class LegadoRuleConverter : ITtsRuleConverter
             : normalized;
     }
 
-    private static string? ReadOptionalString(JsonElement root, string propertyName)
-    {
-        foreach (var property in root.EnumerateObject())
-        {
-            if (!string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            return property.Value.ValueKind switch
-            {
-                JsonValueKind.Null => null,
-                JsonValueKind.String => property.Value.GetString(),
-                JsonValueKind.True => bool.TrueString,
-                JsonValueKind.False => bool.FalseString,
-                _ => property.Value.GetRawText()
-            };
-        }
-
-        return null;
-    }
-
-    private static bool ReadOptionalBoolean(JsonElement root, string propertyName, bool defaultValue = false)
-    {
-        foreach (var property in root.EnumerateObject())
-        {
-            if (!string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            return property.Value.ValueKind switch
-            {
-                JsonValueKind.True => true,
-                JsonValueKind.False => false,
-                JsonValueKind.String when bool.TryParse(property.Value.GetString(), out var parsed) => parsed,
-                _ => defaultValue
-            };
-        }
-
-        return defaultValue;
-    }
-
-    private static long? ReadOptionalInt64(JsonElement root, string propertyName)
-    {
-        foreach (var property in root.EnumerateObject())
-        {
-            if (!string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetInt64(out var number))
-            {
-                return number;
-            }
-
-            if (property.Value.ValueKind == JsonValueKind.String &&
-                long.TryParse(property.Value.GetString(), out var parsed))
-            {
-                return parsed;
-            }
-        }
-
-        return null;
-    }
-
-    private static HttpTtsRule CreateCandidateRule(
-        JsonElement ruleElement,
+    private HttpTtsRule CreateCandidateRule(
+        LegadoRuleSourceDto source,
         string? name,
         string? normalizedUrl,
         string? normalizedHeader,
         string? normalizedRequestOptions)
     {
-        var utcNow = DateTime.UtcNow.ToString("O");
+        var utcNow = _timeProvider.GetUtcNow();
+        var headers = TtsRulePersistenceMapper.ParseHeaders(normalizedHeader);
         return new HttpTtsRule(
             0,
             name ?? string.Empty,
             normalizedUrl ?? string.Empty,
-            ReadOptionalString(ruleElement, "contentType"),
-            ReadOptionalString(ruleElement, "concurrentRate"),
-            normalizedHeader,
-            normalizedRequestOptions,
-            ReadOptionalInt64(ruleElement, "lastUpdateTime"),
-            ReadOptionalBoolean(ruleElement, "isEnabled", defaultValue: true),
+            source.ContentType,
+            source.ConcurrentRate,
+            headers,
+            TtsRulePersistenceMapper.ParseRequestMethod(normalizedRequestOptions),
+            TtsRulePersistenceMapper.ParseRequestBody(normalizedRequestOptions),
+            TtsRulePersistenceMapper.IsRequestBodyJsonStructure(normalizedRequestOptions),
+            source.LastUpdateTime,
+            source.IsEnabled,
             null,
             utcNow,
             utcNow);

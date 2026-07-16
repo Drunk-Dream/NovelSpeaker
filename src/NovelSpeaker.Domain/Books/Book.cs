@@ -11,7 +11,7 @@ public sealed record Book(
     string StoredFilePath,
     string SourceHash,
     string Encoding,
-    string ImportedAt,
-    string LastImportedAt,
-    string? LastPlayedAt,
-    string UpdatedAt);
+    DateTimeOffset ImportedAt,
+    DateTimeOffset LastImportedAt,
+    DateTimeOffset? LastPlayedAt,
+    DateTimeOffset UpdatedAt);

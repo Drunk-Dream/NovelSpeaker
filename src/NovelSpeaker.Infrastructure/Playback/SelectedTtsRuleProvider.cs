@@ -1,6 +1,7 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Compilation;
 
 namespace NovelSpeaker.Infrastructure.Playback;
 
@@ -12,15 +13,18 @@ public sealed class SelectedTtsRuleProvider : ISelectedTtsRuleProvider
     private readonly ITtsRuleRepository _repository;
     private readonly ITtsRuleLibraryService _libraryService;
     private readonly IAppSettingsService _settingsService;
+    private readonly ITtsRuleNormalizer _ruleNormalizer;
 
     public SelectedTtsRuleProvider(
         ITtsRuleRepository repository,
         ITtsRuleLibraryService libraryService,
-        IAppSettingsService settingsService)
+        IAppSettingsService settingsService,
+        ITtsRuleNormalizer? ruleNormalizer = null)
     {
         _repository = repository;
         _libraryService = libraryService;
         _settingsService = settingsService;
+        _ruleNormalizer = ruleNormalizer ?? new TtsRuleNormalizer();
     }
 
     public async Task<SelectedPlaybackRule?> GetSelectedRuleAsync(CancellationToken cancellationToken)
@@ -41,7 +45,7 @@ public sealed class SelectedTtsRuleProvider : ISelectedTtsRuleProvider
             rule.Id,
             rule.Name,
             rule,
-            rule.ToNormalizedRule());
+            _ruleNormalizer.Normalize(rule));
     }
 
     public async Task<SelectedPlaybackRule?> SelectRuleAsync(long ruleId, CancellationToken cancellationToken)

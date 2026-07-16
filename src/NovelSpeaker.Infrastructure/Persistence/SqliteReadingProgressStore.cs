@@ -9,10 +9,12 @@ namespace NovelSpeaker.Infrastructure.Persistence;
 public sealed class SqliteReadingProgressStore : IReadingProgressStore
 {
     private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly TimeProvider _timeProvider;
 
-    public SqliteReadingProgressStore(ISqliteConnectionFactory connectionFactory)
+    public SqliteReadingProgressStore(ISqliteConnectionFactory connectionFactory, TimeProvider? timeProvider = null)
     {
         _connectionFactory = connectionFactory;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task SaveAsync(PlaybackProgressUpdate progress, CancellationToken cancellationToken)
@@ -21,7 +23,7 @@ public sealed class SqliteReadingProgressStore : IReadingProgressStore
 
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = (Microsoft.Data.Sqlite.SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        var updatedAt = DateTime.UtcNow.ToString("O");
+        var updatedAt = SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow());
 
         var upsertCommand = connection.CreateCommand();
         upsertCommand.Transaction = transaction;
@@ -108,6 +110,6 @@ public sealed class SqliteReadingProgressStore : IReadingProgressStore
             reader.GetInt32(2),
             reader.GetInt32(3),
             reader.GetInt64(4),
-            reader.GetString(5));
+            SqliteDateTimeMapper.Parse(reader.GetString(5)));
     }
 }

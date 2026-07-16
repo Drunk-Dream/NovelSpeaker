@@ -1,4 +1,7 @@
-namespace NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Domain.Speech;
+
+namespace NovelSpeaker.Application.Speech.Rules;
 
 /// <summary>
 /// Summarizes the result of testing one HTTP TTS rule from the rules page.

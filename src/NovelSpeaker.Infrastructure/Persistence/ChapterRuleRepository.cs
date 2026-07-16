@@ -12,10 +12,12 @@ namespace NovelSpeaker.Infrastructure.Persistence;
 public sealed class ChapterRuleRepository : IChapterRuleRepository
 {
     private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly TimeProvider _timeProvider;
 
-    public ChapterRuleRepository(ISqliteConnectionFactory connectionFactory)
+    public ChapterRuleRepository(ISqliteConnectionFactory connectionFactory, TimeProvider? timeProvider = null)
     {
         _connectionFactory = connectionFactory;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<IReadOnlyList<ChapterRule>> GetAllAsync(CancellationToken cancellationToken)
@@ -40,8 +42,8 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
                 reader.GetString(2),
                 reader.GetInt32(3),
                 reader.GetInt64(4) == 1,
-                reader.GetString(5),
-                reader.GetString(6)));
+                SqliteDateTimeMapper.Parse(reader.GetString(5)),
+                SqliteDateTimeMapper.Parse(reader.GetString(6))));
         }
 
         return items;
@@ -74,8 +76,8 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
         command.Parameters.AddWithValue("$pattern", rule.Pattern);
         command.Parameters.AddWithValue("$sortOrder", rule.SortOrder);
         command.Parameters.AddWithValue("$isEnabled", rule.IsEnabled ? 1 : 0);
-        command.Parameters.AddWithValue("$createdAt", rule.CreatedAt);
-        command.Parameters.AddWithValue("$updatedAt", rule.UpdatedAt);
+        command.Parameters.AddWithValue("$createdAt", SqliteDateTimeMapper.Format(rule.CreatedAt));
+        command.Parameters.AddWithValue("$updatedAt", SqliteDateTimeMapper.Format(rule.UpdatedAt));
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -102,7 +104,7 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
 
         command.Parameters.AddWithValue("$id", ruleId);
         command.Parameters.AddWithValue("$sortOrder", newSortOrder);
-        command.Parameters.AddWithValue("$updatedAt", DateTime.UtcNow.ToString("O"));
+        command.Parameters.AddWithValue("$updatedAt", SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow()));
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -127,7 +129,7 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
 
             command.Parameters.AddWithValue("$id", item.RuleId);
             command.Parameters.AddWithValue("$sortOrder", item.SortOrder);
-            command.Parameters.AddWithValue("$updatedAt", DateTime.UtcNow.ToString("O"));
+            command.Parameters.AddWithValue("$updatedAt", SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow()));
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -177,13 +179,13 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
                 updateCommand.Parameters.AddWithValue("$id", definition.Id);
                 updateCommand.Parameters.AddWithValue("$name", definition.Name);
                 updateCommand.Parameters.AddWithValue("$pattern", definition.Pattern);
-                updateCommand.Parameters.AddWithValue("$updatedAt", DateTime.UtcNow.ToString("O"));
+                updateCommand.Parameters.AddWithValue("$updatedAt", SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow()));
                 await updateCommand.ExecuteNonQueryAsync(cancellationToken);
                 changed++;
                 continue;
             }
 
-            var utcNow = DateTime.UtcNow.ToString("O");
+            var utcNow = SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow());
             var insertCommand = connection.CreateCommand();
             insertCommand.CommandText =
                 """
@@ -205,7 +207,7 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
         return changed;
     }
 
-    private static async Task BackfillBuiltInIdsAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    private async Task BackfillBuiltInIdsAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
         foreach (var definition in DefaultChapterRules.All)
         {
@@ -252,7 +254,7 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
                 """;
             updateCommand.Parameters.AddWithValue("$newId", definition.Id);
             updateCommand.Parameters.AddWithValue("$oldId", matchId);
-            updateCommand.Parameters.AddWithValue("$updatedAt", DateTime.UtcNow.ToString("O"));
+            updateCommand.Parameters.AddWithValue("$updatedAt", SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow()));
             await updateCommand.ExecuteNonQueryAsync(cancellationToken);
         }
     }

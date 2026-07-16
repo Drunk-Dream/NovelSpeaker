@@ -1,4 +1,6 @@
-namespace NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Domain.Speech;
+
+namespace NovelSpeaker.Application.Speech.Compilation;
 
 /// <summary>
 /// Provides the read-only values exposed to converted rule templates.

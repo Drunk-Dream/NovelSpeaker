@@ -1,4 +1,6 @@
-namespace NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Domain.Speech;
+
+namespace NovelSpeaker.Application.Speech.Rules;
 
 /// <summary>
 /// Represents a single candidate inside an import preview.

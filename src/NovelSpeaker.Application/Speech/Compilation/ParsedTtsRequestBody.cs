@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Domain.Speech;
+namespace NovelSpeaker.Application.Speech.Compilation;
 
 /// <summary>
 /// Holds the normalized HTTP body generated from one TTS rule.

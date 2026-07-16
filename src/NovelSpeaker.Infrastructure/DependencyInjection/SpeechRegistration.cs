@@ -13,7 +13,7 @@ public static class SpeechRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddSingleton<ITtsRuleConverter, LegadoRuleConverter>();
+        services.TryAddSingleton<LegadoRuleConverter>();
         services.TryAddSingleton<ITemplateEvaluator, JintTemplateEvaluator>();
         services.TryAddSingleton<ITtsRequestCompiler, TtsRequestCompiler>();
         services.TryAddSingleton<ITtsRateLimiter, TtsRateLimiter>();

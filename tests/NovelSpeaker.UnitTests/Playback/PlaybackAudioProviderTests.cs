@@ -1,9 +1,12 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Playback;
 using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.UnitTests.Speech;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Playback;
@@ -158,7 +161,7 @@ public sealed class PlaybackAudioProviderTests
             "第一段",
             rule.Id,
             rule,
-            rule.ToNormalizedRule(),
+            rule.Normalize(),
             10,
             Guid.NewGuid());
         var httpClient = new FakeHttpTtsClient();
@@ -206,7 +209,7 @@ public sealed class PlaybackAudioProviderTests
             "第一段",
             rule.Id,
             rule,
-            rule.ToNormalizedRule(),
+            rule.Normalize(),
             10,
             Guid.NewGuid());
         var compiler = new FakeTtsRequestCompiler
@@ -240,14 +243,14 @@ public sealed class PlaybackAudioProviderTests
             speechText,
             rule.Id,
             rule,
-            rule.ToNormalizedRule(),
+            rule.Normalize(),
             10,
             Guid.NewGuid());
     }
 
     private static HttpTtsRule CreateRule(string? concurrentRate = null)
     {
-        return new HttpTtsRule(
+        return TestHttpTtsRules.Create(
             1,
             "默认规则",
             "https://example.com/tts?text={{encodeURIComponent(speakText)}}&speed={{speakSpeed}}",

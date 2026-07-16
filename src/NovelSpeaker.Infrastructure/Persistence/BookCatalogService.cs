@@ -73,8 +73,8 @@ public sealed class BookCatalogService : IBookCatalogService
                 reader.GetString(1),
                 reader.IsDBNull(2) ? null : reader.GetString(2),
                 reader.GetString(3),
-                reader.GetString(4),
-                reader.IsDBNull(5) ? null : reader.GetString(5),
+                SqliteDateTimeMapper.Parse(reader.GetString(4)),
+                reader.IsDBNull(5) ? null : SqliteDateTimeMapper.Parse(reader.GetString(5)),
                 totalChapterCount,
                 clampedCurrentChapterIndex,
                 hasReadingProgress && clampedCurrentChapterIndex is not null

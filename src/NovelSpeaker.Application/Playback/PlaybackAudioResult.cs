@@ -1,4 +1,5 @@
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Application.Speech.Execution;
 
 namespace NovelSpeaker.Application.Playback;
 

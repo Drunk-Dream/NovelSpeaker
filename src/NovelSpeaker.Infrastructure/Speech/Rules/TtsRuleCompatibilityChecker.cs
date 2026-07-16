@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Speech;
 
 namespace NovelSpeaker.Infrastructure.Speech.Rules;
@@ -36,10 +37,9 @@ internal static partial class TtsRuleCompatibilityChecker
     public static bool HasUnsupportedRuntimeDependency(NormalizedHttpTtsRule rule)
     {
         return ContainsUnsupportedTemplateReference(rule.UrlTemplate.RawText) ||
-               ContainsUnsupportedTemplateReference(rule.HeaderTemplate?.RawText) ||
-               ContainsUnsupportedTemplateReference(rule.RequestOptionsTemplate?.RawText) ||
-               ContainsCookieHeader(rule.HeaderTemplate?.RawText) ||
-               ContainsCookieHeaderInRequestOptions(rule.RequestOptionsTemplate?.RawText);
+               rule.HeaderTemplates.Any(pair =>
+                   IsCookieHeader(pair.Key) || ContainsUnsupportedTemplateReference(pair.Value.RawText)) ||
+               ContainsUnsupportedTemplateReference(rule.RequestBodyTemplate?.RawText);
     }
 
     public static bool ContainsCookieHeader(IEnumerable<KeyValuePair<string, string>> headers)

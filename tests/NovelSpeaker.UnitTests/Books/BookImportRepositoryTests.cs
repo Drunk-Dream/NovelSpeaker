@@ -21,7 +21,7 @@ public sealed class BookImportRepositoryTests
         await initializer.InitializeAsync(CancellationToken.None);
 
         var repository = new BookImportRepository(factory);
-        var now = DateTime.UtcNow.ToString("O");
+        var now = DateTimeOffset.UtcNow;
         var book = new Book("book-1", "书名", null, "demo.txt", "stored.txt", "hash-1", "utf-8", now, now, null, now);
         Chapter[] chapters =
         [
@@ -52,7 +52,7 @@ public sealed class BookImportRepositoryTests
         await initializer.InitializeAsync(CancellationToken.None);
 
         var repository = new BookImportRepository(factory);
-        var now = DateTime.UtcNow.ToString("O");
+        var now = DateTimeOffset.UtcNow;
         var book = new Book("book-2", "书名", null, "demo.txt", "stored.txt", "hash-2", "utf-8", now, now, null, now);
         Chapter[] chapters =
         [
@@ -66,7 +66,7 @@ public sealed class BookImportRepositoryTests
         bookCommand.CommandText = "SELECT LastImportedAt, LastPlayedAt FROM Books WHERE Id = 'book-2';";
         await using var reader = await bookCommand.ExecuteReaderAsync(CancellationToken.None);
         Assert.True(await reader.ReadAsync(CancellationToken.None));
-        Assert.Equal(now, reader.GetString(0));
+        Assert.Equal(now.ToString("O"), reader.GetString(0));
         Assert.True(reader.IsDBNull(1));
 
         var chapterCommand = connection.CreateCommand();

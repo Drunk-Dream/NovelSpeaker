@@ -66,7 +66,7 @@ public sealed class SqliteReadingProgressStoreTests
         var bookRepository = new BookImportRepository(factory);
         foreach (var bookId in bookIds)
         {
-            var now = DateTime.UtcNow.ToString("O");
+            var now = DateTimeOffset.UtcNow;
             await bookRepository.SaveAsync(
                 new Book(bookId, $"书籍 {bookId}", null, $"{bookId}.txt", $"{bookId}.txt", $"{bookId}-hash", "utf-8", now, now, null, now),
                 [new Chapter($"{bookId}-chapter-1", bookId, 0, 0, "第一章", 0, 7)],

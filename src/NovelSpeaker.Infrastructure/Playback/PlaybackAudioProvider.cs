@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Speech;
 
 namespace NovelSpeaker.Infrastructure.Playback;

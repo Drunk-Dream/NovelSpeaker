@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Domain.Speech;
+namespace NovelSpeaker.Application.Speech.Compilation;
 
 /// <summary>
 /// Represents the runtime view of a converted HTTP TTS rule.
@@ -7,7 +7,9 @@ public sealed record NormalizedHttpTtsRule(
     long RuleId,
     string Name,
     NormalizedTemplate UrlTemplate,
-    NormalizedTemplate? HeaderTemplate,
-    NormalizedTemplate? RequestOptionsTemplate,
+    IReadOnlyDictionary<string, NormalizedTemplate> HeaderTemplates,
+    string? RequestMethod,
+    NormalizedTemplate? RequestBodyTemplate,
+    bool RequestBodyIsJsonStructure,
     string? DeclaredContentType,
     string? ConcurrentRate);
