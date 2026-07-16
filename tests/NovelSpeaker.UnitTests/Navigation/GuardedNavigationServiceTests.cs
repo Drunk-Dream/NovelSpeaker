@@ -7,6 +7,42 @@ namespace NovelSpeaker.UnitTests.Navigation;
 
 public sealed class GuardedNavigationServiceTests
 {
+    [Fact]
+    public async Task New_guard_registration_replaces_old_page_and_old_disposal_keeps_new_guard_active()
+    {
+        var service = new NavigationGuardService();
+        var oldCallCount = 0;
+        var newCallCount = 0;
+        var oldRegistration = service.Register(_ =>
+        {
+            oldCallCount++;
+            return Task.FromResult(false);
+        });
+        using var newRegistration = service.Register(_ =>
+        {
+            newCallCount++;
+            return Task.FromResult(false);
+        });
+
+        oldRegistration.Dispose();
+        var canLeave = await service.ConfirmNavigationAsync(CancellationToken.None);
+
+        Assert.False(canLeave);
+        Assert.Equal(0, oldCallCount);
+        Assert.Equal(1, newCallCount);
+    }
+
+    [Fact]
+    public async Task Disposing_active_registration_removes_page_guard()
+    {
+        var service = new NavigationGuardService();
+        var registration = service.Register(_ => Task.FromResult(false));
+
+        registration.Dispose();
+
+        Assert.True(await service.ConfirmNavigationAsync(CancellationToken.None));
+    }
+
     [Theory]
     [InlineData(NavigationOperation.GoBack, true)]
     [InlineData(NavigationOperation.PageId, true)]
