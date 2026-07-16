@@ -210,7 +210,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：三个受保护音频 fixture 已原样移入测试项目的 `TestAssets/Audio`，测试项目直接复制自身资产，App 项目不再声明或持有测试音频。债务基线已改为正向隔离契约；Release 工作流在压缩前检查 publish 目录，并在压缩后再次检查 ZIP 条目，发现任一 fixture 即失败。
 
-### [ ] COMPAT-005（P0）：统一 Cookie/LoginInfo 不支持行为
+### [x] COMPAT-005（P0）：统一 Cookie/LoginInfo 不支持行为
 
 前置：ARC-002。
 
@@ -222,6 +222,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 删除或标记未调用的 Cookie 成功端点，只有在确认不再作为未来 fixture 时才能删除。
 
 验收：不得通过当前 handler 产生 Cookie；文档、测试名和 UI 结果一致。
+
+完成说明：转换、导入、编辑校验、旧持久化规则编译和 HTTP 执行现统一拒绝 Cookie/LoginInfo 依赖；导入与保存 UI 使用固定脱敏文案明确提示不兼容，混合导入继续报告新增、失败和跳过数量。普通 Authorization Header 保持支持，测试样本已拆分为支持的 Header 样本与不支持的 Cookie/LoginInfo 样本；Cookie Header 负向端点用于验证请求发送前即被拒绝，未使用的 Cookie 成功端点已删除。
 
 ---
 
