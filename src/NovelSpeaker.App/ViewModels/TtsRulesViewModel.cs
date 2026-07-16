@@ -473,9 +473,32 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     {
         try
         {
-            var result = await _ruleLibraryService.ImportJsonTextAsync(jsonText, sourceDescription, cancellationToken);
+            var preview = await _ruleLibraryService.CreateImportPreviewAsync(
+                jsonText,
+                sourceDescription,
+                cancellationToken);
+            if (preview.ErrorMessage is not null)
+            {
+                _feedbackService.ShowWarning("无法导入", preview.ErrorMessage);
+                return;
+            }
+
+            var hasCookieLoginInfoDependency = preview.Items.Any(item =>
+                !item.CanImport &&
+                item.StatusMessage.Contains("Cookie/LoginInfo", StringComparison.OrdinalIgnoreCase));
+            var result = await _ruleLibraryService.ImportAsync(preview, cancellationToken);
             await RefreshRulesAsync(result.FirstImportedRuleId, openEditorIfNeeded: true, cancellationToken);
-            _feedbackService.ShowSuccess("规则导入完成", BuildImportStatusMessage(result));
+            var statusMessage = BuildImportStatusMessage(result);
+            if (hasCookieLoginInfoDependency)
+            {
+                _feedbackService.ShowWarning(
+                    "部分规则不兼容",
+                    $"当前版本不支持 Cookie/LoginInfo。{statusMessage}");
+            }
+            else
+            {
+                _feedbackService.ShowSuccess("规则导入完成", statusMessage);
+            }
         }
         catch (Exception exception)
         {
@@ -701,6 +724,18 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         try
         {
             var draft = BuildCurrentEditorModel();
+            var validation = await _ruleLibraryService.ValidateEditorAsync(draft, cancellationToken);
+            if (!validation.IsValid)
+            {
+                var validationMessage = string.Join(" ", validation.Errors);
+                var title = validation.Errors.Any(error =>
+                    error.Contains("Cookie/LoginInfo", StringComparison.OrdinalIgnoreCase))
+                    ? "规则不兼容"
+                    : "无法保存规则";
+                _feedbackService.ShowWarning(title, validationMessage);
+                return null;
+            }
+
             var currentRule = CurrentRuleId is long currentRuleId
                 ? Rules.FirstOrDefault(rule => rule.Id == currentRuleId)
                 : null;

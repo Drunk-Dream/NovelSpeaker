@@ -161,6 +161,67 @@ public sealed class TtsRulesViewModelTests
     }
 
     [Fact]
+    public async Task ImportJsonTextAsync_shows_safe_cookie_login_info_warning_with_mixed_counts()
+    {
+        var incompatibleRule = CreateImportItem(
+            0,
+            false,
+            "当前版本不支持 Cookie/LoginInfo；该规则不能导入。");
+        var compatibleRule = CreateImportItem(1, true, "可以导入。");
+        var libraryService = new FakeTtsRuleLibraryService([], null)
+        {
+            ImportPreview = new TtsRuleImportPreview("剪贴板", [incompatibleRule, compatibleRule], null),
+            ImportResult = new TtsRuleImportResult(1, 0, 2) { FailedCount = 1 }
+        };
+        var feedback = new FakeFeedbackService();
+        var viewModel = CreateViewModel(libraryService: libraryService, feedbackService: feedback);
+
+        await viewModel.ImportJsonTextAsync("[]", "剪贴板", CancellationToken.None);
+
+        Assert.Equal("部分规则不兼容", feedback.LastTitle);
+        Assert.Contains("当前版本不支持 Cookie/LoginInfo", feedback.LastMessage);
+        Assert.Contains("新增 1 条，失败 1 条，跳过 0 条", feedback.LastMessage);
+        Assert.DoesNotContain("secret", feedback.LastMessage);
+    }
+
+    [Fact]
+    public async Task SaveDraftAsync_shows_explicit_validation_warning_for_cookie_header()
+    {
+        var editor = new TtsRuleEditorModel(
+            1,
+            "规则一",
+            true,
+            "https://example.com/tts",
+            null,
+            null,
+            null,
+            [],
+            new TtsRuleRequestOptionsEditor("GET", null));
+        var libraryService = new FakeTtsRuleLibraryService(
+            [new TtsRuleSummary(1, "规则一", true, true, null)],
+            editor)
+        {
+            ValidationResult = new TtsRuleValidationResult(
+                false,
+                ["当前版本不支持 Cookie/LoginInfo；请移除相关依赖。"],
+                editor)
+        };
+        var feedback = new FakeFeedbackService();
+        var viewModel = CreateViewModel(libraryService: libraryService, feedbackService: feedback);
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.AddHeaderEntryCommand.Execute(null);
+        viewModel.HeaderEntries[0].Key = "Cookie";
+        viewModel.HeaderEntries[0].Value = "session=secret";
+
+        await viewModel.SaveDraftCommand.ExecuteAsync(null);
+
+        Assert.Equal("规则不兼容", feedback.LastTitle);
+        Assert.Contains("Cookie/LoginInfo", feedback.LastMessage);
+        Assert.DoesNotContain("secret", feedback.LastMessage);
+        Assert.Equal(0, libraryService.SaveCallCount);
+    }
+
+    [Fact]
     public async Task SelectRuleAsync_with_unsaved_changes_respects_cancel_and_discard()
     {
         var libraryService = new FakeTtsRuleLibraryService(
@@ -338,6 +399,34 @@ public sealed class TtsRulesViewModelTests
             new FakeNavigationService());
     }
 
+    private static TtsRuleImportItem CreateImportItem(int index, bool canImport, string statusMessage)
+    {
+        var utcNow = DateTime.UtcNow.ToString("O");
+        return new TtsRuleImportItem(
+            index,
+            $"规则 {index}",
+            "https://example.com/tts",
+            canImport ? TtsRuleCompatibilityStatus.Compatible : TtsRuleCompatibilityStatus.NeedsManualAdjustment,
+            [],
+            canImport,
+            false,
+            false,
+            statusMessage,
+            new HttpTtsRule(
+                0,
+                $"规则 {index}",
+                "https://example.com/tts",
+                null,
+                null,
+                null,
+                null,
+                null,
+                true,
+                null,
+                utcNow,
+                utcNow));
+    }
+
     private sealed class FakeTtsRuleLibraryService : ITtsRuleLibraryService
     {
         private IReadOnlyList<TtsRuleSummary> _rules;
@@ -349,6 +438,12 @@ public sealed class TtsRulesViewModelTests
         }
 
         public TtsRuleImportResult ImportResult { get; set; } = new(0, 0, 0);
+
+        public TtsRuleImportPreview? ImportPreview { get; set; }
+
+        public TtsRuleValidationResult? ValidationResult { get; set; }
+
+        public int SaveCallCount { get; private set; }
 
         public IReadOnlyList<TtsRuleSummary>? RulesAfterImport { get; set; }
 
@@ -365,7 +460,7 @@ public sealed class TtsRulesViewModelTests
 
         public Task<TtsRuleImportPreview> CreateImportPreviewAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken)
         {
-            throw new NotSupportedException();
+            return Task.FromResult(ImportPreview ?? new TtsRuleImportPreview(sourceDescription, [], null));
         }
 
         public Task<TtsRuleImportResult> ImportJsonTextAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken)
@@ -380,7 +475,12 @@ public sealed class TtsRulesViewModelTests
 
         public Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken)
         {
-            throw new NotSupportedException();
+            if (RulesAfterImport is not null)
+            {
+                _rules = RulesAfterImport;
+            }
+
+            return Task.FromResult(ImportResult);
         }
 
         public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
@@ -402,11 +502,12 @@ public sealed class TtsRulesViewModelTests
 
         public Task<TtsRuleValidationResult> ValidateEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken)
         {
-            return Task.FromResult(new TtsRuleValidationResult(true, [], editor));
+            return Task.FromResult(ValidationResult ?? new TtsRuleValidationResult(true, [], editor));
         }
 
         public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken)
         {
+            SaveCallCount++;
             var ruleId = editor.Id ?? (_rules.Count == 0 ? 1 : _rules.Max(rule => rule.Id) + 1);
             var savedRule = new HttpTtsRule(
                 ruleId,
