@@ -12,16 +12,7 @@
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="..\..\src\NovelSpeaker.App\Assets\Audio\demo-tone.wav">
-      <Link>TestAssets\Audio\demo-tone.wav</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="..\..\src\NovelSpeaker.App\Assets\Audio\demo-tone.mp3">
-      <Link>TestAssets\Audio\demo-tone.mp3</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="..\..\src\NovelSpeaker.App\Assets\Audio\corrupt-tone.mp3">
-      <Link>TestAssets\Audio\corrupt-tone.mp3</Link>
+    <Content Include="TestAssets\Audio\*.*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="TestAssets\TtsRules\*.json">

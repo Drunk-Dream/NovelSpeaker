@@ -28,23 +28,31 @@ public sealed class BehaviorDebtBaselineTests
     }
 
     [Fact]
-    public void App_output_audio_fixtures_match_the_known_debt_and_are_linked_by_tests()
+    public void Test_audio_fixtures_are_owned_by_tests_and_excluded_from_the_app()
     {
-        var audioDirectory = Absolute("src/NovelSpeaker.App/Assets/Audio");
+        var fixtureNames = new[]
+        {
+            "corrupt-tone.mp3",
+            "demo-tone.mp3",
+            "demo-tone.wav"
+        };
+        var audioDirectory = Absolute("tests/NovelSpeaker.UnitTests/TestAssets/Audio");
         var actual = Directory.EnumerateFiles(audioDirectory)
             .Select(path => Path.GetFileName(path)!)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        AssertEqualSet(KnownBehaviorDebtBaseline.AppOutputTestAudioFixtures, actual);
+        AssertEqualSet(fixtureNames, actual);
 
-        var appProject = XDocument.Load(Absolute("src/NovelSpeaker.App/NovelSpeaker.App.csproj"));
-        Assert.Contains(appProject.Descendants("Content"), element =>
-            string.Equals(element.Attribute("Include")?.Value, @"Assets\Audio\*.*", StringComparison.Ordinal));
+        var appAudioDirectory = Absolute("src/NovelSpeaker.App/Assets/Audio");
+        Assert.False(Directory.Exists(appAudioDirectory));
 
+        var appProjectText = File.ReadAllText(Absolute("src/NovelSpeaker.App/NovelSpeaker.App.csproj"));
+        Assert.DoesNotContain(@"Assets\Audio", appProjectText, StringComparison.OrdinalIgnoreCase);
+
+        var testProject = XDocument.Load(Absolute("tests/NovelSpeaker.UnitTests/NovelSpeaker.UnitTests.csproj"));
         var testProjectText = File.ReadAllText(Absolute("tests/NovelSpeaker.UnitTests/NovelSpeaker.UnitTests.csproj"));
-        foreach (var fileName in KnownBehaviorDebtBaseline.AppOutputTestAudioFixtures)
-        {
-            Assert.Contains(fileName, testProjectText, StringComparison.Ordinal);
-        }
+        Assert.DoesNotContain(@"src\NovelSpeaker.App\Assets\Audio", testProjectText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(testProject.Descendants("Content"), element =>
+            string.Equals(element.Attribute("Include")?.Value, @"TestAssets\Audio\*.*", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -59,7 +67,11 @@ public sealed class BehaviorDebtBaselineTests
             "dotnet test -c Release --no-build",
             "dotnet publish src/NovelSpeaker.App/NovelSpeaker.App.csproj -c Release -r win-x64 --self-contained true --no-restore",
             "NovelSpeaker.App.exe",
-            "THIRD-PARTY-NOTICES.txt"
+            "THIRD-PARTY-NOTICES.txt",
+            "demo-tone.wav",
+            "demo-tone.mp3",
+            "corrupt-tone.mp3",
+            "Package contains test audio fixture"
         };
 
         foreach (var fragment in requiredFragments)
