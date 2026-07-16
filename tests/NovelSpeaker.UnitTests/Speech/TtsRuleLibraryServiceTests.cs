@@ -108,6 +108,92 @@ public sealed class TtsRuleLibraryServiceTests
     }
 
     [Fact]
+    public async Task ImportAsync_rejects_cookie_login_info_and_keeps_mixed_counts()
+    {
+        var repository = new FakeTtsRuleRepository([]);
+        var service = new TtsRuleLibraryService(
+            repository,
+            new FakeAppSettingsStore(AppSettings.Default),
+            new LegadoRuleConverter());
+
+        var preview = await service.CreateImportPreviewAsync(
+            """
+            [
+              {"name":"普通规则","url":"https://example.com/tts","header":{"Authorization":"Bearer demo"}},
+              {"name":"Cookie 规则","url":"https://example.com/tts","enabledCookieJar":true},
+              {"name":"LoginInfo 规则","url":"https://example.com/tts?token={{loginInfo.token}}"}
+            ]
+            """,
+            "file.json",
+            CancellationToken.None);
+        var result = await service.ImportAsync(preview, CancellationToken.None);
+
+        Assert.Equal(1, result.ImportedCount);
+        Assert.Equal(2, result.FailedCount);
+        Assert.Equal(0, result.SkippedCount);
+        Assert.Single(repository.Rules);
+        Assert.Equal("普通规则", repository.Rules[0].Name);
+    }
+
+    [Theory]
+    [InlineData("Cookie", "session=secret")]
+    [InlineData("X-Token", "{{loginInfo.token}}")]
+    public async Task ValidateEditorAsync_rejects_cookie_and_login_info_dependencies(string headerName, string headerValue)
+    {
+        var service = new TtsRuleLibraryService(
+            new FakeTtsRuleRepository([]),
+            new FakeAppSettingsStore(AppSettings.Default),
+            new LegadoRuleConverter());
+        var editor = new TtsRuleEditorModel(
+            null,
+            "不兼容规则",
+            true,
+            "https://example.com/tts",
+            null,
+            null,
+            null,
+            [new TtsRuleEditorKeyValue(headerName, headerValue)],
+            new TtsRuleRequestOptionsEditor("GET", null));
+
+        var validation = await service.ValidateEditorAsync(editor, CancellationToken.None);
+
+        Assert.False(validation.IsValid);
+        Assert.Contains(validation.Errors, error => error.Contains("Cookie/LoginInfo", StringComparison.Ordinal));
+        Assert.DoesNotContain(validation.Errors, error => error.Contains("secret", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("https://example.com/tts?token={{loginInfo.token}}", "GET", null)]
+    [InlineData("https://example.com/tts?token={{ cookie }}", "GET", null)]
+    [InlineData("https://example.com/tts", "POST", "{\"token\":\"{{ COOKIE [ 'session' ] }}\"}")]
+    [InlineData("https://example.com/tts", "POST", "{\"token\":\"{{cookie.value}}\"}")]
+    public async Task ValidateEditorAsync_rejects_cookie_and_login_info_in_url_or_body(
+        string url,
+        string method,
+        string? body)
+    {
+        var service = new TtsRuleLibraryService(
+            new FakeTtsRuleRepository([]),
+            new FakeAppSettingsStore(AppSettings.Default),
+            new LegadoRuleConverter());
+        var editor = new TtsRuleEditorModel(
+            null,
+            "不兼容规则",
+            true,
+            url,
+            null,
+            null,
+            null,
+            [],
+            new TtsRuleRequestOptionsEditor(method, body));
+
+        var validation = await service.ValidateEditorAsync(editor, CancellationToken.None);
+
+        Assert.False(validation.IsValid);
+        Assert.Contains(validation.Errors, error => error.Contains("Cookie/LoginInfo", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task SelectRuleAsync_updates_last_used_and_settings()
     {
         var repository = new FakeTtsRuleRepository([

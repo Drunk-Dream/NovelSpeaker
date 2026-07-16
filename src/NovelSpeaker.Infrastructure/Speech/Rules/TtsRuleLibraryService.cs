@@ -171,7 +171,12 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
         }
 
         var normalizedEditor = TtsRuleModelMapper.NormalizeEditor(editor);
-        var errors = TtsRuleModelMapper.Validate(normalizedEditor);
+        var errors = TtsRuleModelMapper.Validate(normalizedEditor).ToList();
+        if (TtsRuleCompatibilityChecker.HasUnsupportedEditorDependency(normalizedEditor))
+        {
+            errors.Add(TtsRuleCompatibilityChecker.UnsupportedCookieLoginInfoMessage);
+        }
+
         return new TtsRuleValidationResult(errors.Count == 0, errors, normalizedEditor);
     }
 
