@@ -145,6 +145,27 @@ public sealed class HttpTtsClientTests
         Assert.Equal(TtsErrorKind.AudioDecode, result.Failure!.Kind);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_rejects_cookie_header_before_sending_request()
+    {
+        await using var server = new LocalHttpTtsTestServer();
+        using var client = CreateClient();
+        var request = CreateRequest(1, new Uri(server.BaseUri, "cookie-required")) with
+        {
+            Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Cookie"] = "session=rule-cookie"
+            }
+        };
+
+        var result = await client.ExecuteAsync(request, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(TtsErrorKind.InvalidRule, result.Failure!.Kind);
+        Assert.Contains("Cookie/LoginInfo", result.Failure.Message, StringComparison.Ordinal);
+        Assert.Equal(0, server.GetRequestCount("/cookie-required"));
+    }
+
     private static HttpTtsClient CreateClient(TimeSpan? requestTimeout = null)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());

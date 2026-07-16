@@ -4,6 +4,7 @@ using NAudio.Wave;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Infrastructure.Speech.Rules;
 
 namespace NovelSpeaker.Infrastructure.Speech.Http;
 
@@ -38,6 +39,17 @@ public sealed class HttpTtsClient : IHttpTtsClient, IDisposable
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (TtsRuleCompatibilityChecker.ContainsCookieHeader(request.Headers))
+        {
+            return Failure(
+                TtsErrorKind.InvalidRule,
+                TtsRuleCompatibilityChecker.UnsupportedCookieLoginInfoMessage,
+                null,
+                null,
+                null,
+                null);
+        }
+
         Directory.CreateDirectory(_tempDirectoryPath);
 
         var transientRetriesRemaining = MaxTransientRetries;

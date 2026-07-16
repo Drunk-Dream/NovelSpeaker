@@ -172,10 +172,6 @@ public sealed class LocalHttpTtsTestServer : IAsyncDisposable
                 context.Response.StatusCode = 200;
                 await WriteAudioAsync(context.Response, Encoding.UTF8.GetBytes("not-an-audio-file"), "audio/mpeg", cancellationToken);
                 return;
-            case "/cookie-init":
-                context.Response.SetCookie(new Cookie("session", "rule-cookie", "/"));
-                await WriteAudioAsync(context.Response, _wavBytes, "audio/wav", cancellationToken);
-                return;
             case "/cookie-required":
                 if ((context.Request.Headers["Cookie"] ?? string.Empty).Contains("session=rule-cookie", StringComparison.Ordinal))
                 {
