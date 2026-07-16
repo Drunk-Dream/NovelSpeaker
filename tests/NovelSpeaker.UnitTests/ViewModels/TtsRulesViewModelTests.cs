@@ -181,6 +181,54 @@ public sealed class TtsRulesViewModelTests
     }
 
     [Fact]
+    public async Task SelectRuleAsync_with_unsaved_changes_saves_before_leaving_when_requested()
+    {
+        var firstEditor = new TtsRuleEditorModel(
+            1,
+            "规则一",
+            true,
+            "https://example.com/one",
+            null,
+            null,
+            null,
+            [],
+            new TtsRuleRequestOptionsEditor("GET", null));
+        var libraryService = new FakeTtsRuleLibraryService(
+            [
+                new TtsRuleSummary(1, "规则一", true, true, null),
+                new TtsRuleSummary(2, "规则二", true, false, null)
+            ],
+            firstEditor)
+        {
+            EditorsById =
+            {
+                [1] = firstEditor,
+                [2] = new TtsRuleEditorModel(
+                    2,
+                    "规则二",
+                    true,
+                    "https://example.com/two",
+                    null,
+                    null,
+                    null,
+                    [],
+                    new TtsRuleRequestOptionsEditor("GET", null))
+            }
+        };
+        var viewModel = CreateViewModel(
+            libraryService: libraryService,
+            dialogService: new FakeAppDialogService { NextUnsavedDecision = UnsavedChangesDecision.Save });
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.DraftName = "已保存的规则一";
+
+        await viewModel.SelectRuleCommand.ExecuteAsync(viewModel.Rules.Single(rule => rule.Id == 2));
+
+        Assert.Equal("已保存的规则一", libraryService.EditorsById[1].Name);
+        Assert.Equal(2, viewModel.HighlightedRuleId);
+        Assert.Equal("规则二", viewModel.DraftName);
+    }
+
+    [Fact]
     public async Task TestDraftAsync_uses_unsaved_draft_values()
     {
         var libraryService = new FakeTtsRuleLibraryService(
