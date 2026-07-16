@@ -28,7 +28,7 @@ public sealed class ServiceCollectionExtensionsTests
     {
         WpfTestHost.RunInSta(() =>
         {
-            var provider = WpfTestHost.BuildServiceProvider();
+            var provider = WpfTestHost.BuildServiceProvider(validate: true);
             try
             {
                 Assert.IsType<MainWindowViewModel>(provider.GetRequiredService<MainWindowViewModel>());
@@ -101,6 +101,22 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IReadingProgressStore>(provider.GetRequiredService<IReadingProgressStore>());
                 Assert.IsAssignableFrom<TimeProvider>(provider.GetRequiredService<TimeProvider>());
                 Assert.IsType<MainWindow>(provider.GetRequiredService<MainWindow>());
+
+                Assert.Same(
+                    provider.GetRequiredService<IPlaybackCoordinator>(),
+                    provider.GetRequiredService<IPlaybackCoordinator>());
+                Assert.Same(
+                    provider.GetRequiredService<IAppSettingsService>(),
+                    provider.GetRequiredService<IAppSettingsService>());
+                Assert.Same(
+                    provider.GetRequiredService<INavigationGuardService>(),
+                    provider.GetRequiredService<INavigationGuardService>());
+                Assert.NotSame(
+                    provider.GetRequiredService<BookDetailsViewModel>(),
+                    provider.GetRequiredService<BookDetailsViewModel>());
+                Assert.NotSame(
+                    provider.GetRequiredService<BookDetailsPage>(),
+                    provider.GetRequiredService<BookDetailsPage>());
             }
             finally
             {
