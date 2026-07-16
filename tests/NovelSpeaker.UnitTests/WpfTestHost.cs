@@ -52,7 +52,7 @@ internal static class WpfTestHost
         await completion.Task;
     }
 
-    public static ServiceProvider BuildServiceProvider()
+    public static ServiceProvider BuildServiceProvider(bool validate = false)
     {
         EnsureApplicationResources();
 
@@ -60,7 +60,11 @@ internal static class WpfTestHost
         services.AddLogging();
         services.AddNovelSpeakerInfrastructure();
         services.AddNovelSpeakerDesktop();
-        return services.BuildServiceProvider();
+        return services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = validate,
+            ValidateScopes = validate
+        });
     }
 
     public static void EnsureApplicationResources()
