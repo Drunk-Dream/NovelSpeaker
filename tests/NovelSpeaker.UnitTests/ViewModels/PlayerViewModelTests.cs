@@ -44,9 +44,9 @@ public sealed class PlayerViewModelTests
             new PlaybackBookContent(
                 "book-2",
                 "另一本书",
-                [new PlaybackChapterContent(0, "第二章", [])],
+                [PlaybackChapterContent.FromLoaded(0, "第二章", [])],
                 "作者乙"),
-            new PlaybackChapterContent(
+            PlaybackChapterContent.FromLoaded(
                 0,
                 "第二章",
                 [new SpeechSegment(0, 0, 3, "第二章第一段", "第二章第一段")]));
@@ -92,9 +92,9 @@ public sealed class PlayerViewModelTests
             new PlaybackBookContent(
                 "book-1",
                 "示例小说",
-                [new PlaybackChapterContent(0, "第一章", [])],
+                [PlaybackChapterContent.FromLoaded(0, "第一章", [])],
                 "作者甲"),
-            new PlaybackChapterContent(
+            PlaybackChapterContent.FromLoaded(
                 0,
                 "第一章",
                 [
@@ -140,8 +140,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(
                     0,
                     "第一章",
                     [
@@ -186,11 +186,11 @@ public sealed class PlayerViewModelTests
                 "book-1",
                 "示例小说",
                 [
-                    new PlaybackChapterContent(0, "第一章", []),
-                    new PlaybackChapterContent(1, "第二章", [])
+                    PlaybackChapterContent.FromLoaded(0, "第一章", []),
+                    PlaybackChapterContent.FromLoaded(1, "第二章", [])
                 ],
                 "作者甲"),
-            new PlaybackChapterContent(
+            PlaybackChapterContent.FromLoaded(
                 1,
                 "第二章",
                 [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")]));
@@ -232,11 +232,11 @@ public sealed class PlayerViewModelTests
                 "book-1",
                 "示例小说",
                 [
-                    new PlaybackChapterContent(0, "第一章", []),
-                    new PlaybackChapterContent(1, "第二章", [])
+                    PlaybackChapterContent.FromLoaded(0, "第一章", []),
+                    PlaybackChapterContent.FromLoaded(1, "第二章", [])
                 ],
                 "作者甲"),
-            new PlaybackChapterContent(
+            PlaybackChapterContent.FromLoaded(
                 1,
                 "第二章",
                 [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")]));
@@ -274,8 +274,8 @@ public sealed class PlayerViewModelTests
             false,
             "作者甲"));
         var contentService = new FakeBookPlaybackContentService(
-            new PlaybackBookContent("book-2", "另一本书", [new PlaybackChapterContent(1, "第二章", [])], "作者乙"),
-            new PlaybackChapterContent(1, "第二章", [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")]));
+            new PlaybackBookContent("book-2", "另一本书", [PlaybackChapterContent.FromLoaded(1, "第二章", [])], "作者乙"),
+            PlaybackChapterContent.FromLoaded(1, "第二章", [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")]));
         var viewModel = CreateViewModel(coordinator, contentService);
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -312,8 +312,8 @@ public sealed class PlayerViewModelTests
             false,
             "作者甲"));
         var contentService = new FakeBookPlaybackContentService(
-            new PlaybackBookContent("book-2", "另一本书", [new PlaybackChapterContent(1, "第二章", [])], "作者乙"),
-            new PlaybackChapterContent(1, "第二章", [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")]));
+            new PlaybackBookContent("book-2", "另一本书", [PlaybackChapterContent.FromLoaded(1, "第二章", [])], "作者乙"),
+            PlaybackChapterContent.FromLoaded(1, "第二章", [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")]));
         var viewModel = CreateViewModel(coordinator, contentService);
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -375,11 +375,11 @@ public sealed class PlayerViewModelTests
                     "book-1",
                     "示例小说",
                     [
-                        new PlaybackChapterContent(0, "第一章", []),
-                        new PlaybackChapterContent(1, "第二章", [])
+                        PlaybackChapterContent.FromLoaded(0, "第一章", []),
+                        PlaybackChapterContent.FromLoaded(1, "第二章", [])
                     ],
                     "作者甲"),
-                new PlaybackChapterContent(1, "第二章", [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")])));
+                PlaybackChapterContent.FromLoaded(1, "第二章", [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")])));
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
@@ -416,8 +416,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
             autoScrollCoordinator: autoScrollCoordinator);
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -442,13 +442,13 @@ public sealed class PlayerViewModelTests
                 "book-1",
                 "示例小说",
                 [
-                    new PlaybackChapterContent(0, "第一章", []),
-                    new PlaybackChapterContent(1, "第二章", [])
+                    PlaybackChapterContent.FromLoaded(0, "第一章", []),
+                    PlaybackChapterContent.FromLoaded(1, "第二章", [])
                 ],
                 "作者甲"),
             [
                 firstChapterLoad.Task,
-                Task.FromResult<PlaybackChapterContent?>(new PlaybackChapterContent(
+                Task.FromResult<PlaybackChapterContent?>(PlaybackChapterContent.FromLoaded(
                     1,
                     "第二章",
                     [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")]))
@@ -488,7 +488,7 @@ public sealed class PlayerViewModelTests
         });
 
         await contentService.WaitForChapterRequestCountAsync(2);
-        firstChapterLoad.SetResult(new PlaybackChapterContent(
+        firstChapterLoad.SetResult(PlaybackChapterContent.FromLoaded(
             0,
             "第一章",
             [new SpeechSegment(0, 0, 4, "第一章第一段", "第一章第一段")]));
@@ -527,8 +527,8 @@ public sealed class PlayerViewModelTests
             var viewModel = CreateViewModel(
                 coordinator,
                 new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                    new PlaybackChapterContent(
+                    new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                    PlaybackChapterContent.FromLoaded(
                         0,
                         "第一章",
                         [
@@ -588,8 +588,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
             ruleService: new FakeTtsRuleLibraryService(
                 [
                     new TtsRuleSummary(1, "默认规则", true, true, null),
@@ -630,8 +630,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
@@ -667,8 +667,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
             settingsService: settingsService);
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -711,8 +711,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
@@ -753,8 +753,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
@@ -793,8 +793,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
@@ -833,8 +833,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
@@ -870,8 +870,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
             ruleService: new FakeTtsRuleLibraryService(
                 [new TtsRuleSummary(1, "默认规则", true, true, null)]));
 
@@ -911,8 +911,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
@@ -954,8 +954,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(
                     0,
                     "第一章",
                     [
@@ -1006,8 +1006,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(
                     0,
                     "第一章",
                     [
@@ -1081,8 +1081,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(
                     0,
                     "第一章",
                     [
@@ -1129,8 +1129,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(
                     0,
                     "第一章",
                     [
@@ -1184,11 +1184,11 @@ public sealed class PlayerViewModelTests
                     "book-1",
                     "示例小说",
                     [
-                        new PlaybackChapterContent(0, "第一章", []),
-                        new PlaybackChapterContent(1, "第二章", [])
+                        PlaybackChapterContent.FromLoaded(0, "第一章", []),
+                        PlaybackChapterContent.FromLoaded(1, "第二章", [])
                     ],
                     "作者甲"),
-                new PlaybackChapterContent(1, "第二章", [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")])),
+                PlaybackChapterContent.FromLoaded(1, "第二章", [new SpeechSegment(0, 0, 4, "第二章第一段", "第二章第一段")])),
             autoScrollCoordinator: autoScrollCoordinator);
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -1231,8 +1231,8 @@ public sealed class PlayerViewModelTests
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                new PlaybackChapterContent(
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(
                     0,
                     "第一章",
                     [

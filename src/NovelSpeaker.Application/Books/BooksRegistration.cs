@@ -27,6 +27,7 @@ public static class BooksRegistration
         services.TryAddSingleton<IRegexReplacementRuleErrorStore, RegexReplacementRuleErrorStore>();
         services.TryAddSingleton<IRegexReplacementRuleWorkspaceService, RegexReplacementRuleWorkspaceService>();
         services.TryAddSingleton<IRegexReplacementPipeline, RegexReplacementPipeline>();
+        services.TryAddSingleton<ITextSegmenter, TextSegmenter>();
 
         return services;
     }

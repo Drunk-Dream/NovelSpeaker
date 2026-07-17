@@ -15,7 +15,6 @@ public static class AudioRegistration
         services.TryAddSingleton<IAudioPlayerFactory, NaudioAudioPlayerFactory>();
         services.TryAddSingleton<ILocalAudioPlaybackCoordinator, LocalAudioPlaybackCoordinator>();
         services.TryAddSingleton<IPlaybackCoordinator, PlaybackCoordinator>();
-        services.TryAddSingleton<IBookPlaybackContentService, BookPlaybackContentService>();
         services.TryAddSingleton<ISelectedTtsRuleProvider, SelectedTtsRuleProvider>();
         services.TryAddSingleton<IPlaybackAudioProvider, PlaybackAudioProvider>();
         services.TryAddSingleton<IAudioCacheProtectionRegistry, AudioCacheProtectionRegistry>();

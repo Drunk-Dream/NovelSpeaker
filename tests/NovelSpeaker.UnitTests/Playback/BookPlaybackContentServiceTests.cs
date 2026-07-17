@@ -1,11 +1,12 @@
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Books.TextProcessing;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Infrastructure.Books.FileStorage;
 using NovelSpeaker.Infrastructure.FileSystem;
-using NovelSpeaker.Infrastructure.Playback;
+using NovelSpeaker.Infrastructure.Persistence.Books;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Playback;
@@ -18,9 +19,9 @@ public sealed class BookPlaybackContentServiceTests
         using var database = CreateDatabase(createContentFile: false);
 
         var service = new BookPlaybackContentService(
-            new DelayedSqliteConnectionFactory(database.ConnectionString),
+            new SqliteBookPlaybackMetadataQuery(new DelayedSqliteConnectionFactory(database.ConnectionString)),
             CreateContentReader(database),
-            new Infrastructure.Books.Parsing.TextSegmenter(),
+            new TextSegmenter(),
             new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
             new PassthroughRegexReplacementPipeline());
 
@@ -43,6 +44,7 @@ public sealed class BookPlaybackContentServiceTests
         Assert.NotNull(book);
         Assert.Single(book!.Chapters);
         Assert.Empty(book.Chapters[0].Segments);
+        Assert.Equal(PlaybackChapterLoadState.Unloaded, book.Chapters[0].LoadState);
         Assert.Equal(0, trackingContext.PostCount);
     }
 
@@ -52,9 +54,9 @@ public sealed class BookPlaybackContentServiceTests
         using var database = CreateDatabase(createContentFile: true);
 
         var service = new BookPlaybackContentService(
-            new DelayedSqliteConnectionFactory(database.ConnectionString),
+            new SqliteBookPlaybackMetadataQuery(new DelayedSqliteConnectionFactory(database.ConnectionString)),
             CreateContentReader(database),
-            new Infrastructure.Books.Parsing.TextSegmenter(),
+            new TextSegmenter(),
             new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
             new PassthroughRegexReplacementPipeline());
 
@@ -62,11 +64,49 @@ public sealed class BookPlaybackContentServiceTests
 
         Assert.NotNull(chapter);
         Assert.Equal("第一章", chapter!.Title);
+        Assert.Equal(PlaybackChapterLoadState.Loaded, chapter.LoadState);
         Assert.Equal(2, chapter.Segments.Count);
         Assert.Equal("第一段。", chapter.Segments[0].SpeechText);
         Assert.Equal(0, chapter.Segments[0].StartOffset);
         Assert.Equal("第二段。", chapter.Segments[1].SpeechText);
         Assert.Equal(5, chapter.Segments[1].StartOffset);
+    }
+
+    [Fact]
+    public async Task GetChapterAsync_marks_regex_filtered_chapter_as_loaded_empty()
+    {
+        var service = new BookPlaybackContentService(
+            new FixedMetadataQuery(),
+            new FixedBookContentReader("整章正文"),
+            new TextSegmenter(),
+            new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
+            new EmptyRegexReplacementPipeline());
+
+        var chapter = await service.GetChapterAsync("book-1", 0, CancellationToken.None);
+
+        Assert.NotNull(chapter);
+        Assert.Equal(PlaybackChapterLoadState.LoadedEmpty, chapter!.LoadState);
+        Assert.Empty(chapter.Segments);
+    }
+
+    [Fact]
+    public async Task GetChapterAsync_rejects_result_completed_after_cancellation()
+    {
+        var pipeline = new DelayedRegexReplacementPipeline();
+        var service = new BookPlaybackContentService(
+            new FixedMetadataQuery(),
+            new FixedBookContentReader("整章正文"),
+            new TextSegmenter(),
+            new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
+            pipeline);
+        using var cancellation = new CancellationTokenSource();
+
+        var loadTask = service.GetChapterAsync("book-1", 0, cancellation.Token);
+        await pipeline.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        cancellation.Cancel();
+        pipeline.Complete();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => loadTask);
     }
 
     private static TestDatabase CreateDatabase(bool createContentFile)
@@ -174,6 +214,87 @@ public sealed class BookPlaybackContentServiceTests
             return Task.FromResult(new RegexReplacementPipelineResult(
                 sourceSegments,
                 new Dictionary<Guid, string>()));
+        }
+    }
+
+    private sealed class EmptyRegexReplacementPipeline : IRegexReplacementPipeline
+    {
+        public Task<RegexReplacementPipelineResult> ApplyAsync(
+            IReadOnlyList<SpeechSegment> sourceSegments,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new RegexReplacementPipelineResult(
+                [],
+                new Dictionary<Guid, string>()));
+        }
+    }
+
+    private sealed class DelayedRegexReplacementPipeline : IRegexReplacementPipeline
+    {
+        private readonly TaskCompletionSource<RegexReplacementPipelineResult> _completion =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<RegexReplacementPipelineResult> ApplyAsync(
+            IReadOnlyList<SpeechSegment> sourceSegments,
+            CancellationToken cancellationToken)
+        {
+            Started.TrySetResult();
+            return _completion.Task;
+        }
+
+        public void Complete()
+        {
+            _completion.TrySetResult(new RegexReplacementPipelineResult(
+                [new SpeechSegment(0, 0, 4, "迟到结果", "迟到结果")],
+                new Dictionary<Guid, string>()));
+        }
+    }
+
+    private sealed class FixedMetadataQuery : IBookPlaybackMetadataQuery
+    {
+        private static readonly PlaybackChapterMetadata Chapter =
+            new(0, "第一章", "books/book-1/content.txt", 0, 4);
+
+        public Task<PlaybackBookMetadata?> GetBookAsync(string bookId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult<PlaybackBookMetadata?>(
+                new PlaybackBookMetadata(
+                    bookId,
+                    "示例小说",
+                    null,
+                    [new PlaybackChapterSummaryMetadata(Chapter.ChapterIndex, Chapter.Title)]));
+        }
+
+        public Task<PlaybackChapterMetadata?> GetChapterAsync(
+            string bookId,
+            int chapterIndex,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<PlaybackChapterMetadata?>(Chapter);
+        }
+    }
+
+    private sealed class FixedBookContentReader : IBookContentReader
+    {
+        private readonly string _content;
+
+        public FixedBookContentReader(string content)
+        {
+            _content = content;
+        }
+
+        public Task<string> ReadChapterTextAsync(
+            string storedFilePath,
+            int startOffset,
+            int length,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(_content);
         }
     }
 

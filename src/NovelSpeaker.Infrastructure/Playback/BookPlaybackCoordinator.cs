@@ -463,7 +463,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         _contentRevision++;
         var wasPlaying = _currentSnapshot.State == PlaybackState.Playing;
 
-        if (replacement.Segments.Count == 0)
+        if (replacement.LoadState == PlaybackChapterLoadState.LoadedEmpty)
         {
             var target = await ResolveNearestAvailablePositionAsync(_currentBook, chapterIndex, cancellationToken).ConfigureAwait(false);
             if (target is null || _currentRule is null)
@@ -1494,7 +1494,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             var chapterIndex = orderedChapters[index].ChapterIndex;
             book = await EnsureChapterLoadedAsync(book, chapterIndex, cancellationToken);
             var chapter = GetChapter(book, chapterIndex);
-            if (chapter is not null && chapter.Segments.Count > 0)
+            if (chapter?.LoadState == PlaybackChapterLoadState.Loaded)
             {
                 var segmentIndex = ResolveSegmentIndex(
                     chapter,
@@ -1555,7 +1555,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     {
         book = await EnsureChapterLoadedAsync(book, progress.ChapterIndex, cancellationToken).ConfigureAwait(false);
         var chapter = GetChapter(book, progress.ChapterIndex);
-        if (chapter is not null && chapter.Segments.Count > 0)
+        if (chapter?.LoadState == PlaybackChapterLoadState.Loaded)
         {
             var remappedSegmentIndex = FindMappedSegmentIndex(chapter, progress.CharacterOffset);
             var resumePosition = progress.SegmentIndex >= 0 &&
@@ -1592,7 +1592,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
 
         book = await EnsureChapterLoadedAsync(book, chapterIndex, cancellationToken);
         var chapter = GetChapter(book, chapterIndex);
-        if (chapter is null || chapter.Segments.Count == 0)
+        if (chapter?.LoadState != PlaybackChapterLoadState.Loaded)
         {
             return null;
         }
@@ -1648,15 +1648,15 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         CancellationToken cancellationToken)
     {
         var existing = GetChapter(book, chapterIndex);
-        if (existing is null || existing.Segments.Count > 0)
+        if (existing is null || existing.LoadState != PlaybackChapterLoadState.Unloaded)
         {
             return book;
         }
 
         var loadedChapter = await _bookContentService.GetChapterAsync(book.BookId, chapterIndex, cancellationToken);
-        return loadedChapter is null
-            ? book
-            : ReplaceChapter(book, loadedChapter);
+        return ReplaceChapter(
+            book,
+            loadedChapter ?? PlaybackChapterContent.Failed(existing.ChapterIndex, existing.Title));
     }
 
     private static PlaybackBookContent ReplaceChapter(PlaybackBookContent book, PlaybackChapterContent chapter)

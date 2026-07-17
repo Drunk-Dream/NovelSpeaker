@@ -372,7 +372,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：新增 schema 6 `BookOperations`，导入按 `Staged → DatabaseCommitted → Completed` 记录持久化状态，启动恢复以 Books 行是否存在消除数据库提交与状态推进之间的崩溃歧义，并幂等完成正文切换或回滚孤立元数据。删除用例已迁入 Application 协调，Infrastructure 语义端口负责验证并暂存内部正文/可选缓存、原子删除数据库行和清理暂存；提交前恢复文件，提交后重复清理，外部源 TXT 从不进入删除目标。`IAppStoragePathResolver` 集中执行 canonicalization、根目录包含和现存 reparse point 拒绝策略，并对书籍、缓存、journal 暂存目录施加更窄的所有权约束；新正文/缓存记录写相对 storage key，启动惰性迁移合法旧绝对路径，非法或根外值保留并在消费入口拒绝。回归测试覆盖所有导入恢复相位、删除提交前后、双重重放、缺失/部分暂存缓存、journal 与数据库恶意路径、`..`、根外文件、reparse point、协调失败补偿和 schema 4/5→6。
 
-### [ ] BOOK-205（P1）：拆分播放内容查询与装配
+### [x] BOOK-205（P1）：拆分播放内容查询与装配
 
 前置：BOOK-201、TEXT-202。
 
@@ -383,6 +383,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 进度映射仍使用原始字符偏移。
 
 测试：正则把整章过滤为空时只加载一次、自动推进稳定、取消与旧结果隔离。
+
+完成说明：播放内容装配已迁入 Application，依次通过 SQLite 元数据查询端口、受约束正文读取端口、Application 分段器和必需的正则管线生成运行时章节；Infrastructure 的 SQLite adapter 只返回书籍/章节标题、正文 storage path 与原始偏移元数据，不再读取正文或执行分段/正则。`PlaybackChapterContent` 只能通过显式工厂建立 `Unloaded`、`LoadedEmpty`、`Loaded`、`Failed` 状态，协调器按状态决定是否加载，已加载空章节不会因空集合被重复读取。取消后的迟到装配结果在提交前被拒绝，页面既有 operation version 继续隔离旧章节结果；进度恢复仍按 `SpeechSegment.StartOffset` 对应的原始字符偏移映射。专项回归覆盖整章过滤为空只加载一次并稳定推进到下一章、装配取消后的迟到结果、元数据与正文装配边界，以及原始字符偏移恢复。
 
 ---
 

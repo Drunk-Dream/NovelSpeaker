@@ -276,7 +276,7 @@ public sealed class BookPlaybackCoordinatorTests
         content.Book = new PlaybackBookContent(
             "book-1",
             "示例小说",
-            [new PlaybackChapterContent(0, "第一章 开始", [new SpeechSegment(0, 0, 6, "新展示", "新语音")])]);
+            [PlaybackChapterContent.FromLoaded(0, "第一章 开始", [new SpeechSegment(0, 0, 6, "新展示", "新语音")])]);
 
         await coordinator.RefreshRegexReplacementAsync(CancellationToken.None);
 
@@ -298,7 +298,7 @@ public sealed class BookPlaybackCoordinatorTests
         content.Book = new PlaybackBookContent(
             "book-1",
             "示例小说",
-            [new PlaybackChapterContent(0, "第一章 开始", [new SpeechSegment(0, 0, 6, "新展示", "第一段")])]);
+            [PlaybackChapterContent.FromLoaded(0, "第一章 开始", [new SpeechSegment(0, 0, 6, "新展示", "第一段")])]);
 
         await coordinator.RefreshRegexReplacementAsync(CancellationToken.None);
 
@@ -318,7 +318,7 @@ public sealed class BookPlaybackCoordinatorTests
             book: new PlaybackBookContent(
                 "book-1",
                 "示例小说",
-                [new PlaybackChapterContent(0, "第一章 开始",
+                [PlaybackChapterContent.FromLoaded(0, "第一章 开始",
                 [
                     new SpeechSegment(0, 0, 2, "仅展示一", string.Empty),
                     new SpeechSegment(1, 3, 2, "仅展示二", string.Empty),
@@ -331,6 +331,37 @@ public sealed class BookPlaybackCoordinatorTests
         Assert.Equal(2, request.SegmentIndex);
         Assert.Equal("可朗读", request.SpeechText);
         Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
+    }
+
+    [Fact]
+    public async Task StartAsync_loads_regex_filtered_empty_chapter_once_and_advances_stably()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var content = new FakeBookPlaybackContentService(new PlaybackBookContent(
+            "book-1",
+            "示例小说",
+            [
+                PlaybackChapterContent.FromLoaded(0, "第一章 被过滤", []),
+                PlaybackChapterContent.FromLoaded(
+                    1,
+                    "第二章 可播放",
+                    [new SpeechSegment(0, 8, 4, "第二章", "第二章")])
+            ]));
+        await using var coordinator = CreateCoordinator(localCoordinator, bookContentService: content);
+
+        await coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", 0, null, null, 10),
+            CancellationToken.None);
+
+        Assert.Equal(1, coordinator.CurrentSnapshot.ChapterIndex);
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(1, content.GetChapterCallCounts[0]);
+
+        localCoordinator.RaiseCompleted();
+        await WaitForAsync(() => coordinator.CurrentSnapshot.State == PlaybackState.Stopped);
+
+        Assert.Equal("全书播放完成。", coordinator.CurrentSnapshot.Message);
+        Assert.Equal(1, content.GetChapterCallCounts[0]);
     }
 
     [Fact]
@@ -716,7 +747,7 @@ public sealed class BookPlaybackCoordinatorTests
             "book-1",
             "示例小说",
             [
-                new PlaybackChapterContent(
+                PlaybackChapterContent.FromLoaded(
                     0,
                     "第一章 开始",
                     [
@@ -732,11 +763,11 @@ public sealed class BookPlaybackCoordinatorTests
             "book-1",
             "示例小说",
             [
-                new PlaybackChapterContent(
+                PlaybackChapterContent.FromLoaded(
                     0,
                     "第一章 开始",
                     [new SpeechSegment(0, 0, 6, "第一段", "第一段")]),
-                new PlaybackChapterContent(
+                PlaybackChapterContent.FromLoaded(
                     1,
                     "第二章 延续",
                     [new SpeechSegment(0, 6, 6, "第二章 第一段", "第二章 第一段")])
@@ -749,7 +780,7 @@ public sealed class BookPlaybackCoordinatorTests
             "book-1",
             "示例小说",
             [
-                new PlaybackChapterContent(
+                PlaybackChapterContent.FromLoaded(
                     0,
                     "第一章 开始",
                     [
@@ -766,7 +797,7 @@ public sealed class BookPlaybackCoordinatorTests
             "book-1",
             "示例小说",
             [
-                new PlaybackChapterContent(
+                PlaybackChapterContent.FromLoaded(
                     0,
                     "第一章 开始",
                     [
@@ -819,6 +850,8 @@ public sealed class BookPlaybackCoordinatorTests
 
         public PlaybackBookContent Book { get; set; }
 
+        public Dictionary<int, int> GetChapterCallCounts { get; } = [];
+
         public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
         {
             if (bookId != Book.BookId)
@@ -830,7 +863,7 @@ public sealed class BookPlaybackCoordinatorTests
                 Book.BookId,
                 Book.BookTitle,
                 Book.Chapters
-                    .Select(chapter => new PlaybackChapterContent(chapter.ChapterIndex, chapter.Title, []))
+                    .Select(chapter => PlaybackChapterContent.Unloaded(chapter.ChapterIndex, chapter.Title))
                     .ToArray(),
                 Book.BookAuthor);
             return Task.FromResult<PlaybackBookContent?>(metadataOnly);
@@ -838,6 +871,7 @@ public sealed class BookPlaybackCoordinatorTests
 
         public Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
         {
+            GetChapterCallCounts[chapterIndex] = GetChapterCallCounts.GetValueOrDefault(chapterIndex) + 1;
             if (bookId != Book.BookId)
             {
                 return Task.FromResult<PlaybackChapterContent?>(null);

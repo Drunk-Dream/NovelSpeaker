@@ -2,7 +2,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
-using NovelSpeaker.Infrastructure.Books.Parsing;
+using NovelSpeaker.Application.Books.TextProcessing;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;

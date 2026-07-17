@@ -640,7 +640,7 @@ public sealed class PlayerViewTests
                 false,
                 "魔性沧月",
                 true));
-            var chapter = new PlaybackChapterContent(
+            var chapter = PlaybackChapterContent.FromLoaded(
                 0,
                 "第三章 来自星空的压力",
                 Enumerable.Range(0, 90)
@@ -654,7 +654,7 @@ public sealed class PlayerViewTests
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
                 new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
@@ -735,7 +735,7 @@ public sealed class PlayerViewTests
                 false,
                 "魔性沧月",
                 true));
-            var chapter = new PlaybackChapterContent(
+            var chapter = PlaybackChapterContent.FromLoaded(
                 0,
                 "第三章 来自星空的压力",
                 Enumerable.Range(0, 90)
@@ -744,7 +744,7 @@ public sealed class PlayerViewTests
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
                 new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
@@ -832,7 +832,7 @@ public sealed class PlayerViewTests
                 false,
                 "魔性沧月",
                 true));
-            var chapter = new PlaybackChapterContent(
+            var chapter = PlaybackChapterContent.FromLoaded(
                 0,
                 "第三章 来自星空的压力",
                 Enumerable.Range(0, 90)
@@ -841,7 +841,7 @@ public sealed class PlayerViewTests
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
                 new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
@@ -927,7 +927,7 @@ public sealed class PlayerViewTests
                 false,
                 "魔性沧月",
                 true));
-            var chapter = new PlaybackChapterContent(
+            var chapter = PlaybackChapterContent.FromLoaded(
                 0,
                 "第三章 来自星空的压力",
                 Enumerable.Range(0, 90)
@@ -936,7 +936,7 @@ public sealed class PlayerViewTests
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
                 new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
@@ -1020,7 +1020,7 @@ public sealed class PlayerViewTests
                 false,
                 "魔性沧月",
                 true));
-            var chapter = new PlaybackChapterContent(
+            var chapter = PlaybackChapterContent.FromLoaded(
                 0,
                 "第三章 来自星空的压力",
                 Enumerable.Range(0, 138)
@@ -1034,7 +1034,7 @@ public sealed class PlayerViewTests
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
                 new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
@@ -1142,7 +1142,7 @@ public sealed class PlayerViewTests
                 false,
                 "魔性沧月",
                 true));
-            var chapter = new PlaybackChapterContent(
+            var chapter = PlaybackChapterContent.FromLoaded(
                 0,
                 "第三章 来自星空的压力",
                 Enumerable.Range(0, 90)
@@ -1151,7 +1151,7 @@ public sealed class PlayerViewTests
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
                 new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
@@ -1242,7 +1242,7 @@ public sealed class PlayerViewTests
                 false,
                 "魔性沧月",
                 true));
-            var chapter = new PlaybackChapterContent(
+            var chapter = PlaybackChapterContent.FromLoaded(
                 0,
                 "第三章 来自星空的压力",
                 Enumerable.Range(0, 90)
@@ -1251,7 +1251,7 @@ public sealed class PlayerViewTests
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
                 new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
@@ -1337,7 +1337,7 @@ public sealed class PlayerViewTests
                 false,
                 "魔性沧月",
                 true));
-            var chapter = new PlaybackChapterContent(
+            var chapter = PlaybackChapterContent.FromLoaded(
                 0,
                 "第三章 来自星空的压力",
                 Enumerable.Range(0, 120)
@@ -1353,7 +1353,7 @@ public sealed class PlayerViewTests
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
                 new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
@@ -1463,7 +1463,7 @@ public sealed class PlayerViewTests
                 false,
                 "魔性沧月",
                 true));
-            var chapter = new PlaybackChapterContent(
+            var chapter = PlaybackChapterContent.FromLoaded(
                 0,
                 "第三章 来自星空的压力",
                 Enumerable.Range(0, 90)
@@ -1472,7 +1472,7 @@ public sealed class PlayerViewTests
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [new PlaybackChapterContent(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
                 new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),

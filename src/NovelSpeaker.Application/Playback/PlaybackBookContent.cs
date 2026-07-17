@@ -12,9 +12,57 @@ public sealed record PlaybackBookContent(
     string? BookAuthor = null);
 
 /// <summary>
-/// Represents one playback-ready chapter.
+/// Describes whether runtime content has been assembled for a chapter.
 /// </summary>
-public sealed record PlaybackChapterContent(
-    int ChapterIndex,
-    string Title,
-    IReadOnlyList<SpeechSegment> Segments);
+public enum PlaybackChapterLoadState
+{
+    Unloaded,
+    LoadedEmpty,
+    Loaded,
+    Failed
+}
+
+/// <summary>
+/// Represents one playback-ready chapter and its explicit runtime loading state.
+/// </summary>
+public sealed record PlaybackChapterContent
+{
+    private PlaybackChapterContent(
+        int chapterIndex,
+        string title,
+        IReadOnlyList<SpeechSegment> segments,
+        PlaybackChapterLoadState loadState)
+    {
+        ChapterIndex = chapterIndex;
+        Title = title;
+        Segments = segments;
+        LoadState = loadState;
+    }
+
+    public int ChapterIndex { get; }
+
+    public string Title { get; }
+
+    public IReadOnlyList<SpeechSegment> Segments { get; }
+
+    public PlaybackChapterLoadState LoadState { get; }
+
+    public static PlaybackChapterContent Unloaded(int chapterIndex, string title) =>
+        new(chapterIndex, title, [], PlaybackChapterLoadState.Unloaded);
+
+    public static PlaybackChapterContent FromLoaded(
+        int chapterIndex,
+        string title,
+        IReadOnlyList<SpeechSegment> segments)
+    {
+        ArgumentNullException.ThrowIfNull(segments);
+        return new PlaybackChapterContent(
+            chapterIndex,
+            title,
+            segments,
+            segments.Count == 0 ? PlaybackChapterLoadState.LoadedEmpty : PlaybackChapterLoadState.Loaded);
+    }
+
+    public static PlaybackChapterContent Failed(int chapterIndex, string title) =>
+        new(chapterIndex, title, [], PlaybackChapterLoadState.Failed);
+}

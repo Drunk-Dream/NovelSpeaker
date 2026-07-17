@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Books.TextProcessing;
 using NovelSpeaker.Domain.Books;
 using Xunit;
 
@@ -15,7 +16,7 @@ public sealed class TextSegmenterTests
             EnableLongParagraphSplitting: true,
             LongParagraphThreshold: 300);
 
-        ITextSegmenter segmenter = new Infrastructure.Books.Parsing.TextSegmenter();
+        ITextSegmenter segmenter = new TextSegmenter();
 
         var segments = segmenter.Segment(chapterText, options);
 
@@ -33,7 +34,7 @@ public sealed class TextSegmenterTests
         const string chapterText = "第一段。\n第二段。\n\n第三段。";
 
         var options = TextSegmentationOptions.Default;
-        ITextSegmenter segmenter = new Infrastructure.Books.Parsing.TextSegmenter();
+        ITextSegmenter segmenter = new TextSegmenter();
 
         var segments = segmenter.Segment(chapterText, options);
 
@@ -51,7 +52,7 @@ public sealed class TextSegmenterTests
     {
         var text = string.Concat(Enumerable.Repeat("这是一句很长的话。", 40));
         var options = new TextSegmentationOptions(false, 50);
-        ITextSegmenter segmenter = new Infrastructure.Books.Parsing.TextSegmenter();
+        ITextSegmenter segmenter = new TextSegmenter();
 
         var segments = segmenter.Segment(text, options);
 
@@ -67,7 +68,7 @@ public sealed class TextSegmenterTests
                 .Concat(Enumerable.Repeat("这是第二句！", 12))
                 .Concat(Enumerable.Repeat("这是第三句？", 12)));
         var options = new TextSegmentationOptions(true, 60);
-        ITextSegmenter segmenter = new Infrastructure.Books.Parsing.TextSegmenter();
+        ITextSegmenter segmenter = new TextSegmenter();
 
         var segments = segmenter.Segment(text, options);
 
@@ -84,7 +85,7 @@ public sealed class TextSegmenterTests
     {
         var text = new string('长', 140);
         var options = new TextSegmentationOptions(true, 50);
-        ITextSegmenter segmenter = new Infrastructure.Books.Parsing.TextSegmenter();
+        ITextSegmenter segmenter = new TextSegmenter();
 
         var segments = segmenter.Segment(text, options);
 

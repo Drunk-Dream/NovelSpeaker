@@ -2,7 +2,7 @@ using System.Buffers;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Domain.Books;
 
-namespace NovelSpeaker.Infrastructure.Books.Parsing;
+namespace NovelSpeaker.Application.Books.TextProcessing;
 
 /// <summary>
 /// Splits chapter text into newline-based natural paragraphs and optionally subdivides long paragraphs.

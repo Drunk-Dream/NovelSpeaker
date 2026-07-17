@@ -65,8 +65,8 @@ public sealed class NavigationPageLifecycleTests
                     false,
                     false)),
                 new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-7", "示例小说", [new PlaybackChapterContent(0, "第一章", [])], "作者甲"),
-                    new PlaybackChapterContent(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
+                    new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                    PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
                 new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsService(AppSettings.Default),
                 new FakeAppFeedbackService(),
