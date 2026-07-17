@@ -114,6 +114,7 @@ Code-behind 不执行 SQL、文件删除、HTTP、规则解析或播放会话协
 - Page 是路由、激活、取消和未保存保护边界。
 - UserControl 只用于两个以上页面复用，或拥有独立视觉行为/测试价值的复杂组件。
 - 仅把整页包进同名 UserControl、手工设置 DataContext 的一对一 wrapper 不作为终态模式。
+- 固定视口页面统一使用共享导航视口高度行为，禁止在各 Page code-behind 重复查找 `Frame`、订阅尺寸变化或绑定一套局部高度约束；分栏页面必须以真实 `Window + Frame` 和足量数据验证内部滚动区域具有有限视口。
 - App 使用自有强类型 route/parameter；ViewModel 不引用具体 Page 类型。
 - Wpf.Ui 路由映射、导航选择和兼容处理集中在 Shell adapter。
 - 所有离开路径统一经过 navigation guard，不能只保护 BackCommand。
