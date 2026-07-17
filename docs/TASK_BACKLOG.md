@@ -341,7 +341,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：章节规则管理与编辑工作区已迁入 `Application/Books/ChapterRules`，正则替换工作区、执行管线和进程内错误投影已迁入 `Application/Books/TextProcessing`；两类规则共享仅负责 Pattern 规范化、校验和摘要的小型协作者。Application 注册用例与纯管线，Infrastructure 仅注册 SQLite repository 等适配器；播放内容加载必须注入正则管线，正则工作区与管线必须注入错误存储，不再允许 null/no-op 绕过。正则 repository 已展开压缩实现、改用 `TimeProvider` 并逐行隔离非法标识、Scope、时间或类型，历史非法 Pattern 在工作区标错且运行时跳过。回归测试覆盖字段级保存保留启用/排序、非法历史规则不破坏列表和运行链、取消传播、执行字段刷新播放及仅名称变化不刷新。
 
-### [ ] BOOK-203（P1）：迁移直接导入用例到 Application
+### [x] BOOK-203（P1）：迁移直接导入用例到 Application
 
 前置：BOOK-201、TEXT-202、SETTINGS-104。
 
@@ -353,6 +353,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 保持高置信度直接导入、低置信度选择、重复拒绝和取消语义。
 
 测试：所有原导入测试迁移到 Application/Infrastructure 对应层；不访问真实用户文件。
+
+完成说明：`DirectBookImportService`、正文规范化、章节拆分与纯文件名模板解析已迁入 `Application/Books/Import`，用例仅通过文本分析、内容 hash、判重、章节规则、正文暂存和导入提交等语义端口协调；Application 不再引用 Infrastructure、SQLite 或拼接应用数据路径。导入时间改为必需的 `TimeProvider` 依赖，书籍和章节 ID 由专用 `IBookImportIdGenerator` 生成并提供默认实现，测试可注入固定序列。Application DI 注册用例、ID 生成器和纯解析协作者，Infrastructure DI 仅注册文件、hash 与 SQLite adapter。保留高置信度直接导入、低置信度选择、手动编码重试、重复拒绝、失败清理和取消传播语义；清理端口现显式接收取消参数，取消后的最终补偿使用有说明的不可取消清理。原导入测试按 Application/Infrastructure 命名空间分层，并补充固定时间/ID、端口取消传播及提交取消后清理回归测试，文件类集成测试仅使用隔离临时文件。
 
 ### [ ] BOOK-204（P0）：实现导入/删除 operation journal 与路径约束
 
