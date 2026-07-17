@@ -1,11 +1,12 @@
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
+using NovelSpeaker.Infrastructure.Persistence.Books;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Books;
 
-public sealed class BookCatalogServiceTests
+public sealed class BookLibraryQueryTests
 {
     [Fact]
     public async Task GetBooksAsync_prefers_recent_progress_chapter_title_and_exposes_last_played_at()
@@ -26,7 +27,42 @@ public sealed class BookCatalogServiceTests
         Assert.True(book.HasReadingProgress);
     }
 
-    private static async Task<(SqliteConnectionFactory Factory, BookCatalogService Service)> CreateCatalogAsync()
+    [Fact]
+    public async Task GetBooksAsync_orders_by_import_time_then_id()
+    {
+        var (factory, service) = await CreateCatalogAsync();
+        await SeedBookAsync(factory, "book-b", "B 第一章", "B 第二章");
+        await SeedBookAsync(factory, "book-a", "A 第一章", "A 第二章");
+        await SetImportedAtAsync(factory, "book-b", "2026-01-01T00:00:00.0000000Z");
+        await SetImportedAtAsync(factory, "book-a", "2026-01-01T00:00:00.0000000Z");
+
+        var books = await service.GetBooksAsync(CancellationToken.None);
+
+        Assert.Equal(["book-a", "book-b"], books.Select(static book => book.Id));
+    }
+
+    [Fact]
+    public async Task GetBookDetailsAsync_orders_chapters_by_sort_order_then_chapter_index()
+    {
+        var (factory, service) = await CreateCatalogAsync();
+        var repository = new BookImportRepository(factory);
+        var now = DateTimeOffset.UtcNow;
+        await repository.SaveAsync(
+            new Book("book-1", "书籍", null, "book.txt", "book.txt", "hash", "utf-8", now, now, null, now),
+            [
+                new Chapter("chapter-2", "book-1", 2, 20, "末章", 20, 3),
+                new Chapter("chapter-1", "book-1", 1, 10, "中章", 10, 3),
+                new Chapter("chapter-0", "book-1", 0, 10, "首章", 0, 3)
+            ],
+            CancellationToken.None);
+
+        var details = await service.GetBookDetailsAsync("book-1", CancellationToken.None);
+
+        Assert.NotNull(details);
+        Assert.Equal([0, 1, 2], details.Chapters.Select(static chapter => chapter.ChapterIndex));
+    }
+
+    private static async Task<(SqliteConnectionFactory Factory, BookLibraryQuery Service)> CreateCatalogAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var directories = new LocalAppDataDirectoryProvider(root);
@@ -36,7 +72,7 @@ public sealed class BookCatalogServiceTests
         var seeder = new DefaultChapterRuleSeeder(repository);
         var initializer = new StartupDatabaseInitializer(directories, runner, seeder);
         await initializer.InitializeAsync(CancellationToken.None);
-        return (factory, new BookCatalogService(factory));
+        return (factory, new BookLibraryQuery(factory));
     }
 
     private static async Task SeedBookAsync(SqliteConnectionFactory factory, string bookId, string firstChapterTitle, string secondChapterTitle)
@@ -71,6 +107,16 @@ public sealed class BookCatalogServiceTests
         command.Parameters.AddWithValue("$characterOffset", 6);
         command.Parameters.AddWithValue("$audioPositionMilliseconds", 200);
         command.Parameters.AddWithValue("$updatedAt", updatedAt);
+        await command.ExecuteNonQueryAsync(CancellationToken.None);
+    }
+
+    private static async Task SetImportedAtAsync(SqliteConnectionFactory factory, string bookId, string importedAt)
+    {
+        await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
+        var command = connection.CreateCommand();
+        command.CommandText = "UPDATE Books SET ImportedAt = $importedAt WHERE Id = $bookId;";
+        command.Parameters.AddWithValue("$bookId", bookId);
+        command.Parameters.AddWithValue("$importedAt", importedAt);
         await command.ExecuteNonQueryAsync(CancellationToken.None);
     }
 }

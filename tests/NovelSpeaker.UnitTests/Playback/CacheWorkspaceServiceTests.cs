@@ -5,6 +5,7 @@ using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.Books.Parsing;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
+using NovelSpeaker.Infrastructure.Persistence.Books;
 using NovelSpeaker.Infrastructure.Playback;
 using Xunit;
 

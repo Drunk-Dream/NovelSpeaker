@@ -1,7 +1,8 @@
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Infrastructure.Persistence;
 
-namespace NovelSpeaker.Infrastructure.Persistence;
+namespace NovelSpeaker.Infrastructure.Persistence.Books;
 
 /// <summary>
 /// Checks for already-imported books using their source hash.

@@ -2,8 +2,9 @@ using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Infrastructure.Persistence;
 
-namespace NovelSpeaker.Infrastructure.Persistence;
+namespace NovelSpeaker.Infrastructure.Persistence.Books;
 
 /// <summary>
 /// Saves imported books and chapters inside a single SQLite transaction.

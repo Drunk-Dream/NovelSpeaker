@@ -1,6 +1,7 @@
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
+using NovelSpeaker.Infrastructure.Persistence.Books;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Books;

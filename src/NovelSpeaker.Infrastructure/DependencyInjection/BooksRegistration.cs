@@ -4,6 +4,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Infrastructure.Books;
 using NovelSpeaker.Infrastructure.Books.Parsing;
 using NovelSpeaker.Infrastructure.Persistence;
+using NovelSpeaker.Infrastructure.Persistence.Books;
 
 namespace NovelSpeaker.Infrastructure.DependencyInjection;
 

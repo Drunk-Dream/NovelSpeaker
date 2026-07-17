@@ -25,7 +25,10 @@ public sealed class AppNavigationPageProviderTests
             services.AddSingleton<INavigationService>(provider => provider.GetRequiredService<FakeNavigationService>());
             services.AddSingleton<IGuardedNavigationService>(provider => provider.GetRequiredService<FakeNavigationService>());
             services.AddSingleton<INavigationGuardService, FakeNavigationGuardService>();
-            services.AddSingleton<IBookManagementService, FakeBookManagementService>();
+            services.AddSingleton<FakeBookManagementService>();
+            services.AddSingleton<IBookLibraryQuery>(provider => provider.GetRequiredService<FakeBookManagementService>());
+            services.AddSingleton<IBookMetadataUpdateService>(provider => provider.GetRequiredService<FakeBookManagementService>());
+            services.AddSingleton<IBookDeletionService>(provider => provider.GetRequiredService<FakeBookManagementService>());
             services.AddSingleton<ICacheWorkspaceService, FakeCacheWorkspaceService>();
             services.AddSingleton<IBookCoverGenerator, BookCoverGenerator>();
             services.AddSingleton<IAppFeedbackService, FakeAppFeedbackService>();
@@ -123,8 +126,11 @@ public sealed class AppNavigationPageProviderTests
         }
     }
 
-    private sealed class FakeBookManagementService : IBookManagementService
+    private sealed class FakeBookManagementService : IBookLibraryQuery, IBookMetadataUpdateService, IBookDeletionService
     {
+        public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<BookSummary>>([]);
+
         public Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken)
         {
             return Task.FromResult<BookDetailsHeader?>(null);
@@ -135,12 +141,7 @@ public sealed class AppNavigationPageProviderTests
             return Task.FromResult<BookDetails?>(null);
         }
 
-        public Task<BookDetails> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<long> ClearBookCacheAsync(string bookId, CancellationToken cancellationToken)
+        public Task<BookDetailsHeader> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }

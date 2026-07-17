@@ -14,7 +14,9 @@ namespace NovelSpeaker.App.ViewModels;
 
 public sealed partial class BookDetailsViewModel : ObservableObject
 {
-    private readonly IBookManagementService _bookManagementService;
+    private readonly IBookLibraryQuery _bookLibraryQuery;
+    private readonly IBookMetadataUpdateService _bookMetadataUpdateService;
+    private readonly IBookDeletionService _bookDeletionService;
     private readonly ICacheWorkspaceService _cacheWorkspaceService;
     private readonly IBookCoverGenerator _bookCoverGenerator;
     private readonly IAppFeedbackService _feedbackService;
@@ -29,7 +31,9 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private string? _bookId;
 
     public BookDetailsViewModel(
-        IBookManagementService bookManagementService,
+        IBookLibraryQuery bookLibraryQuery,
+        IBookMetadataUpdateService bookMetadataUpdateService,
+        IBookDeletionService bookDeletionService,
         ICacheWorkspaceService cacheWorkspaceService,
         IBookCoverGenerator bookCoverGenerator,
         IAppFeedbackService feedbackService,
@@ -39,7 +43,9 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         IPlaybackCoordinator playbackCoordinator,
         IGuardedNavigationService guardedNavigationService)
     {
-        _bookManagementService = bookManagementService;
+        _bookLibraryQuery = bookLibraryQuery;
+        _bookMetadataUpdateService = bookMetadataUpdateService;
+        _bookDeletionService = bookDeletionService;
         _cacheWorkspaceService = cacheWorkspaceService;
         _bookCoverGenerator = bookCoverGenerator;
         _feedbackService = feedbackService;
@@ -119,7 +125,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
         try
         {
-            var header = await _bookManagementService.GetBookDetailsHeaderAsync(bookId, cancellationToken);
+            var header = await _bookLibraryQuery.GetBookDetailsHeaderAsync(bookId, cancellationToken);
             if (header is null)
             {
                 ClearBook();
@@ -208,7 +214,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         try
         {
             var result = await _cacheWorkspaceService.ClearBookAsync(_bookId, cancellationToken);
-            var details = await _bookManagementService.GetBookDetailsAsync(_bookId, cancellationToken);
+            var details = await _bookLibraryQuery.GetBookDetailsAsync(_bookId, cancellationToken);
             if (details is not null)
             {
                 ApplyDetails(details, preserveEditor: true);
@@ -268,7 +274,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
                 await _playbackCoordinator.HandleBookDeletedAsync(_bookId, cancellationToken);
             }
 
-            var result = await _bookManagementService.DeleteAsync(
+            var result = await _bookDeletionService.DeleteAsync(
                 new BookDeleteRequest(_bookId, deleteDecision.DeleteAudioCache),
                 cancellationToken);
             if (result is null)
@@ -372,13 +378,13 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
         try
         {
-            var updated = await _bookManagementService.UpdateMetadataAsync(
+            var updated = await _bookMetadataUpdateService.UpdateMetadataAsync(
                 new BookMetadataUpdateRequest(
                     _bookId,
                     NormalizeTitle(EditTitle),
                     NormalizeAuthor(EditAuthor)),
                 cancellationToken);
-            ApplyDetails(updated);
+            ApplyHeader(updated);
             _catalogInvalidationState.Invalidate();
             await _playbackCoordinator.RefreshBookMetadataAsync(_bookId, cancellationToken);
             _feedbackService.ShowSuccess("已保存", "书名和作者已更新。");
@@ -411,7 +417,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         {
             await Task.Yield();
 
-            var details = await _bookManagementService.GetBookDetailsAsync(bookId, cancellationTokenSource.Token);
+            var details = await _bookLibraryQuery.GetBookDetailsAsync(bookId, cancellationTokenSource.Token);
             if (cancellationTokenSource.IsCancellationRequested || !ReferenceEquals(_activeLoadCancellationTokenSource, cancellationTokenSource))
             {
                 return;

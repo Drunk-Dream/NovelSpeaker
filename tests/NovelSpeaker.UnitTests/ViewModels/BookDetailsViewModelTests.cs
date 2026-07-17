@@ -312,8 +312,11 @@ public sealed class BookDetailsViewModelTests
         FakeGuardedNavigationService? guardedNavigationService = null,
         IBookCatalogInvalidationState? invalidationState = null)
     {
+        managementService ??= new FakeBookManagementService();
         return new BookDetailsViewModel(
-            managementService ?? new FakeBookManagementService(),
+            managementService,
+            managementService,
+            managementService,
             cacheWorkspaceService ?? new FakeCacheWorkspaceService(),
             new BookCoverGenerator(),
             feedbackService ?? new FakeFeedbackService(),
@@ -333,9 +336,6 @@ public sealed class BookDetailsViewModelTests
             "book-1",
             title,
             author,
-            "sample.txt",
-            "/tmp/sample.txt",
-            "utf-8",
             3,
             1,
             1,
@@ -370,7 +370,7 @@ public sealed class BookDetailsViewModelTests
         await WaitForConditionAsync(() => !viewModel.IsBusy && viewModel.Chapters.Count == 3);
     }
 
-    private sealed class FakeBookManagementService : IBookManagementService
+    private sealed class FakeBookManagementService : IBookLibraryQuery, IBookMetadataUpdateService, IBookDeletionService
     {
         private BookDetails _details = CreateDetails();
         private TaskCompletionSource<BookDetails?>? _blockedDetailsLoadSource;
@@ -388,6 +388,9 @@ public sealed class BookDetailsViewModelTests
         public int GetBookDetailsHeaderCallCount { get; private set; }
 
         public int GetBookDetailsCallCount { get; private set; }
+
+        public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<BookSummary>>([]);
 
         public Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken)
         {
@@ -420,7 +423,7 @@ public sealed class BookDetailsViewModelTests
             _blockedDetailsLoadSource?.TrySetResult(_details);
         }
 
-        public Task<BookDetails> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
+        public Task<BookDetailsHeader> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
         {
             if (ThrowOnUpdate)
             {
@@ -433,17 +436,7 @@ public sealed class BookDetailsViewModelTests
                 Title = request.Title,
                 Author = request.Author
             };
-            return Task.FromResult(_details);
-        }
-
-        public Task<long> ClearBookCacheAsync(string bookId, CancellationToken cancellationToken)
-        {
-            if (NextDetailsAfterClear is not null)
-            {
-                _details = NextDetailsAfterClear;
-            }
-
-            return Task.FromResult(0L);
+            return Task.FromResult(new BookDetailsHeader(_details.Id, _details.Title, _details.Author));
         }
 
         public Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)

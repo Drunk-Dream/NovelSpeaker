@@ -125,6 +125,8 @@ public sealed class BookDetailsPageTests
     {
         return new BookDetailsViewModel(
             new FakeBookManagementService(),
+            new FakeBookManagementService(),
+            new FakeBookManagementService(),
             new FakeCacheWorkspaceService(),
             new BookCoverGenerator(),
             new FakeFeedbackService(),
@@ -215,17 +217,18 @@ public sealed class BookDetailsPageTests
             => Task.FromResult(true);
     }
 
-    private sealed class FakeBookManagementService : IBookManagementService
+    private sealed class FakeBookManagementService : IBookLibraryQuery, IBookMetadataUpdateService, IBookDeletionService
     {
+        public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<BookSummary>>([]);
+
         public Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken)
             => Task.FromResult<BookDetailsHeader?>(null);
 
         public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken) => Task.FromResult<BookDetails?>(null);
 
-        public Task<BookDetails> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
+        public Task<BookDetailsHeader> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
             => throw new NotSupportedException();
-
-        public Task<long> ClearBookCacheAsync(string bookId, CancellationToken cancellationToken) => Task.FromResult(0L);
 
         public Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)
             => Task.FromResult<BookDeleteResult?>(null);

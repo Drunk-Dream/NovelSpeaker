@@ -24,8 +24,8 @@ public sealed partial class LibraryViewModel : ObservableObject
         new(LibrarySortMode.Title, "书名")
     ];
 
-    private readonly IBookCatalogService _bookCatalogService;
-    private readonly IBookManagementService _bookManagementService;
+    private readonly IBookLibraryQuery _bookLibraryQuery;
+    private readonly IBookDeletionService _bookDeletionService;
     private readonly IBookCoverGenerator _bookCoverGenerator;
     private readonly ILibraryImportCoordinator _libraryImportCoordinator;
     private readonly IBookDeleteDialogService _deleteDialogService;
@@ -42,8 +42,8 @@ public sealed partial class LibraryViewModel : ObservableObject
     private CancellationTokenSource? _activeImportCancellationTokenSource;
 
     public LibraryViewModel(
-        IBookCatalogService bookCatalogService,
-        IBookManagementService bookManagementService,
+        IBookLibraryQuery bookLibraryQuery,
+        IBookDeletionService bookDeletionService,
         IBookCoverGenerator bookCoverGenerator,
         ILibraryImportCoordinator libraryImportCoordinator,
         IBookDeleteDialogService deleteDialogService,
@@ -53,8 +53,8 @@ public sealed partial class LibraryViewModel : ObservableObject
         IPlaybackCoordinator playbackCoordinator,
         LibraryScrollState scrollState)
     {
-        _bookCatalogService = bookCatalogService;
-        _bookManagementService = bookManagementService;
+        _bookLibraryQuery = bookLibraryQuery;
+        _bookDeletionService = bookDeletionService;
         _bookCoverGenerator = bookCoverGenerator;
         _libraryImportCoordinator = libraryImportCoordinator;
         _deleteDialogService = deleteDialogService;
@@ -102,7 +102,7 @@ public sealed partial class LibraryViewModel : ObservableObject
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        var books = await _bookCatalogService.GetBooksAsync(cancellationToken);
+        var books = await _bookLibraryQuery.GetBooksAsync(cancellationToken);
         _allBooks = books
             .Select(MapBook)
             .ToArray();
@@ -223,7 +223,7 @@ public sealed partial class LibraryViewModel : ObservableObject
                 await _playbackCoordinator.HandleBookDeletedAsync(book.BookId, cancellationToken);
             }
 
-            var result = await _bookManagementService.DeleteAsync(
+            var result = await _bookDeletionService.DeleteAsync(
                 new BookDeleteRequest(book.BookId, decision.DeleteAudioCache),
                 cancellationToken);
 

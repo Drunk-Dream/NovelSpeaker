@@ -4,14 +4,25 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
+using NovelSpeaker.Infrastructure.Persistence.Books;
 using NovelSpeaker.Infrastructure.Playback;
 using NovelSpeaker.UnitTests.Playback;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Books;
 
-public sealed class BookManagementServiceTests
+public sealed class BookLibraryPersistenceTests
 {
+    [Fact]
+    public async Task Queries_and_delete_return_null_when_book_is_missing()
+    {
+        var fixture = await CreateFixtureAsync();
+
+        Assert.Null(await fixture.Query.GetBookDetailsHeaderAsync("missing", CancellationToken.None));
+        Assert.Null(await fixture.Query.GetBookDetailsAsync("missing", CancellationToken.None));
+        Assert.Null(await fixture.Deletion.DeleteAsync(new BookDeleteRequest("missing", true), CancellationToken.None));
+    }
+
     [Fact]
     public async Task GetBookDetailsAsync_and_UpdateMetadataAsync_return_enriched_summary()
     {
@@ -29,9 +40,9 @@ public sealed class BookManagementServiceTests
                 "audio/mpeg"),
             CancellationToken.None);
 
-        var header = await fixture.Service.GetBookDetailsHeaderAsync("book-1", CancellationToken.None);
-        var details = await fixture.Service.GetBookDetailsAsync("book-1", CancellationToken.None);
-        var updated = await fixture.Service.UpdateMetadataAsync(
+        var header = await fixture.Query.GetBookDetailsHeaderAsync("book-1", CancellationToken.None);
+        var details = await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None);
+        var updated = await fixture.Metadata.UpdateMetadataAsync(
             new BookMetadataUpdateRequest("book-1", "  新书名  ", "  作者甲  "),
             CancellationToken.None);
 
@@ -56,11 +67,11 @@ public sealed class BookManagementServiceTests
         await SeedBookAsync(fixture, "book-1", title: "原书名", author: "作者");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            fixture.Service.UpdateMetadataAsync(
+            fixture.Metadata.UpdateMetadataAsync(
                 new BookMetadataUpdateRequest("book-1", "   ", "作者"),
                 CancellationToken.None));
 
-        var updated = await fixture.Service.UpdateMetadataAsync(
+        var updated = await fixture.Metadata.UpdateMetadataAsync(
             new BookMetadataUpdateRequest("book-1", "新书名", "   "),
             CancellationToken.None);
 
@@ -69,41 +80,19 @@ public sealed class BookManagementServiceTests
     }
 
     [Fact]
-    public async Task ClearBookCacheAsync_skips_protected_files_and_returns_actual_cleared_bytes()
+    public async Task UpdateMetadataAsync_does_not_partially_write_when_book_is_missing()
     {
         var fixture = await CreateFixtureAsync();
-        await SeedBookAsync(fixture, "book-1", title: "缓存测试", author: null);
+        await SeedBookAsync(fixture, "book-1", title: "保留书名", author: "保留作者");
 
-        var first = await fixture.Cache.StoreAsync(
-            new AudioCacheWriteRequest(
-                AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段"),
-                "book-1",
-                0,
-                0,
-                1,
-                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
-                "audio/mpeg"),
-            CancellationToken.None);
-        var second = await fixture.Cache.StoreAsync(
-            new AudioCacheWriteRequest(
-                AudioCacheKey.FromPlayback("book-1", 0, 1, 1, 10, "第二段"),
-                "book-1",
-                0,
-                1,
-                1,
-                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
-                "audio/mpeg"),
-            CancellationToken.None);
-        using var protection = fixture.ProtectionRegistry.Protect(second.FilePath);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Metadata.UpdateMetadataAsync(
+            new BookMetadataUpdateRequest("missing", "新书名", "新作者"),
+            CancellationToken.None));
 
-        var clearedBytes = await fixture.Service.ClearBookCacheAsync("book-1", CancellationToken.None);
-        var remainingDetails = await fixture.Service.GetBookDetailsAsync("book-1", CancellationToken.None);
-
-        Assert.True(clearedBytes > 0);
-        Assert.False(File.Exists(first.FilePath));
-        Assert.True(File.Exists(second.FilePath));
-        Assert.NotNull(remainingDetails);
-        Assert.True(remainingDetails!.CachedAudioBytes > 0);
+        var unchanged = await fixture.Query.GetBookDetailsHeaderAsync("book-1", CancellationToken.None);
+        Assert.NotNull(unchanged);
+        Assert.Equal("保留书名", unchanged.Title);
+        Assert.Equal("保留作者", unchanged.Author);
     }
 
     [Fact]
@@ -113,8 +102,8 @@ public sealed class BookManagementServiceTests
         var storedFilePath = await SeedBookAsync(fixture, "book-1", title: "待删除书籍", author: "作者");
         await fixture.ProgressStore.SaveAsync(new PlaybackProgressUpdate("book-1", 0, 0, 0, 120), CancellationToken.None);
 
-        var result = await fixture.Service.DeleteAsync(new BookDeleteRequest("book-1", false), CancellationToken.None);
-        var remainingDetails = await fixture.Service.GetBookDetailsAsync("book-1", CancellationToken.None);
+        var result = await fixture.Deletion.DeleteAsync(new BookDeleteRequest("book-1", false), CancellationToken.None);
+        var remainingDetails = await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None);
         var remainingProgress = await fixture.ProgressStore.GetAsync("book-1", CancellationToken.None);
 
         Assert.NotNull(result);
@@ -149,10 +138,10 @@ public sealed class BookManagementServiceTests
         }
 
         await Assert.ThrowsAsync<SqliteException>(() =>
-            fixture.Service.DeleteAsync(new BookDeleteRequest("book-1", false), CancellationToken.None));
+            fixture.Deletion.DeleteAsync(new BookDeleteRequest("book-1", false), CancellationToken.None));
 
         Assert.True(File.Exists(storedFilePath));
-        Assert.NotNull(await fixture.Service.GetBookDetailsAsync("book-1", CancellationToken.None));
+        Assert.NotNull(await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None));
     }
 
     [Fact]
@@ -172,14 +161,14 @@ public sealed class BookManagementServiceTests
             CancellationToken.None);
         using var protection = fixture.ProtectionRegistry.Protect(cacheEntry.FilePath);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.DeleteAsync(
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Deletion.DeleteAsync(
             new BookDeleteRequest("book-1", true),
             CancellationToken.None));
 
         Assert.True(File.Exists(storedFilePath));
         Assert.True(File.Exists(cacheEntry.FilePath));
         Assert.NotNull(await fixture.Cache.TryGetAsync(cacheEntry.Key, CancellationToken.None));
-        Assert.NotNull(await fixture.Service.GetBookDetailsAsync("book-1", CancellationToken.None));
+        Assert.NotNull(await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None));
     }
 
     private static async Task<TestFixture> CreateFixtureAsync()
@@ -200,8 +189,10 @@ public sealed class BookManagementServiceTests
             new FixedAudioCacheLimitProvider(AppSettings.DefaultCacheLimitBytes),
             protectionRegistry);
         var progressStore = new SqliteReadingProgressStore(factory);
-        var service = new BookManagementService(factory, directories, cache, protectionRegistry);
-        return new TestFixture(directories, factory, cache, progressStore, protectionRegistry, service);
+        var query = new BookLibraryQuery(factory);
+        var metadata = new BookMetadataUpdateService(factory);
+        var deletion = new BookDeletionService(factory, directories, protectionRegistry);
+        return new TestFixture(directories, factory, cache, progressStore, protectionRegistry, query, metadata, deletion);
     }
 
     private static async Task<string> SeedBookAsync(TestFixture fixture, string bookId, string title, string? author)
@@ -249,7 +240,9 @@ public sealed class BookManagementServiceTests
         SqliteAudioCache Cache,
         SqliteReadingProgressStore ProgressStore,
         AudioCacheProtectionRegistry ProtectionRegistry,
-        BookManagementService Service);
+        BookLibraryQuery Query,
+        BookMetadataUpdateService Metadata,
+        BookDeletionService Deletion);
 
     private sealed class FixedAudioCacheLimitProvider : IAudioCacheLimitProvider
     {

@@ -6,6 +6,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Infrastructure.Books;
 using NovelSpeaker.Infrastructure.Persistence;
+using NovelSpeaker.Infrastructure.Persistence.Books;
 using NovelSpeaker.Infrastructure.Playback;
 using NovelSpeaker.Infrastructure.Speech.Rules;
 
@@ -24,8 +25,9 @@ public static class PersistenceRegistration
         services.TryAddSingleton<IRegexReplacementRuleErrorStore, RegexReplacementRuleErrorStore>();
         services.TryAddSingleton<ITtsRuleRepository, TtsRuleRepository>();
         services.TryAddSingleton<IBookImportRepository, BookImportRepository>();
-        services.TryAddSingleton<IBookCatalogService, BookCatalogService>();
-        services.TryAddSingleton<IBookManagementService, BookManagementService>();
+        services.TryAddSingleton<IBookLibraryQuery, BookLibraryQuery>();
+        services.TryAddSingleton<IBookMetadataUpdateService, BookMetadataUpdateService>();
+        services.TryAddSingleton<IBookDeletionService, BookDeletionService>();
         services.TryAddSingleton<IReadingProgressStore, SqliteReadingProgressStore>();
         services.TryAddSingleton<DefaultChapterRuleSeeder>();
         services.TryAddSingleton<IDatabaseInitializer, StartupDatabaseInitializer>();

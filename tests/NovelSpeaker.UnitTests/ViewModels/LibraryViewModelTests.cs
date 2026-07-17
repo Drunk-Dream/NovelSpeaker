@@ -352,7 +352,7 @@ public sealed class LibraryViewModelTests
         return filePath;
     }
 
-    private sealed class FakeBookCatalogService : IBookCatalogService
+    private sealed class FakeBookCatalogService : IBookLibraryQuery
     {
         public FakeBookCatalogService(IReadOnlyList<BookSummary> books)
         {
@@ -365,6 +365,12 @@ public sealed class LibraryViewModelTests
         {
             return Task.FromResult(Books);
         }
+
+        public Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
     }
 
     private sealed class FakeLibraryImportCoordinator : ILibraryImportCoordinator
@@ -402,29 +408,9 @@ public sealed class LibraryViewModelTests
         }
     }
 
-    private sealed class FakeBookManagementService : IBookManagementService
+    private sealed class FakeBookManagementService : IBookDeletionService
     {
         public List<BookDeleteRequest> Requests { get; } = [];
-
-        public Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<BookDetails> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<long> ClearBookCacheAsync(string bookId, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
 
         public Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)
         {
