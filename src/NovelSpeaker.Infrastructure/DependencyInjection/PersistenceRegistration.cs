@@ -4,7 +4,6 @@ using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Speech;
-using NovelSpeaker.Infrastructure.Books;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
 using NovelSpeaker.Infrastructure.Playback;
@@ -22,7 +21,6 @@ public static class PersistenceRegistration
         services.TryAddSingleton<SqliteMigrationRunner>();
         services.TryAddSingleton<IChapterRuleRepository, ChapterRuleRepository>();
         services.TryAddSingleton<IRegexReplacementRuleRepository, RegexReplacementRuleRepository>();
-        services.TryAddSingleton<IRegexReplacementRuleErrorStore, RegexReplacementRuleErrorStore>();
         services.TryAddSingleton<ITtsRuleRepository, TtsRuleRepository>();
         services.TryAddSingleton<IBookImportRepository, BookImportRepository>();
         services.TryAddSingleton<IBookLibraryQuery, BookLibraryQuery>();

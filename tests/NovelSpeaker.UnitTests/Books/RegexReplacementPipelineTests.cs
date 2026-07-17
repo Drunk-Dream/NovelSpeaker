@@ -1,6 +1,6 @@
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Books.TextProcessing;
 using NovelSpeaker.Domain.Books;
-using NovelSpeaker.Infrastructure.Books;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Books;
@@ -12,7 +12,7 @@ public sealed class RegexReplacementPipelineTests
     {
         var displayId = Guid.NewGuid();
         var bothId = Guid.NewGuid();
-        var pipeline = new RegexReplacementPipeline(new FakeRepository(
+        var pipeline = CreatePipeline(new FakeRepository(
         [
             Rule(displayId, 10, "a", "b", RegexReplacementScope.Display),
             Rule(bothId, 20, "b", "c", RegexReplacementScope.Both),
@@ -31,7 +31,7 @@ public sealed class RegexReplacementPipelineTests
     [Fact]
     public async Task ApplyAsync_filters_only_segments_where_both_projections_are_empty_and_reindexes_runtime_list()
     {
-        var pipeline = new RegexReplacementPipeline(new FakeRepository(
+        var pipeline = CreatePipeline(new FakeRepository(
         [Rule(Guid.NewGuid(), 10, "skip", "", RegexReplacementScope.Both)]));
 
         var result = await pipeline.ApplyAsync(
@@ -50,7 +50,7 @@ public sealed class RegexReplacementPipelineTests
     public async Task ApplyAsync_skips_malformed_historical_rule_without_exposing_source_text()
     {
         var id = Guid.NewGuid();
-        var pipeline = new RegexReplacementPipeline(new FakeRepository([Rule(id, 10, "[", "", RegexReplacementScope.Both)]));
+        var pipeline = CreatePipeline(new FakeRepository([Rule(id, 10, "[", "", RegexReplacementScope.Both)]));
 
         var result = await pipeline.ApplyAsync([new SpeechSegment(0, 0, 6, "秘密正文", "秘密正文")], CancellationToken.None);
 
@@ -62,7 +62,7 @@ public sealed class RegexReplacementPipelineTests
     [Fact]
     public async Task ApplyAsync_keeps_single_projection_empty_so_the_consumer_can_skip_or_hide_it()
     {
-        var pipeline = new RegexReplacementPipeline(new FakeRepository(
+        var pipeline = CreatePipeline(new FakeRepository(
         [
             Rule(Guid.NewGuid(), 10, "隐藏", string.Empty, RegexReplacementScope.Display),
             Rule(Guid.NewGuid(), 20, "静音", string.Empty, RegexReplacementScope.Speech)
@@ -97,8 +97,30 @@ public sealed class RegexReplacementPipelineTests
         Assert.DoesNotContain("正文", message);
     }
 
+    [Fact]
+    public async Task ApplyAsync_propagates_cancellation_without_replacing_current_errors()
+    {
+        var errorStore = new RegexReplacementRuleErrorStore();
+        var existingError = new Dictionary<Guid, string> { [Guid.NewGuid()] = "existing" };
+        errorStore.Replace(existingError);
+        var pipeline = new RegexReplacementPipeline(new FakeRepository([]), errorStore);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pipeline.ApplyAsync(
+            [new SpeechSegment(0, 0, 1, "a", "a")],
+            cancellation.Token));
+
+        Assert.Equal(existingError, errorStore.Current);
+    }
+
     private static RegexReplacementRule Rule(Guid id, int order, string pattern, string replacement, RegexReplacementScope scope) =>
         new(id, id.ToString(), true, order, pattern, replacement, scope, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+
+    private static RegexReplacementPipeline CreatePipeline(IRegexReplacementRuleRepository repository)
+    {
+        return new RegexReplacementPipeline(repository, new RegexReplacementRuleErrorStore());
+    }
 
     private sealed class FakeRepository : IRegexReplacementRuleRepository
     {

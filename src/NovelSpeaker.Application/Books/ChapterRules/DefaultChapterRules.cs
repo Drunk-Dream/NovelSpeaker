@@ -1,12 +1,14 @@
-namespace NovelSpeaker.Infrastructure.Books;
+namespace NovelSpeaker.Application.Books.ChapterRules;
 
-internal sealed record DefaultChapterRuleDefinition(
+/// <summary>Describes one stable built-in chapter rule used by persistence compatibility.</summary>
+public sealed record DefaultChapterRuleDefinition(
     string Id,
     string Name,
     string Pattern,
     int SortOrder);
 
-internal static class DefaultChapterRules
+/// <summary>Provides the stable built-in chapter-rule identities and definitions.</summary>
+public static class DefaultChapterRules
 {
     public static IReadOnlyList<DefaultChapterRuleDefinition> All { get; } =
     [

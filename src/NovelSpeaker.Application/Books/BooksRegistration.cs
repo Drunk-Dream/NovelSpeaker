@@ -1,4 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using NovelSpeaker.Application.Books.ChapterRules;
+using NovelSpeaker.Application.Books.TextProcessing;
 
 namespace NovelSpeaker.Application.Books;
 
@@ -10,6 +13,13 @@ public static class BooksRegistration
     public static IServiceCollection AddNovelSpeakerBooksApplication(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddSingleton<IChapterRuleManagementService, ChapterRuleManagementService>();
+        services.TryAddSingleton<IChapterRuleWorkspaceService, ChapterRuleWorkspaceService>();
+        services.TryAddSingleton<IRegexReplacementRuleErrorStore, RegexReplacementRuleErrorStore>();
+        services.TryAddSingleton<IRegexReplacementRuleWorkspaceService, RegexReplacementRuleWorkspaceService>();
+        services.TryAddSingleton<IRegexReplacementPipeline, RegexReplacementPipeline>();
+
         return services;
     }
 }

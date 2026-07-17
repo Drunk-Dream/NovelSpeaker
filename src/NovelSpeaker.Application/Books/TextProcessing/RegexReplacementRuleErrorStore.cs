@@ -1,9 +1,8 @@
 using System.Collections.Concurrent;
-using NovelSpeaker.Application.Books;
 
-namespace NovelSpeaker.Infrastructure.Books;
+namespace NovelSpeaker.Application.Books.TextProcessing;
 
-/// <summary>Thread-safe in-memory projection of safe regex execution errors for the workspace.</summary>
+/// <summary>Owns the process-local projection of safe regex execution errors.</summary>
 public sealed class RegexReplacementRuleErrorStore : IRegexReplacementRuleErrorStore
 {
     private readonly ConcurrentDictionary<Guid, string> _errors = [];

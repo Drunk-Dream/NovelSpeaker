@@ -1,6 +1,6 @@
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Books.ChapterRules;
 using NovelSpeaker.Domain.Books;
-using NovelSpeaker.Infrastructure.Books;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 using Xunit;
@@ -71,6 +71,6 @@ public sealed class ChapterRuleManagementServiceTests
         var seeder = new DefaultChapterRuleSeeder(repository);
         var initializer = new StartupDatabaseInitializer(directories, runner, seeder);
         await initializer.InitializeAsync(CancellationToken.None);
-        return (repository, new ChapterRuleManagementService(repository));
+        return (repository, new ChapterRuleManagementService(repository, TimeProvider.System));
     }
 }

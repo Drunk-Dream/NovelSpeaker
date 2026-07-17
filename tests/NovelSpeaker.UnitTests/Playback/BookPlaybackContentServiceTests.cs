@@ -20,7 +20,8 @@ public sealed class BookPlaybackContentServiceTests
             new DelayedSqliteConnectionFactory(database.ConnectionString),
             new BookContentReader(),
             new Infrastructure.Books.Parsing.TextSegmenter(),
-            new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default));
+            new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
+            new PassthroughRegexReplacementPipeline());
 
         var previousContext = SynchronizationContext.Current;
         var trackingContext = new TrackingSynchronizationContext();
@@ -53,7 +54,8 @@ public sealed class BookPlaybackContentServiceTests
             new DelayedSqliteConnectionFactory(database.ConnectionString),
             new BookContentReader(),
             new Infrastructure.Books.Parsing.TextSegmenter(),
-            new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default));
+            new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
+            new PassthroughRegexReplacementPipeline());
 
         var chapter = await service.GetChapterAsync("book-1", 0, CancellationToken.None);
 
@@ -153,6 +155,19 @@ public sealed class BookPlaybackContentServiceTests
         }
 
         public TextSegmentationOptions GetCurrent() => _options;
+    }
+
+    private sealed class PassthroughRegexReplacementPipeline : IRegexReplacementPipeline
+    {
+        public Task<RegexReplacementPipelineResult> ApplyAsync(
+            IReadOnlyList<SpeechSegment> sourceSegments,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new RegexReplacementPipelineResult(
+                sourceSegments,
+                new Dictionary<Guid, string>()));
+        }
     }
 
     private sealed class TrackingSynchronizationContext : SynchronizationContext

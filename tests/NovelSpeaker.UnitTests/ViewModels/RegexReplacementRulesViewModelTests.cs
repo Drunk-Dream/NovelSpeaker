@@ -78,6 +78,30 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal("保存正则替换规则失败", fixture.Feedback.LastProjectedTitle);
     }
 
+    [Fact]
+    public async Task SaveAsync_refreshes_playback_when_execution_fields_change()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Save);
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        fixture.ViewModel.DraftReplacement = "新替换";
+
+        await fixture.ViewModel.SaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, fixture.Playback.RegexRefreshCount);
+    }
+
+    [Fact]
+    public async Task SaveAsync_does_not_refresh_playback_when_only_name_changes()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Save);
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        fixture.ViewModel.DraftName = "新名称";
+
+        await fixture.ViewModel.SaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, fixture.Playback.RegexRefreshCount);
+    }
+
     private static TestFixture CreateFixture(UnsavedChangesDecision decision)
     {
         var firstRuleId = Guid.NewGuid();
@@ -86,19 +110,21 @@ public sealed class RegexReplacementRulesViewModelTests
             new RegexReplacementRuleEditorModel(firstRuleId, "规则一", "一", "甲", RegexReplacementScope.Both),
             new RegexReplacementRuleEditorModel(secondRuleId, "规则二", "二", "乙", RegexReplacementScope.Display));
         var feedback = new FakeFeedbackService();
+        var playback = new FakePlaybackCoordinator();
         var viewModel = new RegexReplacementRulesViewModel(
             workspace,
-            new FakePlaybackCoordinator(),
+            playback,
             feedback,
             new FakeDialogService(decision),
             new FakeNavigationService());
-        return new TestFixture(viewModel, workspace, feedback, firstRuleId, secondRuleId);
+        return new TestFixture(viewModel, workspace, feedback, playback, firstRuleId, secondRuleId);
     }
 
     private sealed record TestFixture(
         RegexReplacementRulesViewModel ViewModel,
         FakeRegexReplacementRuleWorkspaceService Workspace,
         FakeFeedbackService Feedback,
+        FakePlaybackCoordinator Playback,
         Guid FirstRuleId,
         Guid SecondRuleId);
 
@@ -225,6 +251,8 @@ public sealed class RegexReplacementRulesViewModelTests
 
     private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
     {
+        public int RegexRefreshCount { get; private set; }
+
         public PlaybackSnapshot CurrentSnapshot => PlaybackSnapshot.Idle;
 
         public event EventHandler<PlaybackSnapshot>? SnapshotChanged
@@ -250,7 +278,11 @@ public sealed class RegexReplacementRulesViewModelTests
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken)
+        {
+            RegexRefreshCount++;
+            return Task.CompletedTask;
+        }
         public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

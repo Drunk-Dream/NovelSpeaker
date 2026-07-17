@@ -1,8 +1,8 @@
-using NovelSpeaker.Application.Books;
-using NovelSpeaker.Application.Abstractions;
-using NovelSpeaker.Domain.Books;
-using NovelSpeaker.Infrastructure.Books;
 using Microsoft.Data.Sqlite;
+using NovelSpeaker.Application.Abstractions;
+using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Books.ChapterRules;
+using NovelSpeaker.Domain.Books;
 
 namespace NovelSpeaker.Infrastructure.Persistence;
 

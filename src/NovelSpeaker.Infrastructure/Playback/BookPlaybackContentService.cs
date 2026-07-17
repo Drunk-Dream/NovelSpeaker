@@ -13,14 +13,14 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
     private readonly IBookContentReader _bookContentReader;
     private readonly ITextSegmenter _textSegmenter;
     private readonly ITextSegmentationOptionsProvider _optionsProvider;
-    private readonly IRegexReplacementPipeline? _regexReplacementPipeline;
+    private readonly IRegexReplacementPipeline _regexReplacementPipeline;
 
     public BookPlaybackContentService(
         ISqliteConnectionFactory connectionFactory,
         IBookContentReader bookContentReader,
         ITextSegmenter textSegmenter,
         ITextSegmentationOptionsProvider optionsProvider,
-        IRegexReplacementPipeline? regexReplacementPipeline = null)
+        IRegexReplacementPipeline regexReplacementPipeline)
     {
         _connectionFactory = connectionFactory;
         _bookContentReader = bookContentReader;
@@ -124,9 +124,9 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
             return _textSegmenter.Segment(chapterText, options);
         }, cancellationToken).ConfigureAwait(false);
 
-        var replaced = _regexReplacementPipeline is null
-            ? new RegexReplacementPipelineResult(segments, new Dictionary<Guid, string>())
-            : await _regexReplacementPipeline.ApplyAsync(segments, cancellationToken).ConfigureAwait(false);
+        var replaced = await _regexReplacementPipeline
+            .ApplyAsync(segments, cancellationToken)
+            .ConfigureAwait(false);
         return new PlaybackChapterContent(
             resolvedChapterIndex,
             title,

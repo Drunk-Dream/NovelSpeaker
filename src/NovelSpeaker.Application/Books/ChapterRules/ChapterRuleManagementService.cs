@@ -1,20 +1,17 @@
-using NovelSpeaker.Application.Books;
 using NovelSpeaker.Domain.Books;
 
-namespace NovelSpeaker.Infrastructure.Books;
+namespace NovelSpeaker.Application.Books.ChapterRules;
 
-/// <summary>
-/// Provides previews and application of built-in chapter-rule defaults.
-/// </summary>
+/// <summary>Provides previews and application of built-in chapter-rule defaults.</summary>
 public sealed class ChapterRuleManagementService : IChapterRuleManagementService
 {
     private readonly IChapterRuleRepository _repository;
     private readonly TimeProvider _timeProvider;
 
-    public ChapterRuleManagementService(IChapterRuleRepository repository, TimeProvider? timeProvider = null)
+    public ChapterRuleManagementService(IChapterRuleRepository repository, TimeProvider timeProvider)
     {
         _repository = repository;
-        _timeProvider = timeProvider ?? TimeProvider.System;
+        _timeProvider = timeProvider;
     }
 
     public async Task<ChapterRuleDefaultsPreview> PreviewDefaultsAsync(
@@ -55,41 +52,40 @@ public sealed class ChapterRuleManagementService : IChapterRuleManagementService
         ChapterRuleDefaultsMode mode,
         IReadOnlyList<ChapterRule> existingRules)
     {
-        return DefaultChapterRules.All
-            .Select(definition =>
+        return DefaultChapterRules.All.Select(definition =>
+        {
+            var existing = existingRules.FirstOrDefault(rule =>
+                string.Equals(rule.Id, definition.Id, StringComparison.Ordinal));
+            if (existing is null)
             {
-                var existing = existingRules.FirstOrDefault(rule => string.Equals(rule.Id, definition.Id, StringComparison.Ordinal));
-                if (existing is null)
-                {
-                    return new ChapterRuleChangeSummary(
-                        definition.Id,
-                        definition.Name,
-                        definition.Pattern,
-                        definition.SortOrder,
-                        ChapterRuleChangeKind.Added);
-                }
-
-                var needsUpdate = mode switch
-                {
-                    ChapterRuleDefaultsMode.ImportDefaults =>
-                        !string.Equals(existing.Name, definition.Name, StringComparison.Ordinal) ||
-                        !string.Equals(existing.Pattern, definition.Pattern, StringComparison.Ordinal),
-                    ChapterRuleDefaultsMode.RestoreDefaults =>
-                        !string.Equals(existing.Name, definition.Name, StringComparison.Ordinal) ||
-                        !string.Equals(existing.Pattern, definition.Pattern, StringComparison.Ordinal) ||
-                        existing.SortOrder != definition.SortOrder ||
-                        !existing.IsEnabled,
-                    _ => false
-                };
-
                 return new ChapterRuleChangeSummary(
                     definition.Id,
                     definition.Name,
                     definition.Pattern,
                     definition.SortOrder,
-                    needsUpdate ? ChapterRuleChangeKind.Updated : ChapterRuleChangeKind.Unchanged);
-            })
-            .ToArray();
+                    ChapterRuleChangeKind.Added);
+            }
+
+            var needsUpdate = mode switch
+            {
+                ChapterRuleDefaultsMode.ImportDefaults =>
+                    !string.Equals(existing.Name, definition.Name, StringComparison.Ordinal) ||
+                    !string.Equals(existing.Pattern, definition.Pattern, StringComparison.Ordinal),
+                ChapterRuleDefaultsMode.RestoreDefaults =>
+                    !string.Equals(existing.Name, definition.Name, StringComparison.Ordinal) ||
+                    !string.Equals(existing.Pattern, definition.Pattern, StringComparison.Ordinal) ||
+                    existing.SortOrder != definition.SortOrder ||
+                    !existing.IsEnabled,
+                _ => false
+            };
+
+            return new ChapterRuleChangeSummary(
+                definition.Id,
+                definition.Name,
+                definition.Pattern,
+                definition.SortOrder,
+                needsUpdate ? ChapterRuleChangeKind.Updated : ChapterRuleChangeKind.Unchanged);
+        }).ToArray();
     }
 
     private async Task RestoreDefaultsAsync(
@@ -98,7 +94,9 @@ public sealed class ChapterRuleManagementService : IChapterRuleManagementService
     {
         foreach (var definition in DefaultChapterRules.All)
         {
-            var existing = existingRules.FirstOrDefault(rule => string.Equals(rule.Id, definition.Id, StringComparison.Ordinal));
+            cancellationToken.ThrowIfCancellationRequested();
+            var existing = existingRules.FirstOrDefault(rule =>
+                string.Equals(rule.Id, definition.Id, StringComparison.Ordinal));
             var utcNow = _timeProvider.GetUtcNow();
             await _repository.SaveAsync(new ChapterRule(
                 definition.Id,

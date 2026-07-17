@@ -15,10 +15,6 @@ public static class BooksRegistration
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<ITextSegmenter, TextSegmenter>();
-        services.TryAddSingleton<IChapterRuleManagementService, ChapterRuleManagementService>();
-        services.TryAddSingleton<IChapterRuleWorkspaceService, ChapterRuleWorkspaceService>();
-        services.TryAddSingleton<IRegexReplacementRuleWorkspaceService, RegexReplacementRuleWorkspaceService>();
-        services.TryAddSingleton<IRegexReplacementPipeline, RegexReplacementPipeline>();
         services.TryAddSingleton<IBookDuplicateDetector, BookDuplicateDetector>();
         services.TryAddSingleton<IDirectBookImportService, DirectBookImportService>();
 

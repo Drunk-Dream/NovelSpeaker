@@ -1,6 +1,6 @@
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Books.ChapterRules;
 using NovelSpeaker.Domain.Books;
-using NovelSpeaker.Infrastructure.Books;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Books;
@@ -14,7 +14,10 @@ public sealed class ChapterRuleWorkspaceServiceTests
         [
             new ChapterRule("custom:existing", "新建规则", @"^\s*旧规则$", 10, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
         ]);
-        var service = new ChapterRuleWorkspaceService(repository, new FakeChapterRuleManagementService());
+        var service = new ChapterRuleWorkspaceService(
+            repository,
+            new FakeChapterRuleManagementService(),
+            TimeProvider.System);
 
         var saved = await service.SaveEditorAsync(
             new ChapterRuleEditorModel(null, "新建规则", @"^\s*新规则$", false, true),
@@ -29,7 +32,8 @@ public sealed class ChapterRuleWorkspaceServiceTests
     {
         var service = new ChapterRuleWorkspaceService(
             new FakeChapterRuleRepository([]),
-            new FakeChapterRuleManagementService());
+            new FakeChapterRuleManagementService(),
+            TimeProvider.System);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.SaveEditorAsync(
             new ChapterRuleEditorModel(null, "规则", "[", false, true),
@@ -43,7 +47,8 @@ public sealed class ChapterRuleWorkspaceServiceTests
     {
         var service = new ChapterRuleWorkspaceService(
             new FakeChapterRuleRepository([]),
-            new FakeChapterRuleManagementService());
+            new FakeChapterRuleManagementService(),
+            TimeProvider.System);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.DeleteRuleAsync(
             "builtin:chapter-number",
@@ -59,7 +64,10 @@ public sealed class ChapterRuleWorkspaceServiceTests
             new ChapterRule("b", "B", @"^B$", 200, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
             new ChapterRule("c", "C", @"^C$", 300, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
         ]);
-        var service = new ChapterRuleWorkspaceService(repository, new FakeChapterRuleManagementService());
+        var service = new ChapterRuleWorkspaceService(
+            repository,
+            new FakeChapterRuleManagementService(),
+            TimeProvider.System);
 
         await service.SaveOrderAsync(["c", "a", "b"], CancellationToken.None);
 
@@ -79,7 +87,10 @@ public sealed class ChapterRuleWorkspaceServiceTests
         [
             new ChapterRule("custom:one", "规则一", @"^\s*一$", 70, false, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
         ]);
-        var service = new ChapterRuleWorkspaceService(repository, new FakeChapterRuleManagementService());
+        var service = new ChapterRuleWorkspaceService(
+            repository,
+            new FakeChapterRuleManagementService(),
+            TimeProvider.System);
 
         var saved = await service.SaveEditorAsync(
             new ChapterRuleEditorModel("custom:one", "规则一-已改", @"^\s*已改$", false, true),
