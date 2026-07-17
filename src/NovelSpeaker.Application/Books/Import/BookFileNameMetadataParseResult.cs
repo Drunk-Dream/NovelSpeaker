@@ -1,7 +1,7 @@
-namespace NovelSpeaker.Infrastructure.Books;
+namespace NovelSpeaker.Application.Books.Import;
 
 /// <summary>
-/// Represents the book metadata derived from a source file name.
+/// Represents book metadata derived from a source file name.
 /// </summary>
 public sealed record BookFileNameMetadataParseResult(
     string SuggestedTitle,

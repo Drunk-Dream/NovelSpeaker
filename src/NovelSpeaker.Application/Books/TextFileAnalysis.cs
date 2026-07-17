@@ -4,6 +4,8 @@ namespace NovelSpeaker.Application.Books;
 /// Carries the decoded text and preview snippet from a TXT file.
 /// </summary>
 public sealed record TextFileAnalysis(
+    string SourceFileName,
+    string SourceNameWithoutExtension,
     string DetectedEncoding,
     string PreviewText,
     string RawText,

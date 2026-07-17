@@ -2,9 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.Infrastructure.Books;
 using NovelSpeaker.Infrastructure.Books.FileStorage;
-using NovelSpeaker.Infrastructure.Books.Parsing;
 using NovelSpeaker.Infrastructure.Books.Text;
 using NovelSpeaker.Infrastructure.FileSystem;
 
@@ -18,13 +16,9 @@ public static class FileStorageRegistration
 
         services.TryAddSingleton<IAppDataDirectoryProvider, LocalAppDataDirectoryProvider>();
         services.TryAddSingleton<ITextFileAnalyzer, TextFileAnalyzer>();
-        services.TryAddSingleton<ITextNormalizer, TextNormalizer>();
         services.TryAddSingleton<IContentHasher, Sha256ContentHasher>();
-        services.TryAddSingleton<IChapterSplitter, ChapterSplitter>();
         services.TryAddSingleton<IBookContentReader, BookContentReader>();
         services.TryAddSingleton<IBookFileStore, BookFileStore>();
-        services.TryAddSingleton<BookFileNameMetadataParser>();
-
         return services;
     }
 }

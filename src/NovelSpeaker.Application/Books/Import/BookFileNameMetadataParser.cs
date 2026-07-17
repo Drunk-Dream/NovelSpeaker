@@ -1,7 +1,7 @@
-namespace NovelSpeaker.Infrastructure.Books;
+namespace NovelSpeaker.Application.Books.Import;
 
 /// <summary>
-/// Parses a file name against a lightweight template to derive book metadata.
+/// Applies the configured file-name template without accessing the file system.
 /// </summary>
 public sealed class BookFileNameMetadataParser
 {
@@ -13,17 +13,9 @@ public sealed class BookFileNameMetadataParser
         ArgumentException.ThrowIfNullOrWhiteSpace(fileNameWithoutExtension);
         ArgumentNullException.ThrowIfNull(template);
 
-        if (template.Length == 0)
-        {
-            return CreateFallback(fileNameWithoutExtension);
-        }
-
-        if (!TryTokenize(template, out var tokens))
-        {
-            return CreateFallback(fileNameWithoutExtension);
-        }
-
-        if (!TryMatch(fileNameWithoutExtension, tokens, out var captures))
+        if (template.Length == 0 ||
+            !TryTokenize(template, out var tokens) ||
+            !TryMatch(fileNameWithoutExtension, tokens, out var captures))
         {
             return CreateFallback(fileNameWithoutExtension);
         }
@@ -35,17 +27,14 @@ public sealed class BookFileNameMetadataParser
         }
 
         captures.TryGetValue(AuthorPlaceholder, out var author);
-        var normalizedAuthor = string.IsNullOrWhiteSpace(author)
-            ? null
-            : author.Trim();
-
-        return new BookFileNameMetadataParseResult(title, normalizedAuthor, true);
+        return new BookFileNameMetadataParseResult(
+            title,
+            string.IsNullOrWhiteSpace(author) ? null : author.Trim(),
+            true);
     }
 
-    private static BookFileNameMetadataParseResult CreateFallback(string fileNameWithoutExtension)
-    {
-        return new BookFileNameMetadataParseResult(fileNameWithoutExtension, null, false);
-    }
+    private static BookFileNameMetadataParseResult CreateFallback(string fileNameWithoutExtension) =>
+        new(fileNameWithoutExtension, null, false);
 
     private static bool TryTokenize(string template, out List<TemplateToken> tokens)
     {
@@ -63,7 +52,6 @@ public sealed class BookFileNameMetadataParser
             }
 
             AddLiteralToken(template[index..openIndex], tokens);
-
             var closeIndex = template.IndexOf("}}", openIndex + 2, StringComparison.Ordinal);
             if (closeIndex < 0)
             {
@@ -71,12 +59,9 @@ public sealed class BookFileNameMetadataParser
             }
 
             var placeholderName = template[(openIndex + 2)..closeIndex].Trim();
-            if (!IsSupportedPlaceholder(placeholderName) || !placeholders.Add(placeholderName))
-            {
-                return false;
-            }
-
-            if (tokens.Count > 0 && tokens[^1].Kind == TemplateTokenKind.Placeholder)
+            if (!IsSupportedPlaceholder(placeholderName) ||
+                !placeholders.Add(placeholderName) ||
+                tokens.Count > 0 && tokens[^1].Kind == TemplateTokenKind.Placeholder)
             {
                 return false;
             }
@@ -90,12 +75,10 @@ public sealed class BookFileNameMetadataParser
 
     private static void AddLiteralToken(string value, List<TemplateToken> tokens)
     {
-        if (value.Length == 0)
+        if (value.Length > 0)
         {
-            return;
+            tokens.Add(new TemplateToken(TemplateTokenKind.Literal, value));
         }
-
-        tokens.Add(new TemplateToken(TemplateTokenKind.Literal, value));
     }
 
     private static bool TryMatch(
@@ -120,7 +103,8 @@ public sealed class BookFileNameMetadataParser
                 continue;
             }
 
-            var nextLiteral = GetNextLiteral(tokens, tokenIndex + 1);
+            var nextLiteral = tokens.Skip(tokenIndex + 1)
+                .FirstOrDefault(candidate => candidate.Kind == TemplateTokenKind.Literal)?.Value;
             if (nextLiteral is null)
             {
                 captures[token.Value] = fileNameWithoutExtension[index..];
@@ -141,24 +125,9 @@ public sealed class BookFileNameMetadataParser
         return index == fileNameWithoutExtension.Length;
     }
 
-    private static string? GetNextLiteral(IReadOnlyList<TemplateToken> tokens, int startIndex)
-    {
-        for (var index = startIndex; index < tokens.Count; index++)
-        {
-            if (tokens[index].Kind == TemplateTokenKind.Literal)
-            {
-                return tokens[index].Value;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool IsSupportedPlaceholder(string value)
-    {
-        return string.Equals(value, NamePlaceholder, StringComparison.Ordinal) ||
-            string.Equals(value, AuthorPlaceholder, StringComparison.Ordinal);
-    }
+    private static bool IsSupportedPlaceholder(string value) =>
+        string.Equals(value, NamePlaceholder, StringComparison.Ordinal) ||
+        string.Equals(value, AuthorPlaceholder, StringComparison.Ordinal);
 
     private enum TemplateTokenKind
     {

@@ -1,11 +1,10 @@
 using System.Text.RegularExpressions;
-using NovelSpeaker.Application.Books;
 using NovelSpeaker.Domain.Books;
 
-namespace NovelSpeaker.Infrastructure.Books.Parsing;
+namespace NovelSpeaker.Application.Books.Import;
 
 /// <summary>
-/// Matches title lines with ordered rules and builds persisted chapter ranges.
+/// Matches title lines with ordered rules and creates chapter ranges over normalized text.
 /// </summary>
 public sealed class ChapterSplitter : IChapterSplitter
 {
@@ -24,7 +23,8 @@ public sealed class ChapterSplitter : IChapterSplitter
 
         foreach (var line in normalizedText.Split('\n'))
         {
-            var matchedRule = orderedRules.FirstOrDefault(rule => Regex.IsMatch(line, rule.Pattern, RegexOptions.CultureInvariant));
+            var matchedRule = orderedRules.FirstOrDefault(
+                rule => Regex.IsMatch(line, rule.Pattern, RegexOptions.CultureInvariant));
             if (matchedRule is not null)
             {
                 markers.Add((lineStart, lineStart + line.Length + 1, CleanTitle(line)));
@@ -35,15 +35,7 @@ public sealed class ChapterSplitter : IChapterSplitter
 
         if (markers.Count == 0)
         {
-            return
-            [
-                new BookImportChapter(
-                    0,
-                    0,
-                    "全文",
-                    0,
-                    normalizedText.Length)
-            ];
+            return [new BookImportChapter(0, 0, "全文", 0, normalizedText.Length)];
         }
 
         var chapters = new List<BookImportChapter>();
@@ -71,25 +63,10 @@ public sealed class ChapterSplitter : IChapterSplitter
                 contentLength));
         }
 
-        if (chapters.Count == 0)
-        {
-            return
-            [
-                new BookImportChapter(
-                    0,
-                    0,
-                    "全文",
-                    0,
-                    normalizedText.Length)
-            ];
-        }
-
-        return chapters;
+        return chapters.Count == 0
+            ? [new BookImportChapter(0, 0, "全文", 0, normalizedText.Length)]
+            : chapters;
     }
 
-    private static string CleanTitle(string title)
-    {
-        var trimmed = title.Trim();
-        return MultiWhitespace.Replace(trimmed, " ");
-    }
+    private static string CleanTitle(string title) => MultiWhitespace.Replace(title.Trim(), " ");
 }

@@ -12,5 +12,8 @@ public interface IBookFileStore
         CancellationToken cancellationToken);
 
     Task FinalizeAsync(BookFileCopyHandle copyHandle, CancellationToken cancellationToken);
-    Task CleanupAsync(BookFileCopyHandle copyHandle, bool includeFinalFile);
+    Task CleanupAsync(
+        BookFileCopyHandle copyHandle,
+        bool includeFinalFile,
+        CancellationToken cancellationToken);
 }

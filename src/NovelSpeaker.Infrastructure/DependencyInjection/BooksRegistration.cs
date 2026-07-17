@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.Infrastructure.Books;
 using NovelSpeaker.Infrastructure.Books.Parsing;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
@@ -16,8 +15,6 @@ public static class BooksRegistration
 
         services.TryAddSingleton<ITextSegmenter, TextSegmenter>();
         services.TryAddSingleton<IBookDuplicateDetector, BookDuplicateDetector>();
-        services.TryAddSingleton<IDirectBookImportService, DirectBookImportService>();
-
         return services;
     }
 }

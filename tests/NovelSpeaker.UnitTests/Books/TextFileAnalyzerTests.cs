@@ -3,7 +3,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Infrastructure.Books.Text;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Books;
+namespace NovelSpeaker.InfrastructureTests.Books.Import;
 
 public sealed class TextFileAnalyzerTests
 {

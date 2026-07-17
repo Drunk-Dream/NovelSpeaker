@@ -1,7 +1,7 @@
-using NovelSpeaker.Infrastructure.Books;
+using NovelSpeaker.Application.Books.Import;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Books;
+namespace NovelSpeaker.ApplicationTests.Books.Import;
 
 public sealed class BookFileNameMetadataParserTests
 {

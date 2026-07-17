@@ -48,7 +48,7 @@ public sealed class LibraryImportCoordinator : ILibraryImportCoordinator
             cancellationToken.ThrowIfCancellationRequested();
 
             var result = await _directBookImportService.ImportAsync(
-                new DirectBookImportRequest(filePath, selectedEncoding),
+                new DirectBookImportRequest(filePath, selectedEncoding, Path.GetFileName(filePath)),
                 progress,
                 cancellationToken);
 

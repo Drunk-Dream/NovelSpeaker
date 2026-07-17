@@ -5,4 +5,5 @@ namespace NovelSpeaker.Application.Books;
 /// </summary>
 public sealed record DirectBookImportRequest(
     string FilePath,
-    string? EncodingOverride);
+    string? EncodingOverride,
+    string SourceFileName);

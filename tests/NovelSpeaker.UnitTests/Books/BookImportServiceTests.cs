@@ -1,10 +1,11 @@
+using System.Text;
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Books.Import;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
-using NovelSpeaker.Infrastructure.Books;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Books;
+namespace NovelSpeaker.ApplicationTests.Books.Import;
 
 public sealed class BookImportServiceTests
 {
@@ -17,7 +18,7 @@ public sealed class BookImportServiceTests
             duplicates: new FakeDuplicateDetector("book-42"),
             splitter: new FakeChapterSplitter([new BookImportChapter(0, 0, "第一章 开始", 6, 2)]));
 
-        var result = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null), progress: null, CancellationToken.None);
+        var result = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), progress: null, CancellationToken.None);
 
         Assert.Equal(DirectBookImportStatus.Failed, result.Status);
         Assert.Equal(BookImportFailureReason.DuplicateBook, result.FailureReason);
@@ -28,6 +29,8 @@ public sealed class BookImportServiceTests
     {
         var service = CreateService(
             analyzer: new FakeTextFileAnalyzer(new TextFileAnalysis(
+                "demo.txt",
+                "demo",
                 "gb18030",
                 "preview",
                 "第一章 开始\n正文",
@@ -36,11 +39,25 @@ public sealed class BookImportServiceTests
                 LowConfidenceReason.FallbackEncoding)),
             splitter: new FakeChapterSplitter([new BookImportChapter(0, 0, "第一章 开始", 6, 2)]));
 
-        var result = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null), progress: null, CancellationToken.None);
+        var result = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), progress: null, CancellationToken.None);
 
         Assert.Equal(DirectBookImportStatus.RequiresEncodingSelection, result.Status);
         Assert.NotNull(result.EncodingSelectionPrompt);
         Assert.Equal("gb18030", result.EncodingSelectionPrompt!.DefaultEncoding);
+    }
+
+    [Fact]
+    public async Task ImportAsync_returns_encoding_selection_with_source_name_when_detection_fails()
+    {
+        var service = CreateService(analyzer: new DecoderFailingTextFileAnalyzer());
+
+        var result = await service.ImportAsync(
+            new DirectBookImportRequest("external.txt", null, "external.txt"),
+            progress: null,
+            CancellationToken.None);
+
+        Assert.Equal(DirectBookImportStatus.RequiresEncodingSelection, result.Status);
+        Assert.Equal("external.txt", result.EncodingSelectionPrompt?.FileName);
     }
 
     [Fact]
@@ -53,7 +70,7 @@ public sealed class BookImportServiceTests
             repository: repository,
             splitter: new FakeChapterSplitter([new BookImportChapter(0, 42, "全文", 0, 2)]));
 
-        var result = await service.ImportAsync(new DirectBookImportRequest("demo.txt", "utf-16le"), progress: null, CancellationToken.None);
+        var result = await service.ImportAsync(new DirectBookImportRequest("demo.txt", "utf-16le", "demo.txt"), progress: null, CancellationToken.None);
 
         Assert.Equal("utf-16le", analyzer.LastRequest?.EncodingOverride);
         Assert.Equal(DirectBookImportStatus.Imported, result.Status);
@@ -66,11 +83,14 @@ public sealed class BookImportServiceTests
     {
         var repository = new CapturingBookImportRepository();
         var service = CreateService(
+            analyzer: new FakeTextFileAnalyzer(CreateAnalysis(
+                "utf-8",
+                sourceFileName: "信息全知者 作者：魔性沧月.txt")),
             repository: repository,
             splitter: new FakeChapterSplitter([new BookImportChapter(0, 0, "全文", 0, 2)]));
 
         var result = await service.ImportAsync(
-            new DirectBookImportRequest("信息全知者 作者：魔性沧月.txt", null),
+            new DirectBookImportRequest("信息全知者 作者：魔性沧月.txt", null, "信息全知者 作者：魔性沧月.txt"),
             progress: null,
             CancellationToken.None);
 
@@ -90,11 +110,12 @@ public sealed class BookImportServiceTests
             splitter: new FakeChapterSplitter([new BookImportChapter(0, 0, "全文", 0, 2)]));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.ImportAsync(new DirectBookImportRequest("demo.txt", null), progress: null, CancellationToken.None));
+            service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), progress: null, CancellationToken.None));
 
         Assert.True(fileStore.FinalizeCalled);
         Assert.True(fileStore.CleanupCalled);
         Assert.True(fileStore.CleanupIncludedFinalFile);
+        Assert.False(fileStore.CleanupCancellationToken.CanBeCanceled);
     }
 
     [Fact]
@@ -111,7 +132,7 @@ public sealed class BookImportServiceTests
             splitter: new FakeChapterSplitter([new BookImportChapter(0, 0, "全文", 0, 2)]));
 
         var result = await service.ImportAsync(
-            new DirectBookImportRequest("external-source.txt", null),
+            new DirectBookImportRequest("external-source.txt", null, "external-source.txt"),
             progress: null,
             CancellationToken.None);
 
@@ -123,15 +144,74 @@ public sealed class BookImportServiceTests
         Assert.Null(repository.SavedBook);
     }
 
+    [Fact]
+    public async Task ImportAsync_uses_injected_time_and_identifier_sequence()
+    {
+        var repository = new CapturingBookImportRepository();
+        var now = new DateTimeOffset(2026, 7, 17, 10, 30, 0, TimeSpan.Zero);
+        var service = CreateService(
+            repository: repository,
+            splitter: new FakeChapterSplitter(
+            [
+                new BookImportChapter(0, 0, "第一章", 0, 2),
+                new BookImportChapter(1, 1, "第二章", 2, 2)
+            ]),
+            timeProvider: new FixedTimeProvider(now),
+            idGenerator: new SequenceBookImportIdGenerator("book-fixed", "chapter-1", "chapter-2"));
+
+        var result = await service.ImportAsync(
+            new DirectBookImportRequest("demo.txt", null, "demo.txt"),
+            progress: null,
+            CancellationToken.None);
+
+        Assert.Equal("book-fixed", result.ImportedBook?.BookId);
+        Assert.Equal(now, repository.SavedBook?.ImportedAt);
+        Assert.Equal(now, repository.SavedBook?.UpdatedAt);
+        Assert.Equal(now, repository.SavedBook?.LastImportedAt);
+        Assert.Equal(["chapter-1", "chapter-2"], repository.SavedChapters?.Select(chapter => chapter.Id));
+    }
+
+    [Fact]
+    public async Task ImportAsync_propagates_cancellation_from_semantic_port()
+    {
+        var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var service = CreateService(analyzer: new CancelingTextFileAnalyzer());
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), progress: null, cancellation.Token));
+    }
+
+    [Fact]
+    public async Task ImportAsync_cleans_up_final_file_and_propagates_cancellation_during_commit()
+    {
+        var cancellation = new CancellationTokenSource();
+        var fileStore = new FakeBookFileStore();
+        var service = CreateService(
+            fileStore: fileStore,
+            repository: new CancelingBookImportRepository(cancellation),
+            splitter: new FakeChapterSplitter([new BookImportChapter(0, 0, "全文", 0, 2)]));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), progress: null, cancellation.Token));
+
+        Assert.True(fileStore.FinalizeCalled);
+        Assert.True(fileStore.CleanupCalled);
+        Assert.True(fileStore.CleanupIncludedFinalFile);
+        Assert.False(fileStore.CleanupCancellationToken.CanBeCanceled);
+    }
+
     private static DirectBookImportService CreateService(
-        FakeTextFileAnalyzer? analyzer = null,
+        ITextFileAnalyzer? analyzer = null,
         FakeTextNormalizer? normalizer = null,
         FakeContentHasher? hasher = null,
         FakeDuplicateDetector? duplicates = null,
         FakeChapterRuleRepository? rules = null,
         FakeChapterSplitter? splitter = null,
         FakeBookFileStore? fileStore = null,
-        IBookImportRepository? repository = null)
+        IBookImportRepository? repository = null,
+        TimeProvider? timeProvider = null,
+        IBookImportIdGenerator? idGenerator = null)
     {
         return new DirectBookImportService(
             analyzer ?? new FakeTextFileAnalyzer(CreateAnalysis("utf-8")),
@@ -143,20 +223,55 @@ public sealed class BookImportServiceTests
             fileStore ?? new FakeBookFileStore(),
             repository ?? new FakeBookImportRepository(),
             new FakeBookFileNameTemplateProvider("{{name}} 作者：{{author}}"),
-            new BookFileNameMetadataParser());
+            new BookFileNameMetadataParser(),
+            timeProvider ?? TimeProvider.System,
+            idGenerator ?? new SequenceBookImportIdGenerator("book-id", "chapter-id"));
     }
 
     private static TextFileAnalysis CreateAnalysis(
         string encoding,
-        TextEncodingDetectionMode detectionMode = TextEncodingDetectionMode.StrictUtf8)
+        TextEncodingDetectionMode detectionMode = TextEncodingDetectionMode.StrictUtf8,
+        string sourceFileName = "demo.txt")
     {
         return new TextFileAnalysis(
+            sourceFileName,
+            sourceFileName[..^4],
             encoding,
             "preview",
             "第一章 开始\n正文",
             detectionMode,
             false,
             null);
+    }
+
+    private sealed class CancelingTextFileAnalyzer : ITextFileAnalyzer
+    {
+        public Task<TextFileAnalysis> AnalyzeAsync(
+            BookImportRequest request,
+            IProgress<BookImportProgress>? progress,
+            CancellationToken cancellationToken) => Task.FromCanceled<TextFileAnalysis>(cancellationToken);
+    }
+
+    private sealed class DecoderFailingTextFileAnalyzer : ITextFileAnalyzer
+    {
+        public Task<TextFileAnalysis> AnalyzeAsync(
+            BookImportRequest request,
+            IProgress<BookImportProgress>? progress,
+            CancellationToken cancellationToken) => throw new DecoderFallbackException();
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
+    private sealed class SequenceBookImportIdGenerator(params string[] ids) : IBookImportIdGenerator
+    {
+        private readonly Queue<string> _ids = new(ids);
+
+        public string CreateBookId() => _ids.Dequeue();
+
+        public string CreateChapterId() => _ids.Dequeue();
     }
 
     private sealed class FakeTextFileAnalyzer : ITextFileAnalyzer
@@ -261,6 +376,7 @@ public sealed class BookImportServiceTests
         public bool FinalizeCalled { get; private set; }
         public bool CleanupCalled { get; private set; }
         public bool CleanupIncludedFinalFile { get; private set; }
+        public CancellationToken CleanupCancellationToken { get; private set; }
         public Exception? FinalizeException { get; init; }
 
         public Task<BookFileCopyHandle> StageNormalizedTextAsync(
@@ -284,10 +400,14 @@ public sealed class BookImportServiceTests
             return Task.CompletedTask;
         }
 
-        public Task CleanupAsync(BookFileCopyHandle copyHandle, bool includeFinalFile)
+        public Task CleanupAsync(
+            BookFileCopyHandle copyHandle,
+            bool includeFinalFile,
+            CancellationToken cancellationToken)
         {
             CleanupCalled = true;
             CleanupIncludedFinalFile = includeFinalFile;
+            CleanupCancellationToken = cancellationToken;
             return Task.CompletedTask;
         }
     }
@@ -302,6 +422,15 @@ public sealed class BookImportServiceTests
         public Task SaveAsync(Book book, IReadOnlyList<Chapter> chapters, CancellationToken cancellationToken)
         {
             throw new InvalidOperationException("save failed");
+        }
+    }
+
+    private sealed class CancelingBookImportRepository(CancellationTokenSource cancellation) : IBookImportRepository
+    {
+        public Task SaveAsync(Book book, IReadOnlyList<Chapter> chapters, CancellationToken cancellationToken)
+        {
+            cancellation.Cancel();
+            return Task.FromCanceled(cancellationToken);
         }
     }
 

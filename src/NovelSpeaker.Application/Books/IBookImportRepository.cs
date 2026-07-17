@@ -3,7 +3,7 @@ using NovelSpeaker.Domain.Books;
 namespace NovelSpeaker.Application.Books;
 
 /// <summary>
-/// Writes imported books and chapters in one SQLite transaction.
+/// Commits an imported book and all of its chapters as one persistence operation.
 /// </summary>
 public interface IBookImportRepository
 {

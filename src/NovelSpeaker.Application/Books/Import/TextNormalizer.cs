@@ -1,10 +1,9 @@
 using System.Text;
-using NovelSpeaker.Application.Books;
 
-namespace NovelSpeaker.Infrastructure.Books.Text;
+namespace NovelSpeaker.Application.Books.Import;
 
 /// <summary>
-/// Normalizes newlines and removes unsupported control characters.
+/// Normalizes newlines and removes unsupported control characters before chapter recognition.
 /// </summary>
 public sealed class TextNormalizer : ITextNormalizer
 {

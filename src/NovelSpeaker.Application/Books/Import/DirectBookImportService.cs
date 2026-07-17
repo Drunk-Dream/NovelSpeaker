@@ -1,12 +1,11 @@
 using System.Text;
-using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
 
-namespace NovelSpeaker.Infrastructure.Books;
+namespace NovelSpeaker.Application.Books.Import;
 
 /// <summary>
-/// Imports TXT files directly and only interrupts when manual encoding selection is required.
+/// Coordinates one direct TXT import through file, persistence, and chapter-rule ports.
 /// </summary>
 public sealed class DirectBookImportService : IDirectBookImportService
 {
@@ -23,6 +22,7 @@ public sealed class DirectBookImportService : IDirectBookImportService
     private readonly IBookFileNameTemplateProvider _bookFileNameTemplateProvider;
     private readonly BookFileNameMetadataParser _bookFileNameMetadataParser;
     private readonly TimeProvider _timeProvider;
+    private readonly IBookImportIdGenerator _idGenerator;
 
     public DirectBookImportService(
         ITextFileAnalyzer textFileAnalyzer,
@@ -35,7 +35,8 @@ public sealed class DirectBookImportService : IDirectBookImportService
         IBookImportRepository bookImportRepository,
         IBookFileNameTemplateProvider bookFileNameTemplateProvider,
         BookFileNameMetadataParser bookFileNameMetadataParser,
-        TimeProvider? timeProvider = null)
+        TimeProvider timeProvider,
+        IBookImportIdGenerator idGenerator)
     {
         _textFileAnalyzer = textFileAnalyzer;
         _textNormalizer = textNormalizer;
@@ -47,7 +48,8 @@ public sealed class DirectBookImportService : IDirectBookImportService
         _bookImportRepository = bookImportRepository;
         _bookFileNameTemplateProvider = bookFileNameTemplateProvider;
         _bookFileNameMetadataParser = bookFileNameMetadataParser;
-        _timeProvider = timeProvider ?? TimeProvider.System;
+        _timeProvider = timeProvider;
+        _idGenerator = idGenerator;
     }
 
     public async Task<DirectBookImportResult> ImportAsync(
@@ -55,12 +57,6 @@ public sealed class DirectBookImportService : IDirectBookImportService
         IProgress<BookImportProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(request.FilePath);
-        var fileNameTemplate = await _bookFileNameTemplateProvider
-            .GetCurrentTemplateAsync(cancellationToken)
-            .ConfigureAwait(false);
-        var metadata = _bookFileNameMetadataParser.Parse(fileNameWithoutExtension, fileNameTemplate);
-
         try
         {
             var analyzedText = await _textFileAnalyzer.AnalyzeAsync(
@@ -75,6 +71,11 @@ public sealed class DirectBookImportService : IDirectBookImportService
                     EncodingSelectionPrompt: BuildPrompt(request.FilePath, analyzedText));
             }
 
+            var fileNameTemplate = await _bookFileNameTemplateProvider
+                .GetCurrentTemplateAsync(cancellationToken)
+                .ConfigureAwait(false);
+            var metadata = _bookFileNameMetadataParser.Parse(analyzedText.SourceNameWithoutExtension, fileNameTemplate);
+
             return await ImportDecodedTextAsync(request.FilePath, metadata, analyzedText, progress, cancellationToken);
         }
         catch (DecoderFallbackException)
@@ -83,7 +84,7 @@ public sealed class DirectBookImportService : IDirectBookImportService
             {
                 return new DirectBookImportResult(
                     DirectBookImportStatus.RequiresEncodingSelection,
-                    EncodingSelectionPrompt: BuildDetectionFailurePrompt(request.FilePath));
+                    EncodingSelectionPrompt: BuildDetectionFailurePrompt(request.FilePath, request.SourceFileName));
             }
 
             return new DirectBookImportResult(
@@ -131,15 +132,14 @@ public sealed class DirectBookImportService : IDirectBookImportService
                 FailureReason: BookImportFailureReason.NoValidChapters);
         }
 
-        var bookId = Guid.NewGuid().ToString();
+        var bookId = _idGenerator.CreateBookId();
         var copyHandle = await _bookFileStore.StageNormalizedTextAsync(normalizedText, bookId, progress, cancellationToken);
         var now = _timeProvider.GetUtcNow();
-
         var book = new Book(
             bookId,
             metadata.SuggestedTitle,
             metadata.SuggestedAuthor,
-            Path.GetFileName(filePath),
+            analyzedText.SourceFileName,
             copyHandle.FinalPath,
             sourceHash,
             analyzedText.DetectedEncoding,
@@ -147,10 +147,9 @@ public sealed class DirectBookImportService : IDirectBookImportService
             now,
             null,
             now);
-
         var chapterEntities = chapters
             .Select(chapter => new Chapter(
-                Guid.NewGuid().ToString(),
+                _idGenerator.CreateChapterId(),
                 bookId,
                 chapter.ChapterIndex,
                 chapter.SortOrder,
@@ -178,7 +177,11 @@ public sealed class DirectBookImportService : IDirectBookImportService
         }
         catch
         {
-            await _bookFileStore.CleanupAsync(copyHandle, includeFinalFile: true);
+            // Cleanup must finish even when the import token was canceled so no staged/final content is orphaned.
+            await _bookFileStore.CleanupAsync(
+                copyHandle,
+                includeFinalFile: true,
+                CancellationToken.None);
             throw;
         }
 
@@ -198,19 +201,12 @@ public sealed class DirectBookImportService : IDirectBookImportService
 
         return new EncodingSelectionPrompt(
             filePath,
-            Path.GetFileName(filePath),
+            analysis.SourceFileName,
             reasonText,
             analysis.DetectedEncoding,
             SupportedEncodings);
     }
 
-    private static EncodingSelectionPrompt BuildDetectionFailurePrompt(string filePath)
-    {
-        return new EncodingSelectionPrompt(
-            filePath,
-            Path.GetFileName(filePath),
-            "无法识别编码，请手动选择后继续导入。",
-            "utf-8",
-            SupportedEncodings);
-    }
+    private static EncodingSelectionPrompt BuildDetectionFailurePrompt(string filePath, string sourceFileName) =>
+        new(filePath, sourceFileName, "无法识别编码，请手动选择后继续导入。", "utf-8", SupportedEncodings);
 }

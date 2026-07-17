@@ -32,7 +32,8 @@ public sealed class TextFileAnalyzer : ITextFileAnalyzer
             return CreateResult(
                 NormalizeEncodingName(request.EncodingOverride),
                 specifiedText,
-                TextEncodingDetectionMode.ManualOverride);
+                TextEncodingDetectionMode.ManualOverride,
+                request.FilePath);
         }
 
         var fileEncoding = await DetectEncodingAsync(request.FilePath, cancellationToken);
@@ -43,13 +44,14 @@ public sealed class TextFileAnalyzer : ITextFileAnalyzer
             return CreateResult(
                 NormalizeEncodingName(fileEncoding.Encoding.WebName),
                 utf8Text,
-                fileEncoding.Mode);
+                fileEncoding.Mode,
+                request.FilePath);
         }
         catch (DecoderFallbackException)
         {
             var gb18030 = Encoding.GetEncoding("GB18030", EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
             var gbText = await ReadAllTextAsync(request.FilePath, gb18030, progress, cancellationToken);
-            return CreateResult("gb18030", gbText, TextEncodingDetectionMode.Gb18030Fallback);
+            return CreateResult("gb18030", gbText, TextEncodingDetectionMode.Gb18030Fallback, request.FilePath);
         }
     }
 
@@ -121,10 +123,13 @@ public sealed class TextFileAnalyzer : ITextFileAnalyzer
     private static TextFileAnalysis CreateResult(
         string encodingName,
         string text,
-        TextEncodingDetectionMode detectionMode)
+        TextEncodingDetectionMode detectionMode,
+        string sourcePath)
     {
         var (isLowConfidence, lowConfidenceReason) = EvaluateConfidence(text, detectionMode);
         return new TextFileAnalysis(
+            Path.GetFileName(sourcePath),
+            Path.GetFileNameWithoutExtension(sourcePath),
             encodingName,
             text[..Math.Min(text.Length, PreviewLength)],
             text,
