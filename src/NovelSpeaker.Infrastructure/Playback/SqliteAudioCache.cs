@@ -12,6 +12,7 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
     private readonly ISqliteConnectionFactory _connectionFactory;
     private readonly IAudioCacheLimitProvider _cacheLimitProvider;
     private readonly IAudioCacheProtectionRegistry _protectionRegistry;
+    private readonly IAppStoragePathResolver _pathResolver;
     private readonly string _versionRootPath;
     private readonly string _ttsRootPath;
     private readonly SemaphoreSlim _mutex = new(1, 1);
@@ -20,11 +21,13 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
         ISqliteConnectionFactory connectionFactory,
         IAppDataDirectoryProvider directories,
         IAudioCacheLimitProvider cacheLimitProvider,
-        IAudioCacheProtectionRegistry protectionRegistry)
+        IAudioCacheProtectionRegistry protectionRegistry,
+        IAppStoragePathResolver pathResolver)
     {
         _connectionFactory = connectionFactory;
         _cacheLimitProvider = cacheLimitProvider;
         _protectionRegistry = protectionRegistry;
+        _pathResolver = pathResolver;
         _ttsRootPath = Path.Combine(directories.CacheDirectoryPath, "Tts");
         _versionRootPath = Path.Combine(_ttsRootPath, AudioCacheKey.CurrentVersion);
     }
@@ -108,11 +111,13 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
             """;
         select.Parameters.AddWithValue("$cacheKey", key.Value);
 
-        var filePath = (string?)await select.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(filePath))
+        var persistedPath = (string?)await select.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(persistedPath))
         {
             return null;
         }
+
+        var filePath = _pathResolver.ResolvePath(persistedPath);
 
         if (!File.Exists(filePath))
         {
@@ -124,11 +129,13 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
         update.CommandText =
             """
             UPDATE AudioCacheEntries
-            SET LastAccessedAt = $lastAccessedAt
+            SET LastAccessedAt = $lastAccessedAt,
+                FilePath = $filePath
             WHERE CacheKey = $cacheKey;
             """;
         update.Parameters.AddWithValue("$cacheKey", key.Value);
         update.Parameters.AddWithValue("$lastAccessedAt", DateTime.UtcNow.ToString("O"));
+        update.Parameters.AddWithValue("$filePath", _pathResolver.GetStorageKey(filePath));
         await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
         return new AudioCacheEntry(key, filePath);
@@ -214,7 +221,7 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
         command.Parameters.AddWithValue("$chapterIndex", request.ChapterIndex);
         command.Parameters.AddWithValue("$segmentIndex", request.SegmentIndex);
         command.Parameters.AddWithValue("$ruleId", request.RuleId);
-        command.Parameters.AddWithValue("$filePath", finalPath);
+        command.Parameters.AddWithValue("$filePath", _pathResolver.GetStorageKey(finalPath));
         command.Parameters.AddWithValue("$contentType", (object?)request.ContentType ?? DBNull.Value);
         command.Parameters.AddWithValue("$fileSize", fileInfo.Length);
         command.Parameters.AddWithValue("$durationMilliseconds", (object?)request.DurationMilliseconds ?? DBNull.Value);
@@ -239,12 +246,12 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
             LIMIT 1;
             """;
         select.Parameters.AddWithValue("$cacheKey", key.Value);
-        var filePath = (string?)await select.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        var persistedPath = (string?)await select.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
 
         await DeleteEntryByKeyAsync(connection, key.Value, cancellationToken).ConfigureAwait(false);
-        if (!string.IsNullOrWhiteSpace(filePath))
+        if (!string.IsNullOrWhiteSpace(persistedPath))
         {
-            TryDeleteFile(filePath);
+            TryDeleteFile(_pathResolver.ResolvePath(persistedPath));
         }
     }
 
@@ -395,7 +402,7 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
         var knownPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in entries)
         {
-            knownPaths.Add(Path.GetFullPath(entry.FilePath));
+            knownPaths.Add(entry.FilePath);
             if (!File.Exists(entry.FilePath))
             {
                 await DeleteEntryByKeyAsync(connection, entry.CacheKey, cancellationToken).ConfigureAwait(false);
@@ -433,7 +440,7 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
             {
                 rows.Add(new CacheSizedPath(
                     reader.GetString(0),
-                    reader.GetString(1),
+                    _pathResolver.ResolvePath(reader.GetString(1)),
                     reader.GetInt64(2)));
             }
         }
@@ -556,13 +563,16 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
         }
     }
 
-    private static async Task<List<CachePath>> ReadEntriesAsync(SqliteCommand command, CancellationToken cancellationToken)
+    private async Task<List<CachePath>> ReadEntriesAsync(SqliteCommand command, CancellationToken cancellationToken)
     {
         var items = new List<CachePath>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            items.Add(new CachePath(reader.GetString(0), reader.GetString(1), reader.GetInt64(2)));
+            items.Add(new CachePath(
+                reader.GetString(0),
+                _pathResolver.ResolvePath(reader.GetString(1)),
+                reader.GetInt64(2)));
         }
 
         return items;

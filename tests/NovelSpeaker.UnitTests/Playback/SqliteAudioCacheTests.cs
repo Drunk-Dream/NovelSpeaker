@@ -199,7 +199,12 @@ public sealed class SqliteAudioCacheTests
         {
             CurrentLimitBytes = cacheLimitBytes ?? AppSettings.DefaultCacheLimitBytes
         };
-        var cache = new SqliteAudioCache(factory, directories, limitProvider, registry);
+        var cache = new SqliteAudioCache(
+            factory,
+            directories,
+            limitProvider,
+            registry,
+            new AppStoragePathResolver(directories));
         return new CacheFixture(directories, cache, limitProvider);
     }
 

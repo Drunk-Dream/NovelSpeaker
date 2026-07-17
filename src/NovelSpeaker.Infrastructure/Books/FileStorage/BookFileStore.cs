@@ -11,10 +11,12 @@ public sealed class BookFileStore : IBookFileStore
 {
     private static readonly UTF8Encoding Utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
     private readonly IAppDataDirectoryProvider _directories;
+    private readonly IAppStoragePathResolver _pathResolver;
 
-    public BookFileStore(IAppDataDirectoryProvider directories)
+    public BookFileStore(IAppDataDirectoryProvider directories, IAppStoragePathResolver pathResolver)
     {
         _directories = directories;
+        _pathResolver = pathResolver;
     }
 
     public async Task<BookFileCopyHandle> StageNormalizedTextAsync(
@@ -38,13 +40,27 @@ public sealed class BookFileStore : IBookFileStore
             true,
             "正在保存规范化正文文件。"));
 
-        return new BookFileCopyHandle(finalPath, temporaryPath);
+        return new BookFileCopyHandle(
+            _pathResolver.GetStorageKey(finalPath),
+            _pathResolver.GetStorageKey(temporaryPath));
     }
 
     public Task FinalizeAsync(BookFileCopyHandle copyHandle, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        File.Move(copyHandle.TemporaryPath, copyHandle.FinalPath, overwrite: true);
+        var temporaryPath = _pathResolver.ResolvePath(copyHandle.TemporaryPath);
+        var finalPath = _pathResolver.ResolvePath(copyHandle.FinalPath);
+        if (File.Exists(finalPath))
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        File.Move(temporaryPath, finalPath);
         return Task.CompletedTask;
     }
 
@@ -54,18 +70,20 @@ public sealed class BookFileStore : IBookFileStore
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (File.Exists(copyHandle.TemporaryPath))
+        var temporaryPath = _pathResolver.ResolvePath(copyHandle.TemporaryPath);
+        var finalPath = _pathResolver.ResolvePath(copyHandle.FinalPath);
+        if (File.Exists(temporaryPath))
         {
-            File.Delete(copyHandle.TemporaryPath);
+            File.Delete(temporaryPath);
         }
 
-        if (includeFinalFile && File.Exists(copyHandle.FinalPath))
+        if (includeFinalFile && File.Exists(finalPath))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            File.Delete(copyHandle.FinalPath);
+            File.Delete(finalPath);
         }
 
-        var directory = Path.GetDirectoryName(copyHandle.FinalPath);
+        var directory = Path.GetDirectoryName(finalPath);
         if (!string.IsNullOrWhiteSpace(directory) &&
             Directory.Exists(directory) &&
             !Directory.EnumerateFileSystemEntries(directory).Any())

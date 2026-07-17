@@ -4,6 +4,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Infrastructure.Books.FileStorage;
+using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Playback;
 using Xunit;
 
@@ -18,7 +19,7 @@ public sealed class BookPlaybackContentServiceTests
 
         var service = new BookPlaybackContentService(
             new DelayedSqliteConnectionFactory(database.ConnectionString),
-            new BookContentReader(),
+            CreateContentReader(database),
             new Infrastructure.Books.Parsing.TextSegmenter(),
             new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
             new PassthroughRegexReplacementPipeline());
@@ -52,7 +53,7 @@ public sealed class BookPlaybackContentServiceTests
 
         var service = new BookPlaybackContentService(
             new DelayedSqliteConnectionFactory(database.ConnectionString),
-            new BookContentReader(),
+            CreateContentReader(database),
             new Infrastructure.Books.Parsing.TextSegmenter(),
             new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
             new PassthroughRegexReplacementPipeline());
@@ -127,6 +128,12 @@ public sealed class BookPlaybackContentServiceTests
         return new TestDatabase(directory, connectionString);
     }
 
+    private static BookContentReader CreateContentReader(TestDatabase database)
+    {
+        var directories = new LocalAppDataDirectoryProvider(database.DirectoryPath);
+        return new BookContentReader(new AppStoragePathResolver(directories));
+    }
+
     private sealed class DelayedSqliteConnectionFactory : ISqliteConnectionFactory
     {
         private readonly string _connectionString;
@@ -198,6 +205,8 @@ public sealed class BookPlaybackContentServiceTests
         }
 
         public string ConnectionString { get; }
+
+        public string DirectoryPath => _directory;
 
         public void Dispose()
         {

@@ -39,15 +39,15 @@ SQLite 与文件系统无法共享真正的原子事务。跨两者的导入、�
 
 - 新的持久化模型优先保存相对于应用数据根目录的 storage key，而不是任意绝对路径。
 - 读取旧绝对路径记录时必须通过集中路径解析器做规范化、根目录包含检查和迁移兼容。
-- 删除、移动和覆盖文件前必须确认目标位于应用数据根目录内，并定义符号链接/reparse point 策略。
+- 删除、移动和覆盖文件前必须确认目标位于应用数据根目录内；解析器拒绝经过现存符号链接/reparse point 的路径。
 - 用户最初选择的外部 TXT 只读，导入和删除永远不能修改它。
 - 路径格式调整必须新增迁移或兼容读取，不能改写已发布迁移 SQL。
 
 ## 4. 当前 SQLite 兼容基线
 
-当前代码的 `CurrentSchemaVersion` 为 `5`，最低支持版本为 `4`。版本 `1–3` 会拒绝启动并要求清理旧数据；高于应用支持版本的数据库也必须拒绝启动，不能按旧代码继续写入。
+当前代码的 `CurrentSchemaVersion` 为 `6`，最低支持版本为 `4`。版本 `1–3` 会拒绝启动并要求清理旧数据；高于应用支持版本的数据库也必须拒绝启动，不能按旧代码继续写入。
 
-已发布的迁移 `4` 和 `5` 是兼容资产，只能追加迁移，不能为整理代码而编辑、合并或重编号。
+已发布的迁移 `4`、`5` 和 `6` 是兼容资产，只能追加迁移，不能为整理代码而编辑、合并或重编号。
 
 ### 4.1 SchemaVersion 与 AppMetadata
 
@@ -173,6 +173,20 @@ Status INTEGER NOT NULL
 
 `FilePath` 与 `StoredFilePath` 一样属于兼容字段，所有访问必须通过根目录约束的路径解析器。
 
+### 4.9 BookOperations
+
+```text
+OperationId TEXT PRIMARY KEY
+Kind TEXT NOT NULL                 -- Import / Delete
+Phase TEXT NOT NULL                -- Staged / DatabaseCommitted / Completed
+BookId TEXT NOT NULL
+PathsJson TEXT NOT NULL            -- 仅包含受约束的相对 storage key
+CreatedAt TEXT NOT NULL
+UpdatedAt TEXT NOT NULL
+```
+
+完成记录保留为已终止状态，启动恢复只重放未完成记录。新导入正文和音频缓存写入相对 storage key；启动时对位于应用根目录内的旧绝对路径做惰性转换，根外或非法旧值保持原样并由所有消费入口拒绝。
+
 ## 5. SQLite 连接与迁移
 
 SQLite 完全属于 Infrastructure：
@@ -196,8 +210,8 @@ SQLite 完全属于 Infrastructure：
 4. 按启用章节规则识别章节；无标题时使用整书回退。
 5. 在应用数据目录暂存规范化正文。
 6. 创建可恢复操作记录。
-7. 提交 Books/Chapters 元数据事务并完成文件切换。
-8. 标记操作完成并清理暂存文件。
+7. 提交 Books/Chapters 元数据事务并推进为 `DatabaseCommitted`。
+8. 幂等切换正式文件并推进为 `Completed`。
 
 任何阶段失败或进程中断后，启动恢复都必须幂等地得到以下一种结果：
 
@@ -297,6 +311,7 @@ SHA256(
 要求：
 
 - 删除前确认路径位于应用数据根目录。
+- 书籍正文只允许位于对应的 `Books/<book-id>`，缓存只允许位于 `Cache`；所有删除暂存只允许位于对应的 `Operations/<operation-id>`。
 - 正在播放的书籍先由 Application 停止/结束会话。
 - 数据库事务只处理数据库记录；文件 staging 和恢复状态显式记录。
 - 启动时扫描未完成操作并幂等完成或回滚。
@@ -314,7 +329,7 @@ SHA256(
 
 ## 12. 持久化验收
 
-- schema 4/5 升级和新库创建均通过；未来版本数据库被安全拒绝。
+- schema 4/5 升级到 6 和新库创建均通过；未来版本数据库被安全拒绝。
 - foreign keys 在每个连接上生效，级联/约束有集成测试。
 - 导入、删除、设置保存和缓存写入均覆盖故障注入与启动恢复。
 - 被篡改的数据库路径不能导致应用数据根目录外文件被读取、移动或删除。

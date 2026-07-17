@@ -1,4 +1,5 @@
 using System.Text;
+using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
 
 namespace NovelSpeaker.Infrastructure.Books.FileStorage;
@@ -12,6 +13,12 @@ public sealed class BookContentReader : IBookContentReader
     private readonly Lock _cacheLock = new();
     private string? _cachedPath;
     private string? _cachedText;
+    private readonly IAppStoragePathResolver _pathResolver;
+
+    public BookContentReader(IAppStoragePathResolver pathResolver)
+    {
+        _pathResolver = pathResolver;
+    }
 
     public async Task<string> ReadChapterTextAsync(
         string storedFilePath,
@@ -23,7 +30,8 @@ public sealed class BookContentReader : IBookContentReader
         ArgumentOutOfRangeException.ThrowIfNegative(startOffset);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(length);
 
-        var text = await GetBookTextAsync(storedFilePath, cancellationToken).ConfigureAwait(false);
+        var resolvedPath = _pathResolver.ResolvePath(storedFilePath);
+        var text = await GetBookTextAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
         if (startOffset > text.Length)
         {
             throw new InvalidDataException($"章节起始偏移 {startOffset} 超出正文长度 {text.Length}。");

@@ -13,13 +13,15 @@ public sealed class BookFileStoreTests
         var directories = new LocalAppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
 
-        var store = new BookFileStore(directories);
+        var store = new BookFileStore(directories, new AppStoragePathResolver(directories));
         var handle = await store.StageNormalizedTextAsync("测试正文", "book-1", progress: null, CancellationToken.None);
         await store.FinalizeAsync(handle, CancellationToken.None);
+        var finalPath = new AppStoragePathResolver(directories).ResolvePath(handle.FinalPath);
+        var temporaryPath = new AppStoragePathResolver(directories).ResolvePath(handle.TemporaryPath);
 
-        Assert.True(File.Exists(handle.FinalPath));
-        Assert.False(File.Exists(handle.TemporaryPath));
-        Assert.Equal(Path.Combine(directories.BooksDirectoryPath, "book-1", "content.txt"), handle.FinalPath);
-        Assert.Equal("测试正文", await File.ReadAllTextAsync(handle.FinalPath, CancellationToken.None));
+        Assert.True(File.Exists(finalPath));
+        Assert.False(File.Exists(temporaryPath));
+        Assert.Equal("Books/book-1/content.txt", handle.FinalPath);
+        Assert.Equal("测试正文", await File.ReadAllTextAsync(finalPath, CancellationToken.None));
     }
 }

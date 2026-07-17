@@ -23,9 +23,12 @@ public static class PersistenceRegistration
         services.TryAddSingleton<IRegexReplacementRuleRepository, RegexReplacementRuleRepository>();
         services.TryAddSingleton<ITtsRuleRepository, TtsRuleRepository>();
         services.TryAddSingleton<IBookImportRepository, BookImportRepository>();
+        services.TryAddSingleton<IBookOperationJournal, SqliteBookOperationJournal>();
+        services.TryAddSingleton<BookOperationRecoveryService>();
+        services.TryAddSingleton<AppStoragePathMigrationService>();
         services.TryAddSingleton<IBookLibraryQuery, BookLibraryQuery>();
         services.TryAddSingleton<IBookMetadataUpdateService, BookMetadataUpdateService>();
-        services.TryAddSingleton<IBookDeletionService, BookDeletionService>();
+        services.TryAddSingleton<IBookDeletionOperationStore, BookDeletionOperationStore>();
         services.TryAddSingleton<IReadingProgressStore, SqliteReadingProgressStore>();
         services.TryAddSingleton<DefaultChapterRuleSeeder>();
         services.TryAddSingleton<IDatabaseInitializer, StartupDatabaseInitializer>();

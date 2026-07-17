@@ -101,7 +101,7 @@ public sealed class BookImportServiceTests
     }
 
     [Fact]
-    public async Task ImportAsync_cleans_up_final_file_when_repository_save_fails()
+    public async Task ImportAsync_cleans_up_staged_file_without_finalizing_when_repository_save_fails()
     {
         var fileStore = new FakeBookFileStore();
         var service = CreateService(
@@ -112,14 +112,14 @@ public sealed class BookImportServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), progress: null, CancellationToken.None));
 
-        Assert.True(fileStore.FinalizeCalled);
+        Assert.False(fileStore.FinalizeCalled);
         Assert.True(fileStore.CleanupCalled);
         Assert.True(fileStore.CleanupIncludedFinalFile);
         Assert.False(fileStore.CleanupCancellationToken.CanBeCanceled);
     }
 
     [Fact]
-    public async Task ImportAsync_cleans_up_staged_files_when_finalize_fails()
+    public async Task ImportAsync_leaves_database_committed_import_for_recovery_when_finalize_fails()
     {
         var fileStore = new FakeBookFileStore
         {
@@ -139,9 +139,8 @@ public sealed class BookImportServiceTests
         Assert.Equal(DirectBookImportStatus.Failed, result.Status);
         Assert.Equal(BookImportFailureReason.FileReadFailed, result.FailureReason);
         Assert.True(fileStore.FinalizeCalled);
-        Assert.True(fileStore.CleanupCalled);
-        Assert.True(fileStore.CleanupIncludedFinalFile);
-        Assert.Null(repository.SavedBook);
+        Assert.False(fileStore.CleanupCalled);
+        Assert.NotNull(repository.SavedBook);
     }
 
     [Fact]
@@ -172,6 +171,43 @@ public sealed class BookImportServiceTests
     }
 
     [Fact]
+    public async Task ImportAsync_persists_staged_database_committed_and_completed_phases_in_order()
+    {
+        var journal = new FakeBookOperationJournal();
+        var service = CreateService(journal: journal);
+
+        var result = await service.ImportAsync(
+            new DirectBookImportRequest("demo.txt", null, "demo.txt"),
+            progress: null,
+            CancellationToken.None);
+
+        Assert.Equal(DirectBookImportStatus.Imported, result.Status);
+        Assert.NotNull(journal.CreatedOperation);
+        Assert.Equal(BookOperationPhase.Staged, journal.CreatedOperation!.Phase);
+        Assert.Equal(
+            [BookOperationPhase.DatabaseCommitted, BookOperationPhase.Completed],
+            journal.Phases);
+    }
+
+    [Fact]
+    public async Task ImportAsync_does_not_remove_files_after_database_commit_when_phase_update_fails()
+    {
+        var fileStore = new FakeBookFileStore();
+        var journal = new FakeBookOperationJournal { FailOnPhase = BookOperationPhase.DatabaseCommitted };
+        var repository = new CapturingBookImportRepository();
+        var service = CreateService(fileStore: fileStore, repository: repository, journal: journal);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ImportAsync(
+            new DirectBookImportRequest("demo.txt", null, "demo.txt"),
+            progress: null,
+            CancellationToken.None));
+
+        Assert.NotNull(repository.SavedBook);
+        Assert.False(fileStore.FinalizeCalled);
+        Assert.False(fileStore.CleanupCalled);
+    }
+
+    [Fact]
     public async Task ImportAsync_propagates_cancellation_from_semantic_port()
     {
         var cancellation = new CancellationTokenSource();
@@ -195,7 +231,7 @@ public sealed class BookImportServiceTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), progress: null, cancellation.Token));
 
-        Assert.True(fileStore.FinalizeCalled);
+        Assert.False(fileStore.FinalizeCalled);
         Assert.True(fileStore.CleanupCalled);
         Assert.True(fileStore.CleanupIncludedFinalFile);
         Assert.False(fileStore.CleanupCancellationToken.CanBeCanceled);
@@ -210,6 +246,7 @@ public sealed class BookImportServiceTests
         FakeChapterSplitter? splitter = null,
         FakeBookFileStore? fileStore = null,
         IBookImportRepository? repository = null,
+        IBookOperationJournal? journal = null,
         TimeProvider? timeProvider = null,
         IBookImportIdGenerator? idGenerator = null)
     {
@@ -222,6 +259,7 @@ public sealed class BookImportServiceTests
             splitter ?? new FakeChapterSplitter([new BookImportChapter(0, 0, "全文", 0, 2)]),
             fileStore ?? new FakeBookFileStore(),
             repository ?? new FakeBookImportRepository(),
+            journal ?? new FakeBookOperationJournal(),
             new FakeBookFileNameTemplateProvider("{{name}} 作者：{{author}}"),
             new BookFileNameMetadataParser(),
             timeProvider ?? TimeProvider.System,
@@ -272,6 +310,8 @@ public sealed class BookImportServiceTests
         public string CreateBookId() => _ids.Dequeue();
 
         public string CreateChapterId() => _ids.Dequeue();
+
+        public string CreateOperationId() => "operation-id";
     }
 
     private sealed class FakeTextFileAnalyzer : ITextFileAnalyzer
@@ -415,6 +455,35 @@ public sealed class BookImportServiceTests
     private sealed class FakeBookImportRepository : IBookImportRepository
     {
         public Task SaveAsync(Book book, IReadOnlyList<Chapter> chapters, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeBookOperationJournal : IBookOperationJournal
+    {
+        public BookOperationRecord? CreatedOperation { get; private set; }
+
+        public List<BookOperationPhase> Phases { get; } = [];
+
+        public BookOperationPhase? FailOnPhase { get; init; }
+
+        public Task CreateAsync(BookOperationRecord operation, CancellationToken cancellationToken)
+        {
+            CreatedOperation = operation;
+            return Task.CompletedTask;
+        }
+
+        public Task SetPhaseAsync(string operationId, BookOperationPhase phase, CancellationToken cancellationToken)
+        {
+            Phases.Add(phase);
+            if (phase == FailOnPhase)
+            {
+                throw new InvalidOperationException("phase failed");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<BookOperationRecord>> GetIncompleteAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<BookOperationRecord>>([]);
     }
 
     private sealed class ThrowingBookImportRepository : IBookImportRepository

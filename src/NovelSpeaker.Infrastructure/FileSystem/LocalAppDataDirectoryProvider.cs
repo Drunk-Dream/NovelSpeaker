@@ -23,6 +23,7 @@ public sealed class LocalAppDataDirectoryProvider : IAppDataDirectoryProvider
         BooksDirectoryPath = Path.Combine(rootDirectoryPath, "Books");
         CacheDirectoryPath = Path.Combine(rootDirectoryPath, "Cache");
         LogsDirectoryPath = Path.Combine(rootDirectoryPath, "Logs");
+        OperationsDirectoryPath = Path.Combine(rootDirectoryPath, "Operations");
     }
 
     public string RootDirectoryPath { get; }
@@ -31,6 +32,7 @@ public sealed class LocalAppDataDirectoryProvider : IAppDataDirectoryProvider
     public string BooksDirectoryPath { get; }
     public string CacheDirectoryPath { get; }
     public string LogsDirectoryPath { get; }
+    public string OperationsDirectoryPath { get; }
 
     public Task EnsureCreatedAsync(CancellationToken cancellationToken)
     {
@@ -40,6 +42,7 @@ public sealed class LocalAppDataDirectoryProvider : IAppDataDirectoryProvider
         Directory.CreateDirectory(BooksDirectoryPath);
         Directory.CreateDirectory(CacheDirectoryPath);
         Directory.CreateDirectory(LogsDirectoryPath);
+        Directory.CreateDirectory(OperationsDirectoryPath);
 
         return Task.CompletedTask;
     }

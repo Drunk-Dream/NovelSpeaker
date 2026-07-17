@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Books.ChapterRules;
 using NovelSpeaker.Application.Books.Import;
+using NovelSpeaker.Application.Books.Library;
 using NovelSpeaker.Application.Books.TextProcessing;
 
 namespace NovelSpeaker.Application.Books;
@@ -21,6 +22,7 @@ public static class BooksRegistration
         services.TryAddSingleton<IChapterSplitter, ChapterSplitter>();
         services.TryAddSingleton<IBookImportIdGenerator, BookImportIdGenerator>();
         services.TryAddSingleton<IDirectBookImportService, DirectBookImportService>();
+        services.TryAddSingleton<IBookDeletionService, BookDeletionService>();
         services.TryAddSingleton<IChapterRuleWorkspaceService, ChapterRuleWorkspaceService>();
         services.TryAddSingleton<IRegexReplacementRuleErrorStore, RegexReplacementRuleErrorStore>();
         services.TryAddSingleton<IRegexReplacementRuleWorkspaceService, RegexReplacementRuleWorkspaceService>();

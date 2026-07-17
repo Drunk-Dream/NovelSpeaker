@@ -171,6 +171,66 @@ public sealed class BookLibraryPersistenceTests
         Assert.NotNull(await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None));
     }
 
+    [Fact]
+    public async Task DeleteAsync_restores_already_staged_cache_when_a_later_cache_file_is_protected()
+    {
+        var fixture = await CreateFixtureAsync();
+        var storedFilePath = await SeedBookAsync(fixture, "book-1", title: "部分缓存暂存", author: null);
+        var entries = new List<AudioCacheEntry>();
+        foreach (var segment in new[] { (Index: 0, Text: "第一段"), (Index: 1, Text: "第二段") })
+        {
+            entries.Add(await fixture.Cache.StoreAsync(
+                new AudioCacheWriteRequest(
+                    AudioCacheKey.FromPlayback("book-1", 0, segment.Index, 1, 10, segment.Text),
+                    "book-1",
+                    0,
+                    segment.Index,
+                    1,
+                    CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                    "audio/mpeg"),
+                CancellationToken.None));
+        }
+
+        var ordered = entries.OrderBy(entry => entry.Key.Value, StringComparer.Ordinal).ToArray();
+        using var protection = fixture.ProtectionRegistry.Protect(ordered[1].FilePath);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Deletion.DeleteAsync(
+            new BookDeleteRequest("book-1", true),
+            CancellationToken.None));
+
+        Assert.True(File.Exists(storedFilePath));
+        Assert.All(entries, entry => Assert.True(File.Exists(entry.FilePath)));
+        foreach (var entry in entries)
+        {
+            Assert.NotNull(await fixture.Cache.TryGetAsync(entry.Key, CancellationToken.None));
+        }
+
+        Assert.NotNull(await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_rejects_tampered_book_path_and_never_touches_external_file()
+    {
+        var fixture = await CreateFixtureAsync();
+        await SeedBookAsync(fixture, "book-1", title: "恶意路径", author: null);
+        var externalPath = Path.Combine(Path.GetTempPath(), $"{Path.GetRandomFileName()}.txt");
+        await File.WriteAllTextAsync(externalPath, "external source", CancellationToken.None);
+        await using (var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var command = connection.CreateCommand();
+            command.CommandText = "UPDATE Books SET StoredFilePath = $path WHERE Id = 'book-1';";
+            command.Parameters.AddWithValue("$path", externalPath);
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            fixture.Deletion.DeleteAsync(new BookDeleteRequest("book-1", false), CancellationToken.None));
+
+        Assert.True(File.Exists(externalPath));
+        Assert.Equal("external source", await File.ReadAllTextAsync(externalPath, CancellationToken.None));
+        Assert.NotNull(await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None));
+    }
+
     private static async Task<TestFixture> CreateFixtureAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -183,15 +243,25 @@ public sealed class BookLibraryPersistenceTests
         await initializer.InitializeAsync(CancellationToken.None);
 
         var protectionRegistry = new AudioCacheProtectionRegistry();
+        var pathResolver = new AppStoragePathResolver(directories);
         var cache = new SqliteAudioCache(
             factory,
             directories,
             new FixedAudioCacheLimitProvider(AppSettings.DefaultCacheLimitBytes),
-            protectionRegistry);
+            protectionRegistry,
+            pathResolver);
         var progressStore = new SqliteReadingProgressStore(factory);
         var query = new BookLibraryQuery(factory);
         var metadata = new BookMetadataUpdateService(factory);
-        var deletion = new BookDeletionService(factory, directories, protectionRegistry);
+        var journal = new SqliteBookOperationJournal(factory, TimeProvider.System);
+        var deletionStore = new BookDeletionOperationStore(
+            factory,
+            directories,
+            protectionRegistry,
+            pathResolver,
+            journal,
+            TimeProvider.System);
+        var deletion = new Application.Books.Library.BookDeletionService(deletionStore);
         return new TestFixture(directories, factory, cache, progressStore, protectionRegistry, query, metadata, deletion);
     }
 
@@ -242,7 +312,7 @@ public sealed class BookLibraryPersistenceTests
         AudioCacheProtectionRegistry ProtectionRegistry,
         BookLibraryQuery Query,
         BookMetadataUpdateService Metadata,
-        BookDeletionService Deletion);
+        IBookDeletionService Deletion);
 
     private sealed class FixedAudioCacheLimitProvider : IAudioCacheLimitProvider
     {

@@ -19,6 +19,7 @@ public sealed class DirectBookImportService : IDirectBookImportService
     private readonly IChapterSplitter _chapterSplitter;
     private readonly IBookFileStore _bookFileStore;
     private readonly IBookImportRepository _bookImportRepository;
+    private readonly IBookOperationJournal _operationJournal;
     private readonly IBookFileNameTemplateProvider _bookFileNameTemplateProvider;
     private readonly BookFileNameMetadataParser _bookFileNameMetadataParser;
     private readonly TimeProvider _timeProvider;
@@ -33,6 +34,7 @@ public sealed class DirectBookImportService : IDirectBookImportService
         IChapterSplitter chapterSplitter,
         IBookFileStore bookFileStore,
         IBookImportRepository bookImportRepository,
+        IBookOperationJournal operationJournal,
         IBookFileNameTemplateProvider bookFileNameTemplateProvider,
         BookFileNameMetadataParser bookFileNameMetadataParser,
         TimeProvider timeProvider,
@@ -46,6 +48,7 @@ public sealed class DirectBookImportService : IDirectBookImportService
         _chapterSplitter = chapterSplitter;
         _bookFileStore = bookFileStore;
         _bookImportRepository = bookImportRepository;
+        _operationJournal = operationJournal;
         _bookFileNameTemplateProvider = bookFileNameTemplateProvider;
         _bookFileNameMetadataParser = bookFileNameMetadataParser;
         _timeProvider = timeProvider;
@@ -135,6 +138,24 @@ public sealed class DirectBookImportService : IDirectBookImportService
         var bookId = _idGenerator.CreateBookId();
         var copyHandle = await _bookFileStore.StageNormalizedTextAsync(normalizedText, bookId, progress, cancellationToken);
         var now = _timeProvider.GetUtcNow();
+        var operation = new BookOperationRecord(
+            _idGenerator.CreateOperationId(),
+            BookOperationKind.Import,
+            BookOperationPhase.Staged,
+            bookId,
+            [new BookOperationPath(copyHandle.FinalPath, copyHandle.TemporaryPath, IsDirectory: false)],
+            now);
+        try
+        {
+            await _operationJournal.CreateAsync(operation, cancellationToken);
+        }
+        catch
+        {
+            // No durable recovery intent exists, so the staged file must be removed before propagating the failure.
+            await _bookFileStore.CleanupAsync(copyHandle, includeFinalFile: true, CancellationToken.None);
+            throw;
+        }
+
         var book = new Book(
             bookId,
             metadata.SuggestedTitle,
@@ -158,6 +179,7 @@ public sealed class DirectBookImportService : IDirectBookImportService
                 chapter.Length))
             .ToArray();
 
+        var databaseCommitted = false;
         try
         {
             progress?.Report(new BookImportProgress(
@@ -166,8 +188,17 @@ public sealed class DirectBookImportService : IDirectBookImportService
                 0,
                 true,
                 "正在写入书籍和章节数据。"));
-            await _bookFileStore.FinalizeAsync(copyHandle, cancellationToken);
             await _bookImportRepository.SaveAsync(book, chapterEntities, cancellationToken);
+            databaseCommitted = true;
+            await _operationJournal.SetPhaseAsync(
+                operation.OperationId,
+                BookOperationPhase.DatabaseCommitted,
+                cancellationToken);
+            await _bookFileStore.FinalizeAsync(copyHandle, cancellationToken);
+            await _operationJournal.SetPhaseAsync(
+                operation.OperationId,
+                BookOperationPhase.Completed,
+                cancellationToken);
             progress?.Report(new BookImportProgress(
                 BookImportPhase.Completed,
                 0,
@@ -177,11 +208,16 @@ public sealed class DirectBookImportService : IDirectBookImportService
         }
         catch
         {
-            // Cleanup must finish even when the import token was canceled so no staged/final content is orphaned.
-            await _bookFileStore.CleanupAsync(
-                copyHandle,
-                includeFinalFile: true,
-                CancellationToken.None);
+            if (!databaseCommitted)
+            {
+                // No database row can own these files. Cleanup must finish even after cancellation.
+                await _bookFileStore.CleanupAsync(copyHandle, includeFinalFile: true, CancellationToken.None);
+                await _operationJournal.SetPhaseAsync(
+                    operation.OperationId,
+                    BookOperationPhase.Completed,
+                    CancellationToken.None);
+            }
+
             throw;
         }
 

@@ -356,7 +356,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：`DirectBookImportService`、正文规范化、章节拆分与纯文件名模板解析已迁入 `Application/Books/Import`，用例仅通过文本分析、内容 hash、判重、章节规则、正文暂存和导入提交等语义端口协调；Application 不再引用 Infrastructure、SQLite 或拼接应用数据路径。导入时间改为必需的 `TimeProvider` 依赖，书籍和章节 ID 由专用 `IBookImportIdGenerator` 生成并提供默认实现，测试可注入固定序列。Application DI 注册用例、ID 生成器和纯解析协作者，Infrastructure DI 仅注册文件、hash 与 SQLite adapter。保留高置信度直接导入、低置信度选择、手动编码重试、重复拒绝、失败清理和取消传播语义；清理端口现显式接收取消参数，取消后的最终补偿使用有说明的不可取消清理。原导入测试按 Application/Infrastructure 命名空间分层，并补充固定时间/ID、端口取消传播及提交取消后清理回归测试，文件类集成测试仅使用隔离临时文件。
 
-### [ ] BOOK-204（P0）：实现导入/删除 operation journal 与路径约束
+### [x] BOOK-204（P0）：实现导入/删除 operation journal 与路径约束
 
 前置：BOOK-203。
 
@@ -369,6 +369,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 删除用例拆为 Application 协调 + Infrastructure 原子数据/文件操作；永不触碰外部 TXT。
 
 测试：每个故障点进程中断、journal 重放两次、恶意 DB 路径、`..`、根外文件、部分缓存删除失败。
+
+完成说明：新增 schema 6 `BookOperations`，导入按 `Staged → DatabaseCommitted → Completed` 记录持久化状态，启动恢复以 Books 行是否存在消除数据库提交与状态推进之间的崩溃歧义，并幂等完成正文切换或回滚孤立元数据。删除用例已迁入 Application 协调，Infrastructure 语义端口负责验证并暂存内部正文/可选缓存、原子删除数据库行和清理暂存；提交前恢复文件，提交后重复清理，外部源 TXT 从不进入删除目标。`IAppStoragePathResolver` 集中执行 canonicalization、根目录包含和现存 reparse point 拒绝策略，并对书籍、缓存、journal 暂存目录施加更窄的所有权约束；新正文/缓存记录写相对 storage key，启动惰性迁移合法旧绝对路径，非法或根外值保留并在消费入口拒绝。回归测试覆盖所有导入恢复相位、删除提交前后、双重重放、缺失/部分暂存缓存、journal 与数据库恶意路径、`..`、根外文件、reparse point、协调失败补偿和 schema 4/5→6。
 
 ### [ ] BOOK-205（P1）：拆分播放内容查询与装配
 

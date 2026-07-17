@@ -15,6 +15,7 @@ public static class FileStorageRegistration
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<IAppDataDirectoryProvider, LocalAppDataDirectoryProvider>();
+        services.TryAddSingleton<IAppStoragePathResolver, AppStoragePathResolver>();
         services.TryAddSingleton<ITextFileAnalyzer, TextFileAnalyzer>();
         services.TryAddSingleton<IContentHasher, Sha256ContentHasher>();
         services.TryAddSingleton<IBookContentReader, BookContentReader>();
