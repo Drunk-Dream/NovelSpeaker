@@ -6,6 +6,8 @@ using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.App.Views;
+using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;
@@ -80,6 +82,35 @@ public sealed partial class TtsRulesViewTests
             Assert.NotNull(button);
             Assert.Equal("当前规则，已禁用，当前规则，已选中", AutomationProperties.GetName(button!));
         });
+    }
+
+    [Fact]
+    public void TtsRulesView_uses_icon_buttons_for_toolbar_import_actions()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new TtsRulesView
+            {
+                DataContext = new TtsRulesViewLayoutContext()
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            AssertToolbarIcon(view, "新建规则", SymbolRegular.DocumentAdd24);
+            AssertToolbarIcon(view, "导入文件", SymbolRegular.ArrowImport24);
+            AssertToolbarIcon(view, "从剪贴板", SymbolRegular.ClipboardPaste24);
+        });
+    }
+
+    private static void AssertToolbarIcon(TtsRulesView view, string automationName, SymbolRegular expectedSymbol)
+    {
+        var button = Assert.Single(FindDescendants<Button>(
+            view,
+            candidate => AutomationProperties.GetName(candidate) == automationName));
+        Assert.Equal(expectedSymbol, Assert.IsType<SymbolIcon>(FindDescendant<SymbolIcon>(button, static _ => true)).Symbol);
+        Assert.Equal(automationName, button.ToolTip);
     }
 
     [Fact]

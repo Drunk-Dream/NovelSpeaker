@@ -56,9 +56,13 @@
                           ItemsSource="{Binding AvailableSortOptions}"
                           SelectedValue="{Binding SelectedSortMode}"
                           SelectedValuePath="Mode"/>
-                <Button Width="120"
+                <Button x:Name="ToolbarImportButton"
+                        Style="{StaticResource BorderlessIconButtonStyle}"
                         Click="ImportButton_OnClick"
-                        Content="导入小说"/>
+                        ToolTip="导入小说"
+                        AutomationProperties.Name="导入小说">
+                    <ui:SymbolIcon Symbol="ArrowImport24"/>
+                </Button>
             </WrapPanel>
         </Grid>
 
@@ -163,11 +167,15 @@
                            HorizontalAlignment="Center"
                            Style="{StaticResource SecondaryTextBlockStyle}"
                            Text="将 TXT 拖到这里，或选择文件导入。"/>
-                <Button Margin="0,16,0,0"
+                <Button x:Name="EmptyStateImportButton"
+                        Margin="0,16,0,0"
                         HorizontalAlignment="Center"
-                        Padding="18,8"
+                        Style="{StaticResource BorderlessIconButtonStyle}"
                         Click="ImportButton_OnClick"
-                        Content="导入小说"/>
+                        ToolTip="导入小说"
+                        AutomationProperties.Name="导入小说">
+                    <ui:SymbolIcon Symbol="ArrowImport24"/>
+                </Button>
             </StackPanel>
 
             <StackPanel HorizontalAlignment="Center"

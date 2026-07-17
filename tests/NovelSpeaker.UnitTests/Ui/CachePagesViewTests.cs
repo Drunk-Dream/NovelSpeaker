@@ -1,9 +1,12 @@
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.ViewModels;
+using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;
@@ -98,6 +101,11 @@ public sealed class CachePagesViewTests
                 var rootViewport = Assert.IsType<Border>(page.FindName("RootViewport"));
                 var booksScrollViewer = Assert.IsType<ScrollViewer>(page.FindName("BooksScrollViewer"));
                 var chaptersScrollViewer = Assert.IsType<ScrollViewer>(page.FindName("ChaptersScrollViewer"));
+                var textBlocks = FindVisualChildren<TextBlock>(page)
+                    .Select(textBlock => textBlock.Text)
+                    .Where(text => !string.IsNullOrWhiteSpace(text))
+                    .Cast<string>()
+                    .ToArray();
                 var layoutSnapshot =
                     $"frame={frame.ActualHeight}, root={rootViewport.ActualHeight}, " +
                     $"booksViewport={booksScrollViewer.ViewportHeight}, booksScrollable={booksScrollViewer.ScrollableHeight}, " +
@@ -106,6 +114,22 @@ public sealed class CachePagesViewTests
                 Assert.Equal(frame.ActualHeight, rootViewport.Height, 3);
                 Assert.True(booksScrollViewer.ScrollableHeight > 0, layoutSnapshot);
                 Assert.True(chaptersScrollViewer.ScrollableHeight > 0, layoutSnapshot);
+                Assert.Contains("书籍", textBlocks);
+                Assert.DoesNotContain("有缓存的书籍", textBlocks);
+
+                var firstBookCard = Assert.Single(
+                    FindVisualChildren<Border>(booksScrollViewer),
+                    border => AutomationProperties.GetName(border) == books[0].AutomationName);
+                var firstBookButton = Assert.Single(FindVisualChildren<Button>(firstBookCard));
+                Assert.InRange(Math.Abs(firstBookButton.ActualWidth - firstBookCard.ActualWidth), 0d, 1d);
+                Assert.InRange(Math.Abs(firstBookButton.ActualHeight - firstBookCard.ActualHeight), 0d, 1d);
+
+                var chapterCleanupButtons = FindVisualChildren<Button>(chaptersScrollViewer)
+                    .Where(button => AutomationProperties.GetName(button) == "清理本章缓存")
+                    .ToArray();
+                Assert.Equal(chapters.Length, chapterCleanupButtons.Length);
+                Assert.All(chapterCleanupButtons, button =>
+                    Assert.Equal(SymbolRegular.Delete24, Assert.IsType<SymbolIcon>(FindVisualChild<SymbolIcon>(button)).Symbol));
             }
             finally
             {
@@ -136,5 +160,26 @@ public sealed class CachePagesViewTests
 
             Visit(child, results);
         }
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        for (var childIndex = 0; childIndex < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); childIndex++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, childIndex);
+            if (child is T typedChild)
+            {
+                return typedChild;
+            }
+
+            var descendant = FindVisualChild<T>(child);
+            if (descendant is not null)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
     }
 }

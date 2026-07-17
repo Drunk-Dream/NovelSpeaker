@@ -8,6 +8,8 @@ using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.App.Library;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.App.Views;
+using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;
@@ -55,7 +57,26 @@ public sealed partial class LibraryViewTests
 
             Assert.NotNull(booksScrollViewer);
             Assert.NotNull(clearSearchButton);
+            AssertImportIcon(Assert.IsType<Button>(view.FindName("ToolbarImportButton")));
             Assert.Null(FindDescendant<Button>(view, candidate => Equals(candidate.Content, "清空")));
+        });
+    }
+
+    [Fact]
+    public void LibraryView_uses_import_icon_in_empty_state()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new LibraryView
+            {
+                DataContext = new LibraryViewLayoutContext()
+            };
+
+            view.Measure(new Size(960, 680));
+            view.Arrange(new Rect(0, 0, 960, 680));
+            view.UpdateLayout();
+
+            AssertImportIcon(Assert.IsType<Button>(view.FindName("EmptyStateImportButton")));
         });
     }
 
@@ -108,6 +129,13 @@ public sealed partial class LibraryViewTests
         }
 
         return null;
+    }
+
+    private static void AssertImportIcon(Button button)
+    {
+        Assert.Equal("导入小说", AutomationProperties.GetName(button));
+        Assert.Equal("导入小说", button.ToolTip);
+        Assert.Equal(SymbolRegular.ArrowImport24, Assert.IsType<SymbolIcon>(FindDescendant<SymbolIcon>(button, static _ => true)).Symbol);
     }
 
     private sealed partial class LibraryViewLayoutContext : ObservableObject

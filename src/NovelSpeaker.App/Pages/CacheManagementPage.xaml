@@ -67,7 +67,7 @@
                     <StackPanel DockPanel.Dock="Top"
                                 Margin="16,16,16,12">
                         <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
-                                   Text="有缓存的书籍" />
+                                   Text="书籍" />
                         <TextBlock Margin="0,6,0,0"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="{Binding Books.Count, StringFormat=共 {0} 本}" />
@@ -95,9 +95,12 @@
                         <ItemsControl ItemsSource="{Binding Books}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Style="{StaticResource SelectableListItemContainerStyle}"
+                                    <Border Padding="0"
+                                            Style="{StaticResource SelectableListItemContainerStyle}"
                                             AutomationProperties.Name="{Binding AutomationName}">
                                         <Button Style="{StaticResource BorderlessListItemButtonStyle}"
+                                                Padding="14,12"
+                                                AutomationProperties.Name="{Binding AutomationName}"
                                                 Command="{Binding DataContext.SelectBookCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                 CommandParameter="{Binding}">
                                             <StackPanel>
@@ -272,11 +275,14 @@
 
                                                 <Button Grid.Column="1"
                                                         Margin="16,0,0,0"
-                                                        Padding="14,8"
+                                                        Style="{StaticResource BorderlessIconButtonStyle}"
                                                         VerticalAlignment="Top"
                                                         Command="{Binding DataContext.ClearChapterCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         CommandParameter="{Binding}"
-                                                        Content="清理本章缓存" />
+                                                        ToolTip="清理本章缓存"
+                                                        AutomationProperties.Name="清理本章缓存">
+                                                    <ui:SymbolIcon Symbol="Delete24" />
+                                                </Button>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>

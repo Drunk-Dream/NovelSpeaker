@@ -72,9 +72,53 @@ public sealed partial class ChapterRulesViewTests
             var border = FindDescendant<Border>(
                 view,
                 candidate => AutomationProperties.GetName(candidate) == item.AutomationName);
+            var button = Assert.IsType<Button>(FindDescendant<Button>(border!, candidate =>
+                AutomationProperties.GetName(candidate) == item.AutomationName));
 
             Assert.NotNull(border);
             Assert.Equal("内置规则，已禁用，内置规则，不可删除，已选中", AutomationProperties.GetName(border!));
+            Assert.InRange(Math.Abs(button.ActualWidth - border!.ActualWidth), 0d, 1d);
+            Assert.True(
+                Math.Abs(button.ActualHeight - border.ActualHeight) <= 2d,
+                $"buttonHeight={button.ActualHeight}, cardHeight={border.ActualHeight}");
+        });
+    }
+
+    [Fact]
+    public void ChapterRulesView_keeps_rule_summary_above_quick_actions_at_narrow_width()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var item = new ChapterRuleListItemViewModel(
+                "custom:narrow",
+                "章节数字",
+                @"^\s*第[0-9一二三四五六七八九十百千万]+章\s*$",
+                true,
+                false,
+                false);
+            var view = new ChapterRulesView
+            {
+                DataContext = new ChapterRulesViewLayoutContext
+                {
+                    Rules = [item]
+                }
+            };
+
+            view.Measure(new Size(368, 640));
+            view.Arrange(new Rect(0, 0, 368, 640));
+            view.UpdateLayout();
+
+            var border = Assert.IsType<Border>(FindDescendant<Border>(view, candidate =>
+                AutomationProperties.GetName(candidate) == item.AutomationName));
+            var pattern = Assert.IsType<TextBlock>(FindDescendant<TextBlock>(border, candidate =>
+                candidate.Text == item.PatternSummary));
+            var checkBox = Assert.IsType<CheckBox>(FindDescendant<CheckBox>(border, static _ => true));
+            var patternBounds = GetBoundsRelativeTo(pattern, border);
+            var checkBoxBounds = GetBoundsRelativeTo(checkBox, border);
+
+            Assert.True(
+                patternBounds.Bottom <= checkBoxBounds.Top,
+                $"patternBottom={patternBounds.Bottom}, quickActionsTop={checkBoxBounds.Top}");
         });
     }
 
@@ -262,6 +306,12 @@ public sealed partial class ChapterRulesViewTests
                 yield return descendant;
             }
         }
+    }
+
+    private static Rect GetBoundsRelativeTo(FrameworkElement element, FrameworkElement root)
+    {
+        var topLeft = element.TranslatePoint(new Point(0, 0), root);
+        return new Rect(topLeft.X, topLeft.Y, element.ActualWidth, element.ActualHeight);
     }
 
     private sealed partial class ChapterRulesViewLayoutContext : ObservableObject

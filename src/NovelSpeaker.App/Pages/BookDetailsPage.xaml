@@ -239,8 +239,10 @@
                             </ListBox.ItemContainerStyle>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Style="{StaticResource CurrentListItemContainerStyle}">
+                                    <Border Padding="0"
+                                            Style="{StaticResource CurrentListItemContainerStyle}">
                                         <Button Style="{StaticResource BorderlessListItemButtonStyle}"
+                                                Padding="14,12"
                                                 ToolTip="{Binding TitleToolTip}"
                                                 AutomationProperties.Name="{Binding AutomationName}"
                                                 Command="{Binding DataContext.SelectChapterCommand, ElementName=RootLayout}"

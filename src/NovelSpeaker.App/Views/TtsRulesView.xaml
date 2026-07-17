@@ -46,17 +46,26 @@
                        HorizontalAlignment="Right"
                        VerticalAlignment="Center">
                 <Button Margin="0,0,12,0"
-                        Padding="16,8"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
                         Command="{Binding NewRuleCommand}"
-                        Content="新建规则" />
+                        ToolTip="新建规则"
+                        AutomationProperties.Name="新建规则">
+                    <ui:SymbolIcon Symbol="DocumentAdd24" />
+                </Button>
                 <Button Margin="0,0,12,0"
-                        Padding="16,8"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
                         Click="ImportFromFileButton_OnClick"
-                        Content="导入文件" />
+                        ToolTip="导入文件"
+                        AutomationProperties.Name="导入文件">
+                    <ui:SymbolIcon Symbol="ArrowImport24" />
+                </Button>
                 <Button Margin="0,0,12,0"
-                        Padding="16,8"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
                         Click="ImportFromClipboardButton_OnClick"
-                        Content="从剪贴板" />
+                        ToolTip="从剪贴板"
+                        AutomationProperties.Name="从剪贴板">
+                    <ui:SymbolIcon Symbol="ClipboardPaste24" />
+                </Button>
                 <Button Style="{StaticResource SecondaryIconButtonStyle}"
                         Command="{Binding OpenHelpCommand}"
                         ToolTip="规则编写帮助"

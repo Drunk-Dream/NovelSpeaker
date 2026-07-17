@@ -107,6 +107,7 @@ public sealed class BookDetailsPageTests
 
             var firstItem = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(0));
             var secondItem = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(1));
+            var firstCard = Assert.IsType<Border>(FindDescendant<Border>(firstItem, static border => border.Child is Button));
             var firstTitle = FindDescendant<TextBlock>(firstItem, static text => text.Text.StartsWith("第一章", StringComparison.Ordinal));
             var firstButton = FindDescendant<Button>(firstItem, static _ => true);
             var secondButton = FindDescendant<Button>(secondItem, static _ => true);
@@ -116,6 +117,8 @@ public sealed class BookDetailsPageTests
             Assert.Equal(TextWrapping.NoWrap, firstTitle!.TextWrapping);
             Assert.Equal(TextTrimming.CharacterEllipsis, firstTitle.TextTrimming);
             Assert.Equal("第一章 这是一个非常非常长的章节标题用于验证详情页目录的单行截断与 Tooltip 展示", firstButton!.ToolTip);
+            Assert.InRange(Math.Abs(firstButton.ActualWidth - firstCard.ActualWidth), 0d, 1d);
+            Assert.InRange(Math.Abs(firstButton.ActualHeight - firstCard.ActualHeight), 0d, 1d);
             Assert.NotNull(secondButton);
             Assert.Contains("当前章节", AutomationProperties.GetName(secondButton!));
         });
