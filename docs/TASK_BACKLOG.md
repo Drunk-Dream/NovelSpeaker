@@ -311,7 +311,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 ## Wave 2：Books 与 TextProcessing 纵向迁移
 
-### [ ] BOOK-201（P1）：建立书籍 read/write 语义端口
+### [x] BOOK-201（P1）：建立书籍 read/write 语义端口
 
 前置：DOMAIN-102、DB-103。
 
@@ -323,6 +323,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - Application 合同不返回活动 connection、绝对路径或 SQLite 类型。
 
 验收：现有 UI 结果字段不减少；repository/query 集成测试覆盖缺失书籍、排序和事务。
+
+完成说明：书库摘要、详情/章节读取统一通过 `IBookLibraryQuery` 返回断开连接的 Application 投影；元信息更新和删除分别由 `IBookMetadataUpdateService`、`IBookDeletionService` 表达，旧 `IBookManagementService`、`IBookCatalogService` 及无实际调用的缓存清理入口已删除。书籍查询、导入提交、判重、元信息写入和删除 SQL/ordinal mapper 已集中到 `Infrastructure/Persistence/Books`；`BookDetails` 不再暴露内部正文绝对路径、原始文件名或编码，删除所需路径只存在于 Infrastructure 内部模型。App 调用者、DI 与测试 fake 已迁移；集成测试覆盖缺失书籍、书库与章节稳定排序、导入写事务回滚、元信息缺失写入隔离，以及删除数据库失败和受保护缓存时的文件/数据恢复。
 
 ### [ ] TEXT-202（P1）：迁移章节规则和正则 Workspace 到 Application
 
