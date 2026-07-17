@@ -326,7 +326,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：书库摘要、详情/章节读取统一通过 `IBookLibraryQuery` 返回断开连接的 Application 投影；元信息更新和删除分别由 `IBookMetadataUpdateService`、`IBookDeletionService` 表达，旧 `IBookManagementService`、`IBookCatalogService` 及无实际调用的缓存清理入口已删除。书籍查询、导入提交、判重、元信息写入和删除 SQL/ordinal mapper 已集中到 `Infrastructure/Persistence/Books`；`BookDetails` 不再暴露内部正文绝对路径、原始文件名或编码，删除所需路径只存在于 Infrastructure 内部模型。App 调用者、DI 与测试 fake 已迁移；集成测试覆盖缺失书籍、书库与章节稳定排序、导入写事务回滚、元信息缺失写入隔离，以及删除数据库失败和受保护缓存时的文件/数据恢复。
 
-### [ ] TEXT-202（P1）：迁移章节规则和正则 Workspace 到 Application
+### [x] TEXT-202（P1）：迁移章节规则和正则 Workspace 到 Application
 
 前置：BOOK-201。
 
@@ -338,6 +338,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 展开正则 Workspace 压缩代码并与章节 Workspace 共享明确的小型校验/编辑会话模式；不得做万能泛型框架。
 
 测试：字段级保存不覆盖左侧状态、非法历史规则隔离、取消传播、规则刷新行为。
+
+完成说明：章节规则管理与编辑工作区已迁入 `Application/Books/ChapterRules`，正则替换工作区、执行管线和进程内错误投影已迁入 `Application/Books/TextProcessing`；两类规则共享仅负责 Pattern 规范化、校验和摘要的小型协作者。Application 注册用例与纯管线，Infrastructure 仅注册 SQLite repository 等适配器；播放内容加载必须注入正则管线，正则工作区与管线必须注入错误存储，不再允许 null/no-op 绕过。正则 repository 已展开压缩实现、改用 `TimeProvider` 并逐行隔离非法标识、Scope、时间或类型，历史非法 Pattern 在工作区标错且运行时跳过。回归测试覆盖字段级保存保留启用/排序、非法历史规则不破坏列表和运行链、取消传播、执行字段刷新播放及仅名称变化不刷新。
 
 ### [ ] BOOK-203（P1）：迁移直接导入用例到 Application
 
