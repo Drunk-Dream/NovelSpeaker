@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Navigation;
@@ -11,7 +12,7 @@ namespace NovelSpeaker.UnitTests.Ui;
 public sealed class NavigationViewportHeightBehaviorTests
 {
     [Fact]
-    public void Fixed_viewport_pages_use_shared_navigation_viewport_behavior()
+    public void Management_workspace_pages_use_shared_navigation_viewport_behavior()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -20,7 +21,6 @@ public sealed class NavigationViewportHeightBehaviorTests
             {
                 Page[] pages =
                 [
-                    provider.GetRequiredService<PlayerPage>(),
                     provider.GetRequiredService<BookDetailsPage>(),
                     provider.GetRequiredService<TtsRulesPage>(),
                     provider.GetRequiredService<ChapterRulesPage>(),
@@ -35,6 +35,32 @@ public sealed class NavigationViewportHeightBehaviorTests
                         NavigationViewportHeightBehavior.GetIsEnabled(rootViewport),
                         $"{page.GetType().Name} must use the shared navigation viewport behavior.");
                 }
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
+    public void PlayerPage_uses_pre_layout_page_height_binding_instead_of_loaded_viewport_behavior()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var page = provider.GetRequiredService<PlayerPage>();
+                var rootViewport = Assert.IsAssignableFrom<FrameworkElement>(page.FindName("RootViewport"));
+                var playerView = Assert.IsAssignableFrom<FrameworkElement>(page.FindName("PlayerView"));
+                var heightBinding = BindingOperations.GetBinding(playerView, FrameworkElement.HeightProperty);
+
+                Assert.False(NavigationViewportHeightBehavior.GetIsEnabled(rootViewport));
+                Assert.NotNull(heightBinding);
+                Assert.Equal(nameof(Page.ActualHeight), heightBinding!.Path.Path);
+                Assert.Equal(RelativeSourceMode.FindAncestor, heightBinding.RelativeSource?.Mode);
+                Assert.Equal(typeof(Page), heightBinding.RelativeSource?.AncestorType);
             }
             finally
             {
