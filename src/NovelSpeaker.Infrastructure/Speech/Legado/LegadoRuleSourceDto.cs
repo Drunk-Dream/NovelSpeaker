@@ -1,29 +1,31 @@
 using System.Text.Json;
 
-namespace NovelSpeaker.Infrastructure.Speech.Rules;
+namespace NovelSpeaker.Infrastructure.Speech.Legado;
 
 internal sealed record LegadoRuleSourceDto(
-    JsonElement Element,
     string? Name,
     string? Url,
     string? Header,
+    string? RequestOptionsJson,
     string? ContentType,
     string? ConcurrentRate,
     long? LastUpdateTime,
     bool IsEnabled,
+    bool HasUnsupportedCookieOrLoginInfoFields,
     IReadOnlyList<string> UnsupportedFields)
 {
     public static LegadoRuleSourceDto FromJson(JsonElement element, IReadOnlySet<string> supportedFields)
     {
         return new LegadoRuleSourceDto(
-            element,
             ReadString(element, "name"),
             ReadString(element, "url"),
             ReadString(element, "header"),
+            ReadRawJson(element, "requestOptions"),
             ReadString(element, "contentType"),
             ReadString(element, "concurrentRate"),
             ReadInt64(element, "lastUpdateTime"),
             ReadBoolean(element, "isEnabled", true),
+            HasProperty(element, "enabledCookieJar") || HasProperty(element, "loginInfo"),
             element.EnumerateObject()
                 .Where(property => !supportedFields.Contains(property.Name))
                 .Select(property => property.Name)
@@ -31,6 +33,10 @@ internal sealed record LegadoRuleSourceDto(
                 .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
                 .ToArray());
     }
+
+    private static bool HasProperty(JsonElement element, string name) =>
+        element.EnumerateObject().Any(property =>
+            property.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
     private static JsonElement? Find(JsonElement element, string name) =>
         element.EnumerateObject().FirstOrDefault(property =>
@@ -52,6 +58,14 @@ internal sealed record LegadoRuleSourceDto(
             JsonValueKind.False => bool.FalseString,
             _ => value.Value.GetRawText()
         };
+    }
+
+    private static string? ReadRawJson(JsonElement element, string name)
+    {
+        var value = Find(element, name);
+        return value is null || value.Value.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
+            ? null
+            : value.Value.GetRawText();
     }
 
     private static long? ReadInt64(JsonElement element, string name)

@@ -30,10 +30,10 @@ internal static class NovelSpeakerRuleJsonSerializer
 
         if (rule.Headers.Count > 0)
         {
-            writer.WriteString("header", TtsRulePersistenceMapper.SerializeHeaders(rule.Headers));
+            writer.WriteString("header", TtsRuleStructuredFieldsCodec.SerializeHeaders(rule.Headers));
         }
 
-        var requestOptionsJson = TtsRulePersistenceMapper.SerializeRequestOptions(
+        var requestOptionsJson = TtsRuleStructuredFieldsCodec.SerializeRequestOptions(
             rule.RequestMethod,
             rule.RequestBody,
             rule.RequestBodyIsJsonStructure);

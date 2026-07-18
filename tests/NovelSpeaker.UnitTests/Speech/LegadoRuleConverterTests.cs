@@ -2,6 +2,7 @@ using System.Text.Json;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Infrastructure.Speech.Rules;
+using NovelSpeaker.Infrastructure.Speech.Legado;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Speech;
@@ -9,6 +10,7 @@ namespace NovelSpeaker.UnitTests.Speech;
 public sealed class LegadoRuleConverterTests
 {
     private readonly LegadoRuleConverter _converter = new();
+    private readonly LegadoRuleSourceParser _parser = new();
 
     [Fact]
     public void Convert_rewrites_supported_compatibility_helpers_and_builds_canonical_rule_json()
@@ -23,7 +25,7 @@ public sealed class LegadoRuleConverterTests
             }
             """);
 
-        var result = _converter.Convert(document.RootElement);
+        var result = Convert(document.RootElement.GetRawText());
 
         Assert.True(result.CanImport);
         Assert.Equal(TtsRuleCompatibilityStatus.Compatible, result.CompatibilityStatus);
@@ -46,7 +48,7 @@ public sealed class LegadoRuleConverterTests
             }
             """);
 
-        var result = _converter.Convert(document.RootElement);
+        var result = Convert(document.RootElement.GetRawText());
 
         Assert.True(result.CanImport);
         Assert.Equal("https://example.com/tts", result.CandidateRule.Url);
@@ -66,7 +68,7 @@ public sealed class LegadoRuleConverterTests
             }
             """);
 
-        var result = _converter.Convert(document.RootElement);
+        var result = Convert(document.RootElement.GetRawText());
 
         Assert.False(result.CanImport);
         Assert.Equal(TtsRuleCompatibilityStatus.NeedsManualAdjustment, result.CompatibilityStatus);
@@ -85,7 +87,7 @@ public sealed class LegadoRuleConverterTests
     {
         using var document = JsonDocument.Parse(json);
 
-        var result = _converter.Convert(document.RootElement);
+        var result = Convert(document.RootElement.GetRawText());
 
         Assert.False(result.CanImport);
         Assert.Equal(TtsRuleCompatibilityStatus.NeedsManualAdjustment, result.CompatibilityStatus);
@@ -100,7 +102,7 @@ public sealed class LegadoRuleConverterTests
         using var document = JsonDocument.Parse(
             """{"name":"Authorization","url":"https://example.com/tts","header":{"Authorization":"Bearer demo"}}""");
 
-        var result = _converter.Convert(document.RootElement);
+        var result = Convert(document.RootElement.GetRawText());
 
         Assert.True(result.CanImport);
     }
@@ -111,7 +113,7 @@ public sealed class LegadoRuleConverterTests
         using var document = JsonDocument.Parse(
             """{"name":"Plain URL","url":"https://example.com/cookie/loginInfo/tts"}""");
 
-        var result = _converter.Convert(document.RootElement);
+        var result = Convert(document.RootElement.GetRawText());
 
         Assert.True(result.CanImport);
     }
@@ -127,9 +129,16 @@ public sealed class LegadoRuleConverterTests
             }
             """);
 
-        var result = _converter.Convert(document.RootElement);
+        var result = Convert(document.RootElement.GetRawText());
 
         Assert.False(result.CanImport);
         Assert.Contains(result.BlockingIssues, issue => issue.Contains("模板格式无效", StringComparison.Ordinal));
+    }
+
+    private TtsRuleConversionResult Convert(string json)
+    {
+        var parsed = _parser.Parse(json);
+        var source = Assert.Single(parsed.Items).Source;
+        return _converter.Convert(source!);
     }
 }

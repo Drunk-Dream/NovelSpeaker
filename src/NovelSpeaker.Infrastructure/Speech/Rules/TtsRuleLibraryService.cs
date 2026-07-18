@@ -1,9 +1,9 @@
-using System.Text.Json;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Infrastructure.Speech.Legado;
 
 namespace NovelSpeaker.Infrastructure.Speech.Rules;
 
@@ -15,17 +15,20 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
     private readonly ITtsRuleRepository _repository;
     private readonly IAppSettingsService _settingsService;
     private readonly LegadoRuleConverter _ruleConverter;
+    private readonly LegadoRuleSourceParser _sourceParser;
     private readonly TimeProvider _timeProvider;
 
     public TtsRuleLibraryService(
         ITtsRuleRepository repository,
         IAppSettingsService settingsService,
         LegadoRuleConverter ruleConverter,
+        LegadoRuleSourceParser? sourceParser = null,
         TimeProvider? timeProvider = null)
     {
         _repository = repository;
         _settingsService = settingsService;
         _ruleConverter = ruleConverter;
+        _sourceParser = sourceParser ?? new LegadoRuleSourceParser();
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -44,27 +47,14 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (string.IsNullOrWhiteSpace(jsonText))
+        var parsed = _sourceParser.Parse(jsonText);
+        if (parsed.ErrorMessage is not null)
         {
-            return new TtsRuleImportPreview(sourceDescription, [], "没有可导入的 JSON 内容。");
+            return new TtsRuleImportPreview(sourceDescription, [], parsed.ErrorMessage);
         }
 
-        try
-        {
-            using var document = JsonDocument.Parse(jsonText);
-            var root = document.RootElement;
-            if (root.ValueKind is not (JsonValueKind.Object or JsonValueKind.Array))
-            {
-                return new TtsRuleImportPreview(sourceDescription, [], "规则 JSON 必须是对象或对象数组。");
-            }
-
-            var existingRules = await _repository.GetAllAsync(cancellationToken);
-            return new TtsRuleImportPreview(sourceDescription, CreateImportItems(root, existingRules), null);
-        }
-        catch (JsonException)
-        {
-            return new TtsRuleImportPreview(sourceDescription, [], "JSON 解析失败，请检查规则内容。");
-        }
+        var existingRules = await _repository.GetAllAsync(cancellationToken);
+        return new TtsRuleImportPreview(sourceDescription, CreateImportItems(parsed.Items, existingRules), null);
     }
 
     public async Task<TtsRuleImportResult> ImportJsonTextAsync(
@@ -354,9 +344,12 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
         await ClearSelectedRuleIfNeededAsync(ruleId, cancellationToken);
     }
 
-    private TtsRuleImportItem CreateImportItem(JsonElement element, int index, IReadOnlyList<HttpTtsRule> existingRules)
+    private TtsRuleImportItem CreateImportItem(
+        LegadoRuleSourceDto source,
+        int index,
+        IReadOnlyList<HttpTtsRule> existingRules)
     {
-        var conversion = _ruleConverter.Convert(element);
+        var conversion = _ruleConverter.Convert(source);
         var candidateRule = conversion.CandidateRule;
         var ruleJson = TtsRuleModelMapper.ExportRuleJson(candidateRule);
         var exactDuplicate = existingRules.Any(rule =>
@@ -439,28 +432,20 @@ public sealed class TtsRuleLibraryService : ITtsRuleLibraryService
         };
     }
 
-    private List<TtsRuleImportItem> CreateImportItems(JsonElement root, IReadOnlyList<HttpTtsRule> existingRules)
+    private List<TtsRuleImportItem> CreateImportItems(
+        IReadOnlyList<LegadoRuleSourceItem> sourceItems,
+        IReadOnlyList<HttpTtsRule> existingRules)
     {
         var items = new List<TtsRuleImportItem>();
-        var index = 0;
-
-        if (root.ValueKind == JsonValueKind.Object)
+        foreach (var sourceItem in sourceItems)
         {
-            items.Add(CreateImportItem(root, index, existingRules));
-            return items;
-        }
-
-        foreach (var element in root.EnumerateArray())
-        {
-            if (element.ValueKind != JsonValueKind.Object)
+            if (sourceItem.Source is null)
             {
-                items.Add(CreateInvalidItem(index, "规则数组中的每一项都必须是对象。"));
-                index++;
+                items.Add(CreateInvalidItem(sourceItem.Index, sourceItem.ErrorMessage!));
                 continue;
             }
 
-            items.Add(CreateImportItem(element, index, existingRules));
-            index++;
+            items.Add(CreateImportItem(sourceItem.Source, sourceItem.Index, existingRules));
         }
 
         return items;

@@ -4,6 +4,7 @@ using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Speech.Rules;
+using NovelSpeaker.Infrastructure.Speech.Legado;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Speech;
@@ -68,6 +69,28 @@ public sealed class TtsRuleLibraryServiceTests
         Assert.Equal(0, result.SkippedCount);
         Assert.NotEqual(jsonText, exportedJson);
         Assert.Equal("""{"name":"新规则","url":"https://example.com/tts","header":"{\"X-Test\":\"1\"}"}""", exportedJson);
+    }
+
+    [Fact]
+    public async Task NovelSpeaker_export_import_export_preserves_canonical_bytes_and_structured_semantics()
+    {
+        var repository = new FakeTtsRuleRepository([]);
+        var service = new TtsRuleLibraryService(
+            repository,
+            new FakeAppSettingsStore(AppSettings.Default),
+            new LegadoRuleConverter());
+        const string canonicalJson =
+            """{"name":"结构化规则","url":"https://example.com/tts","contentType":"audio/mpeg","header":"{\"Authorization\":\"Bearer demo\"}","requestOptions":{"method":"POST","body":{"text":"{{speakText}}"}},"lastUpdateTime":123}""";
+
+        var result = await service.ImportJsonTextAsync(canonicalJson, "export.json", CancellationToken.None);
+        var saved = Assert.Single(repository.Rules);
+        var exported = await service.ExportRuleJsonAsync(saved.Id, CancellationToken.None);
+
+        Assert.Equal(1, result.ImportedCount);
+        Assert.Equal("POST", saved.RequestMethod);
+        Assert.Equal("""{"text":"{{speakText}}"}""", saved.RequestBody);
+        Assert.True(saved.RequestBodyIsJsonStructure);
+        Assert.Equal(canonicalJson, exported);
     }
 
     [Fact]

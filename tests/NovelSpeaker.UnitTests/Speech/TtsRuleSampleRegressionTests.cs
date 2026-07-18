@@ -3,6 +3,7 @@ using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.Infrastructure.Speech.Rules;
+using NovelSpeaker.Infrastructure.Speech.Legado;
 using NovelSpeaker.Infrastructure.Speech.Scripting;
 using Xunit;
 
@@ -11,6 +12,7 @@ namespace NovelSpeaker.UnitTests.Speech;
 public sealed class TtsRuleSampleRegressionTests
 {
     private readonly LegadoRuleConverter _converter = new();
+    private readonly LegadoRuleSourceParser _parser = new();
     private readonly TtsRequestCompiler _compiler = new(new JintTemplateEvaluator());
 
     [Fact]
@@ -31,7 +33,7 @@ public sealed class TtsRuleSampleRegressionTests
         {
             var file = Path.Combine(sampleDirectory, fileName);
             using var document = JsonDocument.Parse(await File.ReadAllTextAsync(file));
-            var conversion = _converter.Convert(document.RootElement);
+            var conversion = _converter.Convert(Assert.Single(_parser.Parse(document.RootElement.GetRawText()).Items).Source!);
 
             Assert.True(conversion.CanImport, $"{Path.GetFileName(file)} should be importable.");
 
@@ -56,7 +58,7 @@ public sealed class TtsRuleSampleRegressionTests
         var file = Path.Combine(AppContext.BaseDirectory, "TestAssets", "TtsRules", fileName);
         using var document = JsonDocument.Parse(await File.ReadAllTextAsync(file));
 
-        var conversion = _converter.Convert(document.RootElement);
+        var conversion = _converter.Convert(Assert.Single(_parser.Parse(document.RootElement.GetRawText()).Items).Source!);
 
         Assert.False(conversion.CanImport);
         Assert.Contains(conversion.BlockingIssues, issue =>

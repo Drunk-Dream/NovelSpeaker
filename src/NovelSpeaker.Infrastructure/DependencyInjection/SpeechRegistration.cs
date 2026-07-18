@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Infrastructure.Speech.Http;
+using NovelSpeaker.Infrastructure.Speech.Legado;
 using NovelSpeaker.Infrastructure.Speech.Rules;
 using NovelSpeaker.Infrastructure.Speech.Scripting;
 
@@ -14,6 +15,7 @@ public static class SpeechRegistration
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<LegadoRuleConverter>();
+        services.TryAddSingleton<LegadoRuleSourceParser>();
         services.TryAddSingleton<ITemplateEvaluator, JintTemplateEvaluator>();
         services.TryAddSingleton<ITtsRequestCompiler, TtsRequestCompiler>();
         services.TryAddSingleton<ITtsRateLimiter, TtsRateLimiter>();

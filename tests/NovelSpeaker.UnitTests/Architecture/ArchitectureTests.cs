@@ -8,6 +8,25 @@ public sealed class ArchitectureTests
     private static readonly ArchitectureTestRepository Repository = ArchitectureTestRepository.Locate();
 
     [Fact]
+    public void InfrastructurePublicTtsSourceApiDoesNotExposeJsonElement()
+    {
+        var jsonElementType = typeof(System.Text.Json.JsonElement);
+        var exposedMembers = typeof(NovelSpeaker.Infrastructure.Speech.Legado.LegadoRuleConverter)
+            .Assembly
+            .GetExportedTypes()
+            .Where(type => type.Namespace?.StartsWith("NovelSpeaker.Infrastructure.Speech", StringComparison.Ordinal) == true)
+            .SelectMany(type => type.GetMethods(System.Reflection.BindingFlags.Public |
+                                                System.Reflection.BindingFlags.Instance |
+                                                System.Reflection.BindingFlags.Static))
+            .Where(method => method.ReturnType == jsonElementType ||
+                             method.GetParameters().Any(parameter => parameter.ParameterType == jsonElementType))
+            .Select(method => $"{method.DeclaringType?.FullName}.{method.Name}")
+            .ToArray();
+
+        Assert.Empty(exposedMembers);
+    }
+
+    [Fact]
     public void SolutionContainsExpectedProjects()
     {
         var expected = new[]

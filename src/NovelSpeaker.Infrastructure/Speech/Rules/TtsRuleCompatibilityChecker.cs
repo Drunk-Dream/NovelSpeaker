@@ -12,13 +12,12 @@ internal static partial class TtsRuleCompatibilityChecker
         "当前版本不支持 Cookie/LoginInfo；请移除相关字段、Header 和模板表达式。";
 
     public static bool HasUnsupportedImportDependency(
-        JsonElement ruleElement,
+        bool hasUnsupportedCookieOrLoginInfoFields,
         string? url,
         string? header,
         string? requestOptionsJson)
     {
-        return HasProperty(ruleElement, "enabledCookieJar") ||
-               HasProperty(ruleElement, "loginInfo") ||
+        return hasUnsupportedCookieOrLoginInfoFields ||
                ContainsUnsupportedTemplateReference(url) ||
                ContainsUnsupportedTemplateReference(header) ||
                ContainsUnsupportedTemplateReference(requestOptionsJson) ||
@@ -113,13 +112,6 @@ internal static partial class TtsRuleCompatibilityChecker
         {
             return false;
         }
-    }
-
-    private static bool HasProperty(JsonElement element, string propertyName)
-    {
-        return element.ValueKind == JsonValueKind.Object &&
-               element.EnumerateObject().Any(property =>
-                   property.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool TryGetProperty(JsonElement element, string propertyName, out JsonElement value)

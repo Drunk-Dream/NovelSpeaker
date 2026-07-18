@@ -6,8 +6,9 @@ using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Infrastructure.Speech.Rules;
 
-namespace NovelSpeaker.Infrastructure.Speech.Rules;
+namespace NovelSpeaker.Infrastructure.Speech.Legado;
 
 /// <summary>
 /// Converts imported Legado-style rules into the application's canonical rule format.
@@ -21,20 +22,8 @@ public sealed partial class LegadoRuleConverter
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    private static readonly HashSet<string> SupportedFields = new(StringComparer.OrdinalIgnoreCase)
+    internal TtsRuleConversionResult Convert(LegadoRuleSourceDto source)
     {
-        "name",
-        "url",
-        "contentType",
-        "concurrentRate",
-        "header",
-        "isEnabled",
-        "lastUpdateTime"
-    };
-
-    public TtsRuleConversionResult Convert(JsonElement ruleElement)
-    {
-        var source = LegadoRuleSourceDto.FromJson(ruleElement, SupportedFields);
         var blockingIssues = new List<string>();
         var name = source.Name;
         var rawUrl = source.Url;
@@ -51,16 +40,17 @@ public sealed partial class LegadoRuleConverter
         }
 
         var split = ExtractRequestOptions(rawUrl);
+        var rawRequestOptions = split.RequestOptionsJson ?? source.RequestOptionsJson;
         if (split.ErrorMessage is not null)
         {
             blockingIssues.Add(split.ErrorMessage);
         }
 
         if (TtsRuleCompatibilityChecker.HasUnsupportedImportDependency(
-                source.Element,
+                source.HasUnsupportedCookieOrLoginInfoFields,
                 rawUrl,
                 rawHeader,
-                split.RequestOptionsJson))
+                rawRequestOptions))
         {
             blockingIssues.Add(TtsRuleCompatibilityChecker.UnsupportedCookieLoginInfoMessage);
         }
@@ -68,7 +58,7 @@ public sealed partial class LegadoRuleConverter
         var normalizedUrl = NormalizeTemplate(split.Url ?? rawUrl, "url", blockingIssues);
         var normalizedHeader = NormalizeTemplate(rawHeader, "header", blockingIssues);
         var normalizedRequestOptions = StripUnsupportedRequestOptions(
-            NormalizeTemplate(split.RequestOptionsJson, "requestOptions", blockingIssues));
+            NormalizeTemplate(rawRequestOptions, "requestOptions", blockingIssues));
 
         var candidateRule = CreateCandidateRule(
             source,
@@ -185,7 +175,7 @@ public sealed partial class LegadoRuleConverter
         string? normalizedRequestOptions)
     {
         var utcNow = _timeProvider.GetUtcNow();
-        var headers = TtsRulePersistenceMapper.ParseHeaders(normalizedHeader);
+        var headers = TtsRuleStructuredFieldsCodec.ParseHeaders(normalizedHeader);
         return new HttpTtsRule(
             0,
             name ?? string.Empty,
@@ -193,9 +183,9 @@ public sealed partial class LegadoRuleConverter
             source.ContentType,
             source.ConcurrentRate,
             headers,
-            TtsRulePersistenceMapper.ParseRequestMethod(normalizedRequestOptions),
-            TtsRulePersistenceMapper.ParseRequestBody(normalizedRequestOptions),
-            TtsRulePersistenceMapper.IsRequestBodyJsonStructure(normalizedRequestOptions),
+            TtsRuleStructuredFieldsCodec.ParseRequestMethod(normalizedRequestOptions),
+            TtsRuleStructuredFieldsCodec.ParseRequestBody(normalizedRequestOptions),
+            TtsRuleStructuredFieldsCodec.IsRequestBodyJsonStructure(normalizedRequestOptions),
             source.LastUpdateTime,
             source.IsEnabled,
             null,
