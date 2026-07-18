@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Pages;
@@ -13,7 +14,9 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
     private const int DebounceDelayMilliseconds = 500;
 
     private readonly IAppSettingsService _settingsService;
+    private readonly IPlaybackCoordinator _playbackCoordinator;
     private readonly INavigationService _navigationService;
+    private readonly TimeProvider _timeProvider;
     private bool _isLoading;
     private CancellationTokenSource? _defaultSpeakSpeedDebounceCts;
     private CancellationTokenSource? _prefetchCountDebounceCts;
@@ -22,12 +25,16 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
 
     public PlaybackSettingsViewModel(
         IAppSettingsService settingsService,
+        IPlaybackCoordinator playbackCoordinator,
         INavigationService navigationService,
-        IAppFeedbackService feedbackService)
+        IAppFeedbackService feedbackService,
+        TimeProvider? timeProvider = null)
         : base(navigationService, feedbackService)
     {
         _settingsService = settingsService;
+        _playbackCoordinator = playbackCoordinator;
         _navigationService = navigationService;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     [ObservableProperty]
@@ -68,7 +75,7 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
 
     public async Task CommitDefaultSpeakSpeedAsync(CancellationToken cancellationToken)
     {
-        CancelPendingSave(ref _defaultSpeakSpeedDebounceCts);
+        CompleteOrCancelPendingSave(ref _defaultSpeakSpeedDebounceCts, cancellationToken);
         var version = Interlocked.Increment(ref _defaultSpeakSpeedVersion);
 
         if (!int.TryParse(DefaultSpeakSpeedText, out var parsedSpeed))
@@ -93,6 +100,12 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
 
             DefaultSpeakSpeedText = settings.DefaultSpeakSpeed.ToString();
             DefaultSpeakSpeedErrorText = string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId) &&
+                _playbackCoordinator.CurrentSnapshot.SpeakSpeed != settings.DefaultSpeakSpeed)
+            {
+                await _playbackCoordinator.ChangeSpeedAsync(settings.DefaultSpeakSpeed, cancellationToken);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -101,14 +114,14 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
         {
             if (version == Volatile.Read(ref _defaultSpeakSpeedVersion))
             {
-                ShowSaveFailure("保存默认语速失败", exception);
+                ShowSaveFailure("更新语速失败", exception);
             }
         }
     }
 
     public async Task CommitPrefetchCountAsync(CancellationToken cancellationToken)
     {
-        CancelPendingSave(ref _prefetchCountDebounceCts);
+        CompleteOrCancelPendingSave(ref _prefetchCountDebounceCts, cancellationToken);
         var version = Interlocked.Increment(ref _prefetchCountVersion);
 
         if (!int.TryParse(PrefetchCountText, out var parsedCount))
@@ -177,13 +190,13 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
         _ = RunDebouncedCommitAsync(token, commitAsync);
     }
 
-    private static async Task RunDebouncedCommitAsync(
+    private async Task RunDebouncedCommitAsync(
         CancellationToken cancellationToken,
         Func<CancellationToken, Task> commitAsync)
     {
         try
         {
-            await Task.Delay(DebounceDelayMilliseconds, cancellationToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(DebounceDelayMilliseconds), _timeProvider, cancellationToken);
             await commitAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -196,5 +209,19 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
         cancellationTokenSource?.Cancel();
         cancellationTokenSource?.Dispose();
         cancellationTokenSource = null;
+    }
+
+    private static void CompleteOrCancelPendingSave(
+        ref CancellationTokenSource? cancellationTokenSource,
+        CancellationToken commitToken)
+    {
+        if (cancellationTokenSource is not null && cancellationTokenSource.Token == commitToken)
+        {
+            cancellationTokenSource.Dispose();
+            cancellationTokenSource = null;
+            return;
+        }
+
+        CancelPendingSave(ref cancellationTokenSource);
     }
 }

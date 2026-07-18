@@ -19,6 +19,8 @@ namespace NovelSpeaker.App.ViewModels;
 
 public sealed partial class PlayerViewModel : ObservableObject
 {
+    private static readonly TimeSpan SpeakSpeedStepDebounceDelay = TimeSpan.FromMilliseconds(500);
+
     private readonly IPlaybackCoordinator _playbackCoordinator;
     private readonly IBookPlaybackContentService _bookPlaybackContentService;
     private readonly ITtsRuleQueries _ruleQueries;
@@ -26,6 +28,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private readonly IAppFeedbackService _feedbackService;
     private readonly INavigationService _navigationService;
     private readonly IPlayerAutoScrollCoordinator _autoScrollCoordinator;
+    private readonly TimeProvider _timeProvider;
     private readonly object _projectionSyncRoot = new();
 
     private readonly Dictionary<int, PlaybackChapterContent> _chapterCache = [];
@@ -41,6 +44,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private bool _suppressNextStateDrivenAutoCenterRequest;
     private PlayerAutoScrollState _lastAppliedAutoScrollState;
     private PlaybackSnapshot _lastAppliedSnapshot = PlaybackSnapshot.Idle;
+    private CancellationTokenSource? _speakSpeedStepDebounceCts;
 
     public PlayerViewModel(
         IPlaybackCoordinator playbackCoordinator,
@@ -49,7 +53,8 @@ public sealed partial class PlayerViewModel : ObservableObject
         IAppSettingsService settingsService,
         IAppFeedbackService feedbackService,
         INavigationService navigationService,
-        IPlayerAutoScrollCoordinator autoScrollCoordinator)
+        IPlayerAutoScrollCoordinator autoScrollCoordinator,
+        TimeProvider? timeProvider = null)
     {
         _playbackCoordinator = playbackCoordinator;
         _bookPlaybackContentService = bookPlaybackContentService;
@@ -58,6 +63,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         _feedbackService = feedbackService;
         _navigationService = navigationService;
         _autoScrollCoordinator = autoScrollCoordinator;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _lastAppliedAutoScrollState = _autoScrollCoordinator.State;
 
         ApplyAutoScrollState();
@@ -527,6 +533,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task ApplySpeakSpeedAsync(CancellationToken cancellationToken)
     {
+        CancelPendingSpeakSpeedStepChange();
         if (!TryParseSpeedEditorText(out var parsedSpeed))
         {
             return;
@@ -535,8 +542,8 @@ public sealed partial class PlayerViewModel : ObservableObject
         await ApplySpeakSpeedChangeAsync(parsedSpeed, cancellationToken);
     }
 
-    [RelayCommand(AllowConcurrentExecutions = false)]
-    private async Task IncreaseSpeakSpeedAsync(CancellationToken cancellationToken)
+    [RelayCommand]
+    private void IncreaseSpeakSpeed()
     {
         var currentSpeed = ResolvePendingSpeakSpeed();
         var nextSpeed = Math.Min(currentSpeed + 1, AppSettings.MaxSpeakSpeed);
@@ -547,11 +554,12 @@ public sealed partial class PlayerViewModel : ObservableObject
 
         SpeedEditorText = nextSpeed.ToString(CultureInfo.InvariantCulture);
         SpeedEditorErrorText = string.Empty;
-        await ApplySpeakSpeedChangeAsync(nextSpeed, cancellationToken);
+        SpeakSpeed = nextSpeed;
+        ScheduleSpeakSpeedStepChange(nextSpeed);
     }
 
-    [RelayCommand(AllowConcurrentExecutions = false)]
-    private async Task DecreaseSpeakSpeedAsync(CancellationToken cancellationToken)
+    [RelayCommand]
+    private void DecreaseSpeakSpeed()
     {
         var currentSpeed = ResolvePendingSpeakSpeed();
         var nextSpeed = Math.Max(currentSpeed - 1, AppSettings.MinSpeakSpeed);
@@ -562,7 +570,8 @@ public sealed partial class PlayerViewModel : ObservableObject
 
         SpeedEditorText = nextSpeed.ToString(CultureInfo.InvariantCulture);
         SpeedEditorErrorText = string.Empty;
-        await ApplySpeakSpeedChangeAsync(nextSpeed, cancellationToken);
+        SpeakSpeed = nextSpeed;
+        ScheduleSpeakSpeedStepChange(nextSpeed);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -1113,12 +1122,12 @@ public sealed partial class PlayerViewModel : ObservableObject
     private async Task ApplySpeakSpeedChangeAsync(int parsedSpeed, CancellationToken cancellationToken)
     {
         if (parsedSpeed == SpeakSpeed &&
-            AppSettings.NormalizeSpeakSpeed(_playbackCoordinator.CurrentSnapshot.SpeakSpeed) == parsedSpeed)
+            AppSettings.NormalizeSpeakSpeed(_playbackCoordinator.CurrentSnapshot.SpeakSpeed) == parsedSpeed &&
+            _settingsService.Current.DefaultSpeakSpeed == parsedSpeed)
         {
             return;
         }
 
-        await _playbackCoordinator.ChangeSpeedAsync(parsedSpeed, cancellationToken);
         SpeakSpeed = parsedSpeed;
         SpeedEditorText = parsedSpeed.ToString(CultureInfo.InvariantCulture);
         try
@@ -1130,6 +1139,12 @@ public sealed partial class PlayerViewModel : ObservableObject
                 },
                 cancellationToken);
             _defaultSpeakSpeed = settings.DefaultSpeakSpeed;
+
+            if (!string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId) &&
+                _playbackCoordinator.CurrentSnapshot.SpeakSpeed != settings.DefaultSpeakSpeed)
+            {
+                await _playbackCoordinator.ChangeSpeedAsync(settings.DefaultSpeakSpeed, cancellationToken);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -1138,8 +1153,34 @@ public sealed partial class PlayerViewModel : ObservableObject
         catch (Exception exception)
         {
             var projected = _feedbackService.Project(exception);
-            _feedbackService.ShowProjectedNotification("保存默认语速失败", projected);
+            _feedbackService.ShowProjectedNotification("更新语速失败", projected);
         }
+    }
+
+    private void ScheduleSpeakSpeedStepChange(int speakSpeed)
+    {
+        CancelPendingSpeakSpeedStepChange();
+        _speakSpeedStepDebounceCts = new CancellationTokenSource();
+        _ = ApplyDebouncedSpeakSpeedStepChangeAsync(speakSpeed, _speakSpeedStepDebounceCts.Token);
+    }
+
+    private async Task ApplyDebouncedSpeakSpeedStepChangeAsync(int speakSpeed, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(SpeakSpeedStepDebounceDelay, _timeProvider, cancellationToken);
+            await ApplySpeakSpeedChangeAsync(speakSpeed, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private void CancelPendingSpeakSpeedStepChange()
+    {
+        _speakSpeedStepDebounceCts?.Cancel();
+        _speakSpeedStepDebounceCts?.Dispose();
+        _speakSpeedStepDebounceCts = null;
     }
 
     private async Task RestoreMissingRuleSessionAsync(

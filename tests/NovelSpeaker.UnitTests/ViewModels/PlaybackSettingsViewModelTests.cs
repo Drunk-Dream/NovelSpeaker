@@ -1,8 +1,10 @@
+using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.UnitTests.Common;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
@@ -27,7 +29,13 @@ public sealed class PlaybackSettingsViewModelTests
     public async Task CommitDefaultSpeakSpeedAsync_normalizes_and_updates_text()
     {
         var service = new FakeAppSettingsService(AppSettings.Default);
-        var viewModel = CreateViewModel(service);
+        var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle with
+        {
+            State = PlaybackState.Paused,
+            BookId = "book-1",
+            SpeakSpeed = 10
+        });
+        var viewModel = CreateViewModel(service, playbackCoordinator: coordinator);
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.DefaultSpeakSpeedText = "99";
 
@@ -35,6 +43,53 @@ public sealed class PlaybackSettingsViewModelTests
 
         Assert.Equal(AppSettings.MaxSpeakSpeed.ToString(), viewModel.DefaultSpeakSpeedText);
         Assert.Equal(AppSettings.MaxSpeakSpeed, service.CurrentSettings.DefaultSpeakSpeed);
+        Assert.Equal(AppSettings.MaxSpeakSpeed, coordinator.LastChangedSpeakSpeed);
+    }
+
+    [Fact]
+    public async Task CommitDefaultSpeakSpeedAsync_without_playback_session_only_updates_global_speed()
+    {
+        var service = new FakeAppSettingsService(AppSettings.Default);
+        var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+        var viewModel = CreateViewModel(service, playbackCoordinator: coordinator);
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.DefaultSpeakSpeedText = "12";
+
+        await viewModel.CommitDefaultSpeakSpeedAsync(CancellationToken.None);
+
+        Assert.Equal(12, service.CurrentSettings.DefaultSpeakSpeed);
+        Assert.Null(coordinator.LastChangedSpeakSpeed);
+    }
+
+    [Fact]
+    public async Task DefaultSpeakSpeedText_change_debounces_global_update_and_audio_regeneration()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var service = new FakeAppSettingsService(AppSettings.Default);
+        var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle with
+        {
+            State = PlaybackState.Playing,
+            BookId = "book-1",
+            SpeakSpeed = 10
+        });
+        var viewModel = CreateViewModel(
+            service,
+            playbackCoordinator: coordinator,
+            timeProvider: timeProvider);
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        viewModel.DefaultSpeakSpeedText = "11";
+        viewModel.DefaultSpeakSpeedText = "12";
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(499));
+        await Task.Yield();
+        Assert.Equal(10, service.CurrentSettings.DefaultSpeakSpeed);
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(1));
+        await coordinator.WaitForSpeedChangeAsync();
+
+        Assert.Equal(12, service.CurrentSettings.DefaultSpeakSpeed);
+        Assert.Equal(12, coordinator.LastChangedSpeakSpeed);
     }
 
     [Fact]
@@ -65,12 +120,54 @@ public sealed class PlaybackSettingsViewModelTests
     private static PlaybackSettingsViewModel CreateViewModel(
         FakeAppSettingsService settingsService,
         FakeNavigationService? navigationService = null,
-        FakeFeedbackService? feedbackService = null)
+        FakeFeedbackService? feedbackService = null,
+        IPlaybackCoordinator? playbackCoordinator = null,
+        TimeProvider? timeProvider = null)
     {
         return new PlaybackSettingsViewModel(
             settingsService,
+            playbackCoordinator ?? new FakePlaybackCoordinator(PlaybackSnapshot.Idle),
             navigationService ?? new FakeNavigationService(),
-            feedbackService ?? new FakeFeedbackService());
+            feedbackService ?? new FakeFeedbackService(),
+            timeProvider);
+    }
+
+    private sealed class FakePlaybackCoordinator(PlaybackSnapshot snapshot) : IPlaybackCoordinator
+    {
+        public PlaybackSnapshot CurrentSnapshot { get; private set; } = snapshot;
+        public int? LastChangedSpeakSpeed { get; private set; }
+        private readonly TaskCompletionSource _speedChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
+
+        public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken)
+        {
+            LastChangedSpeakSpeed = speakSpeed;
+            CurrentSnapshot = CurrentSnapshot with { SpeakSpeed = speakSpeed };
+            SnapshotChanged?.Invoke(this, CurrentSnapshot);
+            _speedChanged.TrySetResult();
+            return Task.CompletedTask;
+        }
+
+        public Task WaitForSpeedChangeAsync() => _speedChanged.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task OpenPausedAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task PauseAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task ResumeAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task StopAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task NextSegmentAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task PreviousSegmentAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task NextChapterAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task PreviousChapterAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private sealed class FakeAppSettingsService : IAppSettingsService

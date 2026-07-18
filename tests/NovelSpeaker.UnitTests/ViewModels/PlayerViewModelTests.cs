@@ -11,6 +11,7 @@ using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.UnitTests.Common;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
@@ -719,6 +720,31 @@ public sealed class PlayerViewModelTests
         Assert.Equal(18, settingsService.Settings.DefaultSpeakSpeed);
     }
 
+    [Fact]
+    public async Task ApplySpeakSpeedCommand_updates_global_speed_when_session_already_uses_the_value()
+    {
+        var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle with
+        {
+            State = PlaybackState.Paused,
+            BookId = "book-1",
+            SpeakSpeed = 10
+        });
+        var settingsService = new FakeAppSettingsService(
+            AppSettings.Default with { DefaultSpeakSpeed = 12 });
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(null, null),
+            settingsService: settingsService);
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.ToggleSpeedMenuCommand.Execute(null);
+        viewModel.SpeedEditorText = "10";
+
+        await viewModel.ApplySpeakSpeedCommand.ExecuteAsync(null);
+
+        Assert.Equal(10, settingsService.Settings.DefaultSpeakSpeed);
+        Assert.Null(coordinator.LastChangedSpeakSpeed);
+    }
+
     [Theory]
     [InlineData("1", 1)]
     [InlineData("20", 20)]
@@ -804,8 +830,9 @@ public sealed class PlayerViewModelTests
     }
 
     [Fact]
-    public async Task IncreaseAndDecreaseSpeakSpeedCommands_apply_immediately()
+    public async Task IncreaseAndDecreaseSpeakSpeedCommands_debounce_and_apply_only_the_latest_speed()
     {
+        var timeProvider = new ManualTimeProvider();
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
             "book-1",
@@ -823,24 +850,37 @@ public sealed class PlayerViewModelTests
             false,
             false,
             false));
+        var settingsService = new FakeAppSettingsService(AppSettings.Default);
         var viewModel = CreateViewModel(
             coordinator,
             new FakeBookPlaybackContentService(
                 new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
-                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
+                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
+            settingsService: settingsService,
+            timeProvider: timeProvider);
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
             new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
-        await viewModel.IncreaseSpeakSpeedCommand.ExecuteAsync(null);
-        Assert.Equal(11, coordinator.LastChangedSpeakSpeed);
+        viewModel.IncreaseSpeakSpeedCommand.Execute(null);
+        viewModel.IncreaseSpeakSpeedCommand.Execute(null);
+        viewModel.DecreaseSpeakSpeedCommand.Execute(null);
+
+        Assert.Null(coordinator.LastChangedSpeakSpeed);
+        Assert.Equal(11, viewModel.SpeakSpeed);
         Assert.Equal("11", viewModel.SpeedEditorText);
 
-        await viewModel.DecreaseSpeakSpeedCommand.ExecuteAsync(null);
-        Assert.Equal(10, coordinator.LastChangedSpeakSpeed);
-        Assert.Equal("10", viewModel.SpeedEditorText);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(499));
+        await Task.Yield();
+        Assert.Null(coordinator.LastChangedSpeakSpeed);
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(1));
+        await coordinator.WaitForSpeedChangeAsync();
+
+        Assert.Equal(11, coordinator.LastChangedSpeakSpeed);
+        Assert.Equal(11, settingsService.Settings.DefaultSpeakSpeed);
     }
 
     [Fact]
@@ -1343,7 +1383,8 @@ public sealed class PlayerViewModelTests
         FakeNavigationService? navigationService = null,
         FakeAppFeedbackService? feedbackService = null,
         FakePlayerAutoScrollCoordinator? autoScrollCoordinator = null,
-        FakeAppSettingsService? settingsService = null)
+        FakeAppSettingsService? settingsService = null,
+        TimeProvider? timeProvider = null)
     {
         return new PlayerViewModel(
             coordinator,
@@ -1352,7 +1393,8 @@ public sealed class PlayerViewModelTests
             settingsService ?? new FakeAppSettingsService(AppSettings.Default),
             feedbackService ?? new FakeAppFeedbackService(),
             navigationService ?? new FakeNavigationService(),
-            autoScrollCoordinator ?? new FakePlayerAutoScrollCoordinator());
+            autoScrollCoordinator ?? new FakePlayerAutoScrollCoordinator(),
+            timeProvider ?? TimeProvider.System);
     }
 
     private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
@@ -1372,6 +1414,8 @@ public sealed class PlayerViewModelTests
         public long? LastChangedRuleId { get; private set; }
 
         public int? LastChangedSpeakSpeed { get; private set; }
+
+        private readonly TaskCompletionSource _speedChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public int OpenPausedCallCount { get; private set; }
 
@@ -1560,8 +1604,11 @@ public sealed class PlayerViewModelTests
         {
             LastChangedSpeakSpeed = speakSpeed;
             Publish(CurrentSnapshot with { SpeakSpeed = speakSpeed });
+            _speedChanged.TrySetResult();
             return Task.CompletedTask;
         }
+
+        public Task WaitForSpeedChangeAsync() => _speedChanged.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
 
