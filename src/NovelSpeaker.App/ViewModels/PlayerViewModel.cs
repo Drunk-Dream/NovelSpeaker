@@ -201,7 +201,8 @@ public sealed partial class PlayerViewModel : ObservableObject
         var settings = _settingsService.Current;
         _defaultSpeakSpeed = settings.DefaultSpeakSpeed;
 
-        if (!AppSettings.IsValidSpeakSpeed(_playbackCoordinator.CurrentSnapshot.SpeakSpeed))
+        if (string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId) ||
+            !AppSettings.IsValidSpeakSpeed(_playbackCoordinator.CurrentSnapshot.SpeakSpeed))
         {
             SpeakSpeed = _defaultSpeakSpeed;
         }
@@ -877,7 +878,9 @@ public sealed partial class PlayerViewModel : ObservableObject
         PrimaryActionText = snapshot.State == PlaybackState.Playing ? "暂停" : "播放";
 
         var nextSpeakSpeed = AppSettings.NormalizeSpeakSpeed(
-            snapshot.SpeakSpeed <= 0 ? _defaultSpeakSpeed : snapshot.SpeakSpeed);
+            string.IsNullOrWhiteSpace(snapshot.BookId) || snapshot.SpeakSpeed <= 0
+                ? _defaultSpeakSpeed
+                : snapshot.SpeakSpeed);
         if (nextSpeakSpeed > 0)
         {
             SpeakSpeed = nextSpeakSpeed;

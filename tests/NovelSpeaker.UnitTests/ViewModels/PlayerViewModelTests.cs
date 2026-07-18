@@ -20,6 +20,39 @@ namespace NovelSpeaker.UnitTests.ViewModels;
 public sealed class PlayerViewModelTests
 {
     [Fact]
+    public async Task LoadAsync_uses_persisted_global_speed_after_restart()
+    {
+        var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+        var settingsService = new FakeAppSettingsService(
+            AppSettings.Default with { DefaultSpeakSpeed = 18 });
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(
+                new PlaybackBookContent(
+                    "book-1",
+                    "示例小说",
+                    [PlaybackChapterContent.FromLoaded(0, "第一章", [])],
+                    "作者甲"),
+                PlaybackChapterContent.FromLoaded(
+                    0,
+                    "第一章",
+                    [new SpeechSegment(0, 0, 3, "第一段", "第一段")])),
+            settingsService: settingsService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(18, viewModel.SpeakSpeed);
+        Assert.Equal("18", viewModel.SpeedEditorText);
+
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.OpenPaused),
+            CancellationToken.None);
+
+        Assert.Equal(18, coordinator.LastOpenPausedRequest!.SpeakSpeedOverride);
+        Assert.Equal(18, viewModel.SpeakSpeed);
+    }
+
+    [Fact]
     public async Task HandleNavigationAsync_open_paused_calls_coordinator_for_different_book_and_loads_projection()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
