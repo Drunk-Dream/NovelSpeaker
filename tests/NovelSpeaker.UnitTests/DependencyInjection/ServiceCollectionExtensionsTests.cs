@@ -5,6 +5,7 @@ using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.App;
 using NovelSpeaker.App.Dialogs;
 using NovelSpeaker.App.Diagnostics;
@@ -78,6 +79,10 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IChapterRuleWorkspaceService>(provider.GetRequiredService<IChapterRuleWorkspaceService>());
                 Assert.IsAssignableFrom<NovelSpeaker.Application.Speech.ITtsRuleRepository>(
                     provider.GetRequiredService<NovelSpeaker.Application.Speech.ITtsRuleRepository>());
+                Assert.IsAssignableFrom<ITtsRuleImportUseCase>(provider.GetRequiredService<ITtsRuleImportUseCase>());
+                Assert.IsAssignableFrom<ITtsRuleEditorUseCase>(provider.GetRequiredService<ITtsRuleEditorUseCase>());
+                Assert.IsAssignableFrom<ITtsRuleSelectionUseCase>(provider.GetRequiredService<ITtsRuleSelectionUseCase>());
+                Assert.IsAssignableFrom<ITtsRuleQueries>(provider.GetRequiredService<ITtsRuleQueries>());
                 Assert.IsAssignableFrom<IDirectBookImportService>(provider.GetRequiredService<IDirectBookImportService>());
                 Assert.IsAssignableFrom<IAppSettingsStore>(provider.GetRequiredService<IAppSettingsStore>());
                 Assert.IsAssignableFrom<IAppSettingsService>(provider.GetRequiredService<IAppSettingsService>());

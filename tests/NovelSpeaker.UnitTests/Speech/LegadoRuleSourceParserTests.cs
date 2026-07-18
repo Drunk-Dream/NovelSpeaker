@@ -47,4 +47,18 @@ public sealed class LegadoRuleSourceParserTests
         Assert.Empty(result.Items);
         Assert.Equal(expectedMessage, result.ErrorMessage);
     }
+
+    [Theory]
+    [InlineData("""{"name":"对象","url":"https://example.com/object"}""", 1)]
+    [InlineData("""[{"name":"数组一","url":"https://example.com/one"},{"name":"数组二","url":"https://example.com/two"}]""", 2)]
+    public void Source_adapter_converts_object_and_array_into_typed_candidates(string json, int expectedCount)
+    {
+        var adapter = new LegadoRuleSourceAdapter(new LegadoRuleSourceParser(), new LegadoRuleConverter());
+
+        var result = adapter.Read(json);
+
+        Assert.Null(result.ErrorMessage);
+        Assert.Equal(expectedCount, result.Items.Count);
+        Assert.All(result.Items, item => Assert.True(item.Conversion!.CanImport));
+    }
 }

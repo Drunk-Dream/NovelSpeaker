@@ -75,6 +75,23 @@ public sealed class TtsRuleTestServiceTests
         Assert.DoesNotContain(logger.Entries, entry => entry.Level == LogLevel.Error);
     }
 
+    [Fact]
+    public async Task TestAsync_executes_editor_draft_without_saving_it()
+    {
+        var input = CreateInput("fixture-token", "fixture-body", "fixture-text");
+        var editor = new FakeRuleEditorUseCase(input.Editor);
+        await using var service = new TtsRuleTestService(
+            editor,
+            new SuccessfulCompiler(),
+            new SuccessfulHttpClient(),
+            new FakeAudioPlayerFactory(new FakeAudioPlayer()));
+
+        var result = await service.TestAsync(input, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, editor.SaveCallCount);
+    }
+
     private static TtsRuleTestService CreateService(
         TtsRuleEditorModel editor,
         CapturingLogger<TtsRuleTestService> logger,
@@ -82,7 +99,7 @@ public sealed class TtsRuleTestServiceTests
         FakeAudioPlayer? player = null)
     {
         return new TtsRuleTestService(
-            new FakeRuleLibraryService(editor),
+            new FakeRuleEditorUseCase(editor),
             new SuccessfulCompiler(),
             new SuccessfulHttpClient(),
             new FakeAudioPlayerFactory(player ?? new FakeAudioPlayer()),
@@ -181,25 +198,46 @@ public sealed class TtsRuleTestServiceTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class FakeRuleLibraryService(TtsRuleEditorModel editor) : ITtsRuleLibraryService
+    private sealed class FakeRuleEditorUseCase(TtsRuleEditorModel editor) : ITtsRuleEditorUseCase
     {
+        public int SaveCallCount { get; private set; }
+
+        public Task<TtsRuleDraftPreparationResult> PrepareDraftAsync(
+            TtsRuleEditorModel model,
+            CancellationToken cancellationToken)
+        {
+            var now = DateTimeOffset.Parse("2025-01-01T00:00:00Z");
+            var candidate = new HttpTtsRule(
+                editor.Id ?? 0,
+                editor.Name,
+                editor.Url,
+                editor.ContentType,
+                editor.ConcurrentRate,
+                editor.Headers.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase),
+                editor.RequestOptions.Method,
+                editor.RequestOptions.Body,
+                false,
+                editor.LastUpdateTime,
+                editor.IsEnabled,
+                null,
+                now,
+                now);
+            return Task.FromResult(new TtsRuleDraftPreparationResult(
+                new TtsRuleValidationResult(true, [], editor),
+                candidate));
+        }
+
         public Task<TtsRuleValidationResult> ValidateEditorAsync(
             TtsRuleEditorModel model,
             CancellationToken cancellationToken) =>
             Task.FromResult(new TtsRuleValidationResult(true, [], editor));
 
-        public Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<TtsRuleImportPreview> CreateImportPreviewAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<TtsRuleImportResult> ImportJsonTextAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<string> ExportEditorJsonAsync(TtsRuleEditorModel model, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel model, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<TtsRuleProtectionInfo> GetRuleProtectionAsync(long ruleId, TtsRuleMutationAction action, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<TtsRuleMutationResult> ApplyRuleMutationAsync(TtsRuleMutationDecision decision, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task SelectRuleAsync(long? ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel model, CancellationToken cancellationToken)
+        {
+            SaveCallCount++;
+            throw new NotSupportedException();
+        }
     }
 }

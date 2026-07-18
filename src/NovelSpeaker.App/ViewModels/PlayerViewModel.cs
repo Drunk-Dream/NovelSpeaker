@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.Pages;
@@ -20,7 +21,7 @@ public sealed partial class PlayerViewModel : ObservableObject
 {
     private readonly IPlaybackCoordinator _playbackCoordinator;
     private readonly IBookPlaybackContentService _bookPlaybackContentService;
-    private readonly ITtsRuleLibraryService _ruleLibraryService;
+    private readonly ITtsRuleQueries _ruleQueries;
     private readonly IAppSettingsService _settingsService;
     private readonly IAppFeedbackService _feedbackService;
     private readonly INavigationService _navigationService;
@@ -44,7 +45,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     public PlayerViewModel(
         IPlaybackCoordinator playbackCoordinator,
         IBookPlaybackContentService bookPlaybackContentService,
-        ITtsRuleLibraryService ruleLibraryService,
+        ITtsRuleQueries ruleQueries,
         IAppSettingsService settingsService,
         IAppFeedbackService feedbackService,
         INavigationService navigationService,
@@ -52,7 +53,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         _playbackCoordinator = playbackCoordinator;
         _bookPlaybackContentService = bookPlaybackContentService;
-        _ruleLibraryService = ruleLibraryService;
+        _ruleQueries = ruleQueries;
         _settingsService = settingsService;
         _feedbackService = feedbackService;
         _navigationService = navigationService;
@@ -719,7 +720,7 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     private async Task RefreshRulesAsync(CancellationToken cancellationToken)
     {
-        var rules = await _ruleLibraryService.GetRulesAsync(cancellationToken);
+        var rules = await _ruleQueries.GetRulesAsync(cancellationToken);
         Rules.ReplaceWith(rules, rule => new PlayerRuleItemViewModel(rule.Id, rule.Name, rule.IsEnabled, rule.IsSelected));
         ApplyRuleSelection(_playbackCoordinator.CurrentSnapshot.RuleId);
         OnPropertyChanged(nameof(HasRules));

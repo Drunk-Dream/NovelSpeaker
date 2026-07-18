@@ -590,7 +590,7 @@ public sealed class PlayerViewModelTests
             new FakeBookPlaybackContentService(
                 new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
                 PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
-            ruleService: new FakeTtsRuleLibraryService(
+            ruleService: new FakeTtsRuleQueries(
                 [
                     new TtsRuleSummary(1, "默认规则", true, true, null),
                     new TtsRuleSummary(2, "备用规则", true, false, null)
@@ -872,7 +872,7 @@ public sealed class PlayerViewModelTests
             new FakeBookPlaybackContentService(
                 new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
                 PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
-            ruleService: new FakeTtsRuleLibraryService(
+            ruleService: new FakeTtsRuleQueries(
                 [new TtsRuleSummary(1, "默认规则", true, true, null)]));
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -1306,7 +1306,7 @@ public sealed class PlayerViewModelTests
     private static PlayerViewModel CreateViewModel(
         FakePlaybackCoordinator coordinator,
         IBookPlaybackContentService contentService,
-        ITtsRuleLibraryService? ruleService = null,
+        ITtsRuleQueries? ruleService = null,
         FakeNavigationService? navigationService = null,
         FakeAppFeedbackService? feedbackService = null,
         FakePlayerAutoScrollCoordinator? autoScrollCoordinator = null,
@@ -1315,7 +1315,7 @@ public sealed class PlayerViewModelTests
         return new PlayerViewModel(
             coordinator,
             contentService,
-            ruleService ?? new FakeTtsRuleLibraryService([new TtsRuleSummary(1, "默认规则", true, true, null)]),
+            ruleService ?? new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
             settingsService ?? new FakeAppSettingsService(AppSettings.Default),
             feedbackService ?? new FakeAppFeedbackService(),
             navigationService ?? new FakeNavigationService(),
@@ -1680,11 +1680,11 @@ public sealed class PlayerViewModelTests
         }
     }
 
-    private sealed class FakeTtsRuleLibraryService : ITtsRuleLibraryService
+    private sealed class FakeTtsRuleQueries : ITtsRuleQueries
     {
         private readonly IReadOnlyList<TtsRuleSummary> _rules;
 
-        public FakeTtsRuleLibraryService(IReadOnlyList<TtsRuleSummary> rules)
+        public FakeTtsRuleQueries(IReadOnlyList<TtsRuleSummary> rules)
         {
             _rules = rules;
         }
@@ -1694,19 +1694,7 @@ public sealed class PlayerViewModelTests
             return Task.FromResult(_rules);
         }
 
-        public Task<TtsRuleImportPreview> CreateImportPreviewAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<TtsRuleImportResult> ImportJsonTextAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<string> ExportEditorJsonAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<TtsRuleValidationResult> ValidateEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<TtsRuleProtectionInfo> GetRuleProtectionAsync(long ruleId, TtsRuleMutationAction action, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<TtsRuleMutationResult> ApplyRuleMutationAsync(TtsRuleMutationDecision decision, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task SelectRuleAsync(long? ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task DeleteRuleAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class FakeAppSettingsService : IAppSettingsService

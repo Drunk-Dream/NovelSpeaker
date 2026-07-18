@@ -16,29 +16,26 @@ namespace NovelSpeaker.Infrastructure.Speech.Http;
 /// </summary>
 public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
 {
-    private readonly ITtsRuleLibraryService _ruleLibraryService;
+    private readonly ITtsRuleEditorUseCase _ruleEditor;
     private readonly ITtsRequestCompiler _requestCompiler;
     private readonly IHttpTtsClient _httpTtsClient;
     private readonly ITtsRuleNormalizer _ruleNormalizer;
-    private readonly TimeProvider _timeProvider;
     private readonly IAudioPlayer _audioPlayer;
     private readonly ILogger<TtsRuleTestService> _logger;
     private bool _disposed;
 
     public TtsRuleTestService(
-        ITtsRuleLibraryService ruleLibraryService,
+        ITtsRuleEditorUseCase ruleEditor,
         ITtsRequestCompiler requestCompiler,
         IHttpTtsClient httpTtsClient,
         IAudioPlayerFactory audioPlayerFactory,
         ITtsRuleNormalizer? ruleNormalizer = null,
-        TimeProvider? timeProvider = null,
         ILogger<TtsRuleTestService>? logger = null)
     {
-        _ruleLibraryService = ruleLibraryService;
+        _ruleEditor = ruleEditor;
         _requestCompiler = requestCompiler;
         _httpTtsClient = httpTtsClient;
         _ruleNormalizer = ruleNormalizer ?? new TtsRuleNormalizer();
-        _timeProvider = timeProvider ?? TimeProvider.System;
         _audioPlayer = audioPlayerFactory.Create();
         _logger = logger ?? NullLogger<TtsRuleTestService>.Instance;
     }
@@ -47,12 +44,12 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
         TtsRuleDraftTestInput input,
         CancellationToken cancellationToken)
     {
-        var validation = await _ruleLibraryService.ValidateEditorAsync(input.Editor, cancellationToken);
-        if (!validation.IsValid)
+        var preparation = await _ruleEditor.PrepareDraftAsync(input.Editor, cancellationToken);
+        if (!preparation.IsValid)
         {
             return new TtsRuleTestResult(
                 false,
-                string.Join(" ", validation.Errors),
+                string.Join(" ", preparation.Validation.Errors),
                 null,
                 Array.Empty<string>(),
                 TtsErrorKind.InvalidRule,
@@ -62,7 +59,7 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
                 null);
         }
 
-        var rule = BuildRuleFromEditor(validation.NormalizedModel);
+        var rule = preparation.CandidateRule!;
         TtsRequestCompilationResult compilation;
         try
         {
@@ -214,9 +211,4 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
         await _audioPlayer.DisposeAsync();
     }
 
-    private HttpTtsRule BuildRuleFromEditor(TtsRuleEditorModel editor)
-    {
-        var normalizedEditor = TtsRuleModelMapper.NormalizeEditor(editor);
-        return TtsRuleModelMapper.BuildRuleFromEditor(normalizedEditor, existingRule: null, _timeProvider);
-    }
 }

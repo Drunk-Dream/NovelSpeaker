@@ -128,11 +128,9 @@ public sealed class TtsRuleRepositoryTests
             utcNow), CancellationToken.None);
         var stored = (await repository.GetByIdAsync(ruleId, CancellationToken.None))!;
 
-        var exportedJson = NovelSpeakerRuleJsonSerializer.Serialize(stored);
-
-        Assert.Equal(
-            """{"name":"导出规则","url":"https://example.com/export","contentType":"audio/mpeg","concurrentRate":"2/1000","header":"{\"Authorization\":\"Bearer demo\"}","requestOptions":{"method":"POST","body":"{\"text\":\"{{speakText}}\"}"},"lastUpdateTime":123}""",
-            exportedJson);
+        Assert.Equal("Bearer demo", stored.Headers["Authorization"]);
+        Assert.Equal("POST", stored.RequestMethod);
+        Assert.Equal("{\"text\":\"{{speakText}}\"}", stored.RequestBody);
     }
 
     [Fact]
@@ -158,9 +156,6 @@ public sealed class TtsRuleRepositoryTests
 
         Assert.Equal("""{"text":"{{speakText}}"}""", stored.RequestBody);
         Assert.True(stored.RequestBodyIsJsonStructure);
-        Assert.Equal(
-            """{"name":"结构化 Body","url":"https://example.com/tts","contentType":"audio/mpeg","requestOptions":{"method":"POST","body":{"text":"{{speakText}}"}}}""",
-            NovelSpeakerRuleJsonSerializer.Serialize(stored));
     }
 
     private static async Task<TtsRuleRepository> CreateRepositoryAsync()

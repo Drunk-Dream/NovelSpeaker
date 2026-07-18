@@ -20,7 +20,10 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 {
     private const string FixedTestText = "你好，欢迎试听。";
 
-    private readonly ITtsRuleLibraryService _ruleLibraryService;
+    private readonly ITtsRuleImportUseCase _ruleImport;
+    private readonly ITtsRuleEditorUseCase _ruleEditor;
+    private readonly ITtsRuleSelectionUseCase _ruleSelection;
+    private readonly ITtsRuleQueries _ruleQueries;
     private readonly ITtsRuleTestService _ruleTestService;
     private readonly IAppFeedbackService _feedbackService;
     private readonly IAppDialogService _dialogService;
@@ -32,14 +35,20 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     private int _defaultSpeakSpeed = 10;
 
     public TtsRulesViewModel(
-        ITtsRuleLibraryService ruleLibraryService,
+        ITtsRuleImportUseCase ruleImport,
+        ITtsRuleEditorUseCase ruleEditor,
+        ITtsRuleSelectionUseCase ruleSelection,
+        ITtsRuleQueries ruleQueries,
         ITtsRuleTestService ruleTestService,
         IAppFeedbackService feedbackService,
         IAppDialogService dialogService,
         IAppSettingsService settingsService,
         INavigationService navigationService)
     {
-        _ruleLibraryService = ruleLibraryService;
+        _ruleImport = ruleImport;
+        _ruleEditor = ruleEditor;
+        _ruleSelection = ruleSelection;
+        _ruleQueries = ruleQueries;
         _ruleTestService = ruleTestService;
         _feedbackService = feedbackService;
         _dialogService = dialogService;
@@ -164,14 +173,14 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         }
 
         var draft = BuildCurrentEditorModel();
-        var validation = await _ruleLibraryService.ValidateEditorAsync(draft, cancellationToken);
+        var validation = await _ruleEditor.ValidateEditorAsync(draft, cancellationToken);
         if (!validation.IsValid)
         {
             _feedbackService.ShowWarning("导出失败", string.Join(" ", validation.Errors));
             return;
         }
 
-        var json = await _ruleLibraryService.ExportEditorJsonAsync(draft, cancellationToken);
+        var json = await _ruleEditor.ExportEditorJsonAsync(draft, cancellationToken);
         await File.WriteAllTextAsync(filePath, json, cancellationToken);
         _feedbackService.ShowSuccess("规则已导出", $"已导出规则：{validation.NormalizedModel.Name}。");
     }
@@ -304,7 +313,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
         try
         {
-            await _ruleLibraryService.SelectRuleAsync(ruleId, cancellationToken);
+            await _ruleSelection.SelectRuleAsync(ruleId, cancellationToken);
             await RefreshRulesAsync(ruleId, openEditorIfNeeded: false, cancellationToken);
             _feedbackService.ShowSuccess("当前规则已更新", $"当前规则已切换为：{ruleName}。");
         }
@@ -377,13 +386,15 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             CancelCurrentTest();
             if (isCurrentRule)
             {
-                await _ruleLibraryService.ApplyRuleMutationAsync(
+                await _ruleSelection.ApplyRuleMutationAsync(
                     new TtsRuleMutationDecision(ruleId, TtsRuleMutationAction.Delete, null, true),
                     cancellationToken);
             }
             else
             {
-                await _ruleLibraryService.DeleteRuleAsync(ruleId, cancellationToken);
+                await _ruleSelection.ApplyRuleMutationAsync(
+                    new TtsRuleMutationDecision(ruleId, TtsRuleMutationAction.Delete, null, false),
+                    cancellationToken);
             }
 
             CloseEditor();
@@ -475,7 +486,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     {
         try
         {
-            var preview = await _ruleLibraryService.CreateImportPreviewAsync(
+            var preview = await _ruleImport.CreateImportPreviewAsync(
                 jsonText,
                 sourceDescription,
                 cancellationToken);
@@ -488,7 +499,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             var hasCookieLoginInfoDependency = preview.Items.Any(item =>
                 !item.CanImport &&
                 item.StatusMessage.Contains("Cookie/LoginInfo", StringComparison.OrdinalIgnoreCase));
-            var result = await _ruleLibraryService.ImportAsync(preview, cancellationToken);
+            var result = await _ruleImport.ImportAsync(preview, cancellationToken);
             await RefreshRulesAsync(result.FirstImportedRuleId, openEditorIfNeeded: true, cancellationToken);
             var statusMessage = BuildImportStatusMessage(result);
             if (hasCookieLoginInfoDependency)
@@ -510,7 +521,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
     private async Task RefreshRulesAsync(long? preferredRuleId, bool openEditorIfNeeded, CancellationToken cancellationToken)
     {
-        var rules = await _ruleLibraryService.GetRulesAsync(cancellationToken);
+        var rules = await _ruleQueries.GetRulesAsync(cancellationToken);
         Rules.ReplaceWith(
             rules,
             rule => new TtsRuleListItemViewModel(
@@ -545,7 +556,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
     private async Task OpenSavedRuleAsync(long ruleId, CancellationToken cancellationToken)
     {
-        var editor = await _ruleLibraryService.GetEditorAsync(ruleId, cancellationToken);
+        var editor = await _ruleEditor.GetEditorAsync(ruleId, cancellationToken);
         if (editor is null)
         {
             CloseEditor();
@@ -726,7 +737,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         try
         {
             var draft = BuildCurrentEditorModel();
-            var validation = await _ruleLibraryService.ValidateEditorAsync(draft, cancellationToken);
+            var validation = await _ruleEditor.ValidateEditorAsync(draft, cancellationToken);
             if (!validation.IsValid)
             {
                 var validationMessage = string.Join(" ", validation.Errors);
@@ -755,16 +766,16 @@ public sealed partial class TtsRulesViewModel : ObservableObject
                 }
             }
 
-            var savedRule = await _ruleLibraryService.SaveEditorAsync(draft, cancellationToken);
+            var savedRule = await _ruleEditor.SaveEditorAsync(draft, cancellationToken);
             if (currentRule?.IsCurrent == true && !savedRule.IsEnabled)
             {
-                await _ruleLibraryService.ApplyRuleMutationAsync(
+                await _ruleSelection.ApplyRuleMutationAsync(
                     new TtsRuleMutationDecision(savedRule.Id, TtsRuleMutationAction.Disable, null, true),
                     cancellationToken);
             }
 
             await RefreshRulesAsync(savedRule.Id, openEditorIfNeeded: false, cancellationToken);
-            var savedEditor = await _ruleLibraryService.GetEditorAsync(savedRule.Id, cancellationToken);
+            var savedEditor = await _ruleEditor.GetEditorAsync(savedRule.Id, cancellationToken);
             if (savedEditor is not null)
             {
                 OpenEditor(savedEditor, false, savedRule.Id);
