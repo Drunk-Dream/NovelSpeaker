@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Abstractions;
-using NovelSpeaker.Infrastructure.Speech;
+using NovelSpeaker.Application.Speech.Security;
 
 namespace NovelSpeaker.Infrastructure.Diagnostics;
 

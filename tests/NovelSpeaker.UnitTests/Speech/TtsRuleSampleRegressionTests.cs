@@ -1,7 +1,6 @@
 using System.Text.Json;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
-using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.Infrastructure.Speech.Rules;
 using NovelSpeaker.Infrastructure.Speech.Legado;
 using NovelSpeaker.Infrastructure.Speech.Scripting;

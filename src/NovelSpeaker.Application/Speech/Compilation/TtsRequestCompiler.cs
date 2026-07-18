@@ -1,18 +1,16 @@
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using NovelSpeaker.Application.Speech;
-using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Application.Speech.Security;
+using System.Text.RegularExpressions;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Speech;
-using NovelSpeaker.Infrastructure.Speech.Rules;
 
-namespace NovelSpeaker.Infrastructure.Speech.Http;
+namespace NovelSpeaker.Application.Speech.Compilation;
 
 /// <summary>
 /// Evaluates rule templates and normalizes the result into a concrete HTTP request shape.
 /// </summary>
-public sealed class TtsRequestCompiler : ITtsRequestCompiler
+public sealed partial class TtsRequestCompiler : ITtsRequestCompiler
 {
     private static readonly IReadOnlyDictionary<string, string> DefaultHeaders =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -22,14 +20,14 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
         };
 
     private readonly ITemplateEvaluator _templateEvaluator;
-    private readonly ILogger<TtsRequestCompiler> _logger;
+    private readonly ITtsCompilationFailureReporter? _failureReporter;
 
     public TtsRequestCompiler(
         ITemplateEvaluator templateEvaluator,
-        ILogger<TtsRequestCompiler>? logger = null)
+        ITtsCompilationFailureReporter? failureReporter = null)
     {
         _templateEvaluator = templateEvaluator;
-        _logger = logger ?? NullLogger<TtsRequestCompiler>.Instance;
+        _failureReporter = failureReporter;
     }
 
     public async Task<TtsRequestCompilationResult> CompileAsync(
@@ -39,11 +37,11 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (TtsRuleCompatibilityChecker.HasUnsupportedRuntimeDependency(rule))
+        if (HasUnsupportedRuntimeDependency(rule))
         {
             return Failure(
                 TtsErrorKind.InvalidRule,
-                TtsRuleCompatibilityChecker.UnsupportedCookieLoginInfoMessage);
+                UnsupportedCookieLoginInfoMessage);
         }
 
         string urlText;
@@ -67,8 +65,7 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
         }
         catch (Exception exception)
         {
-            SensitiveFailureLogger.LogError(
-                _logger,
+            _failureReporter?.Report(
                 "TTS request template evaluation",
                 exception,
                 EnumerateKnownSecrets(rule, context));
@@ -100,11 +97,11 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
         }
 
         var headers = MergeHeaders(DefaultHeaders, evaluatedHeaders);
-        if (TtsRuleCompatibilityChecker.ContainsCookieHeader(headers))
+        if (ContainsCookieHeader(headers))
         {
             return Failure(
                 TtsErrorKind.InvalidRule,
-                TtsRuleCompatibilityChecker.UnsupportedCookieLoginInfoMessage);
+                UnsupportedCookieLoginInfoMessage);
         }
 
         var bodyResult = BuildBody(bodyElementResult.BodyElement, headers);
@@ -310,6 +307,36 @@ public sealed class TtsRequestCompiler : ITtsRequestCompiler
         return !string.IsNullOrWhiteSpace(contentType) &&
                contentType.Contains("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase);
     }
+
+    private const string UnsupportedCookieLoginInfoMessage =
+        "当前版本不支持 Cookie/LoginInfo；请移除相关字段、Header 和模板表达式。";
+
+    private static bool HasUnsupportedRuntimeDependency(NormalizedHttpTtsRule rule)
+    {
+        return ContainsUnsupportedTemplateReference(rule.UrlTemplate) ||
+               rule.HeaderTemplates.Any(pair =>
+                   pair.Key.Trim().Equals("Cookie", StringComparison.OrdinalIgnoreCase) ||
+                   ContainsUnsupportedTemplateReference(pair.Value)) ||
+               (rule.RequestBodyTemplate is not null &&
+                ContainsUnsupportedTemplateReference(rule.RequestBodyTemplate));
+    }
+
+    private static bool ContainsUnsupportedTemplateReference(NormalizedTemplate template)
+    {
+        return template.Segments
+            .OfType<ExpressionTemplateSegment>()
+            .Any(segment => UnsupportedReferencePattern().IsMatch(segment.Expression));
+    }
+
+    private static bool ContainsCookieHeader(IReadOnlyDictionary<string, string> headers)
+    {
+        return headers.Keys.Any(key => key.Trim().Equals("Cookie", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [GeneratedRegex(
+        @"\b(?:cookie|loginInfo)\b",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex UnsupportedReferencePattern();
 
     private sealed record BodyParseResult(bool IsSuccess, JsonElement? BodyElement, string? Message)
     {

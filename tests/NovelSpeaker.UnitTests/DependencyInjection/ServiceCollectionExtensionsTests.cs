@@ -6,6 +6,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.App;
 using NovelSpeaker.App.Dialogs;
 using NovelSpeaker.App.Diagnostics;
@@ -100,6 +101,10 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<ISelectedTtsRuleProvider>(provider.GetRequiredService<ISelectedTtsRuleProvider>());
                 Assert.IsAssignableFrom<IPlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
                 Assert.IsAssignableFrom<ITtsRateLimiter>(provider.GetRequiredService<ITtsRateLimiter>());
+                Assert.IsAssignableFrom<IHttpTtsClient>(provider.GetRequiredService<IHttpTtsClient>());
+                Assert.IsAssignableFrom<ITtsHttpTransport>(provider.GetRequiredService<ITtsHttpTransport>());
+                Assert.IsAssignableFrom<ITtsRetryPolicy>(provider.GetRequiredService<ITtsRetryPolicy>());
+                Assert.IsAssignableFrom<ITtsResponseValidator>(provider.GetRequiredService<ITtsResponseValidator>());
                 Assert.IsAssignableFrom<IAudioCache>(provider.GetRequiredService<IAudioCache>());
                 Assert.IsAssignableFrom<IAudioCacheManagementService>(provider.GetRequiredService<IAudioCacheManagementService>());
                 Assert.IsAssignableFrom<ICacheWorkspaceService>(provider.GetRequiredService<ICacheWorkspaceService>());

@@ -1,4 +1,4 @@
-using NovelSpeaker.Infrastructure.Speech;
+using NovelSpeaker.Application.Speech.Security;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Speech;

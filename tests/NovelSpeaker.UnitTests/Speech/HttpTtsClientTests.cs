@@ -193,10 +193,13 @@ public sealed class HttpTtsClientTests
         Assert.False(result.IsSuccess);
         Assert.Equal(TtsErrorKind.Network, result.Failure!.Kind);
         Assert.Equal("网络请求失败，请检查网络连接后重试。", result.Failure.Message);
-        var entry = Assert.Single(logger.Entries);
-        Assert.Equal(LogLevel.Error, entry.Level);
-        Assert.Null(entry.Exception);
-        AssertSensitiveValuesAbsent(entry.Message, token, body, novelText);
+        Assert.Equal(3, logger.Entries.Count);
+        foreach (var entry in logger.Entries)
+        {
+            Assert.Equal(LogLevel.Error, entry.Level);
+            Assert.Null(entry.Exception);
+            AssertSensitiveValuesAbsent(entry.Message, token, body, novelText);
+        }
         AssertSensitiveValuesAbsent(result.Failure.Message, token, body, novelText);
     }
 
@@ -215,22 +218,61 @@ public sealed class HttpTtsClientTests
         Assert.DoesNotContain(logger.Entries, entry => entry.Level == LogLevel.Error);
     }
 
-    private static HttpTtsClient CreateClient(TimeSpan? requestTimeout = null)
+    [Fact]
+    public async Task SendAsync_transfers_response_ownership_until_result_is_disposed()
+    {
+        var content = new TrackingContent([1, 2, 3]);
+        using var transport = new HttpTtsClient(new StaticResponseHandler(content));
+
+        var result = await transport.SendAsync(
+            CreateRequest(1, new Uri("https://example.com/tts")),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(content.IsDisposed);
+        await result.Response!.DisposeAsync();
+        Assert.True(content.IsDisposed);
+    }
+
+    private static ExecutionHarness CreateClient(TimeSpan? requestTimeout = null)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var directories = new LocalAppDataDirectoryProvider(root);
         directories.EnsureCreatedAsync(CancellationToken.None).GetAwaiter().GetResult();
-        return new HttpTtsClient(directories, requestTimeout: requestTimeout);
+        return CreateHarness(directories, new HttpTtsClient(requestTimeout: requestTimeout));
     }
 
-    private static HttpTtsClient CreateClient(
+    private static ExecutionHarness CreateClient(
         HttpMessageHandler handler,
         Microsoft.Extensions.Logging.ILogger<HttpTtsClient> logger)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var directories = new LocalAppDataDirectoryProvider(root);
         directories.EnsureCreatedAsync(CancellationToken.None).GetAwaiter().GetResult();
-        return new HttpTtsClient(directories, handler, logger: logger);
+        return CreateHarness(directories, new HttpTtsClient(handler, logger: logger));
+    }
+
+    private static ExecutionHarness CreateHarness(
+        LocalAppDataDirectoryProvider directories,
+        HttpTtsClient transport)
+    {
+        var validator = new TtsResponseValidator(new TemporaryAudioStore(directories), new AudioProbe());
+        return new ExecutionHarness(
+            new TtsExecutionService(transport, new TtsRetryPolicy(), validator),
+            transport);
+    }
+
+    private sealed class ExecutionHarness(TtsExecutionService service, HttpTtsClient transport) : IDisposable
+    {
+        public Task<TtsHttpExecutionResult> ExecuteAsync(
+            ParsedTtsRequest request,
+            CancellationToken cancellationToken) =>
+            service.ExecuteAsync(request, cancellationToken);
+
+        public void Dispose()
+        {
+            transport.Dispose();
+        }
     }
 
     private static void AssertSensitiveValuesAbsent(string value, params string[] sensitiveValues)
@@ -257,6 +299,34 @@ public sealed class HttpTtsClientTests
         {
             cancellation.Cancel();
             return Task.FromCanceled<HttpResponseMessage>(cancellation.Token);
+        }
+    }
+
+    private sealed class StaticResponseHandler(HttpContent content) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+    }
+
+    private sealed class TrackingContent(byte[] bytes) : HttpContent
+    {
+        public bool IsDisposed { get; private set; }
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            stream.WriteAsync(bytes).AsTask();
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = bytes.Length;
+            return true;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            IsDisposed = true;
+            base.Dispose(disposing);
         }
     }
 

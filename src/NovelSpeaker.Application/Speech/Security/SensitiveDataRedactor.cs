@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace NovelSpeaker.Infrastructure.Speech;
+namespace NovelSpeaker.Application.Speech.Security;
 
 /// <summary>
 /// Removes credentials and user-provided text before diagnostic data leaves the request pipeline.

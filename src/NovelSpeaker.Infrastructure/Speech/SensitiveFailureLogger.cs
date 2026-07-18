@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using NovelSpeaker.Application.Speech.Security;
 
 namespace NovelSpeaker.Infrastructure.Speech;
 

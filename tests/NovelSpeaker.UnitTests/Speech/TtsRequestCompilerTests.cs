@@ -1,7 +1,6 @@
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
-using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.Infrastructure.Speech.Scripting;
 using NovelSpeaker.UnitTests.Common;
 using Xunit;
@@ -140,9 +139,11 @@ public sealed class TtsRequestCompilerTests
             $"https://example.com/tts?query={token}&text={{{{speakText}}}}",
             $"{{\"Authorization\":\"Bearer {token}\"}}",
             $"{{\"method\":\"POST\",\"body\":\"{body}\"}}");
-        var logger = new CapturingLogger<TtsRequestCompiler>();
+        var logger = new CapturingLogger<TtsCompilationFailureReporter>();
         var exceptionText = $"Authorization=Bearer {token}; query={token}; body={body}; text={novelText}";
-        var compiler = new TtsRequestCompiler(new ThrowingTemplateEvaluator(exceptionText), logger);
+        var compiler = new TtsRequestCompiler(
+            new ThrowingTemplateEvaluator(exceptionText),
+            new TtsCompilationFailureReporter(logger));
 
         var result = await compiler.CompileAsync(
             rule.Normalize(),
@@ -164,9 +165,9 @@ public sealed class TtsRequestCompilerTests
     public async Task CompileAsync_does_not_log_user_cancellation_as_error()
     {
         var rule = CreateRule("Cancelled", "https://example.com/{{speakText}}");
-        var logger = new CapturingLogger<TtsRequestCompiler>();
+        var logger = new CapturingLogger<TtsCompilationFailureReporter>();
         var evaluator = new CancellingTemplateEvaluator();
-        var compiler = new TtsRequestCompiler(evaluator, logger);
+        var compiler = new TtsRequestCompiler(evaluator, new TtsCompilationFailureReporter(logger));
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => compiler.CompileAsync(
             rule.Normalize(),

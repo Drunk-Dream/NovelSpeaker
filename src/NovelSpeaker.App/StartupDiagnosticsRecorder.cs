@@ -1,7 +1,7 @@
 using System.Text;
 using System.IO;
 using NovelSpeaker.Application.Abstractions;
-using NovelSpeaker.Infrastructure.Speech;
+using NovelSpeaker.Application.Speech.Security;
 
 namespace NovelSpeaker.App;
 

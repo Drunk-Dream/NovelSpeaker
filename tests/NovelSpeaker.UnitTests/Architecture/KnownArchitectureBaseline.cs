@@ -11,8 +11,7 @@ internal static class KnownArchitectureBaseline
     public static readonly IReadOnlySet<string> AppInfrastructureSourceFiles =
         new HashSet<string>(StringComparer.Ordinal)
         {
-            "src/NovelSpeaker.App/App.xaml.cs",
-            "src/NovelSpeaker.App/StartupDiagnosticsRecorder.cs"
+            "src/NovelSpeaker.App/App.xaml.cs"
         };
 
     public static readonly IReadOnlySet<string> SourceLayoutViolations =
