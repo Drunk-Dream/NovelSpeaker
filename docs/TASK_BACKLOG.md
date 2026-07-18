@@ -390,7 +390,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 ## Wave 3：Speech/TTS 纵向迁移
 
-### [ ] TTS-301（P1）：拆分规则来源、业务规则、运行时规则和持久化行
+### [x] TTS-301（P1）：拆分规则来源、业务规则、运行时规则和持久化行
 
 前置：DOMAIN-102、SETTINGS-104、COMPAT-005。
 
@@ -402,6 +402,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - `ITtsRuleConverter` 不再以 `JsonElement` 作为高层公共用例接口；来源 parser/convert adapter 明确分层。
 
 验收：导入、导出和脱敏预览字节/语义兼容；不保存原始 JSON 真相源。
+
+完成说明：Legado 与 NovelSpeaker JSON 对象/数组来源现由 Infrastructure `Speech/Legado` 的 source parser 解析为 typed DTO，再由 convert adapter 生成 Domain `HttpTtsRule`；规则库和 Application 公共合同不再接触 `JsonElement`。Domain 只保存结构化业务字段，Application 继续拥有 editor/import/preview/result 与 normalized runtime contracts。SQLite `TtsRuleRow` 通过专用 persistence mapper 与业务模型双向转换，Header/request options 编解码已拆为内部 codec，导出从结构化字段重新生成 JSON，不保存原始导入 JSON。回归测试锁定对象/数组与无效项解析、公共来源 API 边界、Legado 样本、Cookie/LoginInfo 拒绝，以及 NovelSpeaker 导出→导入→导出的字节和结构化语义一致性。
 
 ### [ ] TTS-302（P1）：拆分并迁移 TTS 规则库用例
 

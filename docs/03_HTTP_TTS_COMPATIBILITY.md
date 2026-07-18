@@ -79,7 +79,7 @@ public sealed record NormalizedHttpTtsRule(
 稳定职责分离如下：
 
 ```text
-Infrastructure Legado/JSON source DTO
+Infrastructure Legado/NovelSpeaker JSON source parser + typed DTO
   → Application 规则导入/验证用例
   → Domain HttpTtsRule
   → Application Normalized rule / compiled request contract
@@ -89,6 +89,7 @@ Infrastructure Legado/JSON source DTO
 - 导入预览、编辑器模型、测试结果和请求预览属于 Application 合同，不属于 Domain。
 - `ParsedTtsRequest` 是 Application 与 HTTP adapter 之间的传输中立合同，不引用 `HttpRequestMessage` 或 `HttpContent`。
 - JSON 解析、SQLite 行、`HttpClient`、Jint Engine 和 NAudio 探测均留在 Infrastructure。
+- JSON source parser 只向转换 adapter 交付 typed DTO；`JsonElement` 不进入 Application 合同或规则库用例接口。NovelSpeaker 自有导出 JSON 与 Legado 常见对象/数组来源共用该边界，成功转换后只保留结构化业务字段。
 
 ## 规则上下文
 

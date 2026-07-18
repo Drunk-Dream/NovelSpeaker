@@ -138,6 +138,8 @@ UpdatedAt TEXT NOT NULL
 
 当前 schema 没有 LoginInfo 或 Cookie 持久化字段。Cookie/LoginInfo 当前也不属于已实现兼容能力；若以后实现，必须单独设计结构化字段、迁移、脱敏和生命周期，不能复用不透明原始 JSON 绕过边界。
 
+`HttpTtsRules` 的 SQLite row 与 `HttpTtsRule` 只由 Infrastructure 的专用 mapper 双向转换；Header 和 request options 的 JSON 编码是 mapper 调用的持久化 codec，不进入 Domain/Application，也不作为原始导入 JSON 真相源。导出始终从结构化业务字段重新生成 NovelSpeaker JSON。
+
 ### 4.7 ReadingProgress
 
 ```text
