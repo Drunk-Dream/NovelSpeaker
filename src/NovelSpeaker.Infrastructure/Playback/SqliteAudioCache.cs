@@ -7,7 +7,7 @@ namespace NovelSpeaker.Infrastructure.Playback;
 /// <summary>
 /// Persists generated playback audio into the local cache directory and SQLite index.
 /// </summary>
-public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
+public sealed class SqliteAudioCache : IAudioCache, IAudioCacheStore
 {
     private readonly ISqliteConnectionFactory _connectionFactory;
     private readonly IAudioCacheLimitProvider _cacheLimitProvider;
@@ -50,23 +50,23 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
         return RunExclusiveAsync(ct => InvalidateCoreAsync(key, ct), cancellationToken);
     }
 
-    public Task<AudioCacheSummary> GetSummaryAsync(CancellationToken cancellationToken)
+    public Task<AudioCacheStoreSummary> GetSummaryAsync(CancellationToken cancellationToken)
     {
         return RunExclusiveAsync(GetSummaryCoreAsync, cancellationToken);
     }
 
-    public Task<IReadOnlyList<CachedBookSummary>> GetBooksAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<CachedBookStoreSummary>> GetBooksAsync(CancellationToken cancellationToken)
     {
         return RunExclusiveAsync(GetBooksCoreAsync, cancellationToken);
     }
 
-    public Task<IReadOnlyList<CachedChapterSummary>> GetChaptersAsync(string bookId, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<CachedChapterStoreSummary>> GetChaptersAsync(string bookId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
         return RunExclusiveAsync(ct => GetChaptersCoreAsync(bookId, ct), cancellationToken);
     }
 
-    public Task<AudioCacheCleanupResult> ClearChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
+    public Task<AudioCacheStoreCleanupResult> ClearChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
         return RunExclusiveAsync(ct => ClearEntriesCoreAsync(
@@ -79,7 +79,7 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
             ct), cancellationToken);
     }
 
-    public Task<AudioCacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken)
+    public Task<AudioCacheStoreCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
         return RunExclusiveAsync(ct => ClearEntriesCoreAsync(
@@ -88,7 +88,7 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
             ct), cancellationToken);
     }
 
-    public Task<AudioCacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken)
+    public Task<AudioCacheStoreCleanupResult> ClearAllAsync(CancellationToken cancellationToken)
     {
         return RunExclusiveAsync(ClearAllCoreAsync, cancellationToken);
     }
@@ -255,7 +255,7 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
         }
     }
 
-    private async Task<AudioCacheSummary> GetSummaryCoreAsync(CancellationToken cancellationToken)
+    private async Task<AudioCacheStoreSummary> GetSummaryCoreAsync(CancellationToken cancellationToken)
     {
         var cacheLimitBytes = _cacheLimitProvider.GetCurrentLimitBytes();
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -273,10 +273,10 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
 
         var totalSize = reader.GetInt64(0);
         var entryCount = reader.GetInt32(1);
-        return new AudioCacheSummary(totalSize, entryCount, cacheLimitBytes, totalSize > cacheLimitBytes);
+        return new AudioCacheStoreSummary(totalSize, entryCount, cacheLimitBytes, totalSize > cacheLimitBytes);
     }
 
-    private async Task<IReadOnlyList<CachedBookSummary>> GetBooksCoreAsync(CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<CachedBookStoreSummary>> GetBooksCoreAsync(CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         var command = connection.CreateCommand();
@@ -291,10 +291,10 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
         command.Parameters.AddWithValue("$status", (int)AudioCacheEntryStatus.Ready);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        var items = new List<CachedBookSummary>();
+        var items = new List<CachedBookStoreSummary>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            items.Add(new CachedBookSummary(
+            items.Add(new CachedBookStoreSummary(
                 reader.GetString(0),
                 reader.GetInt32(1),
                 reader.GetInt32(2),
@@ -304,7 +304,7 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
         return items;
     }
 
-    private async Task<IReadOnlyList<CachedChapterSummary>> GetChaptersCoreAsync(string bookId, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<CachedChapterStoreSummary>> GetChaptersCoreAsync(string bookId, CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         var command = connection.CreateCommand();
@@ -320,10 +320,10 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
         command.Parameters.AddWithValue("$bookId", bookId);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        var items = new List<CachedChapterSummary>();
+        var items = new List<CachedChapterStoreSummary>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            items.Add(new CachedChapterSummary(
+            items.Add(new CachedChapterStoreSummary(
                 reader.GetString(0),
                 reader.GetInt32(1),
                 reader.GetInt32(2),
@@ -334,7 +334,7 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
         return items;
     }
 
-    private async Task<AudioCacheCleanupResult> ClearEntriesCoreAsync(
+    private async Task<AudioCacheStoreCleanupResult> ClearEntriesCoreAsync(
         string whereClause,
         Action<SqliteCommand> configureParameters,
         CancellationToken cancellationToken)
@@ -375,10 +375,10 @@ public sealed class SqliteAudioCache : IAudioCache, IAudioCacheManagementService
             }
         }
 
-        return new AudioCacheCleanupResult(deletedBytes, deletedEntryCount, protectedEntryCount, failedEntryCount);
+        return new AudioCacheStoreCleanupResult(deletedBytes, deletedEntryCount, protectedEntryCount, failedEntryCount);
     }
 
-    private async Task<AudioCacheCleanupResult> ClearAllCoreAsync(CancellationToken cancellationToken)
+    private async Task<AudioCacheStoreCleanupResult> ClearAllCoreAsync(CancellationToken cancellationToken)
     {
         var result = await ClearEntriesCoreAsync(string.Empty, static _ => { }, cancellationToken).ConfigureAwait(false);
         DeleteResidualTemporaryFiles(cancellationToken);

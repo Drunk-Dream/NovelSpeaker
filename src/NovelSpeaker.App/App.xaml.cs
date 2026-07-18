@@ -159,12 +159,12 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        var cacheManagement = _serviceProvider.GetRequiredService<IAudioCacheManagementService>();
+        var cacheWorkspace = _serviceProvider.GetRequiredService<ICacheWorkspaceService>();
         _ = Task.Run(async () =>
         {
             try
             {
-                await cacheManagement.RunMaintenanceAsync(CancellationToken.None);
+                await cacheWorkspace.TrimToConfiguredLimitAsync(CancellationToken.None);
                 _startupDiagnostics?.RecordStage("audio-cache-maintenance", "后台音频缓存维护完成。");
             }
             catch (Exception exception)

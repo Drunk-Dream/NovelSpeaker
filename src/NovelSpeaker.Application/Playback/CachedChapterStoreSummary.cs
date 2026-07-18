@@ -1,9 +1,9 @@
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
-/// Summarizes cached audio grouped by one chapter within a book.
+/// Storage-facing cache totals grouped by book and chapter identifiers.
 /// </summary>
-public sealed record CachedChapterSummary(
+public sealed record CachedChapterStoreSummary(
     string BookId,
     int ChapterIndex,
     int DistinctSegmentCount,

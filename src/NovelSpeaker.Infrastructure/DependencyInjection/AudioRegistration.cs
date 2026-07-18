@@ -20,8 +20,7 @@ public static class AudioRegistration
         services.TryAddSingleton<IAudioCacheProtectionRegistry, AudioCacheProtectionRegistry>();
         services.TryAddSingleton<SqliteAudioCache>();
         services.TryAddSingleton<IAudioCache>(provider => provider.GetRequiredService<SqliteAudioCache>());
-        services.TryAddSingleton<IAudioCacheManagementService>(provider => provider.GetRequiredService<SqliteAudioCache>());
-        services.TryAddSingleton<ICacheWorkspaceService, CacheWorkspaceService>();
+        services.TryAddSingleton<IAudioCacheStore>(provider => provider.GetRequiredService<SqliteAudioCache>());
         services.TryAddSingleton<IPrefetchScheduler, PrefetchScheduler>();
 
         return services;

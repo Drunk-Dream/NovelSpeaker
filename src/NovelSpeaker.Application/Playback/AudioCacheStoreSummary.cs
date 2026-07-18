@@ -1,9 +1,9 @@
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
-/// Summarizes the current persisted audio cache footprint.
+/// Storage-facing aggregate of the persisted audio cache footprint.
 /// </summary>
-public sealed record AudioCacheSummary(
+public sealed record AudioCacheStoreSummary(
     long TotalSizeBytes,
     int EntryCount,
     long LimitBytes,

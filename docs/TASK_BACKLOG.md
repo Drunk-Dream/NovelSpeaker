@@ -452,7 +452,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 ## Wave 4：Cache 纵向迁移
 
-### [ ] CACHE-401（P1）：收敛缓存用例接口和结果模型
+### [x] CACHE-401（P1）：收敛缓存用例接口和结果模型
 
 前置：BOOK-201、DOMAIN-102。
 
@@ -463,6 +463,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 章节完整度通过 Books/Text 查询端口组合，不在 Cache 服务中直接 SQL。
 
 验收：二级总览、书籍/章节列表、完整度和四类清理 UI 字段保持不变。
+
+完成说明：缓存管理现收敛为 Application `ICacheWorkspaceService` 用例门面与 `IAudioCacheStore` 存储端口两层合同；原 `AudioCacheSummary/CacheOverviewModel`、`CachedBookSummary/CachedBookCacheItem`、`CachedChapterSummary/CachedChapterCacheItem`、`AudioCacheCleanupResult/CacheCleanupResult` 近重复命名已分别明确为 `*Store*` 存储投影和 UI 无关的用例投影，App 的页面、ViewModel 与启动维护均只消费 Application 门面。`CacheWorkspaceService` 已移入 Application，通过 `IBookPlaybackMetadataQuery` 与 Books/Text 的 `IBookContentReader`、`ITextSegmenter` 组合书籍/章节元数据和完整度，不再持有 SQLite connection 或查询 `Books/Chapters`；`SqliteAudioCache` 仅实现存储端口，未提前拆分其索引、文件、维护和保护职责。总览、维护到上限、按章/按书/全部清理及其结果字段保持不变；预期正文读取失败仍降级为未知完整度，取消与意外异常继续传播。回归测试覆盖总览映射、元数据组合与孤儿回退、完整度、预期读取失败、取消、意外异常以及三类清理和维护委托。
 
 ### [ ] CACHE-402（P1）：拆分 SqliteAudioCache
 

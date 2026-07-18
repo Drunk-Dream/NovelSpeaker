@@ -106,7 +106,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<ITtsRetryPolicy>(provider.GetRequiredService<ITtsRetryPolicy>());
                 Assert.IsAssignableFrom<ITtsResponseValidator>(provider.GetRequiredService<ITtsResponseValidator>());
                 Assert.IsAssignableFrom<IAudioCache>(provider.GetRequiredService<IAudioCache>());
-                Assert.IsAssignableFrom<IAudioCacheManagementService>(provider.GetRequiredService<IAudioCacheManagementService>());
+                Assert.IsAssignableFrom<IAudioCacheStore>(provider.GetRequiredService<IAudioCacheStore>());
                 Assert.IsAssignableFrom<ICacheWorkspaceService>(provider.GetRequiredService<ICacheWorkspaceService>());
                 Assert.IsAssignableFrom<IAudioCacheProtectionRegistry>(provider.GetRequiredService<IAudioCacheProtectionRegistry>());
                 Assert.IsAssignableFrom<IPrefetchScheduler>(provider.GetRequiredService<IPrefetchScheduler>());
@@ -131,7 +131,7 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<ITextSegmentationOptionsProvider>());
                 Assert.Same(
                     provider.GetRequiredService<IAudioCache>(),
-                    provider.GetRequiredService<IAudioCacheManagementService>());
+                    provider.GetRequiredService<IAudioCacheStore>());
                 Assert.Same(
                     provider.GetRequiredService<INavigationGuardService>(),
                     provider.GetRequiredService<INavigationGuardService>());

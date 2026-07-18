@@ -12,6 +12,7 @@ public static class PlaybackRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<IBookPlaybackContentService, BookPlaybackContentService>();
+        services.TryAddSingleton<ICacheWorkspaceService, CacheWorkspaceService>();
         return services;
     }
 }
