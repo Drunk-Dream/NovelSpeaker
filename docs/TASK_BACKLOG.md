@@ -405,7 +405,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：Legado 与 NovelSpeaker JSON 对象/数组来源现由 Infrastructure `Speech/Legado` 的 source parser 解析为 typed DTO，再由 convert adapter 生成 Domain `HttpTtsRule`；规则库和 Application 公共合同不再接触 `JsonElement`。Domain 只保存结构化业务字段，Application 继续拥有 editor/import/preview/result 与 normalized runtime contracts。SQLite `TtsRuleRow` 通过专用 persistence mapper 与业务模型双向转换，Header/request options 编解码已拆为内部 codec，导出从结构化字段重新生成 JSON，不保存原始导入 JSON。回归测试锁定对象/数组与无效项解析、公共来源 API 边界、Legado 样本、Cookie/LoginInfo 拒绝，以及 NovelSpeaker 导出→导入→导出的字节和结构化语义一致性。
 
-### [ ] TTS-302（P1）：拆分并迁移 TTS 规则库用例
+### [x] TTS-302（P1）：拆分并迁移 TTS 规则库用例
 
 前置：TTS-301。
 
@@ -417,6 +417,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - UI 迁移到窄接口，删除旧 `ITtsRuleLibraryService` 后一次修复所有重复 fake。
 
 测试：对象/数组导入、重复/同名、编辑副本、设为当前、禁用/删除当前、导出和试听草稿。
+
+完成说明：原 Infrastructure `TtsRuleLibraryService` 与 Application `ITtsRuleLibraryService` 已删除，规则管理迁入 Application `Speech/Rules`，按 Import、Editor、Selection、Queries 四个窄用例接口组合；播放页只依赖只读查询，播放规则提供器只依赖 Selection，试听服务只通过 Editor 校验并准备不持久化的候选业务规则。当前规则选择/清空只有 Selection 写入口，导入和新建的自动选择、播放页切换以及删除/禁用当前规则保护均复用该入口。Legado/NovelSpeaker 对象或数组来源继续由 Infrastructure typed source adapter 解析转换，Application 内部 mapper、validator 和 serializer 只处理业务规则与编辑副本，不暴露万能映射接口。回归测试覆盖真实对象/数组 adapter、精确重复/同名重命名、混合失败/跳过、Cookie/LoginInfo 拒绝、canonical roundtrip、编辑副本与字段校验、结构化试听草稿准备/导出零保存、设为当前、替换/清空后禁用或删除、查询投影及试听草稿零保存。
 
 ### [ ] TTS-303（P1）：拆分编译、运输、重试和响应验证
 

@@ -96,6 +96,8 @@ NovelSpeaker.Domain ----------------------------> 无项目依赖
 
 功能之间通过 Application 中的小型明确接口协作。不得建立一个跨越全部功能的 `CommonService`、`Manager`、事件总线或万能上下文对象。
 
+`Speech.Rules` 的稳定用例边界按调用意图拆分为 Import、Editor、Selection 和 Queries。规则页组合这些窄接口；播放页只读取 Queries，播放规则提供器只写 Selection，试听只通过 Editor 校验并准备不持久化的候选业务规则。当前规则选择、清空以及删除/禁用当前规则的保护只能通过 Selection 写入口完成。外部 JSON 的对象/数组解析与 Legado 来源转换由 Infrastructure typed source adapter 实现，Application 用例不接触 `JsonElement`；编辑映射、业务校验和 NovelSpeaker 自有导出序列化器保持为该切片的内部协作者。
+
 ## 6. 目标目录结构
 
 ### 6.1 Domain

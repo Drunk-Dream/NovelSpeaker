@@ -90,6 +90,7 @@ Infrastructure Legado/NovelSpeaker JSON source parser + typed DTO
 - `ParsedTtsRequest` 是 Application 与 HTTP adapter 之间的传输中立合同，不引用 `HttpRequestMessage` 或 `HttpContent`。
 - JSON 解析、SQLite 行、`HttpClient`、Jint Engine 和 NAudio 探测均留在 Infrastructure。
 - JSON source parser 只向转换 adapter 交付 typed DTO；`JsonElement` 不进入 Application 合同或规则库用例接口。NovelSpeaker 自有导出 JSON 与 Legado 常见对象/数组来源共用该边界，成功转换后只保留结构化业务字段。
+- Application 规则库不提供聚合全部能力的公共服务；Import、Editor、Selection、Queries 分别表达导入提交、编辑副本、当前规则写入/保护和只读查询。删除或禁用当前规则必须复用 Selection 的保护与清空语义，播放和试听调用方不得为了单个操作依赖整套规则管理能力。
 
 ## 规则上下文
 
