@@ -1,15 +1,12 @@
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Audio;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Speech;
-using NovelSpeaker.Infrastructure.Playback;
-using NovelSpeaker.Infrastructure.Speech.Rules;
 
-namespace NovelSpeaker.Infrastructure.Speech.Http;
+namespace NovelSpeaker.Application.Speech.Testing;
 
 /// <summary>
 /// Provides the rules page with试听 capability.
@@ -21,7 +18,7 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
     private readonly IHttpTtsClient _httpTtsClient;
     private readonly ITtsRuleNormalizer _ruleNormalizer;
     private readonly IAudioPlayer _audioPlayer;
-    private readonly ILogger<TtsRuleTestService> _logger;
+    private readonly ITtsRuleTestFailureReporter? _failureReporter;
     private bool _disposed;
 
     public TtsRuleTestService(
@@ -30,14 +27,14 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
         IHttpTtsClient httpTtsClient,
         IAudioPlayerFactory audioPlayerFactory,
         ITtsRuleNormalizer? ruleNormalizer = null,
-        ILogger<TtsRuleTestService>? logger = null)
+        ITtsRuleTestFailureReporter? failureReporter = null)
     {
         _ruleEditor = ruleEditor;
         _requestCompiler = requestCompiler;
         _httpTtsClient = httpTtsClient;
         _ruleNormalizer = ruleNormalizer ?? new TtsRuleNormalizer();
         _audioPlayer = audioPlayerFactory.Create();
-        _logger = logger ?? NullLogger<TtsRuleTestService>.Instance;
+        _failureReporter = failureReporter;
     }
 
     public async Task<TtsRuleTestResult> TestAsync(
@@ -174,16 +171,7 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
 
     private void LogFailure(TtsRuleDraftTestInput input, Exception exception, string operation)
     {
-        SensitiveFailureLogger.LogError(
-            _logger,
-            operation,
-            exception,
-            [
-                input.SpeakText,
-                input.Editor.Url,
-                input.Editor.RequestOptions.Body,
-                .. input.Editor.Headers.SelectMany(static pair => new[] { pair.Key, pair.Value })
-            ]);
+        _failureReporter?.Report(operation, exception, input);
     }
 
     private static TtsRuleTestResult CreateUnexpectedFailureResult()

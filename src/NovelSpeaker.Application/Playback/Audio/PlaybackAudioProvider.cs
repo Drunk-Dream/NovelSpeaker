@@ -1,14 +1,11 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Speech;
-using NovelSpeaker.Infrastructure.Speech;
 
-namespace NovelSpeaker.Infrastructure.Playback;
+namespace NovelSpeaker.Application.Playback.Audio;
 
 /// <summary>
 /// Compiles the selected rule, executes HTTP TTS, and returns a local audio file for playback.
@@ -19,7 +16,7 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
     private readonly IHttpTtsClient _httpTtsClient;
     private readonly IAudioCache _audioCache;
     private readonly ITtsRateLimiter _rateLimiter;
-    private readonly ILogger<PlaybackAudioProvider> _logger;
+    private readonly IPlaybackAudioFailureReporter? _failureReporter;
     private readonly ConcurrentDictionary<AudioCacheKey, InFlightOperation> _inFlight = new();
     private readonly ConcurrentDictionary<long, RuleExecutionSlot> _ruleSlots = new();
 
@@ -28,13 +25,13 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
         IHttpTtsClient httpTtsClient,
         IAudioCache audioCache,
         ITtsRateLimiter rateLimiter,
-        ILogger<PlaybackAudioProvider>? logger = null)
+        IPlaybackAudioFailureReporter? failureReporter = null)
     {
         _requestCompiler = requestCompiler;
         _httpTtsClient = httpTtsClient;
         _audioCache = audioCache;
         _rateLimiter = rateLimiter;
-        _logger = logger ?? NullLogger<PlaybackAudioProvider>.Instance;
+        _failureReporter = failureReporter;
     }
 
     public async Task<PlaybackAudioResult> GetAudioAsync(
@@ -43,7 +40,7 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
         Action<PlaybackAudioProgress>? progressCallback,
         CancellationToken cancellationToken)
     {
-        var cacheKey = CreateCacheKey(request);
+        var cacheKey = request.ToCacheKey();
         AudioCacheEntry? cached;
         try
         {
@@ -99,7 +96,7 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
 
     public Task InvalidateAsync(PlaybackAudioRequest request, CancellationToken cancellationToken)
     {
-        return _audioCache.InvalidateAsync(CreateCacheKey(request), cancellationToken);
+        return _audioCache.InvalidateAsync(request.ToCacheKey(), cancellationToken);
     }
 
     private void TryPreemptPrefetch(long ruleId, AudioCacheKey requestedKey)
@@ -256,16 +253,7 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
 
     private void LogFailure(PlaybackAudioRequest request, Exception exception, string operation)
     {
-        SensitiveFailureLogger.LogError(
-            _logger,
-            operation,
-            exception,
-            [
-                request.SpeechText,
-                request.SourceRule.Url,
-                request.SourceRule.RequestBody,
-                .. request.SourceRule.Headers.SelectMany(static pair => new[] { pair.Key, pair.Value })
-            ]);
+        _failureReporter?.Report(operation, exception, request);
     }
 
     private static string BuildRateLimitedMessage(TimeSpan retryAfter)
@@ -303,17 +291,6 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
                 null,
                 null,
                 null));
-    }
-
-    private static AudioCacheKey CreateCacheKey(PlaybackAudioRequest request)
-    {
-        return AudioCacheKey.FromPlayback(
-            request.BookId,
-            request.ChapterIndex,
-            request.SegmentIndex,
-            request.RuleId,
-            request.SpeakSpeed,
-            request.SpeechText);
     }
 
     private sealed class RuleExecutionSlot

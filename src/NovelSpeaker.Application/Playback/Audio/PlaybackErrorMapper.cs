@@ -1,8 +1,7 @@
-using NovelSpeaker.Application.Playback;
+namespace NovelSpeaker.Application.Playback.Audio;
 
-namespace NovelSpeaker.Infrastructure.Playback;
-
-internal static class PlaybackErrorMapper
+/// <summary>Maps local playback exceptions to stable, user-safe classifications and messages.</summary>
+public static class PlaybackErrorMapper
 {
     public static PlaybackErrorEventArgs Map(Exception exception)
     {

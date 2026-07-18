@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Audio;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
@@ -10,7 +11,7 @@ using Microsoft.Extensions.Logging;
 using NovelSpeaker.UnitTests.Speech;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.UnitTests.Playback.Audio;
 
 public sealed class PlaybackAudioProviderTests
 {
@@ -62,7 +63,7 @@ public sealed class PlaybackAudioProviderTests
             PlaybackAudioPriority.Prefetch,
             null,
             CancellationToken.None);
-        await WaitForAsync(() => httpClient.ExecuteCallCount == 1);
+        await pending.ExecutionStarted.WaitAsync(TimeSpan.FromSeconds(5));
 
         var currentTask = provider.GetAudioAsync(
             request,
@@ -99,8 +100,7 @@ public sealed class PlaybackAudioProviderTests
             PlaybackAudioPriority.Prefetch,
             null,
             CancellationToken.None);
-        await WaitForAsync(() => httpClient.ExecuteCallCount == 1);
-        await WaitForAsync(() => cancelledExecution.CancellationToken.IsCancellationRequested == false);
+        await cancelledExecution.ExecutionStarted.WaitAsync(TimeSpan.FromSeconds(5));
 
         var currentTask = provider.GetAudioAsync(
             secondRequest,
@@ -108,8 +108,7 @@ public sealed class PlaybackAudioProviderTests
             null,
             CancellationToken.None);
 
-        await WaitForAsync(() => cancelledExecution.CancellationToken.IsCancellationRequested);
-        cancelledExecution.TrySetCancelled();
+        await cancelledExecution.CancellationRequested.WaitAsync(TimeSpan.FromSeconds(5));
         var currentResult = await currentTask;
         var prefetchResult = await prefetchTask;
 
@@ -140,7 +139,7 @@ public sealed class PlaybackAudioProviderTests
             progress => progressMessages.Add(progress.Message),
             CancellationToken.None);
 
-        await WaitForAsync(() => httpClient.ExecuteCallCount == 1);
+        await httpClient.FirstExecutionStarted.WaitAsync(TimeSpan.FromSeconds(5));
         await AssertPendingAsync(resultTask);
 
         timeProvider.Advance(TimeSpan.FromSeconds(2));
@@ -252,7 +251,7 @@ public sealed class PlaybackAudioProviderTests
             rule.Normalize(),
             10,
             Guid.NewGuid());
-        var logger = new CapturingLogger<PlaybackAudioProvider>();
+        var logger = new CapturingLogger<PlaybackAudioFailureReporter>();
         var provider = new PlaybackAudioProvider(
             new FakeTtsRequestCompiler
             {
@@ -262,7 +261,7 @@ public sealed class PlaybackAudioProviderTests
             new FakeHttpTtsClient(),
             new FakeAudioCache(),
             new CountingRateLimiter(),
-            logger);
+            new PlaybackAudioFailureReporter(logger));
 
         var result = await provider.GetAudioAsync(
             request,
@@ -287,7 +286,7 @@ public sealed class PlaybackAudioProviderTests
     {
         const string novelText = "fixture-novel-text-2195";
         var request = CreatePlaybackRequest(speechText: novelText);
-        var logger = new CapturingLogger<PlaybackAudioProvider>();
+        var logger = new CapturingLogger<PlaybackAudioFailureReporter>();
         var provider = new PlaybackAudioProvider(
             new FakeTtsRequestCompiler(),
             new FakeHttpTtsClient(),
@@ -296,7 +295,7 @@ public sealed class PlaybackAudioProviderTests
                 LookupException = new IOException($"cache path contains {novelText}")
             },
             new CountingRateLimiter(),
-            logger);
+            new PlaybackAudioFailureReporter(logger));
 
         var result = await provider.GetAudioAsync(
             request,
@@ -366,21 +365,6 @@ public sealed class PlaybackAudioProviderTests
         var tempPath = Path.Combine(Path.GetTempPath(), $"{Path.GetRandomFileName()}{extension}");
         File.Copy(sourcePath, tempPath, overwrite: true);
         return tempPath;
-    }
-
-    private static async Task WaitForAsync(Func<bool> condition)
-    {
-        for (var attempt = 0; attempt < 40; attempt++)
-        {
-            if (condition())
-            {
-                return;
-            }
-
-            await Task.Delay(10);
-        }
-
-        Assert.True(condition(), "Timed out while waiting for the provider state to change.");
     }
 
     private static async Task AssertPendingAsync(Task task)
@@ -474,8 +458,12 @@ public sealed class PlaybackAudioProviderTests
     private sealed class FakeHttpTtsClient : IHttpTtsClient
     {
         private readonly Queue<Func<CancellationToken, Task<TtsHttpExecutionResult>>> _results = [];
+        private readonly TaskCompletionSource _firstExecutionStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public int ExecuteCallCount { get; private set; }
+
+        public Task FirstExecutionStarted => _firstExecutionStarted.Task;
 
         public PendingHttpResult EnqueuePendingSuccess()
         {
@@ -484,7 +472,8 @@ public sealed class PlaybackAudioProviderTests
             _results.Enqueue(cancellationToken =>
             {
                 pending.CancellationToken = cancellationToken;
-                cancellationToken.Register(static state => ((PendingHttpResult)state!).TrySetCancelled(), pending);
+                pending.MarkExecutionStarted();
+                cancellationToken.Register(static state => ((PendingHttpResult)state!).MarkCancelled(), pending);
                 return completionSource.Task;
             });
             return pending;
@@ -513,6 +502,7 @@ public sealed class PlaybackAudioProviderTests
         public Task<TtsHttpExecutionResult> ExecuteAsync(ParsedTtsRequest request, CancellationToken cancellationToken)
         {
             ExecuteCallCount++;
+            _firstExecutionStarted.TrySetResult();
             if (_results.Count > 0)
             {
                 return _results.Dequeue().Invoke(cancellationToken);
@@ -526,6 +516,10 @@ public sealed class PlaybackAudioProviderTests
         public sealed class PendingHttpResult
         {
             private readonly TaskCompletionSource<TtsHttpExecutionResult> _completionSource;
+            private readonly TaskCompletionSource _executionStarted =
+                new(TaskCreationOptions.RunContinuationsAsynchronously);
+            private readonly TaskCompletionSource _cancellationRequested =
+                new(TaskCreationOptions.RunContinuationsAsynchronously);
 
             public PendingHttpResult(TaskCompletionSource<TtsHttpExecutionResult> completionSource)
             {
@@ -534,6 +528,15 @@ public sealed class PlaybackAudioProviderTests
 
             public CancellationToken CancellationToken { get; set; }
 
+            public Task ExecutionStarted => _executionStarted.Task;
+
+            public Task CancellationRequested => _cancellationRequested.Task;
+
+            public void MarkExecutionStarted()
+            {
+                _executionStarted.TrySetResult();
+            }
+
             public void CompleteSuccess()
             {
                 _completionSource.TrySetResult(new TtsHttpExecutionResult(
@@ -541,8 +544,9 @@ public sealed class PlaybackAudioProviderTests
                     null));
             }
 
-            public void TrySetCancelled()
+            public void MarkCancelled()
             {
+                _cancellationRequested.TrySetResult();
                 _completionSource.TrySetCanceled(CancellationToken);
             }
         }

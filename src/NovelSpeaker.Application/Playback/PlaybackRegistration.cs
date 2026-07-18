@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NovelSpeaker.Application.Playback.Audio;
 
 namespace NovelSpeaker.Application.Playback;
 
@@ -13,6 +14,7 @@ public static class PlaybackRegistration
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<IBookPlaybackContentService, BookPlaybackContentService>();
         services.TryAddSingleton<ICacheWorkspaceService, CacheWorkspaceService>();
+        services.TryAddSingleton<IPlaybackAudioProvider, PlaybackAudioProvider>();
         return services;
     }
 }

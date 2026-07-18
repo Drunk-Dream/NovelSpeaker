@@ -15,4 +15,17 @@ public sealed record PlaybackAudioRequest(
     HttpTtsRule SourceRule,
     NormalizedHttpTtsRule NormalizedRule,
     int SpeakSpeed,
-    Guid SessionId);
+    Guid SessionId)
+{
+    /// <summary>Creates the single cache identity shared by current playback and prefetch.</summary>
+    public AudioCacheKey ToCacheKey()
+    {
+        return AudioCacheKey.FromPlayback(
+            BookId,
+            ChapterIndex,
+            SegmentIndex,
+            RuleId,
+            SpeakSpeed,
+            SpeechText);
+    }
+}

@@ -4,12 +4,13 @@ using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Testing;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.UnitTests.Common;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Speech;
+namespace NovelSpeaker.UnitTests.Speech.Testing;
 
 public sealed class TtsRuleTestServiceTests
 {
@@ -20,7 +21,7 @@ public sealed class TtsRuleTestServiceTests
         const string body = "fixture-body-3047";
         const string novelText = "fixture-novel-text-5268";
         var input = CreateInput(token, body, novelText);
-        var logger = new CapturingLogger<TtsRuleTestService>();
+        var logger = new CapturingLogger<TtsRuleTestFailureReporter>();
         await using var service = CreateService(
             input.Editor,
             logger,
@@ -44,7 +45,7 @@ public sealed class TtsRuleTestServiceTests
         const string body = "fixture-body-8530";
         const string novelText = "fixture-novel-text-9641";
         var input = CreateInput(token, body, novelText);
-        var logger = new CapturingLogger<TtsRuleTestService>();
+        var logger = new CapturingLogger<TtsRuleTestFailureReporter>();
         var player = new FakeAudioPlayer
         {
             LoadException = new InvalidOperationException(
@@ -65,7 +66,7 @@ public sealed class TtsRuleTestServiceTests
     public async Task TestAsync_propagates_playback_cancellation_without_error_log()
     {
         var input = CreateInput("fixture-token", "fixture-body", "fixture-text");
-        var logger = new CapturingLogger<TtsRuleTestService>();
+        var logger = new CapturingLogger<TtsRuleTestFailureReporter>();
         var player = new FakeAudioPlayer { LoadException = new OperationCanceledException() };
         await using var service = CreateService(input.Editor, logger, player: player);
 
@@ -80,21 +81,44 @@ public sealed class TtsRuleTestServiceTests
     {
         var input = CreateInput("fixture-token", "fixture-body", "fixture-text");
         var editor = new FakeRuleEditorUseCase(input.Editor);
+        var compiler = new SuccessfulCompiler();
+        var httpClient = new SuccessfulHttpClient();
         await using var service = new TtsRuleTestService(
             editor,
-            new SuccessfulCompiler(),
-            new SuccessfulHttpClient(),
+            compiler,
+            httpClient,
             new FakeAudioPlayerFactory(new FakeAudioPlayer()));
 
         var result = await service.TestAsync(input, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(0, editor.SaveCallCount);
+        Assert.Equal(1, compiler.CallCount);
+        Assert.Equal(1, httpClient.CallCount);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_disposes_its_independent_player_once()
+    {
+        var input = CreateInput("fixture-token", "fixture-body", "fixture-text");
+        var player = new FakeAudioPlayer();
+        var factory = new FakeAudioPlayerFactory(player);
+        var service = new TtsRuleTestService(
+            new FakeRuleEditorUseCase(input.Editor),
+            new SuccessfulCompiler(),
+            new SuccessfulHttpClient(),
+            factory);
+
+        await service.DisposeAsync();
+        await service.DisposeAsync();
+
+        Assert.Equal(1, factory.CreateCallCount);
+        Assert.Equal(1, player.DisposeCallCount);
     }
 
     private static TtsRuleTestService CreateService(
         TtsRuleEditorModel editor,
-        CapturingLogger<TtsRuleTestService> logger,
+        CapturingLogger<TtsRuleTestFailureReporter> logger,
         ITtsRuleNormalizer? normalizer = null,
         FakeAudioPlayer? player = null)
     {
@@ -104,7 +128,7 @@ public sealed class TtsRuleTestServiceTests
             new SuccessfulHttpClient(),
             new FakeAudioPlayerFactory(player ?? new FakeAudioPlayer()),
             normalizer,
-            logger: logger);
+            failureReporter: new TtsRuleTestFailureReporter(logger));
     }
 
     private static TtsRuleDraftTestInput CreateInput(string token, string body, string novelText)
@@ -130,7 +154,7 @@ public sealed class TtsRuleTestServiceTests
         }
     }
 
-    private static void AssertSafeLog(CapturingLogger<TtsRuleTestService> logger, params string[] secrets)
+    private static void AssertSafeLog(CapturingLogger<TtsRuleTestFailureReporter> logger, params string[] secrets)
     {
         var entry = Assert.Single(logger.Entries);
         Assert.Equal(LogLevel.Error, entry.Level);
@@ -145,11 +169,14 @@ public sealed class TtsRuleTestServiceTests
 
     private sealed class SuccessfulCompiler : ITtsRequestCompiler
     {
+        public int CallCount { get; private set; }
+
         public Task<TtsRequestCompilationResult> CompileAsync(
             NormalizedHttpTtsRule rule,
             TtsRuleContext context,
             CancellationToken cancellationToken)
         {
+            CallCount++;
             return Task.FromResult(new TtsRequestCompilationResult(
                 new ParsedTtsRequest(
                     rule.RuleId,
@@ -166,22 +193,34 @@ public sealed class TtsRuleTestServiceTests
 
     private sealed class SuccessfulHttpClient : IHttpTtsClient
     {
+        public int CallCount { get; private set; }
+
         public Task<TtsHttpExecutionResult> ExecuteAsync(
             ParsedTtsRequest request,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new TtsHttpExecutionResult(
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return Task.FromResult(new TtsHttpExecutionResult(
                 new TtsAudioResponse("fixture.mp3", 200, "audio/mpeg", "mp3"),
                 null));
+        }
     }
 
     private sealed class FakeAudioPlayerFactory(FakeAudioPlayer player) : IAudioPlayerFactory
     {
-        public IAudioPlayer Create() => player;
+        public int CreateCallCount { get; private set; }
+
+        public IAudioPlayer Create()
+        {
+            CreateCallCount++;
+            return player;
+        }
     }
 
     private sealed class FakeAudioPlayer : IAudioPlayer
     {
         public Exception? LoadException { get; init; }
+        public int DisposeCallCount { get; private set; }
         public PlaybackState State => PlaybackState.Stopped;
         public TimeSpan Position => TimeSpan.Zero;
         public TimeSpan Duration => TimeSpan.Zero;
@@ -195,7 +234,11 @@ public sealed class TtsRuleTestServiceTests
         public void Pause() { }
         public void Stop() { }
         public void Seek(TimeSpan position) { }
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        public ValueTask DisposeAsync()
+        {
+            DisposeCallCount++;
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class FakeRuleEditorUseCase(TtsRuleEditorModel editor) : ITtsRuleEditorUseCase

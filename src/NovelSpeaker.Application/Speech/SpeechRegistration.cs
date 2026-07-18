@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Application.Speech.Execution;
+using NovelSpeaker.Application.Speech.Testing;
 
 namespace NovelSpeaker.Application.Speech;
 
@@ -21,6 +22,7 @@ public static class SpeechRegistration
         services.TryAddSingleton<ITtsRuleEditorUseCase, TtsRuleEditorUseCase>();
         services.TryAddSingleton<ITtsRuleImportUseCase, TtsRuleImportUseCase>();
         services.TryAddSingleton<IHttpTtsClient, TtsExecutionService>();
+        services.TryAddSingleton<ITtsRuleTestService, TtsRuleTestService>();
         return services;
     }
 }

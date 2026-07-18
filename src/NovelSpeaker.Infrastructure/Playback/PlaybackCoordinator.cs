@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Audio;
 
 namespace NovelSpeaker.Infrastructure.Playback;
 

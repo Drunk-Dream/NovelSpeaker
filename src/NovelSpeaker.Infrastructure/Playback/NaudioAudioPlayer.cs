@@ -1,6 +1,7 @@
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Audio;
 using PlaybackStatus = NovelSpeaker.Application.Playback.PlaybackState;
 
 namespace NovelSpeaker.Infrastructure.Playback;

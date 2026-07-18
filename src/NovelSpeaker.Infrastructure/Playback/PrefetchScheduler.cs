@@ -121,14 +121,14 @@ public sealed class PrefetchScheduler : IPrefetchScheduler
                 var desired = Deduplicate(requests);
                 if (_activeKey is not null)
                 {
-                    var keepActive = desired.Any(request => CreateCacheKey(request) == _activeKey);
+                    var keepActive = desired.Any(request => request.ToCacheKey() == _activeKey);
                     if (!keepActive)
                     {
                         _activeRequestCts?.Cancel();
                     }
 
                     desired = desired
-                        .Where(request => CreateCacheKey(request) != _activeKey)
+                        .Where(request => request.ToCacheKey() != _activeKey)
                         .ToList();
                 }
 
@@ -161,7 +161,7 @@ public sealed class PrefetchScheduler : IPrefetchScheduler
 
                 var next = _pendingRequests[0];
                 _pendingRequests.RemoveAt(0);
-                _activeKey = CreateCacheKey(next);
+                _activeKey = next.ToCacheKey();
                 _activeRequestCts = CancellationTokenSource.CreateLinkedTokenSource(_sessionCts.Token);
                 return next;
             }
@@ -222,7 +222,7 @@ public sealed class PrefetchScheduler : IPrefetchScheduler
             var result = new List<PlaybackAudioRequest>(requests.Count);
             foreach (var request in requests)
             {
-                var key = CreateCacheKey(request);
+                var key = request.ToCacheKey();
                 if (seen.Add(key))
                 {
                     result.Add(request);
@@ -233,14 +233,4 @@ public sealed class PrefetchScheduler : IPrefetchScheduler
         }
     }
 
-    private static AudioCacheKey CreateCacheKey(PlaybackAudioRequest request)
-    {
-        return AudioCacheKey.FromPlayback(
-            request.BookId,
-            request.ChapterIndex,
-            request.SegmentIndex,
-            request.RuleId,
-            request.SpeakSpeed,
-            request.SpeechText);
-    }
 }

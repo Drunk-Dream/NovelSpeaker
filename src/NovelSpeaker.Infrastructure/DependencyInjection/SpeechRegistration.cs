@@ -4,6 +4,7 @@ using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Application.Speech.Testing;
 using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.Infrastructure.Speech.Legado;
 using NovelSpeaker.Infrastructure.Speech.Rules;
@@ -28,7 +29,7 @@ public static class SpeechRegistration
         services.TryAddSingleton<ITtsResponseValidator, TtsResponseValidator>();
         services.TryAddSingleton<TemporaryAudioStore>();
         services.TryAddSingleton<AudioProbe>();
-        services.TryAddSingleton<ITtsRuleTestService, TtsRuleTestService>();
+        services.TryAddSingleton<ITtsRuleTestFailureReporter, TtsRuleTestFailureReporter>();
 
         return services;
     }
