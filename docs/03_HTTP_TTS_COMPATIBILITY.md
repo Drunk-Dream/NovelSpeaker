@@ -240,6 +240,14 @@ public sealed record ParsedTtsRequest(
 
 当前没有 LoginInfo 字段或 CookieContainer。`enabledCookieJar`、`cookie.*`、LoginInfo 等来源字段不能仅因被脱敏器识别就视为已实现；转换器必须报告不支持。
 
+运行时执行按以下所有权拆分：
+
+- Application 的执行用例只编排 transport、retry policy 和 response validator，并在执行边界再次拒绝 Cookie Header；它不持有 `HttpClient`、响应流、临时路径或解码器。
+- Infrastructure 的 HTTP transport 持有进程级 `HttpClient` 和禁用 Cookie 的 handler；每次响应及其 stream 由 transport result 显式转移所有权，执行用例在验证或重试完成后释放。
+- retry policy 只判断超时、网络失败和 5xx 的有限重试；429 不在策略内自动循环，而是由 response validator 返回 `Retry-After`，再与规则级主动限流协同。
+- response validator 负责状态分类、有限长度错误摘要、临时落盘和音频验证；TemporaryAudioStore 负责 staging 文件清理，AudioProbe 只负责生产解码器探测。
+- response/stream/临时文件的释放使用 finally 保证；调用方取消稳定映射为 `Cancelled` 且不记录 Error，其它 transport/validation/file/decode 技术异常只记录脱敏摘要并返回固定 `Unknown` 文案。
+
 ## Header 处理
 
 支持来源：
@@ -297,6 +305,7 @@ public interface ITtsRateLimiter
 - 限流器控制主动请求频率。
 - 重试处理失败请求。
 - 遇到 429 时还需读取服务端等待信息。
+- `Retry-After` 只更新规则级服务端 backoff，不改变 `concurrentRate` 的主动限流策略；当前请求是否等待后重试仍由播放优先级和调用方用例决定。
 
 ## 响应验证
 

@@ -93,6 +93,8 @@ tests/
 - 当前明确不支持的 Cookie/LoginInfo、`jsLib`、复杂 `source.get/put` 被拒绝或不执行。
 - 401/403、429/Retry-After、5xx、超时、空响应、文本/JSON 错误和损坏音频。
 - 用户错误消息和日志对 URL、Header、Token、正文及异常消息脱敏。
+- HTTP transport 的 handler/response stream ownership、重试前释放、执行边界 Cookie 防御和临时音频 staging 清理。
+- response copy/read/dispose 与候选文件复制失败时的异常分类、owner finally 释放和残片清理。
 
 自动测试使用脱敏规则样本，不访问真实第三方 TTS 服务。
 

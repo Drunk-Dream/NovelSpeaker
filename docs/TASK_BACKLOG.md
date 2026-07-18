@@ -420,7 +420,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：原 Infrastructure `TtsRuleLibraryService` 与 Application `ITtsRuleLibraryService` 已删除，规则管理迁入 Application `Speech/Rules`，按 Import、Editor、Selection、Queries 四个窄用例接口组合；播放页只依赖只读查询，播放规则提供器只依赖 Selection，试听服务只通过 Editor 校验并准备不持久化的候选业务规则。当前规则选择/清空只有 Selection 写入口，导入和新建的自动选择、播放页切换以及删除/禁用当前规则保护均复用该入口。Legado/NovelSpeaker 对象或数组来源继续由 Infrastructure typed source adapter 解析转换，Application 内部 mapper、validator 和 serializer 只处理业务规则与编辑副本，不暴露万能映射接口。回归测试覆盖真实对象/数组 adapter、精确重复/同名重命名、混合失败/跳过、Cookie/LoginInfo 拒绝、canonical roundtrip、编辑副本与字段校验、结构化试听草稿准备/导出零保存、设为当前、替换/清空后禁用或删除、查询投影及试听草稿零保存。
 
-### [ ] TTS-303（P1）：拆分编译、运输、重试和响应验证
+### [x] TTS-303（P1）：拆分编译、运输、重试和响应验证
 
 前置：TTS-301。
 
@@ -432,6 +432,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 限流与 Retry-After 协同但仍为独立概念。
 
 测试：GET/POST、Header/Body、超时/取消、401/429/5xx、错误消息脱敏、临时文件清理和音频解码。
+
+完成说明：Application `Speech.Compilation` 现拥有 `TtsRequestCompiler`，通过受限 `ITemplateEvaluator` 端口编排模板求值、GET/POST/Header/Body 组装和脱敏 preview；纯 BCL 脱敏器随安全合同迁入 Application，技术异常日志通过窄 `ITtsCompilationFailureReporter` 端口交给 Infrastructure。Application `Speech.Execution` 拥有 transport-neutral 执行合同与 `TtsExecutionService` 用例编排，统一协调 HTTP transport、有限 retry policy 和 response validator，并在执行边界保留 Cookie 防御；现有 `TtsRuleTestService` 与 `PlaybackAudioProvider` 只迁移到该执行合同，试听、播放、缓存与优先级编排仍留待 TTS-304。Infrastructure 的 `HttpTtsClient` 只持有进程级 `HttpClient`、禁用 Cookie 的 handler、请求消息映射、单次超时和 response/stream ownership，不再负责编译、重试、响应落盘或 NAudio 验证；Jint evaluator、重试策略、响应分类、TemporaryAudioStore 与 AudioProbe 已分别拆出。调用方取消稳定映射为 `Cancelled` 且不记录 Error，其它响应读取、文件或验证异常经 Infrastructure 脱敏记录后返回固定 `Unknown`；response owner 与临时候选文件均由 finally 清理。429 由响应验证返回受限 `Retry-After`，播放调用方继续将其应用到规则级 limiter，主动 `concurrentRate` 与服务端 backoff 保持独立。回归测试覆盖 GET/POST JSON/Form、Header/Body、超时/取消、401/429/5xx、Cookie 执行边界、脱敏日志、response/owner 释放、复制故障残片清理、临时文件清理、损坏音频和真实 WAV 解码。
 
 ### [ ] TTS-304（P1）：迁移试听与播放音频提供用例
 
