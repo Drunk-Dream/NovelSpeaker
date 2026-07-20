@@ -546,7 +546,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：`PlaybackPositionResolver` 以 internal static 纯计算协作者承载章节搜索、相邻段/章、连续空语音跳过、恢复位置和原始字符偏移映射；章节装载、会话和状态提交仍由 `PlaybackCoordinator` 唯一拥有。`PlaybackSnapshotProjector` 从显式不可变输入生成 `PlaybackSnapshot`，不保存协调器状态或发布事件。新增表驱动位置解析和 Snapshot 投影测试，并保留 Skip API 供 PLAY-507 审计。
 
-### [ ] PLAY-504（P1）：抽取当前段执行与恢复策略
+### [x] PLAY-504（P1）：抽取当前段执行与恢复策略
 
 前置：PLAY-503。
 
@@ -557,6 +557,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 协调器提交状态和快照，runner/policy 不直接发布 UI 事件。
 
 测试：缓存命中/未命中、空语音、音频损坏、失败阈值、401/429/5xx。
+
+完成说明：新增 Application 内部 `PlaybackSegmentRunner`，统一当前段音频缓存命中/生成、按需失效和本地音频启动；runner 只返回显式执行结果，不拥有会话、保护句柄或 Snapshot。新增无状态 `PlaybackRecoveryPolicy`，使用显式不可变输入/输出决定损坏音频的一次重建、连续段失败阈值和可重试/可跳转结果；取消不会转成失败，也不由 runner/policy 发布 UI 事件。`PlaybackCoordinator` 继续唯一提交 `PlaybackSession`、缓存保护句柄和 `PlaybackSnapshot`，保留现有 facade、DI、旧 session 隔离和 Skip API。专项测试覆盖 runner 执行、缓存命中/未命中、空语音、损坏缓存、失败阈值、取消以及 401/429/5xx 分类行为。
 
 ### [ ] PLAY-505（P1）：抽取预取、进度与会话资源
 
