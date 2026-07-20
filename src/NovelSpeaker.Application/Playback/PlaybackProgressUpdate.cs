@@ -1,7 +1,7 @@
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
-/// Represents the current playback position that later epics will persist and restore.
+/// Represents the current playback position persisted and restored by playback flows.
 /// </summary>
 public sealed record PlaybackProgressUpdate(
     string BookId,

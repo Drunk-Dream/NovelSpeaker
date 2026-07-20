@@ -503,7 +503,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 本 Wave 风险最高，必须在 Books、Speech、Cache 端口稳定后执行。每项只迁移一个职责并运行完整 Playback 测试。
 
-### [ ] PLAY-501（P1）：校正播放文件/类型命名和必需合同
+### [x] PLAY-501（P1）：校正播放文件/类型命名和必需合同
 
 前置：ARC-002、BOOK-205。
 
@@ -515,6 +515,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 对 UI 不使用的 Skip API 做调用审计；先以测试固定“UI 不暴露跳过”，是否删除在 PLAY-507 完成。
 
 验收：只做命名和合同强制，不改变状态转换。
+
+完成说明：播放协调器和本地音频协调器的生产文件、测试文件及测试类型已按主类型纠正；`RefreshRegexReplacementAsync` 已改为 `IPlaybackCoordinator` 的必需合同，并补齐生产外实现与测试 fake。修正播放代码中将缓存和进度描述为未来能力的注释；审计确认 UI 不调用 Skip API，并以 PlayerView 测试固定不暴露跳过控件。`SkipCurrentSegmentAsync`、`CanSkip` 及协调器内部跳过行为保留至 PLAY-507。
 
 ### [ ] PLAY-502（P1）：将播放协调用例迁入 Application
 

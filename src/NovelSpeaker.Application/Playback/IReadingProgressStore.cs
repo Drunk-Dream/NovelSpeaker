@@ -1,7 +1,7 @@
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
-/// Persists playback progress updates. Full recovery logic is implemented in a later epic.
+/// Persists playback progress updates used by playback pause, stop, and recovery flows.
 /// </summary>
 public interface IReadingProgressStore
 {

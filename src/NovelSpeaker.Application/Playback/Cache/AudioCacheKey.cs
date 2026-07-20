@@ -4,7 +4,7 @@ using System.Text;
 namespace NovelSpeaker.Application.Playback.Cache;
 
 /// <summary>
-/// Represents the future-stable cache identity for one generated playback audio item.
+/// Represents the stable cache identity for one generated playback audio item.
 /// </summary>
 public sealed record AudioCacheKey(string Value, string FileNameBase)
 {
