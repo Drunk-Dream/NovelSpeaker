@@ -468,7 +468,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：缓存管理现收敛为 Application `ICacheWorkspaceService` 用例门面与 `IAudioCacheStore` 存储端口两层合同；原 `AudioCacheSummary/CacheOverviewModel`、`CachedBookSummary/CachedBookCacheItem`、`CachedChapterSummary/CachedChapterCacheItem`、`AudioCacheCleanupResult/CacheCleanupResult` 近重复命名已分别明确为 `*Store*` 存储投影和 UI 无关的用例投影，App 的页面、ViewModel 与启动维护均只消费 Application 门面。`CacheWorkspaceService` 已移入 Application，通过 `IBookPlaybackMetadataQuery` 与 Books/Text 的 `IBookContentReader`、`ITextSegmenter` 组合书籍/章节元数据和完整度，不再持有 SQLite connection 或查询 `Books/Chapters`；`SqliteAudioCache` 仅实现存储端口，未提前拆分其索引、文件、维护和保护职责。总览、维护到上限、按章/按书/全部清理及其结果字段保持不变；预期正文读取失败仍降级为未知完整度，取消与意外异常继续传播。回归测试覆盖总览映射、元数据组合与孤儿回退、完整度、预期读取失败、取消、意外异常以及三类清理和维护委托。
 
-### [ ] CACHE-402（P1）：拆分 SqliteAudioCache
+### [x] CACHE-402（P1）：拆分 SqliteAudioCache
 
 前置：CACHE-401、DB-103、BOOK-204 路径解析器。
 
@@ -480,6 +480,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 当前播放、生成和写入保护语义不变。
 
 测试：命中、写入、并发、损坏重建、孤儿清理、LRU、保护和根外路径。
+
+完成说明：原 `SqliteAudioCache` 已删除，缓存入口由唯一的 Infrastructure `AudioCacheFacade` 组合 `SqliteAudioCacheIndex`、`AudioCacheFileStore` 和 `AudioCacheMaintenance`；SQLite 查询、文件暂存/同卷切换、索引/文件漂移修复、LRU 和保护注册表职责分离。缓存端口与缓存键保持不变，DI 只把 facade 注册为 `IAudioCache`/`IAudioCacheStore`；所有索引路径经 `IAppStoragePathResolver` 且缓存目录额外施加 `Cache/Tts` 所有权检查。并发写入、缺失索引文件清理、临时/孤儿清理、LRU、受保护文件、缓存边界和根外路径回归测试通过；未改变 CACHE-403 的 Workspace 用例。
 
 ### [ ] CACHE-403（P1）：迁移缓存 Workspace 到 Application
 
