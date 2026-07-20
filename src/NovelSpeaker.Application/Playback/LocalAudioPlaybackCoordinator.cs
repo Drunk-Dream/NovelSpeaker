@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using NovelSpeaker.Application.Playback.Audio;
 
 namespace NovelSpeaker.Application.Playback;
@@ -9,16 +10,28 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
 {
     private readonly IAudioPlayer _audioPlayer;
     private readonly SemaphoreSlim _mutex = new(1, 1);
+    private readonly Channel<PlayerEventCommand> _playerEvents = Channel.CreateUnbounded<PlayerEventCommand>(
+        new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            AllowSynchronousContinuations = false
+        });
+    private readonly CancellationTokenSource _lifecycleCancellation = new();
+    private readonly CancellationTokenSource _playerEventCancellation = new();
+    private readonly Task _playerEventProcessor;
+    private readonly object _disposeGate = new();
     private LocalAudioPlaybackRequest? _currentRequest;
     private LocalAudioPlaybackSnapshot _currentSnapshot = LocalAudioPlaybackSnapshot.Idle;
     private long _sessionVersion;
     private bool _disposed;
     private EventHandler? _playbackCompletedHandler;
     private EventHandler<PlaybackErrorEventArgs>? _playbackFailedHandler;
+    private Task? _disposeTask;
 
     public LocalAudioPlaybackCoordinator(IAudioPlayer audioPlayer)
     {
         _audioPlayer = audioPlayer;
+        _playerEventProcessor = ProcessPlayerEventsAsync();
     }
 
     public LocalAudioPlaybackSnapshot CurrentSnapshot => _currentSnapshot;
@@ -34,9 +47,13 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
         ArgumentNullException.ThrowIfNull(request);
         ThrowIfDisposed();
 
-        await _mutex.WaitAsync(cancellationToken);
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _lifecycleCancellation.Token);
+        await _mutex.WaitAsync(linkedCancellation.Token);
         try
         {
+            ThrowIfDisposed();
             _sessionVersion++;
             _currentRequest = request;
             DetachPlayerHandlers();
@@ -53,7 +70,7 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
                 request.IsUsingCache));
 
             _audioPlayer.Stop();
-            await _audioPlayer.LoadAsync(request.FilePath, cancellationToken);
+            await _audioPlayer.LoadAsync(request.FilePath, linkedCancellation.Token);
             AttachPlayerHandlers(_sessionVersion);
 
             if (request.ResumePositionMilliseconds > 0)
@@ -86,9 +103,13 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
     public async Task ResumeAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
-        await _mutex.WaitAsync(cancellationToken);
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _lifecycleCancellation.Token);
+        await _mutex.WaitAsync(linkedCancellation.Token);
         try
         {
+            ThrowIfDisposed();
             if (_currentRequest is null)
             {
                 return;
@@ -115,9 +136,13 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
     public async Task PauseAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
-        await _mutex.WaitAsync(cancellationToken);
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _lifecycleCancellation.Token);
+        await _mutex.WaitAsync(linkedCancellation.Token);
         try
         {
+            ThrowIfDisposed();
             if (_currentRequest is null)
             {
                 return;
@@ -135,9 +160,13 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
-        await _mutex.WaitAsync(cancellationToken);
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _lifecycleCancellation.Token);
+        await _mutex.WaitAsync(linkedCancellation.Token);
         try
         {
+            ThrowIfDisposed();
             if (_currentRequest is null)
             {
                 PublishSnapshot(LocalAudioPlaybackSnapshot.Idle);
@@ -156,9 +185,13 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
     public async Task SeekAsync(long positionMilliseconds, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
-        await _mutex.WaitAsync(cancellationToken);
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _lifecycleCancellation.Token);
+        await _mutex.WaitAsync(linkedCancellation.Token);
         try
         {
+            ThrowIfDisposed();
             if (_currentRequest is null)
             {
                 return;
@@ -173,22 +206,40 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
         }
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (_disposed)
+        lock (_disposeGate)
         {
-            return;
+            _disposeTask ??= DisposeCoreAsync();
+            return new ValueTask(_disposeTask);
         }
+    }
 
+    private async Task DisposeCoreAsync()
+    {
         _disposed = true;
+        _lifecycleCancellation.Cancel();
+        _playerEventCancellation.Cancel();
+        _playerEvents.Writer.TryComplete();
         DetachPlayerHandlers();
+        await _mutex.WaitAsync().ConfigureAwait(false);
+        _mutex.Release();
+        await _playerEventProcessor.ConfigureAwait(false);
         await _audioPlayer.DisposeAsync();
+        _playerEventCancellation.Dispose();
+        _lifecycleCancellation.Dispose();
     }
 
     private void AttachPlayerHandlers(long sessionVersion)
     {
-        _playbackCompletedHandler = (_, _) => _ = HandlePlaybackCompletedAsync(sessionVersion);
-        _playbackFailedHandler = (_, error) => _ = HandlePlaybackFailedAsync(sessionVersion, error);
+        _playbackCompletedHandler = (_, _) => EnqueuePlayerEvent(new PlayerEventCommand(
+            PlayerEventCommandKind.Completed,
+            sessionVersion,
+            null));
+        _playbackFailedHandler = (_, error) => EnqueuePlayerEvent(new PlayerEventCommand(
+            PlayerEventCommandKind.Failed,
+            sessionVersion,
+            error));
 
         _audioPlayer.PlaybackCompleted += _playbackCompletedHandler;
         _audioPlayer.PlaybackFailed += _playbackFailedHandler;
@@ -209,53 +260,74 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
         }
     }
 
-    private async Task HandlePlaybackCompletedAsync(long sessionVersion)
+    private void EnqueuePlayerEvent(PlayerEventCommand command)
     {
-        if (_disposed)
+        if (!_disposed)
         {
-            return;
-        }
-
-        await _mutex.WaitAsync();
-        try
-        {
-            if (sessionVersion != _sessionVersion || _currentRequest is null)
-            {
-                return;
-            }
-
-            PublishSnapshotFromPlayer(PlaybackState.Stopped, "当前音频已播放完成。");
-            PlaybackCompleted?.Invoke(this, EventArgs.Empty);
-        }
-        finally
-        {
-            _mutex.Release();
+            _playerEvents.Writer.TryWrite(command);
         }
     }
 
-    private async Task HandlePlaybackFailedAsync(long sessionVersion, PlaybackErrorEventArgs error)
+    private async Task ProcessPlayerEventsAsync()
     {
-        if (_disposed)
-        {
-            return;
-        }
-
-        await _mutex.WaitAsync();
         try
         {
-            if (sessionVersion != _sessionVersion)
+            await foreach (var command in _playerEvents.Reader.ReadAllAsync(_playerEventCancellation.Token).ConfigureAwait(false))
             {
-                return;
-            }
+                try
+                {
+                    await _mutex.WaitAsync(_lifecycleCancellation.Token).ConfigureAwait(false);
+                    try
+                    {
+                        if (_disposed || command.SessionVersion != _sessionVersion || _currentRequest is null)
+                        {
+                            continue;
+                        }
 
-            PublishFailure(error);
-            PlaybackFailed?.Invoke(this, error);
+                        switch (command.Kind)
+                        {
+                            case PlayerEventCommandKind.Completed:
+                                PublishSnapshotFromPlayer(PlaybackState.Stopped, "当前音频已播放完成。");
+                                PlaybackCompleted?.Invoke(this, EventArgs.Empty);
+                                break;
+                            case PlayerEventCommandKind.Failed:
+                                PublishFailure(command.Error!);
+                                PlaybackFailed?.Invoke(this, command.Error!);
+                                break;
+                        }
+                    }
+                    finally
+                    {
+                        _mutex.Release();
+                    }
+                }
+                catch (OperationCanceledException) when (_disposed || _playerEventCancellation.IsCancellationRequested)
+                {
+                    // Closing cancels the owned player-event processor.
+                }
+                catch (Exception)
+                {
+                    // Player-event subscribers are outside this coordinator's ownership boundary.
+                    // Keep the processor observed and continue handling later events.
+                }
+            }
         }
-        finally
+        catch (OperationCanceledException) when (_playerEventCancellation.IsCancellationRequested)
         {
-            _mutex.Release();
+            // Closing cancels the owned player-event processor.
         }
     }
+
+    private enum PlayerEventCommandKind
+    {
+        Completed,
+        Failed
+    }
+
+    private sealed record PlayerEventCommand(
+        PlayerEventCommandKind Kind,
+        long SessionVersion,
+        PlaybackErrorEventArgs? Error);
 
     private void PublishFailure(PlaybackErrorEventArgs error)
     {

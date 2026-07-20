@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Threading.Channels;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Settings;
@@ -22,6 +24,17 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     private readonly IPlaybackPrefetchController _prefetchController;
     private readonly IAppSettingsService _appSettingsService;
     private readonly SemaphoreSlim _mutex = new(1, 1);
+    private readonly Channel<PlaybackEventCommand> _eventCommands = Channel.CreateUnbounded<PlaybackEventCommand>(
+        new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            AllowSynchronousContinuations = false
+        });
+    private readonly ConcurrentDictionary<PlaybackEventKey, byte> _pendingEventCommands = new();
+    private readonly CancellationTokenSource _lifecycleCancellation = new();
+    private readonly CancellationTokenSource _eventCommandCancellation = new();
+    private readonly Task _eventCommandProcessor;
+    private readonly object _disposeGate = new();
 
     private PlaybackSnapshot _currentSnapshot = PlaybackSnapshot.Idle;
     private PlaybackSessionState? _currentSession;
@@ -29,6 +42,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     private string? _lastRecoveredCorruptSegmentKey;
     private long _contentRevision;
     private bool _disposed;
+    private Task? _disposeTask;
 
     // These accessors are aliases into the session owner. They intentionally do not
     // cache a second book, rule, or protection handle in the coordinator.
@@ -74,6 +88,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         _localAudioPlaybackCoordinator.SnapshotChanged += OnLocalSnapshotChanged;
         _localAudioPlaybackCoordinator.PlaybackCompleted += OnLocalPlaybackCompleted;
         _localAudioPlaybackCoordinator.PlaybackFailed += OnLocalPlaybackFailed;
+        _eventCommandProcessor = ProcessEventCommandsAsync();
     }
 
     public PlaybackSnapshot CurrentSnapshot => _currentSnapshot;
@@ -180,38 +195,115 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         return RunSerializedAsync(ct => HandleBookDeletedCoreAsync(bookId, ct), cancellationToken);
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        await _mutex.WaitAsync().ConfigureAwait(false);
+        lock (_disposeGate)
+        {
+            _disposeTask ??= DisposeCoreAsync();
+            return new ValueTask(_disposeTask);
+        }
+    }
+
+    private async Task DisposeCoreAsync()
+    {
+        _disposed = true;
+        _lifecycleCancellation.Cancel();
+        _eventCommandCancellation.Cancel();
+        _eventCommands.Writer.TryComplete();
+        _currentSession?.Cancel();
+        _localAudioPlaybackCoordinator.SnapshotChanged -= OnLocalSnapshotChanged;
+        _localAudioPlaybackCoordinator.PlaybackCompleted -= OnLocalPlaybackCompleted;
+        _localAudioPlaybackCoordinator.PlaybackFailed -= OnLocalPlaybackFailed;
+
+        Exception? disposeFailure = null;
+        var entered = false;
         try
         {
-            if (_disposed)
+            await _mutex.WaitAsync().ConfigureAwait(false);
+            entered = true;
+            var session = _currentSession;
+            if (session is not null)
             {
-                return;
+                try
+                {
+                    await SaveProgressAsync(
+                        session,
+                        session.HasLoadedAudio
+                            ? _localAudioPlaybackCoordinator.CurrentSnapshot.PositionMilliseconds
+                            : GetCurrentPositionMillisecondsForSave(session),
+                        PlaybackProgressSaveReason.ApplicationExit,
+                        CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    disposeFailure ??= exception;
+                }
+
+                try
+                {
+                    await _prefetchController.CancelAsync(session.SessionId, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    disposeFailure ??= exception;
+                }
+
+                try
+                {
+                    await DisposeSessionAsync().ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    disposeFailure ??= exception;
+                }
             }
 
-            if (_currentSession is not null)
+            try
             {
-                await SaveProgressAsync(
-                    _currentSession,
-                    GetCurrentPositionMillisecondsForSave(_currentSession),
-                    PlaybackProgressSaveReason.ApplicationExit,
-                    CancellationToken.None).ConfigureAwait(false);
+                ClearProtectedPlaybackFile();
             }
-
-            _disposed = true;
-            _localAudioPlaybackCoordinator.SnapshotChanged -= OnLocalSnapshotChanged;
-            _localAudioPlaybackCoordinator.PlaybackCompleted -= OnLocalPlaybackCompleted;
-            _localAudioPlaybackCoordinator.PlaybackFailed -= OnLocalPlaybackFailed;
-            await DisposeSessionAsync().ConfigureAwait(false);
-            ClearProtectedPlaybackFile();
+            catch (Exception exception)
+            {
+                disposeFailure ??= exception;
+            }
+        }
+        catch (Exception exception)
+        {
+            disposeFailure ??= exception;
         }
         finally
         {
-            _mutex.Release();
+            if (entered)
+            {
+                _mutex.Release();
+            }
         }
 
-        await _localAudioPlaybackCoordinator.DisposeAsync().ConfigureAwait(false);
+        try
+        {
+            await _eventCommandProcessor.ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            disposeFailure ??= exception;
+        }
+
+        try
+        {
+            await _localAudioPlaybackCoordinator.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            disposeFailure ??= exception;
+        }
+
+        _eventCommandCancellation.Dispose();
+        _lifecycleCancellation.Dispose();
+
+        if (disposeFailure is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(disposeFailure).Throw();
+        }
     }
 
     private async Task StartCoreAsync(PlaybackStartRequest request, CancellationToken cancellationToken)
@@ -1293,126 +1385,320 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             session.SessionId));
     }
 
-    private async void OnLocalPlaybackCompleted(object? sender, EventArgs e)
+    private void OnLocalPlaybackCompleted(object? sender, EventArgs e)
     {
-        await RunSerializedWithoutUserCancellationAsync(async () =>
-        {
-            if (_currentSession is null || _currentBook is null)
-            {
-                return;
-            }
-
-            var session = _currentSession;
-            var sessionCancellationToken = session.CancellationToken;
-            session.UpdateAudio(_localAudioPlaybackCoordinator.CurrentSnapshot);
-            var next = await ResolveRelativeSegmentAsync(
-                _currentBook,
-                session.ChapterIndex,
-                session.SegmentIndex,
-                1,
-                sessionCancellationToken);
-            if (next is null)
-            {
-                session.SetPositionForSave(_localAudioPlaybackCoordinator.CurrentSnapshot.DurationMilliseconds);
-                await SaveProgressAsync(
-                    session,
-                    session.PositionForSave,
-                    PlaybackProgressSaveReason.SegmentCompleted,
-                    sessionCancellationToken);
-                await _prefetchController.CancelAsync(session.SessionId, sessionCancellationToken);
-                await DisposeSessionAsync();
-
-                PublishSnapshot(_currentSnapshot with
-                {
-                    State = PlaybackState.Stopped,
-                    PositionMilliseconds = 0,
-                    Message = "全书播放完成。",
-                    CanRetry = false,
-                    CanSkip = false
-                });
-                return;
-            }
-
-            await SaveProgressAsync(
-                session,
-                _localAudioPlaybackCoordinator.CurrentSnapshot.DurationMilliseconds,
-                PlaybackProgressSaveReason.SegmentCompleted,
-                sessionCancellationToken);
-
-            _currentBook = next.Value.Book;
-            session.ChapterIndex = next.Value.ChapterIndex;
-            session.SegmentIndex = next.Value.SegmentIndex;
-            session.ResumePositionMilliseconds = 0;
-            await PlayCurrentSegmentAsync(session, 0, forceInvalidate: false, sessionCancellationToken);
-        });
+        EnqueueEventCommand(new PlaybackEventCommand(
+            PlaybackEventCommandKind.Completed,
+            _currentSession?.SessionId,
+            _localAudioPlaybackCoordinator.CurrentSnapshot,
+            null));
     }
 
-    private async void OnLocalPlaybackFailed(object? sender, PlaybackErrorEventArgs error)
+    private void OnLocalPlaybackFailed(object? sender, PlaybackErrorEventArgs error)
     {
-        await RunSerializedWithoutUserCancellationAsync(async () =>
-        {
-            if (_currentSession is null || _currentBook is null)
-            {
-                PublishPlaybackFailure(error.Message, TtsErrorKind.AudioDecode, canSkip: false);
-                return;
-            }
+        EnqueueEventCommand(new PlaybackEventCommand(
+            PlaybackEventCommandKind.Failed,
+            _currentSession?.SessionId,
+            _localAudioPlaybackCoordinator.CurrentSnapshot,
+            error));
+    }
 
-            if (error.Kind == PlaybackErrorKind.AudioDecode)
+    private void OnLocalSnapshotChanged(object? sender, LocalAudioPlaybackSnapshot snapshot)
+    {
+        EnqueueEventCommand(new PlaybackEventCommand(
+            PlaybackEventCommandKind.SnapshotChanged,
+            _currentSession?.SessionId,
+            snapshot,
+            null));
+    }
+
+    private void EnqueueEventCommand(PlaybackEventCommand command)
+    {
+        if (_disposed || command.SessionId is null)
+        {
+            return;
+        }
+
+        if (!_pendingEventCommands.TryAdd(command.Key, 0))
+        {
+            return;
+        }
+
+        if (!_eventCommands.Writer.TryWrite(command))
+        {
+            _pendingEventCommands.TryRemove(command.Key, out _);
+        }
+    }
+
+    private async Task ProcessEventCommandsAsync()
+    {
+        try
+        {
+            await foreach (var command in _eventCommands.Reader.ReadAllAsync(_eventCommandCancellation.Token).ConfigureAwait(false))
             {
-                var recoveryKey = $"{_currentSession.SessionId:N}:{_currentSession.ChapterIndex}:{_currentSession.SegmentIndex}:{_currentSession.RuleId}:{_currentSession.SpeakSpeed}";
-                var recoveryDecision = _recoveryPolicy.Decide(new PlaybackRecoveryInput(
-                    TtsErrorKind.AudioDecode,
-                    error.Message,
-                    _currentSession.ConsecutiveSegmentFailureCount,
-                    HasNextSegment(_currentBook, _currentSession.ChapterIndex, _currentSession.SegmentIndex),
-                    IsCorruptAudio: true,
-                    CorruptAudioRecoveryAttempted: string.Equals(
-                        _lastRecoveredCorruptSegmentKey,
-                        recoveryKey,
-                        StringComparison.Ordinal)));
-                if (recoveryDecision.ShouldRetryCurrentSegment)
+                try
                 {
-                    _lastRecoveredCorruptSegmentKey = recoveryKey;
-                    await PlayCurrentSegmentAsync(_currentSession, 0, forceInvalidate: true, _currentSession.CancellationToken);
-                    return;
+                    await ProcessEventCommandAsync(command).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (
+                    _disposed ||
+                    _eventCommandCancellation.IsCancellationRequested ||
+                    !IsSessionCurrent(command.SessionId ?? Guid.Empty))
+                {
+                    // Closing and session replacement are normal event invalidation paths.
+                }
+                catch (Exception)
+                {
+                    PublishEventCommandFailureSafely();
+                }
+                finally
+                {
+                    _pendingEventCommands.TryRemove(command.Key, out _);
                 }
             }
-
-            PublishPlaybackFailure(error.Message, TtsErrorKind.AudioDecode, HasNextSegment(_currentBook, _currentSession.ChapterIndex, _currentSession.SegmentIndex));
-        });
-    }
-
-    private async void OnLocalSnapshotChanged(object? sender, LocalAudioPlaybackSnapshot snapshot)
-    {
-        await RunSerializedWithoutUserCancellationAsync(() =>
+        }
+        catch (OperationCanceledException) when (_eventCommandCancellation.IsCancellationRequested)
         {
-            if (_currentSession is null || _currentBook is null || _currentRule is null)
-            {
-                return Task.CompletedTask;
-            }
-
-            _currentSession.UpdateAudio(snapshot);
-            if (snapshot.State is PlaybackState.Stopped or PlaybackState.Faulted)
-            {
-                return Task.CompletedTask;
-            }
-
-            PublishSnapshot(BuildSnapshot(
-                snapshot.State,
-                _currentBook,
-                _currentSession.ChapterIndex,
-                _currentSession.SegmentIndex,
-                _currentRule,
-                _currentSession.SpeakSpeed,
-                snapshot.PositionMilliseconds,
-                snapshot.DurationMilliseconds,
-                snapshot.Message,
-                snapshot.IsUsingCache,
-                false,
-                false));
-            return Task.CompletedTask;
-        });
+            // Closing cancels the owned command processor.
+        }
     }
+
+    private async Task ProcessEventCommandAsync(PlaybackEventCommand command)
+    {
+        if (_disposed || command.SessionId is not Guid sessionId)
+        {
+            return;
+        }
+
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            _lifecycleCancellation.Token,
+            _currentSession?.CancellationToken ?? CancellationToken.None);
+        await _mutex.WaitAsync(linkedCancellation.Token).ConfigureAwait(false);
+        try
+        {
+            if (_disposed || !IsSessionCurrent(sessionId) || command.Snapshot is null)
+            {
+                return;
+            }
+
+            var session = _currentSession!;
+            if (!IsCurrentLocalAudioEvent(command.Snapshot))
+            {
+                return;
+            }
+
+            switch (command.Kind)
+            {
+                case PlaybackEventCommandKind.Completed:
+                    await ProcessPlaybackCompletedAsync(session, command.Snapshot, linkedCancellation.Token).ConfigureAwait(false);
+                    break;
+                case PlaybackEventCommandKind.Failed:
+                    await ProcessPlaybackFailedAsync(session, command.Error!, command.Snapshot, linkedCancellation.Token).ConfigureAwait(false);
+                    break;
+                case PlaybackEventCommandKind.SnapshotChanged:
+                    ProcessSnapshotChanged(session, command.Snapshot);
+                    break;
+            }
+        }
+        finally
+        {
+            _mutex.Release();
+        }
+    }
+
+    private async Task ProcessPlaybackCompletedAsync(
+        PlaybackSessionState session,
+        LocalAudioPlaybackSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        if (_currentBook is null)
+        {
+            return;
+        }
+
+        session.UpdateAudio(snapshot);
+        var next = await ResolveRelativeSegmentAsync(
+            _currentBook,
+            session.ChapterIndex,
+            session.SegmentIndex,
+            1,
+            cancellationToken).ConfigureAwait(false);
+        if (next is null)
+        {
+            session.SetPositionForSave(snapshot.DurationMilliseconds);
+            await SaveProgressAsync(
+                session,
+                session.PositionForSave,
+                PlaybackProgressSaveReason.SegmentCompleted,
+                cancellationToken).ConfigureAwait(false);
+            await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
+            await DisposeSessionAsync().ConfigureAwait(false);
+
+            PublishSnapshot(_currentSnapshot with
+            {
+                State = PlaybackState.Stopped,
+                PositionMilliseconds = 0,
+                Message = "全书播放完成。",
+                CanRetry = false,
+                CanSkip = false
+            });
+            return;
+        }
+
+        await SaveProgressAsync(
+            session,
+            snapshot.DurationMilliseconds,
+            PlaybackProgressSaveReason.SegmentCompleted,
+            cancellationToken).ConfigureAwait(false);
+
+        _currentBook = next.Value.Book;
+        session.ChapterIndex = next.Value.ChapterIndex;
+        session.SegmentIndex = next.Value.SegmentIndex;
+        session.ResumePositionMilliseconds = 0;
+        await PlayCurrentSegmentAsync(session, 0, forceInvalidate: false, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task ProcessPlaybackFailedAsync(
+        PlaybackSessionState session,
+        PlaybackErrorEventArgs error,
+        LocalAudioPlaybackSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        if (_currentBook is null)
+        {
+            return;
+        }
+
+        session.UpdateAudio(snapshot);
+        if (error.Kind == PlaybackErrorKind.AudioDecode)
+        {
+            var recoveryKey = $"{session.SessionId:N}:{session.ChapterIndex}:{session.SegmentIndex}:{session.RuleId}:{session.SpeakSpeed}";
+            var recoveryDecision = _recoveryPolicy.Decide(new PlaybackRecoveryInput(
+                TtsErrorKind.AudioDecode,
+                error.Message,
+                session.ConsecutiveSegmentFailureCount,
+                HasNextSegment(_currentBook, session.ChapterIndex, session.SegmentIndex),
+                IsCorruptAudio: true,
+                CorruptAudioRecoveryAttempted: string.Equals(
+                    _lastRecoveredCorruptSegmentKey,
+                    recoveryKey,
+                    StringComparison.Ordinal)));
+            if (recoveryDecision.ShouldRetryCurrentSegment)
+            {
+                _lastRecoveredCorruptSegmentKey = recoveryKey;
+                await PlayCurrentSegmentAsync(session, 0, forceInvalidate: true, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+        }
+
+        PublishPlaybackFailure(
+            error.Message,
+            TtsErrorKind.AudioDecode,
+            HasNextSegment(_currentBook, session.ChapterIndex, session.SegmentIndex));
+    }
+
+    private void ProcessSnapshotChanged(PlaybackSessionState session, LocalAudioPlaybackSnapshot snapshot)
+    {
+        if (_currentBook is null || _currentRule is null)
+        {
+            return;
+        }
+
+        session.UpdateAudio(snapshot);
+        if (snapshot.State is PlaybackState.Stopped or PlaybackState.Faulted)
+        {
+            return;
+        }
+
+        PublishSnapshot(BuildSnapshot(
+            snapshot.State,
+            _currentBook,
+            session.ChapterIndex,
+            session.SegmentIndex,
+            _currentRule,
+            session.SpeakSpeed,
+            snapshot.PositionMilliseconds,
+            snapshot.DurationMilliseconds,
+            snapshot.Message,
+            snapshot.IsUsingCache,
+            false,
+            false));
+    }
+
+    private bool IsCurrentLocalAudioEvent(LocalAudioPlaybackSnapshot snapshot)
+    {
+        if (_currentSession is null || _currentBook is null)
+        {
+            return false;
+        }
+
+        var current = _localAudioPlaybackCoordinator.CurrentSnapshot;
+        return Equals(current, snapshot) &&
+            string.Equals(snapshot.BookId, _currentBook.BookId, StringComparison.Ordinal) &&
+            snapshot.ChapterIndex == _currentSession.ChapterIndex &&
+            snapshot.SegmentIndex == _currentSession.SegmentIndex;
+    }
+
+    private void PublishEventCommandFailureSafely()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _lastFailureKind = TtsErrorKind.Unknown;
+        try
+        {
+            PublishSnapshot(_currentSnapshot with
+            {
+                State = PlaybackState.Faulted,
+                Message = "播放事件处理失败，请稍后重试。",
+                CanRetry = true,
+                CanSkip = false
+            });
+        }
+        catch (Exception)
+        {
+            // Snapshot subscribers are outside the event processor's ownership boundary.
+            // Do not allow a subscriber failure to become an unobserved task exception.
+        }
+    }
+
+    private enum PlaybackEventCommandKind
+    {
+        Completed,
+        Failed,
+        SnapshotChanged
+    }
+
+    private sealed record PlaybackEventCommand(
+        PlaybackEventCommandKind Kind,
+        Guid? SessionId,
+        LocalAudioPlaybackSnapshot? Snapshot,
+        PlaybackErrorEventArgs? Error)
+    {
+        public PlaybackEventKey Key => new(
+            Kind,
+            SessionId ?? Guid.Empty,
+            Snapshot?.BookId,
+            Snapshot?.ChapterIndex ?? -1,
+            Snapshot?.SegmentIndex ?? -1,
+            Snapshot?.State ?? PlaybackState.Idle,
+            Snapshot?.PositionMilliseconds ?? 0,
+            Snapshot?.DurationMilliseconds ?? 0,
+            Error?.Kind ?? PlaybackErrorKind.Unknown);
+    }
+
+    private readonly record struct PlaybackEventKey(
+        PlaybackEventCommandKind Kind,
+        Guid SessionId,
+        string? BookId,
+        int ChapterIndex,
+        int SegmentIndex,
+        PlaybackState State,
+        long PositionMilliseconds,
+        long DurationMilliseconds,
+        PlaybackErrorKind ErrorKind);
 
     private static PlaybackSnapshot CreateRuleMissingSnapshot(
         PlaybackBookContent book,
@@ -1699,6 +1985,17 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
 
     private long GetCurrentPositionMillisecondsForSave(PlaybackSessionState session)
     {
+        if (session.HasLoadedAudio)
+        {
+            var localSnapshot = _localAudioPlaybackCoordinator.CurrentSnapshot;
+            if (string.Equals(localSnapshot.BookId, session.BookId, StringComparison.Ordinal) &&
+                localSnapshot.ChapterIndex == session.ChapterIndex &&
+                localSnapshot.SegmentIndex == session.SegmentIndex)
+            {
+                return localSnapshot.PositionMilliseconds;
+            }
+        }
+
         return session.PositionForSave;
     }
 
@@ -1939,53 +2236,18 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     private async Task RunSerializedAsync(Func<CancellationToken, Task> action, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
-        await _mutex.WaitAsync(cancellationToken);
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _lifecycleCancellation.Token);
+        await _mutex.WaitAsync(linkedCancellation.Token);
         try
         {
-            await action(cancellationToken);
+            ThrowIfDisposed();
+            await action(linkedCancellation.Token);
         }
         finally
         {
             _mutex.Release();
-        }
-    }
-
-    private async Task RunSerializedWithoutUserCancellationAsync(Func<Task> action)
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        var entered = false;
-        try
-        {
-            await _mutex.WaitAsync();
-            entered = true;
-
-            if (_disposed)
-            {
-                return;
-            }
-
-            await action();
-        }
-        catch (ObjectDisposedException)
-        {
-            return;
-        }
-        finally
-        {
-            if (entered)
-            {
-                try
-                {
-                    _mutex.Release();
-                }
-                catch (ObjectDisposedException)
-                {
-                }
-            }
         }
     }
 
