@@ -518,7 +518,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：播放协调器和本地音频协调器的生产文件、测试文件及测试类型已按主类型纠正；`RefreshRegexReplacementAsync` 已改为 `IPlaybackCoordinator` 的必需合同，并补齐生产外实现与测试 fake。修正播放代码中将缓存和进度描述为未来能力的注释；审计确认 UI 不调用 Skip API，并以 PlayerView 测试固定不暴露跳过控件。`SkipCurrentSegmentAsync`、`CanSkip` 及协调器内部跳过行为保留至 PLAY-507。
 
-### [ ] PLAY-502（P1）：将播放协调用例迁入 Application
+### [x] PLAY-502（P1）：将播放协调用例迁入 Application
 
 前置：TTS-304、CACHE-403、PLAY-501。
 
@@ -529,6 +529,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 保持当前 facade、DI 生命周期和 Snapshot 事件。
 
 验收：Application 不需引用任何技术包；所有原播放测试仅调整命名空间仍通过。
+
+完成说明：书籍级 `PlaybackCoordinator`、`LocalAudioPlaybackCoordinator`、`PrefetchScheduler` 和 `SelectedTtsRuleProvider` 已迁入 Application `Playback`，Application 播放注册模块负责其 Singleton 生命周期；Infrastructure 的音频注册仅保留 NAudio 播放器/工厂、缓存保护、缓存与进度存储及安全诊断 reporter。播放 facade、会话状态所有权、预取取消、低层 Snapshot/Completed/Failed 事件和现有用户行为保持不变。为满足 Application 纯化边界，SQLite 连接工厂归 Infrastructure 内部，App 诊断改用 `IDatabaseSchemaVersionProvider` 语义端口；Application 不再引用 SQLite 包或类型。播放、DI、架构和诊断回归测试通过。
 
 ### [ ] PLAY-503（P1）：抽取纯位置解析与 Snapshot 投影
 
