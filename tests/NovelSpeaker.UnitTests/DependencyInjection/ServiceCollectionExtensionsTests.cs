@@ -120,7 +120,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAudioCacheStore>(provider.GetRequiredService<IAudioCacheStore>());
                 Assert.IsAssignableFrom<ICacheWorkspaceService>(provider.GetRequiredService<ICacheWorkspaceService>());
                 Assert.IsAssignableFrom<IAudioCacheProtectionRegistry>(provider.GetRequiredService<IAudioCacheProtectionRegistry>());
-                Assert.IsType<PrefetchScheduler>(provider.GetRequiredService<IPrefetchScheduler>());
+                Assert.IsType<PlaybackPrefetchController>(provider.GetRequiredService<IPlaybackPrefetchController>());
                 Assert.IsAssignableFrom<IReadingProgressStore>(provider.GetRequiredService<IReadingProgressStore>());
                 Assert.IsAssignableFrom<TimeProvider>(provider.GetRequiredService<TimeProvider>());
                 Assert.IsType<MainWindow>(provider.GetRequiredService<MainWindow>());

@@ -126,6 +126,26 @@ public sealed class PlaybackCoordinatorTests
     }
 
     [Fact]
+    public async Task PauseAsync_propagates_progress_save_failure()
+    {
+        var expected = new InvalidOperationException("保存失败");
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var readingProgressStore = new FakeReadingProgressStore { SaveFailure = expected };
+        var coordinator = CreateCoordinator(
+            localCoordinator,
+            readingProgressStore: readingProgressStore);
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+
+        var actual = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            coordinator.PauseAsync(CancellationToken.None));
+
+        Assert.Same(expected, actual);
+        readingProgressStore.SaveFailure = null;
+        await coordinator.DisposeAsync();
+    }
+
+    [Fact]
     public async Task PauseAsync_reduces_prefetch_window_to_one_segment()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
@@ -760,7 +780,7 @@ public sealed class PlaybackCoordinatorTests
             new PlaybackRecoveryPolicy(),
             new AudioCacheProtectionRegistry(),
             localCoordinator,
-            readingProgressStore ?? new FakeReadingProgressStore(),
+            new PlaybackProgressService(readingProgressStore ?? new FakeReadingProgressStore()),
             prefetchScheduler ?? new FakePrefetchScheduler(),
             appSettingsStore ?? new FakeAppSettingsStore(AppSettings.Default));
     }
@@ -1112,8 +1132,15 @@ public sealed class PlaybackCoordinatorTests
 
         public ReadingProgressEntry? StoredProgress { get; set; }
 
+        public Exception? SaveFailure { get; set; }
+
         public Task SaveAsync(PlaybackProgressUpdate progress, CancellationToken cancellationToken)
         {
+            if (SaveFailure is not null)
+            {
+                return Task.FromException(SaveFailure);
+            }
+
             SavedProgress.Add(progress);
             StoredProgress = new ReadingProgressEntry(
                 progress.BookId,
@@ -1139,15 +1166,15 @@ public sealed class PlaybackCoordinatorTests
         }
     }
 
-    private sealed class FakePrefetchScheduler : IPrefetchScheduler
+    private sealed class FakePrefetchScheduler : IPlaybackPrefetchController
     {
         public List<(Guid SessionId, IReadOnlyList<PlaybackAudioRequest> Requests)> ScheduleCalls { get; } = [];
 
         public List<Guid> CancelledSessions { get; } = [];
 
-        public Task ScheduleAsync(Guid sessionId, IReadOnlyList<PlaybackAudioRequest> requests, CancellationToken cancellationToken)
+        public Task SubmitAsync(PlaybackPrefetchWindow window, CancellationToken cancellationToken)
         {
-            ScheduleCalls.Add((sessionId, requests.ToArray()));
+            ScheduleCalls.Add((window.SessionId, window.Requests.ToArray()));
             return Task.CompletedTask;
         }
 
