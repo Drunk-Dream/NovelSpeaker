@@ -575,7 +575,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：Application 新增 `PlaybackPrefetchController`，以显式有序窗口拥有预取优先级、窗口替换、缓存键去重、session CTS、活动请求取消和旧 session 隔离；`PlaybackCoordinator` 只解析并提交窗口，暂停最多提交一个请求，停止/换章会取消旧窗口。新增 `PlaybackProgressService` 统一恢复、字符偏移映射和暂停/停止/切换/完成/退出保存，所有进度端口读写继续接收并传播 `CancellationToken`，存储失败保持原异常传播语义。新增 `PlaybackSessionState`，唯一拥有当前书籍、规则、位置、SessionId、CTS、当前音频快照和音频缓存保护句柄；协调器只负责状态机和 Snapshot 提交。保留既有 public facade、DI Singleton、取消和播放行为；事件命令队列/安全关闭留给 PLAY-506，Skip API 及其内部逻辑留给 PLAY-507。专项预取、进度、资源隔离和协调器回归测试通过。
 
-### [ ] PLAY-506（P0）：建立事件命令队列与安全关闭
+### [x] PLAY-506（P0）：建立事件命令队列与安全关闭
 
 前置：PLAY-505。
 
@@ -587,6 +587,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - Dispose 阻止新命令、保存进度、取消会话并释放播放器。
 
 测试：事件依赖抛错、Dispose 竞态、重复完成、完成后立即跳章。
+
+完成说明：本地音频协调器将播放器 Completed/Failed 事件送入拥有者的单读命令队列，书籍播放协调器再将低层 Snapshot/Completed/Failed 事件送入 session-aware 命令队列；事件入口不执行长流程，处理过程复用串行锁、生命周期 Token 和 SessionId，迟到或重复事件被安全丢弃。事件依赖抛错投影为安全 Faulted 状态，关闭先阻止新命令并取消生命周期/会话，再保存进度、取消预取、释放会话和播放器，重复关闭共享同一释放任务。新增事件异常、关闭竞态、重复完成和完成后立即跳章回归测试。
 
 ### [ ] PLAY-507（P1）：收敛播放公共接口和删除过渡代码
 

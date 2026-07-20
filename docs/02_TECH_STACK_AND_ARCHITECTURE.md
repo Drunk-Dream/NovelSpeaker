@@ -305,6 +305,8 @@ public interface ISqliteConnectionFactory
 | PlaybackProgressService | 保存/恢复进度，统一保存时机 |
 | PlaybackSnapshotProjector | 从状态生成不可变 UI 快照 |
 
+播放器的 Completed、Failed 和 Snapshot 事件只进入由本地音频协调器及书籍播放协调器各自拥有的内部命令队列；队列处理复用串行锁、生命周期 Token 和 SessionId 隔离。事件入口不执行长流程，处理异常只能投影为安全状态或诊断，不能形成未观察 Task 异常。
+
 拆分顺序应从纯计算和 I/O 边界开始；`PlaybackCoordinator` 始终保留唯一命令串行化入口。不得为了缩短文件而建立一组互相回调、共同修改状态的微服务。
 
 本地音频边界保持独立：Application 的本地音频协调器只处理单文件加载、播放、暂停、停止和定位；Infrastructure 的 NAudio 适配器只访问设备与解码器。

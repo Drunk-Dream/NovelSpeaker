@@ -289,6 +289,8 @@ ViewModel 订阅快照，而不是直接读取多个可变服务字段。
 | PlaybackProgressService | 统一保存/恢复进度 |
 | PlaybackSnapshotProjector | 从内部状态生成不可变快照 |
 
+播放器完成、失败和快照回调只投递内部命令；本地音频协调器与书籍协调器分别串行消费命令，并在会话替换或关闭时用版本号/Token 丢弃迟到事件。命令处理异常投影为安全播放状态或诊断，不让设备事件形成未观察异常。
+
 Infrastructure 只实现：
 
 - SQLite 阅读进度与缓存索引。
