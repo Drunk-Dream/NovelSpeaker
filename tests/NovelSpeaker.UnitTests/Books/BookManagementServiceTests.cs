@@ -3,8 +3,10 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
+using NovelSpeaker.Infrastructure.FileSystem.Cache;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
+using NovelSpeaker.Infrastructure.Persistence.Playback;
 using NovelSpeaker.Infrastructure.Playback;
 using NovelSpeaker.UnitTests.Playback;
 using Xunit;
@@ -244,12 +246,11 @@ public sealed class BookLibraryPersistenceTests
 
         var protectionRegistry = new AudioCacheProtectionRegistry();
         var pathResolver = new AppStoragePathResolver(directories);
-        var cache = new SqliteAudioCache(
-            factory,
-            directories,
-            new FixedAudioCacheLimitProvider(AppSettings.DefaultCacheLimitBytes),
-            protectionRegistry,
-            pathResolver);
+        var index = new SqliteAudioCacheIndex(factory);
+        var fileStore = new AudioCacheFileStore(directories, pathResolver, protectionRegistry);
+        var limitProvider = new FixedAudioCacheLimitProvider(AppSettings.DefaultCacheLimitBytes);
+        var maintenance = new AudioCacheMaintenance(index, fileStore, limitProvider, protectionRegistry);
+        var cache = new AudioCacheFacade(index, fileStore, maintenance, protectionRegistry);
         var progressStore = new SqliteReadingProgressStore(factory);
         var query = new BookLibraryQuery(factory);
         var metadata = new BookMetadataUpdateService(factory);
@@ -307,7 +308,7 @@ public sealed class BookLibraryPersistenceTests
     private sealed record TestFixture(
         LocalAppDataDirectoryProvider Directories,
         SqliteConnectionFactory Factory,
-        SqliteAudioCache Cache,
+        AudioCacheFacade Cache,
         SqliteReadingProgressStore ProgressStore,
         AudioCacheProtectionRegistry ProtectionRegistry,
         BookLibraryQuery Query,

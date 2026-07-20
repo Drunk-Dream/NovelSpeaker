@@ -2,6 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Audio;
+using NovelSpeaker.Infrastructure.FileSystem.Cache;
+using NovelSpeaker.Infrastructure.Persistence.Playback;
 using NovelSpeaker.Infrastructure.Playback;
 
 namespace NovelSpeaker.Infrastructure.DependencyInjection;
@@ -19,9 +21,12 @@ public static class AudioRegistration
         services.TryAddSingleton<ISelectedTtsRuleProvider, SelectedTtsRuleProvider>();
         services.TryAddSingleton<IPlaybackAudioFailureReporter, PlaybackAudioFailureReporter>();
         services.TryAddSingleton<IAudioCacheProtectionRegistry, AudioCacheProtectionRegistry>();
-        services.TryAddSingleton<SqliteAudioCache>();
-        services.TryAddSingleton<IAudioCache>(provider => provider.GetRequiredService<SqliteAudioCache>());
-        services.TryAddSingleton<IAudioCacheStore>(provider => provider.GetRequiredService<SqliteAudioCache>());
+        services.TryAddSingleton<SqliteAudioCacheIndex>();
+        services.TryAddSingleton<AudioCacheFileStore>();
+        services.TryAddSingleton<AudioCacheMaintenance>();
+        services.TryAddSingleton<AudioCacheFacade>();
+        services.TryAddSingleton<IAudioCache>(provider => provider.GetRequiredService<AudioCacheFacade>());
+        services.TryAddSingleton<IAudioCacheStore>(provider => provider.GetRequiredService<AudioCacheFacade>());
         services.TryAddSingleton<IPrefetchScheduler, PrefetchScheduler>();
 
         return services;

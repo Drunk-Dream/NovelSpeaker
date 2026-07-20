@@ -1,7 +1,9 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
+using NovelSpeaker.Infrastructure.FileSystem.Cache;
 using NovelSpeaker.Infrastructure.Persistence;
+using NovelSpeaker.Infrastructure.Persistence.Playback;
 using NovelSpeaker.Infrastructure.Playback;
 using Xunit;
 
@@ -181,6 +183,57 @@ public sealed class SqliteAudioCacheTests
         Assert.True(cleanup.DeletedEntryCount > 0);
     }
 
+    [Fact]
+    public async Task StoreAsync_serializes_concurrent_writes_without_losing_index_entries()
+    {
+        var fixture = await CreateFixtureAsync();
+        var writes = Enumerable.Range(0, 8)
+            .Select(segmentIndex => fixture.Cache.StoreAsync(
+                new AudioCacheWriteRequest(
+                    AudioCacheKey.FromPlayback("book-1", 0, segmentIndex, 1, 10, $"段落 {segmentIndex}"),
+                    "book-1",
+                    0,
+                    segmentIndex,
+                    1,
+                    CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                    "audio/mpeg"),
+                CancellationToken.None))
+            .ToArray();
+
+        await Task.WhenAll(writes);
+
+        var summary = await fixture.Cache.GetSummaryAsync(CancellationToken.None);
+        Assert.Equal(writes.Length, summary.EntryCount);
+    }
+
+    [Fact]
+    public async Task TryGetAsync_rejects_an_index_path_outside_the_application_root()
+    {
+        var fixture = await CreateFixtureAsync();
+        var key = AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段");
+        var outsidePath = Path.Combine(Path.GetDirectoryName(fixture.Directories.RootDirectoryPath)!, "outside.mp3");
+
+        await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                INSERT INTO AudioCacheEntries (
+                    CacheKey, BookId, ChapterIndex, SegmentIndex, RuleId, FilePath,
+                    ContentType, FileSize, DurationMilliseconds, CreatedAt, LastAccessedAt, Status)
+                VALUES ($cacheKey, $bookId, 0, 0, 1, $filePath, 'audio/mpeg', 1, NULL, $now, $now, 1);
+                """;
+            command.Parameters.AddWithValue("$cacheKey", key.Value);
+            command.Parameters.AddWithValue("$bookId", "book-1");
+            command.Parameters.AddWithValue("$filePath", outsidePath);
+            command.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O"));
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            fixture.Cache.TryGetAsync(key, CancellationToken.None));
+    }
+
     private static async Task<CacheFixture> CreateFixtureAsync(
         long? cacheLimitBytes = null,
         AudioCacheProtectionRegistry? registry = null)
@@ -199,13 +252,12 @@ public sealed class SqliteAudioCacheTests
         {
             CurrentLimitBytes = cacheLimitBytes ?? AppSettings.DefaultCacheLimitBytes
         };
-        var cache = new SqliteAudioCache(
-            factory,
-            directories,
-            limitProvider,
-            registry,
-            new AppStoragePathResolver(directories));
-        return new CacheFixture(directories, cache, limitProvider);
+        var pathResolver = new AppStoragePathResolver(directories);
+        var index = new SqliteAudioCacheIndex(factory);
+        var fileStore = new AudioCacheFileStore(directories, pathResolver, registry);
+        var maintenance = new AudioCacheMaintenance(index, fileStore, limitProvider, registry);
+        var cache = new AudioCacheFacade(index, fileStore, maintenance, registry);
+        return new CacheFixture(directories, factory, cache, limitProvider);
     }
 
     private static string CopyAudioToTempFile(string sourcePath)
@@ -218,7 +270,8 @@ public sealed class SqliteAudioCacheTests
 
     private sealed record CacheFixture(
         LocalAppDataDirectoryProvider Directories,
-        SqliteAudioCache Cache,
+        SqliteConnectionFactory ConnectionFactory,
+        AudioCacheFacade Cache,
         MutableAudioCacheLimitProvider LimitProvider);
 
     private sealed class MutableAudioCacheLimitProvider : IAudioCacheLimitProvider
