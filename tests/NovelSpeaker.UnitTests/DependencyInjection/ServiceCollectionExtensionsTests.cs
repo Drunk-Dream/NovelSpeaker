@@ -101,7 +101,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IBookContentReader>(provider.GetRequiredService<IBookContentReader>());
                 Assert.IsAssignableFrom<IAudioPlayer>(provider.GetRequiredService<IAudioPlayer>());
                 Assert.IsType<LocalAudioPlaybackCoordinator>(provider.GetRequiredService<ILocalAudioPlaybackCoordinator>());
-                Assert.IsType<PlaybackCoordinator>(provider.GetRequiredService<IPlaybackCoordinator>());
+                Assert.IsType<PlaybackCoordinator>(provider.GetRequiredService<PlaybackCoordinator>());
                 Assert.IsAssignableFrom<IBookPlaybackContentService>(provider.GetRequiredService<IBookPlaybackContentService>());
                 Assert.IsType<SelectedTtsRuleProvider>(provider.GetRequiredService<ISelectedTtsRuleProvider>());
                 Assert.IsAssignableFrom<IPlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
@@ -126,8 +126,14 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<MainWindow>(provider.GetRequiredService<MainWindow>());
 
                 Assert.Same(
-                    provider.GetRequiredService<IPlaybackCoordinator>(),
-                    provider.GetRequiredService<IPlaybackCoordinator>());
+                    provider.GetRequiredService<PlaybackCoordinator>(),
+                    provider.GetRequiredService<IPlaybackSnapshotSource>());
+                Assert.Same(
+                    provider.GetRequiredService<IPlaybackSession>(),
+                    provider.GetRequiredService<IPlaybackBookCommands>());
+                Assert.Same(
+                    provider.GetRequiredService<IPlaybackSession>(),
+                    provider.GetRequiredService<IPlaybackRegexReplacementRefresher>());
                 Assert.Same(
                     provider.GetRequiredService<IAppSettingsService>(),
                     provider.GetRequiredService<IAppSettingsService>());

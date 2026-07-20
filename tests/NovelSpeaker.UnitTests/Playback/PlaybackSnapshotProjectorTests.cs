@@ -31,7 +31,6 @@ public sealed class PlaybackSnapshotProjectorTests
             "正在加载",
             true,
             true,
-            false,
             ContentRevision: 12));
 
         Assert.Equal(PlaybackState.Buffering, snapshot.State);
@@ -49,7 +48,6 @@ public sealed class PlaybackSnapshotProjectorTests
         Assert.Equal("正在加载", snapshot.Message);
         Assert.True(snapshot.IsUsingCache);
         Assert.True(snapshot.CanRetry);
-        Assert.False(snapshot.CanSkip);
         Assert.True(snapshot.HasAvailableRule);
         Assert.Equal(12, snapshot.ContentRevision);
     }
@@ -75,7 +73,6 @@ public sealed class PlaybackSnapshotProjectorTests
             0,
             0,
             "请选择规则",
-            false,
             false,
             false,
             SegmentCountOverride: 0));

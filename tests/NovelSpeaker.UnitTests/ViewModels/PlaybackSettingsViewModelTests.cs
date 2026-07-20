@@ -121,7 +121,7 @@ public sealed class PlaybackSettingsViewModelTests
         FakeAppSettingsService settingsService,
         FakeNavigationService? navigationService = null,
         FakeFeedbackService? feedbackService = null,
-        IPlaybackCoordinator? playbackCoordinator = null,
+        IPlaybackSession? playbackCoordinator = null,
         TimeProvider? timeProvider = null)
     {
         return new PlaybackSettingsViewModel(
@@ -132,7 +132,7 @@ public sealed class PlaybackSettingsViewModelTests
             timeProvider);
     }
 
-    private sealed class FakePlaybackCoordinator(PlaybackSnapshot snapshot) : IPlaybackCoordinator
+    private sealed class FakePlaybackCoordinator(PlaybackSnapshot snapshot) : IPlaybackSession
     {
         public PlaybackSnapshot CurrentSnapshot { get; private set; } = snapshot;
         public int? LastChangedSpeakSpeed { get; private set; }
@@ -163,7 +163,6 @@ public sealed class PlaybackSettingsViewModelTests
         public Task NextChapterAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task PreviousChapterAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => throw new NotSupportedException();

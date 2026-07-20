@@ -207,26 +207,6 @@ public sealed class PlaybackCoordinatorTests
     }
 
     [Fact]
-    public async Task SkipCurrentSegment_moves_to_following_segment_after_failure()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
-        audioProvider.EnqueueFailure(TtsErrorKind.ServerError, "服务错误。");
-        audioProvider.EnqueueSuccess("audio-skip.mp3");
-        await using var coordinator = CreateCoordinator(
-            localCoordinator,
-            audioProvider: audioProvider);
-
-        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-        Assert.Equal(PlaybackState.Faulted, coordinator.CurrentSnapshot.State);
-
-        await coordinator.SkipCurrentSegmentAsync(CancellationToken.None);
-
-        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
-        Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
-    }
-
-    [Fact]
     public async Task StartAsync_without_selected_rule_preserves_context_without_entering_playback_fault()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();

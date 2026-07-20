@@ -490,7 +490,7 @@ public sealed class MainWindowNavigationTests
         }
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
+    private sealed class FakePlaybackCoordinator : IPlaybackSnapshotSource
     {
         public PlaybackSnapshot CurrentSnapshot { get; } = PlaybackSnapshot.Idle;
 
@@ -532,7 +532,6 @@ public sealed class MainWindowNavigationTests
 
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
 

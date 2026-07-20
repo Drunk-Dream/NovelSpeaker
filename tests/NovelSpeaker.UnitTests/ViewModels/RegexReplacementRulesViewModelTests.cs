@@ -249,7 +249,7 @@ public sealed class RegexReplacementRulesViewModelTests
         public void SetNavigationControl(INavigationView navigation) { }
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
+    private sealed class FakePlaybackCoordinator : IPlaybackRegexReplacementRefresher
     {
         public int RegexRefreshCount { get; private set; }
 
@@ -274,7 +274,6 @@ public sealed class RegexReplacementRulesViewModelTests
         public Task NextChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task PreviousChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;

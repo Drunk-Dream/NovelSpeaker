@@ -304,7 +304,7 @@ public sealed class BookDetailsPageTests
             => Task.FromResult(new BookDeleteDialogResult(false, true));
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
+    private sealed class FakePlaybackCoordinator : IPlaybackBookCommands
     {
         public PlaybackSnapshot CurrentSnapshot { get; } = PlaybackSnapshot.Idle;
 
@@ -346,7 +346,6 @@ public sealed class BookDetailsPageTests
 
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
 

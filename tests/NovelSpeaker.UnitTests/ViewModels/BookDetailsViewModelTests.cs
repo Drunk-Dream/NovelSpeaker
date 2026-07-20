@@ -565,7 +565,7 @@ public sealed class BookDetailsViewModelTests
         }
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
+    private sealed class FakePlaybackCoordinator : IPlaybackBookCommands
     {
         public FakePlaybackCoordinator()
             : this(PlaybackSnapshot.Idle)
@@ -598,7 +598,6 @@ public sealed class BookDetailsViewModelTests
         public Task NextChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task PreviousChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
 

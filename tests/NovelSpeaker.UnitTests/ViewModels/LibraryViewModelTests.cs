@@ -479,7 +479,7 @@ public sealed class LibraryViewModelTests
         }
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
+    private sealed class FakePlaybackCoordinator : IPlaybackBookCommands
     {
         public FakePlaybackCoordinator(PlaybackSnapshot snapshot)
         {
@@ -528,7 +528,6 @@ public sealed class LibraryViewModelTests
 
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
 

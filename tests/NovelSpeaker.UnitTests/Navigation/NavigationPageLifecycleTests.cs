@@ -62,7 +62,6 @@ public sealed class NavigationPageLifecycleTests
                     0,
                     null,
                     false,
-                    false,
                     false)),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
@@ -82,7 +81,7 @@ public sealed class NavigationPageLifecycleTests
         });
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
+    private sealed class FakePlaybackCoordinator : IPlaybackSession
     {
         public FakePlaybackCoordinator(PlaybackSnapshot snapshot)
         {
@@ -110,7 +109,6 @@ public sealed class NavigationPageLifecycleTests
         public Task NextChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task PreviousChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;

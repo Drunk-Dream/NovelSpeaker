@@ -638,7 +638,6 @@ public sealed class PlayerViewTests
                 null,
                 false,
                 false,
-                false,
                 "魔性沧月",
                 true));
             var chapter = PlaybackChapterContent.FromLoaded(
@@ -731,7 +730,6 @@ public sealed class PlayerViewTests
                 0,
                 0,
                 null,
-                false,
                 false,
                 false,
                 "魔性沧月",
@@ -830,7 +828,6 @@ public sealed class PlayerViewTests
                 null,
                 false,
                 false,
-                false,
                 "魔性沧月",
                 true));
             var chapter = PlaybackChapterContent.FromLoaded(
@@ -925,7 +922,6 @@ public sealed class PlayerViewTests
                 null,
                 false,
                 false,
-                false,
                 "魔性沧月",
                 true));
             var chapter = PlaybackChapterContent.FromLoaded(
@@ -1016,7 +1012,6 @@ public sealed class PlayerViewTests
                 0,
                 0,
                 null,
-                false,
                 false,
                 false,
                 "魔性沧月",
@@ -1140,7 +1135,6 @@ public sealed class PlayerViewTests
                 null,
                 false,
                 false,
-                false,
                 "魔性沧月",
                 true));
             var chapter = PlaybackChapterContent.FromLoaded(
@@ -1240,7 +1234,6 @@ public sealed class PlayerViewTests
                 null,
                 false,
                 false,
-                false,
                 "魔性沧月",
                 true));
             var chapter = PlaybackChapterContent.FromLoaded(
@@ -1333,7 +1326,6 @@ public sealed class PlayerViewTests
                 0,
                 0,
                 null,
-                false,
                 false,
                 false,
                 "魔性沧月",
@@ -1459,7 +1451,6 @@ public sealed class PlayerViewTests
                 0,
                 0,
                 null,
-                false,
                 false,
                 false,
                 "魔性沧月",
@@ -1793,7 +1784,7 @@ public sealed class PlayerViewTests
         public PlayerSegmentItemViewModel CurrentSegmentItem { get; }
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
+    private sealed class FakePlaybackCoordinator : IPlaybackSession
     {
         public FakePlaybackCoordinator(PlaybackSnapshot snapshot)
         {
@@ -1881,7 +1872,6 @@ public sealed class PlayerViewTests
             return Task.CompletedTask;
         }
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;

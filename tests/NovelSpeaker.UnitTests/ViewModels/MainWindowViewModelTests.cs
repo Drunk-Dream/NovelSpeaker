@@ -55,7 +55,6 @@ public sealed class MainWindowViewModelTests
                 1000,
                 "message",
                 false,
-                false,
                 false));
 
             Assert.True(viewModel.IsNowPlayingVisible);
@@ -85,7 +84,6 @@ public sealed class MainWindowViewModelTests
                 0,
                 1000,
                 null,
-                false,
                 false,
                 false));
             var viewModel = new MainWindowViewModel(coordinator, navigationService);
@@ -121,7 +119,6 @@ public sealed class MainWindowViewModelTests
                 "当前没有可用的 TTS 规则，请先前往规则页选择或导入规则。",
                 false,
                 false,
-                false,
                 "作者甲",
                 false));
             var viewModel = new MainWindowViewModel(coordinator, navigationService);
@@ -133,7 +130,7 @@ public sealed class MainWindowViewModelTests
         });
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
+    private sealed class FakePlaybackCoordinator : IPlaybackSnapshotSource
     {
         public FakePlaybackCoordinator(PlaybackSnapshot snapshot)
         {
@@ -178,7 +175,6 @@ public sealed class MainWindowViewModelTests
 
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
 

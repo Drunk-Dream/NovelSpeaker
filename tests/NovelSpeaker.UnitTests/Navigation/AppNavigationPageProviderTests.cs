@@ -36,7 +36,7 @@ public sealed class AppNavigationPageProviderTests
             services.AddSingleton<IAppDialogService, FakeAppDialogService>();
             services.AddSingleton<IBookDeleteDialogService, FakeBookDeleteDialogService>();
             services.AddSingleton<IBookCatalogInvalidationState, BookCatalogInvalidationState>();
-            services.AddSingleton<IPlaybackCoordinator, FakePlaybackCoordinator>();
+            services.AddSingleton<IPlaybackBookCommands, FakePlaybackCoordinator>();
             services.AddTransient<BookDetailsViewModel>();
             services.AddTransient<BookDetailsPage>();
 
@@ -218,7 +218,7 @@ public sealed class AppNavigationPageProviderTests
         }
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
+    private sealed class FakePlaybackCoordinator : IPlaybackBookCommands
     {
         public PlaybackSnapshot CurrentSnapshot { get; } = PlaybackSnapshot.Idle;
 
@@ -245,7 +245,6 @@ public sealed class AppNavigationPageProviderTests
         public Task NextChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task PreviousChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;

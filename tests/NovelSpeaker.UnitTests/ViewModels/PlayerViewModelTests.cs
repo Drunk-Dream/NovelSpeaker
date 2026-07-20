@@ -72,7 +72,6 @@ public sealed class PlayerViewModelTests
             null,
             false,
             false,
-            false,
             "作者甲"));
         var contentService = new FakeBookPlaybackContentService(
             new PlaybackBookContent(
@@ -118,7 +117,6 @@ public sealed class PlayerViewModelTests
             0,
             0,
             null,
-            false,
             false,
             false,
             "作者甲"));
@@ -169,7 +167,6 @@ public sealed class PlayerViewModelTests
             null,
             false,
             false,
-            false,
             "作者甲"));
         var viewModel = CreateViewModel(
             coordinator,
@@ -211,7 +208,6 @@ public sealed class PlayerViewModelTests
             0,
             0,
             null,
-            false,
             false,
             false,
             "作者甲"));
@@ -259,7 +255,6 @@ public sealed class PlayerViewModelTests
             null,
             false,
             false,
-            false,
             "作者甲"));
         var contentService = new FakeBookPlaybackContentService(
             new PlaybackBookContent(
@@ -305,7 +300,6 @@ public sealed class PlayerViewModelTests
             null,
             false,
             false,
-            false,
             "作者甲"));
         var contentService = new FakeBookPlaybackContentService(
             new PlaybackBookContent("book-2", "另一本书", [PlaybackChapterContent.FromLoaded(1, "第二章", [])], "作者乙"),
@@ -341,7 +335,6 @@ public sealed class PlayerViewModelTests
             0,
             0,
             null,
-            false,
             false,
             false,
             "作者甲"));
@@ -400,7 +393,6 @@ public sealed class PlayerViewModelTests
             0,
             null,
             false,
-            false,
             false));
         var viewModel = CreateViewModel(
             coordinator,
@@ -444,7 +436,6 @@ public sealed class PlayerViewModelTests
             0,
             0,
             null,
-            false,
             false,
             false));
         var viewModel = CreateViewModel(
@@ -502,7 +493,6 @@ public sealed class PlayerViewModelTests
             0,
             null,
             false,
-            false,
             false));
         var viewModel = CreateViewModel(coordinator, contentService);
 
@@ -554,7 +544,6 @@ public sealed class PlayerViewModelTests
                 0,
                 0,
                 null,
-                false,
                 false,
                 false,
                 "作者甲"));
@@ -617,7 +606,6 @@ public sealed class PlayerViewModelTests
             0,
             null,
             false,
-            false,
             false));
         var viewModel = CreateViewModel(
             coordinator,
@@ -659,7 +647,6 @@ public sealed class PlayerViewModelTests
             0,
             null,
             false,
-            false,
             false));
         var viewModel = CreateViewModel(
             coordinator,
@@ -694,7 +681,6 @@ public sealed class PlayerViewModelTests
             0,
             0,
             null,
-            false,
             false,
             false));
         var settingsService = new FakeAppSettingsService(AppSettings.Default);
@@ -765,7 +751,6 @@ public sealed class PlayerViewModelTests
             0,
             null,
             false,
-            false,
             false));
         var viewModel = CreateViewModel(
             coordinator,
@@ -807,7 +792,6 @@ public sealed class PlayerViewModelTests
             0,
             null,
             false,
-            false,
             false));
         var viewModel = CreateViewModel(
             coordinator,
@@ -847,7 +831,6 @@ public sealed class PlayerViewModelTests
             0,
             0,
             null,
-            false,
             false,
             false));
         var settingsService = new FakeAppSettingsService(AppSettings.Default);
@@ -901,7 +884,6 @@ public sealed class PlayerViewModelTests
             0,
             null,
             false,
-            false,
             false));
         var viewModel = CreateViewModel(
             coordinator,
@@ -935,7 +917,6 @@ public sealed class PlayerViewModelTests
             0,
             0,
             "当前没有可用的 TTS 规则，请先前往规则页选择或导入规则。",
-            false,
             false,
             false,
             "作者甲",
@@ -979,7 +960,6 @@ public sealed class PlayerViewModelTests
             "网络失败，请稍后重试。",
             false,
             true,
-            false,
             "作者甲"));
         var viewModel = CreateViewModel(
             coordinator,
@@ -1021,7 +1001,6 @@ public sealed class PlayerViewModelTests
             0,
             0,
             null,
-            false,
             false,
             false));
         var viewModel = CreateViewModel(
@@ -1073,7 +1052,6 @@ public sealed class PlayerViewModelTests
             0,
             0,
             null,
-            false,
             false,
             false));
         var viewModel = CreateViewModel(
@@ -1149,7 +1127,6 @@ public sealed class PlayerViewModelTests
             0,
             null,
             false,
-            false,
             false));
         var viewModel = CreateViewModel(
             coordinator,
@@ -1196,7 +1173,6 @@ public sealed class PlayerViewModelTests
             0,
             0,
             null,
-            false,
             false,
             false));
         var viewModel = CreateViewModel(
@@ -1248,7 +1224,6 @@ public sealed class PlayerViewModelTests
             0,
             null,
             false,
-            false,
             false));
         var viewModel = CreateViewModel(
             coordinator,
@@ -1298,7 +1273,6 @@ public sealed class PlayerViewModelTests
             0,
             0,
             null,
-            false,
             false,
             false));
         var viewModel = CreateViewModel(
@@ -1397,7 +1371,7 @@ public sealed class PlayerViewModelTests
             timeProvider ?? TimeProvider.System);
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackCoordinator
+    private sealed class FakePlaybackCoordinator : IPlaybackSession
     {
         public FakePlaybackCoordinator()
             : this(PlaybackSnapshot.Idle)
@@ -1479,7 +1453,6 @@ public sealed class PlayerViewModelTests
                 0,
                 0,
                 null,
-                false,
                 false,
                 false,
                 request.BookId == "book-2" ? "作者乙" : "作者甲"));
@@ -1591,7 +1564,6 @@ public sealed class PlayerViewModelTests
             RetryCurrentSegmentCallCount++;
             return Task.CompletedTask;
         }
-        public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken)
         {

@@ -15,7 +15,6 @@ public sealed class PlaybackRecoveryPolicyTests
             TtsErrorKind.AudioDecode,
             "音频损坏。",
             ConsecutiveSegmentFailureCount: 0,
-            HasNextSegment: true,
             IsCorruptAudio: true,
             CorruptAudioRecoveryAttempted: false));
 
@@ -34,7 +33,6 @@ public sealed class PlaybackRecoveryPolicyTests
             TtsErrorKind.AudioDecode,
             "音频再次损坏。",
             ConsecutiveSegmentFailureCount: 0,
-            HasNextSegment: false,
             IsCorruptAudio: true,
             CorruptAudioRecoveryAttempted: true));
 
@@ -42,7 +40,6 @@ public sealed class PlaybackRecoveryPolicyTests
         Assert.False(decision.ShouldRetryCurrentSegment);
         Assert.False(decision.ShouldPause);
         Assert.True(decision.CanRetry);
-        Assert.False(decision.CanSkip);
         Assert.Equal("音频再次损坏。", decision.Message);
     }
 
@@ -58,7 +55,6 @@ public sealed class PlaybackRecoveryPolicyTests
             failureKind,
             "服务暂时不可用。",
             ConsecutiveSegmentFailureCount: 0,
-            HasNextSegment: true,
             IsCorruptAudio: false,
             CorruptAudioRecoveryAttempted: false));
 
@@ -66,7 +62,6 @@ public sealed class PlaybackRecoveryPolicyTests
             failureKind,
             "服务暂时不可用。",
             firstFailure.ConsecutiveSegmentFailureCount,
-            HasNextSegment: true,
             IsCorruptAudio: false,
             CorruptAudioRecoveryAttempted: false));
 
@@ -87,7 +82,6 @@ public sealed class PlaybackRecoveryPolicyTests
             TtsErrorKind.Cancelled,
             "已取消当前音频生成。",
             ConsecutiveSegmentFailureCount: 1,
-            HasNextSegment: true,
             IsCorruptAudio: false,
             CorruptAudioRecoveryAttempted: false));
 
@@ -95,7 +89,6 @@ public sealed class PlaybackRecoveryPolicyTests
         Assert.False(decision.ShouldRetryCurrentSegment);
         Assert.False(decision.ShouldPause);
         Assert.False(decision.CanRetry);
-        Assert.False(decision.CanSkip);
         Assert.Equal(1, decision.ConsecutiveSegmentFailureCount);
     }
 }
