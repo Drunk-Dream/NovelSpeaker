@@ -17,7 +17,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private string? _currentBookId;
 
     public MainWindowViewModel(
-        IPlaybackCoordinator playbackCoordinator,
+        IPlaybackSnapshotSource playbackCoordinator,
         IGuardedNavigationService guardedNavigationService)
     {
         _guardedNavigationService = guardedNavigationService;

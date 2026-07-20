@@ -21,7 +21,7 @@ public sealed partial class PlayerViewModel : ObservableObject
 {
     private static readonly TimeSpan SpeakSpeedStepDebounceDelay = TimeSpan.FromMilliseconds(500);
 
-    private readonly IPlaybackCoordinator _playbackCoordinator;
+    private readonly IPlaybackSession _playbackCoordinator;
     private readonly IBookPlaybackContentService _bookPlaybackContentService;
     private readonly ITtsRuleQueries _ruleQueries;
     private readonly IAppSettingsService _settingsService;
@@ -47,7 +47,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private CancellationTokenSource? _speakSpeedStepDebounceCts;
 
     public PlayerViewModel(
-        IPlaybackCoordinator playbackCoordinator,
+        IPlaybackSession playbackCoordinator,
         IBookPlaybackContentService bookPlaybackContentService,
         ITtsRuleQueries ruleQueries,
         IAppSettingsService settingsService,

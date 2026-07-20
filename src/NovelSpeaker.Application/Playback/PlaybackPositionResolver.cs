@@ -228,24 +228,6 @@ internal static class PlaybackPositionResolver
             : orderedChapters[targetIndex].ChapterIndex;
     }
 
-    internal static bool HasNextSegment(
-        PlaybackBookContent book,
-        int chapterIndex,
-        int segmentIndex)
-    {
-        ArgumentNullException.ThrowIfNull(book);
-
-        var chapter = book.Chapters.FirstOrDefault(
-            candidate => candidate.ChapterIndex == chapterIndex);
-        if (chapter is not null &&
-            ResolveRelativeSegmentInChapter(chapter, segmentIndex, 1) is not null)
-        {
-            return true;
-        }
-
-        return FindAdjacentChapterIndex(book.Chapters, chapterIndex, 1) is not null;
-    }
-
     private static int ResolveChapterSearchStartIndex(
         IReadOnlyList<PlaybackChapterContent> chapters,
         int? preferredChapterIndex,

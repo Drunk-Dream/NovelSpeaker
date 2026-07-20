@@ -15,7 +15,7 @@ namespace NovelSpeaker.App.ViewModels;
 public sealed partial class RegexReplacementRulesViewModel : ObservableObject
 {
     private readonly IRegexReplacementRuleWorkspaceService _workspace;
-    private readonly IPlaybackCoordinator _playback;
+    private readonly IPlaybackRegexReplacementRefresher _playback;
     private readonly IAppFeedbackService _feedback;
     private readonly IAppDialogService _dialogs;
     private readonly INavigationService _navigation;
@@ -25,7 +25,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
 
     public RegexReplacementRulesViewModel(
         IRegexReplacementRuleWorkspaceService workspace,
-        IPlaybackCoordinator playback,
+        IPlaybackRegexReplacementRefresher playback,
         IAppFeedbackService feedback,
         IAppDialogService dialogs,
         INavigationService navigation)

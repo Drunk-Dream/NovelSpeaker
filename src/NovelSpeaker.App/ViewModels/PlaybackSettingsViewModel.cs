@@ -14,7 +14,7 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
     private const int DebounceDelayMilliseconds = 500;
 
     private readonly IAppSettingsService _settingsService;
-    private readonly IPlaybackCoordinator _playbackCoordinator;
+    private readonly IPlaybackSession _playbackCoordinator;
     private readonly INavigationService _navigationService;
     private readonly TimeProvider _timeProvider;
     private bool _isLoading;
@@ -25,7 +25,7 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
 
     public PlaybackSettingsViewModel(
         IAppSettingsService settingsService,
-        IPlaybackCoordinator playbackCoordinator,
+        IPlaybackSession playbackCoordinator,
         INavigationService navigationService,
         IAppFeedbackService feedbackService,
         TimeProvider? timeProvider = null)

@@ -25,7 +25,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private readonly IBookDeleteDialogService _deleteDialogService;
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
     private readonly IGuardedNavigationService _guardedNavigationService;
-    private readonly IPlaybackCoordinator _playbackCoordinator;
+    private readonly IPlaybackBookCommands _playbackCoordinator;
     private CancellationTokenSource? _activeLoadCancellationTokenSource;
     private BookDetailsHeader? _loadedHeader;
     private BookDetails? _loadedDetails;
@@ -41,7 +41,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         IAppDialogService dialogService,
         IBookDeleteDialogService deleteDialogService,
         IBookCatalogInvalidationState catalogInvalidationState,
-        IPlaybackCoordinator playbackCoordinator,
+        IPlaybackBookCommands playbackCoordinator,
         IGuardedNavigationService guardedNavigationService)
     {
         _bookLibraryQuery = bookLibraryQuery;

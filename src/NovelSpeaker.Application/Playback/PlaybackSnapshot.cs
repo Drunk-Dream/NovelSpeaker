@@ -19,7 +19,6 @@ public sealed record PlaybackSnapshot(
     string? Message,
     bool IsUsingCache,
     bool CanRetry,
-    bool CanSkip,
     string? BookAuthor = null,
     bool HasAvailableRule = true,
     long ContentRevision = 0)
@@ -38,7 +37,6 @@ public sealed record PlaybackSnapshot(
         0,
         0,
         "请选择一本书并开始播放。",
-        false,
         false,
         false,
         null,

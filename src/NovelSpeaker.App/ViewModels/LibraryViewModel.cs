@@ -32,7 +32,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
     private readonly IAppFeedbackService _feedbackService;
     private readonly IGuardedNavigationService _guardedNavigationService;
-    private readonly IPlaybackCoordinator _playbackCoordinator;
+    private readonly IPlaybackBookCommands _playbackCoordinator;
     private CancellationTokenSource? _searchDebounceCancellationTokenSource;
     private IReadOnlyList<LibraryBookItemViewModel> _allBooks = [];
     private string? _activePlaybackBookId;
@@ -50,7 +50,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         IBookCatalogInvalidationState catalogInvalidationState,
         IAppFeedbackService feedbackService,
         IGuardedNavigationService guardedNavigationService,
-        IPlaybackCoordinator playbackCoordinator,
+        IPlaybackBookCommands playbackCoordinator,
         LibraryScrollState scrollState)
     {
         _bookLibraryQuery = bookLibraryQuery;

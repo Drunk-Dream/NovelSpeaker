@@ -22,7 +22,7 @@ public static class PlaybackRegistration
         services.TryAddSingleton<PlaybackRecoveryPolicy>();
         services.TryAddSingleton<PlaybackProgressService>();
         services.TryAddSingleton<IPlaybackPrefetchController, PlaybackPrefetchController>();
-        services.TryAddSingleton<IPlaybackCoordinator>(serviceProvider =>
+        services.TryAddSingleton<PlaybackCoordinator>(serviceProvider =>
             new PlaybackCoordinator(
                 serviceProvider.GetRequiredService<IBookPlaybackContentService>(),
                 serviceProvider.GetRequiredService<ISelectedTtsRuleProvider>(),
@@ -33,6 +33,14 @@ public static class PlaybackRegistration
                 serviceProvider.GetRequiredService<PlaybackProgressService>(),
                 serviceProvider.GetRequiredService<IPlaybackPrefetchController>(),
                 serviceProvider.GetRequiredService<IAppSettingsService>()));
+        services.TryAddSingleton<IPlaybackSnapshotSource>(serviceProvider =>
+            serviceProvider.GetRequiredService<PlaybackCoordinator>());
+        services.TryAddSingleton<IPlaybackSession>(serviceProvider =>
+            serviceProvider.GetRequiredService<PlaybackCoordinator>());
+        services.TryAddSingleton<IPlaybackBookCommands>(serviceProvider =>
+            serviceProvider.GetRequiredService<PlaybackCoordinator>());
+        services.TryAddSingleton<IPlaybackRegexReplacementRefresher>(serviceProvider =>
+            serviceProvider.GetRequiredService<PlaybackCoordinator>());
         services.TryAddSingleton<ISelectedTtsRuleProvider, SelectedTtsRuleProvider>();
         return services;
     }

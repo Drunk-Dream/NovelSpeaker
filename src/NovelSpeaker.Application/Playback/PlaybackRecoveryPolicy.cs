@@ -9,7 +9,6 @@ internal sealed record PlaybackRecoveryInput(
     TtsErrorKind FailureKind,
     string FailureMessage,
     int ConsecutiveSegmentFailureCount,
-    bool HasNextSegment,
     bool IsCorruptAudio,
     bool CorruptAudioRecoveryAttempted);
 
@@ -22,8 +21,7 @@ internal sealed record PlaybackRecoveryDecision(
     bool ShouldPause,
     int ConsecutiveSegmentFailureCount,
     string Message,
-    bool CanRetry,
-    bool CanSkip);
+    bool CanRetry);
 
 /// <summary>
 /// Decides how the coordinator should recover from one current-segment failure.
@@ -45,8 +43,7 @@ internal sealed class PlaybackRecoveryPolicy
                 ShouldPause: false,
                 input.ConsecutiveSegmentFailureCount,
                 input.FailureMessage,
-                CanRetry: false,
-                CanSkip: false);
+                CanRetry: false);
         }
 
         if (input.IsCorruptAudio && !input.CorruptAudioRecoveryAttempted)
@@ -57,8 +54,7 @@ internal sealed class PlaybackRecoveryPolicy
                 ShouldPause: false,
                 input.ConsecutiveSegmentFailureCount,
                 input.FailureMessage,
-                CanRetry: true,
-                input.HasNextSegment);
+                CanRetry: true);
         }
 
         // A corrupt local file is already a recovery attempt boundary. Keep the
@@ -78,7 +74,6 @@ internal sealed class PlaybackRecoveryPolicy
             shouldPause,
             failureCount,
             message,
-            CanRetry: true,
-            input.HasNextSegment);
+            CanRetry: true);
     }
 }

@@ -12,7 +12,12 @@ namespace NovelSpeaker.Application.Playback;
 /// <summary>
 /// Coordinates book-oriented playback sessions on top of the low-level local audio pipeline.
 /// </summary>
-public sealed class PlaybackCoordinator : IPlaybackCoordinator
+public sealed class PlaybackCoordinator :
+    IPlaybackSnapshotSource,
+    IPlaybackSession,
+    IPlaybackBookCommands,
+    IPlaybackRegexReplacementRefresher,
+    IAsyncDisposable
 {
     private readonly IBookPlaybackContentService _bookContentService;
     private readonly ISelectedTtsRuleProvider _selectedRuleProvider;
@@ -161,11 +166,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken)
     {
         return RunSerializedAsync(RetryCurrentSegmentCoreAsync, cancellationToken);
-    }
-
-    public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken)
-    {
-        return RunSerializedAsync(SkipCurrentSegmentCoreAsync, cancellationToken);
     }
 
     public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken)
@@ -323,8 +323,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             {
                 State = PlaybackState.Faulted,
                 Message = "未找到要播放的书籍。",
-                CanRetry = false,
-                CanSkip = false
+                CanRetry = false
             });
             return;
         }
@@ -377,8 +376,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             {
                 State = PlaybackState.Faulted,
                 Message = "未找到要打开的书籍。",
-                CanRetry = false,
-                CanSkip = false
+                CanRetry = false
             });
             return;
         }
@@ -436,7 +434,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                 pausedAudio.DurationMilliseconds,
                 pausedAudio.Message,
                 pausedAudio.IsUsingCache,
-                false,
                 false));
         }
 
@@ -498,7 +495,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                 resumedAudio.DurationMilliseconds,
                 resumedAudio.Message,
                 resumedAudio.IsUsingCache,
-                false,
                 false));
         }
 
@@ -538,8 +534,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             PositionMilliseconds = 0,
             DurationMilliseconds = _localAudioPlaybackCoordinator.CurrentSnapshot.DurationMilliseconds,
             Message = "已停止当前播放。",
-            CanRetry = false,
-            CanSkip = false
+            CanRetry = false
         });
     }
 
@@ -611,8 +606,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                     SegmentCount = 0,
                     ContentRevision = _contentRevision,
                     Message = "正则替换后没有可播放的段落。",
-                    CanRetry = false,
-                    CanSkip = false
+                    CanRetry = false
                 });
                 return;
             }
@@ -823,7 +817,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             _lastFailureKind ?? TtsErrorKind.Unknown,
             _currentSnapshot.Message ?? "正在重试当前段落。",
             _currentSession?.ConsecutiveSegmentFailureCount ?? 0,
-            HasNextSegment(_currentBook, currentPosition.ChapterIndex, currentPosition.SegmentIndex),
             IsCorruptAudio: _lastFailureKind == TtsErrorKind.AudioDecode,
             CorruptAudioRecoveryAttempted: false));
         await StartNewSessionAsync(
@@ -839,55 +832,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             pausedMessage: "已恢复到当前位置，等待播放。",
             cancellationToken,
             initialConsecutiveFailureCount: previousFailureCount);
-    }
-
-    private async Task SkipCurrentSegmentCoreAsync(CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-        if (_currentBook is null)
-        {
-            return;
-        }
-
-        var currentPosition = GetCurrentPosition();
-        var next = await ResolveRelativeSegmentAsync(
-            _currentBook,
-            currentPosition.ChapterIndex,
-            currentPosition.SegmentIndex,
-            1,
-            cancellationToken);
-        if (next is null)
-        {
-            await StopCoreAsync(cancellationToken);
-            PublishSnapshot(_currentSnapshot with
-            {
-                Message = "已跳过最后一段，播放结束。"
-            });
-            return;
-        }
-
-        if (_currentRule is null)
-        {
-            PublishSnapshot(CreateRuleMissingSnapshot(
-                next.Value.Book,
-                next.Value.ChapterIndex,
-                next.Value.SegmentIndex,
-                GetCurrentSpeakSpeed()));
-            return;
-        }
-
-        await StartNewSessionAsync(
-            next.Value.Book,
-            next.Value.ChapterIndex,
-            next.Value.SegmentIndex,
-            0,
-            _currentRule,
-            GetCurrentSpeakSpeed(),
-            forceInvalidate: false,
-            playImmediately: true,
-            pausedState: PlaybackState.Paused,
-            pausedMessage: "已恢复到当前位置，等待播放。",
-            cancellationToken);
     }
 
     private async Task ChangeRuleCoreAsync(long ruleId, CancellationToken cancellationToken)
@@ -1070,7 +1014,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                 0,
                 "正在准备当前段落。",
                 false,
-                false,
                 false));
 
             await PlayCurrentSegmentAsync(session, resumePositionMilliseconds, forceInvalidate, cancellationToken);
@@ -1088,7 +1031,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             resumePositionMilliseconds,
             0,
             pausedMessage,
-            false,
             false,
             false));
     }
@@ -1125,8 +1067,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                 {
                     State = PlaybackState.Stopped,
                     Message = "已跳过没有语音内容的段落，播放结束。",
-                    CanRetry = false,
-                    CanSkip = false
+                    CanRetry = false
                 });
                 return;
             }
@@ -1140,13 +1081,13 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
 
         if (chapter is null)
         {
-            PublishPlaybackFailure("未找到要播放的章节。", TtsErrorKind.InvalidRule, canSkip: false);
+            PublishPlaybackFailure("未找到要播放的章节。", TtsErrorKind.InvalidRule);
             return;
         }
 
         if (session.SegmentIndex < 0 || session.SegmentIndex >= chapter.Segments.Count)
         {
-            PublishPlaybackFailure("未找到要播放的段落。", TtsErrorKind.InvalidRule, canSkip: false);
+            PublishPlaybackFailure("未找到要播放的段落。", TtsErrorKind.InvalidRule);
             return;
         }
 
@@ -1174,7 +1115,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             0,
             0,
             forceInvalidate ? "正在重新生成当前段音频。" : "正在加载当前段音频。",
-            false,
             false,
             false));
 
@@ -1207,7 +1147,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                     0,
                     progress.Message,
                     false,
-                    false,
                     false));
             },
             linkedCts.Token).ConfigureAwait(false);
@@ -1225,7 +1164,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                 return;
             }
 
-            HandleSegmentFailure(audio.Failure!, canSkip: HasNextSegment(_currentBook, chapter.ChapterIndex, session.SegmentIndex));
+            HandleSegmentFailure(audio.Failure!);
             return;
         }
 
@@ -1253,17 +1192,16 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             local.DurationMilliseconds,
             local.Message,
             local.IsUsingCache,
-            false,
             false));
 
         await RefreshPrefetchWindowAsync(session, maxCountOverride: null, linkedCts.Token);
     }
 
-    private void HandleSegmentFailure(TtsExecutionFailure failure, bool canSkip)
+    private void HandleSegmentFailure(TtsExecutionFailure failure)
     {
         if (_currentSession is null)
         {
-            PublishPlaybackFailure(failure.Message, failure.Kind, canSkip);
+            PublishPlaybackFailure(failure.Message, failure.Kind);
             return;
         }
 
@@ -1271,7 +1209,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             failure.Kind,
             failure.Message,
             _currentSession.ConsecutiveSegmentFailureCount,
-            canSkip,
             IsCorruptAudio: false,
             CorruptAudioRecoveryAttempted: false));
         _currentSession.ConsecutiveSegmentFailureCount = decision.ConsecutiveSegmentFailureCount;
@@ -1280,20 +1217,18 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         {
             State = PlaybackState.Faulted,
             Message = decision.Message,
-            CanRetry = decision.CanRetry,
-            CanSkip = decision.CanSkip
+            CanRetry = decision.CanRetry
         });
     }
 
-    private void PublishPlaybackFailure(string message, TtsErrorKind failureKind, bool canSkip)
+    private void PublishPlaybackFailure(string message, TtsErrorKind failureKind)
     {
         _lastFailureKind = failureKind;
         PublishSnapshot(_currentSnapshot with
         {
             State = PlaybackState.Faulted,
             Message = message,
-            CanRetry = true,
-            CanSkip = canSkip
+            CanRetry = true
         });
     }
 
@@ -1539,8 +1474,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                 State = PlaybackState.Stopped,
                 PositionMilliseconds = 0,
                 Message = "全书播放完成。",
-                CanRetry = false,
-                CanSkip = false
+                CanRetry = false
             });
             return;
         }
@@ -1577,7 +1511,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                 TtsErrorKind.AudioDecode,
                 error.Message,
                 session.ConsecutiveSegmentFailureCount,
-                HasNextSegment(_currentBook, session.ChapterIndex, session.SegmentIndex),
                 IsCorruptAudio: true,
                 CorruptAudioRecoveryAttempted: string.Equals(
                     _lastRecoveredCorruptSegmentKey,
@@ -1593,8 +1526,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
 
         PublishPlaybackFailure(
             error.Message,
-            TtsErrorKind.AudioDecode,
-            HasNextSegment(_currentBook, session.ChapterIndex, session.SegmentIndex));
+            TtsErrorKind.AudioDecode);
     }
 
     private void ProcessSnapshotChanged(PlaybackSessionState session, LocalAudioPlaybackSnapshot snapshot)
@@ -1621,7 +1553,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             snapshot.DurationMilliseconds,
             snapshot.Message,
             snapshot.IsUsingCache,
-            false,
             false));
     }
 
@@ -1653,8 +1584,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             {
                 State = PlaybackState.Faulted,
                 Message = "播放事件处理失败，请稍后重试。",
-                CanRetry = true,
-                CanSkip = false
+                CanRetry = true
             });
         }
         catch (Exception)
@@ -1718,7 +1648,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             "当前没有可用的 TTS 规则，请先前往规则页选择或导入规则。",
             false,
             false,
-            false,
             SegmentCountOverride: 0));
     }
 
@@ -1733,8 +1662,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         long durationMilliseconds,
         string? message,
         bool isUsingCache,
-        bool canRetry,
-        bool canSkip)
+        bool canRetry)
     {
         return PlaybackSnapshotProjector.Project(new PlaybackSnapshotProjectionInput(
             state,
@@ -1748,7 +1676,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             message,
             isUsingCache,
             canRetry,
-            canSkip,
             _contentRevision));
     }
 
@@ -1785,11 +1712,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     private static PlaybackChapterContent? GetChapter(PlaybackBookContent book, int chapterIndex)
     {
         return book.Chapters.FirstOrDefault(chapter => chapter.ChapterIndex == chapterIndex);
-    }
-
-    private static bool HasNextSegment(PlaybackBookContent book, int chapterIndex, int segmentIndex)
-    {
-        return PlaybackPositionResolver.HasNextSegment(book, chapterIndex, segmentIndex);
     }
 
     private async Task<(PlaybackBookContent Book, PlaybackChapterContent Chapter, int ChapterIndex, int SegmentIndex)?> ResolvePlayablePositionAsync(

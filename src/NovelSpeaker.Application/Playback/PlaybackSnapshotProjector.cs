@@ -17,7 +17,6 @@ internal sealed record PlaybackSnapshotProjectionInput(
     string? Message,
     bool IsUsingCache,
     bool CanRetry,
-    bool CanSkip,
     long ContentRevision = 0,
     int? SegmentCountOverride = null);
 
@@ -49,7 +48,6 @@ internal static class PlaybackSnapshotProjector
             input.Message,
             input.IsUsingCache,
             input.CanRetry,
-            input.CanSkip,
             input.Book.BookAuthor,
             input.SelectedRule is not null,
             input.ContentRevision);

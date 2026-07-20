@@ -1,14 +1,10 @@
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
-/// Coordinates book-oriented playback sessions, navigation, and UI snapshots.
+/// Owns the playback snapshot and user commands for the active playback session.
 /// </summary>
-public interface IPlaybackCoordinator : IAsyncDisposable
+public interface IPlaybackSession : IPlaybackSnapshotSource
 {
-    PlaybackSnapshot CurrentSnapshot { get; }
-
-    event EventHandler<PlaybackSnapshot>? SnapshotChanged;
-
     Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken);
     Task OpenPausedAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken);
     Task PauseAsync(CancellationToken cancellationToken);
@@ -22,11 +18,6 @@ public interface IPlaybackCoordinator : IAsyncDisposable
     Task NextChapterAsync(CancellationToken cancellationToken);
     Task PreviousChapterAsync(CancellationToken cancellationToken);
     Task RetryCurrentSegmentAsync(CancellationToken cancellationToken);
-    Task SkipCurrentSegmentAsync(CancellationToken cancellationToken);
     Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken);
     Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken);
-    Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken);
-    /// <summary>Rebuilds the active chapter after global regex replacement execution fields change.</summary>
-    Task RefreshRegexReplacementAsync(CancellationToken cancellationToken);
-    Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken);
 }
