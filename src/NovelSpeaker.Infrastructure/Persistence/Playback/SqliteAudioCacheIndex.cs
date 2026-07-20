@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Infrastructure.Persistence;
 
 namespace NovelSpeaker.Infrastructure.Persistence.Playback;
 

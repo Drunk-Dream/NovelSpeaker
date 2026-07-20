@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Infrastructure.Persistence;
 
 namespace NovelSpeaker.Infrastructure.Speech.Rules;
 

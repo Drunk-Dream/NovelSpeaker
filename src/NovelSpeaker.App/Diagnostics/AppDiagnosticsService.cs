@@ -12,25 +12,24 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
     private const string Description = "Windows 10/11 桌面小说听书应用。";
 
     private readonly IAppDataDirectoryProvider _directories;
-    private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly IDatabaseSchemaVersionProvider _schemaVersionProvider;
     private readonly IAppSettingsService _settingsService;
 
     public AppDiagnosticsService(
         IAppDataDirectoryProvider directories,
-        ISqliteConnectionFactory connectionFactory,
+        IDatabaseSchemaVersionProvider schemaVersionProvider,
         IAppSettingsService settingsService)
     {
         _directories = directories;
-        _connectionFactory = connectionFactory;
+        _schemaVersionProvider = schemaVersionProvider;
         _settingsService = settingsService;
     }
 
     public async Task<AppDiagnosticsSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
-        command.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
-        var schemaVersion = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
+        var schemaVersion = await _schemaVersionProvider
+            .GetCurrentVersionAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         return new AppDiagnosticsSnapshot(
             "NovelSpeaker",

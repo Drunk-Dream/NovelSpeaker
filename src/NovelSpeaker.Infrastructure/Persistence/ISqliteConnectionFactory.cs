@@ -1,6 +1,6 @@
 using Microsoft.Data.Sqlite;
 
-namespace NovelSpeaker.Application.Abstractions;
+namespace NovelSpeaker.Infrastructure.Persistence;
 
 /// <summary>
 /// Opens SQLite connections for startup and repository operations.

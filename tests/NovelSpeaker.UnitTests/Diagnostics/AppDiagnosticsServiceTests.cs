@@ -33,7 +33,7 @@ public sealed class AppDiagnosticsServiceTests
 
         var service = new AppDiagnosticsService(
             directories,
-            new SqliteConnectionFactory(directories),
+            new SqliteDatabaseSchemaVersionProvider(new SqliteConnectionFactory(directories)),
             new FakeAppSettingsService(AppSettings.Default with { Theme = "Dark", LogLevel = "Warning" }));
 
         var snapshot = await service.GetSnapshotAsync(CancellationToken.None);

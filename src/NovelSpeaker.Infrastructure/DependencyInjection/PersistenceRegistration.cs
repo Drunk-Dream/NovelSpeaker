@@ -6,7 +6,6 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
-using NovelSpeaker.Infrastructure.Playback;
 using NovelSpeaker.Infrastructure.Speech.Rules;
 
 namespace NovelSpeaker.Infrastructure.DependencyInjection;
@@ -18,6 +17,7 @@ public static class PersistenceRegistration
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<ISqliteConnectionFactory, SqliteConnectionFactory>();
+        services.TryAddSingleton<IDatabaseSchemaVersionProvider, SqliteDatabaseSchemaVersionProvider>();
         services.TryAddSingleton<SqliteMigrationRunner>();
         services.TryAddSingleton<IChapterRuleRepository, ChapterRuleRepository>();
         services.TryAddSingleton<IRegexReplacementRuleRepository, RegexReplacementRuleRepository>();

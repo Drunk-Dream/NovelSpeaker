@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Infrastructure.Persistence;
 
 namespace NovelSpeaker.Infrastructure.Persistence.Books;
 

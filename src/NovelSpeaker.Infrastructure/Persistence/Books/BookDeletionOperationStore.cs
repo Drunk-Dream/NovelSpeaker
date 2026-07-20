@@ -3,6 +3,7 @@ using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Infrastructure.Persistence;
 
 namespace NovelSpeaker.Infrastructure.Persistence.Books;
 
