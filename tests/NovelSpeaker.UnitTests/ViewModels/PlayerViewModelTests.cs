@@ -1611,6 +1611,7 @@ public sealed class PlayerViewModelTests
         public Task WaitForSpeedChangeAsync() => _speedChanged.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
 

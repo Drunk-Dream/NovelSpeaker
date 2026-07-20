@@ -249,6 +249,7 @@ public sealed class AppNavigationPageProviderTests
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

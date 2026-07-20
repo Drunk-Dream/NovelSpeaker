@@ -599,6 +599,7 @@ public sealed class PlayerViewTests
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("NextChapterButton")), "下一章");
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("ReturnToCurrentSegmentButton")), "回到当前段");
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("BackButton")), "返回");
+            Assert.Null(view.FindName("SkipCurrentSegmentButton"));
 
             var primaryIcon = Assert.IsType<SymbolIcon>(FindDescendant<SymbolIcon>(
                 Assert.IsType<Button>(view.FindName("PrimaryPlaybackButton")),
@@ -1884,6 +1885,7 @@ public sealed class PlayerViewTests
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

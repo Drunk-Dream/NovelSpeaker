@@ -166,6 +166,7 @@ public sealed class PlaybackSettingsViewModelTests
         public Task SkipCurrentSegmentAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

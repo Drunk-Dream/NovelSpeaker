@@ -539,6 +539,7 @@ public sealed class MainWindowNavigationTests
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
     }

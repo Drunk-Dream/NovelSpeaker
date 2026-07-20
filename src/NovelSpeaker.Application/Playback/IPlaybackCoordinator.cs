@@ -27,6 +27,6 @@ public interface IPlaybackCoordinator : IAsyncDisposable
     Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken);
     Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken);
     /// <summary>Rebuilds the active chapter after global regex replacement execution fields change.</summary>
-    Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    Task RefreshRegexReplacementAsync(CancellationToken cancellationToken);
     Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken);
 }

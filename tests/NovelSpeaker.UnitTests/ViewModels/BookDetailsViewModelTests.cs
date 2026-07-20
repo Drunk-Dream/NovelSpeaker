@@ -608,6 +608,8 @@ public sealed class BookDetailsViewModelTests
             return Task.CompletedTask;
         }
 
+        public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
         public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken)
         {
             LastDeletedBookId = bookId;
