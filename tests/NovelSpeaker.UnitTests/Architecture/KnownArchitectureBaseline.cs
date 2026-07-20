@@ -18,8 +18,6 @@ internal static class KnownArchitectureBaseline
         new HashSet<string>(StringComparer.Ordinal)
         {
             "src/NovelSpeaker.App/Feedback/AppDialogDecision.cs: public types [AppConfirmationDecision, UnsavedChangesDecision], expected primary type 'AppDialogDecision'",
-            "src/NovelSpeaker.Infrastructure/Playback/BookPlaybackCoordinator.cs: public types [PlaybackCoordinator], expected primary type 'BookPlaybackCoordinator'",
-            "src/NovelSpeaker.Infrastructure/Playback/PlaybackCoordinator.cs: public types [LocalAudioPlaybackCoordinator], expected primary type 'PlaybackCoordinator'"
         };
 
     public static readonly IReadOnlySet<string> ViewModelForbiddenPublicApiDependencies =

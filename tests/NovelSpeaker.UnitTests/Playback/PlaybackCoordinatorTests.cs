@@ -10,7 +10,7 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.Playback;
 
-public sealed class BookPlaybackCoordinatorTests
+public sealed class PlaybackCoordinatorTests
 {
     [Fact]
     public async Task StartAsync_with_selected_rule_and_audio_result_enters_playing_state()
