@@ -20,6 +20,8 @@ public static class PlaybackRegistration
         services.TryAddSingleton<ILocalAudioPlaybackCoordinator, LocalAudioPlaybackCoordinator>();
         services.TryAddSingleton<PlaybackSegmentRunner>();
         services.TryAddSingleton<PlaybackRecoveryPolicy>();
+        services.TryAddSingleton<PlaybackProgressService>();
+        services.TryAddSingleton<IPlaybackPrefetchController, PlaybackPrefetchController>();
         services.TryAddSingleton<IPlaybackCoordinator>(serviceProvider =>
             new PlaybackCoordinator(
                 serviceProvider.GetRequiredService<IBookPlaybackContentService>(),
@@ -28,10 +30,9 @@ public static class PlaybackRegistration
                 serviceProvider.GetRequiredService<PlaybackRecoveryPolicy>(),
                 serviceProvider.GetRequiredService<IAudioCacheProtectionRegistry>(),
                 serviceProvider.GetRequiredService<ILocalAudioPlaybackCoordinator>(),
-                serviceProvider.GetRequiredService<IReadingProgressStore>(),
-                serviceProvider.GetRequiredService<IPrefetchScheduler>(),
+                serviceProvider.GetRequiredService<PlaybackProgressService>(),
+                serviceProvider.GetRequiredService<IPlaybackPrefetchController>(),
                 serviceProvider.GetRequiredService<IAppSettingsService>()));
-        services.TryAddSingleton<IPrefetchScheduler, PrefetchScheduler>();
         services.TryAddSingleton<ISelectedTtsRuleProvider, SelectedTtsRuleProvider>();
         return services;
     }

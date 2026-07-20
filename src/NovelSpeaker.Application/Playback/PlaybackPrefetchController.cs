@@ -4,31 +4,37 @@ using NovelSpeaker.Application.Playback.Cache;
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
-/// Executes best-effort, replaceable prefetch work for the active playback session.
+/// Owns each session's ordered prefetch window, de-duplication, cancellation and session token.
 /// </summary>
-public sealed class PrefetchScheduler : IPrefetchScheduler
+public sealed class PlaybackPrefetchController : IPlaybackPrefetchController
 {
     private readonly IPlaybackAudioProvider _audioProvider;
     private readonly ConcurrentDictionary<Guid, SessionState> _sessions = new();
 
-    public PrefetchScheduler(IPlaybackAudioProvider audioProvider)
+    public PlaybackPrefetchController(IPlaybackAudioProvider audioProvider)
     {
         _audioProvider = audioProvider;
     }
 
-    public Task ScheduleAsync(
-        Guid sessionId,
-        IReadOnlyList<PlaybackAudioRequest> requests,
-        CancellationToken cancellationToken)
+    public Task SubmitAsync(PlaybackPrefetchWindow window, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(window);
         cancellationToken.ThrowIfCancellationRequested();
-        if (sessionId == Guid.Empty)
+        if (window.SessionId == Guid.Empty)
         {
             return Task.CompletedTask;
         }
 
-        var state = _sessions.GetOrAdd(sessionId, static _ => new SessionState());
-        state.ReplacePending(requests);
+        foreach (var request in window.Requests)
+        {
+            if (request.SessionId != window.SessionId)
+            {
+                throw new ArgumentException("预取请求必须属于提交窗口的会话。", nameof(window));
+            }
+        }
+
+        var state = _sessions.GetOrAdd(window.SessionId, static _ => new SessionState());
+        state.ReplacePending(window.Requests);
         state.EnsureWorkerStarted(() => RunSessionAsync(state));
         return Task.CompletedTask;
     }
@@ -69,11 +75,12 @@ public sealed class PrefetchScheduler : IPrefetchScheduler
                 await _audioProvider.GetAudioAsync(
                     next,
                     PlaybackAudioPriority.Prefetch,
-                    null,
+                    progressCallback: null,
                     state.ActiveRequestToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
+                // Cancellation is the normal replacement/stop path for best-effort prefetch.
             }
             finally
             {
@@ -169,7 +176,7 @@ public sealed class PrefetchScheduler : IPrefetchScheduler
 
         public void CompleteActiveRequest()
         {
-            CancellationTokenSource? toDispose = null;
+            CancellationTokenSource? toDispose;
             lock (_syncRoot)
             {
                 toDispose = _activeRequestCts;
@@ -222,8 +229,7 @@ public sealed class PrefetchScheduler : IPrefetchScheduler
             var result = new List<PlaybackAudioRequest>(requests.Count);
             foreach (var request in requests)
             {
-                var key = request.ToCacheKey();
-                if (seen.Add(key))
+                if (seen.Add(request.ToCacheKey()))
                 {
                     result.Add(request);
                 }
@@ -232,5 +238,4 @@ public sealed class PrefetchScheduler : IPrefetchScheduler
             return result;
         }
     }
-
 }
