@@ -344,7 +344,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                     PublishSnapshot(CreateRuleMissingSnapshot(
                         _currentBook,
                         _currentSession.ChapterIndex,
-                        GetChapterTitle(_currentBook, _currentSession.ChapterIndex),
                         _currentSession.SegmentIndex,
                         _currentSession.SpeakSpeed));
                 }
@@ -463,7 +462,8 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         _contentRevision++;
         var wasPlaying = _currentSnapshot.State == PlaybackState.Playing;
 
-        if (replacement.LoadState == PlaybackChapterLoadState.LoadedEmpty)
+        if (replacement.LoadState == PlaybackChapterLoadState.LoadedEmpty ||
+            PlaybackPositionResolver.FindMappedSegmentIndex(replacement, characterOffset) < 0)
         {
             var target = await ResolveNearestAvailablePositionAsync(_currentBook, chapterIndex, cancellationToken).ConfigureAwait(false);
             if (target is null || _currentRule is null)
@@ -502,7 +502,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             return;
         }
 
-        var mappedIndex = FindMappedSegmentIndex(replacement, characterOffset);
+        var mappedIndex = PlaybackPositionResolver.FindMappedSegmentIndex(replacement, characterOffset);
         var mappedSegment = replacement.Segments[mappedIndex];
         var speechChanged = previousSegment is null || !string.Equals(previousSegment.SpeechText, mappedSegment.SpeechText, StringComparison.Ordinal);
         if (!speechChanged)
@@ -682,7 +682,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             PublishSnapshot(CreateRuleMissingSnapshot(
                 _currentBook,
                 current.ChapterIndex,
-                GetChapterTitle(_currentBook, current.ChapterIndex),
                 current.SegmentIndex,
                 GetCurrentSpeakSpeed()));
             return;
@@ -733,7 +732,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             PublishSnapshot(CreateRuleMissingSnapshot(
                 next.Value.Book,
                 next.Value.ChapterIndex,
-                GetChapterTitle(next.Value.Book, next.Value.ChapterIndex),
                 next.Value.SegmentIndex,
                 GetCurrentSpeakSpeed()));
             return;
@@ -765,7 +763,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                 PublishSnapshot(CreateRuleMissingSnapshot(
                     _currentBook,
                     current.ChapterIndex,
-                    GetChapterTitle(_currentBook, current.ChapterIndex),
                     current.SegmentIndex,
                     GetCurrentSpeakSpeed()));
             }
@@ -1355,29 +1352,23 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     private static PlaybackSnapshot CreateRuleMissingSnapshot(
         PlaybackBookContent book,
         int chapterIndex,
-        string? chapterTitle,
         int segmentIndex,
         int speakSpeed)
     {
-        return new PlaybackSnapshot(
+        return PlaybackSnapshotProjector.Project(new PlaybackSnapshotProjectionInput(
             PlaybackState.Stopped,
-            book.BookId,
-            book.BookTitle,
+            book,
             chapterIndex,
-            chapterTitle,
             segmentIndex,
-            0,
             null,
-            null,
-            AppSettings.NormalizeSpeakSpeed(speakSpeed),
+            speakSpeed,
             0,
             0,
             "当前没有可用的 TTS 规则，请先前往规则页选择或导入规则。",
             false,
             false,
             false,
-            book.BookAuthor,
-            false);
+            SegmentCountOverride: 0));
     }
 
     private PlaybackSnapshot BuildSnapshot(
@@ -1394,17 +1385,12 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         bool canRetry,
         bool canSkip)
     {
-        var chapter = GetChapter(book, chapterIndex);
-        return new PlaybackSnapshot(
+        return PlaybackSnapshotProjector.Project(new PlaybackSnapshotProjectionInput(
             state,
-            book.BookId,
-            book.BookTitle,
+            book,
             chapterIndex,
-            chapter?.Title,
             segmentIndex,
-            chapter?.Segments.Count ?? 0,
-            selectedRule.RuleId,
-            selectedRule.RuleName,
+            selectedRule,
             speakSpeed,
             positionMilliseconds,
             durationMilliseconds,
@@ -1412,9 +1398,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             isUsingCache,
             canRetry,
             canSkip,
-            book.BookAuthor,
-            true,
-            _contentRevision);
+            _contentRevision));
     }
 
     private (int ChapterIndex, int SegmentIndex) GetCurrentPosition()
@@ -1452,20 +1436,9 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         return book.Chapters.FirstOrDefault(chapter => chapter.ChapterIndex == chapterIndex);
     }
 
-    private static string? GetChapterTitle(PlaybackBookContent book, int chapterIndex)
-    {
-        return GetChapter(book, chapterIndex)?.Title;
-    }
-
     private static bool HasNextSegment(PlaybackBookContent book, int chapterIndex, int segmentIndex)
     {
-        var chapter = GetChapter(book, chapterIndex);
-        if (chapter is not null && segmentIndex + 1 < chapter.Segments.Count)
-        {
-            return true;
-        }
-
-        return FindRelativeChapterIndex(book, chapterIndex, 1) is not null;
+        return PlaybackPositionResolver.HasNextSegment(book, chapterIndex, segmentIndex);
     }
 
     private async Task<(PlaybackBookContent Book, PlaybackChapterContent Chapter, int ChapterIndex, int SegmentIndex)?> ResolvePlayablePositionAsync(
@@ -1476,36 +1449,29 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         bool preferLastSegmentWhenSearchingBackward,
         CancellationToken cancellationToken)
     {
-        var orderedChapters = book.Chapters.OrderBy(chapter => chapter.ChapterIndex).ToArray();
-        if (orderedChapters.Length == 0)
-        {
-            return null;
-        }
-
-        var index = ResolveChapterSearchStartIndex(orderedChapters, preferredChapterIndex, searchDirection);
-        if (index < 0)
-        {
-            return null;
-        }
-
-        while (index >= 0 && index < orderedChapters.Length)
+        foreach (var chapterIndex in PlaybackPositionResolver.GetChapterSearchOrder(
+                     book.Chapters,
+                     preferredChapterIndex,
+                     searchDirection))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var chapterIndex = orderedChapters[index].ChapterIndex;
             book = await EnsureChapterLoadedAsync(book, chapterIndex, cancellationToken);
             var chapter = GetChapter(book, chapterIndex);
-            if (chapter?.LoadState == PlaybackChapterLoadState.Loaded)
+            if (chapter is null)
             {
-                var segmentIndex = ResolveSegmentIndex(
-                    chapter,
-                    preferredChapterIndex,
-                    preferredSegmentIndex,
-                    searchDirection,
-                    preferLastSegmentWhenSearchingBackward);
-                return (book, chapter, chapter.ChapterIndex, segmentIndex);
+                continue;
             }
 
-            index += searchDirection >= 0 ? 1 : -1;
+            var position = PlaybackPositionResolver.ResolvePlayablePositionInChapter(
+                chapter,
+                preferredChapterIndex,
+                preferredSegmentIndex,
+                searchDirection,
+                preferLastSegmentWhenSearchingBackward);
+            if (position is not null)
+            {
+                return (book, chapter, position.Value.ChapterIndex, position.Value.SegmentIndex);
+            }
         }
 
         return null;
@@ -1555,15 +1521,15 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     {
         book = await EnsureChapterLoadedAsync(book, progress.ChapterIndex, cancellationToken).ConfigureAwait(false);
         var chapter = GetChapter(book, progress.ChapterIndex);
-        if (chapter?.LoadState == PlaybackChapterLoadState.Loaded)
+        var restored = PlaybackPositionResolver.ResolveRestoredPosition(book, progress);
+        if (restored is not null && chapter is not null)
         {
-            var remappedSegmentIndex = FindMappedSegmentIndex(chapter, progress.CharacterOffset);
-            var resumePosition = progress.SegmentIndex >= 0 &&
-                                 progress.SegmentIndex < chapter.Segments.Count &&
-                                 chapter.Segments[progress.SegmentIndex].StartOffset == progress.CharacterOffset
-                ? progress.AudioPositionMilliseconds
-                : 0;
-            return (book, chapter, chapter.ChapterIndex, remappedSegmentIndex, resumePosition);
+            return (
+                book,
+                chapter,
+                restored.Value.ChapterIndex,
+                restored.Value.SegmentIndex,
+                restored.Value.ResumePositionMilliseconds);
         }
 
         var fallback = await ResolvePlayablePositionAsync(
@@ -1592,18 +1558,24 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
 
         book = await EnsureChapterLoadedAsync(book, chapterIndex, cancellationToken);
         var chapter = GetChapter(book, chapterIndex);
-        if (chapter?.LoadState != PlaybackChapterLoadState.Loaded)
+        if (chapter is null)
         {
             return null;
         }
 
-        var targetSegmentIndex = segmentIndex + delta;
-        if (targetSegmentIndex >= 0 && targetSegmentIndex < chapter.Segments.Count)
+        var sameChapterPosition = PlaybackPositionResolver.ResolveRelativeSegmentInChapter(
+            chapter,
+            segmentIndex,
+            delta);
+        if (sameChapterPosition is not null)
         {
-            return (book, chapterIndex, targetSegmentIndex);
+            return (book, sameChapterPosition.Value.ChapterIndex, sameChapterPosition.Value.SegmentIndex);
         }
 
-        var targetChapterIndex = FindRelativeChapterIndex(book, chapterIndex, delta > 0 ? 1 : -1);
+        var targetChapterIndex = PlaybackPositionResolver.FindAdjacentChapterIndex(
+            book.Chapters,
+            chapterIndex,
+            delta);
         if (targetChapterIndex is null)
         {
             return null;
@@ -1626,20 +1598,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         int chapterIndex,
         int delta)
     {
-        var chapters = book.Chapters
-            .OrderBy(chapter => chapter.ChapterIndex)
-            .ToArray();
-
-        var currentIndex = Array.FindIndex(chapters, chapter => chapter.ChapterIndex == chapterIndex);
-        if (currentIndex < 0)
-        {
-            return chapters.Length == 0 ? null : chapters[0].ChapterIndex;
-        }
-
-        var targetIndex = currentIndex + delta;
-        return targetIndex < 0 || targetIndex >= chapters.Length
-            ? null
-            : chapters[targetIndex].ChapterIndex;
+        return PlaybackPositionResolver.FindAdjacentChapterIndex(book.Chapters, chapterIndex, delta);
     }
 
     private async Task<PlaybackBookContent> EnsureChapterLoadedAsync(
@@ -1666,78 +1625,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             .ToArray();
 
         return book with { Chapters = chapters };
-    }
-
-    private static int ResolveChapterSearchStartIndex(
-        IReadOnlyList<PlaybackChapterContent> chapters,
-        int? preferredChapterIndex,
-        int searchDirection)
-    {
-        if (chapters.Count == 0)
-        {
-            return -1;
-        }
-
-        if (preferredChapterIndex is null)
-        {
-            return searchDirection >= 0 ? 0 : chapters.Count - 1;
-        }
-
-        if (searchDirection >= 0)
-        {
-            for (var index = 0; index < chapters.Count; index++)
-            {
-                if (chapters[index].ChapterIndex >= preferredChapterIndex.Value)
-                {
-                    return index;
-                }
-            }
-
-            return -1;
-        }
-
-        for (var index = chapters.Count - 1; index >= 0; index--)
-        {
-            if (chapters[index].ChapterIndex <= preferredChapterIndex.Value)
-            {
-                return index;
-            }
-        }
-
-        return -1;
-    }
-
-    private static int ResolveSegmentIndex(
-        PlaybackChapterContent chapter,
-        int? preferredChapterIndex,
-        int? preferredSegmentIndex,
-        int searchDirection,
-        bool preferLastSegmentWhenSearchingBackward)
-    {
-        if (preferredChapterIndex == chapter.ChapterIndex && preferredSegmentIndex is >= 0 and < int.MaxValue)
-        {
-            return Math.Min(preferredSegmentIndex.Value, chapter.Segments.Count - 1);
-        }
-
-        if (searchDirection < 0 && preferLastSegmentWhenSearchingBackward)
-        {
-            return chapter.Segments.Count - 1;
-        }
-
-        return 0;
-    }
-
-    private static int FindMappedSegmentIndex(PlaybackChapterContent chapter, int characterOffset)
-    {
-        for (var index = 0; index < chapter.Segments.Count; index++)
-        {
-            if (chapter.Segments[index].StartOffset >= characterOffset)
-            {
-                return index;
-            }
-        }
-
-        return chapter.Segments.Count - 1;
     }
 
     private bool IsSessionCurrent(Guid sessionId)
@@ -1914,7 +1801,6 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             PublishSnapshot(CreateRuleMissingSnapshot(
                 _currentBook,
                 chapterIndex,
-                GetChapterTitle(_currentBook, chapterIndex),
                 segmentIndex,
                 speakSpeed));
             return;
