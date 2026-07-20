@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Application.Playback;
+namespace NovelSpeaker.Application.Playback.Cache;
 
 /// <summary>
 /// Represents cleanup outcome projected for cache UI feedback.

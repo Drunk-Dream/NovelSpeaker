@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Playback.Audio;
+using NovelSpeaker.Application.Playback.Cache;
 
 namespace NovelSpeaker.Application.Playback;
 

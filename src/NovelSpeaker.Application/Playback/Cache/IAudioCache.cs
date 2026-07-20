@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Application.Playback;
+namespace NovelSpeaker.Application.Playback.Cache;
 
 /// <summary>
 /// Resolves and stores generated audio by cache key.

@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Application.Playback;
+namespace NovelSpeaker.Application.Playback.Cache;
 
 /// <summary>
 /// Provides process-wide cache limits for persisted playback audio.

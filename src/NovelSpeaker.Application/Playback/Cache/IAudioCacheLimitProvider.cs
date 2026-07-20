@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Application.Playback;
+namespace NovelSpeaker.Application.Playback.Cache;
 
 /// <summary>
 /// Resolves the currently effective persisted audio cache limit.

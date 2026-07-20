@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Application.Playback;
+namespace NovelSpeaker.Application.Playback.Cache;
 
 /// <summary>
 /// Tracks cache files that must be excluded from concurrent cleanup operations.

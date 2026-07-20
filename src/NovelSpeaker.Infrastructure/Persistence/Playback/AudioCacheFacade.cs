@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Infrastructure.FileSystem.Cache;
 
 namespace NovelSpeaker.Infrastructure.Persistence.Playback;

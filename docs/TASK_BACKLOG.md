@@ -483,7 +483,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：原 `SqliteAudioCache` 已删除，缓存入口由唯一的 Infrastructure `AudioCacheFacade` 组合 `SqliteAudioCacheIndex`、`AudioCacheFileStore` 和 `AudioCacheMaintenance`；SQLite 查询、文件暂存/同卷切换、索引/文件漂移修复、LRU 和保护注册表职责分离。缓存端口与缓存键保持不变，DI 只把 facade 注册为 `IAudioCache`/`IAudioCacheStore`；所有索引路径经 `IAppStoragePathResolver` 且缓存目录额外施加 `Cache/Tts` 所有权检查。并发写入、缺失索引文件清理、临时/孤儿清理、LRU、受保护文件、缓存边界和根外路径回归测试通过；未改变 CACHE-403 的 Workspace 用例。
 
-### [ ] CACHE-403（P1）：迁移缓存 Workspace 到 Application
+### [x] CACHE-403（P1）：迁移缓存 Workspace 到 Application
 
 前置：CACHE-401、CACHE-402、BOOK-205。
 
@@ -494,6 +494,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 取消必须传播；预期内容读取失败才把完整度降级为未知，并记录安全诊断。
 
 验收：CacheAndData/CacheManagement/BookDetails 复用同一用例与保护策略。
+
+完成说明：缓存 Workspace、总览/书籍/章节结果模型、存储端口及缓存键/保护合同已归拢到 Application `Playback.Cache`；Workspace 只通过 `IAudioCacheStore`、`IBookPlaybackMetadataQuery`、`IBookContentReader`、`ITextSegmenter` 和设置语义端口组合，不连接 SQLite 或引用 Infrastructure。CacheAndData、CacheManagement、BookDetails 均继续注入同一个 Application `ICacheWorkspaceService` Singleton，清理仍由同一个缓存 facade/保护注册表执行。完整度估算继续传播取消和意外异常，仅对明确的文件/目录、权限、I/O、编码或正文范围读取失败降级为未知，并经独立诊断端口只记录固定操作和异常类型，不记录正文、路径或原始异常消息。相关 Application/Infrastructure 编译、Workspace/DI/架构回归测试通过。
 
 ---
 

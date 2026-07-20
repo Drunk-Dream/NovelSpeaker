@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.FileSystem.Cache;

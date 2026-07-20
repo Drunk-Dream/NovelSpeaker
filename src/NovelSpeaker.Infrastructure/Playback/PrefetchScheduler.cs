@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Cache;
 
 namespace NovelSpeaker.Infrastructure.Playback;
 

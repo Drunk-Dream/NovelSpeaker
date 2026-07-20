@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Playback.Audio;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;

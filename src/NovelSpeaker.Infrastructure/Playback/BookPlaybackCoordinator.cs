@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;

@@ -3,6 +3,7 @@ using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Playback.Audio;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;

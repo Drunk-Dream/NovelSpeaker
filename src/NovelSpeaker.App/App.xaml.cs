@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using NovelSpeaker.App.Theming;
 using NovelSpeaker.Infrastructure.FileSystem;

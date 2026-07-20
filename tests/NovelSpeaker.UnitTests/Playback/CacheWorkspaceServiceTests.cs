@@ -2,6 +2,7 @@ using System.Text;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.TextProcessing;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using Xunit;

@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Audio;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Infrastructure.FileSystem.Cache;
 using NovelSpeaker.Infrastructure.Persistence.Playback;
 using NovelSpeaker.Infrastructure.Playback;
@@ -20,6 +21,7 @@ public static class AudioRegistration
         services.TryAddSingleton<IPlaybackCoordinator, PlaybackCoordinator>();
         services.TryAddSingleton<ISelectedTtsRuleProvider, SelectedTtsRuleProvider>();
         services.TryAddSingleton<IPlaybackAudioFailureReporter, PlaybackAudioFailureReporter>();
+        services.TryAddSingleton<ICacheWorkspaceFailureReporter, CacheWorkspaceFailureReporter>();
         services.TryAddSingleton<IAudioCacheProtectionRegistry, AudioCacheProtectionRegistry>();
         services.TryAddSingleton<SqliteAudioCacheIndex>();
         services.TryAddSingleton<AudioCacheFileStore>();

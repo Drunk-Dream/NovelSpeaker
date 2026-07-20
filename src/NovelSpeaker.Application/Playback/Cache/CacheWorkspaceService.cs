@@ -1,8 +1,9 @@
 using System.Text;
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Domain.Books;
 
-namespace NovelSpeaker.Application.Playback;
+namespace NovelSpeaker.Application.Playback.Cache;
 
 /// <summary>
 /// Composes cache storage totals with Books/Text queries for cache management callers.
@@ -14,19 +15,22 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
     private readonly IBookContentReader _bookContentReader;
     private readonly ITextSegmenter _textSegmenter;
     private readonly ITextSegmentationOptionsProvider _optionsProvider;
+    private readonly ICacheWorkspaceFailureReporter? _failureReporter;
 
     public CacheWorkspaceService(
         IAudioCacheStore cacheStore,
         IBookPlaybackMetadataQuery bookMetadataQuery,
         IBookContentReader bookContentReader,
         ITextSegmenter textSegmenter,
-        ITextSegmentationOptionsProvider optionsProvider)
+        ITextSegmentationOptionsProvider optionsProvider,
+        ICacheWorkspaceFailureReporter? failureReporter = null)
     {
         _cacheStore = cacheStore;
         _bookMetadataQuery = bookMetadataQuery;
         _bookContentReader = bookContentReader;
         _textSegmenter = textSegmenter;
         _optionsProvider = optionsProvider;
+        _failureReporter = failureReporter;
     }
 
     public async Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken)
@@ -164,6 +168,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
         }
         catch (Exception exception) when (IsExpectedEstimationFailure(exception))
         {
+            _failureReporter?.ReportEstimationFallback(exception);
             return null;
         }
     }

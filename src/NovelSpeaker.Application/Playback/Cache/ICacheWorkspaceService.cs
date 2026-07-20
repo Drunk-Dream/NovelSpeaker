@@ -1,4 +1,4 @@
-namespace NovelSpeaker.Application.Playback;
+namespace NovelSpeaker.Application.Playback.Cache;
 
 /// <summary>
 /// Provides UI-facing cache overview, cache listings, completeness estimates, and cleanup actions.

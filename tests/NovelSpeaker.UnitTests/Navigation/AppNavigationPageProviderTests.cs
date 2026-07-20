@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.Dialogs;
 using NovelSpeaker.App.Feedback;
