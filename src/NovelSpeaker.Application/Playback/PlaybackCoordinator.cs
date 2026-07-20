@@ -1,4 +1,3 @@
-using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Settings;
@@ -6,7 +5,7 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 
-namespace NovelSpeaker.Infrastructure.Playback;
+namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
 /// Coordinates book-oriented playback sessions on top of the low-level local audio pipeline.

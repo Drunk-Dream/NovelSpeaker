@@ -17,9 +17,6 @@ public static class AudioRegistration
 
         services.TryAddSingleton<IAudioPlayer, NaudioAudioPlayer>();
         services.TryAddSingleton<IAudioPlayerFactory, NaudioAudioPlayerFactory>();
-        services.TryAddSingleton<ILocalAudioPlaybackCoordinator, LocalAudioPlaybackCoordinator>();
-        services.TryAddSingleton<IPlaybackCoordinator, PlaybackCoordinator>();
-        services.TryAddSingleton<ISelectedTtsRuleProvider, SelectedTtsRuleProvider>();
         services.TryAddSingleton<IPlaybackAudioFailureReporter, PlaybackAudioFailureReporter>();
         services.TryAddSingleton<ICacheWorkspaceFailureReporter, CacheWorkspaceFailureReporter>();
         services.TryAddSingleton<IAudioCacheProtectionRegistry, AudioCacheProtectionRegistry>();
@@ -29,8 +26,6 @@ public static class AudioRegistration
         services.TryAddSingleton<AudioCacheFacade>();
         services.TryAddSingleton<IAudioCache>(provider => provider.GetRequiredService<AudioCacheFacade>());
         services.TryAddSingleton<IAudioCacheStore>(provider => provider.GetRequiredService<AudioCacheFacade>());
-        services.TryAddSingleton<IPrefetchScheduler, PrefetchScheduler>();
-
         return services;
     }
 }

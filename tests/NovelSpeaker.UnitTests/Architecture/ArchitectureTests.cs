@@ -82,7 +82,7 @@ public sealed class ArchitectureTests
             ["src/NovelSpeaker.Domain/NovelSpeaker.Domain.csproj"],
             project.ProjectReferences);
         AssertEqualSet(
-            ["Microsoft.Data.Sqlite.Core", "Microsoft.Extensions.DependencyInjection.Abstractions"],
+            ["Microsoft.Extensions.DependencyInjection.Abstractions"],
             project.PackageReferences);
         Assert.Empty(project.FrameworkReferences);
         Assert.False(ArchitectureRules.UsesWpf(project));
@@ -127,6 +127,29 @@ public sealed class ArchitectureTests
             ["NovelSpeaker.App", "System.Windows", "Wpf.Ui"]);
 
         Assert.Empty(actual);
+    }
+
+    [Fact]
+    public void Playback_business_implementations_are_owned_by_Application()
+    {
+        var applicationAssembly = typeof(NovelSpeaker.Application.Playback.PlaybackCoordinator).Assembly;
+
+        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.PlaybackCoordinator).Assembly);
+        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.LocalAudioPlaybackCoordinator).Assembly);
+        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.PrefetchScheduler).Assembly);
+        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.SelectedTtsRuleProvider).Assembly);
+
+        var infrastructurePlaybackFiles = Repository.ReadProductSourceFiles()
+            .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.Infrastructure" &&
+                           file.RelativePath.Contains("/Playback/", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.DoesNotContain(
+            infrastructurePlaybackFiles,
+            file => file.Content.Contains("class PlaybackCoordinator", StringComparison.Ordinal) ||
+                    file.Content.Contains("class LocalAudioPlaybackCoordinator", StringComparison.Ordinal) ||
+                    file.Content.Contains("class PrefetchScheduler", StringComparison.Ordinal) ||
+                    file.Content.Contains("class SelectedTtsRuleProvider", StringComparison.Ordinal));
     }
 
     [Fact]

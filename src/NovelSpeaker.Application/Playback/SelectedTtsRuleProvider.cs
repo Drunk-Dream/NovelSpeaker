@@ -1,10 +1,9 @@
-using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Rules;
 
-namespace NovelSpeaker.Infrastructure.Playback;
+namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
 /// Resolves the enabled rule selected in settings for runtime playback.

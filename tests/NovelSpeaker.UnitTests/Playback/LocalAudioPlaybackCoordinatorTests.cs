@@ -1,5 +1,4 @@
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Infrastructure.Playback;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Playback;

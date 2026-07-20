@@ -1,8 +1,7 @@
 using System.Collections.Concurrent;
-using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 
-namespace NovelSpeaker.Infrastructure.Playback;
+namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
 /// Executes best-effort, replaceable prefetch work for the active playback session.

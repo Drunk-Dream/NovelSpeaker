@@ -1,7 +1,6 @@
-using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Audio;
 
-namespace NovelSpeaker.Infrastructure.Playback;
+namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
 /// Coordinates one local audio player and exposes serialized low-level playback snapshots.

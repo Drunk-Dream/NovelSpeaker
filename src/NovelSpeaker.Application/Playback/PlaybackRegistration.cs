@@ -16,6 +16,10 @@ public static class PlaybackRegistration
         services.TryAddSingleton<IBookPlaybackContentService, BookPlaybackContentService>();
         services.TryAddSingleton<ICacheWorkspaceService, CacheWorkspaceService>();
         services.TryAddSingleton<IPlaybackAudioProvider, PlaybackAudioProvider>();
+        services.TryAddSingleton<ILocalAudioPlaybackCoordinator, LocalAudioPlaybackCoordinator>();
+        services.TryAddSingleton<IPlaybackCoordinator, PlaybackCoordinator>();
+        services.TryAddSingleton<IPrefetchScheduler, PrefetchScheduler>();
+        services.TryAddSingleton<ISelectedTtsRuleProvider, SelectedTtsRuleProvider>();
         return services;
     }
 }
