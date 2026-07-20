@@ -532,7 +532,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：书籍级 `PlaybackCoordinator`、`LocalAudioPlaybackCoordinator`、`PrefetchScheduler` 和 `SelectedTtsRuleProvider` 已迁入 Application `Playback`，Application 播放注册模块负责其 Singleton 生命周期；Infrastructure 的音频注册仅保留 NAudio 播放器/工厂、缓存保护、缓存与进度存储及安全诊断 reporter。播放 facade、会话状态所有权、预取取消、低层 Snapshot/Completed/Failed 事件和现有用户行为保持不变。为满足 Application 纯化边界，SQLite 连接工厂归 Infrastructure 内部，App 诊断改用 `IDatabaseSchemaVersionProvider` 语义端口；Application 不再引用 SQLite 包或类型。播放、DI、架构和诊断回归测试通过。
 
-### [ ] PLAY-503（P1）：抽取纯位置解析与 Snapshot 投影
+### [x] PLAY-503（P1）：抽取纯位置解析与 Snapshot 投影
 
 前置：PLAY-502。
 
@@ -543,6 +543,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 协调器仍是唯一可变状态所有者；新协作者为纯函数/internal。
 
 测试：表驱动覆盖首尾章节、空章节、连续空 Speech、恢复越界和映射回退。
+
+完成说明：`PlaybackPositionResolver` 以 internal static 纯计算协作者承载章节搜索、相邻段/章、连续空语音跳过、恢复位置和原始字符偏移映射；章节装载、会话和状态提交仍由 `PlaybackCoordinator` 唯一拥有。`PlaybackSnapshotProjector` 从显式不可变输入生成 `PlaybackSnapshot`，不保存协调器状态或发布事件。新增表驱动位置解析和 Snapshot 投影测试，并保留 Skip API 供 PLAY-507 审计。
 
 ### [ ] PLAY-504（P1）：抽取当前段执行与恢复策略
 
