@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Playback.Audio;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Settings;
 
 namespace NovelSpeaker.Application.Playback;
 
@@ -17,7 +18,19 @@ public static class PlaybackRegistration
         services.TryAddSingleton<ICacheWorkspaceService, CacheWorkspaceService>();
         services.TryAddSingleton<IPlaybackAudioProvider, PlaybackAudioProvider>();
         services.TryAddSingleton<ILocalAudioPlaybackCoordinator, LocalAudioPlaybackCoordinator>();
-        services.TryAddSingleton<IPlaybackCoordinator, PlaybackCoordinator>();
+        services.TryAddSingleton<PlaybackSegmentRunner>();
+        services.TryAddSingleton<PlaybackRecoveryPolicy>();
+        services.TryAddSingleton<IPlaybackCoordinator>(serviceProvider =>
+            new PlaybackCoordinator(
+                serviceProvider.GetRequiredService<IBookPlaybackContentService>(),
+                serviceProvider.GetRequiredService<ISelectedTtsRuleProvider>(),
+                serviceProvider.GetRequiredService<PlaybackSegmentRunner>(),
+                serviceProvider.GetRequiredService<PlaybackRecoveryPolicy>(),
+                serviceProvider.GetRequiredService<IAudioCacheProtectionRegistry>(),
+                serviceProvider.GetRequiredService<ILocalAudioPlaybackCoordinator>(),
+                serviceProvider.GetRequiredService<IReadingProgressStore>(),
+                serviceProvider.GetRequiredService<IPrefetchScheduler>(),
+                serviceProvider.GetRequiredService<IAppSettingsService>()));
         services.TryAddSingleton<IPrefetchScheduler, PrefetchScheduler>();
         services.TryAddSingleton<ISelectedTtsRuleProvider, SelectedTtsRuleProvider>();
         return services;

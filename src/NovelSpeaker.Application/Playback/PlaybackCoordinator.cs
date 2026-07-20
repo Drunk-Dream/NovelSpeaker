@@ -12,11 +12,10 @@ namespace NovelSpeaker.Application.Playback;
 /// </summary>
 public sealed class PlaybackCoordinator : IPlaybackCoordinator
 {
-    private const int FailurePauseThreshold = 2;
-
     private readonly IBookPlaybackContentService _bookContentService;
     private readonly ISelectedTtsRuleProvider _selectedRuleProvider;
-    private readonly IPlaybackAudioProvider _audioProvider;
+    private readonly PlaybackSegmentRunner _segmentRunner;
+    private readonly PlaybackRecoveryPolicy _recoveryPolicy;
     private readonly IAudioCacheProtectionRegistry _audioCacheProtectionRegistry;
     private readonly ILocalAudioPlaybackCoordinator _localAudioPlaybackCoordinator;
     private readonly IReadingProgressStore _readingProgressStore;
@@ -34,10 +33,11 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     private long _contentRevision;
     private bool _disposed;
 
-    public PlaybackCoordinator(
+    internal PlaybackCoordinator(
         IBookPlaybackContentService bookContentService,
         ISelectedTtsRuleProvider selectedRuleProvider,
-        IPlaybackAudioProvider audioProvider,
+        PlaybackSegmentRunner segmentRunner,
+        PlaybackRecoveryPolicy recoveryPolicy,
         IAudioCacheProtectionRegistry audioCacheProtectionRegistry,
         ILocalAudioPlaybackCoordinator localAudioPlaybackCoordinator,
         IReadingProgressStore readingProgressStore,
@@ -46,7 +46,8 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
     {
         _bookContentService = bookContentService;
         _selectedRuleProvider = selectedRuleProvider;
-        _audioProvider = audioProvider;
+        _segmentRunner = segmentRunner;
+        _recoveryPolicy = recoveryPolicy;
         _audioCacheProtectionRegistry = audioCacheProtectionRegistry;
         _localAudioPlaybackCoordinator = localAudioPlaybackCoordinator;
         _readingProgressStore = readingProgressStore;
@@ -688,6 +689,14 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         }
 
         var currentPosition = GetCurrentPosition();
+        var previousFailureCount = _currentSession?.ConsecutiveSegmentFailureCount ?? 0;
+        var retryDecision = _recoveryPolicy.Decide(new PlaybackRecoveryInput(
+            _lastFailureKind ?? TtsErrorKind.Unknown,
+            _currentSnapshot.Message ?? "正在重试当前段落。",
+            _currentSession?.ConsecutiveSegmentFailureCount ?? 0,
+            HasNextSegment(_currentBook, currentPosition.ChapterIndex, currentPosition.SegmentIndex),
+            IsCorruptAudio: _lastFailureKind == TtsErrorKind.AudioDecode,
+            CorruptAudioRecoveryAttempted: false));
         await StartNewSessionAsync(
             await EnsureChapterLoadedAsync(_currentBook, currentPosition.ChapterIndex, cancellationToken),
             currentPosition.ChapterIndex,
@@ -695,11 +704,12 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             0,
             rule,
             GetCurrentSpeakSpeed(),
-            forceInvalidate: _lastFailureKind == TtsErrorKind.AudioDecode,
+            forceInvalidate: retryDecision.ShouldInvalidateAudio,
             playImmediately: true,
             pausedState: PlaybackState.Paused,
             pausedMessage: "已恢复到当前位置，等待播放。",
-            cancellationToken);
+            cancellationToken,
+            initialConsecutiveFailureCount: previousFailureCount);
     }
 
     private async Task SkipCurrentSegmentCoreAsync(CancellationToken cancellationToken)
@@ -868,7 +878,8 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         bool playImmediately,
         PlaybackState pausedState,
         string pausedMessage,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int initialConsecutiveFailureCount = 0)
     {
         if (_currentSession is not null)
         {
@@ -905,6 +916,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         _lastRecoveredCorruptSegmentKey = null;
         session.ResumePositionMilliseconds = resumePositionMilliseconds;
         session.HasLoadedAudio = false;
+        session.ConsecutiveSegmentFailureCount = initialConsecutiveFailureCount;
 
         if (playImmediately)
         {
@@ -1030,12 +1042,14 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         if (forceInvalidate)
         {
             PublishSnapshot(_currentSnapshot with { State = PlaybackState.Recovering, Message = "检测到音频损坏，正在重新生成。" });
-            await _audioProvider.InvalidateAsync(audioRequest, linkedCts.Token);
         }
 
-        var audio = await _audioProvider.GetAudioAsync(
-            audioRequest,
-            PlaybackAudioPriority.Current,
+        var run = await _segmentRunner.RunAsync(
+            new PlaybackSegmentRunRequest(
+                audioRequest,
+                $"{_currentBook.BookTitle} · {chapter.Title}",
+                resumePositionMilliseconds,
+                forceInvalidate),
             progress =>
             {
                 if (!IsSessionCurrent(session.SessionId) || _currentBook is null || _currentRule is null)
@@ -1057,7 +1071,8 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
                     false,
                     false));
             },
-            linkedCts.Token);
+            linkedCts.Token).ConfigureAwait(false);
+        var audio = run.Audio;
         if (!IsSessionCurrent(session.SessionId))
         {
             return;
@@ -1065,6 +1080,12 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
 
         if (!audio.IsSuccess)
         {
+            if (audio.Failure?.Kind == TtsErrorKind.Cancelled)
+            {
+                linkedCts.Token.ThrowIfCancellationRequested();
+                return;
+            }
+
             session.HasLoadedAudio = false;
             HandleSegmentFailure(audio.Failure!, canSkip: HasNextSegment(_currentBook, chapter.ChapterIndex, session.SegmentIndex));
             return;
@@ -1076,23 +1097,7 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
         session.ResumePositionMilliseconds = resumePositionMilliseconds;
         ReplaceProtectedPlaybackFile(audio.FilePath);
 
-        await _localAudioPlaybackCoordinator.StartAsync(
-            new LocalAudioPlaybackRequest(
-                audio.FilePath!,
-                $"{_currentBook.BookTitle} · {chapter.Title}",
-                _currentBook.BookId,
-                chapter.ChapterIndex,
-                session.SegmentIndex,
-                resumePositionMilliseconds,
-                audio.IsUsingCache),
-            linkedCts.Token);
-
-        if (!IsSessionCurrent(session.SessionId))
-        {
-            return;
-        }
-
-        var local = _localAudioPlaybackCoordinator.CurrentSnapshot;
+        var local = run.LocalSnapshot;
         if (local.State is PlaybackState.Faulted or PlaybackState.Stopped)
         {
             ClearProtectedPlaybackFile();
@@ -1123,32 +1128,28 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
 
     private void HandleSegmentFailure(TtsExecutionFailure failure, bool canSkip)
     {
-        _lastFailureKind = failure.Kind;
         if (_currentSession is null)
         {
             PublishPlaybackFailure(failure.Message, failure.Kind, canSkip);
             return;
         }
 
-        _currentSession.ConsecutiveSegmentFailureCount++;
+        var decision = _recoveryPolicy.Decide(new PlaybackRecoveryInput(
+            failure.Kind,
+            failure.Message,
+            _currentSession.ConsecutiveSegmentFailureCount,
+            canSkip,
+            IsCorruptAudio: false,
+            CorruptAudioRecoveryAttempted: false));
+        _currentSession.ConsecutiveSegmentFailureCount = decision.ConsecutiveSegmentFailureCount;
+        _lastFailureKind = failure.Kind;
         PublishSnapshot(_currentSnapshot with
         {
             State = PlaybackState.Faulted,
-            Message = failure.Message,
-            CanRetry = true,
-            CanSkip = canSkip
+            Message = decision.Message,
+            CanRetry = decision.CanRetry,
+            CanSkip = decision.CanSkip
         });
-
-        if (_currentSession.ConsecutiveSegmentFailureCount >= FailurePauseThreshold)
-        {
-            PublishSnapshot(_currentSnapshot with
-            {
-                State = PlaybackState.Faulted,
-                Message = $"已连续 {_currentSession.ConsecutiveSegmentFailureCount} 段播放失败，请重试、跳过或停止。",
-                CanRetry = true,
-                CanSkip = canSkip
-            });
-        }
     }
 
     private void PublishPlaybackFailure(string message, TtsErrorKind failureKind, bool canSkip)
@@ -1305,7 +1306,17 @@ public sealed class PlaybackCoordinator : IPlaybackCoordinator
             if (error.Kind == PlaybackErrorKind.AudioDecode)
             {
                 var recoveryKey = $"{_currentSession.SessionId:N}:{_currentSession.ChapterIndex}:{_currentSession.SegmentIndex}:{_currentSession.RuleId}:{_currentSession.SpeakSpeed}";
-                if (!string.Equals(_lastRecoveredCorruptSegmentKey, recoveryKey, StringComparison.Ordinal))
+                var recoveryDecision = _recoveryPolicy.Decide(new PlaybackRecoveryInput(
+                    TtsErrorKind.AudioDecode,
+                    error.Message,
+                    _currentSession.ConsecutiveSegmentFailureCount,
+                    HasNextSegment(_currentBook, _currentSession.ChapterIndex, _currentSession.SegmentIndex),
+                    IsCorruptAudio: true,
+                    CorruptAudioRecoveryAttempted: string.Equals(
+                        _lastRecoveredCorruptSegmentKey,
+                        recoveryKey,
+                        StringComparison.Ordinal)));
+                if (recoveryDecision.ShouldRetryCurrentSegment)
                 {
                     _lastRecoveredCorruptSegmentKey = recoveryKey;
                     await PlayCurrentSegmentAsync(_currentSession, 0, forceInvalidate: true, CancellationToken.None);
