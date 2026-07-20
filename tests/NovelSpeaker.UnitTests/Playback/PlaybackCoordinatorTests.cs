@@ -166,6 +166,27 @@ public sealed class PlaybackCoordinatorTests
     }
 
     [Fact]
+    public async Task Repeated_current_segment_failures_reach_the_recovery_pause_threshold()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var audioProvider = new FakePlaybackAudioProvider();
+        audioProvider.EnqueueFailure(TtsErrorKind.ServerError, "服务错误。 ");
+        audioProvider.EnqueueFailure(TtsErrorKind.ServerError, "服务错误。 ");
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            audioProvider: audioProvider);
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        Assert.Equal(PlaybackState.Faulted, coordinator.CurrentSnapshot.State);
+
+        await coordinator.RetryCurrentSegmentAsync(CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Faulted, coordinator.CurrentSnapshot.State);
+        Assert.Contains("连续 2 段", coordinator.CurrentSnapshot.Message, StringComparison.Ordinal);
+        Assert.True(coordinator.CurrentSnapshot.CanRetry);
+    }
+
+    [Fact]
     public async Task SkipCurrentSegment_moves_to_following_segment_after_failure()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
@@ -733,7 +754,10 @@ public sealed class PlaybackCoordinatorTests
         return new PlaybackCoordinator(
             bookContentService ?? new FakeBookPlaybackContentService(book ?? CreateBook()),
             selectedRuleProvider ?? new FakeSelectedTtsRuleProvider(CreateRuleSelection(1, "默认规则")),
-            audioProvider ?? new FakePlaybackAudioProvider(),
+            new PlaybackSegmentRunner(
+                audioProvider ?? new FakePlaybackAudioProvider(),
+                localCoordinator),
+            new PlaybackRecoveryPolicy(),
             new AudioCacheProtectionRegistry(),
             localCoordinator,
             readingProgressStore ?? new FakeReadingProgressStore(),
