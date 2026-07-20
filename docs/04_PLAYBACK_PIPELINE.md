@@ -61,7 +61,7 @@ public enum PlaybackState
 - 修改影响音频的语速或配置。
 
 ```csharp
-public sealed class PlaybackSession : IAsyncDisposable
+public sealed class PlaybackSessionState : IAsyncDisposable
 {
     public Guid SessionId { get; }
     public CancellationToken CancellationToken { get; }

@@ -530,7 +530,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 验收：Application 不需引用任何技术包；所有原播放测试仅调整命名空间仍通过。
 
-完成说明：书籍级 `PlaybackCoordinator`、`LocalAudioPlaybackCoordinator`、`PrefetchScheduler` 和 `SelectedTtsRuleProvider` 已迁入 Application `Playback`，Application 播放注册模块负责其 Singleton 生命周期；Infrastructure 的音频注册仅保留 NAudio 播放器/工厂、缓存保护、缓存与进度存储及安全诊断 reporter。播放 facade、会话状态所有权、预取取消、低层 Snapshot/Completed/Failed 事件和现有用户行为保持不变。为满足 Application 纯化边界，SQLite 连接工厂归 Infrastructure 内部，App 诊断改用 `IDatabaseSchemaVersionProvider` 语义端口；Application 不再引用 SQLite 包或类型。播放、DI、架构和诊断回归测试通过。
+完成说明：书籍级 `PlaybackCoordinator`、`LocalAudioPlaybackCoordinator`、预取协调器和 `SelectedTtsRuleProvider` 已迁入 Application `Playback`，Application 播放注册模块负责其 Singleton 生命周期；Infrastructure 的音频注册仅保留 NAudio 播放器/工厂、缓存保护、缓存与进度存储及安全诊断 reporter。播放 facade、会话状态所有权、预取取消、低层 Snapshot/Completed/Failed 事件和现有用户行为保持不变。为满足 Application 纯化边界，SQLite 连接工厂归 Infrastructure 内部，App 诊断改用 `IDatabaseSchemaVersionProvider` 语义端口；Application 不再引用 SQLite 包或类型。播放、DI、架构和诊断回归测试通过。
 
 ### [x] PLAY-503（P1）：抽取纯位置解析与 Snapshot 投影
 
@@ -558,9 +558,9 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 测试：缓存命中/未命中、空语音、音频损坏、失败阈值、401/429/5xx。
 
-完成说明：新增 Application 内部 `PlaybackSegmentRunner`，统一当前段音频缓存命中/生成、按需失效和本地音频启动；runner 只返回显式执行结果，不拥有会话、保护句柄或 Snapshot。新增无状态 `PlaybackRecoveryPolicy`，使用显式不可变输入/输出决定损坏音频的一次重建、连续段失败阈值和可重试/可跳转结果；取消不会转成失败，也不由 runner/policy 发布 UI 事件。`PlaybackCoordinator` 继续唯一提交 `PlaybackSession`、缓存保护句柄和 `PlaybackSnapshot`，保留现有 facade、DI、旧 session 隔离和 Skip API。专项测试覆盖 runner 执行、缓存命中/未命中、空语音、损坏缓存、失败阈值、取消以及 401/429/5xx 分类行为。
+完成说明：新增 Application 内部 `PlaybackSegmentRunner`，统一当前段音频缓存命中/生成、按需失效和本地音频启动；runner 只返回显式执行结果，不拥有会话、保护句柄或 Snapshot。新增无状态 `PlaybackRecoveryPolicy`，使用显式不可变输入/输出决定损坏音频的一次重建、连续段失败阈值和可重试/可跳转结果；取消不会转成失败，也不由 runner/policy 发布 UI 事件。`PlaybackCoordinator` 继续唯一提交 `PlaybackSessionState`、缓存保护句柄和 `PlaybackSnapshot`，保留现有 facade、DI、旧 session 隔离和 Skip API。专项测试覆盖 runner 执行、缓存命中/未命中、空语音、损坏缓存、失败阈值、取消以及 401/429/5xx 分类行为。
 
-### [ ] PLAY-505（P1）：抽取预取、进度与会话资源
+### [x] PLAY-505（P1）：抽取预取、进度与会话资源
 
 前置：PLAY-504。
 
@@ -572,6 +572,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 暂停最多预取一个、停止取消、换章隔离语义保持。
 
 测试：预取迟到、并发去重、暂停/停止、保存失败和退出保存。
+
+完成说明：Application 新增 `PlaybackPrefetchController`，以显式有序窗口拥有预取优先级、窗口替换、缓存键去重、session CTS、活动请求取消和旧 session 隔离；`PlaybackCoordinator` 只解析并提交窗口，暂停最多提交一个请求，停止/换章会取消旧窗口。新增 `PlaybackProgressService` 统一恢复、字符偏移映射和暂停/停止/切换/完成/退出保存，所有进度端口读写继续接收并传播 `CancellationToken`，存储失败保持原异常传播语义。新增 `PlaybackSessionState`，唯一拥有当前书籍、规则、位置、SessionId、CTS、当前音频快照和音频缓存保护句柄；协调器只负责状态机和 Snapshot 提交。保留既有 public facade、DI Singleton、取消和播放行为；事件命令队列/安全关闭留给 PLAY-506，Skip API 及其内部逻辑留给 PLAY-507。专项预取、进度、资源隔离和协调器回归测试通过。
 
 ### [ ] PLAY-506（P0）：建立事件命令队列与安全关闭
 

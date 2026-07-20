@@ -38,7 +38,7 @@
 - `ParsedRequest`：规则计算后的传输中立请求描述。
 - `SpeechSegment`：章节中的朗读单元。
 - `AudioCacheEntry`：已持久化音频索引。
-- `PlaybackSession`：拥有独立取消和版本的一次播放过程。
+- `PlaybackSessionState`：拥有独立取消和版本的一次播放过程及其当前音频资源。
 - `PlaybackSnapshot`：给 UI 的不可变状态。
 - `Repository`：领域实体/聚合持久化集合。
 - `Store`：设置、进度或文件状态存储。

@@ -337,7 +337,7 @@ public interface ISqliteConnectionFactory
 | Singleton | 无状态解析器、线程安全仓储/适配器、应用级播放协调器、主题运行时、全局设置状态 |
 | Page/activation scope | 页面 ViewModel、编辑会话、页面取消源、页面级投影 |
 | Transient | 轻量无状态工厂产物、短生命周期命令对象 |
-| Session-owned | PlaybackSession、预取窗口、规则试听和导入操作 |
+| Session-owned | PlaybackSessionState、预取窗口、规则试听和导入操作 |
 
 根注册方法只组合功能注册模块，例如 Books、Speech、Playback、Settings、Shell。每个功能模块负责本切片的实现映射；禁止恢复一个包含全部类型的超长注册清单。
 

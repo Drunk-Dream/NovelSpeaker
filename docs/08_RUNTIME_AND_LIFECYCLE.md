@@ -24,7 +24,7 @@
 | 注册/状态 | 当前生命周期 | 唯一所有者 |
 |---|---|---|
 | 应用数据目录、SQLite 初始化、Repository、设置 store、日志、主题、导航与反馈服务 | Singleton / Process | 根 `ServiceProvider`；由 Bootstrap 创建和释放 |
-| `PlaybackCoordinator`、`PlaybackSession`、音频生成去重、预取与缓存保护状态 | Singleton 服务内的 Playback session | `PlaybackCoordinator` 创建和终止 session；音频与预取协作者只持有当前 session 派生状态 |
+| `PlaybackCoordinator`、`PlaybackSessionState`、音频生成去重、预取与缓存保护状态 | Singleton 服务内的 Playback session | `PlaybackCoordinator` 创建和终止 session；音频与预取协作者只持有当前 session 派生状态 |
 | `MainWindow`、Shell 导航状态和全局播放投影 | Singleton / Process | Shell 与全局播放协调器 |
 | Page 对象及 BookDetails、Cache、Appearance、Diagnostics 等瞬态 ViewModel | Transient / Page activation | 当前导航 Page；离开后取消并释放其操作状态 |
 | 导入、规则试听、章节加载、设置防抖保存和缓存清理 | Operation | 发起操作的 ViewModel/对话框或服务；各自拥有 CTS、版本和完成通知 |
@@ -131,7 +131,7 @@ services.AddNovelSpeakerDesktop();
 - 应用退出时发出取消并等待限定时间。
 - 后台任务失败不得从未观察 Task 异常路径泄漏敏感内容。
 
-预取不是任意后台任务，它属于当前 PlaybackSession；停止或换书时必须取消。
+预取不是任意后台任务，它属于当前 `PlaybackSessionState`；停止或换书时必须取消。
 
 ## 9. 关闭顺序
 
