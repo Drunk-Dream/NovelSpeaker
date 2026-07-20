@@ -7,7 +7,9 @@
 第一版实现采用两层协调结构：
 
 - `ILocalAudioPlaybackCoordinator`：只负责单个本地音频文件的加载、播放、暂停、停止、定位和本地解码错误。
-- `IPlaybackCoordinator`：面向书籍、章节、段落、规则和会话，负责状态机、导航、自动推进、旧结果隔离和 UI 快照。
+- `IPlaybackSession`：面向书籍、章节、段落、规则和会话，负责状态机、导航、自动推进和旧结果隔离。
+- `IPlaybackSnapshotSource`：提供不可变播放快照和变化事件；书籍命令接口复用该只读投影。
+- `IPlaybackBookCommands`、`IPlaybackRegexReplacementRefresher`：分别承载书籍外部变化和正则替换刷新命令。
 
 在线 TTS 不只是一次 HTTP 请求。必须统一处理：
 
@@ -270,8 +272,7 @@ public sealed record PlaybackSnapshot(
     long DurationMilliseconds,
     string? Message,
     bool IsUsingCache,
-    bool CanRetry,
-    bool CanSkip);
+    bool CanRetry);
 ```
 
 ViewModel 订阅快照，而不是直接读取多个可变服务字段。

@@ -292,7 +292,7 @@ public interface ISqliteConnectionFactory
 
 ## 8. 播放架构
 
-`IPlaybackCoordinator` 是 Application 的稳定门面。它串行接收播放、暂停、跳转、规则/语速变化、正文规则刷新和书籍删除通知，并发布不可变 `PlaybackSnapshot`。
+播放公共边界按调用职责拆分为 `IPlaybackSession`、`IPlaybackSnapshotSource`、`IPlaybackBookCommands` 和 `IPlaybackRegexReplacementRefresher`；它们都由同一个 Application `PlaybackCoordinator` Singleton 实现。会话接口接收播放、暂停、跳转和规则/语速变化，书籍接口接收正文元数据/删除通知，正则接口接收替换刷新，快照接口发布不可变 `PlaybackSnapshot`。
 
 协调器内部按职责拆分，但不把共享可变状态散落到多个服务：
 

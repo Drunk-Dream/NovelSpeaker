@@ -516,7 +516,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 验收：只做命名和合同强制，不改变状态转换。
 
-完成说明：播放协调器和本地音频协调器的生产文件、测试文件及测试类型已按主类型纠正；`RefreshRegexReplacementAsync` 已改为 `IPlaybackCoordinator` 的必需合同，并补齐生产外实现与测试 fake。修正播放代码中将缓存和进度描述为未来能力的注释；审计确认 UI 不调用 Skip API，并以 PlayerView 测试固定不暴露跳过控件。`SkipCurrentSegmentAsync`、`CanSkip` 及协调器内部跳过行为保留至 PLAY-507。
+完成说明：播放协调器和本地音频协调器的生产文件、测试文件及测试类型已按主类型纠正；`RefreshRegexReplacementAsync` 已改为必需合同，并补齐生产外实现与测试 fake。修正播放代码中将缓存和进度描述为未来能力的注释；审计确认 UI 不调用 Skip API，并以 PlayerView 测试固定不暴露跳过控件。Skip/CanSkip 的最终删除与公共接口收敛在 PLAY-507 完成。
 
 ### [x] PLAY-502（P1）：将播放协调用例迁入 Application
 
@@ -544,7 +544,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 测试：表驱动覆盖首尾章节、空章节、连续空 Speech、恢复越界和映射回退。
 
-完成说明：`PlaybackPositionResolver` 以 internal static 纯计算协作者承载章节搜索、相邻段/章、连续空语音跳过、恢复位置和原始字符偏移映射；章节装载、会话和状态提交仍由 `PlaybackCoordinator` 唯一拥有。`PlaybackSnapshotProjector` 从显式不可变输入生成 `PlaybackSnapshot`，不保存协调器状态或发布事件。新增表驱动位置解析和 Snapshot 投影测试，并保留 Skip API 供 PLAY-507 审计。
+完成说明：`PlaybackPositionResolver` 以 internal static 纯计算协作者承载章节搜索、相邻段/章、连续空语音跳过、恢复位置和原始字符偏移映射；章节装载、会话和状态提交仍由 `PlaybackCoordinator` 唯一拥有。`PlaybackSnapshotProjector` 从显式不可变输入生成 `PlaybackSnapshot`，不保存协调器状态或发布事件。新增表驱动位置解析和 Snapshot 投影测试，并将未使用的 Skip API 留待后续公共接口审计。
 
 ### [x] PLAY-504（P1）：抽取当前段执行与恢复策略
 
@@ -590,7 +590,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：本地音频协调器将播放器 Completed/Failed 事件送入拥有者的单读命令队列，书籍播放协调器再将低层 Snapshot/Completed/Failed 事件送入 session-aware 命令队列；事件入口不执行长流程，处理过程复用串行锁、生命周期 Token 和 SessionId，迟到或重复事件被安全丢弃。事件依赖抛错投影为安全 Faulted 状态，关闭先阻止新命令并取消生命周期/会话，再保存进度、取消预取、释放会话和播放器，重复关闭共享同一释放任务。新增事件异常、关闭竞态、重复完成和完成后立即跳章回归测试。
 
-### [ ] PLAY-507（P1）：收敛播放公共接口和删除过渡代码
+### [x] PLAY-507（P1）：收敛播放公共接口和删除过渡代码
 
 前置：PLAY-506。
 
@@ -601,6 +601,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 删除旧 namespace、默认实现、可选主线依赖和迁移 adapter。
 
 验收：播放 facade 职责明确；无功能行为回退；全量长稳测试通过。
+
+完成说明：按 UI/应用真实调用拆分 `IPlaybackSession`、`IPlaybackSnapshotSource`、`IPlaybackBookCommands` 和 `IPlaybackRegexReplacementRefresher`，由同一个 `PlaybackCoordinator` Singleton 实现；各 ViewModel 和测试 fake 只依赖所需角色，删除旧 `IPlaybackCoordinator` 与重复 Skip fake。调用审计确认全仓无产品 Skip 调用，因此删除 `SkipCurrentSegmentAsync`、`CanSkip`、恢复策略中的跳过能力和对应状态机分支；PlayerView 保持不暴露跳过控件。删除旧接口后补充反射契约与 DI 单例回归测试，完整测试通过。
 
 ---
 
