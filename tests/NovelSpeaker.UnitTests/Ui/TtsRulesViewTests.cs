@@ -4,8 +4,6 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
-using NovelSpeaker.App.ViewModels;
-using NovelSpeaker.App.Views;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;

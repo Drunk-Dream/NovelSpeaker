@@ -2,8 +2,6 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
-using NovelSpeaker.App.ViewModels;
-using NovelSpeaker.App.Views;
 using NovelSpeaker.Domain.Books;
 using Xunit;
 

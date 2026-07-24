@@ -5,9 +5,6 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
 using CommunityToolkit.Mvvm.ComponentModel;
-using NovelSpeaker.App.Pages;
-using NovelSpeaker.App.ViewModels;
-using NovelSpeaker.App.Views;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;

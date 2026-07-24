@@ -1,6 +1,5 @@
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.App.Feedback;
-using NovelSpeaker.App.ViewModels;
+using NovelSpeaker.App.Shared.Feedback;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
 using Wpf.Ui.Controls;

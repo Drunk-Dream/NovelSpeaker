@@ -1,7 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using NovelSpeaker.App.Navigation;
-using NovelSpeaker.App.Pages;
-using NovelSpeaker.App.ViewModels;
+using NovelSpeaker.App.Shell.Navigation;
 using System.Windows;
 using System.Windows.Controls;
 using Xunit;

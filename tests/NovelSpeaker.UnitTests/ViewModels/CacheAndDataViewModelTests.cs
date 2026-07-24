@@ -1,10 +1,8 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
-using NovelSpeaker.App.Diagnostics;
-using NovelSpeaker.App.Feedback;
-using NovelSpeaker.App.Pages;
-using NovelSpeaker.App.ViewModels;
+using NovelSpeaker.App.Features.Diagnostics;
+using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.Domain.Settings;
 using Wpf.Ui;
 using Wpf.Ui.Controls;

@@ -1,5 +1,4 @@
-using NovelSpeaker.App.Navigation;
-using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.Shell.Navigation;
 
 namespace NovelSpeaker.UnitTests;
 

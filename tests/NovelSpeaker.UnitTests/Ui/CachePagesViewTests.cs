@@ -3,8 +3,6 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
-using NovelSpeaker.App.Pages;
-using NovelSpeaker.App.ViewModels;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;

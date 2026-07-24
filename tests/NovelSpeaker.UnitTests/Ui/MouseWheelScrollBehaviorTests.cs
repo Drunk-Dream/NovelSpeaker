@@ -2,7 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
-using NovelSpeaker.App.Input;
+using NovelSpeaker.App.Shell.Input;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;

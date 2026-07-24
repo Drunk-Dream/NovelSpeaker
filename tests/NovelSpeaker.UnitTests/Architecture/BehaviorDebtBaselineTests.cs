@@ -24,9 +24,9 @@ public sealed class BehaviorDebtBaselineTests
     {
         var pagePaths = new[]
         {
-            "src/NovelSpeaker.App/Pages/ChapterRulesPage.xaml.cs",
-            "src/NovelSpeaker.App/Pages/RegexReplacementRulesPage.xaml.cs",
-            "src/NovelSpeaker.App/Pages/TtsRulesPage.xaml.cs"
+            "src/NovelSpeaker.App/Features/ChapterRules/ChapterRulesPage.xaml.cs",
+            "src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml.cs",
+            "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml.cs"
         };
         foreach (var relativePath in pagePaths)
         {
@@ -95,18 +95,18 @@ public sealed class BehaviorDebtBaselineTests
     [Fact]
     public void Shell_navigation_entry_points_use_the_typed_navigation_boundary()
     {
-        var mainWindow = File.ReadAllText(Absolute("src/NovelSpeaker.App/MainWindow.xaml.cs"));
+        var mainWindow = File.ReadAllText(Absolute("src/NovelSpeaker.App/Shell/MainWindow.xaml.cs"));
         Assert.Contains("OnRootNavigationViewNavigating", mainWindow, StringComparison.Ordinal);
         Assert.Contains("IShellNavigationAdapter", mainWindow, StringComparison.Ordinal);
         Assert.Contains("_navigationAdapter.NavigateFromShellAsync", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("GetProperty(\"PageId\")", mainWindow, StringComparison.Ordinal);
 
-        var shortcuts = File.ReadAllText(Absolute("src/NovelSpeaker.App/Input/KeyboardShortcutCoordinator.cs"));
+        var shortcuts = File.ReadAllText(Absolute("src/NovelSpeaker.App/Shell/Input/KeyboardShortcutCoordinator.cs"));
         Assert.Contains("IAppNavigator navigation", shortcuts, StringComparison.Ordinal);
         Assert.Contains("_navigation.GoBackAsync", shortcuts, StringComparison.Ordinal);
         Assert.Contains("AppRoutes.Settings", shortcuts, StringComparison.Ordinal);
 
-        var shellViewModel = File.ReadAllText(Absolute("src/NovelSpeaker.App/ViewModels/MainWindowViewModel.cs"));
+        var shellViewModel = File.ReadAllText(Absolute("src/NovelSpeaker.App/Shell/MainWindowViewModel.cs"));
         Assert.Contains("IAppNavigator navigator", shellViewModel, StringComparison.Ordinal);
         Assert.Contains("_navigator.NavigateAsync", shellViewModel, StringComparison.Ordinal);
         Assert.Contains("PlayerNavigationMode.ReturnToCurrentSession", shellViewModel, StringComparison.Ordinal);

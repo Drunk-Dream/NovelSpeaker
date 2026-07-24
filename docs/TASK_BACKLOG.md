@@ -633,7 +633,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：已建立 `AppRoute` 强类型路由、参数对象和 `IAppNavigator`，由 `ShellNavigationAdapter` 集中维护 Wpf.Ui Page 映射、主导航选中状态和导航守卫；ViewModel 不再引用 Page 或 Wpf.Ui 导航接口。所有现有导航页面均接入 `PageActivationController`，页面进入创建版本和 CTS，离开按取消页面操作、注销守卫/事件、释放 activation 资源的顺序执行，旧 activation 结果不能提交到新激活；播放协调器继续由进程级会话拥有。新增路由映射、快速重入、迟到结果、守卫和窗口关闭回归测试，更新架构债务基线；Release 构建和全量单元测试通过。
 
-### [ ] APP-602（P1）：按 feature slice 移动 App 文件
+### [x] APP-602（P1）：按 feature slice 移动 App 文件
 
 前置：APP-601。
 
@@ -645,6 +645,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 本任务只移动/改 namespace/注册，不拆 ViewModel 行为。
 
 验收：导航、XAML pack URI、资源、截图和 UI 测试全部通过；全局 Pages/Views/ViewModels 旧目录清空删除。
+
+完成说明：按 feature slice 重组 App 的页面、ViewModel、组件和就近 presentation service，建立 Bootstrap、Shell、Shared 边界；同步更新 XAML `x:Class`、pack URI、导航映射、DI 注册和测试命名空间。保留跨功能稳定能力于 Shared，删除旧的全局 Pages、Views、ViewModels 目录，并增加 feature-slice 结构与命名空间架构契约。Release 构建、架构测试和全量单元/UI 测试通过。
 
 ### [ ] APP-603（P1）：收敛 Page + 同名 View 一对一 wrapper
 

@@ -1,7 +1,6 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.App.Feedback;
-using NovelSpeaker.App.ViewModels;
+using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.Domain.Books;
 using Wpf.Ui;
 using Wpf.Ui.Controls;

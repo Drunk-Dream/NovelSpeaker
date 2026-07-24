@@ -11,6 +11,10 @@
     <PackageReference Include="wpf-ui" />
   </ItemGroup>
   <ItemGroup>
+    <Page Remove="Bootstrap\App.xaml" />
+    <ApplicationDefinition Include="Bootstrap\App.xaml" />
+  </ItemGroup>
+  <ItemGroup>
     <None Remove="Assets\Branding\app.ico" />
     <Resource Include="Assets\Branding\app.ico" />
   </ItemGroup>

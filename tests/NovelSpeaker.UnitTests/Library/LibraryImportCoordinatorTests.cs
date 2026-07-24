@@ -1,6 +1,5 @@
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.App.Dialogs;
-using NovelSpeaker.App.Library;
+using NovelSpeaker.App.Features.Library;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Library;

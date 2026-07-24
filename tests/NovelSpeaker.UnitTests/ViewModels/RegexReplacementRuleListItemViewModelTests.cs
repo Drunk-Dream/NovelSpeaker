@@ -1,4 +1,3 @@
-using NovelSpeaker.App.ViewModels;
 using NovelSpeaker.Domain.Books;
 using Xunit;
 

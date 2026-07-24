@@ -1,0 +1,14 @@
+<Page x:Class="NovelSpeaker.App.Features.ChapterRules.ChapterRulesPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:navigation="clr-namespace:NovelSpeaker.App.Shell.Navigation"
+      xmlns:views="clr-namespace:NovelSpeaker.App.Features.ChapterRules">
+    <Grid x:Name="RootViewport"
+          MinHeight="0"
+          navigation:NavigationViewportHeightBehavior.IsEnabled="True"
+          ClipToBounds="True">
+        <views:ChapterRulesView x:Name="ChapterRulesView"
+                                VerticalAlignment="Stretch"
+                                HorizontalAlignment="Stretch" />
+    </Grid>
+</Page>

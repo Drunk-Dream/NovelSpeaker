@@ -15,10 +15,10 @@ public sealed class ThemeResourceTests
 
         foreach (var relativePath in new[]
                  {
-                     Path.Combine("Resources", "SemanticStyles.xaml"),
-                     "StartupStatusWindow.xaml",
-                     "MainWindow.xaml",
-                     Path.Combine("Views", "PlayerView.xaml")
+                     Path.Combine("Shared", "Theming", "Resources", "SemanticStyles.xaml"),
+                     Path.Combine("Bootstrap", "StartupStatusWindow.xaml"),
+                     Path.Combine("Shell", "MainWindow.xaml"),
+                     Path.Combine("Features", "Playback", "Components", "PlayerView.xaml")
                  })
         {
             var content = File.ReadAllText(Path.Combine(appRoot, relativePath));
@@ -33,6 +33,8 @@ public sealed class ThemeResourceTests
             GetRepositoryRoot(),
             "src",
             "NovelSpeaker.App",
+            "Shared",
+            "Theming",
             "Resources",
             "SemanticStyles.xaml");
         var content = File.ReadAllText(semanticStylesPath);
@@ -51,6 +53,8 @@ public sealed class ThemeResourceTests
             GetRepositoryRoot(),
             "src",
             "NovelSpeaker.App",
+            "Shared",
+            "Theming",
             "Resources",
             "SemanticStyles.xaml"));
 
@@ -67,10 +71,10 @@ public sealed class ThemeResourceTests
     public void Icon_and_list_buttons_use_shared_semantic_styles()
     {
         var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
-        var playerView = File.ReadAllText(Path.Combine(appRoot, "Views", "PlayerView.xaml"));
-        var chapterRulesView = File.ReadAllText(Path.Combine(appRoot, "Views", "ChapterRulesView.xaml"));
-        var libraryView = File.ReadAllText(Path.Combine(appRoot, "Views", "LibraryView.xaml"));
-        var bookCardView = File.ReadAllText(Path.Combine(appRoot, "Views", "BookCardView.xaml"));
+        var playerView = File.ReadAllText(Path.Combine(appRoot, "Features", "Playback", "Components", "PlayerView.xaml"));
+        var chapterRulesView = File.ReadAllText(Path.Combine(appRoot, "Features", "ChapterRules", "ChapterRulesView.xaml"));
+        var libraryView = File.ReadAllText(Path.Combine(appRoot, "Features", "Library", "LibraryView.xaml"));
+        var bookCardView = File.ReadAllText(Path.Combine(appRoot, "Features", "Library", "BookCardView.xaml"));
 
         Assert.Contains("ToolbarValueButtonStyle", playerView);
         Assert.Contains("PrimaryPlaybackIconButtonStyle", playerView);
@@ -87,12 +91,12 @@ public sealed class ThemeResourceTests
     {
         var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
         var xamlFiles = Directory
-            .EnumerateFiles(Path.Combine(appRoot, "Views"), "*.xaml", SearchOption.AllDirectories)
-            .Concat(Directory.EnumerateFiles(Path.Combine(appRoot, "Pages"), "*.xaml", SearchOption.AllDirectories))
+            .EnumerateFiles(Path.Combine(appRoot, "Features"), "*.xaml", SearchOption.AllDirectories)
+            .Concat(Directory.EnumerateFiles(Path.Combine(appRoot, "Shared"), "*.xaml", SearchOption.AllDirectories))
             .Concat(new[]
             {
-                Path.Combine(appRoot, "MainWindow.xaml"),
-                Path.Combine(appRoot, "StartupStatusWindow.xaml")
+                Path.Combine(appRoot, "Shell", "MainWindow.xaml"),
+                Path.Combine(appRoot, "Bootstrap", "StartupStatusWindow.xaml")
             });
 
         var violations = xamlFiles

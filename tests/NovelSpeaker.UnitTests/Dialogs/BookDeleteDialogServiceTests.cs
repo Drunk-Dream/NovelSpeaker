@@ -1,5 +1,4 @@
 using System.Windows.Controls;
-using NovelSpeaker.App.Dialogs;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;

@@ -1,5 +1,3 @@
-using NovelSpeaker.App.Pages;
-using NovelSpeaker.App.ViewModels;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;

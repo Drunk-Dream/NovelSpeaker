@@ -3,8 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
-using NovelSpeaker.App.Navigation;
-using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.Shell.Navigation;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;

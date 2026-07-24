@@ -1,4 +1,4 @@
-using NovelSpeaker.App.Activation;
+using NovelSpeaker.App.Shell.Activation;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Navigation;

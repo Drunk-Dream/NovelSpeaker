@@ -2,9 +2,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
-using NovelSpeaker.App.Library;
-using NovelSpeaker.App.ViewModels;
-using NovelSpeaker.App.Views;
+using NovelSpeaker.App.Features.Library;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;

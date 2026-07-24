@@ -121,9 +121,18 @@ internal static partial class ArchitectureRules
         Assembly assembly,
         string namespacePrefix)
     {
+        return FindForbiddenPublicApiDependencies(
+            assembly,
+            type => type.Namespace?.StartsWith(namespacePrefix, StringComparison.Ordinal) == true);
+    }
+
+    public static IReadOnlyList<string> FindForbiddenPublicApiDependencies(
+        Assembly assembly,
+        Func<Type, bool> typeFilter)
+    {
         var violations = new SortedSet<string>(StringComparer.Ordinal);
         var types = assembly.GetExportedTypes()
-            .Where(type => type.Namespace?.StartsWith(namespacePrefix, StringComparison.Ordinal) == true);
+            .Where(typeFilter);
 
         foreach (var type in types)
         {

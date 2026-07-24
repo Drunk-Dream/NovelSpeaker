@@ -1,5 +1,5 @@
 using NovelSpeaker.Application.Settings;
-using NovelSpeaker.App.Theming;
+using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.Domain.Settings;
 using Xunit;
 

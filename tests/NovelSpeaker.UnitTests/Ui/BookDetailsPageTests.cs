@@ -7,12 +7,9 @@ using System.Windows.Threading;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
-using NovelSpeaker.App.Dialogs;
-using NovelSpeaker.App.Feedback;
-using NovelSpeaker.App.Library;
-using NovelSpeaker.App.Navigation;
-using NovelSpeaker.App.Pages;
-using NovelSpeaker.App.ViewModels;
+using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Features.Library;
+using NovelSpeaker.App.Shell.Navigation;
 using Wpf.Ui;
 using Xunit;
 

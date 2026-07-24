@@ -1,8 +1,7 @@
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
-using NovelSpeaker.App.Feedback;
-using NovelSpeaker.App.ViewModels;
+using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.UnitTests.Speech;

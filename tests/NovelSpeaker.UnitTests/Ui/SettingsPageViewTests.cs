@@ -1,6 +1,5 @@
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
-using NovelSpeaker.App.Pages;
 using Wpf.Ui.Controls;
 using Xunit;
 

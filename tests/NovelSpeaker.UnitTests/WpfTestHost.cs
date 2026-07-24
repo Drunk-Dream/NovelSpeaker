@@ -86,8 +86,8 @@ internal static class WpfTestHost
             {
                 dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
 
-                var application = new global::NovelSpeaker.App.App();
-                var initializeComponent = typeof(global::NovelSpeaker.App.App).GetMethod(
+                var application = new global::NovelSpeaker.App.Bootstrap.App();
+                var initializeComponent = typeof(global::NovelSpeaker.App.Bootstrap.App).GetMethod(
                     "InitializeComponent",
                     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
                 initializeComponent?.Invoke(application, null);

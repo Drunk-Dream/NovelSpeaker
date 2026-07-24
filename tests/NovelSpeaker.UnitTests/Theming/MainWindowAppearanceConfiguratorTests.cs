@@ -1,4 +1,4 @@
-using NovelSpeaker.App.Theming;
+using NovelSpeaker.App.Shared.Theming;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Windows;
 using Wpf.Ui.Controls;

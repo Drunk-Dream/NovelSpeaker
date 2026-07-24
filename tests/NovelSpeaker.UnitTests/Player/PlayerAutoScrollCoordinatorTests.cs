@@ -1,4 +1,4 @@
-using NovelSpeaker.App.Player;
+using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.UnitTests.Common;
 using Xunit;
 

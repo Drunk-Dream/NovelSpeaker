@@ -1,5 +1,5 @@
 using Microsoft.Data.Sqlite;
-using NovelSpeaker.App.Diagnostics;
+using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;

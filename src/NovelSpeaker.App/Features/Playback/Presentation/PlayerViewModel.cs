@@ -1,0 +1,1264 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation;
+using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.App.Features.Playback.Scrolling;
+using NovelSpeaker.Domain.Settings;
+using System.Windows;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
+
+namespace NovelSpeaker.App.Features.Playback.Presentation;
+
+public sealed partial class PlayerViewModel : ObservableObject
+{
+    private static readonly TimeSpan SpeakSpeedStepDebounceDelay = TimeSpan.FromMilliseconds(500);
+
+    private readonly IPlaybackSession _playbackCoordinator;
+    private readonly IBookPlaybackContentService _bookPlaybackContentService;
+    private readonly ITtsRuleQueries _ruleQueries;
+    private readonly IAppSettingsService _settingsService;
+    private readonly IAppFeedbackService _feedbackService;
+    private readonly IAppNavigator _navigator;
+    private readonly IPlayerAutoScrollCoordinator _autoScrollCoordinator;
+    private readonly TimeProvider _timeProvider;
+    private readonly object _projectionSyncRoot = new();
+
+    private readonly Dictionary<int, PlaybackChapterContent> _chapterCache = [];
+    private PlaybackBookContent? _loadedBook;
+    private string? _requestedBookId;
+    private int _loadedChapterIndex = -1;
+    private int _defaultSpeakSpeed = AppSettings.DefaultSpeakSpeedValue;
+    private int _bookLoadVersion;
+    private int _chapterLoadVersion;
+    private int _segmentCenterRequestVersion;
+    private long _lastContentRevision;
+    private bool _animateNextSegmentCenterRequest;
+    private bool _suppressNextStateDrivenAutoCenterRequest;
+    private PlayerAutoScrollState _lastAppliedAutoScrollState;
+    private PlaybackSnapshot _lastAppliedSnapshot = PlaybackSnapshot.Idle;
+    private CancellationTokenSource? _speakSpeedStepDebounceCts;
+    private bool _isPageEventsRegistered;
+
+    public PlayerViewModel(
+        IPlaybackSession playbackCoordinator,
+        IBookPlaybackContentService bookPlaybackContentService,
+        ITtsRuleQueries ruleQueries,
+        IAppSettingsService settingsService,
+        IAppFeedbackService feedbackService,
+        IAppNavigator navigator,
+        IPlayerAutoScrollCoordinator autoScrollCoordinator,
+        TimeProvider? timeProvider = null)
+    {
+        _playbackCoordinator = playbackCoordinator;
+        _bookPlaybackContentService = bookPlaybackContentService;
+        _ruleQueries = ruleQueries;
+        _settingsService = settingsService;
+        _feedbackService = feedbackService;
+        _navigator = navigator;
+        _autoScrollCoordinator = autoScrollCoordinator;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _lastAppliedAutoScrollState = _autoScrollCoordinator.State;
+
+        ApplyAutoScrollState();
+        ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
+
+        RegisterPageEvents();
+    }
+
+    public ObservableCollection<PlayerRuleItemViewModel> Rules { get; } = [];
+
+    public ObservableCollection<PlayerChapterItemViewModel> Chapters { get; } = [];
+
+    public ObservableCollection<PlayerSegmentItemViewModel> Segments { get; } = [];
+
+    public bool HasRules => Rules.Count > 0;
+
+    public bool ShowPlaybackControls => HasAvailableRule;
+
+    public bool ShowNoRuleState => !HasAvailableRule;
+
+    public bool ShowPlaybackErrorBar => IsFaulted && !string.IsNullOrWhiteSpace(ErrorText);
+
+    public bool CanTogglePlayPause => HasAvailableRule && !IsFaulted;
+
+    public bool CanDecreaseSpeakSpeed => SpeakSpeed > AppSettings.MinSpeakSpeed;
+
+    public bool CanIncreaseSpeakSpeed => SpeakSpeed < AppSettings.MaxSpeakSpeed;
+
+    public string SpeakSpeedButtonText => $"语速 {SpeakSpeed}";
+
+    public SymbolRegular PrimaryActionSymbol => CurrentPlaybackState == PlaybackState.Playing
+        ? SymbolRegular.PauseCircle24
+        : SymbolRegular.PlayCircle24;
+
+    public string DisplayedSegmentCounterText => BuildSegmentCounterText(
+        IsSegmentProgressDragging ? (int)Math.Round(SegmentProgressPreviewValue) : CurrentSegmentIndex,
+        CurrentChapterSegmentCount);
+
+    public PlayerAutoScrollState AutoScrollState => _autoScrollCoordinator.State;
+
+    public bool ShouldAutoCenterCurrentSegment => _autoScrollCoordinator.ShouldAutoCenter;
+
+    public bool ShowInlineLoadingState => CurrentPlaybackState is PlaybackState.Preparing or PlaybackState.Buffering or PlaybackState.Recovering;
+
+    public string InlineLoadingText => CurrentPlaybackState switch
+    {
+        PlaybackState.Preparing => "正在准备",
+        PlaybackState.Buffering => "正在加载",
+        PlaybackState.Recovering => "正在恢复",
+        _ => string.Empty
+    };
+
+    public double SegmentProgressMaximum => Math.Max(CurrentChapterSegmentCount - 1, 0);
+
+    public int SegmentCenterRequestVersion => _segmentCenterRequestVersion;
+
+    public bool AnimateNextSegmentCenterRequest => _animateNextSegmentCenterRequest;
+
+    [ObservableProperty]
+    private string currentTitle = "未打开书籍";
+
+    [ObservableProperty]
+    private string currentAuthor = "未知作者";
+
+    [ObservableProperty]
+    private string currentChapterTitle = "尚未定位章节";
+
+    [ObservableProperty]
+    private string errorText = string.Empty;
+
+    [ObservableProperty]
+    private string primaryActionText = "播放";
+
+    [ObservableProperty]
+    private bool isFaulted;
+
+    [ObservableProperty]
+    private bool hasAvailableRule = true;
+
+    [ObservableProperty]
+    private PlaybackState currentPlaybackState = PlaybackState.Idle;
+
+    [ObservableProperty]
+    private int speakSpeed = AppSettings.DefaultSpeakSpeedValue;
+
+    [ObservableProperty]
+    private int currentChapterIndex = -1;
+
+    [ObservableProperty]
+    private int currentSegmentIndex = -1;
+
+    [ObservableProperty]
+    private int currentChapterSegmentCount;
+
+    [ObservableProperty]
+    private bool canGoToPreviousChapter;
+
+    [ObservableProperty]
+    private bool canGoToNextChapter;
+
+    [ObservableProperty]
+    private bool canGoToPreviousSegment;
+
+    [ObservableProperty]
+    private bool canGoToNextSegment;
+
+    [ObservableProperty]
+    private bool isRuleMenuOpen;
+
+    [ObservableProperty]
+    private bool isSpeedMenuOpen;
+
+    [ObservableProperty]
+    private string speedEditorText = AppSettings.DefaultSpeakSpeedValue.ToString(CultureInfo.InvariantCulture);
+
+    [ObservableProperty]
+    private string speedEditorErrorText = string.Empty;
+
+    [ObservableProperty]
+    private PlayerChapterItemViewModel? currentChapterItem;
+
+    [ObservableProperty]
+    private PlayerSegmentItemViewModel? currentSegmentItem;
+
+    [ObservableProperty]
+    private bool showReturnToCurrentSegment;
+
+    [ObservableProperty]
+    private double segmentProgressValue;
+
+    [ObservableProperty]
+    private double segmentProgressPreviewValue;
+
+    [ObservableProperty]
+    private bool isSegmentProgressDragging;
+
+    public async Task LoadAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var settings = _settingsService.Current;
+        _defaultSpeakSpeed = settings.DefaultSpeakSpeed;
+
+        if (string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId) ||
+            !AppSettings.IsValidSpeakSpeed(_playbackCoordinator.CurrentSnapshot.SpeakSpeed))
+        {
+            SpeakSpeed = _defaultSpeakSpeed;
+        }
+
+        await RefreshRulesAsync(cancellationToken);
+        ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
+    }
+
+    public async Task HandleNavigationAsync(PlayerRoute request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        _requestedBookId = request.BookId;
+        CloseTransientPanels();
+        ResumeAutoCenterForExplicitNavigation();
+
+        var book = await EnsureBookLoadedAsync(request.BookId, cancellationToken);
+        if (book is null)
+        {
+            await HandleMissingBookAsync(cancellationToken);
+            return;
+        }
+
+        var snapshot = _playbackCoordinator.CurrentSnapshot;
+        if (request.ChapterIndex is not null)
+        {
+            await HandleChapterTargetNavigationAsync(request, snapshot, cancellationToken);
+            return;
+        }
+
+        if (request.Mode == PlayerNavigationMode.ReturnToCurrentSession ||
+            string.Equals(snapshot.BookId, request.BookId, StringComparison.Ordinal))
+        {
+            ApplySnapshot(snapshot);
+            await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
+            await RestoreMissingRuleSessionAsync(request.BookId, snapshot, cancellationToken);
+            return;
+        }
+
+        await _playbackCoordinator.OpenPausedAsync(
+            new OpenBookPlaybackRequest(
+                request.BookId,
+                null,
+                null,
+                ResolveSpeakSpeedForOpen()),
+            cancellationToken);
+
+        snapshot = _playbackCoordinator.CurrentSnapshot;
+        ApplySnapshot(snapshot);
+        await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
+    }
+
+    private async Task HandleChapterTargetNavigationAsync(
+        PlayerRoute request,
+        PlaybackSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        var targetChapterIndex = request.ChapterIndex.GetValueOrDefault();
+        var targetSegmentIndex = request.SegmentIndex ?? 0;
+        var isCurrentBook = string.Equals(snapshot.BookId, request.BookId, StringComparison.Ordinal);
+
+        if (isCurrentBook)
+        {
+            if (request.SegmentIndex is not null && targetSegmentIndex > 0)
+            {
+                await _playbackCoordinator.JumpToSegmentAsync(targetChapterIndex, targetSegmentIndex, cancellationToken);
+            }
+            else
+            {
+                await _playbackCoordinator.JumpToChapterAsync(targetChapterIndex, cancellationToken);
+            }
+
+            snapshot = _playbackCoordinator.CurrentSnapshot;
+            ApplySnapshot(snapshot);
+            await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
+            return;
+        }
+
+        if (snapshot.State == PlaybackState.Playing)
+        {
+            await _playbackCoordinator.StartAsync(
+                new PlaybackStartRequest(
+                    request.BookId,
+                    targetChapterIndex,
+                    targetSegmentIndex,
+                    null,
+                    ResolveSpeakSpeedForOpen()),
+                cancellationToken);
+        }
+        else
+        {
+            await _playbackCoordinator.OpenPausedAsync(
+                new OpenBookPlaybackRequest(
+                    request.BookId,
+                    targetChapterIndex,
+                    targetSegmentIndex,
+                    ResolveSpeakSpeedForOpen()),
+                cancellationToken);
+        }
+
+        snapshot = _playbackCoordinator.CurrentSnapshot;
+        ApplySnapshot(snapshot);
+        await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
+    }
+
+    public void OnPageNavigatedFrom()
+    {
+        CloseTransientPanels();
+        _autoScrollCoordinator.ResetForPageLeave();
+        if (!_isPageEventsRegistered)
+        {
+            return;
+        }
+
+        _playbackCoordinator.SnapshotChanged -= OnSnapshotChanged;
+        _autoScrollCoordinator.StateChanged -= OnAutoScrollStateChanged;
+        _isPageEventsRegistered = false;
+    }
+
+    public void OnPageNavigatedTo()
+    {
+        RegisterPageEvents();
+        ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
+    }
+
+    private void RegisterPageEvents()
+    {
+        if (_isPageEventsRegistered)
+        {
+            return;
+        }
+
+        _playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
+        _autoScrollCoordinator.StateChanged += OnAutoScrollStateChanged;
+        _isPageEventsRegistered = true;
+    }
+
+    public void NotifyUserScrollInput()
+    {
+        _autoScrollCoordinator.NotifyUserScrollInput();
+    }
+
+    public void NotifyPassiveSegmentScrollChange()
+    {
+        _autoScrollCoordinator.NotifyPassiveScrollChange();
+    }
+
+    public void NotifyScrollbarDragStarted()
+    {
+        _autoScrollCoordinator.BeginScrollbarDrag();
+    }
+
+    public void NotifyScrollbarDragCompleted()
+    {
+        _autoScrollCoordinator.EndScrollbarDrag();
+    }
+
+    public void NotifyProgrammaticScrollStarted()
+    {
+        _autoScrollCoordinator.BeginProgrammaticScroll();
+    }
+
+    public void NotifyProgrammaticScrollCompleted()
+    {
+        _autoScrollCoordinator.EndProgrammaticScroll();
+    }
+
+    public void BeginSegmentProgressInteraction()
+    {
+        if (CurrentChapterSegmentCount <= 0)
+        {
+            return;
+        }
+
+        IsSegmentProgressDragging = true;
+        SegmentProgressPreviewValue = SegmentProgressValue;
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+    }
+
+    public void PreviewSegmentProgress(double value)
+    {
+        if (!IsSegmentProgressDragging)
+        {
+            return;
+        }
+
+        SegmentProgressPreviewValue = NormalizeSegmentProgressValue(value);
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+    }
+
+    public async Task CommitSegmentProgressAsync(double value, CancellationToken cancellationToken)
+    {
+        if (CurrentChapterSegmentCount <= 0 || CurrentChapterIndex < 0)
+        {
+            CancelSegmentProgressInteraction();
+            return;
+        }
+
+        var targetSegmentIndex = (int)Math.Round(NormalizeSegmentProgressValue(value));
+        IsSegmentProgressDragging = false;
+        SegmentProgressPreviewValue = targetSegmentIndex;
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+
+        if (targetSegmentIndex == CurrentSegmentIndex)
+        {
+            SegmentProgressValue = targetSegmentIndex;
+            ResumeAutoCenterAndRequest(animate: true);
+            return;
+        }
+
+        ResumeAutoCenterForExplicitNavigation();
+        await _playbackCoordinator.JumpToSegmentAsync(CurrentChapterIndex, targetSegmentIndex, cancellationToken);
+    }
+
+    public void CancelSegmentProgressInteraction()
+    {
+        if (!IsSegmentProgressDragging)
+        {
+            return;
+        }
+
+        IsSegmentProgressDragging = false;
+        SegmentProgressPreviewValue = SegmentProgressValue;
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+    }
+
+    [RelayCommand]
+    private async Task BackAsync(CancellationToken cancellationToken)
+    {
+        if (!await _navigator.GoBackAsync(cancellationToken).ConfigureAwait(true))
+        {
+            await _navigator.NavigateAsync(AppRoutes.Library, cancellationToken).ConfigureAwait(true);
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleRuleMenu()
+    {
+        IsSpeedMenuOpen = false;
+        IsRuleMenuOpen = !IsRuleMenuOpen;
+    }
+
+    [RelayCommand]
+    private void ToggleSpeedMenu()
+    {
+        IsRuleMenuOpen = false;
+        if (!IsSpeedMenuOpen)
+        {
+            SpeedEditorText = SpeakSpeed.ToString(CultureInfo.InvariantCulture);
+            SpeedEditorErrorText = string.Empty;
+        }
+
+        IsSpeedMenuOpen = !IsSpeedMenuOpen;
+    }
+
+    [RelayCommand]
+    private void OpenRuleMenu()
+    {
+        IsSpeedMenuOpen = false;
+        IsRuleMenuOpen = true;
+    }
+
+    [RelayCommand]
+    private async Task OpenRulesManagementAsync(CancellationToken cancellationToken)
+    {
+        CloseTransientPanels();
+        await _navigator.NavigateAsync(AppRoutes.TtsRules, cancellationToken).ConfigureAwait(true);
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task TogglePlayPauseAsync(CancellationToken cancellationToken)
+    {
+        if (!HasAvailableRule || CurrentPlaybackState == PlaybackState.Faulted)
+        {
+            return;
+        }
+
+        if (CurrentPlaybackState == PlaybackState.Playing)
+        {
+            await _playbackCoordinator.PauseAsync(cancellationToken);
+            return;
+        }
+
+        if (CurrentPlaybackState == PlaybackState.Paused)
+        {
+            await _playbackCoordinator.ResumeAsync(cancellationToken);
+            return;
+        }
+
+        var snapshot = _playbackCoordinator.CurrentSnapshot;
+        var bookId = snapshot.BookId ?? _requestedBookId ?? _loadedBook?.BookId;
+        if (string.IsNullOrWhiteSpace(bookId))
+        {
+            return;
+        }
+
+        await _playbackCoordinator.StartAsync(
+            new PlaybackStartRequest(
+                bookId,
+                snapshot.ChapterIndex >= 0 ? snapshot.ChapterIndex : CurrentChapterIndex,
+                snapshot.SegmentIndex >= 0 ? snapshot.SegmentIndex : CurrentSegmentIndex,
+                null,
+                SpeakSpeed),
+            cancellationToken);
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task PreviousSegmentAsync(CancellationToken cancellationToken)
+    {
+        ResumeAutoCenterForExplicitNavigation();
+        await _playbackCoordinator.PreviousSegmentAsync(cancellationToken);
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task NextSegmentAsync(CancellationToken cancellationToken)
+    {
+        ResumeAutoCenterForExplicitNavigation();
+        await _playbackCoordinator.NextSegmentAsync(cancellationToken);
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task PreviousChapterAsync(CancellationToken cancellationToken)
+    {
+        ResumeAutoCenterForExplicitNavigation();
+        await _playbackCoordinator.PreviousChapterAsync(cancellationToken);
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task NextChapterAsync(CancellationToken cancellationToken)
+    {
+        ResumeAutoCenterForExplicitNavigation();
+        await _playbackCoordinator.NextChapterAsync(cancellationToken);
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task SelectRuleAsync(PlayerRuleItemViewModel? rule, CancellationToken cancellationToken)
+    {
+        if (rule is null || !rule.IsEnabled || rule.IsSelected || _playbackCoordinator.CurrentSnapshot.RuleId == rule.Id)
+        {
+            return;
+        }
+
+        await _playbackCoordinator.ChangeRuleAsync(rule.Id, cancellationToken);
+        await RefreshRulesAsync(cancellationToken);
+        IsRuleMenuOpen = false;
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task ApplySpeakSpeedAsync(CancellationToken cancellationToken)
+    {
+        CancelPendingSpeakSpeedStepChange();
+        if (!TryParseSpeedEditorText(out var parsedSpeed))
+        {
+            return;
+        }
+
+        await ApplySpeakSpeedChangeAsync(parsedSpeed, cancellationToken);
+    }
+
+    [RelayCommand]
+    private void IncreaseSpeakSpeed()
+    {
+        var currentSpeed = ResolvePendingSpeakSpeed();
+        var nextSpeed = Math.Min(currentSpeed + 1, AppSettings.MaxSpeakSpeed);
+        if (nextSpeed == currentSpeed)
+        {
+            return;
+        }
+
+        SpeedEditorText = nextSpeed.ToString(CultureInfo.InvariantCulture);
+        SpeedEditorErrorText = string.Empty;
+        SpeakSpeed = nextSpeed;
+        ScheduleSpeakSpeedStepChange(nextSpeed);
+    }
+
+    [RelayCommand]
+    private void DecreaseSpeakSpeed()
+    {
+        var currentSpeed = ResolvePendingSpeakSpeed();
+        var nextSpeed = Math.Max(currentSpeed - 1, AppSettings.MinSpeakSpeed);
+        if (nextSpeed == currentSpeed)
+        {
+            return;
+        }
+
+        SpeedEditorText = nextSpeed.ToString(CultureInfo.InvariantCulture);
+        SpeedEditorErrorText = string.Empty;
+        SpeakSpeed = nextSpeed;
+        ScheduleSpeakSpeedStepChange(nextSpeed);
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task SelectChapterAsync(PlayerChapterItemViewModel? chapter, CancellationToken cancellationToken)
+    {
+        if (chapter is null)
+        {
+            return;
+        }
+
+        if (chapter.ChapterIndex == CurrentChapterIndex)
+        {
+            ResumeAutoCenterAndRequest(animate: true);
+            return;
+        }
+
+        ResumeAutoCenterForExplicitNavigation();
+        await _playbackCoordinator.JumpToChapterAsync(chapter.ChapterIndex, cancellationToken);
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task SelectSegmentAsync(PlayerSegmentItemViewModel? segment, CancellationToken cancellationToken)
+    {
+        if (segment is null)
+        {
+            return;
+        }
+
+        if (segment.ChapterIndex == CurrentChapterIndex && segment.SegmentIndex == CurrentSegmentIndex)
+        {
+            ResumeAutoCenterAndRequest(animate: true);
+            return;
+        }
+
+        ResumeAutoCenterForExplicitNavigation();
+        await _playbackCoordinator.JumpToSegmentAsync(segment.ChapterIndex, segment.SegmentIndex, cancellationToken);
+    }
+
+    [RelayCommand]
+    private void ReturnToCurrentSegment()
+    {
+        ResumeAutoCenterAndRequest(animate: false);
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private Task RetryCurrentSegmentAsync(CancellationToken cancellationToken)
+    {
+        return _playbackCoordinator.RetryCurrentSegmentAsync(cancellationToken);
+    }
+
+    partial void OnSpeakSpeedChanged(int value)
+    {
+        OnPropertyChanged(nameof(SpeakSpeedButtonText));
+        OnPropertyChanged(nameof(CanDecreaseSpeakSpeed));
+        OnPropertyChanged(nameof(CanIncreaseSpeakSpeed));
+    }
+
+    partial void OnCurrentSegmentIndexChanged(int value)
+    {
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+        if (!IsSegmentProgressDragging)
+        {
+            SegmentProgressValue = NormalizeSegmentProgressValue(value);
+            SegmentProgressPreviewValue = SegmentProgressValue;
+        }
+    }
+
+    partial void OnCurrentChapterSegmentCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+        OnPropertyChanged(nameof(SegmentProgressMaximum));
+        SegmentProgressValue = NormalizeSegmentProgressValue(CurrentSegmentIndex);
+        if (!IsSegmentProgressDragging)
+        {
+            SegmentProgressPreviewValue = SegmentProgressValue;
+        }
+    }
+
+    partial void OnIsSegmentProgressDraggingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+    }
+
+    partial void OnIsFaultedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowPlaybackErrorBar));
+        OnPropertyChanged(nameof(CanTogglePlayPause));
+    }
+
+    partial void OnCurrentPlaybackStateChanged(PlaybackState value)
+    {
+        OnPropertyChanged(nameof(ShowInlineLoadingState));
+        OnPropertyChanged(nameof(InlineLoadingText));
+        OnPropertyChanged(nameof(PrimaryActionSymbol));
+    }
+
+    partial void OnHasAvailableRuleChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowPlaybackControls));
+        OnPropertyChanged(nameof(ShowNoRuleState));
+        OnPropertyChanged(nameof(CanTogglePlayPause));
+    }
+
+    partial void OnErrorTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(ShowPlaybackErrorBar));
+    }
+
+    private void OnSnapshotChanged(object? sender, PlaybackSnapshot snapshot)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.InvokeAsync(() => _ = HandleSnapshotUpdateAsync(snapshot));
+            return;
+        }
+
+        _ = HandleSnapshotUpdateAsync(snapshot);
+    }
+
+    private void OnAutoScrollStateChanged(object? sender, EventArgs e)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.InvokeAsync(ApplyAutoScrollState);
+            return;
+        }
+
+        ApplyAutoScrollState();
+    }
+
+    private async Task HandleSnapshotUpdateAsync(PlaybackSnapshot snapshot)
+    {
+        var previousSnapshot = _lastAppliedSnapshot;
+        ApplySnapshot(snapshot);
+
+        if (string.IsNullOrWhiteSpace(snapshot.BookId))
+        {
+            return;
+        }
+
+        try
+        {
+            await EnsureContentLoadedForSnapshotAsync(snapshot, CancellationToken.None);
+            if (_autoScrollCoordinator.ShouldAutoCenter &&
+                ShouldAnimateCenteringForSnapshotUpdate(previousSnapshot, snapshot))
+            {
+                RequestCurrentSegmentCentering(animate: true);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task RefreshRulesAsync(CancellationToken cancellationToken)
+    {
+        var rules = await _ruleQueries.GetRulesAsync(cancellationToken);
+        Rules.ReplaceWith(rules, rule => new PlayerRuleItemViewModel(rule.Id, rule.Name, rule.IsEnabled, rule.IsSelected));
+        ApplyRuleSelection(_playbackCoordinator.CurrentSnapshot.RuleId);
+        OnPropertyChanged(nameof(HasRules));
+    }
+
+    private async Task EnsureContentLoadedForSnapshotAsync(PlaybackSnapshot snapshot, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(snapshot.BookId) || snapshot.ChapterIndex < 0)
+        {
+            return;
+        }
+
+        var book = await EnsureBookLoadedAsync(snapshot.BookId, cancellationToken);
+        if (book is null)
+        {
+            return;
+        }
+
+        if (snapshot.ContentRevision != _lastContentRevision)
+        {
+            _chapterCache.Remove(snapshot.ChapterIndex);
+            if (_loadedChapterIndex == snapshot.ChapterIndex)
+            {
+                _loadedChapterIndex = -1;
+            }
+
+            _lastContentRevision = snapshot.ContentRevision;
+        }
+
+        await EnsureChapterLoadedAsync(book.BookId, snapshot.ChapterIndex, cancellationToken);
+        lock (_projectionSyncRoot)
+        {
+            UpdateChapterProjection(snapshot.ChapterIndex);
+            UpdateSegmentProjection(snapshot.SegmentIndex);
+        }
+    }
+
+    private async Task<PlaybackBookContent?> EnsureBookLoadedAsync(string bookId, CancellationToken cancellationToken)
+    {
+        if (_loadedBook is not null && string.Equals(_loadedBook.BookId, bookId, StringComparison.Ordinal))
+        {
+            return _loadedBook;
+        }
+
+        var loadVersion = ++_bookLoadVersion;
+        var book = await _bookPlaybackContentService.GetBookAsync(bookId, cancellationToken);
+        if (loadVersion != _bookLoadVersion)
+        {
+            return null;
+        }
+
+        if (book is null)
+        {
+            return null;
+        }
+
+        ApplyLoadedBook(book);
+        return book;
+    }
+
+    private async Task EnsureChapterLoadedAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
+    {
+        if (_loadedBook is null || !string.Equals(_loadedBook.BookId, bookId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        // Playback emits several state snapshots for one segment transition. Once this chapter has
+        // been projected, those snapshots only need to update the existing item state; replacing
+        // the collection would discard virtualized containers while an auto-centering request runs.
+        if (_loadedChapterIndex == chapterIndex)
+        {
+            return;
+        }
+
+        if (_chapterCache.TryGetValue(chapterIndex, out var cachedChapter))
+        {
+            ApplyChapterContent(cachedChapter);
+            return;
+        }
+
+        var loadVersion = ++_chapterLoadVersion;
+        var chapter = await _bookPlaybackContentService.GetChapterAsync(bookId, chapterIndex, cancellationToken);
+        if (loadVersion != _chapterLoadVersion || chapter is null)
+        {
+            return;
+        }
+
+        _chapterCache[chapter.ChapterIndex] = chapter;
+        ApplyChapterContent(chapter);
+    }
+
+    private void ApplyLoadedBook(PlaybackBookContent book)
+    {
+        lock (_projectionSyncRoot)
+        {
+            var isDifferentBook = !string.Equals(_loadedBook?.BookId, book.BookId, StringComparison.Ordinal);
+            _loadedBook = book;
+
+            if (isDifferentBook)
+            {
+                _chapterCache.Clear();
+                _loadedChapterIndex = -1;
+                _lastContentRevision = 0;
+                Segments.Clear();
+            }
+
+            Chapters.ReplaceWith(book.Chapters, chapter => new PlayerChapterItemViewModel(chapter.ChapterIndex, chapter.Title));
+
+            if (string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookTitle))
+            {
+                CurrentTitle = book.BookTitle;
+            }
+
+            if (string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookAuthor))
+            {
+                CurrentAuthor = string.IsNullOrWhiteSpace(book.BookAuthor) ? "未知作者" : book.BookAuthor;
+            }
+
+            UpdateChapterProjection(CurrentChapterIndex);
+            UpdateNavigationAvailability();
+        }
+    }
+
+    private void ApplyChapterContent(PlaybackChapterContent chapter)
+    {
+        lock (_projectionSyncRoot)
+        {
+            _loadedChapterIndex = chapter.ChapterIndex;
+            CurrentChapterSegmentCount = chapter.Segments.Count;
+            CurrentChapterTitle = chapter.Title;
+            Segments.ReplaceWith(chapter.Segments.Where(segment => !string.IsNullOrEmpty(segment.DisplayText)), segment =>
+                new PlayerSegmentItemViewModel(chapter.ChapterIndex, segment.SegmentIndex, segment.DisplayText));
+            UpdateSegmentProjection(CurrentSegmentIndex);
+            UpdateNavigationAvailability();
+        }
+    }
+
+    private void ApplySnapshot(PlaybackSnapshot snapshot)
+    {
+        CurrentPlaybackState = snapshot.State;
+        CurrentTitle = string.IsNullOrWhiteSpace(snapshot.BookTitle)
+            ? _loadedBook?.BookTitle ?? "未打开书籍"
+            : snapshot.BookTitle;
+        CurrentAuthor = string.IsNullOrWhiteSpace(snapshot.BookAuthor)
+            ? string.IsNullOrWhiteSpace(_loadedBook?.BookAuthor) ? "未知作者" : _loadedBook!.BookAuthor!
+            : snapshot.BookAuthor;
+        CurrentChapterTitle = string.IsNullOrWhiteSpace(snapshot.ChapterTitle)
+            ? ResolveChapterTitle(snapshot.ChapterIndex)
+            : snapshot.ChapterTitle;
+        IsFaulted = snapshot.State == PlaybackState.Faulted;
+        HasAvailableRule = snapshot.HasAvailableRule;
+        ErrorText = IsFaulted ? snapshot.Message ?? "播放失败。" : string.Empty;
+        PrimaryActionText = snapshot.State == PlaybackState.Playing ? "暂停" : "播放";
+
+        var nextSpeakSpeed = AppSettings.NormalizeSpeakSpeed(
+            string.IsNullOrWhiteSpace(snapshot.BookId) || snapshot.SpeakSpeed <= 0
+                ? _defaultSpeakSpeed
+                : snapshot.SpeakSpeed);
+        if (nextSpeakSpeed > 0)
+        {
+            SpeakSpeed = nextSpeakSpeed;
+            if (!IsSpeedMenuOpen)
+            {
+                SpeedEditorText = nextSpeakSpeed.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+
+        CurrentChapterIndex = string.IsNullOrWhiteSpace(snapshot.BookId) ? -1 : snapshot.ChapterIndex;
+        CurrentSegmentIndex = string.IsNullOrWhiteSpace(snapshot.BookId) ? -1 : snapshot.SegmentIndex;
+        if (snapshot.SegmentCount > 0)
+        {
+            CurrentChapterSegmentCount = snapshot.SegmentCount;
+        }
+
+        ApplyRuleSelection(snapshot.RuleId);
+        UpdateChapterProjection(snapshot.ChapterIndex);
+        UpdateSegmentProjection(snapshot.SegmentIndex);
+        UpdateNavigationAvailability();
+        _lastAppliedSnapshot = snapshot;
+    }
+
+    private void ApplyRuleSelection(long? selectedRuleId)
+    {
+        if (selectedRuleId is null)
+        {
+            return;
+        }
+
+        foreach (var rule in Rules)
+        {
+            rule.IsSelected = rule.Id == selectedRuleId.Value;
+        }
+    }
+
+    private void UpdateChapterProjection(int currentChapterIndex)
+    {
+        PlayerChapterItemViewModel? currentItem = null;
+        foreach (var chapter in Chapters)
+        {
+            var isCurrent = chapter.ChapterIndex == currentChapterIndex;
+            chapter.IsCurrent = isCurrent;
+            if (isCurrent)
+            {
+                currentItem = chapter;
+            }
+        }
+
+        CurrentChapterItem = currentItem;
+    }
+
+    private void UpdateSegmentProjection(int currentSegmentIndex)
+    {
+        PlayerSegmentItemViewModel? currentItem = null;
+        foreach (var segment in Segments)
+        {
+            if (segment is null)
+            {
+                continue;
+            }
+
+            var distance = Math.Abs(segment.SegmentIndex - currentSegmentIndex);
+            segment.IsCurrent = segment.SegmentIndex == currentSegmentIndex;
+            segment.FontWeight = distance == 0 ? FontWeights.SemiBold : FontWeights.Normal;
+            segment.VisualOpacity = distance switch
+            {
+                0 => 1d,
+                1 => 0.82d,
+                2 => 0.68d,
+                3 => 0.58d,
+                _ => 0.46d
+            };
+            segment.IsInteractive = true;
+            if (segment.IsCurrent)
+            {
+                currentItem = segment;
+            }
+        }
+
+        CurrentSegmentItem = currentItem;
+    }
+
+    private void UpdateNavigationAvailability()
+    {
+        if (_loadedBook is null || CurrentChapterIndex < 0)
+        {
+            CanGoToPreviousChapter = false;
+            CanGoToNextChapter = false;
+        }
+        else
+        {
+            var chapterPosition = GetChapterPosition(CurrentChapterIndex);
+            CanGoToPreviousChapter = chapterPosition > 0;
+            CanGoToNextChapter = chapterPosition >= 0 && chapterPosition < _loadedBook.Chapters.Count - 1;
+        }
+
+        CanGoToPreviousSegment = CurrentSegmentIndex > 0;
+        CanGoToNextSegment = CurrentChapterSegmentCount > 0 && CurrentSegmentIndex >= 0 && CurrentSegmentIndex < CurrentChapterSegmentCount - 1;
+    }
+
+    private int GetChapterPosition(int chapterIndex)
+    {
+        if (_loadedBook is null)
+        {
+            return -1;
+        }
+
+        for (var i = 0; i < _loadedBook.Chapters.Count; i++)
+        {
+            if (_loadedBook.Chapters[i].ChapterIndex == chapterIndex)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private string ResolveChapterTitle(int chapterIndex)
+    {
+        if (_loadedBook is not null)
+        {
+            var chapter = _loadedBook.Chapters.FirstOrDefault(item => item.ChapterIndex == chapterIndex);
+            if (chapter is not null)
+            {
+                return chapter.Title;
+            }
+        }
+
+        return "尚未定位章节";
+    }
+
+    private void ApplyAutoScrollState()
+    {
+        var currentState = _autoScrollCoordinator.State;
+        ShowReturnToCurrentSegment = _autoScrollCoordinator.ShowReturnToCurrentSegment;
+        OnPropertyChanged(nameof(AutoScrollState));
+        OnPropertyChanged(nameof(ShouldAutoCenterCurrentSegment));
+
+        if (currentState == PlayerAutoScrollState.AutoCentering &&
+            _lastAppliedAutoScrollState != PlayerAutoScrollState.AutoCentering)
+        {
+            if (_suppressNextStateDrivenAutoCenterRequest)
+            {
+                _suppressNextStateDrivenAutoCenterRequest = false;
+            }
+            else
+            {
+                RequestCurrentSegmentCentering(animate: false);
+            }
+        }
+        else if (currentState != PlayerAutoScrollState.AutoCentering)
+        {
+            _suppressNextStateDrivenAutoCenterRequest = false;
+        }
+
+        _lastAppliedAutoScrollState = currentState;
+    }
+
+    private void ResumeAutoCenterAndRequest(bool animate)
+    {
+        ResumeAutoCenterForExplicitNavigation();
+        RequestCurrentSegmentCentering(animate);
+    }
+
+    private void ResumeAutoCenterForExplicitNavigation()
+    {
+        if (_autoScrollCoordinator.State == PlayerAutoScrollState.AutoCentering)
+        {
+            return;
+        }
+
+        _suppressNextStateDrivenAutoCenterRequest = true;
+        _autoScrollCoordinator.ResumeAutoCenter();
+    }
+
+    private void RequestCurrentSegmentCentering(bool animate)
+    {
+        _animateNextSegmentCenterRequest = animate;
+        _segmentCenterRequestVersion++;
+        OnPropertyChanged(nameof(AnimateNextSegmentCenterRequest));
+        OnPropertyChanged(nameof(SegmentCenterRequestVersion));
+    }
+
+    private static bool ShouldAnimateCenteringForSnapshotUpdate(PlaybackSnapshot previousSnapshot, PlaybackSnapshot snapshot)
+    {
+        if (!string.Equals(previousSnapshot.BookId, snapshot.BookId, StringComparison.Ordinal))
+        {
+            return !string.IsNullOrWhiteSpace(snapshot.BookId);
+        }
+
+        return previousSnapshot.ChapterIndex != snapshot.ChapterIndex ||
+               previousSnapshot.SegmentIndex != snapshot.SegmentIndex;
+    }
+
+    private void CloseTransientPanels()
+    {
+        IsRuleMenuOpen = false;
+        IsSpeedMenuOpen = false;
+        SpeedEditorErrorText = string.Empty;
+    }
+
+    private int ResolveSpeakSpeedForOpen()
+    {
+        return AppSettings.NormalizeSpeakSpeed(SpeakSpeed > 0 ? SpeakSpeed : _defaultSpeakSpeed);
+    }
+
+    private bool TryParseSpeedEditorText(out int parsedSpeed)
+    {
+        if (!int.TryParse(SpeedEditorText, NumberStyles.Integer, CultureInfo.InvariantCulture, out parsedSpeed) ||
+            !AppSettings.IsValidSpeakSpeed(parsedSpeed))
+        {
+            SpeedEditorErrorText = $"请输入 {AppSettings.MinSpeakSpeed} 到 {AppSettings.MaxSpeakSpeed} 的整数。";
+            return false;
+        }
+
+        SpeedEditorErrorText = string.Empty;
+        return true;
+    }
+
+    private int ResolvePendingSpeakSpeed()
+    {
+        return int.TryParse(SpeedEditorText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedSpeed) &&
+               AppSettings.IsValidSpeakSpeed(parsedSpeed)
+            ? parsedSpeed
+            : SpeakSpeed;
+    }
+
+    private async Task ApplySpeakSpeedChangeAsync(int parsedSpeed, CancellationToken cancellationToken)
+    {
+        if (parsedSpeed == SpeakSpeed &&
+            AppSettings.NormalizeSpeakSpeed(_playbackCoordinator.CurrentSnapshot.SpeakSpeed) == parsedSpeed &&
+            _settingsService.Current.DefaultSpeakSpeed == parsedSpeed)
+        {
+            return;
+        }
+
+        SpeakSpeed = parsedSpeed;
+        SpeedEditorText = parsedSpeed.ToString(CultureInfo.InvariantCulture);
+        try
+        {
+            var settings = await _settingsService.UpdateAsync(
+                new AppSettingsUpdate
+                {
+                    DefaultSpeakSpeed = parsedSpeed
+                },
+                cancellationToken);
+            _defaultSpeakSpeed = settings.DefaultSpeakSpeed;
+
+            if (!string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId) &&
+                _playbackCoordinator.CurrentSnapshot.SpeakSpeed != settings.DefaultSpeakSpeed)
+            {
+                await _playbackCoordinator.ChangeSpeedAsync(settings.DefaultSpeakSpeed, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            var projected = _feedbackService.Project(exception);
+            _feedbackService.ShowProjectedNotification("更新语速失败", projected);
+        }
+    }
+
+    private void ScheduleSpeakSpeedStepChange(int speakSpeed)
+    {
+        CancelPendingSpeakSpeedStepChange();
+        _speakSpeedStepDebounceCts = new CancellationTokenSource();
+        _ = ApplyDebouncedSpeakSpeedStepChangeAsync(speakSpeed, _speakSpeedStepDebounceCts.Token);
+    }
+
+    private async Task ApplyDebouncedSpeakSpeedStepChangeAsync(int speakSpeed, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(SpeakSpeedStepDebounceDelay, _timeProvider, cancellationToken);
+            await ApplySpeakSpeedChangeAsync(speakSpeed, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private void CancelPendingSpeakSpeedStepChange()
+    {
+        _speakSpeedStepDebounceCts?.Cancel();
+        _speakSpeedStepDebounceCts?.Dispose();
+        _speakSpeedStepDebounceCts = null;
+    }
+
+    private async Task RestoreMissingRuleSessionAsync(
+        string requestedBookId,
+        PlaybackSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        if (snapshot.HasAvailableRule ||
+            string.IsNullOrWhiteSpace(snapshot.BookId) ||
+            !string.Equals(snapshot.BookId, requestedBookId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var selectedRule = Rules.FirstOrDefault(static rule => rule.IsEnabled && rule.IsSelected);
+        if (selectedRule is null)
+        {
+            return;
+        }
+
+        await _playbackCoordinator.OpenPausedAsync(
+            new OpenBookPlaybackRequest(
+                requestedBookId,
+                snapshot.ChapterIndex >= 0 ? snapshot.ChapterIndex : null,
+                snapshot.SegmentIndex >= 0 ? snapshot.SegmentIndex : null,
+                ResolveSpeakSpeedForOpen()),
+            cancellationToken);
+
+        var refreshedSnapshot = _playbackCoordinator.CurrentSnapshot;
+        ApplySnapshot(refreshedSnapshot);
+        await EnsureContentLoadedForSnapshotAsync(refreshedSnapshot, cancellationToken);
+    }
+
+    private async Task HandleMissingBookAsync(CancellationToken cancellationToken)
+    {
+        _feedbackService.ShowWarning("无法打开书籍", "这本书可能已经被删除。");
+        await _navigator.NavigateAsync(AppRoutes.Library, cancellationToken).ConfigureAwait(true);
+    }
+
+    private double NormalizeSegmentProgressValue(double value)
+    {
+        if (CurrentChapterSegmentCount <= 0)
+        {
+            return 0d;
+        }
+
+        return Math.Clamp(Math.Round(value), 0d, SegmentProgressMaximum);
+    }
+
+    private static string BuildSegmentCounterText(int segmentIndex, int segmentCount)
+    {
+        return segmentCount > 0 && segmentIndex >= 0
+            ? $"{segmentIndex + 1} / {segmentCount}"
+            : "尚未定位段落";
+    }
+}

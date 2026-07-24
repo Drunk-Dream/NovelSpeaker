@@ -1,0 +1,298 @@
+<Page x:Class="NovelSpeaker.App.Features.BookDetails.BookDetailsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:navigation="clr-namespace:NovelSpeaker.App.Shell.Navigation"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:views="clr-namespace:NovelSpeaker.App.Shared.Presentation.Books">
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+
+    </Page.Resources>
+
+    <Border x:Name="RootViewport"
+            Padding="{StaticResource PagePadding}"
+            MinHeight="0"
+            navigation:NavigationViewportHeightBehavior.IsEnabled="True"
+            ClipToBounds="True">
+        <Grid x:Name="RootLayout"
+              MinHeight="0"
+              ClipToBounds="True">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Grid VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Button Style="{StaticResource BackIconButtonStyle}"
+                            Command="{Binding BackCommand}"
+                            ToolTip="返回"
+                            AutomationProperties.Name="返回">
+                        <ui:SymbolIcon Symbol="ChevronLeft24" />
+                    </Button>
+
+                    <TextBlock Grid.Column="1"
+                               Margin="12,0,0,0"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource PageTitleTextBlockStyle}"
+                               Text="书籍详情" />
+                </Grid>
+
+                <WrapPanel Grid.Column="1"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center">
+                    <Button Margin="0,0,12,0"
+                            Padding="16,8"
+                            Command="{Binding DeleteBookCommand}"
+                            Content="删除" />
+                    <Button Margin="0,0,12,0"
+                            Padding="16,8"
+                            Command="{Binding ClearCacheCommand}"
+                            Content="清理缓存" />
+                    <Button Margin="0,0,12,0"
+                            Padding="16,8"
+                            Command="{Binding CancelEditCommand}"
+                            Content="取消" />
+                    <Button Padding="16,8"
+                            Command="{Binding SaveCommand}"
+                            Content="保存" />
+                </WrapPanel>
+            </Grid>
+
+            <Grid Grid.Row="1"
+                  Margin="0,20,0,0"
+                  MinHeight="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="380" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        MinHeight="0"
+                        Style="{StaticResource CardBorderStyle}">
+                    <Grid Margin="20"
+                          MinHeight="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                    <views:BookCoverView Width="168"
+                                         Height="224"
+                                         HorizontalAlignment="Left"
+                                         Cover="{Binding Cover}" />
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,16,0,0"
+                               Text="{Binding StatusMessage}"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock"
+                                   BasedOn="{StaticResource SecondaryTextBlockStyle}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                        <StackPanel Grid.Row="2"
+                                    Margin="0,20,0,0">
+                        <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                                   Text="书籍信息" />
+
+                        <TextBlock Margin="0,16,0,0"
+                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                   Text="书名" />
+                        <TextBox Margin="0,6,0,0"
+                                 Text="{Binding EditTitle, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Margin="0,16,0,0"
+                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                   Text="作者" />
+                        <TextBox Margin="0,6,0,0"
+                                 Text="{Binding EditAuthor, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <Grid Margin="0,20,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
+                                       Text="章节总数" />
+                            <TextBlock Grid.Column="1"
+                                       HorizontalAlignment="Right"
+                                       Style="{StaticResource StrongTextBlockStyle}"
+                                       Text="{Binding TotalChapterCountText}"
+                                       TextAlignment="Right" />
+
+                            <TextBlock Grid.Row="1"
+                                       Margin="0,14,0,0"
+                                       Style="{StaticResource SecondaryTextBlockStyle}"
+                                       Text="当前章节" />
+                            <TextBlock Grid.Row="1"
+                                       Grid.Column="1"
+                                       Margin="0,14,0,0"
+                                       HorizontalAlignment="Right"
+                                       Style="{StaticResource StrongTextBlockStyle}"
+                                       Text="{Binding CurrentChapterText}"
+                                       TextAlignment="Right"
+                                       TextTrimming="CharacterEllipsis" />
+
+                            <TextBlock Grid.Row="2"
+                                       Margin="0,14,0,0"
+                                       Style="{StaticResource SecondaryTextBlockStyle}"
+                                       Text="阅读进度" />
+                            <StackPanel Grid.Row="2"
+                                        Grid.Column="1"
+                                        Margin="0,14,0,0"
+                                        HorizontalAlignment="Right">
+                                <ProgressBar Width="140"
+                                             Height="10"
+                                             Maximum="1"
+                                             Value="{Binding ProgressRatio}" />
+                                <TextBlock Margin="0,8,0,0"
+                                           HorizontalAlignment="Right"
+                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                           Text="{Binding ProgressText}" />
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="3"
+                                       Margin="0,14,0,0"
+                                       Style="{StaticResource SecondaryTextBlockStyle}"
+                                       Text="缓存占用" />
+                            <TextBlock Grid.Row="3"
+                                       Grid.Column="1"
+                                       Margin="0,14,0,0"
+                                       HorizontalAlignment="Right"
+                                       Style="{StaticResource StrongTextBlockStyle}"
+                                       Text="{Binding CacheSizeText}"
+                                       TextAlignment="Right" />
+                        </Grid>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Column="2"
+                        MinHeight="0"
+                        Style="{StaticResource CardBorderStyle}">
+                    <DockPanel LastChildFill="True"
+                               Margin="20"
+                               MinHeight="0">
+                        <StackPanel DockPanel.Dock="Top"
+                                    Margin="0,0,0,16">
+                            <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                                       Text="章节目录" />
+                            <TextBlock Margin="0,6,0,0"
+                                       Style="{StaticResource SecondaryTextBlockStyle}"
+                                       Text="{Binding ChapterCatalogSummaryText}" />
+                        </StackPanel>
+
+                        <ListBox x:Name="ChaptersListBox"
+                                 MinHeight="0"
+                                 ItemsSource="{Binding Chapters}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 ScrollViewer.CanContentScroll="True"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 VirtualizingPanel.IsVirtualizing="True"
+                                 VirtualizingPanel.ScrollUnit="Pixel"
+                                 VirtualizingPanel.VirtualizationMode="Recycling">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="Margin" Value="0" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                                    <Setter Property="BorderThickness" Value="0" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="Focusable" Value="False" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="0"
+                                            Style="{StaticResource CurrentListItemContainerStyle}">
+                                        <Button Style="{StaticResource BorderlessListItemButtonStyle}"
+                                                Padding="14,12"
+                                                ToolTip="{Binding TitleToolTip}"
+                                                AutomationProperties.Name="{Binding AutomationName}"
+                                                Command="{Binding DataContext.SelectChapterCommand, ElementName=RootLayout}"
+                                                CommandParameter="{Binding}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="12" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBlock VerticalAlignment="Center"
+                                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                                           Text="{Binding IndexText}" />
+
+                                                <TextBlock Grid.Column="2"
+                                                           VerticalAlignment="Center"
+                                                           Style="{StaticResource StrongTextBlockStyle}"
+                                                           Text="{Binding Title}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           TextWrapping="NoWrap" />
+
+                                                <TextBlock Grid.Column="3"
+                                                           Margin="12,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           Text="当前">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock"
+                                                               BasedOn="{StaticResource SecondaryTextBlockStyle}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+                                        </Button>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </Grid>
+    </Border>
+</Page>

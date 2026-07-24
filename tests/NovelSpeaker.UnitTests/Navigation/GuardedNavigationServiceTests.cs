@@ -1,4 +1,4 @@
-using NovelSpeaker.App.Navigation;
+using NovelSpeaker.App.Shell.Navigation;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;

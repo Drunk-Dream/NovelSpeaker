@@ -1,5 +1,5 @@
 using System.Windows.Controls;
-using NovelSpeaker.App.Feedback;
+using NovelSpeaker.App.Shared.Feedback;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;

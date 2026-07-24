@@ -1,5 +1,5 @@
 using System.Windows.Input;
-using NovelSpeaker.App.Input;
+using NovelSpeaker.App.Shell.Input;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Input;

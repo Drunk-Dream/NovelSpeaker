@@ -1,5 +1,4 @@
-using NovelSpeaker.App.Navigation;
-using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.Shell.Navigation;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;

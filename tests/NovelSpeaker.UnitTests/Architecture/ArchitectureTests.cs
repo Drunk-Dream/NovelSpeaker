@@ -1,4 +1,3 @@
-using NovelSpeaker.App.ViewModels;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Architecture;
@@ -176,7 +175,8 @@ public sealed class ArchitectureTests
     {
         var actual = ArchitectureRules.FindForbiddenPublicApiDependencies(
             typeof(PlayerViewModel).Assembly,
-            "NovelSpeaker.App.ViewModels");
+            type => type.Namespace?.StartsWith("NovelSpeaker.App.Features", StringComparison.Ordinal) == true &&
+                type.Name.EndsWith("ViewModel", StringComparison.Ordinal));
 
         AssertEqualSet(KnownArchitectureBaseline.ViewModelForbiddenPublicApiDependencies, actual);
     }
@@ -187,6 +187,42 @@ public sealed class ArchitectureTests
         var actual = ArchitectureRules.FindSourceLayoutViolations(Repository.ReadProductSourceFiles());
 
         AssertEqualSet(KnownArchitectureBaseline.SourceLayoutViolations, actual);
+    }
+
+    [Fact]
+    public void AppUsesFeatureSlicesInsteadOfGlobalUiDirectories()
+    {
+        var appRoot = Path.Combine(Repository.RootPath, "src", "NovelSpeaker.App");
+
+        foreach (var legacyDirectory in new[] { "Pages", "Views", "ViewModels" })
+        {
+            Assert.False(
+                Directory.Exists(Path.Combine(appRoot, legacyDirectory)),
+                $"Legacy global UI directory still exists: {legacyDirectory}");
+        }
+
+        foreach (var feature in new[]
+                 {
+                     "Appearance",
+                     "BookDetails",
+                     "Cache",
+                     "ChapterRules",
+                     "Diagnostics",
+                     "Library",
+                     "Playback",
+                     "PlaybackSettings",
+                     "RegexReplacementRules",
+                     "Settings",
+                     "TtsRules"
+                 })
+        {
+            Assert.True(
+                Directory.Exists(Path.Combine(appRoot, "Features", feature)),
+                $"Feature slice directory is missing: {feature}");
+        }
+
+        Assert.True(Directory.Exists(Path.Combine(appRoot, "Shared")));
+        Assert.True(Directory.Exists(Path.Combine(appRoot, "Shell")));
     }
 
     private static void AssertEqualSet(IEnumerable<string> expected, IEnumerable<string> actual)
