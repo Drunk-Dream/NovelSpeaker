@@ -173,6 +173,61 @@ public sealed class StartupCoordinatorTests
         Assert.True(runtime.ShellProcessToken.IsCancellationRequested);
     }
 
+    [Fact]
+    public async Task ShutdownAsync_orders_playback_process_background_flush_and_resource_release()
+    {
+        var runtime = new RecordingStartupRuntime();
+        await using var coordinator = new StartupCoordinator(runtime);
+        await coordinator.StartAsync();
+
+        await coordinator.ShutdownAsync();
+
+        Assert.Equal(
+            ["gate", "playback", "background", "flush", "dispose"],
+            runtime.ShutdownSteps);
+        Assert.True(runtime.ProcessCancelledBeforeBackgroundWait);
+    }
+
+    [Fact]
+    public async Task ShutdownAsync_continues_after_playback_save_failure()
+    {
+        var runtime = new RecordingStartupRuntime
+        {
+            PlaybackShutdownFailure = new IOException("private progress path")
+        };
+        await using var coordinator = new StartupCoordinator(runtime);
+        await coordinator.StartAsync();
+
+        await coordinator.ShutdownAsync();
+
+        Assert.Equal(
+            ["gate", "playback", "background", "flush", "dispose"],
+            runtime.ShutdownSteps);
+        Assert.Contains(
+            runtime.RecordedFailures,
+            failure => failure.SafeMessage == "保存并结束播放失败，将继续关闭。");
+    }
+
+    [Fact]
+    public async Task Repeated_shutdown_requests_share_one_task_and_release_resources_once()
+    {
+        var runtime = new RecordingStartupRuntime
+        {
+            PlaybackShutdownGate = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        await using var coordinator = new StartupCoordinator(runtime);
+        await coordinator.StartAsync();
+
+        var first = coordinator.ShutdownAsync();
+        var second = coordinator.ShutdownAsync();
+
+        Assert.Same(first, second);
+        runtime.PlaybackShutdownGate.SetResult();
+        await Task.WhenAll(first, second);
+        Assert.Equal(1, runtime.DisposeCalls);
+    }
+
     public static TheoryData<int> AllStages =>
         new()
         {
@@ -224,6 +279,16 @@ public sealed class StartupCoordinatorTests
         public CancellationToken ShellProcessToken { get; private set; }
 
         public Task BackgroundCancellation => _backgroundCancellation.Task;
+
+        public List<string> ShutdownSteps { get; } = [];
+
+        public Exception? PlaybackShutdownFailure { get; init; }
+
+        public TaskCompletionSource? PlaybackShutdownGate { get; init; }
+
+        public bool ProcessCancelledBeforeBackgroundWait { get; private set; }
+
+        public int DisposeCalls { get; private set; }
 
         private readonly TaskCompletionSource _backgroundCancellation =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -289,6 +354,11 @@ public sealed class StartupCoordinatorTests
             RecordedFailures.Add((stage, safeMessage));
         }
 
+        public void RecordLifecycleFailure(string name, string safeMessage, Exception exception)
+        {
+            RecordedFailures.Add((StartupStage.Shell, safeMessage));
+        }
+
         public void ShowStartupFailure(StartupFailure failure)
         {
             VisibleFailures.Add($"{failure.Title} {failure.Message}");
@@ -299,8 +369,44 @@ public sealed class StartupCoordinatorTests
             StatusClosed = true;
         }
 
+        public void BeginShutdown()
+        {
+            ShutdownSteps.Add("gate");
+        }
+
+        public async Task StopPlaybackAsync(CancellationToken cancellationToken)
+        {
+            ShutdownSteps.Add("playback");
+            if (PlaybackShutdownGate is not null)
+            {
+                await PlaybackShutdownGate.Task.WaitAsync(cancellationToken);
+            }
+
+            if (PlaybackShutdownFailure is not null)
+            {
+                throw PlaybackShutdownFailure;
+            }
+        }
+
+        public Task WaitForBackgroundTasksAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ShutdownSteps.Add("background");
+            ProcessCancelledBeforeBackgroundWait = ShellProcessToken.IsCancellationRequested;
+            return Task.CompletedTask;
+        }
+
+        public Task FlushAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ShutdownSteps.Add("flush");
+            return Task.CompletedTask;
+        }
+
         public ValueTask DisposeAsync()
         {
+            DisposeCalls++;
+            ShutdownSteps.Add("dispose");
             _backgroundCancellationRegistration.Dispose();
             return ValueTask.CompletedTask;
         }
