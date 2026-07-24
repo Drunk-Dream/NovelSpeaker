@@ -11,6 +11,7 @@ using NovelSpeaker.App.Shell.Input;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shared.Theming;
+using NovelSpeaker.App.Bootstrap;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
@@ -304,15 +305,18 @@ public sealed class MainWindowNavigationTests
             navigationGuardService,
             layoutController,
             navigationService,
-            platformAdapter);
+            platformAdapter,
+            new ProcessShutdownGate());
 
-        return new MainWindow(
+        var window = new MainWindow(
             new MainWindowViewModel(new FakePlaybackCoordinator(), navigationService),
             feedbackService,
             activationCoordinator,
             layoutController,
             new FakeKeyboardShortcutCoordinator(),
             new WpfShortcutContextResolver());
+        window.ConfigureShutdown(_ => Task.CompletedTask);
+        return window;
     }
 
     private static void InvokeClick(NavigationViewItem item)

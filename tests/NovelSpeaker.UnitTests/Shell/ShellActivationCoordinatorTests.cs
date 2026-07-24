@@ -213,7 +213,36 @@ public sealed class ShellActivationCoordinatorTests
             guard,
             layout ?? new ShellLayoutController(),
             navigation,
-            platform);
+            platform,
+            new ProcessShutdownGate());
+    }
+
+    private sealed class ProcessShutdownGate : IProcessShutdownGate
+    {
+        private CancellationTokenSource _cancellation = new();
+
+        public bool IsShutdownRequested { get; private set; }
+
+        public CancellationToken ShutdownToken => _cancellation.Token;
+
+        public bool TryBeginShutdown()
+        {
+            if (IsShutdownRequested)
+            {
+                return false;
+            }
+
+            IsShutdownRequested = true;
+            _cancellation.Cancel();
+            return true;
+        }
+
+        public void CancelShutdownRequest()
+        {
+            _cancellation.Dispose();
+            _cancellation = new CancellationTokenSource();
+            IsShutdownRequested = false;
+        }
     }
 
     private static NavigatingCancelEventArgs CreateNavigatingEventArgs()
