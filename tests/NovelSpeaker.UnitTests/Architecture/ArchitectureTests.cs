@@ -83,11 +83,20 @@ public sealed class ArchitectureTests
         AssertEqualSet(
             ["Microsoft.Extensions.DependencyInjection.Abstractions"],
             project.PackageReferences);
+        Assert.DoesNotContain(
+            project.PackageReferences,
+            package => package.Equals("Microsoft.Data.Sqlite.Core", StringComparison.OrdinalIgnoreCase));
         Assert.Empty(project.FrameworkReferences);
         Assert.False(ArchitectureRules.UsesWpf(project));
 
         var files = Repository.ReadProductSourceFiles()
-            .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.Application");
+            .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.Application")
+            .ToArray();
+        Assert.DoesNotContain(
+            files,
+            file => Path.GetFileName(file.RelativePath)
+                .Equals("ISqliteConnectionFactory.cs", StringComparison.Ordinal));
+
         var actual = ArchitectureRules.FindForbiddenSourceDependencies(
             files,
             [
@@ -99,7 +108,7 @@ public sealed class ArchitectureTests
                 "NovelSpeaker.Infrastructure"
             ]);
 
-        AssertEqualSet(KnownArchitectureBaseline.ApplicationForbiddenSourceDependencies, actual);
+        Assert.Empty(actual);
     }
 
     [Fact]

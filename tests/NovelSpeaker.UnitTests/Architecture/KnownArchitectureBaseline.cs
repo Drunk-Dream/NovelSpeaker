@@ -2,9 +2,6 @@ namespace NovelSpeaker.UnitTests.Architecture;
 
 internal static class KnownArchitectureBaseline
 {
-    public static readonly IReadOnlySet<string> ApplicationForbiddenSourceDependencies =
-        new HashSet<string>(StringComparer.Ordinal);
-
     public static readonly IReadOnlySet<string> AppInfrastructureSourceFiles =
         new HashSet<string>(StringComparer.Ordinal)
         {
