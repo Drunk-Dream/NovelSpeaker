@@ -110,9 +110,22 @@ public sealed class BehaviorDebtBaselineTests
     {
         var mainWindow = File.ReadAllText(Absolute("src/NovelSpeaker.App/Shell/MainWindow.xaml.cs"));
         Assert.Contains("OnRootNavigationViewNavigating", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("IShellNavigationAdapter", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("_navigationAdapter.NavigateFromShellAsync", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("IShellActivationCoordinator", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("_activationCoordinator.HandleNavigationRequestAsync", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("GetProperty(\"PageId\")", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("VisualTreeHelper", mainWindow, StringComparison.Ordinal);
+
+        var shellCoordinator = File.ReadAllText(
+            Absolute("src/NovelSpeaker.App/Shell/Activation/ShellActivationCoordinator.cs"));
+        Assert.Contains("IShellNavigationAdapter navigationAdapter", shellCoordinator, StringComparison.Ordinal);
+        Assert.Contains("_navigationAdapter.NavigateFromShellAsync", shellCoordinator, StringComparison.Ordinal);
+        Assert.Contains("ConfirmNavigationAsync", shellCoordinator, StringComparison.Ordinal);
+
+        var shortcutContextResolver = File.ReadAllText(
+            Absolute("src/NovelSpeaker.App/Shell/Input/WpfShortcutContextResolver.cs"));
+        Assert.Contains("TextBoxBase", shortcutContextResolver, StringComparison.Ordinal);
+        Assert.Contains("IsHostedInPopupSurface", shortcutContextResolver, StringComparison.Ordinal);
+        Assert.Contains("FindVisibleContentDialog", shortcutContextResolver, StringComparison.Ordinal);
 
         var shortcuts = File.ReadAllText(Absolute("src/NovelSpeaker.App/Shell/Input/KeyboardShortcutCoordinator.cs"));
         Assert.Contains("IAppNavigator navigation", shortcuts, StringComparison.Ordinal);

@@ -1,66 +1,39 @@
 ﻿using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Input;
-using NovelSpeaker.App.Shell.Navigation;
-using NovelSpeaker.App.Shell;
-using NovelSpeaker.App.Shared.Theming;
 using System.ComponentModel;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using System.Windows.Media;
-using Wpf.Ui;
-using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
 
 namespace NovelSpeaker.App.Shell;
 
 /// <summary>
-/// Hosts the Wpf.Ui shell and wires the official navigation services to the root navigation view.
+/// Connects WPF window and control events to the shell coordinators and visual adapters.
 /// </summary>
 public partial class MainWindow : FluentWindow
 {
-    private readonly IMainWindowAppearanceConfigurator _appearanceConfigurator;
+    private readonly IShellActivationCoordinator _activationCoordinator;
     private readonly IKeyboardShortcutCoordinator _keyboardShortcutCoordinator;
-    private readonly IContentDialogService _contentDialogService;
     private readonly IAppFeedbackService _feedbackService;
-    private readonly INavigationGuardService _navigationGuardService;
-    private readonly IShellNavigationAdapter _navigationAdapter;
-    private readonly INavigationViewPageProvider _pageProvider;
+    private readonly IShortcutContextResolver _shortcutContextResolver;
     private readonly IShellLayoutController _shellLayoutController;
-    private readonly ISnackbarService _snackbarService;
-    private readonly IServiceProvider _serviceProvider;
     private readonly MainWindowViewModel _viewModel;
-    private readonly CancellationTokenSource _windowLifetimeCancellation = new();
-    private bool _isShellInfrastructureConfigured;
-    private bool _isNavigationInitialized;
-    private bool _isPlayerPageActive;
-    private bool _isCloseConfirmationInProgress;
-    private bool _isCloseApproved;
+    private bool _navigationEventsConnected;
 
     public MainWindow(
         MainWindowViewModel viewModel,
-        IContentDialogService contentDialogService,
         IAppFeedbackService feedbackService,
-        INavigationGuardService navigationGuardService,
-        IShellNavigationAdapter navigationAdapter,
-        INavigationViewPageProvider pageProvider,
-        ISnackbarService snackbarService,
-        IServiceProvider serviceProvider,
-        IMainWindowAppearanceConfigurator appearanceConfigurator,
+        IShellActivationCoordinator activationCoordinator,
         IShellLayoutController shellLayoutController,
-        IKeyboardShortcutCoordinator keyboardShortcutCoordinator)
+        IKeyboardShortcutCoordinator keyboardShortcutCoordinator,
+        IShortcutContextResolver shortcutContextResolver)
     {
-        _appearanceConfigurator = appearanceConfigurator;
+        _activationCoordinator = activationCoordinator;
         _keyboardShortcutCoordinator = keyboardShortcutCoordinator;
-        _contentDialogService = contentDialogService;
         _feedbackService = feedbackService;
-        _navigationGuardService = navigationGuardService;
-        _navigationAdapter = navigationAdapter;
-        _pageProvider = pageProvider;
+        _shortcutContextResolver = shortcutContextResolver;
         _shellLayoutController = shellLayoutController;
-        _snackbarService = snackbarService;
-        _serviceProvider = serviceProvider;
         _viewModel = viewModel;
 
         InitializeComponent();
@@ -79,41 +52,24 @@ public partial class MainWindow : FluentWindow
 
     private async void OnClosing(object? sender, CancelEventArgs e)
     {
-        if (_isCloseApproved)
+        if (_activationCoordinator.IsCloseApproved)
         {
             return;
         }
 
         e.Cancel = true;
-        if (_isCloseConfirmationInProgress)
-        {
-            return;
-        }
-
-        _isCloseConfirmationInProgress = true;
         try
         {
-            if (!await _navigationGuardService.ConfirmNavigationAsync(_windowLifetimeCancellation.Token).ConfigureAwait(true))
-            {
-                return;
-            }
-
-            _isCloseApproved = true;
-            await Dispatcher.InvokeAsync(Close);
+            await _activationCoordinator.RequestCloseAsync(
+                () => Dispatcher.InvokeAsync(Close).Task).ConfigureAwait(true);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (_activationCoordinator.LifetimeToken.IsCancellationRequested)
         {
-            _isCloseApproved = false;
             // Window-close cancellation is normal control flow; the window remains open.
         }
         catch (Exception exception)
         {
-            _isCloseApproved = false;
             _feedbackService.ShowProjectedNotification("关闭应用失败", _feedbackService.Project(exception));
-        }
-        finally
-        {
-            _isCloseConfirmationInProgress = false;
         }
     }
 
@@ -121,40 +77,19 @@ public partial class MainWindow : FluentWindow
     {
         try
         {
-            if (!_isShellInfrastructureConfigured)
+            if (!_navigationEventsConnected)
             {
-                _contentDialogService.SetDialogHost(RootContentDialogHost);
-                _snackbarService.SetSnackbarPresenter(RootSnackbarPresenter);
-                _appearanceConfigurator.Configure(this);
-                _isShellInfrastructureConfigured = true;
+                RootNavigationView.Navigating += OnRootNavigationViewNavigating;
+                RootNavigationView.Navigated += OnRootNavigationViewNavigated;
+                _navigationEventsConnected = true;
             }
 
-            if (_isNavigationInitialized)
-            {
-                ConfigureNavigationContentPresenter();
-                _shellLayoutController.UpdateWindowWidth(ActualWidth);
-                return;
-            }
-
-            RootNavigationView.SetPageProviderService(_pageProvider);
-            RootNavigationView.SetServiceProvider(_serviceProvider);
-            _navigationAdapter.Initialize(
-                RootNavigationView,
-                LibraryNavigationItem,
-                SettingsNavigationItem,
-                PlaybackNavigationItem);
-            ConfigureNavigationContentPresenter();
-            RootNavigationView.Navigating += OnRootNavigationViewNavigating;
-            RootNavigationView.Navigated += OnRootNavigationViewNavigated;
-            _isNavigationInitialized = true;
-            await _navigationAdapter.NavigateAsync(
-                AppRoutes.Library,
-                _windowLifetimeCancellation.Token,
-                bypassGuard: true).ConfigureAwait(true);
-            _shellLayoutController.UpdateWindowWidth(ActualWidth);
+            await _activationCoordinator.ActivateAsync(
+                CreateShellHostElements(),
+                ActualWidth).ConfigureAwait(true);
             ApplyPaneState(_shellLayoutController.IsPaneOpen);
         }
-        catch (OperationCanceledException) when (_windowLifetimeCancellation.IsCancellationRequested)
+        catch (OperationCanceledException) when (_activationCoordinator.LifetimeToken.IsCancellationRequested)
         {
         }
         catch (Exception exception)
@@ -165,8 +100,7 @@ public partial class MainWindow : FluentWindow
 
     private void OnClosed(object? sender, EventArgs e)
     {
-        _windowLifetimeCancellation.Cancel();
-        _windowLifetimeCancellation.Dispose();
+        _activationCoordinator.Dispose();
     }
 
     private void OnSizeChanged(object sender, System.Windows.SizeChangedEventArgs e)
@@ -186,79 +120,20 @@ public partial class MainWindow : FluentWindow
             var handled = await _keyboardShortcutCoordinator.TryHandleAsync(
                 e.Key == Key.System ? e.SystemKey : e.Key,
                 Keyboard.Modifiers,
-                CreateKeyboardShortcutContext(),
-                _windowLifetimeCancellation.Token);
+                _shortcutContextResolver.Resolve(
+                    _activationCoordinator.IsPlayerPageActive,
+                    Keyboard.FocusedElement as DependencyObject,
+                    RootContentDialogHost),
+                _activationCoordinator.LifetimeToken);
             e.Handled = handled;
         }
-        catch (OperationCanceledException) when (_windowLifetimeCancellation.IsCancellationRequested)
+        catch (OperationCanceledException) when (_activationCoordinator.LifetimeToken.IsCancellationRequested)
         {
         }
         catch (Exception exception)
         {
             _feedbackService.ShowProjectedNotification("快捷键操作失败", _feedbackService.Project(exception));
         }
-    }
-
-    private KeyboardShortcutContext CreateKeyboardShortcutContext()
-    {
-        var focusedElement = Keyboard.FocusedElement as DependencyObject;
-        return new KeyboardShortcutContext(
-            _isPlayerPageActive,
-            IsTextEditingElement(focusedElement),
-            IsTransientUiOpen(focusedElement) || HasOpenContentDialog());
-    }
-
-    private static bool IsTextEditingElement(DependencyObject? element)
-    {
-        for (var current = element; current is not null; current = LogicalTreeHelper.GetParent(current) ?? VisualTreeHelper.GetParent(current))
-        {
-            if (current is TextBoxBase or System.Windows.Controls.PasswordBox || current is ComboBox { IsEditable: true })
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsTransientUiOpen(DependencyObject? focusedElement)
-    {
-        for (var current = focusedElement; current is not null; current = LogicalTreeHelper.GetParent(current) ?? VisualTreeHelper.GetParent(current))
-        {
-            if (current is ComboBox { IsDropDownOpen: true } ||
-                current is ContextMenu { IsOpen: true } ||
-                current is System.Windows.Controls.MenuItem)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private bool HasOpenContentDialog()
-    {
-        return FindVisibleContentDialog(RootContentDialogHost) is not null;
-    }
-
-    private static ContentDialog? FindVisibleContentDialog(DependencyObject root)
-    {
-        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
-        {
-            var child = VisualTreeHelper.GetChild(root, index);
-            if (child is ContentDialog dialog && dialog.IsVisible)
-            {
-                return dialog;
-            }
-
-            var nested = FindVisibleContentDialog(child);
-            if (nested is not null)
-            {
-                return nested;
-            }
-        }
-
-        return null;
     }
 
     private void OnPaneOpened(object sender, System.Windows.RoutedEventArgs e)
@@ -286,25 +161,6 @@ public partial class MainWindow : FluentWindow
         RootNavigationView.IsPaneOpen = isPaneOpen;
     }
 
-    private void ConfigureNavigationContentPresenter()
-    {
-        RootNavigationView.ApplyTemplate();
-
-        if (RootNavigationView.Template?.FindName("PART_NavigationViewContentPresenter", RootNavigationView) is not NavigationViewContentPresenter presenter)
-        {
-            return;
-        }
-
-        presenter.SetValue(NavigationViewContentPresenter.IsDynamicScrollViewerEnabledProperty, false);
-
-        if (presenter.TryFindResource("DefaultNavigationViewContentPresenterControlTemplate") is ControlTemplate template &&
-            !ReferenceEquals(presenter.Template, template))
-        {
-            presenter.Template = template;
-            presenter.ApplyTemplate();
-        }
-    }
-
     private async void PlaybackNavigationItem_OnClick(object sender, System.Windows.RoutedEventArgs e)
     {
         try
@@ -314,7 +170,7 @@ public partial class MainWindow : FluentWindow
                 await _viewModel.NavigateToNowPlayingCommand.ExecuteAsync(null);
             }
         }
-        catch (OperationCanceledException) when (_windowLifetimeCancellation.IsCancellationRequested)
+        catch (OperationCanceledException) when (_activationCoordinator.LifetimeToken.IsCancellationRequested)
         {
         }
         catch (Exception exception)
@@ -327,17 +183,11 @@ public partial class MainWindow : FluentWindow
     {
         try
         {
-            if (_navigationAdapter.IsBypassingGuard)
-            {
-                return;
-            }
-
-            e.Cancel = true;
-            await _navigationAdapter.NavigateFromShellAsync(
+            await _activationCoordinator.HandleNavigationRequestAsync(
                 e,
-                _windowLifetimeCancellation.Token).ConfigureAwait(true);
+                _activationCoordinator.LifetimeToken).ConfigureAwait(true);
         }
-        catch (OperationCanceledException) when (_windowLifetimeCancellation.IsCancellationRequested)
+        catch (OperationCanceledException) when (_activationCoordinator.LifetimeToken.IsCancellationRequested)
         {
         }
         catch (Exception exception)
@@ -348,7 +198,18 @@ public partial class MainWindow : FluentWindow
 
     private void OnRootNavigationViewNavigated(object sender, EventArgs e)
     {
-        _navigationAdapter.SynchronizeSelection(e);
-        _isPlayerPageActive = _navigationAdapter.CurrentRouteId == AppRouteId.Player;
+        _activationCoordinator.HandleNavigated(e);
+    }
+
+    private ShellHostElements CreateShellHostElements()
+    {
+        return new ShellHostElements(
+            this,
+            RootNavigationView,
+            LibraryNavigationItem,
+            SettingsNavigationItem,
+            PlaybackNavigationItem,
+            RootContentDialogHost,
+            RootSnackbarPresenter);
     }
 }

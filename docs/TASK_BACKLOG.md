@@ -677,7 +677,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：已将文件打开/保存、剪贴板、目录打开和 UI 调度收敛到 `Shared/Presentation/Platform` 端口及 WPF adapter；TTS 规则页、书库、诊断和 Shell 通过注入端口使用平台能力，页面不再自行创建文件对话框或访问剪贴板。Playback、Settings、Shell 的 ViewModel 公共状态改为语义枚举，由 XAML 映射图标和字重；页面操作统一传递 activation/operation token，并补充架构回退测试。原有视觉类型债务已清除，Release 构建和全量测试通过。
 
-### [ ] APP-605（P1）：拆分 Shell/MainWindow 职责
+### [x] APP-605（P1）：拆分 Shell/MainWindow 职责
 
 前置：APP-601、APP-602。
 
@@ -688,6 +688,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 保留全局快捷键仲裁、临时界面优先级、Pane 和正在播放入口行为。
 
 测试：文本输入/Popup/Dialog 不误触快捷键，导航选中和播放入口一致。
+
+完成说明：已抽取 `ShellActivationCoordinator` 负责 Shell 初始化、初始导航、导航事件转交、Player 路由投影和关闭守卫生命周期；`WpfShellPlatformAdapter` 负责 Wpf.Ui 服务装配和导航模板；`WpfShortcutContextResolver` 负责文本编辑、Popup、菜单和 ContentDialog 上下文判定。MainWindow 仅保留 WPF 生命周期、控件事件、Pane 状态和安全反馈桥接。新增关闭并发/拒绝重试/取消、导航初始化幂等和快捷键上下文回归测试；Release 构建与全量测试通过。
 
 ### [ ] APP-606（P1）：拆分 PlayerViewModel 与 Player View 行为
 

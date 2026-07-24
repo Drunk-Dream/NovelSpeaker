@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Input;
 using NovelSpeaker.App.Shell.Navigation;
 using Wpf.Ui;
@@ -18,6 +19,9 @@ public static class ShellServiceCollectionExtensions
         services.TryAddSingleton<IShellNavigationAdapter>(provider => provider.GetRequiredService<ShellNavigationAdapter>());
         services.TryAddSingleton<IAppNavigator>(provider => provider.GetRequiredService<ShellNavigationAdapter>());
         services.TryAddSingleton<IKeyboardShortcutCoordinator, KeyboardShortcutCoordinator>();
+        services.TryAddSingleton<IShortcutContextResolver, WpfShortcutContextResolver>();
+        services.TryAddSingleton<IShellPlatformAdapter, WpfShellPlatformAdapter>();
+        services.TryAddSingleton<IShellActivationCoordinator, ShellActivationCoordinator>();
         services.TryAddSingleton<IShellLayoutController, ShellLayoutController>();
         services.TryAddSingleton<MainWindowViewModel>();
         services.TryAddSingleton<MainWindow>();

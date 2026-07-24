@@ -31,13 +31,20 @@ public sealed class KeyboardShortcutPolicyTests
     }
 
     [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public void Resolve_suppresses_all_shortcuts_while_editing_or_transient_ui_is_open(bool isTextEditing, bool isTransientUiOpen)
+    [InlineData(Key.O, ModifierKeys.Control, true, false)]
+    [InlineData(Key.OemComma, ModifierKeys.Control, false, true)]
+    [InlineData(Key.Escape, ModifierKeys.None, true, false)]
+    [InlineData(Key.Left, ModifierKeys.Alt, false, true)]
+    [InlineData(Key.Space, ModifierKeys.None, true, false)]
+    public void Resolve_suppresses_all_shortcuts_while_editing_or_transient_ui_is_open(
+        Key key,
+        ModifierKeys modifiers,
+        bool isTextEditing,
+        bool isTransientUiOpen)
     {
         var action = KeyboardShortcutPolicy.Resolve(
-            Key.Space,
-            ModifierKeys.None,
+            key,
+            modifiers,
             new KeyboardShortcutContext(true, isTextEditing, isTransientUiOpen));
 
         Assert.Null(action);

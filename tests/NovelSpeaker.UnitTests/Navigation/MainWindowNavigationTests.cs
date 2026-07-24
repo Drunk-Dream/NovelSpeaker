@@ -8,6 +8,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Shell.Input;
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shared.Theming;
 using Wpf.Ui;
@@ -120,18 +121,15 @@ public sealed class MainWindowNavigationTests
             var snackbarService = new FakeSnackbarService();
             using var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
 
-            var window = new MainWindow(
-                new MainWindowViewModel(new FakePlaybackCoordinator(), navigationService),
-                contentDialogService,
-                new FakeAppFeedbackService(),
-                new FakeNavigationGuardService { NextResult = true },
+            var window = CreateWindow(
                 navigationService,
+                new FakeNavigationGuardService { NextResult = true },
+                new FakeAppFeedbackService(),
+                contentDialogService,
                 pageProvider,
                 snackbarService,
                 serviceProvider,
-                appearanceConfigurator,
-                new ShellLayoutController(),
-                new FakeKeyboardShortcutCoordinator());
+                appearanceConfigurator);
 
             window.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.FrameworkElement.LoadedEvent));
             window.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.FrameworkElement.LoadedEvent));
@@ -158,18 +156,15 @@ public sealed class MainWindowNavigationTests
             var contentDialogService = new FakeContentDialogService();
             var snackbarService = new FakeSnackbarService();
             var navigationService = new FakeNavigationService();
-            var window = new MainWindow(
-                new MainWindowViewModel(new FakePlaybackCoordinator(), navigationService),
-                contentDialogService,
-                new FakeAppFeedbackService(),
-                new FakeNavigationGuardService { NextResult = true },
+            var window = CreateWindow(
                 navigationService,
+                new FakeNavigationGuardService { NextResult = true },
+                new FakeAppFeedbackService(),
+                contentDialogService,
                 new FakeNavigationViewPageProvider(),
                 snackbarService,
                 serviceProvider,
-                new FakeMainWindowAppearanceConfigurator(),
-                new ShellLayoutController(),
-                new FakeKeyboardShortcutCoordinator());
+                new FakeMainWindowAppearanceConfigurator());
 
             var navigationView = GetNavigationView(window);
             window.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
@@ -276,18 +271,48 @@ public sealed class MainWindowNavigationTests
     {
         var navigationService = new FakeNavigationService();
         var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
-        return new MainWindow(
-            new MainWindowViewModel(new FakePlaybackCoordinator(), navigationService),
-            new FakeContentDialogService(),
-            feedbackService,
-            navigationGuardService,
+        return CreateWindow(
             navigationService,
+            navigationGuardService,
+            feedbackService,
+            new FakeContentDialogService(),
             new FakeNavigationViewPageProvider(),
             new FakeSnackbarService(),
             serviceProvider,
-            new FakeMainWindowAppearanceConfigurator(),
-            new ShellLayoutController(),
-            new FakeKeyboardShortcutCoordinator());
+            new FakeMainWindowAppearanceConfigurator());
+    }
+
+    private static MainWindow CreateWindow(
+        FakeNavigationService navigationService,
+        INavigationGuardService navigationGuardService,
+        IAppFeedbackService feedbackService,
+        IContentDialogService contentDialogService,
+        INavigationViewPageProvider pageProvider,
+        ISnackbarService snackbarService,
+        IServiceProvider serviceProvider,
+        IMainWindowAppearanceConfigurator appearanceConfigurator)
+    {
+        var layoutController = new ShellLayoutController();
+        var platformAdapter = new WpfShellPlatformAdapter(
+            appearanceConfigurator,
+            contentDialogService,
+            navigationService,
+            pageProvider,
+            serviceProvider,
+            snackbarService);
+        var activationCoordinator = new ShellActivationCoordinator(
+            navigationGuardService,
+            layoutController,
+            navigationService,
+            platformAdapter);
+
+        return new MainWindow(
+            new MainWindowViewModel(new FakePlaybackCoordinator(), navigationService),
+            feedbackService,
+            activationCoordinator,
+            layoutController,
+            new FakeKeyboardShortcutCoordinator(),
+            new WpfShortcutContextResolver());
     }
 
     private static void InvokeClick(NavigationViewItem item)

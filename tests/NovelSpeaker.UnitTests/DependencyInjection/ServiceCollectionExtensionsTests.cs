@@ -15,6 +15,8 @@ using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.App.Shell.Activation;
+using NovelSpeaker.App.Shell.Input;
 using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shared.Theming;
@@ -42,6 +44,9 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<INavigationGuardService>(provider.GetRequiredService<INavigationGuardService>());
                 Assert.IsAssignableFrom<IAppNavigator>(provider.GetRequiredService<IAppNavigator>());
                 Assert.IsAssignableFrom<IShellNavigationAdapter>(provider.GetRequiredService<IShellNavigationAdapter>());
+                Assert.IsAssignableFrom<IShellActivationCoordinator>(provider.GetRequiredService<IShellActivationCoordinator>());
+                Assert.IsAssignableFrom<IShellPlatformAdapter>(provider.GetRequiredService<IShellPlatformAdapter>());
+                Assert.IsAssignableFrom<IShortcutContextResolver>(provider.GetRequiredService<IShortcutContextResolver>());
                 Assert.IsAssignableFrom<INavigationViewPageProvider>(provider.GetRequiredService<INavigationViewPageProvider>());
                 Assert.IsAssignableFrom<IContentDialogService>(provider.GetRequiredService<IContentDialogService>());
                 Assert.IsAssignableFrom<ISnackbarService>(provider.GetRequiredService<ISnackbarService>());
