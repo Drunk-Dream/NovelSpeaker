@@ -648,7 +648,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：按 feature slice 重组 App 的页面、ViewModel、组件和就近 presentation service，建立 Bootstrap、Shell、Shared 边界；同步更新 XAML `x:Class`、pack URI、导航映射、DI 注册和测试命名空间。保留跨功能稳定能力于 Shared，删除旧的全局 Pages、Views、ViewModels 目录，并增加 feature-slice 结构与命名空间架构契约。Release 构建、架构测试和全量单元/UI 测试通过。
 
-### [ ] APP-603（P1）：收敛 Page + 同名 View 一对一 wrapper
+### [x] APP-603（P1）：收敛 Page + 同名 View 一对一 wrapper
 
 前置：APP-602。
 
@@ -659,6 +659,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 合并页面 XAML/code-behind 时保留 activation、虚拟化、滚动和独立测试能力。
 
 验收：无纯 DataContext 转发 wrapper；视觉树、导航生命周期和页面高度测试通过。
+
+完成说明：已将 Library、Settings、TTS Rules、Chapter Rules、Regex Replacement Rules 的同名整页 UserControl 视觉树与事件桥接合并到导航 Page，Page 继续作为 activation、导航守卫和视口高度边界；保留 BookCard、BookCover 与 PlayerView 等具有复用、歌词滚动、播放控制或独立视觉测试价值的组件。视觉测试改为直接验证 Page，并新增结构契约限制可保留的 `*View.xaml` 集合。
 
 ### [ ] APP-604（P1）：统一平台适配并清除 ViewModel 视觉类型
 

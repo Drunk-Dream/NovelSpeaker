@@ -10,10 +10,10 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;
 
-public sealed partial class TtsRulesViewTests
+public sealed partial class TtsRulesPageTests
 {
     [Fact]
-    public void TtsRulesView_uses_split_scrollable_workspace_without_datagrid()
+    public void TtsRulesPage_uses_split_scrollable_workspace_without_datagrid()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -33,7 +33,7 @@ public sealed partial class TtsRulesViewTests
                 context.HeaderEntries.Add(new EditableKeyValueItemViewModel($"X-{index}", $"value-{index}"));
             }
 
-            var view = new TtsRulesView
+            var view = new TtsRulesPage
             {
                 DataContext = context
             };
@@ -52,12 +52,12 @@ public sealed partial class TtsRulesViewTests
     }
 
     [Fact]
-    public void TtsRulesView_exposes_rule_item_automation_name()
+    public void TtsRulesPage_exposes_rule_item_automation_name()
     {
         WpfTestHost.RunInSta(() =>
         {
             var targetRule = new TtsRuleListItemViewModel(2, "当前规则", false, true, true);
-            var view = new TtsRulesView
+            var view = new TtsRulesPage
             {
                 DataContext = new TtsRulesViewLayoutContext
                 {
@@ -83,11 +83,11 @@ public sealed partial class TtsRulesViewTests
     }
 
     [Fact]
-    public void TtsRulesView_uses_icon_buttons_for_toolbar_import_actions()
+    public void TtsRulesPage_uses_icon_buttons_for_toolbar_import_actions()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var view = new TtsRulesView
+            var view = new TtsRulesPage
             {
                 DataContext = new TtsRulesViewLayoutContext()
             };
@@ -102,7 +102,7 @@ public sealed partial class TtsRulesViewTests
         });
     }
 
-    private static void AssertToolbarIcon(TtsRulesView view, string automationName, SymbolRegular expectedSymbol)
+    private static void AssertToolbarIcon(TtsRulesPage view, string automationName, SymbolRegular expectedSymbol)
     {
         var button = Assert.Single(FindDescendants<Button>(
             view,
@@ -112,7 +112,7 @@ public sealed partial class TtsRulesViewTests
     }
 
     [Fact]
-    public void TtsRulesView_toggles_help_drawer_visibility()
+    public void TtsRulesPage_toggles_help_drawer_visibility()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -120,7 +120,7 @@ public sealed partial class TtsRulesViewTests
             {
                 IsHelpDrawerOpen = true
             };
-            var view = new TtsRulesView
+            var view = new TtsRulesPage
             {
                 DataContext = context
             };
@@ -145,11 +145,11 @@ public sealed partial class TtsRulesViewTests
     }
 
     [Fact]
-    public void TtsRulesView_help_drawer_contains_guided_get_and_post_examples()
+    public void TtsRulesPage_help_drawer_contains_guided_get_and_post_examples()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var view = new TtsRulesView
+            var view = new TtsRulesPage
             {
                 DataContext = new TtsRulesViewLayoutContext
                 {
@@ -174,11 +174,11 @@ public sealed partial class TtsRulesViewTests
     }
 
     [Fact]
-    public void TtsRulesView_keeps_both_panes_visible_at_minimum_supported_width()
+    public void TtsRulesPage_keeps_both_panes_visible_at_minimum_supported_width()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var view = new TtsRulesView
+            var view = new TtsRulesPage
             {
                 DataContext = new TtsRulesViewLayoutContext
                 {
@@ -200,11 +200,11 @@ public sealed partial class TtsRulesViewTests
     }
 
     [Fact]
-    public void TtsRulesView_hides_removed_rule_controls_and_preview_area()
+    public void TtsRulesPage_hides_removed_rule_controls_and_preview_area()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var view = new TtsRulesView
+            var view = new TtsRulesPage
             {
                 DataContext = new TtsRulesViewLayoutContext
                 {
@@ -228,11 +228,11 @@ public sealed partial class TtsRulesViewTests
     }
 
     [Fact]
-    public void TtsRulesView_shows_request_body_only_for_post()
+    public void TtsRulesPage_shows_request_body_only_for_post()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var getView = new TtsRulesView
+            var getView = new TtsRulesPage
             {
                 DataContext = new TtsRulesViewLayoutContext
                 {
@@ -249,7 +249,7 @@ public sealed partial class TtsRulesViewTests
             Assert.NotNull(hiddenRequestBodyLabel);
             Assert.Equal(Visibility.Collapsed, ((FrameworkElement)hiddenRequestBodyLabel!.Parent).Visibility);
 
-            var postView = new TtsRulesView
+            var postView = new TtsRulesPage
             {
                 DataContext = new TtsRulesViewLayoutContext
                 {
@@ -269,11 +269,11 @@ public sealed partial class TtsRulesViewTests
     }
 
     [Fact]
-    public void TtsRulesView_shows_concurrent_rate_format_tooltip()
+    public void TtsRulesPage_shows_concurrent_rate_format_tooltip()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var view = new TtsRulesView
+            var view = new TtsRulesPage
             {
                 DataContext = new TtsRulesViewLayoutContext
                 {

@@ -9,10 +9,10 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;
 
-public sealed partial class ChapterRulesViewTests
+public sealed partial class ChapterRulesPageTests
 {
     [Fact]
-    public void ChapterRulesView_uses_split_scrollable_workspace_without_datagrid()
+    public void ChapterRulesPage_uses_split_scrollable_workspace_without_datagrid()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -30,7 +30,7 @@ public sealed partial class ChapterRulesViewTests
                 context.Rules.Add(new ChapterRuleListItemViewModel($"custom:{index + 3}", $"规则 {index + 3}", $@"^\s*第{index + 3}章$", true, false, false));
             }
 
-            var view = new ChapterRulesView
+            var view = new ChapterRulesPage
             {
                 DataContext = context
             };
@@ -49,12 +49,12 @@ public sealed partial class ChapterRulesViewTests
     }
 
     [Fact]
-    public void ChapterRulesView_exposes_rule_item_automation_name()
+    public void ChapterRulesPage_exposes_rule_item_automation_name()
     {
         WpfTestHost.RunInSta(() =>
         {
             var item = new ChapterRuleListItemViewModel("builtin:one", "内置规则", @"^\s*第一章$", false, true, true);
-            var view = new ChapterRulesView
+            var view = new ChapterRulesPage
             {
                 DataContext = new ChapterRulesViewLayoutContext
                 {
@@ -82,7 +82,7 @@ public sealed partial class ChapterRulesViewTests
     }
 
     [Fact]
-    public void ChapterRulesView_keeps_rule_summary_above_quick_actions_at_narrow_width()
+    public void ChapterRulesPage_keeps_rule_summary_above_quick_actions_at_narrow_width()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -93,7 +93,7 @@ public sealed partial class ChapterRulesViewTests
                 true,
                 false,
                 false);
-            var view = new ChapterRulesView
+            var view = new ChapterRulesPage
             {
                 DataContext = new ChapterRulesViewLayoutContext
                 {
@@ -120,11 +120,11 @@ public sealed partial class ChapterRulesViewTests
     }
 
     [Fact]
-    public void ChapterRulesView_shows_enable_checkbox_only_in_left_rule_list()
+    public void ChapterRulesPage_shows_enable_checkbox_only_in_left_rule_list()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var view = new ChapterRulesView
+            var view = new ChapterRulesPage
             {
                 DataContext = new ChapterRulesViewLayoutContext
                 {
@@ -148,7 +148,7 @@ public sealed partial class ChapterRulesViewTests
     }
 
     [Fact]
-    public void ChapterRulesView_toggles_help_drawer_visibility()
+    public void ChapterRulesPage_toggles_help_drawer_visibility()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -156,7 +156,7 @@ public sealed partial class ChapterRulesViewTests
             {
                 IsHelpDrawerOpen = true
             };
-            var view = new ChapterRulesView
+            var view = new ChapterRulesPage
             {
                 DataContext = context
             };
@@ -181,11 +181,11 @@ public sealed partial class ChapterRulesViewTests
     }
 
     [Fact]
-    public void ChapterRulesView_help_drawer_explains_matching_order_and_regex_starting_point()
+    public void ChapterRulesPage_help_drawer_explains_matching_order_and_regex_starting_point()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var view = new ChapterRulesView
+            var view = new ChapterRulesPage
             {
                 DataContext = new ChapterRulesViewLayoutContext
                 {
@@ -209,7 +209,7 @@ public sealed partial class ChapterRulesViewTests
     }
 
     [Fact]
-    public void ChapterRulesView_marks_drag_target_visually()
+    public void ChapterRulesPage_marks_drag_target_visually()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -218,7 +218,7 @@ public sealed partial class ChapterRulesViewTests
             {
                 IsDropTarget = true
             };
-            var view = new ChapterRulesView
+            var view = new ChapterRulesPage
             {
                 DataContext = new ChapterRulesViewLayoutContext
                 {
@@ -255,9 +255,7 @@ public sealed partial class ChapterRulesViewTests
                 page.Arrange(new Rect(0, 0, 1280, 760));
                 page.UpdateLayout();
 
-                var view = Assert.IsType<ChapterRulesView>(page.FindName("ChapterRulesView"));
-
-                Assert.InRange(Math.Abs(view.ActualHeight - page.ActualHeight), 0d, 1d);
+                Assert.InRange(Math.Abs(page.ActualHeight - 760d), 0d, 1d);
             }
             finally
             {

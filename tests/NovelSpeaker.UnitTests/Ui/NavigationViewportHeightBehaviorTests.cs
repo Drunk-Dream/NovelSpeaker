@@ -29,7 +29,7 @@ public sealed class NavigationViewportHeightBehaviorTests
 
                 foreach (var page in pages)
                 {
-                    var rootViewport = Assert.IsAssignableFrom<FrameworkElement>(page.FindName("RootViewport"));
+                    var rootViewport = page.FindName("RootViewport") as FrameworkElement ?? page;
                     Assert.True(
                         NavigationViewportHeightBehavior.GetIsEnabled(rootViewport),
                         $"{page.GetType().Name} must use the shared navigation viewport behavior.");

@@ -225,6 +225,25 @@ public sealed class ArchitectureTests
         Assert.True(Directory.Exists(Path.Combine(appRoot, "Shell")));
     }
 
+    [Fact]
+    public void AppKeepsOnlyReusableOrBehaviorOwningUserControlViews()
+    {
+        var appRoot = Path.Combine(Repository.RootPath, "src", "NovelSpeaker.App");
+        var actual = Directory
+            .EnumerateFiles(appRoot, "*View.xaml", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(appRoot, path).Replace('\\', '/'))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            [
+                "Features/Library/BookCardView.xaml",
+                "Features/Playback/Components/PlayerView.xaml",
+                "Shared/Presentation/Books/BookCoverView.xaml"
+            ],
+            actual);
+    }
+
     private static void AssertEqualSet(IEnumerable<string> expected, IEnumerable<string> actual)
     {
         var expectedArray = expected.Order(StringComparer.Ordinal).ToArray();

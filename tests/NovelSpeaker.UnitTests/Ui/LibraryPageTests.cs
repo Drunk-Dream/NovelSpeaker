@@ -12,10 +12,10 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;
 
-public sealed partial class LibraryViewTests
+public sealed partial class LibraryPageTests
 {
     [Fact]
-    public void LibraryView_uses_internal_scroll_books_area_and_search_clear_icon()
+    public void LibraryPage_uses_internal_scroll_books_area_and_search_clear_icon()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -39,7 +39,7 @@ public sealed partial class LibraryViewTests
                 new BookCoverGenerator().Generate("三体"),
                 canDelete: true));
 
-            var view = new LibraryView
+            var view = new LibraryPage
             {
                 DataContext = context
             };
@@ -61,11 +61,11 @@ public sealed partial class LibraryViewTests
     }
 
     [Fact]
-    public void LibraryView_uses_import_icon_in_empty_state()
+    public void LibraryPage_uses_import_icon_in_empty_state()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var view = new LibraryView
+            var view = new LibraryPage
             {
                 DataContext = new LibraryViewLayoutContext()
             };
@@ -79,7 +79,7 @@ public sealed partial class LibraryViewTests
     }
 
     [Fact]
-    public void LibraryView_shows_no_results_state_with_clear_search_action()
+    public void LibraryPage_shows_no_results_state_with_clear_search_action()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -91,7 +91,7 @@ public sealed partial class LibraryViewTests
                 SearchText = "missing",
                 LibrarySummaryText = "共 1 本 · 最近阅读优先"
             };
-            var view = new LibraryView
+            var view = new LibraryPage
             {
                 DataContext = context
             };

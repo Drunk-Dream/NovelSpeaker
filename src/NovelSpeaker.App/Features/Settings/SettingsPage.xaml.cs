@@ -11,7 +11,7 @@ public partial class SettingsPage : System.Windows.Controls.Page, INavigationAwa
     {
         ViewModel = viewModel;
         InitializeComponent();
-        SettingsView.DataContext = ViewModel;
+        DataContext = ViewModel;
     }
 
     public SettingsViewModel ViewModel { get; }

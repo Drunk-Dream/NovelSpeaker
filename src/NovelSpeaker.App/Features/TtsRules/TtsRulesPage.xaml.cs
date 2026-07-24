@@ -1,3 +1,5 @@
+using System.Windows;
+using Microsoft.Win32;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
 using Wpf.Ui.Abstractions.Controls;
@@ -13,11 +15,18 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
     public TtsRulesPage(
         TtsRulesViewModel viewModel,
         INavigationGuardService navigationGuardService)
+        : this()
     {
         ViewModel = viewModel;
         _navigationGuardService = navigationGuardService;
+        DataContext = ViewModel;
+    }
+
+    internal TtsRulesPage()
+    {
+        ViewModel = null!;
+        _navigationGuardService = null!;
         InitializeComponent();
-        TtsRulesView.DataContext = ViewModel;
     }
 
     public TtsRulesViewModel ViewModel { get; }
@@ -47,5 +56,44 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
     {
         _activation.Deactivate();
         return Task.CompletedTask;
+    }
+
+    private async void ImportFromFileButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            await ViewModel.ImportFromFileAsync(dialog.FileName, CancellationToken.None);
+        }
+    }
+
+    private async void ImportFromClipboardButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (!Clipboard.ContainsText())
+        {
+            ViewModel.NotifyClipboardTextMissing();
+            return;
+        }
+
+        await ViewModel.ImportJsonTextAsync(Clipboard.GetText(), "剪贴板", CancellationToken.None);
+    }
+
+    private async void ExportDraftButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+            FileName = "tts-rule.json"
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            await ViewModel.ExportDraftToFileAsync(dialog.FileName, CancellationToken.None);
+        }
     }
 }

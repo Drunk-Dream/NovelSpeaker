@@ -1,5 +1,5 @@
+using System.Windows;
 using NovelSpeaker.App.Shell.Activation;
-using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Shell.Input;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Presentation.Books;
@@ -11,18 +11,27 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
 {
     private readonly PageActivationController _activation = new();
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
+    private readonly ITextFilePicker _textFilePicker;
     private bool _hasLoaded;
 
     public LibraryPage(
         LibraryViewModel viewModel,
         IBookCatalogInvalidationState catalogInvalidationState,
         ITextFilePicker textFilePicker)
+        : this()
     {
         _catalogInvalidationState = catalogInvalidationState;
+        _textFilePicker = textFilePicker;
         ViewModel = viewModel;
+        DataContext = ViewModel;
+    }
+
+    internal LibraryPage()
+    {
+        _catalogInvalidationState = null!;
+        _textFilePicker = null!;
+        ViewModel = null!;
         InitializeComponent();
-        LibraryView.DataContext = ViewModel;
-        LibraryView.TextFilePicker = textFilePicker;
     }
 
     public LibraryViewModel ViewModel { get; }
@@ -51,5 +60,31 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
     {
         _activation.Deactivate();
         return Task.CompletedTask;
+    }
+
+    private async void ImportButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        await ShowImportFileDialogAsync();
+    }
+
+    private void RootGrid_OnDragEnter(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private async void RootGrid_OnDrop(object sender, DragEventArgs e)
+    {
+        var files = e.Data.GetData(DataFormats.FileDrop) as string[];
+        await ViewModel.ImportFilesAsync(files ?? [], CancellationToken.None);
+    }
+
+    private async Task ShowImportFileDialogAsync()
+    {
+        var filePath = await _textFilePicker.PickSingleTextFileAsync(CancellationToken.None);
+        if (!string.IsNullOrWhiteSpace(filePath))
+        {
+            await ViewModel.ImportFilesAsync([filePath], CancellationToken.None);
+        }
     }
 }

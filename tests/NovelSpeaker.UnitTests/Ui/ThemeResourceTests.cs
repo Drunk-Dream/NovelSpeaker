@@ -72,18 +72,18 @@ public sealed class ThemeResourceTests
     {
         var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
         var playerView = File.ReadAllText(Path.Combine(appRoot, "Features", "Playback", "Components", "PlayerView.xaml"));
-        var chapterRulesView = File.ReadAllText(Path.Combine(appRoot, "Features", "ChapterRules", "ChapterRulesView.xaml"));
-        var libraryView = File.ReadAllText(Path.Combine(appRoot, "Features", "Library", "LibraryView.xaml"));
+        var chapterRulesPage = File.ReadAllText(Path.Combine(appRoot, "Features", "ChapterRules", "ChapterRulesPage.xaml"));
+        var libraryPage = File.ReadAllText(Path.Combine(appRoot, "Features", "Library", "LibraryPage.xaml"));
         var bookCardView = File.ReadAllText(Path.Combine(appRoot, "Features", "Library", "BookCardView.xaml"));
 
         Assert.Contains("ToolbarValueButtonStyle", playerView);
         Assert.Contains("PrimaryPlaybackIconButtonStyle", playerView);
         Assert.Contains("FloatingIconButtonStyle", playerView);
-        Assert.Contains("BorderlessIconButtonStyle", libraryView);
+        Assert.Contains("BorderlessIconButtonStyle", libraryPage);
         Assert.Contains("BorderlessListItemButtonStyle", bookCardView);
-        Assert.Contains("ReOrder24", chapterRulesView);
-        Assert.Contains("AutomationProperties.Name=\"上移\"", chapterRulesView);
-        Assert.Contains("AutomationProperties.Name=\"下移\"", chapterRulesView);
+        Assert.Contains("ReOrder24", chapterRulesPage);
+        Assert.Contains("AutomationProperties.Name=\"上移\"", chapterRulesPage);
+        Assert.Contains("AutomationProperties.Name=\"下移\"", chapterRulesPage);
     }
 
     [Fact]

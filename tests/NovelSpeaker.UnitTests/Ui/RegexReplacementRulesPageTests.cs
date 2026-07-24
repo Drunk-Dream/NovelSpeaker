@@ -7,10 +7,10 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;
 
-public sealed class RegexReplacementRulesViewTests
+public sealed class RegexReplacementRulesPageTests
 {
     [Fact]
-    public void RegexReplacementRulesView_uses_theme_aware_rule_cards_and_explicit_enabled_state()
+    public void RegexReplacementRulesPage_uses_theme_aware_rule_cards_and_explicit_enabled_state()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -30,7 +30,7 @@ public sealed class RegexReplacementRulesViewTests
                 RegexReplacementScope.Display,
                 false,
                 "规则执行失败");
-            var view = new RegexReplacementRulesView
+            var view = new RegexReplacementRulesPage
             {
                 DataContext = new RegexReplacementRulesViewLayoutContext
                 {
