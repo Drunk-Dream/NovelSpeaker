@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.App.Features.Appearance;
 using NovelSpeaker.App.Features.BookDetails;
 using NovelSpeaker.App.Features.Cache;
@@ -13,6 +14,7 @@ using NovelSpeaker.App.Features.Settings;
 using NovelSpeaker.App.Features.TtsRules;
 using NovelSpeaker.App.Shared;
 using NovelSpeaker.App.Shell;
+using NovelSpeaker.App.Shell.Activation;
 
 namespace NovelSpeaker.App.Bootstrap;
 
@@ -25,6 +27,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddSingleton<IProcessShutdownGate, ProcessShutdownGate>();
         return services
             .AddSharedServices()
             .AddShellServices()

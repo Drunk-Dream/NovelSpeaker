@@ -10,6 +10,8 @@ internal sealed class StartupCoordinator : IAsyncDisposable
     private readonly IStartupRuntime _runtime;
     private readonly CancellationTokenSource _processCancellation = new();
     private CancellationTokenSource? _startupCancellation;
+    private readonly object _shutdownGate = new();
+    private Task? _shutdownTask;
     private int _started;
     private int _disposed;
 
@@ -91,6 +93,15 @@ internal sealed class StartupCoordinator : IAsyncDisposable
 
     public void Cancel() => _processCancellation.Cancel();
 
+    public Task ShutdownAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_shutdownGate)
+        {
+            _shutdownTask ??= ShutdownCoreAsync(cancellationToken);
+            return _shutdownTask;
+        }
+    }
+
     public void RecordUnhandledFailure(string stage, string safeMessage, Exception? exception)
     {
         TryRecordFailure(
@@ -106,15 +117,80 @@ internal sealed class StartupCoordinator : IAsyncDisposable
             return;
         }
 
-        _processCancellation.Cancel();
         try
         {
-            await _runtime.DisposeAsync().ConfigureAwait(false);
+            await ShutdownAsync().ConfigureAwait(false);
         }
         finally
         {
             _startupCancellation?.Dispose();
             _processCancellation.Dispose();
+        }
+    }
+
+    private async Task ShutdownCoreAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            _runtime.BeginShutdown();
+        }
+        catch (Exception exception)
+        {
+            TryRecordLifecycleFailure(
+                "shutdown-gate",
+                "阻止新操作失败，将继续关闭。",
+                exception);
+        }
+
+        await RunShutdownStepAsync(
+            "playback-shutdown",
+            "保存并结束播放失败，将继续关闭。",
+            _runtime.StopPlaybackAsync,
+            cancellationToken).ConfigureAwait(false);
+
+        _processCancellation.Cancel();
+
+        await RunShutdownStepAsync(
+            "background-shutdown",
+            "等待后台任务退出失败，将继续关闭。",
+            _runtime.WaitForBackgroundTasksAsync,
+            cancellationToken).ConfigureAwait(false);
+
+        await RunShutdownStepAsync(
+            "flush-shutdown",
+            "刷新设置或日志失败，将继续关闭。",
+            _runtime.FlushAsync,
+            cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            await _runtime.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            TryRecordLifecycleFailure(
+                "resource-disposal",
+                "释放应用资源失败，将继续关闭。",
+                exception);
+        }
+    }
+
+    private async Task RunShutdownStepAsync(
+        string name,
+        string safeMessage,
+        Func<CancellationToken, Task> action,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await action(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            TryRecordLifecycleFailure(name, safeMessage, exception);
         }
     }
 
@@ -200,6 +276,18 @@ internal sealed class StartupCoordinator : IAsyncDisposable
         catch
         {
             // Startup diagnostics are best effort and must not replace the original safe result.
+        }
+    }
+
+    private void TryRecordLifecycleFailure(string name, string safeMessage, Exception exception)
+    {
+        try
+        {
+            _runtime.RecordLifecycleFailure(name, safeMessage, exception);
+        }
+        catch
+        {
+            // Shutdown diagnostics are best effort and must not block resource release.
         }
     }
 

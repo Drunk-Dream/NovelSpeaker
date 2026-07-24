@@ -25,6 +25,7 @@ public partial class App : System.Windows.Application
 
         var runtime = new WpfStartupRuntime(Dispatcher, window => MainWindow = window);
         _startupCoordinator = new StartupCoordinator(runtime);
+        runtime.ShutdownRequestedAsync = _startupCoordinator.ShutdownAsync;
         try
         {
             var result = await _startupCoordinator.StartAsync();
@@ -54,8 +55,14 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        _startupCoordinator?.Cancel();
-        _startupCoordinator?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        var shutdownTask = _startupCoordinator?.DisposeAsync().AsTask();
+        if (shutdownTask is not null && !shutdownTask.Wait(TimeSpan.FromSeconds(5)))
+        {
+            _startupCoordinator?.RecordUnhandledFailure(
+                "exit-bridge-timeout",
+                "同步退出桥接超时，将由进程结束回收剩余资源。",
+                null);
+        }
 
         base.OnExit(e);
     }

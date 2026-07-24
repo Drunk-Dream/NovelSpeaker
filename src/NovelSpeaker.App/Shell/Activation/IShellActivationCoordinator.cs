@@ -8,6 +8,8 @@ public interface IShellActivationCoordinator : IDisposable
 
     bool IsCloseApproved { get; }
 
+    bool IsShutdownRequested { get; }
+
     bool IsPlayerPageActive { get; }
 
     Task ActivateAsync(ShellHostElements host, double windowWidth);

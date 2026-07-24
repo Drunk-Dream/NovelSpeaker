@@ -19,6 +19,7 @@ public partial class MainWindow : FluentWindow
     private readonly IShortcutContextResolver _shortcutContextResolver;
     private readonly IShellLayoutController _shellLayoutController;
     private readonly MainWindowViewModel _viewModel;
+    private Func<CancellationToken, Task>? _shutdownAsync;
     private bool _navigationEventsConnected;
 
     public MainWindow(
@@ -50,6 +51,11 @@ public partial class MainWindow : FluentWindow
 
     internal NavigationView NavigationViewControl => RootNavigationView;
 
+    internal void ConfigureShutdown(Func<CancellationToken, Task> shutdownAsync)
+    {
+        _shutdownAsync = shutdownAsync ?? throw new ArgumentNullException(nameof(shutdownAsync));
+    }
+
     private async void OnClosing(object? sender, CancelEventArgs e)
     {
         if (_activationCoordinator.IsCloseApproved)
@@ -61,9 +67,19 @@ public partial class MainWindow : FluentWindow
         try
         {
             await _activationCoordinator.RequestCloseAsync(
-                () => Dispatcher.InvokeAsync(Close).Task).ConfigureAwait(true);
+                async () =>
+                {
+                    var shutdownAsync = _shutdownAsync
+                        ?? throw new InvalidOperationException("应用关闭回调尚未配置。");
+                    // Once the guard approves process exit, final cleanup must not be
+                    // abandoned by a page or window lifetime cancellation.
+                    await shutdownAsync(CancellationToken.None).ConfigureAwait(true);
+                    await Dispatcher.InvokeAsync(Close);
+                }).ConfigureAwait(true);
         }
-        catch (OperationCanceledException) when (_activationCoordinator.LifetimeToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (
+            _activationCoordinator.LifetimeToken.IsCancellationRequested ||
+            _activationCoordinator.IsShutdownRequested)
         {
             // Window-close cancellation is normal control flow; the window remains open.
         }
@@ -89,7 +105,9 @@ public partial class MainWindow : FluentWindow
                 ActualWidth).ConfigureAwait(true);
             ApplyPaneState(_shellLayoutController.IsPaneOpen);
         }
-        catch (OperationCanceledException) when (_activationCoordinator.LifetimeToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (
+            _activationCoordinator.LifetimeToken.IsCancellationRequested ||
+            _activationCoordinator.IsShutdownRequested)
         {
         }
         catch (Exception exception)
@@ -112,6 +130,11 @@ public partial class MainWindow : FluentWindow
     {
         try
         {
+            if (_activationCoordinator.IsShutdownRequested)
+            {
+                return;
+            }
+
             if (e.Handled)
             {
                 return;
@@ -127,7 +150,9 @@ public partial class MainWindow : FluentWindow
                 _activationCoordinator.LifetimeToken);
             e.Handled = handled;
         }
-        catch (OperationCanceledException) when (_activationCoordinator.LifetimeToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (
+            _activationCoordinator.LifetimeToken.IsCancellationRequested ||
+            _activationCoordinator.IsShutdownRequested)
         {
         }
         catch (Exception exception)
@@ -165,12 +190,19 @@ public partial class MainWindow : FluentWindow
     {
         try
         {
+            if (_activationCoordinator.IsShutdownRequested)
+            {
+                return;
+            }
+
             if (_viewModel.NavigateToNowPlayingCommand.CanExecute(null))
             {
                 await _viewModel.NavigateToNowPlayingCommand.ExecuteAsync(null);
             }
         }
-        catch (OperationCanceledException) when (_activationCoordinator.LifetimeToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (
+            _activationCoordinator.LifetimeToken.IsCancellationRequested ||
+            _activationCoordinator.IsShutdownRequested)
         {
         }
         catch (Exception exception)
@@ -187,7 +219,9 @@ public partial class MainWindow : FluentWindow
                 e,
                 _activationCoordinator.LifetimeToken).ConfigureAwait(true);
         }
-        catch (OperationCanceledException) when (_activationCoordinator.LifetimeToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (
+            _activationCoordinator.LifetimeToken.IsCancellationRequested ||
+            _activationCoordinator.IsShutdownRequested)
         {
         }
         catch (Exception exception)

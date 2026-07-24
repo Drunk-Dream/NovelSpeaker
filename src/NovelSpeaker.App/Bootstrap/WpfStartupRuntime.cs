@@ -5,9 +5,11 @@ using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.App.Shell;
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using NovelSpeaker.Infrastructure.FileSystem;
@@ -18,8 +20,9 @@ namespace NovelSpeaker.App.Bootstrap;
 /// <summary>
 /// Implements startup stages at the WPF composition boundary.
 /// </summary>
-internal sealed class WpfStartupRuntime : IStartupRuntime
+internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiagnostics
 {
+    private static readonly TimeSpan BackgroundShutdownTimeout = TimeSpan.FromSeconds(5);
     private static readonly IReadOnlyDictionary<StartupStage, (string Status, string Detail)> StageText =
         new Dictionary<StartupStage, (string, string)>
         {
@@ -35,6 +38,8 @@ internal sealed class WpfStartupRuntime : IStartupRuntime
     private readonly Dispatcher _dispatcher;
     private readonly Action<MainWindow> _setMainWindow;
     private readonly StartupStatusViewModel _statusViewModel = new();
+    private readonly ProcessShutdownGate _shutdownGate = new();
+    private readonly BackgroundTaskRegistry _backgroundTasks;
     private StartupStatusWindow? _statusWindow;
     private LocalAppDataDirectoryProvider? _directories;
     private JsonAppSettingsStore? _settingsStore;
@@ -45,7 +50,10 @@ internal sealed class WpfStartupRuntime : IStartupRuntime
     {
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _setMainWindow = setMainWindow ?? throw new ArgumentNullException(nameof(setMainWindow));
+        _backgroundTasks = new BackgroundTaskRegistry(this, TimeProvider.System);
     }
+
+    public Func<CancellationToken, Task>? ShutdownRequestedAsync { get; set; }
 
     public void ShowStartupStatus()
     {
@@ -105,6 +113,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime
         services.AddSingleton<IAppDataDirectoryProvider>(directories);
         services.AddSingleton(settingsStore);
         services.AddSingleton<IAppSettingsStore>(settingsStore);
+        services.AddSingleton<IProcessShutdownGate>(_shutdownGate);
         services.AddNovelSpeakerApplication(settings);
         services.AddNovelSpeakerInfrastructure();
         services.AddNovelSpeakerDesktop();
@@ -143,6 +152,9 @@ internal sealed class WpfStartupRuntime : IStartupRuntime
     {
         cancellationToken.ThrowIfCancellationRequested();
         var window = RequireServices().GetRequiredService<MainWindow>();
+        window.ConfigureShutdown(
+            ShutdownRequestedAsync
+            ?? throw new InvalidOperationException("应用关闭回调尚未配置。"));
         _setMainWindow(window);
         CloseStartupStatus();
         window.Show();
@@ -150,9 +162,64 @@ internal sealed class WpfStartupRuntime : IStartupRuntime
         return Task.CompletedTask;
     }
 
+    public void BeginShutdown()
+    {
+        _shutdownGate.TryBeginShutdown();
+        _backgroundTasks.StopAccepting();
+    }
+
+    public async Task StopPlaybackAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_serviceProvider is null)
+        {
+            return;
+        }
+
+        await _serviceProvider
+            .GetRequiredService<PlaybackCoordinator>()
+            .DisposeAsync()
+            .AsTask()
+            .WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task WaitForBackgroundTasksAsync(CancellationToken cancellationToken)
+    {
+        await _backgroundTasks.WaitForCompletionAsync(
+            BackgroundShutdownTimeout,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task FlushAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        // Settings updates are atomically persisted before publication and the current
+        // rolling logger writes synchronously, so neither collaborator has buffered state.
+        return Task.CompletedTask;
+    }
+
     public void RecordFailure(StartupStage stage, string safeMessage, Exception exception)
     {
         _diagnostics?.RecordFailure(stage.ToString(), safeMessage, exception);
+    }
+
+    public void RecordLifecycleFailure(string name, string safeMessage, Exception exception)
+    {
+        _diagnostics?.RecordFailure(name, safeMessage, exception);
+    }
+
+    public void RecordStage(string name, string safeMessage)
+    {
+        _diagnostics?.RecordStage(name, safeMessage);
+    }
+
+    void IProcessLifecycleDiagnostics.RecordFailure(
+        string name,
+        string safeMessage,
+        Exception exception)
+    {
+        RecordLifecycleFailure(name, safeMessage, exception);
     }
 
     public void ShowStartupFailure(StartupFailure failure)
@@ -178,6 +245,8 @@ internal sealed class WpfStartupRuntime : IStartupRuntime
             await _serviceProvider.DisposeAsync().ConfigureAwait(false);
             _serviceProvider = null;
         }
+
+        _shutdownGate.Dispose();
     }
 
     private LocalAppDataDirectoryProvider RequireDirectories() =>
@@ -189,24 +258,10 @@ internal sealed class WpfStartupRuntime : IStartupRuntime
     private void StartBackgroundCacheMaintenance(CancellationToken processToken)
     {
         var cacheWorkspace = RequireServices().GetRequiredService<ICacheWorkspaceService>();
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await cacheWorkspace.TrimToConfiguredLimitAsync(processToken).ConfigureAwait(false);
-                _diagnostics?.RecordStage("audio-cache-maintenance", "后台音频缓存维护完成。");
-            }
-            catch (OperationCanceledException) when (processToken.IsCancellationRequested)
-            {
-            }
-            catch (Exception exception)
-            {
-                _diagnostics?.RecordFailure(
-                    "audio-cache-maintenance-failed",
-                    "后台音频缓存维护失败。",
-                    exception);
-            }
-        });
+        _backgroundTasks.Register(
+            "audio-cache-maintenance",
+            cacheWorkspace.TrimToConfiguredLimitAsync,
+            processToken);
     }
 
     private static LogLevel ParseLogLevel(string? value)

@@ -27,7 +27,17 @@ internal interface IStartupRuntime : IAsyncDisposable
 
     Task ShowShellAsync(CancellationToken cancellationToken);
 
+    void BeginShutdown();
+
+    Task StopPlaybackAsync(CancellationToken cancellationToken);
+
+    Task WaitForBackgroundTasksAsync(CancellationToken cancellationToken);
+
+    Task FlushAsync(CancellationToken cancellationToken);
+
     void RecordFailure(StartupStage stage, string safeMessage, Exception exception);
+
+    void RecordLifecycleFailure(string name, string safeMessage, Exception exception);
 
     void ShowStartupFailure(StartupFailure failure);
 

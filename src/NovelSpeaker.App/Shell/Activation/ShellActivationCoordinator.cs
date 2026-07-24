@@ -10,6 +10,7 @@ public sealed class ShellActivationCoordinator : IShellActivationCoordinator
     private readonly IShellLayoutController _shellLayoutController;
     private readonly IShellNavigationAdapter _navigationAdapter;
     private readonly IShellPlatformAdapter _platformAdapter;
+    private readonly IProcessShutdownGate _processShutdownGate;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly CancellationToken _lifetimeToken;
     private Task? _closeTask;
@@ -21,12 +22,14 @@ public sealed class ShellActivationCoordinator : IShellActivationCoordinator
         INavigationGuardService navigationGuardService,
         IShellLayoutController shellLayoutController,
         IShellNavigationAdapter navigationAdapter,
-        IShellPlatformAdapter platformAdapter)
+        IShellPlatformAdapter platformAdapter,
+        IProcessShutdownGate processShutdownGate)
     {
         _navigationGuardService = navigationGuardService;
         _shellLayoutController = shellLayoutController;
         _navigationAdapter = navigationAdapter;
         _platformAdapter = platformAdapter;
+        _processShutdownGate = processShutdownGate;
         _lifetimeToken = _lifetimeCancellation.Token;
     }
 
@@ -34,11 +37,14 @@ public sealed class ShellActivationCoordinator : IShellActivationCoordinator
 
     public bool IsCloseApproved { get; private set; }
 
+    public bool IsShutdownRequested => _processShutdownGate.IsShutdownRequested;
+
     public bool IsPlayerPageActive { get; private set; }
 
     public async Task ActivateAsync(ShellHostElements host, double windowWidth)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        ThrowIfShutdownRequested();
         ArgumentNullException.ThrowIfNull(host);
         LifetimeToken.ThrowIfCancellationRequested();
 
@@ -70,6 +76,7 @@ public sealed class ShellActivationCoordinator : IShellActivationCoordinator
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        ThrowIfShutdownRequested();
         ArgumentNullException.ThrowIfNull(eventArgs);
 
         if (_navigationAdapter.IsBypassingGuard)
@@ -104,6 +111,11 @@ public sealed class ShellActivationCoordinator : IShellActivationCoordinator
                 return _closeTask;
             }
 
+            if (!_processShutdownGate.TryBeginShutdown())
+            {
+                return _closeTask ?? Task.CompletedTask;
+            }
+
             var closeTask = ConfirmAndCloseAsync(closeWindowAsync);
             if (!closeTask.IsCompleted)
             {
@@ -134,6 +146,7 @@ public sealed class ShellActivationCoordinator : IShellActivationCoordinator
                     .ConfirmNavigationAsync(LifetimeToken)
                     .ConfigureAwait(true))
             {
+                _processShutdownGate.CancelShutdownRequest();
                 return;
             }
 
@@ -144,6 +157,7 @@ public sealed class ShellActivationCoordinator : IShellActivationCoordinator
         catch
         {
             IsCloseApproved = false;
+            _processShutdownGate.CancelShutdownRequest();
             throw;
         }
         finally
@@ -152,6 +166,14 @@ public sealed class ShellActivationCoordinator : IShellActivationCoordinator
             {
                 _closeTask = null;
             }
+        }
+    }
+
+    private void ThrowIfShutdownRequested()
+    {
+        if (_processShutdownGate.IsShutdownRequested)
+        {
+            throw new OperationCanceledException(_processShutdownGate.ShutdownToken);
         }
     }
 }
