@@ -662,7 +662,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：已将 Library、Settings、TTS Rules、Chapter Rules、Regex Replacement Rules 的同名整页 UserControl 视觉树与事件桥接合并到导航 Page，Page 继续作为 activation、导航守卫和视口高度边界；保留 BookCard、BookCover 与 PlayerView 等具有复用、歌词滚动、播放控制或独立视觉测试价值的组件。视觉测试改为直接验证 Page，并新增结构契约限制可保留的 `*View.xaml` 集合。
 
-### [ ] APP-604（P1）：统一平台适配并清除 ViewModel 视觉类型
+### [x] APP-604（P1）：统一平台适配并清除 ViewModel 视觉类型
 
 前置：APP-602。
 
@@ -674,6 +674,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 页面事件使用 activation/operation Token，不再散落无理由 `CancellationToken.None`。
 
 验收：架构测试禁止回退；平台 adapter 可独立测试。
+
+完成说明：已将文件打开/保存、剪贴板、目录打开和 UI 调度收敛到 `Shared/Presentation/Platform` 端口及 WPF adapter；TTS 规则页、书库、诊断和 Shell 通过注入端口使用平台能力，页面不再自行创建文件对话框或访问剪贴板。Playback、Settings、Shell 的 ViewModel 公共状态改为语义枚举，由 XAML 映射图标和字重；页面操作统一传递 activation/operation token，并补充架构回退测试。原有视觉类型债务已清除，Release 构建和全量测试通过。
 
 ### [ ] APP-605（P1）：拆分 Shell/MainWindow 职责
 

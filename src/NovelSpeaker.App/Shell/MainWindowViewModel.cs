@@ -1,8 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shell.Navigation;
-using Wpf.Ui.Controls;
 
 namespace NovelSpeaker.App.Shell;
 
@@ -12,13 +12,16 @@ namespace NovelSpeaker.App.Shell;
 public sealed partial class MainWindowViewModel : ObservableObject
 {
     private readonly IAppNavigator _navigator;
+    private readonly IUiScheduler _uiScheduler;
     private string? _currentBookId;
 
     public MainWindowViewModel(
         IPlaybackSnapshotSource playbackCoordinator,
-        IAppNavigator navigator)
+        IAppNavigator navigator,
+        IUiScheduler? uiScheduler = null)
     {
         _navigator = navigator;
+        _uiScheduler = uiScheduler ?? new WpfUiScheduler();
         ApplySnapshot(playbackCoordinator.CurrentSnapshot);
         playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
     }
@@ -33,7 +36,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private string nowPlayingStatus = string.Empty;
 
     [ObservableProperty]
-    private SymbolRegular nowPlayingSymbol = SymbolRegular.Headphones24;
+    private NowPlayingVisualState nowPlayingVisualState;
 
     [RelayCommand]
     private async Task NavigateToNowPlayingAsync(CancellationToken cancellationToken)
@@ -50,10 +53,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private void OnSnapshotChanged(object? sender, PlaybackSnapshot snapshot)
     {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
+        if (!_uiScheduler.CheckAccess())
         {
-            _ = dispatcher.InvokeAsync(() => ApplySnapshot(snapshot));
+            _ = _uiScheduler.InvokeAsync(() => ApplySnapshot(snapshot));
             return;
         }
 
@@ -66,12 +68,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IsNowPlayingVisible = !string.IsNullOrWhiteSpace(snapshot.BookId) && snapshot.State != PlaybackState.Idle;
         NowPlayingTitle = snapshot.BookTitle ?? string.Empty;
         NowPlayingStatus = BuildStatus(snapshot);
-        NowPlayingSymbol = snapshot.State switch
+        NowPlayingVisualState = snapshot.State switch
         {
-            PlaybackState.Playing => SymbolRegular.PlayCircle24,
-            PlaybackState.Paused => SymbolRegular.PauseCircle24,
-            PlaybackState.Faulted => SymbolRegular.ErrorCircle24,
-            _ => SymbolRegular.Headphones24
+            PlaybackState.Playing => NowPlayingVisualState.Playing,
+            PlaybackState.Paused => NowPlayingVisualState.Paused,
+            PlaybackState.Faulted => NowPlayingVisualState.Faulted,
+            _ => NowPlayingVisualState.Inactive
         };
     }
 

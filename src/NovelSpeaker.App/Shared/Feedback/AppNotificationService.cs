@@ -1,5 +1,5 @@
 using System;
-using System.Windows;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 
@@ -10,10 +10,12 @@ public sealed class AppNotificationService : IAppNotificationService
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(3);
 
     private readonly ISnackbarService _snackbarService;
+    private readonly IUiScheduler _uiScheduler;
 
-    public AppNotificationService(ISnackbarService snackbarService)
+    public AppNotificationService(ISnackbarService snackbarService, IUiScheduler? uiScheduler = null)
     {
         _snackbarService = snackbarService;
+        _uiScheduler = uiScheduler ?? new WpfUiScheduler();
     }
 
     public void ShowSuccess(string title, string message)
@@ -33,10 +35,9 @@ public sealed class AppNotificationService : IAppNotificationService
 
     private void Show(string title, string message, ControlAppearance appearance)
     {
-        var dispatcher = global::System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
+        if (!_uiScheduler.CheckAccess())
         {
-            _ = dispatcher.InvokeAsync(() => ShowCore(title, message, appearance));
+            _ = _uiScheduler.InvokeAsync(() => ShowCore(title, message, appearance));
             return;
         }
 

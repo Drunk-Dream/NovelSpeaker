@@ -9,6 +9,7 @@ public abstract partial class SettingsSubpageViewModelBase : ObservableObject
 {
     private readonly IAppNavigator _navigator;
     private readonly IAppFeedbackService _feedbackService;
+    private CancellationToken _activationToken = new(canceled: true);
 
     protected SettingsSubpageViewModelBase(
         IAppNavigator navigator,
@@ -19,6 +20,18 @@ public abstract partial class SettingsSubpageViewModelBase : ObservableObject
     }
 
     protected IAppNavigator Navigator => _navigator;
+
+    protected CancellationToken ActivationToken => _activationToken;
+
+    public void Activate(CancellationToken cancellationToken)
+    {
+        _activationToken = cancellationToken;
+    }
+
+    public void Deactivate()
+    {
+        _activationToken = new CancellationToken(canceled: true);
+    }
 
     [RelayCommand]
     private async Task BackAsync(CancellationToken cancellationToken)

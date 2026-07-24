@@ -102,6 +102,6 @@ public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, I
         }
 
         var target = (sender as FrameworkElement)?.DataContext as RegexReplacementRuleListItemViewModel;
-        await ViewModel.ReorderByDropAsync(source, target, CancellationToken.None);
+        await ViewModel.ReorderByDropAsync(source, target, _activation.CurrentToken);
     }
 }

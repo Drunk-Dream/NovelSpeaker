@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Books;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Theming;
 using Wpf.Ui;
 
@@ -18,7 +19,10 @@ public static class SharedServiceCollectionExtensions
         services.TryAddSingleton<IAppNotificationService, AppNotificationService>();
         services.TryAddSingleton<IExceptionProjector, ExceptionProjector>();
         services.TryAddSingleton<IAppFeedbackService, AppFeedbackService>();
-        services.TryAddSingleton<ITextFilePicker, TextFilePicker>();
+        services.TryAddSingleton<IUiScheduler, WpfUiScheduler>();
+        services.TryAddSingleton<IPresentationFileDialogService, WpfPresentationFileDialogService>();
+        services.TryAddSingleton<IPresentationClipboard, WpfPresentationClipboard>();
+        services.TryAddSingleton<IPresentationLauncher, ShellPresentationLauncher>();
         services.TryAddSingleton<IBookCoverGenerator, BookCoverGenerator>();
         services.TryAddSingleton<IBookCatalogInvalidationState, BookCatalogInvalidationState>();
         services.TryAddSingleton<IThemeRuntime, WpfUiThemeRuntime>();

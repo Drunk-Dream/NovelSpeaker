@@ -18,12 +18,5 @@ internal static class KnownArchitectureBaseline
         };
 
     public static readonly IReadOnlySet<string> ViewModelForbiddenPublicApiDependencies =
-        new HashSet<string>(StringComparer.Ordinal)
-        {
-            "NovelSpeaker.App.Features.Playback.Presentation.PlayerSegmentItemViewModel.FontWeight -> System.Windows.FontWeight",
-            "NovelSpeaker.App.Features.Playback.Presentation.PlayerViewModel.PrimaryActionSymbol -> Wpf.Ui.Controls.SymbolRegular",
-            "NovelSpeaker.App.Features.Settings.SettingsNavigationItemViewModel..ctor(IconSymbol) -> Wpf.Ui.Controls.SymbolRegular",
-            "NovelSpeaker.App.Features.Settings.SettingsNavigationItemViewModel.Deconstruct(IconSymbol) -> Wpf.Ui.Controls.SymbolRegular",
-            "NovelSpeaker.App.Features.Settings.SettingsNavigationItemViewModel.IconSymbol -> Wpf.Ui.Controls.SymbolRegular"
-        };
+        new HashSet<string>(StringComparer.Ordinal);
 }

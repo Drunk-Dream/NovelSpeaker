@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shell.Navigation;
 using System.Windows;
 using System.Windows.Controls;
@@ -70,7 +71,13 @@ public sealed class RulePageNavigationGuardTests
     private static (Page, object) CreateTtsPage(IServiceProvider provider, INavigationGuardService guard)
     {
         var viewModel = provider.GetRequiredService<TtsRulesViewModel>();
-        return (new TtsRulesPage(viewModel, guard), viewModel);
+        return (
+            new TtsRulesPage(
+                viewModel,
+                guard,
+                provider.GetRequiredService<IPresentationFileDialogService>(),
+                provider.GetRequiredService<IPresentationClipboard>()),
+            viewModel);
     }
 
     private static (Page, object) CreateChapterPage(IServiceProvider provider, INavigationGuardService guard)

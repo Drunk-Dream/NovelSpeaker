@@ -1,9 +1,9 @@
-using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using BootstrapApp = NovelSpeaker.App.Bootstrap.App;
 
 namespace NovelSpeaker.App.Features.Diagnostics;
@@ -15,15 +15,18 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
     private readonly IAppDataDirectoryProvider _directories;
     private readonly IDatabaseSchemaVersionProvider _schemaVersionProvider;
     private readonly IAppSettingsService _settingsService;
+    private readonly IPresentationLauncher _launcher;
 
     public AppDiagnosticsService(
         IAppDataDirectoryProvider directories,
         IDatabaseSchemaVersionProvider schemaVersionProvider,
-        IAppSettingsService settingsService)
+        IAppSettingsService settingsService,
+        IPresentationLauncher launcher)
     {
         _directories = directories;
         _schemaVersionProvider = schemaVersionProvider;
         _settingsService = settingsService;
+        _launcher = launcher;
     }
 
     public async Task<AppDiagnosticsSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
@@ -43,16 +46,7 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
 
     public Task OpenLogsDirectoryAsync(CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var info = new ProcessStartInfo
-        {
-            FileName = _directories.LogsDirectoryPath,
-            UseShellExecute = true
-        };
-
-        Process.Start(info);
-        return Task.CompletedTask;
+        return _launcher.OpenAsync(_directories.LogsDirectoryPath, cancellationToken);
     }
 
     public async Task<string> GetRedactedSummaryAsync(CancellationToken cancellationToken)
@@ -75,16 +69,7 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
 
     public Task OpenAppDataDirectoryAsync(CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var info = new ProcessStartInfo
-        {
-            FileName = _directories.RootDirectoryPath,
-            UseShellExecute = true
-        };
-
-        Process.Start(info);
-        return Task.CompletedTask;
+        return _launcher.OpenAsync(_directories.RootDirectoryPath, cancellationToken);
     }
 
     public Task OpenThirdPartyNoticesAsync(CancellationToken cancellationToken)
@@ -97,12 +82,7 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
             throw new FileNotFoundException("未找到第三方许可证文件。", noticesPath);
         }
 
-        Process.Start(new ProcessStartInfo
-        {
-            FileName = noticesPath,
-            UseShellExecute = true
-        });
-        return Task.CompletedTask;
+        return _launcher.OpenAsync(noticesPath, cancellationToken);
     }
 
     private static string ResolveVersion()

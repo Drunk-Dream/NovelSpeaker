@@ -1,6 +1,7 @@
 <UserControl x:Class="NovelSpeaker.App.Features.Playback.Components.PlayerView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:presentation="clr-namespace:NovelSpeaker.App.Features.Playback.Presentation"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
     <Grid Margin="{StaticResource PagePadding}"
           MinHeight="0"
@@ -524,12 +525,22 @@
                                                         </Style.Triggers>
                                                     </Style>
                                                 </Border.Style>
-                                                <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
-                                                           Text="{Binding Text}"
+                                                <TextBlock Text="{Binding Text}"
                                                            TextWrapping="Wrap"
                                                            Opacity="{Binding VisualOpacity}"
-                                                           FontWeight="{Binding FontWeight}"
-                                                           LineHeight="28" />
+                                                           LineHeight="28">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock"
+                                                               BasedOn="{StaticResource PrimaryTextBlockStyle}">
+                                                            <Setter Property="FontWeight" Value="Normal" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                             </Border>
                                         </Button>
                                     </DataTemplate>
@@ -622,8 +633,19 @@
                                 <ui:SymbolIcon HorizontalAlignment="Center"
                                                VerticalAlignment="Center"
                                                FontSize="24"
-                                               Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
-                                               Symbol="{Binding PrimaryActionSymbol}" />
+                                               Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}">
+                                    <ui:SymbolIcon.Style>
+                                        <Style TargetType="ui:SymbolIcon">
+                                            <Setter Property="Symbol" Value="PlayCircle24" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DataContext.PrimaryAction, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                             Value="{x:Static presentation:PlaybackPrimaryAction.Pause}">
+                                                    <Setter Property="Symbol" Value="PauseCircle24" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ui:SymbolIcon.Style>
+                                </ui:SymbolIcon>
                             </Border>
                         </Button>
                         <Button x:Name="NextSegmentButton"

@@ -175,8 +175,9 @@ public sealed class ArchitectureTests
     {
         var actual = ArchitectureRules.FindForbiddenPublicApiDependencies(
             typeof(PlayerViewModel).Assembly,
-            type => type.Namespace?.StartsWith("NovelSpeaker.App.Features", StringComparison.Ordinal) == true &&
-                type.Name.EndsWith("ViewModel", StringComparison.Ordinal));
+            type => (type.Namespace?.StartsWith("NovelSpeaker.App.Features", StringComparison.Ordinal) == true ||
+                     type.Namespace?.StartsWith("NovelSpeaker.App.Shell", StringComparison.Ordinal) == true) &&
+                    type.Name.EndsWith("ViewModel", StringComparison.Ordinal));
 
         AssertEqualSet(KnownArchitectureBaseline.ViewModelForbiddenPublicApiDependencies, actual);
     }

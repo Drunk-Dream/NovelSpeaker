@@ -20,6 +20,7 @@ public partial class ImportTextSettingsPage : System.Windows.Controls.Page, INav
     public async Task OnNavigatedToAsync()
     {
         var activation = _activation.Activate();
+        ViewModel.Activate(activation.CancellationToken);
         try
         {
             await ViewModel.LoadAsync(activation.CancellationToken);
@@ -32,6 +33,7 @@ public partial class ImportTextSettingsPage : System.Windows.Controls.Page, INav
     public Task OnNavigatedFromAsync()
     {
         _activation.Deactivate();
+        ViewModel.Deactivate();
         return Task.CompletedTask;
     }
 

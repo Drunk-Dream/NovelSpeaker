@@ -114,6 +114,6 @@ public partial class ChapterRulesPage : System.Windows.Controls.Page, INavigatio
         }
 
         var targetRule = (sender as FrameworkElement)?.DataContext as ChapterRuleListItemViewModel;
-        await ViewModel.ReorderByDropAsync(sourceRule, targetRule, CancellationToken.None);
+        await ViewModel.ReorderByDropAsync(sourceRule, targetRule, _activation.CurrentToken);
     }
 }

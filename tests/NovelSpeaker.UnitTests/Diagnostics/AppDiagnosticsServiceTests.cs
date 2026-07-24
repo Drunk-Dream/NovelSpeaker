@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.App.Features.Diagnostics;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
@@ -34,7 +35,8 @@ public sealed class AppDiagnosticsServiceTests
         var service = new AppDiagnosticsService(
             directories,
             new SqliteDatabaseSchemaVersionProvider(new SqliteConnectionFactory(directories)),
-            new FakeAppSettingsService(AppSettings.Default with { Theme = "Dark", LogLevel = "Warning" }));
+            new FakeAppSettingsService(AppSettings.Default with { Theme = "Dark", LogLevel = "Warning" }),
+            new FakeLauncher());
 
         var snapshot = await service.GetSnapshotAsync(CancellationToken.None);
 
@@ -59,5 +61,10 @@ public sealed class AppDiagnosticsServiceTests
         public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
 
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) => Task.FromResult(_settings);
+    }
+
+    private sealed class FakeLauncher : IPresentationLauncher
+    {
+        public Task OpenAsync(string path, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

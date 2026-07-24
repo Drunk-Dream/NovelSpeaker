@@ -1,6 +1,6 @@
 using System.Windows;
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.App.Features.Library;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 
@@ -9,10 +9,14 @@ namespace NovelSpeaker.App.Features.Library;
 public sealed class ImportProgressDialogService : IImportProgressDialogService
 {
     private readonly IContentDialogService _contentDialogService;
+    private readonly IUiScheduler _uiScheduler;
 
-    public ImportProgressDialogService(IContentDialogService contentDialogService)
+    public ImportProgressDialogService(
+        IContentDialogService contentDialogService,
+        IUiScheduler uiScheduler)
     {
         _contentDialogService = contentDialogService;
+        _uiScheduler = uiScheduler;
     }
 
     public async Task<LibraryImportCoordinatorResult> RunAsync(
@@ -78,7 +82,6 @@ public sealed class ImportProgressDialogService : IImportProgressDialogService
 
         var progress = new Progress<BookImportProgress>(update =>
         {
-            var dispatcher = global::System.Windows.Application.Current?.Dispatcher;
             void Apply()
             {
                 progressTextBlock.Text = FormatMessage(update);
@@ -89,9 +92,9 @@ public sealed class ImportProgressDialogService : IImportProgressDialogService
                 }
             }
 
-            if (dispatcher is not null && !dispatcher.CheckAccess())
+            if (!_uiScheduler.CheckAccess())
             {
-                _ = dispatcher.InvokeAsync(Apply);
+                _ = _uiScheduler.InvokeAsync(Apply, linkedCancellationTokenSource.Token);
             }
             else
             {

@@ -1,7 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.App.Shell.Navigation;
-using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 
 namespace NovelSpeaker.App.Features.Settings;
 
@@ -17,21 +16,21 @@ public sealed partial class SettingsViewModel : ObservableObject
             new SettingsNavigationGroupViewModel(
                 "常用",
                 [
-                    new SettingsNavigationItemViewModel("播放设置", SymbolRegular.PlayCircle24, OpenPlaybackSettingsCommand),
-                    new SettingsNavigationItemViewModel("TTS 规则", SymbolRegular.Speaker124, OpenTtsRulesCommand)
+                    new SettingsNavigationItemViewModel("播放设置", SettingsNavigationIcon.Playback, OpenPlaybackSettingsCommand),
+                    new SettingsNavigationItemViewModel("TTS 规则", SettingsNavigationIcon.TtsRules, OpenTtsRulesCommand)
                 ]),
             new SettingsNavigationGroupViewModel(
                 "文本处理",
                 [
-                    new SettingsNavigationItemViewModel("导入与文本", SymbolRegular.DocumentText24, OpenImportTextSettingsCommand),
-                    new SettingsNavigationItemViewModel("章节规则", SymbolRegular.TextBulletListSquare24, OpenChapterRulesCommand)
+                    new SettingsNavigationItemViewModel("导入与文本", SettingsNavigationIcon.ImportText, OpenImportTextSettingsCommand),
+                    new SettingsNavigationItemViewModel("章节规则", SettingsNavigationIcon.ChapterRules, OpenChapterRulesCommand)
                 ]),
             new SettingsNavigationGroupViewModel(
                 "应用",
                 [
-                    new SettingsNavigationItemViewModel("缓存与数据", SymbolRegular.Database24, OpenCacheAndDataCommand),
-                    new SettingsNavigationItemViewModel("外观", SymbolRegular.DarkTheme24, OpenAppearanceSettingsCommand),
-                    new SettingsNavigationItemViewModel("诊断与关于", SymbolRegular.Info24, OpenDiagnosticsAboutCommand)
+                    new SettingsNavigationItemViewModel("缓存与数据", SettingsNavigationIcon.CacheAndData, OpenCacheAndDataCommand),
+                    new SettingsNavigationItemViewModel("外观", SettingsNavigationIcon.Appearance, OpenAppearanceSettingsCommand),
+                    new SettingsNavigationItemViewModel("诊断与关于", SettingsNavigationIcon.Diagnostics, OpenDiagnosticsAboutCommand)
                 ])
         ];
     }

@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Features.Settings;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.Domain.Settings;
@@ -13,21 +14,21 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
 {
     private readonly IAppDiagnosticsService _diagnosticsService;
     private readonly IAppSettingsService _settingsService;
-    private readonly IClipboardService _clipboardService;
+    private readonly IPresentationClipboard _clipboard;
     private bool _isLoading;
     private int _logLevelVersion;
 
     public DiagnosticsAboutViewModel(
         IAppDiagnosticsService diagnosticsService,
         IAppSettingsService settingsService,
-        IClipboardService clipboardService,
+        IPresentationClipboard clipboard,
         IAppNavigator navigator,
         IAppFeedbackService feedbackService)
         : base(navigator, feedbackService)
     {
         _diagnosticsService = diagnosticsService;
         _settingsService = settingsService;
-        _clipboardService = clipboardService;
+        _clipboard = clipboard;
     }
 
     public IReadOnlyList<string> AvailableLogLevels => AppSettings.SupportedLogLevels;
@@ -55,6 +56,7 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
 
     public override async Task LoadAsync(CancellationToken cancellationToken)
     {
+        Activate(cancellationToken);
         _isLoading = true;
         try
         {
@@ -97,7 +99,7 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
         try
         {
             var summary = await _diagnosticsService.GetRedactedSummaryAsync(cancellationToken).ConfigureAwait(false);
-            _clipboardService.SetText(summary);
+            await _clipboard.SetTextAsync(summary, cancellationToken).ConfigureAwait(false);
             ShowSuccess("诊断摘要已复制", "已复制不含正文、规则和凭据的诊断摘要。");
         }
         catch (OperationCanceledException)
@@ -145,7 +147,7 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
                 {
                     LogLevel = value
                 },
-                CancellationToken.None).ConfigureAwait(false);
+                ActivationToken).ConfigureAwait(false);
 
             if (version != Volatile.Read(ref _logLevelVersion))
             {
@@ -156,6 +158,9 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
             {
                 SelectedLogLevel = settings.LogLevel;
             }
+        }
+        catch (OperationCanceledException) when (ActivationToken.IsCancellationRequested)
+        {
         }
         catch (Exception exception)
         {

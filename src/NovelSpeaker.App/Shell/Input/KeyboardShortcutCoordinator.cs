@@ -3,25 +3,25 @@ using System.Windows.Input;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Features.Playback.Presentation;
-using NovelSpeaker.App.Shared.Dialogs;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 
 namespace NovelSpeaker.App.Shell.Input;
 
 public sealed class KeyboardShortcutCoordinator : IKeyboardShortcutCoordinator
 {
     private readonly IAppNavigator _navigation;
-    private readonly ITextFilePicker _textFilePicker;
+    private readonly IPresentationFileDialogService _fileDialogs;
     private readonly LibraryViewModel _libraryViewModel;
     private readonly PlayerViewModel _playerViewModel;
 
     public KeyboardShortcutCoordinator(
         IAppNavigator navigation,
-        ITextFilePicker textFilePicker,
+        IPresentationFileDialogService fileDialogs,
         LibraryViewModel libraryViewModel,
         PlayerViewModel playerViewModel)
     {
         _navigation = navigation;
-        _textFilePicker = textFilePicker;
+        _fileDialogs = fileDialogs;
         _libraryViewModel = libraryViewModel;
         _playerViewModel = playerViewModel;
     }
@@ -40,7 +40,9 @@ public sealed class KeyboardShortcutCoordinator : IKeyboardShortcutCoordinator
 
         if (action == KeyboardShortcutAction.ImportTextFile)
         {
-            var filePath = await _textFilePicker.PickSingleTextFileAsync(cancellationToken).ConfigureAwait(true);
+            var filePath = await _fileDialogs.PickOpenFileAsync(
+                new PresentationFileDialogOptions("Text files (*.txt)|*.txt|All files (*.*)|*.*"),
+                cancellationToken).ConfigureAwait(true);
             if (string.IsNullOrWhiteSpace(filePath))
             {
                 return true;

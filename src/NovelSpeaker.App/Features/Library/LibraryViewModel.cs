@@ -7,6 +7,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Shared.Presentation.Books;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Features.BookDetails;
 using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Shell.Navigation;
@@ -33,6 +34,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     private readonly IAppFeedbackService _feedbackService;
     private readonly IAppNavigator _navigator;
     private readonly IPlaybackBookCommands _playbackCoordinator;
+    private readonly IUiScheduler _uiScheduler;
     private CancellationTokenSource? _searchDebounceCancellationTokenSource;
     private IReadOnlyList<LibraryBookItemViewModel> _allBooks = [];
     private string? _activePlaybackBookId;
@@ -52,7 +54,8 @@ public sealed partial class LibraryViewModel : ObservableObject
         IAppFeedbackService feedbackService,
         IAppNavigator navigator,
         IPlaybackBookCommands playbackCoordinator,
-        LibraryScrollState scrollState)
+        LibraryScrollState scrollState,
+        IUiScheduler? uiScheduler = null)
     {
         _bookLibraryQuery = bookLibraryQuery;
         _bookDeletionService = bookDeletionService;
@@ -63,6 +66,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         _feedbackService = feedbackService;
         _navigator = navigator;
         _playbackCoordinator = playbackCoordinator;
+        _uiScheduler = uiScheduler ?? new WpfUiScheduler();
         ScrollState = scrollState;
         ApplyPlaybackSnapshot(playbackCoordinator.CurrentSnapshot);
         RegisterPageEvents();
@@ -165,7 +169,9 @@ public sealed partial class LibraryViewModel : ObservableObject
 
     public void CancelActiveImport()
     {
-        ReplaceActiveImport(CancellationToken.None, clearAfterCancel: true);
+        _activeImportCancellationTokenSource?.Cancel();
+        _activeImportCancellationTokenSource?.Dispose();
+        _activeImportCancellationTokenSource = null;
         ImportStatusMessage = string.Empty;
         IsBusy = false;
     }
@@ -401,10 +407,9 @@ public sealed partial class LibraryViewModel : ObservableObject
 
     private void OnPlaybackSnapshotChanged(object? sender, PlaybackSnapshot snapshot)
     {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
+        if (!_uiScheduler.CheckAccess())
         {
-            _ = dispatcher.InvokeAsync(() => ApplyPlaybackSnapshot(snapshot));
+            _ = _uiScheduler.InvokeAsync(() => ApplyPlaybackSnapshot(snapshot));
             return;
         }
 

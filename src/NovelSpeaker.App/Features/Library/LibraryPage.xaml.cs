@@ -1,8 +1,8 @@
 using System.Windows;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Input;
-using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Presentation.Books;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Features.Library;
@@ -11,17 +11,17 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
 {
     private readonly PageActivationController _activation = new();
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
-    private readonly ITextFilePicker _textFilePicker;
+    private readonly IPresentationFileDialogService _fileDialogs;
     private bool _hasLoaded;
 
     public LibraryPage(
         LibraryViewModel viewModel,
         IBookCatalogInvalidationState catalogInvalidationState,
-        ITextFilePicker textFilePicker)
+        IPresentationFileDialogService fileDialogs)
         : this()
     {
         _catalogInvalidationState = catalogInvalidationState;
-        _textFilePicker = textFilePicker;
+        _fileDialogs = fileDialogs;
         ViewModel = viewModel;
         DataContext = ViewModel;
     }
@@ -29,7 +29,7 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
     internal LibraryPage()
     {
         _catalogInvalidationState = null!;
-        _textFilePicker = null!;
+        _fileDialogs = null!;
         ViewModel = null!;
         InitializeComponent();
     }
@@ -76,15 +76,18 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
     private async void RootGrid_OnDrop(object sender, DragEventArgs e)
     {
         var files = e.Data.GetData(DataFormats.FileDrop) as string[];
-        await ViewModel.ImportFilesAsync(files ?? [], CancellationToken.None);
+        await ViewModel.ImportFilesAsync(files ?? [], _activation.CurrentToken);
     }
 
     private async Task ShowImportFileDialogAsync()
     {
-        var filePath = await _textFilePicker.PickSingleTextFileAsync(CancellationToken.None);
+        var cancellationToken = _activation.CurrentToken;
+        var filePath = await _fileDialogs.PickOpenFileAsync(
+            new PresentationFileDialogOptions("Text files (*.txt)|*.txt|All files (*.*)|*.*"),
+            cancellationToken);
         if (!string.IsNullOrWhiteSpace(filePath))
         {
-            await ViewModel.ImportFilesAsync([filePath], CancellationToken.None);
+            await ViewModel.ImportFilesAsync([filePath], cancellationToken);
         }
     }
 }

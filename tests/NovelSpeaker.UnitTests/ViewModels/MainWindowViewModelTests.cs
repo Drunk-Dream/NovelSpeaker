@@ -1,7 +1,6 @@
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shell.Navigation;
-using Wpf.Ui;
-using Wpf.Ui.Controls;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.ViewModels;
@@ -17,20 +16,20 @@ public sealed class MainWindowViewModelTests
             var viewModel = new MainWindowViewModel(new FakePlaybackCoordinator(PlaybackSnapshot.Idle), navigationService);
 
             Assert.False(viewModel.IsNowPlayingVisible);
-            Assert.Equal(SymbolRegular.Headphones24, viewModel.NowPlayingSymbol);
+            Assert.Equal(NowPlayingVisualState.Inactive, viewModel.NowPlayingVisualState);
         });
     }
 
     [Theory]
-    [InlineData(PlaybackState.Playing, "正在播放", "示例小说", SymbolRegular.PlayCircle24)]
-    [InlineData(PlaybackState.Paused, "已暂停", "示例小说", SymbolRegular.PauseCircle24)]
-    [InlineData(PlaybackState.Stopped, "已停止", "示例小说", SymbolRegular.Headphones24)]
-    [InlineData(PlaybackState.Faulted, "播放出错", "示例小说", SymbolRegular.ErrorCircle24)]
+    [InlineData(PlaybackState.Playing, "正在播放", "示例小说", NowPlayingVisualState.Playing)]
+    [InlineData(PlaybackState.Paused, "已暂停", "示例小说", NowPlayingVisualState.Paused)]
+    [InlineData(PlaybackState.Stopped, "已停止", "示例小说", NowPlayingVisualState.Inactive)]
+    [InlineData(PlaybackState.Faulted, "播放出错", "示例小说", NowPlayingVisualState.Faulted)]
     public void Snapshot_projection_updates_now_playing_entry(
         PlaybackState state,
         string status,
         string title,
-        SymbolRegular symbol)
+        NowPlayingVisualState visualState)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -58,7 +57,7 @@ public sealed class MainWindowViewModelTests
             Assert.True(viewModel.IsNowPlayingVisible);
             Assert.Equal(status, viewModel.NowPlayingStatus);
             Assert.Equal(title, viewModel.NowPlayingTitle);
-            Assert.Equal(symbol, viewModel.NowPlayingSymbol);
+            Assert.Equal(visualState, viewModel.NowPlayingVisualState);
         });
     }
 
@@ -124,7 +123,7 @@ public sealed class MainWindowViewModelTests
             Assert.True(viewModel.IsNowPlayingVisible);
             Assert.Equal("示例小说", viewModel.NowPlayingTitle);
             Assert.Equal("已停止", viewModel.NowPlayingStatus);
-            Assert.Equal(SymbolRegular.Headphones24, viewModel.NowPlayingSymbol);
+            Assert.Equal(NowPlayingVisualState.Inactive, viewModel.NowPlayingVisualState);
         });
     }
 

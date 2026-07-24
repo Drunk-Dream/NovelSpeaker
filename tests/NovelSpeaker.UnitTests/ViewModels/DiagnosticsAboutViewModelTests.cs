@@ -1,6 +1,7 @@
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.Domain.Settings;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
@@ -131,11 +132,17 @@ public sealed class DiagnosticsAboutViewModelTests
         }
     }
 
-    private sealed class FakeClipboardService : IClipboardService
+    private sealed class FakeClipboardService : IPresentationClipboard
     {
         public string? Text { get; private set; }
 
-        public void SetText(string text) => Text = text;
+        public Task<string?> GetTextAsync(CancellationToken cancellationToken) => Task.FromResult(Text);
+
+        public Task SetTextAsync(string text, CancellationToken cancellationToken)
+        {
+            Text = text;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeAppSettingsService : IAppSettingsService

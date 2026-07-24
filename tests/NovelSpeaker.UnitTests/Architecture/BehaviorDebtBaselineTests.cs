@@ -40,6 +40,19 @@ public sealed class BehaviorDebtBaselineTests
     }
 
     [Fact]
+    public void Tts_rules_page_consumes_platform_ports_without_constructing_adapters()
+    {
+        var page = File.ReadAllText(Absolute("src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml.cs"));
+
+        Assert.Contains("IPresentationFileDialogService fileDialogs", page, StringComparison.Ordinal);
+        Assert.Contains("IPresentationClipboard clipboard", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("new WpfPresentationFileDialogService", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("new WpfPresentationClipboard", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Microsoft.Win32", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Clipboard.", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Test_audio_fixtures_are_owned_by_tests_and_excluded_from_the_app()
     {
         var fixtureNames = new[]

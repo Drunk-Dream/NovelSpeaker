@@ -1,5 +1,4 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using System.Windows;
 
 namespace NovelSpeaker.App.Features.Playback.Presentation;
 
@@ -23,9 +22,6 @@ public sealed partial class PlayerSegmentItemViewModel : ObservableObject
 
     [ObservableProperty]
     private double visualOpacity = 0.52d;
-
-    [ObservableProperty]
-    private FontWeight fontWeight = FontWeights.Normal;
 
     [ObservableProperty]
     private bool isInteractive = true;

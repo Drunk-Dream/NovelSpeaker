@@ -19,6 +19,7 @@ public partial class DiagnosticsAboutPage : System.Windows.Controls.Page, INavig
     public async Task OnNavigatedToAsync()
     {
         var activation = _activation.Activate();
+        ViewModel.Activate(activation.CancellationToken);
         try
         {
             await ViewModel.LoadAsync(activation.CancellationToken);
@@ -31,6 +32,7 @@ public partial class DiagnosticsAboutPage : System.Windows.Controls.Page, INavig
     public Task OnNavigatedFromAsync()
     {
         _activation.Deactivate();
+        ViewModel.Deactivate();
         return Task.CompletedTask;
     }
 }

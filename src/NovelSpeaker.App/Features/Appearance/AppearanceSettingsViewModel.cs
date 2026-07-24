@@ -34,6 +34,7 @@ public sealed partial class AppearanceSettingsViewModel : SettingsSubpageViewMod
 
     public override async Task LoadAsync(CancellationToken cancellationToken)
     {
+        Activate(cancellationToken);
         _isLoading = true;
         try
         {
@@ -62,7 +63,7 @@ public sealed partial class AppearanceSettingsViewModel : SettingsSubpageViewMod
     {
         try
         {
-            var result = await _themePreferenceService.ApplyAsync(selectedThemeValue, CancellationToken.None).ConfigureAwait(false);
+            var result = await _themePreferenceService.ApplyAsync(selectedThemeValue, ActivationToken).ConfigureAwait(false);
             if (result.IsStale || version != Volatile.Read(ref _themeSelectionVersion))
             {
                 return;
@@ -79,6 +80,9 @@ public sealed partial class AppearanceSettingsViewModel : SettingsSubpageViewMod
             {
                 SetSelectedThemeWithoutApplying(result.EffectiveTheme);
             }
+        }
+        catch (OperationCanceledException) when (ActivationToken.IsCancellationRequested)
+        {
         }
         catch (Exception exception)
         {

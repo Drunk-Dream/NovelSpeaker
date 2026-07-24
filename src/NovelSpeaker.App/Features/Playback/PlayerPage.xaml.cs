@@ -23,7 +23,8 @@ public partial class PlayerPage : System.Windows.Controls.Page, INavigationAware
     public async Task OnNavigatedToAsync()
     {
         var activation = _activation.Activate();
-        ViewModel.OnPageNavigatedTo();
+        PlayerView.ActivationToken = activation.CancellationToken;
+        ViewModel.OnPageNavigatedTo(activation.CancellationToken);
         activation.Register(ViewModel.OnPageNavigatedFrom);
         LastRequest = DataContext as PlayerRoute;
 
@@ -43,6 +44,7 @@ public partial class PlayerPage : System.Windows.Controls.Page, INavigationAware
     public Task OnNavigatedFromAsync()
     {
         _activation.Deactivate();
+        PlayerView.ActivationToken = new CancellationToken(canceled: true);
         return Task.CompletedTask;
     }
 }

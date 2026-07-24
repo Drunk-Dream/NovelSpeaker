@@ -21,6 +21,7 @@ public partial class CacheAndDataPage : System.Windows.Controls.Page, INavigatio
     public async Task OnNavigatedToAsync()
     {
         var activation = _activation.Activate();
+        ViewModel.Activate(activation.CancellationToken);
         try
         {
             await ViewModel.LoadAsync(activation.CancellationToken);
@@ -33,6 +34,7 @@ public partial class CacheAndDataPage : System.Windows.Controls.Page, INavigatio
     public Task OnNavigatedFromAsync()
     {
         _activation.Deactivate();
+        ViewModel.Deactivate();
         return Task.CompletedTask;
     }
 

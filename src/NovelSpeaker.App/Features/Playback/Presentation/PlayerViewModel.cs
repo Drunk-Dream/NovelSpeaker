@@ -8,11 +8,10 @@ using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Settings;
-using System.Windows;
-using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 
 namespace NovelSpeaker.App.Features.Playback.Presentation;
 
@@ -28,6 +27,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private readonly IAppNavigator _navigator;
     private readonly IPlayerAutoScrollCoordinator _autoScrollCoordinator;
     private readonly TimeProvider _timeProvider;
+    private readonly IUiScheduler _uiScheduler;
     private readonly object _projectionSyncRoot = new();
 
     private readonly Dictionary<int, PlaybackChapterContent> _chapterCache = [];
@@ -44,6 +44,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private PlayerAutoScrollState _lastAppliedAutoScrollState;
     private PlaybackSnapshot _lastAppliedSnapshot = PlaybackSnapshot.Idle;
     private CancellationTokenSource? _speakSpeedStepDebounceCts;
+    private CancellationTokenSource _pageEventCancellation = new();
     private bool _isPageEventsRegistered;
 
     public PlayerViewModel(
@@ -54,7 +55,8 @@ public sealed partial class PlayerViewModel : ObservableObject
         IAppFeedbackService feedbackService,
         IAppNavigator navigator,
         IPlayerAutoScrollCoordinator autoScrollCoordinator,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IUiScheduler? uiScheduler = null)
     {
         _playbackCoordinator = playbackCoordinator;
         _bookPlaybackContentService = bookPlaybackContentService;
@@ -64,6 +66,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         _navigator = navigator;
         _autoScrollCoordinator = autoScrollCoordinator;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _uiScheduler = uiScheduler ?? new WpfUiScheduler();
         _lastAppliedAutoScrollState = _autoScrollCoordinator.State;
 
         ApplyAutoScrollState();
@@ -94,9 +97,9 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     public string SpeakSpeedButtonText => $"语速 {SpeakSpeed}";
 
-    public SymbolRegular PrimaryActionSymbol => CurrentPlaybackState == PlaybackState.Playing
-        ? SymbolRegular.PauseCircle24
-        : SymbolRegular.PlayCircle24;
+    public PlaybackPrimaryAction PrimaryAction => CurrentPlaybackState == PlaybackState.Playing
+        ? PlaybackPrimaryAction.Pause
+        : PlaybackPrimaryAction.Play;
 
     public string DisplayedSegmentCounterText => BuildSegmentCounterText(
         IsSegmentProgressDragging ? (int)Math.Round(SegmentProgressPreviewValue) : CurrentSegmentIndex,
@@ -315,6 +318,7 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     public void OnPageNavigatedFrom()
     {
+        _pageEventCancellation.Cancel();
         CloseTransientPanels();
         _autoScrollCoordinator.ResetForPageLeave();
         if (!_isPageEventsRegistered)
@@ -327,8 +331,10 @@ public sealed partial class PlayerViewModel : ObservableObject
         _isPageEventsRegistered = false;
     }
 
-    public void OnPageNavigatedTo()
+    public void OnPageNavigatedTo(CancellationToken cancellationToken)
     {
+        _pageEventCancellation.Dispose();
+        _pageEventCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         RegisterPageEvents();
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
     }
@@ -690,7 +696,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(ShowInlineLoadingState));
         OnPropertyChanged(nameof(InlineLoadingText));
-        OnPropertyChanged(nameof(PrimaryActionSymbol));
+        OnPropertyChanged(nameof(PrimaryAction));
     }
 
     partial void OnHasAvailableRuleChanged(bool value)
@@ -707,10 +713,9 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     private void OnSnapshotChanged(object? sender, PlaybackSnapshot snapshot)
     {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
+        if (!_uiScheduler.CheckAccess())
         {
-            _ = dispatcher.InvokeAsync(() => _ = HandleSnapshotUpdateAsync(snapshot));
+            _ = _uiScheduler.InvokeAsync(() => HandleSnapshotUpdateAsync(snapshot));
             return;
         }
 
@@ -719,10 +724,9 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     private void OnAutoScrollStateChanged(object? sender, EventArgs e)
     {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
+        if (!_uiScheduler.CheckAccess())
         {
-            _ = dispatcher.InvokeAsync(ApplyAutoScrollState);
+            _ = _uiScheduler.InvokeAsync(ApplyAutoScrollState);
             return;
         }
 
@@ -741,7 +745,7 @@ public sealed partial class PlayerViewModel : ObservableObject
 
         try
         {
-            await EnsureContentLoadedForSnapshotAsync(snapshot, CancellationToken.None);
+            await EnsureContentLoadedForSnapshotAsync(snapshot, _pageEventCancellation.Token);
             if (_autoScrollCoordinator.ShouldAutoCenter &&
                 ShouldAnimateCenteringForSnapshotUpdate(previousSnapshot, snapshot))
             {
@@ -979,7 +983,6 @@ public sealed partial class PlayerViewModel : ObservableObject
 
             var distance = Math.Abs(segment.SegmentIndex - currentSegmentIndex);
             segment.IsCurrent = segment.SegmentIndex == currentSegmentIndex;
-            segment.FontWeight = distance == 0 ? FontWeights.SemiBold : FontWeights.Normal;
             segment.VisualOpacity = distance switch
             {
                 0 => 1d,

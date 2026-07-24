@@ -1,7 +1,7 @@
+using NovelSpeaker.App.Features.Settings;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
-using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 
 namespace NovelSpeaker.UnitTests.ViewModels;
 
@@ -18,19 +18,21 @@ public sealed class SettingsViewModelTests
             {
                 Assert.Equal("常用", group.Title);
                 Assert.Equal(["播放设置", "TTS 规则"], group.Items.Select(item => item.Title));
-                Assert.Equal([SymbolRegular.PlayCircle24, SymbolRegular.Speaker124], group.Items.Select(item => item.IconSymbol));
+                Assert.Equal([SettingsNavigationIcon.Playback, SettingsNavigationIcon.TtsRules], group.Items.Select(item => item.Icon));
             },
             group =>
             {
                 Assert.Equal("文本处理", group.Title);
                 Assert.Equal(["导入与文本", "章节规则"], group.Items.Select(item => item.Title));
-                Assert.Equal([SymbolRegular.DocumentText24, SymbolRegular.TextBulletListSquare24], group.Items.Select(item => item.IconSymbol));
+                Assert.Equal([SettingsNavigationIcon.ImportText, SettingsNavigationIcon.ChapterRules], group.Items.Select(item => item.Icon));
             },
             group =>
             {
                 Assert.Equal("应用", group.Title);
                 Assert.Equal(["缓存与数据", "外观", "诊断与关于"], group.Items.Select(item => item.Title));
-                Assert.Equal([SymbolRegular.Database24, SymbolRegular.DarkTheme24, SymbolRegular.Info24], group.Items.Select(item => item.IconSymbol));
+                Assert.Equal(
+                    [SettingsNavigationIcon.CacheAndData, SettingsNavigationIcon.Appearance, SettingsNavigationIcon.Diagnostics],
+                    group.Items.Select(item => item.Icon));
             });
     }
 

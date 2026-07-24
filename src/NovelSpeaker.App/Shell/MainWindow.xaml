@@ -1,6 +1,7 @@
 ﻿<ui:FluentWindow x:Class="NovelSpeaker.App.Shell.MainWindow"
                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:shell="clr-namespace:NovelSpeaker.App.Shell"
                   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                   Title="NovelSpeaker"
                   Icon="pack://application:,,,/NovelSpeaker.App;component/Assets/Branding/app.ico"
@@ -58,7 +59,24 @@
                                        Click="PlaybackNavigationItem_OnClick"
                                        Visibility="{Binding IsNowPlayingVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="{Binding NowPlayingSymbol}" />
+                        <ui:SymbolIcon>
+                            <ui:SymbolIcon.Style>
+                                <Style TargetType="ui:SymbolIcon">
+                                    <Setter Property="Symbol" Value="Headphones24" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding NowPlayingVisualState}" Value="{x:Static shell:NowPlayingVisualState.Playing}">
+                                            <Setter Property="Symbol" Value="PlayCircle24" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding NowPlayingVisualState}" Value="{x:Static shell:NowPlayingVisualState.Paused}">
+                                            <Setter Property="Symbol" Value="PauseCircle24" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding NowPlayingVisualState}" Value="{x:Static shell:NowPlayingVisualState.Faulted}">
+                                            <Setter Property="Symbol" Value="ErrorCircle24" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:SymbolIcon.Style>
+                        </ui:SymbolIcon>
                     </ui:NavigationViewItem.Icon>
                     <StackPanel>
                         <TextBlock Style="{StaticResource StrongTextBlockStyle}"

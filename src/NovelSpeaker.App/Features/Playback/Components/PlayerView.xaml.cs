@@ -46,6 +46,8 @@ public partial class PlayerView : UserControl
 
     internal bool HasActiveSegmentScrollAnimation => _segmentAutoCenterController.HasActiveAnimation;
 
+    internal CancellationToken ActivationToken { get; set; } = new(canceled: true);
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         AttachViewModel(DataContext as PlayerViewModel);
@@ -108,7 +110,7 @@ public partial class PlayerView : UserControl
             return;
         }
 
-        await _viewModel.CommitSegmentProgressAsync(slider.Value, CancellationToken.None);
+        await _viewModel.CommitSegmentProgressAsync(slider.Value, ActivationToken);
     }
 
     private void SegmentProgressSlider_OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -133,7 +135,7 @@ public partial class PlayerView : UserControl
         }
 
         _isKeyboardAdjustingSegmentProgress = false;
-        await _viewModel.CommitSegmentProgressAsync(slider.Value, CancellationToken.None);
+        await _viewModel.CommitSegmentProgressAsync(slider.Value, ActivationToken);
     }
 
     private async void SegmentProgressSlider_OnLostMouseCapture(object sender, MouseEventArgs e)
@@ -143,7 +145,7 @@ public partial class PlayerView : UserControl
             return;
         }
 
-        await _viewModel.CommitSegmentProgressAsync(slider.Value, CancellationToken.None);
+        await _viewModel.CommitSegmentProgressAsync(slider.Value, ActivationToken);
     }
 
     private async void SpeedEditorTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)

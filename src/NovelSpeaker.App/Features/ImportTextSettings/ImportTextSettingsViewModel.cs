@@ -41,6 +41,7 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
 
     public override async Task LoadAsync(CancellationToken cancellationToken)
     {
+        Activate(cancellationToken);
         _isLoading = true;
         try
         {
@@ -176,12 +177,15 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
                 {
                     EnableLongParagraphSplitting = value
                 },
-                CancellationToken.None);
+                ActivationToken);
 
             if (version != Volatile.Read(ref _longParagraphSplitVersion))
             {
                 return;
             }
+        }
+        catch (OperationCanceledException) when (ActivationToken.IsCancellationRequested)
+        {
         }
         catch (Exception exception)
         {

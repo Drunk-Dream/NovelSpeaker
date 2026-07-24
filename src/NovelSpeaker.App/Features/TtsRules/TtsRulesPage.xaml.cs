@@ -1,5 +1,5 @@
 using System.Windows;
-using Microsoft.Win32;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
 using Wpf.Ui.Abstractions.Controls;
@@ -10,15 +10,21 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
 {
     private readonly PageActivationController _activation = new();
     private readonly INavigationGuardService _navigationGuardService;
+    private readonly IPresentationFileDialogService _fileDialogs;
+    private readonly IPresentationClipboard _clipboard;
     private bool _hasLoaded;
 
     public TtsRulesPage(
         TtsRulesViewModel viewModel,
-        INavigationGuardService navigationGuardService)
+        INavigationGuardService navigationGuardService,
+        IPresentationFileDialogService fileDialogs,
+        IPresentationClipboard clipboard)
         : this()
     {
         ViewModel = viewModel;
         _navigationGuardService = navigationGuardService;
+        _fileDialogs = fileDialogs;
+        _clipboard = clipboard;
         DataContext = ViewModel;
     }
 
@@ -26,6 +32,8 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
     {
         ViewModel = null!;
         _navigationGuardService = null!;
+        _fileDialogs = null!;
+        _clipboard = null!;
         InitializeComponent();
     }
 
@@ -60,40 +68,40 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
 
     private async void ImportFromFileButton_OnClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog
+        var cancellationToken = _activation.CurrentToken;
+        var filePath = await _fileDialogs.PickOpenFileAsync(
+            new PresentationFileDialogOptions("JSON files (*.json)|*.json|All files (*.*)|*.*"),
+            cancellationToken);
+        if (!string.IsNullOrWhiteSpace(filePath))
         {
-            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
-            Multiselect = false
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            await ViewModel.ImportFromFileAsync(dialog.FileName, CancellationToken.None);
+            await ViewModel.ImportFromFileAsync(filePath, cancellationToken);
         }
     }
 
     private async void ImportFromClipboardButton_OnClick(object sender, RoutedEventArgs e)
     {
-        if (!Clipboard.ContainsText())
+        var cancellationToken = _activation.CurrentToken;
+        var text = await _clipboard.GetTextAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(text))
         {
             ViewModel.NotifyClipboardTextMissing();
             return;
         }
 
-        await ViewModel.ImportJsonTextAsync(Clipboard.GetText(), "剪贴板", CancellationToken.None);
+        await ViewModel.ImportJsonTextAsync(text, "剪贴板", cancellationToken);
     }
 
     private async void ExportDraftButton_OnClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new SaveFileDialog
+        var cancellationToken = _activation.CurrentToken;
+        var filePath = await _fileDialogs.PickSaveFileAsync(
+            new PresentationFileDialogOptions(
+                "JSON files (*.json)|*.json|All files (*.*)|*.*",
+                "tts-rule.json"),
+            cancellationToken);
+        if (!string.IsNullOrWhiteSpace(filePath))
         {
-            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
-            FileName = "tts-rule.json"
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            await ViewModel.ExportDraftToFileAsync(dialog.FileName, CancellationToken.None);
+            await ViewModel.ExportDraftToFileAsync(filePath, cancellationToken);
         }
     }
 }
