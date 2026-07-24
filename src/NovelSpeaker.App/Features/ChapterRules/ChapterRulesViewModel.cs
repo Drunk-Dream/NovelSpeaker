@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.App.Features.RuleEditing;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Presentation;
@@ -19,8 +20,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     private readonly IAppFeedbackService _feedbackService;
     private readonly IAppDialogService _dialogService;
     private readonly IAppNavigator _navigator;
-    private ChapterRuleEditorModel? _baselineEditor;
-    private string? _fallbackRuleId;
+    private readonly EditorSession<string?, ChapterRuleEditorModel> _editorSession = new(EditorsEqual);
     private bool _suppressDraftStateUpdates;
 
     public ChapterRulesViewModel(
@@ -36,15 +36,6 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     }
 
     public ObservableCollection<ChapterRuleListItemViewModel> Rules { get; } = [];
-
-    [ObservableProperty]
-    private bool hasEditor;
-
-    [ObservableProperty]
-    private bool isEditingNewRule;
-
-    [ObservableProperty]
-    private bool hasUnsavedChanges;
 
     [ObservableProperty]
     private bool isBusy;
@@ -70,6 +61,12 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     [ObservableProperty]
     private string patternValidationMessage = string.Empty;
 
+    public bool HasEditor => _editorSession.HasEditor;
+
+    public bool IsEditingNewRule => _editorSession.IsNew;
+
+    public bool HasUnsavedChanges => _editorSession.IsDirty;
+
     public bool HasValidationErrors =>
         !string.IsNullOrWhiteSpace(NameValidationMessage) ||
         !string.IsNullOrWhiteSpace(PatternValidationMessage);
@@ -80,7 +77,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
 
     public bool CanDeleteCurrentRule => HasEditor && !IsEditingNewRule && CurrentRuleId is not null && !DraftIsBuiltIn && !IsBusy;
 
-    public string? CurrentRuleId => IsEditingNewRule ? null : _baselineEditor?.Id;
+    public string? CurrentRuleId => IsEditingNewRule ? null : _editorSession.EditorId;
 
     public string DeleteRestrictionMessage => DraftIsBuiltIn
         ? "内置规则不可删除，可禁用或恢复默认。"
@@ -208,9 +205,9 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
 
         if (IsEditingNewRule)
         {
-            if (!string.IsNullOrWhiteSpace(_fallbackRuleId))
+            if (!string.IsNullOrWhiteSpace(_editorSession.FallbackId))
             {
-                await OpenSavedRuleAsync(_fallbackRuleId, cancellationToken);
+                await OpenSavedRuleAsync(_editorSession.FallbackId, cancellationToken);
             }
             else
             {
@@ -220,9 +217,9 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             return;
         }
 
-        if (_baselineEditor is not null)
+        if (_editorSession.Baseline is not null)
         {
-            OpenEditor(_baselineEditor, false, _fallbackRuleId);
+            OpenEditor(_editorSession.Baseline, false, _editorSession.FallbackId);
         }
     }
 
@@ -263,7 +260,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             await RefreshRulesAsync(fallbackRuleId, openEditorIfNeeded: true, cancellationToken);
             _feedbackService.ShowSuccess("章节规则已删除", $"已删除规则：{currentRule.Name}。");
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleProjectedError("章节规则删除失败", exception);
         }
@@ -323,7 +320,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             await _workspaceService.SetRuleEnabledAsync(rule.Id, rule.IsEnabled, cancellationToken);
             await RefreshRulesAsync(null, openEditorIfNeeded: false, cancellationToken);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             rule.IsEnabled = originalValue;
             HandleProjectedError("章节规则启用状态保存失败", exception);
@@ -419,7 +416,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
                 mode == ChapterRuleDefaultsMode.ImportDefaults ? "默认规则导入完成" : "默认规则已恢复",
                 BuildDefaultsMessage(result));
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleProjectedError(
                 mode == ChapterRuleDefaultsMode.ImportDefaults ? "默认规则导入失败" : "恢复默认规则失败",
@@ -434,6 +431,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     private async Task RefreshRulesAsync(string? preferredRuleId, bool openEditorIfNeeded, CancellationToken cancellationToken)
     {
         var rules = await _workspaceService.GetRulesAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         Rules.ReplaceWith(
             rules,
             rule => new ChapterRuleListItemViewModel(
@@ -472,6 +470,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     private async Task OpenSavedRuleAsync(string ruleId, CancellationToken cancellationToken)
     {
         var editor = await _workspaceService.GetEditorAsync(ruleId, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         if (editor is null)
         {
             CloseEditor();
@@ -483,10 +482,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
 
     private void OpenEditor(ChapterRuleEditorModel editor, bool isNew, string? fallbackRuleId)
     {
-        _baselineEditor = editor;
-        _fallbackRuleId = fallbackRuleId;
-        HasEditor = true;
-        IsEditingNewRule = isNew;
+        _editorSession.Open(isNew ? null : editor.Id, editor, isNew, fallbackRuleId);
         HighlightedRuleId = isNew ? null : editor.Id;
 
         _suppressDraftStateUpdates = true;
@@ -503,10 +499,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
 
     private void CloseEditor()
     {
-        _baselineEditor = null;
-        _fallbackRuleId = null;
-        HasEditor = false;
-        IsEditingNewRule = false;
+        _editorSession.Close();
         HighlightedRuleId = null;
 
         _suppressDraftStateUpdates = true;
@@ -517,7 +510,6 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         PatternValidationMessage = string.Empty;
         _suppressDraftStateUpdates = false;
 
-        HasUnsavedChanges = false;
         UpdateRuleItemStates();
         NotifyUiStateChanged();
     }
@@ -546,6 +538,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             "放弃",
             "取消",
             cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
         switch (decision)
         {
@@ -563,9 +556,9 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     {
         if (IsEditingNewRule)
         {
-            if (_fallbackRuleId is not null)
+            if (_editorSession.FallbackId is not null)
             {
-                await OpenSavedRuleAsync(_fallbackRuleId, cancellationToken);
+                await OpenSavedRuleAsync(_editorSession.FallbackId, cancellationToken);
             }
             else
             {
@@ -575,9 +568,9 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             return;
         }
 
-        if (_baselineEditor is not null)
+        if (_editorSession.Baseline is not null)
         {
-            OpenEditor(_baselineEditor, false, _fallbackRuleId);
+            OpenEditor(_editorSession.Baseline, false, _editorSession.FallbackId);
         }
     }
 
@@ -592,12 +585,13 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         {
             SetBusy(true);
             var savedEditor = await _workspaceService.SaveEditorAsync(BuildCurrentEditorModel(), cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await RefreshRulesAsync(savedEditor.Id, openEditorIfNeeded: false, cancellationToken);
             OpenEditor(savedEditor, false, savedEditor.Id);
             _feedbackService.ShowSuccess("章节规则已保存", $"已保存规则：{savedEditor.Name}。");
             return savedEditor;
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleProjectedError("章节规则保存失败", exception);
             return null;
@@ -646,9 +640,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
 
     private void UpdateUnsavedChanges()
     {
-        HasUnsavedChanges = HasEditor &&
-                            _baselineEditor is not null &&
-                            !EditorsEqual(_baselineEditor, BuildCurrentEditorModel());
+        _editorSession.UpdateDirty(BuildCurrentEditorModel());
         NotifyUiStateChanged();
     }
 
@@ -670,7 +662,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             SetBusy(true);
             await _workspaceService.SaveOrderAsync(orderedIds, cancellationToken);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             await RefreshRulesAsync(null, openEditorIfNeeded: false, cancellationToken);
             HandleProjectedError("章节规则排序保存失败", exception);
@@ -750,6 +742,9 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
 
     private void NotifyUiStateChanged()
     {
+        OnPropertyChanged(nameof(HasEditor));
+        OnPropertyChanged(nameof(IsEditingNewRule));
+        OnPropertyChanged(nameof(HasUnsavedChanges));
         OnPropertyChanged(nameof(HasValidationErrors));
         OnPropertyChanged(nameof(CanSaveDraft));
         OnPropertyChanged(nameof(CanCancelEditing));

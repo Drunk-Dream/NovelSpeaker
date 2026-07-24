@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.App.Features.RuleEditing;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shell.Navigation;
@@ -19,8 +20,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     private readonly IAppFeedbackService _feedback;
     private readonly IAppDialogService _dialogs;
     private readonly IAppNavigator _navigator;
-    private RegexReplacementRuleEditorModel? _baseline;
-    private Guid? _fallbackRuleId;
+    private readonly EditorSession<Guid?, RegexReplacementRuleEditorModel> _editorSession = new(EditorsEqual);
     private bool _loading;
 
     public RegexReplacementRulesViewModel(
@@ -39,9 +39,6 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
 
     public ObservableCollection<RegexReplacementRuleListItemViewModel> Rules { get; } = [];
 
-    [ObservableProperty] private bool hasEditor;
-    [ObservableProperty] private bool isEditingNewRule;
-    [ObservableProperty] private bool hasUnsavedChanges;
     [ObservableProperty] private bool isBusy;
     [ObservableProperty] private Guid? selectedRuleId;
     [ObservableProperty] private string draftName = string.Empty;
@@ -50,6 +47,9 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     [ObservableProperty] private RegexReplacementScope draftScope = RegexReplacementScope.Both;
     [ObservableProperty] private string validationMessage = string.Empty;
 
+    public bool HasEditor => _editorSession.HasEditor;
+    public bool IsEditingNewRule => _editorSession.IsNew;
+    public bool HasUnsavedChanges => _editorSession.IsDirty;
     public Array Scopes => Enum.GetValues(typeof(RegexReplacementScope));
     public bool CanSave => HasEditor && !IsBusy && string.IsNullOrEmpty(ValidationMessage) && (HasUnsavedChanges || IsEditingNewRule);
     public bool CanDelete => HasEditor && !IsEditingNewRule && SelectedRuleId is not null && !IsBusy;
@@ -94,7 +94,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
             await RefreshAsync(SelectedRuleId, false, cancellationToken);
             await _playback.RefreshRegexReplacementAsync(cancellationToken);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             rule.IsEnabled = old;
             _feedback.ShowProjectedNotification("保存启用状态失败", _feedback.Project(exception));
@@ -143,13 +143,15 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
         {
             IsBusy = true;
             await _workspace.DeleteRuleAsync(id, cancellationToken);
-            HasEditor = false;
-            SelectedRuleId = null;
+            CloseEditor();
             await RefreshAsync(fallback, true, cancellationToken);
             await _playback.RefreshRegexReplacementAsync(cancellationToken);
             _feedback.ShowSuccess("正则替换规则已删除", item.Name);
         }
-        catch (Exception exception) { _feedback.ShowProjectedNotification("删除正则替换规则失败", _feedback.Project(exception)); }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _feedback.ShowProjectedNotification("删除正则替换规则失败", _feedback.Project(exception));
+        }
         finally { IsBusy = false; NotifyCommandState(); }
     }
 
@@ -157,8 +159,6 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     partial void OnDraftPatternChanged(string value) => Changed();
     partial void OnDraftReplacementChanged(string value) => Changed();
     partial void OnDraftScopeChanged(RegexReplacementScope value) => Changed();
-    partial void OnHasEditorChanged(bool value) => NotifyCommandState();
-    partial void OnHasUnsavedChangesChanged(bool value) => NotifyCommandState();
     partial void OnIsBusyChanged(bool value) => NotifyCommandState();
     partial void OnSelectedRuleIdChanged(Guid? value) => NotifyCommandState();
 
@@ -169,11 +169,13 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
         try
         {
             IsBusy = true;
-            var previous = _baseline;
+            var previous = _editorSession.Baseline;
+            var wasNew = _editorSession.IsNew;
             var saved = await _workspace.SaveEditorAsync(new RegexReplacementRuleEditorModel(SelectedRuleId, DraftName, DraftPattern, DraftReplacement, DraftScope), cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await RefreshAsync(saved.Id, false, cancellationToken);
             Open(saved, false, saved.Id);
-            if (previous is null || ExecutionFieldsChanged(previous, saved))
+            if (wasNew || previous is null || ExecutionFieldsChanged(previous, saved))
             {
                 await _playback.RefreshRegexReplacementAsync(cancellationToken);
             }
@@ -181,7 +183,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
             _feedback.ShowSuccess("正则替换规则已保存", saved.Name);
             return saved;
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             _feedback.ShowProjectedNotification("保存正则替换规则失败", _feedback.Project(exception));
             return null;
@@ -209,7 +211,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
             await RefreshAsync(SelectedRuleId, false, cancellationToken);
             await _playback.RefreshRegexReplacementAsync(cancellationToken);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             await RefreshAsync(SelectedRuleId, false, cancellationToken);
             _feedback.ShowProjectedNotification("保存排序失败", _feedback.Project(exception));
@@ -227,6 +229,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
             "放弃",
             "取消",
             cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         return decision switch
         {
             UnsavedChangesDecision.Save => await SaveCoreAsync(cancellationToken) is not null,
@@ -245,19 +248,22 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     {
         if (IsEditingNewRule)
         {
-            if (_fallbackRuleId is Guid fallback) await LoadEditorAsync(fallback, cancellationToken);
+            if (_editorSession.FallbackId is Guid fallback) await LoadEditorAsync(fallback, cancellationToken);
             else CloseEditor();
             return;
         }
 
-        if (_baseline is not null) Open(_baseline, false, _fallbackRuleId);
+        if (_editorSession.Baseline is not null)
+        {
+            Open(_editorSession.Baseline, false, _editorSession.FallbackId);
+        }
     }
 
     private void Changed()
     {
         if (_loading) return;
         Validate();
-        HasUnsavedChanges = HasEditor && (_baseline is null || !EditorsEqual(_baseline, BuildEditor()));
+        _editorSession.UpdateDirty(BuildEditor());
         NotifyCommandState();
     }
 
@@ -278,24 +284,21 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     private async Task LoadEditorAsync(Guid id, CancellationToken cancellationToken)
     {
         var editor = await _workspace.GetEditorAsync(id, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         if (editor is not null) Open(editor, false, id);
     }
 
     private void Open(RegexReplacementRuleEditorModel editor, bool isNew, Guid? fallback)
     {
         _loading = true;
-        _baseline = isNew ? null : editor;
-        _fallbackRuleId = fallback;
+        _editorSession.Open(editor.Id, editor, isNew, fallback);
         SelectedRuleId = editor.Id;
         DraftName = editor.Name;
         DraftPattern = editor.Pattern;
         DraftReplacement = editor.Replacement;
         DraftScope = editor.Scope;
-        IsEditingNewRule = isNew;
-        HasEditor = true;
         _loading = false;
         Validate();
-        HasUnsavedChanges = false;
         foreach (var rule in Rules) rule.IsSelected = rule.Id == editor.Id;
         NotifyCommandState();
     }
@@ -303,16 +306,12 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     private void CloseEditor()
     {
         _loading = true;
-        _baseline = null;
-        _fallbackRuleId = null;
+        _editorSession.Close();
         SelectedRuleId = null;
         DraftName = string.Empty;
         DraftPattern = string.Empty;
         DraftReplacement = string.Empty;
         DraftScope = RegexReplacementScope.Both;
-        HasEditor = false;
-        IsEditingNewRule = false;
-        HasUnsavedChanges = false;
         ValidationMessage = string.Empty;
         _loading = false;
         foreach (var rule in Rules) rule.IsSelected = false;
@@ -322,6 +321,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     private async Task RefreshAsync(Guid? preferred, bool selectFirst, CancellationToken cancellationToken)
     {
         var items = await _workspace.GetRulesAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         Rules.Clear();
         foreach (var item in items)
         {
@@ -357,6 +357,9 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
 
     private void NotifyCommandState()
     {
+        OnPropertyChanged(nameof(HasEditor));
+        OnPropertyChanged(nameof(IsEditingNewRule));
+        OnPropertyChanged(nameof(HasUnsavedChanges));
         OnPropertyChanged(nameof(CanSave));
         OnPropertyChanged(nameof(CanDelete));
     }

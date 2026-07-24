@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.App.Features.RuleEditing;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Presentation;
@@ -31,8 +32,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     private readonly IAppSettingsService _settingsService;
     private readonly IAppNavigator _navigator;
     private CancellationTokenSource? _testOperationCts;
-    private TtsRuleEditorModel? _baselineEditor;
-    private long? _fallbackRuleId;
+    private readonly EditorSession<long?, TtsRuleEditorModel> _editorSession = new(EditorsEqual);
     private int _defaultSpeakSpeed = 10;
 
     public TtsRulesViewModel(
@@ -60,15 +60,6 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     public ObservableCollection<TtsRuleListItemViewModel> Rules { get; } = [];
 
     public ObservableCollection<EditableKeyValueItemViewModel> HeaderEntries { get; } = [];
-
-    [ObservableProperty]
-    private bool hasEditor;
-
-    [ObservableProperty]
-    private bool isEditingNewRule;
-
-    [ObservableProperty]
-    private bool hasUnsavedChanges;
 
     [ObservableProperty]
     private bool isBusy;
@@ -103,6 +94,12 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     [ObservableProperty]
     private string draftConcurrentRate = string.Empty;
 
+    public bool HasEditor => _editorSession.HasEditor;
+
+    public bool IsEditingNewRule => _editorSession.IsNew;
+
+    public bool HasUnsavedChanges => _editorSession.IsDirty;
+
     public bool CanSaveDraft => HasEditor && !IsBusy;
 
     public bool CanCancelEditing => HasEditor && !IsBusy;
@@ -117,7 +114,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
     public bool IsPostMethod => string.Equals(DraftRequestMethod, "POST", StringComparison.OrdinalIgnoreCase);
 
-    public long? CurrentRuleId => IsEditingNewRule ? null : _baselineEditor?.Id;
+    public long? CurrentRuleId => IsEditingNewRule ? null : _editorSession.EditorId;
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -149,7 +146,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             var jsonText = await File.ReadAllTextAsync(filePath, cancellationToken);
             await ImportJsonTextAsyncCore(jsonText, Path.GetFileName(filePath), cancellationToken);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleProjectedError("规则导入失败", exception);
         }
@@ -255,7 +252,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
         if (IsEditingNewRule)
         {
-            if (_fallbackRuleId is long fallbackRuleId)
+            if (_editorSession.FallbackId is long fallbackRuleId)
             {
                 await OpenSavedRuleAsync(fallbackRuleId, cancellationToken);
             }
@@ -267,9 +264,9 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             return;
         }
 
-        if (_baselineEditor is not null)
+        if (_editorSession.Baseline is not null)
         {
-            OpenEditor(_baselineEditor, false, _fallbackRuleId);
+            OpenEditor(_editorSession.Baseline, false, _editorSession.FallbackId);
         }
     }
 
@@ -318,7 +315,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             await RefreshRulesAsync(ruleId, openEditorIfNeeded: false, cancellationToken);
             _feedbackService.ShowSuccess("当前规则已更新", $"当前规则已切换为：{ruleName}。");
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleProjectedError("规则切换失败", exception);
         }
@@ -402,7 +399,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             await RefreshRulesAsync(null, openEditorIfNeeded: true, cancellationToken);
             _feedbackService.ShowSuccess("规则已删除", $"已删除规则：{currentRule.Name}。");
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleProjectedError("规则删除失败", exception);
         }
@@ -432,10 +429,10 @@ public sealed partial class TtsRulesViewModel : ObservableObject
                 _feedbackService.ShowWarning("试听失败", result.Message);
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleProjectedError("试听失败", exception);
         }
@@ -514,7 +511,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
                 _feedbackService.ShowSuccess("规则导入完成", statusMessage);
             }
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleProjectedError("规则导入失败", exception);
         }
@@ -523,6 +520,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     private async Task RefreshRulesAsync(long? preferredRuleId, bool openEditorIfNeeded, CancellationToken cancellationToken)
     {
         var rules = await _ruleQueries.GetRulesAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         Rules.ReplaceWith(
             rules,
             rule => new TtsRuleListItemViewModel(
@@ -558,6 +556,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     private async Task OpenSavedRuleAsync(long ruleId, CancellationToken cancellationToken)
     {
         var editor = await _ruleEditor.GetEditorAsync(ruleId, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         if (editor is null)
         {
             CloseEditor();
@@ -570,11 +569,8 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
     private void OpenEditor(TtsRuleEditorModel editor, bool isNew, long? fallbackRuleId)
     {
-        _baselineEditor = editor;
-        _fallbackRuleId = fallbackRuleId;
-        IsEditingNewRule = isNew;
+        _editorSession.Open(isNew ? null : editor.Id, editor, isNew, fallbackRuleId);
         HighlightedRuleId = isNew ? null : editor.Id;
-        HasEditor = true;
         UpdateRuleSelectionStates();
 
         SetDraftFields(editor);
@@ -584,11 +580,8 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
     private void CloseEditor()
     {
-        _baselineEditor = null;
-        _fallbackRuleId = null;
+        _editorSession.Close();
         HighlightedRuleId = null;
-        IsEditingNewRule = false;
-        HasEditor = false;
         UpdateRuleSelectionStates();
         DraftName = string.Empty;
         DraftIsEnabled = true;
@@ -673,14 +666,15 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
     private void UpdateUnsavedChanges()
     {
-        HasUnsavedChanges = HasEditor &&
-                            _baselineEditor is not null &&
-                            !EditorsEqual(_baselineEditor, BuildCurrentEditorModel());
+        _editorSession.UpdateDirty(BuildCurrentEditorModel());
         NotifyUiStateChanged();
     }
 
     private void NotifyUiStateChanged()
     {
+        OnPropertyChanged(nameof(HasEditor));
+        OnPropertyChanged(nameof(IsEditingNewRule));
+        OnPropertyChanged(nameof(HasUnsavedChanges));
         OnPropertyChanged(nameof(CanSaveDraft));
         OnPropertyChanged(nameof(CanCancelEditing));
         OnPropertyChanged(nameof(CanDeleteCurrentRule));
@@ -711,6 +705,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             "放弃",
             "取消",
             cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
         return decision switch
         {
@@ -768,6 +763,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             }
 
             var savedRule = await _ruleEditor.SaveEditorAsync(draft, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             if (currentRule?.IsCurrent == true && !savedRule.IsEnabled)
             {
                 await _ruleSelection.ApplyRuleMutationAsync(
@@ -785,7 +781,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             _feedbackService.ShowSuccess("规则已保存", $"规则已保存：{savedRule.Name}。");
             return savedRule;
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleProjectedError("规则保存失败", exception);
             return null;
@@ -800,13 +796,13 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     private TtsRuleEditorModel BuildCurrentEditorModel()
     {
         return new TtsRuleEditorModel(
-            IsEditingNewRule ? null : _baselineEditor?.Id,
+            IsEditingNewRule ? null : _editorSession.EditorId,
             DraftName,
             DraftIsEnabled,
             DraftUrl,
             NullIfWhitespace(DraftContentType),
             NullIfWhitespace(DraftConcurrentRate),
-            _baselineEditor?.LastUpdateTime,
+            _editorSession.Baseline?.LastUpdateTime,
             ToEditorEntries(HeaderEntries),
             new TtsRuleRequestOptionsEditor(
                 NullIfWhitespace(DraftRequestMethod)?.ToUpperInvariant(),
@@ -912,9 +908,9 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             return;
         }
 
-        if (_baselineEditor is not null)
+        if (_editorSession.Baseline is not null)
         {
-            OpenEditor(_baselineEditor, false, _fallbackRuleId);
+            OpenEditor(_editorSession.Baseline, false, _editorSession.FallbackId);
         }
     }
 

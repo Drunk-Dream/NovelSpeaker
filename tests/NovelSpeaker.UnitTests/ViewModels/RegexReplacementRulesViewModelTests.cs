@@ -62,6 +62,27 @@ public sealed class RegexReplacementRulesViewModelTests
     }
 
     [Fact]
+    public async Task NewRuleAsync_tracks_dirty_and_cancel_restores_fallback_selection()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Discard);
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+
+        await fixture.ViewModel.NewRuleCommand.ExecuteAsync(null);
+
+        Assert.True(fixture.ViewModel.IsEditingNewRule);
+        Assert.False(fixture.ViewModel.HasUnsavedChanges);
+        fixture.ViewModel.DraftPattern = "新表达式";
+        Assert.True(fixture.ViewModel.HasUnsavedChanges);
+
+        await fixture.ViewModel.CancelCommand.ExecuteAsync(null);
+
+        Assert.False(fixture.ViewModel.IsEditingNewRule);
+        Assert.False(fixture.ViewModel.HasUnsavedChanges);
+        Assert.Equal(fixture.FirstRuleId, fixture.ViewModel.SelectedRuleId);
+        Assert.Equal("规则一", fixture.ViewModel.DraftName);
+    }
+
+    [Fact]
     public async Task SelectRuleAsync_save_failure_keeps_current_draft_and_blocks_leave()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
@@ -75,6 +96,22 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal("已修改", fixture.ViewModel.DraftPattern);
         Assert.True(fixture.ViewModel.HasUnsavedChanges);
         Assert.Equal("保存正则替换规则失败", fixture.Feedback.LastProjectedTitle);
+    }
+
+    [Fact]
+    public async Task ConfirmLeaveAsync_does_not_convert_save_cancellation_to_failure()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Save);
+        fixture.Workspace.SaveException = new OperationCanceledException();
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        fixture.ViewModel.DraftPattern = "已修改";
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => fixture.ViewModel.ConfirmLeaveAsync(CancellationToken.None));
+
+        Assert.Equal(fixture.FirstRuleId, fixture.ViewModel.SelectedRuleId);
+        Assert.True(fixture.ViewModel.HasUnsavedChanges);
+        Assert.Null(fixture.Feedback.LastProjectedTitle);
     }
 
     [Fact]

@@ -91,6 +91,37 @@ public sealed class ChapterRulesViewModelTests
     }
 
     [Fact]
+    public async Task NewRuleAsync_tracks_dirty_and_cancel_restores_fallback_selection()
+    {
+        var workspace = new FakeChapterRuleWorkspaceService(
+        [
+            new ChapterRuleListItem("custom:one", "规则一", @"^\s*一$", true, 10, false)
+        ])
+        {
+            EditorsById =
+            {
+                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", false, true)
+            }
+        };
+        var viewModel = CreateViewModel(workspaceService: workspace);
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        await viewModel.NewRuleCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsEditingNewRule);
+        Assert.False(viewModel.HasUnsavedChanges);
+        viewModel.DraftPattern = @"^\s*新章节$";
+        Assert.True(viewModel.HasUnsavedChanges);
+
+        await viewModel.CancelEditingCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsEditingNewRule);
+        Assert.False(viewModel.HasUnsavedChanges);
+        Assert.Equal("custom:one", viewModel.HighlightedRuleId);
+        Assert.Equal("规则一", viewModel.DraftName);
+    }
+
+    [Fact]
     public async Task SelectRuleAsync_with_unsaved_changes_respects_discard()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
@@ -117,6 +148,35 @@ public sealed class ChapterRulesViewModelTests
 
         Assert.Equal("custom:two", viewModel.HighlightedRuleId);
         Assert.Equal("规则二", viewModel.DraftName);
+    }
+
+    [Fact]
+    public async Task SelectRuleAsync_save_failure_keeps_current_draft_and_blocks_selection()
+    {
+        var workspace = new FakeChapterRuleWorkspaceService(
+        [
+            new ChapterRuleListItem("custom:one", "规则一", @"^\s*一$", true, 10, false),
+            new ChapterRuleListItem("custom:two", "规则二", @"^\s*二$", true, 20, false)
+        ])
+        {
+            SaveException = new InvalidOperationException("save failed"),
+            EditorsById =
+            {
+                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", false, true),
+                ["custom:two"] = new ChapterRuleEditorModel("custom:two", "规则二", @"^\s*二$", false, true)
+            }
+        };
+        var viewModel = CreateViewModel(
+            workspaceService: workspace,
+            dialogService: new FakeAppDialogService { NextUnsavedDecision = UnsavedChangesDecision.Save });
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.DraftName = "未保存名称";
+
+        await viewModel.SelectRuleCommand.ExecuteAsync(viewModel.Rules.Single(rule => rule.Id == "custom:two"));
+
+        Assert.Equal("custom:one", viewModel.HighlightedRuleId);
+        Assert.Equal("未保存名称", viewModel.DraftName);
+        Assert.True(viewModel.HasUnsavedChanges);
     }
 
     [Fact]
@@ -398,6 +458,8 @@ public sealed class ChapterRulesViewModelTests
 
         public bool ThrowOnSaveOrder { get; set; }
 
+        public Exception? SaveException { get; set; }
+
         public int SaveEditorCallCount { get; private set; }
 
         public List<ChapterRuleDefaultsMode> AppliedDefaultModes { get; } = [];
@@ -416,6 +478,11 @@ public sealed class ChapterRulesViewModelTests
         public Task<ChapterRuleEditorModel> SaveEditorAsync(ChapterRuleEditorModel editor, CancellationToken cancellationToken)
         {
             SaveEditorCallCount++;
+            if (SaveException is not null)
+            {
+                throw SaveException;
+            }
+
             if (editor.Pattern == "[")
             {
                 throw new InvalidOperationException("正则表达式无效。");

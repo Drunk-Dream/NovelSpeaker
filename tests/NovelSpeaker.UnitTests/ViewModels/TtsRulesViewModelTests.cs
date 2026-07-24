@@ -109,6 +109,39 @@ public sealed class TtsRulesViewModelTests
     }
 
     [Fact]
+    public async Task NewRuleAsync_tracks_dirty_and_cancel_restores_fallback_selection()
+    {
+        var useCases = new TtsRuleUseCaseStub(
+            [new TtsRuleSummary(1, "现有规则", true, true, null)],
+            new TtsRuleEditorModel(
+                1,
+                "现有规则",
+                true,
+                "https://example.com/old",
+                null,
+                null,
+                null,
+                [],
+                new TtsRuleRequestOptionsEditor("GET", null)));
+        var viewModel = CreateViewModel(useCases: useCases);
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        await viewModel.NewRuleCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsEditingNewRule);
+        Assert.False(viewModel.HasUnsavedChanges);
+        viewModel.DraftUrl = "https://example.com/new";
+        Assert.True(viewModel.HasUnsavedChanges);
+
+        await viewModel.CancelEditingCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsEditingNewRule);
+        Assert.False(viewModel.HasUnsavedChanges);
+        Assert.Equal(1, viewModel.HighlightedRuleId);
+        Assert.Equal("现有规则", viewModel.DraftName);
+    }
+
+    [Fact]
     public async Task ImportJsonTextAsync_refreshes_rules_and_selects_first_imported_rule()
     {
         var useCases = new TtsRuleUseCaseStub(
@@ -324,6 +357,46 @@ public sealed class TtsRulesViewModelTests
     }
 
     [Fact]
+    public async Task SelectRuleAsync_save_failure_keeps_current_draft_and_blocks_selection()
+    {
+        var firstEditor = new TtsRuleEditorModel(
+            1,
+            "规则一",
+            true,
+            "https://example.com/one",
+            null,
+            null,
+            null,
+            [],
+            new TtsRuleRequestOptionsEditor("GET", null));
+        var useCases = new TtsRuleUseCaseStub(
+            [
+                new TtsRuleSummary(1, "规则一", true, true, null),
+                new TtsRuleSummary(2, "规则二", true, false, null)
+            ],
+            firstEditor)
+        {
+            SaveException = new InvalidOperationException("save failed"),
+            EditorsById =
+            {
+                [1] = firstEditor,
+                [2] = firstEditor with { Id = 2, Name = "规则二", Url = "https://example.com/two" }
+            }
+        };
+        var viewModel = CreateViewModel(
+            useCases: useCases,
+            dialogService: new FakeAppDialogService { NextUnsavedDecision = UnsavedChangesDecision.Save });
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.DraftName = "未保存名称";
+
+        await viewModel.SelectRuleCommand.ExecuteAsync(viewModel.Rules.Single(rule => rule.Id == 2));
+
+        Assert.Equal(1, viewModel.HighlightedRuleId);
+        Assert.Equal("未保存名称", viewModel.DraftName);
+        Assert.True(viewModel.HasUnsavedChanges);
+    }
+
+    [Fact]
     public async Task TestDraftAsync_uses_unsaved_draft_values()
     {
         var useCases = new TtsRuleUseCaseStub(
@@ -451,6 +524,8 @@ public sealed class TtsRulesViewModelTests
 
         public TtsRuleValidationResult? ValidationResult { get; set; }
 
+        public Exception? SaveException { get; set; }
+
         public int SaveCallCount { get; private set; }
 
         public IReadOnlyList<TtsRuleSummary>? RulesAfterImport { get; set; }
@@ -521,6 +596,11 @@ public sealed class TtsRulesViewModelTests
         public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken)
         {
             SaveCallCount++;
+            if (SaveException is not null)
+            {
+                throw SaveException;
+            }
+
             var ruleId = editor.Id ?? (_rules.Count == 0 ? 1 : _rules.Max(rule => rule.Id) + 1);
             var savedRule = TestHttpTtsRules.Create(
                 ruleId,
