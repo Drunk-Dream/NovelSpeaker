@@ -1,31 +1,15 @@
 ﻿using System.Windows;
 using System.Windows.Threading;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using NovelSpeaker.Application.Abstractions;
-using NovelSpeaker.Application.DependencyInjection;
-using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Application.Playback.Cache;
-using NovelSpeaker.Infrastructure.DependencyInjection;
-using NovelSpeaker.App.Shared.Theming;
-using NovelSpeaker.Infrastructure.FileSystem;
-using NovelSpeaker.Infrastructure.Settings;
 using NovelSpeaker.App.Shell.Input;
-using NovelSpeaker.App.Shell;
-using NovelSpeaker.Application.Settings;
 
 namespace NovelSpeaker.App.Bootstrap;
 
 /// <summary>
-/// Configures the desktop composition root and starts the shell window.
+/// Bridges WPF process events to the bootstrap coordinator.
 /// </summary>
 public partial class App : System.Windows.Application
 {
-    private ServiceProvider? _serviceProvider;
-    private StartupDiagnosticsRecorder? _startupDiagnostics;
-    private StartupStatusViewModel? _startupStatusViewModel;
-    private StartupStatusWindow? _startupStatusWindow;
-    private LocalAppDataDirectoryProvider? _directories;
+    private StartupCoordinator? _startupCoordinator;
 
     public App()
     {
@@ -39,151 +23,49 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
-        _directories = new LocalAppDataDirectoryProvider();
-        _startupDiagnostics = new StartupDiagnosticsRecorder(_directories);
-        _startupStatusViewModel = new StartupStatusViewModel();
-        _startupStatusWindow = new StartupStatusWindow(_startupStatusViewModel);
-        _startupStatusWindow.Show();
-
+        var runtime = new WpfStartupRuntime(Dispatcher, window => MainWindow = window);
+        _startupCoordinator = new StartupCoordinator(runtime);
         try
         {
-            await RunStartupAsync();
+            var result = await _startupCoordinator.StartAsync();
+            if (!result.IsSuccessful)
+            {
+                Shutdown(result.IsCancelled ? 0 : -1);
+            }
+        }
+        catch (OperationCanceledException) when (_startupCoordinator.ProcessToken.IsCancellationRequested)
+        {
+            Shutdown(0);
         }
         catch (Exception exception)
         {
-            HandleStartupFailure(exception);
+            _startupCoordinator.RecordUnhandledFailure(
+                "startup-bridge-failed",
+                "启动事件桥接出现未处理异常。",
+                exception);
+            MessageBox.Show(
+                "应用启动失败。请稍后重试。",
+                "NovelSpeaker 启动失败",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Shutdown(-1);
         }
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
-        if (_serviceProvider is IAsyncDisposable asyncDisposable)
-        {
-            asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        }
-        else
-        {
-            _serviceProvider?.Dispose();
-        }
+        _startupCoordinator?.Cancel();
+        _startupCoordinator?.DisposeAsync().AsTask().GetAwaiter().GetResult();
 
         base.OnExit(e);
     }
 
-    private async Task RunStartupAsync()
-    {
-        await ReportStartupStageAsync("startup", "正在准备启动日志目录。", "正在建立启动诊断日志。");
-
-        var services = new ServiceCollection();
-        var directories = _directories ?? throw new InvalidOperationException("应用数据目录尚未初始化。");
-        var settingsStore = new JsonAppSettingsStore(directories);
-        var bootstrapSettings = await settingsStore.LoadAsync(CancellationToken.None);
-        services.AddLogging(builder =>
-        {
-            builder.SetMinimumLevel(ParseLogLevel(bootstrapSettings.LogLevel));
-            builder.AddDebug();
-        });
-        services.AddSingleton<IAppDataDirectoryProvider>(directories);
-        services.AddSingleton(settingsStore);
-        services.AddSingleton<IAppSettingsStore>(settingsStore);
-        services.AddNovelSpeakerApplication(bootstrapSettings);
-        services.AddNovelSpeakerInfrastructure();
-        services.AddNovelSpeakerDesktop();
-
-        await ReportStartupStageAsync("dependency-injection", "正在创建服务容器。", "正在装配应用服务。");
-#if DEBUG
-        _serviceProvider = services.BuildServiceProvider(new ServiceProviderOptions
-        {
-            ValidateOnBuild = true,
-            ValidateScopes = true
-        });
-#else
-        _serviceProvider = services.BuildServiceProvider();
-#endif
-
-        var resolvedDirectories = _serviceProvider.GetRequiredService<IAppDataDirectoryProvider>();
-        _startupDiagnostics?.RecordStage("paths", $"Root={resolvedDirectories.RootDirectoryPath}; Database={resolvedDirectories.DatabasePath}; Logs={resolvedDirectories.LogsDirectoryPath}");
-
-        await ReportStartupStageAsync("storage", "正在初始化应用数据目录。", "正在准备数据库和本地目录。");
-        await resolvedDirectories.EnsureCreatedAsync(CancellationToken.None);
-
-        await ReportStartupStageAsync("database-initialization", "正在初始化数据库。", "正在运行数据库迁移并准备默认数据。");
-        var initializer = _serviceProvider.GetRequiredService<IDatabaseInitializer>();
-        await initializer.InitializeAsync(CancellationToken.None);
-
-        await ReportStartupStageAsync("theme", "正在应用界面主题。", "正在根据设置准备浅色、深色或系统主题。");
-        var themeCoordinator = _serviceProvider.GetRequiredService<AppThemeStartupCoordinator>();
-        await themeCoordinator.ApplyAsync(CancellationToken.None);
-
-        await ReportStartupStageAsync("shell", "正在创建主窗口。", "启动完成后将进入书库首页。");
-        var window = _serviceProvider.GetRequiredService<MainWindow>();
-        MainWindow = window;
-        _startupStatusWindow?.Close();
-        _startupStatusWindow = null;
-        window.Show();
-        StartBackgroundCacheMaintenance();
-    }
-
-    private async Task ReportStartupStageAsync(string stage, string status, string detail)
-    {
-        _startupDiagnostics?.RecordStage(stage, status);
-        if (_startupStatusViewModel is null)
-        {
-            return;
-        }
-
-        await Dispatcher.InvokeAsync(() =>
-        {
-            _startupStatusViewModel.StatusText = status;
-            _startupStatusViewModel.DetailText = detail;
-        }, DispatcherPriority.Background);
-    }
-
-    private void HandleStartupFailure(Exception exception)
-    {
-        _startupDiagnostics?.RecordFailure("startup-failed", "应用启动失败。", exception);
-        _startupStatusWindow?.Close();
-        _startupStatusWindow = null;
-
-        var message = exception switch
-        {
-            Infrastructure.Persistence.IncompatibleDatabaseSchemaException incompatible => incompatible.Message,
-            _ => "应用启动失败。请稍后重试，或检查本地数据目录和日志文件。"
-        };
-
-        MessageBox.Show(
-            message,
-            "NovelSpeaker 启动失败",
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
-
-        Shutdown(-1);
-    }
-
-    private void StartBackgroundCacheMaintenance()
-    {
-        if (_serviceProvider is null)
-        {
-            return;
-        }
-
-        var cacheWorkspace = _serviceProvider.GetRequiredService<ICacheWorkspaceService>();
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await cacheWorkspace.TrimToConfiguredLimitAsync(CancellationToken.None);
-                _startupDiagnostics?.RecordStage("audio-cache-maintenance", "后台音频缓存维护完成。");
-            }
-            catch (Exception exception)
-            {
-                _startupDiagnostics?.RecordFailure("audio-cache-maintenance-failed", "后台音频缓存维护失败。", exception);
-            }
-        });
-    }
-
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        _startupDiagnostics?.RecordFailure("dispatcher-unhandled-exception", "UI 线程出现未处理异常。", e.Exception);
+        _startupCoordinator?.RecordUnhandledFailure(
+            "dispatcher-unhandled-exception",
+            "UI 线程出现未处理异常。",
+            e.Exception);
         MessageBox.Show(
             "应用遇到未处理错误，即将关闭。请查看日志了解更多信息。",
             "NovelSpeaker 发生错误",
@@ -195,7 +77,7 @@ public partial class App : System.Windows.Application
 
     private void OnCurrentDomainUnhandledException(object? sender, UnhandledExceptionEventArgs e)
     {
-        _startupDiagnostics?.RecordFailure(
+        _startupCoordinator?.RecordUnhandledFailure(
             "appdomain-unhandled-exception",
             "后台线程出现未处理异常。",
             e.ExceptionObject as Exception);
@@ -203,15 +85,11 @@ public partial class App : System.Windows.Application
 
     private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
-        _startupDiagnostics?.RecordFailure("task-unobserved-exception", "检测到未观察的任务异常。", e.Exception);
+        _startupCoordinator?.RecordUnhandledFailure(
+            "task-unobserved-exception",
+            "检测到未观察的任务异常。",
+            e.Exception);
         e.SetObserved();
-    }
-
-    private static LogLevel ParseLogLevel(string? value)
-    {
-        return Enum.TryParse<LogLevel>(value, ignoreCase: true, out var result)
-            ? result
-            : LogLevel.Information;
     }
 }
 

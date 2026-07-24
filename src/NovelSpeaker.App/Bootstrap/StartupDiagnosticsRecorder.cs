@@ -1,12 +1,11 @@
 using System.Text;
 using System.IO;
 using NovelSpeaker.Application.Abstractions;
-using NovelSpeaker.Application.Speech.Security;
 
 namespace NovelSpeaker.App.Bootstrap;
 
 /// <summary>
-/// Writes minimal startup and crash diagnostics without recording sensitive content.
+/// Writes minimal startup and crash diagnostics without recording user-provided values.
 /// </summary>
 public sealed class StartupDiagnosticsRecorder
 {
@@ -38,13 +37,13 @@ public sealed class StartupDiagnosticsRecorder
             .Append("] ")
             .Append(stage)
             .Append(" - ")
-            .Append(SensitiveDataRedactor.RedactPlainText(message));
+            .Append(message);
 
         if (exception is not null)
         {
             builder
-                .Append(" (")
-                .Append(SensitiveDataRedactor.RedactPlainText(exception.ToString()))
+                .Append(" (ExceptionType=")
+                .Append(exception.GetType().Name)
                 .Append(')');
         }
 
