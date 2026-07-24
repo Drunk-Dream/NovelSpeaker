@@ -21,8 +21,10 @@ using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.Infrastructure.DependencyInjection;
+using NovelSpeaker.Infrastructure.Diagnostics;
 using NovelSpeaker.Infrastructure.Playback;
 using NovelSpeaker.Infrastructure.Speech.Http;
+using System.Reflection;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Xunit;
@@ -184,5 +186,85 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddNovelSpeakerDesktop();
 
         Assert.Equal(descriptorCount, services.Count);
+    }
+
+    [Fact]
+    public void Application_registration_owns_all_application_use_cases()
+    {
+        var services = new ServiceCollection();
+
+        services.AddNovelSpeakerApplication();
+
+        var applicationAssembly =
+            typeof(NovelSpeaker.Application.DependencyInjection.ServiceCollectionExtensions).Assembly;
+        var expectedUseCases = new[]
+        {
+            typeof(IChapterRuleManagementService),
+            typeof(IDirectBookImportService),
+            typeof(IBookDeletionService),
+            typeof(IChapterRuleWorkspaceService),
+            typeof(IRegexReplacementRuleWorkspaceService),
+            typeof(IRegexReplacementPipeline),
+            typeof(ITextSegmenter),
+            typeof(ITtsRuleQueries),
+            typeof(ITtsRuleSelectionUseCase),
+            typeof(ITtsRuleEditorUseCase),
+            typeof(ITtsRuleImportUseCase),
+            typeof(IHttpTtsClient),
+            typeof(ITtsRuleTestService),
+            typeof(IBookPlaybackContentService),
+            typeof(ICacheWorkspaceService),
+            typeof(IPlaybackAudioProvider),
+            typeof(ILocalAudioPlaybackCoordinator),
+            typeof(IPlaybackPrefetchController),
+            typeof(IPlaybackSession),
+            typeof(IPlaybackBookCommands),
+            typeof(IPlaybackRegexReplacementRefresher),
+            typeof(ISelectedTtsRuleProvider),
+            typeof(IAppSettingsService)
+        };
+
+        foreach (var useCase in expectedUseCases)
+        {
+            var descriptor = Assert.Single(services, candidate => candidate.ServiceType == useCase);
+            Assert.Equal(applicationAssembly, GetImplementationAssembly(descriptor));
+        }
+    }
+
+    [Fact]
+    public void Infrastructure_registration_contains_only_infrastructure_adapters()
+    {
+        var services = new ServiceCollection();
+
+        services.AddNovelSpeakerInfrastructure();
+
+        var infrastructureAssembly =
+            typeof(NovelSpeaker.Infrastructure.DependencyInjection.ServiceCollectionExtensions).Assembly;
+        Assert.NotEmpty(services);
+        Assert.All(
+            services,
+            descriptor => Assert.Equal(infrastructureAssembly, GetImplementationAssembly(descriptor)));
+        Assert.Contains(
+            services,
+            descriptor =>
+                descriptor.ServiceType == typeof(Microsoft.Extensions.Logging.ILoggerProvider) &&
+                descriptor.ImplementationType == typeof(RollingFileLoggerProvider));
+    }
+
+    private static Assembly GetImplementationAssembly(ServiceDescriptor descriptor)
+    {
+        if (descriptor.ImplementationType is not null)
+        {
+            return descriptor.ImplementationType.Assembly;
+        }
+
+        if (descriptor.ImplementationInstance is not null)
+        {
+            return descriptor.ImplementationInstance.GetType().Assembly;
+        }
+
+        return descriptor.ImplementationFactory?.Method.DeclaringType?.Assembly
+            ?? throw new InvalidOperationException(
+                $"Registration for {descriptor.ServiceType.FullName} has no implementation owner.");
     }
 }
