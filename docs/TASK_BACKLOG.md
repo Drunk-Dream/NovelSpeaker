@@ -740,7 +740,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：Application 组合根按 Books、Speech、Playback、Settings 模块注册全部用例；Infrastructure 顶层只组合 Persistence、FileStorage、Books、Speech、Audio、Settings、Diagnostics adapter 模块，滚动日志 provider 不再由 App 启动代码单独注册；Desktop 顶层只组合 Shared、Shell 与各 feature 注册。Debug 与测试组合启用 `ValidateOnBuild`/`ValidateScopes`，并增加用例所有权、adapter 所有权、Diagnostics 注册及 Application 无 SQLite 包/连接工厂的架构验收。核对后未删除仍由数据库初始化、恢复或端口调用的 Infrastructure adapter。
 
-### [ ] BOOT-702（P1）：实现可测试的启动协调器
+### [x] BOOT-702（P1）：实现可测试的启动协调器
 
 前置：SETTINGS-104、BOOK-204、BOOT-701。
 
@@ -752,6 +752,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 启动失败在 Shell 前使用最小安全反馈，且不泄露路径/凭据。
 
 测试：每阶段失败、取消、恢复失败、主题失败降级和设置只加载一次。
+
+完成说明：启动阶段已由 `StartupCoordinator` 串行拥有，WPF `App.xaml.cs` 仅桥接进程生命周期和异常事件；进程级 CTS 贯穿启动并在协调器释放时清理，设置快照只读取一次并复用于日志与 DI。数据库/恢复失败阻止主题和 Shell，主题失败记录脱敏诊断并回退系统主题后继续启动；最小启动反馈和启动日志只投影安全阶段消息与异常类型。新增阶段失败、取消、进程取消、数据库恢复阻断、主题降级、设置单次加载和诊断脱敏测试。
 
 ### [ ] BOOT-703（P1）：登记后台任务并实现异步关闭
 
