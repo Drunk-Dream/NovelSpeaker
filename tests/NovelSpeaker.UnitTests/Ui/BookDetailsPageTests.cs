@@ -208,16 +208,11 @@ public sealed class BookDetailsPageTests
         }
     }
 
-    private sealed class FakeGuardedNavigationService : IGuardedNavigationService
+    private sealed class FakeGuardedNavigationService : IAppNavigator
     {
-        public bool IsBypassingGuard => false;
-
         public Task<bool> GoBackAsync(CancellationToken cancellationToken, bool bypassGuard = false) => Task.FromResult(true);
 
-        public Task<bool> NavigateAsync(string pageIdOrTargetTag, CancellationToken cancellationToken, bool bypassGuard = false)
-            => Task.FromResult(true);
-
-        public Task<bool> NavigateWithHierarchyAsync(Type pageType, object? dataContext, CancellationToken cancellationToken, bool bypassGuard = false)
+        public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false)
             => Task.FromResult(true);
     }
 

@@ -4,8 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.App.Feedback;
-using NovelSpeaker.App.Pages;
-using Wpf.Ui;
+using NovelSpeaker.App.Navigation;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -17,7 +16,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     private readonly IChapterRuleWorkspaceService _workspaceService;
     private readonly IAppFeedbackService _feedbackService;
     private readonly IAppDialogService _dialogService;
-    private readonly INavigationService _navigationService;
+    private readonly IAppNavigator _navigator;
     private ChapterRuleEditorModel? _baselineEditor;
     private string? _fallbackRuleId;
     private bool _suppressDraftStateUpdates;
@@ -26,12 +25,12 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         IChapterRuleWorkspaceService workspaceService,
         IAppFeedbackService feedbackService,
         IAppDialogService dialogService,
-        INavigationService navigationService)
+        IAppNavigator navigator)
     {
         _workspaceService = workspaceService;
         _feedbackService = feedbackService;
         _dialogService = dialogService;
-        _navigationService = navigationService;
+        _navigator = navigator;
     }
 
     public ObservableCollection<ChapterRuleListItemViewModel> Rules { get; } = [];
@@ -153,9 +152,9 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             return;
         }
 
-        if (!_navigationService.GoBack())
+        if (!await _navigator.GoBackAsync(cancellationToken).ConfigureAwait(true))
         {
-            _navigationService.NavigateWithHierarchy(typeof(SettingsPage));
+            await _navigator.NavigateAsync(AppRoutes.Settings, cancellationToken).ConfigureAwait(true);
         }
     }
 

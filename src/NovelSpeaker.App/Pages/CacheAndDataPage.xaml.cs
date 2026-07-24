@@ -1,5 +1,6 @@
 using System.Windows.Controls;
 using System.Windows.Input;
+using NovelSpeaker.App.Activation;
 using NovelSpeaker.App.ViewModels;
 using Wpf.Ui.Abstractions.Controls;
 
@@ -7,6 +8,8 @@ namespace NovelSpeaker.App.Pages;
 
 public partial class CacheAndDataPage : System.Windows.Controls.Page, INavigationAware, INavigableView<CacheAndDataViewModel>
 {
+    private readonly PageActivationController _activation = new();
+
     public CacheAndDataPage(CacheAndDataViewModel viewModel)
     {
         ViewModel = viewModel;
@@ -16,13 +19,21 @@ public partial class CacheAndDataPage : System.Windows.Controls.Page, INavigatio
 
     public CacheAndDataViewModel ViewModel { get; }
 
-    public Task OnNavigatedToAsync()
+    public async Task OnNavigatedToAsync()
     {
-        return ViewModel.LoadAsync(CancellationToken.None);
+        var activation = _activation.Activate();
+        try
+        {
+            await ViewModel.LoadAsync(activation.CancellationToken);
+        }
+        catch (OperationCanceledException) when (!activation.IsCurrent)
+        {
+        }
     }
 
     public Task OnNavigatedFromAsync()
     {
+        _activation.Deactivate();
         return Task.CompletedTask;
     }
 
@@ -34,12 +45,12 @@ public partial class CacheAndDataPage : System.Windows.Controls.Page, INavigatio
         }
 
         e.Handled = true;
-        await ViewModel.CommitCacheLimitAsync(CancellationToken.None);
+        await ViewModel.CommitCacheLimitAsync(_activation.CurrentToken);
     }
 
     private async void CacheLimitValueTextBox_OnLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        await ViewModel.CommitCacheLimitAsync(CancellationToken.None);
+        await ViewModel.CommitCacheLimitAsync(_activation.CurrentToken);
     }
 
     private void CacheLimitUnitComboBox_OnSelectionChanged(object sender, SelectionChangedEventArgs e)

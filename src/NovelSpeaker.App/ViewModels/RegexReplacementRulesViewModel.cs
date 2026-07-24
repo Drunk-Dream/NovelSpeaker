@@ -5,9 +5,8 @@ using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Feedback;
-using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.Navigation;
 using NovelSpeaker.Domain.Books;
-using Wpf.Ui;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -18,7 +17,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     private readonly IPlaybackRegexReplacementRefresher _playback;
     private readonly IAppFeedbackService _feedback;
     private readonly IAppDialogService _dialogs;
-    private readonly INavigationService _navigation;
+    private readonly IAppNavigator _navigator;
     private RegexReplacementRuleEditorModel? _baseline;
     private Guid? _fallbackRuleId;
     private bool _loading;
@@ -28,13 +27,13 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
         IPlaybackRegexReplacementRefresher playback,
         IAppFeedbackService feedback,
         IAppDialogService dialogs,
-        INavigationService navigation)
+        IAppNavigator navigator)
     {
         _workspace = workspace;
         _playback = playback;
         _feedback = feedback;
         _dialogs = dialogs;
-        _navigation = navigation;
+        _navigator = navigator;
     }
 
     public ObservableCollection<RegexReplacementRuleListItemViewModel> Rules { get; } = [];
@@ -60,7 +59,10 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     private async Task BackAsync(CancellationToken cancellationToken)
     {
         if (!await ConfirmLeaveAsync(cancellationToken)) return;
-        if (!_navigation.GoBack()) _navigation.NavigateWithHierarchy(typeof(ImportTextSettingsPage));
+        if (!await _navigator.GoBackAsync(cancellationToken).ConfigureAwait(true))
+        {
+            await _navigator.NavigateAsync(AppRoutes.ImportTextSettings, cancellationToken).ConfigureAwait(true);
+        }
     }
 
     [RelayCommand]

@@ -20,7 +20,7 @@ public sealed class BehaviorDebtBaselineTests
     }
 
     [Fact]
-    public void Rule_pages_register_and_unregister_the_global_navigation_guard()
+    public void Rule_pages_register_the_global_navigation_guard_in_the_activation_scope()
     {
         var pagePaths = new[]
         {
@@ -33,9 +33,9 @@ public sealed class BehaviorDebtBaselineTests
             var page = File.ReadAllText(Absolute(relativePath));
             Assert.Contains("INavigationGuardService", page, StringComparison.Ordinal);
             Assert.Contains("Register(ViewModel.ConfirmLeaveAsync)", page, StringComparison.Ordinal);
-            Assert.Contains("_guardRegistration?.Dispose()", page, StringComparison.Ordinal);
-            Assert.Contains("Loaded += OnLoaded", page, StringComparison.Ordinal);
-            Assert.Contains("Unloaded += OnUnloaded", page, StringComparison.Ordinal);
+            Assert.Contains("PageActivationController", page, StringComparison.Ordinal);
+            Assert.Contains("activation.Register", page, StringComparison.Ordinal);
+            Assert.Contains("_activation.Deactivate()", page, StringComparison.Ordinal);
         }
     }
 
@@ -93,21 +93,22 @@ public sealed class BehaviorDebtBaselineTests
     }
 
     [Fact]
-    public void Shell_navigation_entry_points_use_the_guarded_navigation_boundary()
+    public void Shell_navigation_entry_points_use_the_typed_navigation_boundary()
     {
         var mainWindow = File.ReadAllText(Absolute("src/NovelSpeaker.App/MainWindow.xaml.cs"));
         Assert.Contains("OnRootNavigationViewNavigating", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("_guardedNavigationService.NavigateAsync", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("_guardedNavigationService.NavigateWithHierarchyAsync", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("IShellNavigationAdapter", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("_navigationAdapter.NavigateFromShellAsync", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetProperty(\"PageId\")", mainWindow, StringComparison.Ordinal);
 
         var shortcuts = File.ReadAllText(Absolute("src/NovelSpeaker.App/Input/KeyboardShortcutCoordinator.cs"));
-        Assert.Contains("IGuardedNavigationService navigation", shortcuts, StringComparison.Ordinal);
+        Assert.Contains("IAppNavigator navigation", shortcuts, StringComparison.Ordinal);
         Assert.Contains("_navigation.GoBackAsync", shortcuts, StringComparison.Ordinal);
-        Assert.Contains("typeof(SettingsPage)", shortcuts, StringComparison.Ordinal);
+        Assert.Contains("AppRoutes.Settings", shortcuts, StringComparison.Ordinal);
 
         var shellViewModel = File.ReadAllText(Absolute("src/NovelSpeaker.App/ViewModels/MainWindowViewModel.cs"));
-        Assert.Contains("IGuardedNavigationService guardedNavigationService", shellViewModel, StringComparison.Ordinal);
-        Assert.Contains("_guardedNavigationService.NavigateWithHierarchyAsync", shellViewModel, StringComparison.Ordinal);
+        Assert.Contains("IAppNavigator navigator", shellViewModel, StringComparison.Ordinal);
+        Assert.Contains("_navigator.NavigateAsync", shellViewModel, StringComparison.Ordinal);
         Assert.Contains("PlayerNavigationMode.ReturnToCurrentSession", shellViewModel, StringComparison.Ordinal);
     }
 

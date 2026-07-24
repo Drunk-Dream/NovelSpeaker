@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using NovelSpeaker.App.Activation;
 using NovelSpeaker.App.ViewModels;
 using Wpf.Ui.Abstractions.Controls;
 
@@ -6,6 +7,8 @@ namespace NovelSpeaker.App.Pages;
 
 public partial class PlaybackSettingsPage : System.Windows.Controls.Page, INavigationAware, INavigableView<PlaybackSettingsViewModel>
 {
+    private readonly PageActivationController _activation = new();
+
     public PlaybackSettingsPage(PlaybackSettingsViewModel viewModel)
     {
         ViewModel = viewModel;
@@ -15,13 +18,21 @@ public partial class PlaybackSettingsPage : System.Windows.Controls.Page, INavig
 
     public PlaybackSettingsViewModel ViewModel { get; }
 
-    public Task OnNavigatedToAsync()
+    public async Task OnNavigatedToAsync()
     {
-        return ViewModel.LoadAsync(CancellationToken.None);
+        var activation = _activation.Activate();
+        try
+        {
+            await ViewModel.LoadAsync(activation.CancellationToken);
+        }
+        catch (OperationCanceledException) when (!activation.IsCurrent)
+        {
+        }
     }
 
     public Task OnNavigatedFromAsync()
     {
+        _activation.Deactivate();
         return Task.CompletedTask;
     }
 
@@ -33,12 +44,12 @@ public partial class PlaybackSettingsPage : System.Windows.Controls.Page, INavig
         }
 
         e.Handled = true;
-        await ViewModel.CommitDefaultSpeakSpeedAsync(CancellationToken.None);
+        await ViewModel.CommitDefaultSpeakSpeedAsync(_activation.CurrentToken);
     }
 
     private async void DefaultSpeakSpeedTextBox_OnLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        await ViewModel.CommitDefaultSpeakSpeedAsync(CancellationToken.None);
+        await ViewModel.CommitDefaultSpeakSpeedAsync(_activation.CurrentToken);
     }
 
     private async void PrefetchCountTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -49,11 +60,11 @@ public partial class PlaybackSettingsPage : System.Windows.Controls.Page, INavig
         }
 
         e.Handled = true;
-        await ViewModel.CommitPrefetchCountAsync(CancellationToken.None);
+        await ViewModel.CommitPrefetchCountAsync(_activation.CurrentToken);
     }
 
     private async void PrefetchCountTextBox_OnLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        await ViewModel.CommitPrefetchCountAsync(CancellationToken.None);
+        await ViewModel.CommitPrefetchCountAsync(_activation.CurrentToken);
     }
 }

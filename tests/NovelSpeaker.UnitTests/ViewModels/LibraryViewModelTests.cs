@@ -458,23 +458,23 @@ public sealed class LibraryViewModelTests
         }
     }
 
-    private sealed class FakeNavigationService : IGuardedNavigationService
+    private sealed class FakeNavigationService : IAppNavigator
     {
         public Type? LastNavigateWithHierarchyPageType { get; private set; }
 
         public object? LastNavigateWithHierarchyParameter { get; private set; }
 
-        public bool IsBypassingGuard => false;
-
         public Task<bool> GoBackAsync(CancellationToken cancellationToken, bool bypassGuard = false) => Task.FromResult(false);
 
-        public Task<bool> NavigateAsync(string pageIdOrTargetTag, CancellationToken cancellationToken, bool bypassGuard = false)
-            => Task.FromResult(true);
-
-        public Task<bool> NavigateWithHierarchyAsync(Type pageType, object? dataContext, CancellationToken cancellationToken, bool bypassGuard = false)
+        public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false)
         {
-            LastNavigateWithHierarchyPageType = pageType;
-            LastNavigateWithHierarchyParameter = dataContext;
+            LastNavigateWithHierarchyPageType = route.Id switch
+            {
+                AppRouteId.Player => typeof(PlayerPage),
+                AppRouteId.BookDetails => typeof(BookDetailsPage),
+                _ => null
+            };
+            LastNavigateWithHierarchyParameter = route;
             return Task.FromResult(true);
         }
     }

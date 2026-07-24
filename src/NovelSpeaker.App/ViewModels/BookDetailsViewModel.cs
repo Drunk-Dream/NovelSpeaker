@@ -9,7 +9,6 @@ using NovelSpeaker.App.Dialogs;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Library;
 using NovelSpeaker.App.Navigation;
-using NovelSpeaker.App.Pages;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -24,7 +23,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private readonly IAppDialogService _dialogService;
     private readonly IBookDeleteDialogService _deleteDialogService;
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
-    private readonly IGuardedNavigationService _guardedNavigationService;
+    private readonly IAppNavigator _navigator;
     private readonly IPlaybackBookCommands _playbackCoordinator;
     private CancellationTokenSource? _activeLoadCancellationTokenSource;
     private BookDetailsHeader? _loadedHeader;
@@ -42,7 +41,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         IBookDeleteDialogService deleteDialogService,
         IBookCatalogInvalidationState catalogInvalidationState,
         IPlaybackBookCommands playbackCoordinator,
-        IGuardedNavigationService guardedNavigationService)
+        IAppNavigator navigator)
     {
         _bookLibraryQuery = bookLibraryQuery;
         _bookMetadataUpdateService = bookMetadataUpdateService;
@@ -54,7 +53,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         _deleteDialogService = deleteDialogService;
         _catalogInvalidationState = catalogInvalidationState;
         _playbackCoordinator = playbackCoordinator;
-        _guardedNavigationService = guardedNavigationService;
+        _navigator = navigator;
         Cover = _bookCoverGenerator.Generate("未命名书籍");
     }
 
@@ -282,13 +281,13 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             {
                 StatusMessage = "这本书已不存在。";
                 _catalogInvalidationState.Invalidate();
-                await _guardedNavigationService.GoBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
+                await _navigator.GoBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
                 return;
             }
 
             _catalogInvalidationState.Invalidate();
             _feedbackService.ShowSuccess("删除成功", $"已删除《{_loadedHeader.Title}》。");
-            await _guardedNavigationService.GoBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
+            await _navigator.GoBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
         }
         catch (Exception exception)
         {
@@ -310,7 +309,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             return;
         }
 
-        await _guardedNavigationService.GoBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
+        await _navigator.GoBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
     }
 
     [RelayCommand]
@@ -326,9 +325,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             return;
         }
 
-        await _guardedNavigationService.NavigateWithHierarchyAsync(
-            typeof(PlayerPage),
-            new PlayerNavigationRequest(_bookId, PlayerNavigationMode.OpenPaused, chapter.ChapterIndex, 0),
+        await _navigator.NavigateAsync(
+            new PlayerRoute(_bookId, PlayerNavigationMode.OpenPaused, chapter.ChapterIndex, 0),
             cancellationToken,
             bypassGuard: true).ConfigureAwait(true);
     }

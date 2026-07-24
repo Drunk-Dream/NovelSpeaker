@@ -4,8 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.App.Feedback;
-using NovelSpeaker.App.Pages;
-using Wpf.Ui;
+using NovelSpeaker.App.Navigation;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -16,7 +15,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
     private readonly ICacheWorkspaceService _cacheWorkspaceService;
     private readonly IAppFeedbackService _feedbackService;
     private readonly IAppDialogService _dialogService;
-    private readonly INavigationService _navigationService;
+    private readonly IAppNavigator _navigator;
     private CancellationTokenSource? _chapterLoadCts;
     private int _chapterLoadVersion;
     private string? _selectedBookId;
@@ -25,12 +24,12 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         ICacheWorkspaceService cacheWorkspaceService,
         IAppFeedbackService feedbackService,
         IAppDialogService dialogService,
-        INavigationService navigationService)
+        IAppNavigator navigator)
     {
         _cacheWorkspaceService = cacheWorkspaceService;
         _feedbackService = feedbackService;
         _dialogService = dialogService;
-        _navigationService = navigationService;
+        _navigator = navigator;
     }
 
     public ObservableCollection<CachedBookListItemViewModel> Books { get; } = [];
@@ -86,11 +85,11 @@ public sealed partial class CacheManagementViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Back()
+    private async Task BackAsync(CancellationToken cancellationToken)
     {
-        if (!_navigationService.GoBack())
+        if (!await _navigator.GoBackAsync(cancellationToken).ConfigureAwait(true))
         {
-            _navigationService.NavigateWithHierarchy(typeof(CacheAndDataPage));
+            await _navigator.NavigateAsync(AppRoutes.CacheAndData, cancellationToken).ConfigureAwait(true);
         }
     }
 

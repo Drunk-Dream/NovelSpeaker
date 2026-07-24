@@ -3,8 +3,8 @@ using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Diagnostics;
 using NovelSpeaker.App.Feedback;
+using NovelSpeaker.App.Navigation;
 using NovelSpeaker.Domain.Settings;
-using Wpf.Ui;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -20,9 +20,9 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
         IAppDiagnosticsService diagnosticsService,
         IAppSettingsService settingsService,
         IClipboardService clipboardService,
-        INavigationService navigationService,
+        IAppNavigator navigator,
         IAppFeedbackService feedbackService)
-        : base(navigationService, feedbackService)
+        : base(navigator, feedbackService)
     {
         _diagnosticsService = diagnosticsService;
         _settingsService = settingsService;

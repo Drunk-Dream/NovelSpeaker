@@ -620,7 +620,7 @@ public sealed class BookDetailsViewModelTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class FakeGuardedNavigationService : IGuardedNavigationService
+    private sealed class FakeGuardedNavigationService : IAppNavigator
     {
         public Type? LastNavigateWithHierarchyPageType { get; private set; }
 
@@ -628,27 +628,19 @@ public sealed class BookDetailsViewModelTests
 
         public int GoBackCallCount { get; private set; }
 
-        public bool IsBypassingGuard => false;
-
         public Task<bool> GoBackAsync(CancellationToken cancellationToken, bool bypassGuard = false)
         {
             GoBackCallCount++;
             return Task.FromResult(true);
         }
 
-        public Task<bool> NavigateAsync(string pageIdOrTargetTag, CancellationToken cancellationToken, bool bypassGuard = false)
-        {
-            return Task.FromResult(true);
-        }
-
-        public Task<bool> NavigateWithHierarchyAsync(
-            Type pageType,
-            object? dataContext,
+        public Task<bool> NavigateAsync(
+            AppRoute route,
             CancellationToken cancellationToken,
             bool bypassGuard = false)
         {
-            LastNavigateWithHierarchyPageType = pageType;
-            LastNavigateWithHierarchyParameter = dataContext;
+            LastNavigateWithHierarchyPageType = route.Id == AppRouteId.Player ? typeof(PlayerPage) : null;
+            LastNavigateWithHierarchyParameter = route;
             return Task.FromResult(true);
         }
     }

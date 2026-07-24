@@ -24,7 +24,7 @@ public sealed class AppNavigationPageProviderTests
             var services = new ServiceCollection();
             services.AddSingleton<FakeNavigationService>();
             services.AddSingleton<INavigationService>(provider => provider.GetRequiredService<FakeNavigationService>());
-            services.AddSingleton<IGuardedNavigationService>(provider => provider.GetRequiredService<FakeNavigationService>());
+            services.AddSingleton<IAppNavigator>(provider => provider.GetRequiredService<FakeNavigationService>());
             services.AddSingleton<INavigationGuardService, FakeNavigationGuardService>();
             services.AddSingleton<FakeBookManagementService>();
             services.AddSingleton<IBookLibraryQuery>(provider => provider.GetRequiredService<FakeBookManagementService>());
@@ -69,10 +69,8 @@ public sealed class AppNavigationPageProviderTests
     {
     }
 
-    private sealed class FakeNavigationService : INavigationService, IGuardedNavigationService
+    private sealed class FakeNavigationService : INavigationService, IAppNavigator
     {
-        public bool IsBypassingGuard => false;
-
         public INavigationView GetNavigationControl()
         {
             throw new NotSupportedException();
@@ -101,9 +99,7 @@ public sealed class AppNavigationPageProviderTests
 
         public Task<bool> GoBackAsync(CancellationToken cancellationToken, bool bypassGuard = false) => Task.FromResult(false);
 
-        public Task<bool> NavigateAsync(string pageIdOrTargetTag, CancellationToken cancellationToken, bool bypassGuard = false) => Task.FromResult(true);
-
-        public Task<bool> NavigateWithHierarchyAsync(Type pageType, object? dataContext, CancellationToken cancellationToken, bool bypassGuard = false)
+        public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false)
             => Task.FromResult(true);
     }
 

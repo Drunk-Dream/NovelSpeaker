@@ -72,7 +72,7 @@ public sealed class SettingsViewModelTests
         Assert.True(navigationService.LastUsedHierarchyNavigation);
     }
 
-    private sealed class FakeNavigationService : INavigationService
+    private sealed class FakeNavigationService : ITestNavigationService
     {
         public Type? LastNavigationPageType { get; private set; }
 

@@ -128,7 +128,6 @@ public sealed class MainWindowNavigationTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationGuardService { NextResult = true },
                 navigationService,
-                navigationService,
                 pageProvider,
                 snackbarService,
                 serviceProvider,
@@ -167,7 +166,6 @@ public sealed class MainWindowNavigationTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationGuardService { NextResult = true },
                 navigationService,
-                navigationService,
                 new FakeNavigationViewPageProvider(),
                 snackbarService,
                 serviceProvider,
@@ -176,6 +174,7 @@ public sealed class MainWindowNavigationTests
                 new FakeKeyboardShortcutCoordinator());
 
             var navigationView = GetNavigationView(window);
+            window.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
 
             Assert.Equal(2, navigationView.MenuItems.Count);
 
@@ -207,8 +206,8 @@ public sealed class MainWindowNavigationTests
                 window.Show();
                 window.UpdateLayout();
 
-                var navigationService = provider.GetRequiredService<IGuardedNavigationService>();
-                Assert.True(await navigationService.NavigateWithHierarchyAsync(typeof(PlayerPage), null, CancellationToken.None));
+                var navigationService = provider.GetRequiredService<IAppNavigator>();
+                Assert.True(await navigationService.NavigateAsync(new PlayerRoute("book-1"), CancellationToken.None));
 
                 window.UpdateLayout();
 
@@ -285,7 +284,6 @@ public sealed class MainWindowNavigationTests
             feedbackService,
             navigationGuardService,
             navigationService,
-            navigationService,
             new FakeNavigationViewPageProvider(),
             new FakeSnackbarService(),
             serviceProvider,
@@ -306,7 +304,7 @@ public sealed class MainWindowNavigationTests
         return dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ApplicationIdle).Task;
     }
 
-    private sealed class FakeNavigationService : INavigationService, IGuardedNavigationService
+    private sealed class FakeNavigationService : INavigationService, IShellNavigationAdapter
     {
         public INavigationView? NavigationControl { get; private set; }
 
@@ -315,6 +313,8 @@ public sealed class MainWindowNavigationTests
         public int NavigateCallCount { get; private set; }
 
         public bool IsBypassingGuard => false;
+
+        public AppRouteId CurrentRouteId { get; private set; } = AppRouteId.Library;
 
         public INavigationView GetNavigationControl()
         {
@@ -358,16 +358,31 @@ public sealed class MainWindowNavigationTests
             return Task.FromResult(false);
         }
 
-        public Task<bool> NavigateAsync(string pageIdOrTargetTag, CancellationToken cancellationToken, bool bypassGuard = false)
+        public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false)
         {
+            CurrentRouteId = route.Id;
+            LastNavigationPageType = route.Id == AppRouteId.Library ? typeof(LibraryPage) : null;
+            NavigateCallCount++;
             return Task.FromResult(true);
         }
 
-        public Task<bool> NavigateWithHierarchyAsync(Type pageType, object? dataContext, CancellationToken cancellationToken, bool bypassGuard = false)
+        public void Initialize(
+            INavigationView navigationView,
+            NavigationViewItem libraryItem,
+            NavigationViewItem settingsItem,
+            NavigationViewItem playbackItem)
         {
-            LastNavigationPageType = pageType;
-            NavigateCallCount++;
-            return Task.FromResult(true);
+            NavigationControl = navigationView;
+            libraryItem.TargetPageType = typeof(LibraryPage);
+            settingsItem.TargetPageType = typeof(SettingsPage);
+        }
+
+        public Task<bool> NavigateFromShellAsync(
+            NavigatingCancelEventArgs eventArgs,
+            CancellationToken cancellationToken) => Task.FromResult(true);
+
+        public void SynchronizeSelection(EventArgs eventArgs)
+        {
         }
     }
 

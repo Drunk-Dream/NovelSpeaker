@@ -1,11 +1,13 @@
+using NovelSpeaker.App.Activation;
 using NovelSpeaker.App.ViewModels;
-using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Pages;
 
 public partial class SettingsPage : System.Windows.Controls.Page, INavigationAware, INavigableView<SettingsViewModel>
 {
+    private readonly PageActivationController _activation = new();
+
     public SettingsPage(SettingsViewModel viewModel)
     {
         ViewModel = viewModel;
@@ -17,11 +19,13 @@ public partial class SettingsPage : System.Windows.Controls.Page, INavigationAwa
 
     public Task OnNavigatedToAsync()
     {
+        _activation.Activate();
         return Task.CompletedTask;
     }
 
     public Task OnNavigatedFromAsync()
     {
+        _activation.Deactivate();
         return Task.CompletedTask;
     }
 }

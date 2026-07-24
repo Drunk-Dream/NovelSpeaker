@@ -8,11 +8,9 @@ using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Navigation;
-using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.Player;
 using NovelSpeaker.Domain.Settings;
 using System.Windows;
-using Wpf.Ui;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 
 namespace NovelSpeaker.App.ViewModels;
@@ -26,7 +24,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private readonly ITtsRuleQueries _ruleQueries;
     private readonly IAppSettingsService _settingsService;
     private readonly IAppFeedbackService _feedbackService;
-    private readonly INavigationService _navigationService;
+    private readonly IAppNavigator _navigator;
     private readonly IPlayerAutoScrollCoordinator _autoScrollCoordinator;
     private readonly TimeProvider _timeProvider;
     private readonly object _projectionSyncRoot = new();
@@ -45,6 +43,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private PlayerAutoScrollState _lastAppliedAutoScrollState;
     private PlaybackSnapshot _lastAppliedSnapshot = PlaybackSnapshot.Idle;
     private CancellationTokenSource? _speakSpeedStepDebounceCts;
+    private bool _isPageEventsRegistered;
 
     public PlayerViewModel(
         IPlaybackSession playbackCoordinator,
@@ -52,7 +51,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         ITtsRuleQueries ruleQueries,
         IAppSettingsService settingsService,
         IAppFeedbackService feedbackService,
-        INavigationService navigationService,
+        IAppNavigator navigator,
         IPlayerAutoScrollCoordinator autoScrollCoordinator,
         TimeProvider? timeProvider = null)
     {
@@ -61,7 +60,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         _ruleQueries = ruleQueries;
         _settingsService = settingsService;
         _feedbackService = feedbackService;
-        _navigationService = navigationService;
+        _navigator = navigator;
         _autoScrollCoordinator = autoScrollCoordinator;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _lastAppliedAutoScrollState = _autoScrollCoordinator.State;
@@ -69,8 +68,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         ApplyAutoScrollState();
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
 
-        _playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
-        _autoScrollCoordinator.StateChanged += OnAutoScrollStateChanged;
+        RegisterPageEvents();
     }
 
     public ObservableCollection<PlayerRuleItemViewModel> Rules { get; } = [];
@@ -217,7 +215,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
     }
 
-    public async Task HandleNavigationAsync(PlayerNavigationRequest request, CancellationToken cancellationToken)
+    public async Task HandleNavigationAsync(PlayerRoute request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -228,7 +226,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         var book = await EnsureBookLoadedAsync(request.BookId, cancellationToken);
         if (book is null)
         {
-            HandleMissingBook();
+            await HandleMissingBookAsync(cancellationToken);
             return;
         }
 
@@ -262,7 +260,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     }
 
     private async Task HandleChapterTargetNavigationAsync(
-        PlayerNavigationRequest request,
+        PlayerRoute request,
         PlaybackSnapshot snapshot,
         CancellationToken cancellationToken)
     {
@@ -318,6 +316,32 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         CloseTransientPanels();
         _autoScrollCoordinator.ResetForPageLeave();
+        if (!_isPageEventsRegistered)
+        {
+            return;
+        }
+
+        _playbackCoordinator.SnapshotChanged -= OnSnapshotChanged;
+        _autoScrollCoordinator.StateChanged -= OnAutoScrollStateChanged;
+        _isPageEventsRegistered = false;
+    }
+
+    public void OnPageNavigatedTo()
+    {
+        RegisterPageEvents();
+        ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
+    }
+
+    private void RegisterPageEvents()
+    {
+        if (_isPageEventsRegistered)
+        {
+            return;
+        }
+
+        _playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
+        _autoScrollCoordinator.StateChanged += OnAutoScrollStateChanged;
+        _isPageEventsRegistered = true;
     }
 
     public void NotifyUserScrollInput()
@@ -410,11 +434,11 @@ public sealed partial class PlayerViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Back()
+    private async Task BackAsync(CancellationToken cancellationToken)
     {
-        if (!_navigationService.GoBack())
+        if (!await _navigator.GoBackAsync(cancellationToken).ConfigureAwait(true))
         {
-            _navigationService.NavigateWithHierarchy(typeof(LibraryPage));
+            await _navigator.NavigateAsync(AppRoutes.Library, cancellationToken).ConfigureAwait(true);
         }
     }
 
@@ -446,10 +470,10 @@ public sealed partial class PlayerViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void OpenRulesManagement()
+    private async Task OpenRulesManagementAsync(CancellationToken cancellationToken)
     {
         CloseTransientPanels();
-        _navigationService.NavigateWithHierarchy(typeof(TtsRulesPage));
+        await _navigator.NavigateAsync(AppRoutes.TtsRules, cancellationToken).ConfigureAwait(true);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -1214,10 +1238,10 @@ public sealed partial class PlayerViewModel : ObservableObject
         await EnsureContentLoadedForSnapshotAsync(refreshedSnapshot, cancellationToken);
     }
 
-    private void HandleMissingBook()
+    private async Task HandleMissingBookAsync(CancellationToken cancellationToken)
     {
         _feedbackService.ShowWarning("无法打开书籍", "这本书可能已经被删除。");
-        _navigationService.NavigateWithHierarchy(typeof(LibraryPage));
+        await _navigator.NavigateAsync(AppRoutes.Library, cancellationToken).ConfigureAwait(true);
     }
 
     private double NormalizeSegmentProgressValue(double value)

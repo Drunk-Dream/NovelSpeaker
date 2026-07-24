@@ -1,3 +1,4 @@
+using NovelSpeaker.App.Activation;
 using NovelSpeaker.App.ViewModels;
 using Wpf.Ui.Abstractions.Controls;
 
@@ -5,6 +6,8 @@ namespace NovelSpeaker.App.Pages;
 
 public partial class DiagnosticsAboutPage : System.Windows.Controls.Page, INavigationAware, INavigableView<DiagnosticsAboutViewModel>
 {
+    private readonly PageActivationController _activation = new();
+
     public DiagnosticsAboutPage(DiagnosticsAboutViewModel viewModel)
     {
         ViewModel = viewModel;
@@ -14,13 +17,21 @@ public partial class DiagnosticsAboutPage : System.Windows.Controls.Page, INavig
 
     public DiagnosticsAboutViewModel ViewModel { get; }
 
-    public Task OnNavigatedToAsync()
+    public async Task OnNavigatedToAsync()
     {
-        return ViewModel.LoadAsync(CancellationToken.None);
+        var activation = _activation.Activate();
+        try
+        {
+            await ViewModel.LoadAsync(activation.CancellationToken);
+        }
+        catch (OperationCanceledException) when (!activation.IsCurrent)
+        {
+        }
     }
 
     public Task OnNavigatedFromAsync()
     {
+        _activation.Deactivate();
         return Task.CompletedTask;
     }
 }

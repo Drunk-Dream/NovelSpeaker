@@ -5,9 +5,8 @@ using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Diagnostics;
 using NovelSpeaker.App.Feedback;
-using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.Navigation;
 using NovelSpeaker.Domain.Settings;
-using Wpf.Ui;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -20,7 +19,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     private readonly IAppSettingsService _settingsService;
     private readonly ICacheWorkspaceService _cacheWorkspaceService;
     private readonly IAppDiagnosticsService _diagnosticsService;
-    private readonly INavigationService _navigationService;
+    private readonly IAppNavigator _navigator;
     private readonly IAppDialogService _dialogService;
     private readonly IAppFeedbackService _feedbackService;
     private CancellationTokenSource? _cacheLimitDebounceCts;
@@ -33,15 +32,15 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         IAppSettingsService settingsService,
         ICacheWorkspaceService cacheWorkspaceService,
         IAppDiagnosticsService diagnosticsService,
-        INavigationService navigationService,
+        IAppNavigator navigator,
         IAppDialogService dialogService,
         IAppFeedbackService feedbackService)
-        : base(navigationService, feedbackService)
+        : base(navigator, feedbackService)
     {
         _settingsService = settingsService;
         _cacheWorkspaceService = cacheWorkspaceService;
         _diagnosticsService = diagnosticsService;
-        _navigationService = navigationService;
+        _navigator = navigator;
         _dialogService = dialogService;
         _feedbackService = feedbackService;
     }
@@ -115,9 +114,9 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     }
 
     [RelayCommand]
-    private void OpenCacheManagement()
+    private Task OpenCacheManagementAsync(CancellationToken cancellationToken)
     {
-        _navigationService.NavigateWithHierarchy(typeof(CacheManagementPage));
+        return _navigator.NavigateAsync(AppRoutes.CacheManagement, cancellationToken);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]

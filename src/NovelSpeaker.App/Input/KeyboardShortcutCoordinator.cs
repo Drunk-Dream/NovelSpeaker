@@ -1,20 +1,19 @@
 using CommunityToolkit.Mvvm.Input;
 using System.Windows.Input;
 using NovelSpeaker.App.Navigation;
-using NovelSpeaker.App.Pages;
 using NovelSpeaker.App.ViewModels;
 
 namespace NovelSpeaker.App.Input;
 
 public sealed class KeyboardShortcutCoordinator : IKeyboardShortcutCoordinator
 {
-    private readonly IGuardedNavigationService _navigation;
+    private readonly IAppNavigator _navigation;
     private readonly ITextFilePicker _textFilePicker;
     private readonly LibraryViewModel _libraryViewModel;
     private readonly PlayerViewModel _playerViewModel;
 
     public KeyboardShortcutCoordinator(
-        IGuardedNavigationService navigation,
+        IAppNavigator navigation,
         ITextFilePicker textFilePicker,
         LibraryViewModel libraryViewModel,
         PlayerViewModel playerViewModel)
@@ -45,7 +44,7 @@ public sealed class KeyboardShortcutCoordinator : IKeyboardShortcutCoordinator
                 return true;
             }
 
-            if (await _navigation.NavigateWithHierarchyAsync(typeof(LibraryPage), null, cancellationToken).ConfigureAwait(true))
+            if (await _navigation.NavigateAsync(AppRoutes.Library, cancellationToken).ConfigureAwait(true))
             {
                 await _libraryViewModel.ImportFilesAsync([filePath], cancellationToken).ConfigureAwait(true);
             }
@@ -55,7 +54,7 @@ public sealed class KeyboardShortcutCoordinator : IKeyboardShortcutCoordinator
 
         if (action == KeyboardShortcutAction.OpenSettings)
         {
-            await _navigation.NavigateWithHierarchyAsync(typeof(SettingsPage), null, cancellationToken).ConfigureAwait(true);
+            await _navigation.NavigateAsync(AppRoutes.Settings, cancellationToken).ConfigureAwait(true);
             return true;
         }
 
@@ -63,7 +62,7 @@ public sealed class KeyboardShortcutCoordinator : IKeyboardShortcutCoordinator
         {
             if (!await _navigation.GoBackAsync(cancellationToken).ConfigureAwait(true))
             {
-                await _navigation.NavigateWithHierarchyAsync(typeof(LibraryPage), null, cancellationToken).ConfigureAwait(true);
+                await _navigation.NavigateAsync(AppRoutes.Library, cancellationToken).ConfigureAwait(true);
             }
 
             return true;

@@ -1,3 +1,4 @@
+using NovelSpeaker.App.Activation;
 using NovelSpeaker.App.ViewModels;
 using Wpf.Ui.Abstractions.Controls;
 
@@ -5,6 +6,8 @@ namespace NovelSpeaker.App.Pages;
 
 public partial class AppearanceSettingsPage : System.Windows.Controls.Page, INavigationAware, INavigableView<AppearanceSettingsViewModel>
 {
+    private readonly PageActivationController _activation = new();
+
     public AppearanceSettingsPage(AppearanceSettingsViewModel viewModel)
     {
         ViewModel = viewModel;
@@ -14,13 +17,21 @@ public partial class AppearanceSettingsPage : System.Windows.Controls.Page, INav
 
     public AppearanceSettingsViewModel ViewModel { get; }
 
-    public Task OnNavigatedToAsync()
+    public async Task OnNavigatedToAsync()
     {
-        return ViewModel.LoadAsync(CancellationToken.None);
+        var activation = _activation.Activate();
+        try
+        {
+            await ViewModel.LoadAsync(activation.CancellationToken);
+        }
+        catch (OperationCanceledException) when (!activation.IsCurrent)
+        {
+        }
     }
 
     public Task OnNavigatedFromAsync()
     {
+        _activation.Deactivate();
         return Task.CompletedTask;
     }
 }

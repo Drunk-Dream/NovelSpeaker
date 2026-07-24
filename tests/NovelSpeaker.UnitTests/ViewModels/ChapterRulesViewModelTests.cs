@@ -596,7 +596,7 @@ public sealed class ChapterRulesViewModelTests
         }
     }
 
-    private sealed class FakeNavigationService : INavigationService
+    private sealed class FakeNavigationService : ITestNavigationService
     {
         public int GoBackCallCount { get; private set; }
 

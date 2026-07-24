@@ -1,32 +1,31 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.App.Feedback;
-using NovelSpeaker.App.Pages;
-using Wpf.Ui;
+using NovelSpeaker.App.Navigation;
 
 namespace NovelSpeaker.App.ViewModels;
 
 public abstract partial class SettingsSubpageViewModelBase : ObservableObject
 {
-    private readonly INavigationService _navigationService;
+    private readonly IAppNavigator _navigator;
     private readonly IAppFeedbackService _feedbackService;
 
     protected SettingsSubpageViewModelBase(
-        INavigationService navigationService,
+        IAppNavigator navigator,
         IAppFeedbackService feedbackService)
     {
-        _navigationService = navigationService;
+        _navigator = navigator;
         _feedbackService = feedbackService;
     }
 
-    protected INavigationService NavigationService => _navigationService;
+    protected IAppNavigator Navigator => _navigator;
 
     [RelayCommand]
-    private void Back()
+    private async Task BackAsync(CancellationToken cancellationToken)
     {
-        if (!_navigationService.GoBack())
+        if (!await _navigator.GoBackAsync(cancellationToken).ConfigureAwait(true))
         {
-            _navigationService.NavigateWithHierarchy(typeof(SettingsPage));
+            await _navigator.NavigateAsync(AppRoutes.Settings, cancellationToken).ConfigureAwait(true);
         }
     }
 

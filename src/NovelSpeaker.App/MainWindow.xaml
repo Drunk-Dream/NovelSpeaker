@@ -1,7 +1,6 @@
 ﻿<ui:FluentWindow x:Class="NovelSpeaker.App.MainWindow"
                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                  xmlns:pages="clr-namespace:NovelSpeaker.App.Pages"
                   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                   Title="NovelSpeaker"
                   Icon="pack://application:,,,/NovelSpeaker.App;component/Assets/Branding/app.ico"
@@ -41,15 +40,13 @@
                            Background="{DynamicResource LayerFillColorAltBrush}">
             <ui:NavigationView.MenuItems>
                 <ui:NavigationViewItem x:Name="LibraryNavigationItem"
-                                       Content="书库"
-                                       TargetPageType="{x:Type pages:LibraryPage}">
+                                       Content="书库">
                     <ui:NavigationViewItem.Icon>
                         <ui:SymbolIcon Symbol="Book24" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
                 <ui:NavigationViewItem x:Name="SettingsNavigationItem"
-                                       Content="设置"
-                                       TargetPageType="{x:Type pages:SettingsPage}">
+                                       Content="设置">
                     <ui:NavigationViewItem.Icon>
                         <ui:SymbolIcon Symbol="Settings24" />
                     </ui:NavigationViewItem.Icon>

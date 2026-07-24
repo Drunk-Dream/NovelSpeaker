@@ -170,7 +170,7 @@ public sealed class DiagnosticsAboutViewModelTests
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken) => Task.FromResult(AppConfirmationDecision.Cancel);
     }
 
-    private sealed class FakeNavigationService : INavigationService
+    private sealed class FakeNavigationService : ITestNavigationService
     {
         public INavigationView GetNavigationControl() => throw new NotSupportedException();
         public bool GoBack() => false;

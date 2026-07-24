@@ -1965,7 +1965,7 @@ public sealed class PlayerViewTests
         }
     }
 
-    private sealed class FakeNavigationService : INavigationService
+    private sealed class FakeNavigationService : ITestNavigationService
     {
         public Wpf.Ui.Controls.INavigationView GetNavigationControl() => throw new NotSupportedException();
         public bool GoBack() => false;

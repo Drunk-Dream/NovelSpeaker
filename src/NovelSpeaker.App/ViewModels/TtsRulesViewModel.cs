@@ -7,9 +7,8 @@ using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.App.Feedback;
-using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.Navigation;
 using NovelSpeaker.Domain.Speech;
-using Wpf.Ui;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -28,7 +27,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     private readonly IAppFeedbackService _feedbackService;
     private readonly IAppDialogService _dialogService;
     private readonly IAppSettingsService _settingsService;
-    private readonly INavigationService _navigationService;
+    private readonly IAppNavigator _navigator;
     private CancellationTokenSource? _testOperationCts;
     private TtsRuleEditorModel? _baselineEditor;
     private long? _fallbackRuleId;
@@ -43,7 +42,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         IAppFeedbackService feedbackService,
         IAppDialogService dialogService,
         IAppSettingsService settingsService,
-        INavigationService navigationService)
+        IAppNavigator navigator)
     {
         _ruleImport = ruleImport;
         _ruleEditor = ruleEditor;
@@ -53,7 +52,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         _feedbackService = feedbackService;
         _dialogService = dialogService;
         _settingsService = settingsService;
-        _navigationService = navigationService;
+        _navigator = navigator;
     }
 
     public ObservableCollection<TtsRuleListItemViewModel> Rules { get; } = [];
@@ -199,9 +198,9 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         }
 
         CancelCurrentTest();
-        if (!_navigationService.GoBack())
+        if (!await _navigator.GoBackAsync(cancellationToken).ConfigureAwait(true))
         {
-            _navigationService.NavigateWithHierarchy(typeof(SettingsPage));
+            await _navigator.NavigateAsync(AppRoutes.Settings, cancellationToken).ConfigureAwait(true);
         }
     }
 

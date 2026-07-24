@@ -202,7 +202,7 @@ public sealed class PlaybackSettingsViewModelTests
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken) => Task.FromResult(AppConfirmationDecision.Cancel);
     }
 
-    private sealed class FakeNavigationService : INavigationService
+    private sealed class FakeNavigationService : ITestNavigationService
     {
         public Type? LastNavigationPageType { get; private set; }
         public INavigationView GetNavigationControl() => throw new NotSupportedException();

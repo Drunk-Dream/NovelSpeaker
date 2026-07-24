@@ -11,15 +11,11 @@ namespace NovelSpeaker.UnitTests.Navigation;
 public sealed class RulePageNavigationGuardTests
 {
     [Theory]
-    [InlineData(RulePageKind.Tts, false)]
-    [InlineData(RulePageKind.Tts, true)]
-    [InlineData(RulePageKind.Chapter, false)]
-    [InlineData(RulePageKind.Chapter, true)]
-    [InlineData(RulePageKind.RegexReplacement, false)]
-    [InlineData(RulePageKind.RegexReplacement, true)]
+    [InlineData(RulePageKind.Tts)]
+    [InlineData(RulePageKind.Chapter)]
+    [InlineData(RulePageKind.RegexReplacement)]
     public async Task Rule_page_activation_registers_current_view_model_and_leave_unregisters_it(
-        RulePageKind pageKind,
-        bool leaveByUnloading)
+        RulePageKind pageKind)
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -27,7 +23,7 @@ public sealed class RulePageNavigationGuardTests
             var guard = new RecordingNavigationGuardService();
             var (page, viewModel) = CreatePage(pageKind, provider, guard);
 
-            RaiseLoaded(page);
+            await OnNavigatedToAsync(pageKind, page);
 
             Assert.Equal(1, guard.RegistrationCount);
             Assert.True(await guard.ConfirmNavigationAsync(CancellationToken.None));
@@ -35,24 +31,17 @@ public sealed class RulePageNavigationGuardTests
             Assert.Equal("ConfirmLeaveAsync", guard.LastInvokedGuard?.Method.Name);
 
             var oldRegistration = guard.Registrations.Single();
-            RaiseUnloaded(page);
+            await OnNavigatedFromAsync(pageKind, page);
             Assert.True(await guard.ConfirmNavigationAsync(CancellationToken.None));
 
-            RaiseLoaded(page);
+            await OnNavigatedToAsync(pageKind, page);
             Assert.Equal(2, guard.RegistrationCount);
             oldRegistration.Dispose();
 
             Assert.True(await guard.ConfirmNavigationAsync(CancellationToken.None));
             Assert.Same(viewModel, guard.LastInvokedGuard?.Target);
 
-            if (leaveByUnloading)
-            {
-                RaiseUnloaded(page);
-            }
-            else
-            {
-                await OnNavigatedFromAsync(pageKind, page);
-            }
+            await OnNavigatedFromAsync(pageKind, page);
 
             Assert.True(await guard.ConfirmNavigationAsync(CancellationToken.None));
             Assert.Null(guard.CurrentGuard);
@@ -105,6 +94,17 @@ public sealed class RulePageNavigationGuardTests
             RulePageKind.Tts => ((TtsRulesPage)page).OnNavigatedFromAsync(),
             RulePageKind.Chapter => ((ChapterRulesPage)page).OnNavigatedFromAsync(),
             RulePageKind.RegexReplacement => ((RegexReplacementRulesPage)page).OnNavigatedFromAsync(),
+            _ => throw new ArgumentOutOfRangeException(nameof(pageKind))
+        };
+    }
+
+    private static Task OnNavigatedToAsync(RulePageKind pageKind, Page page)
+    {
+        return pageKind switch
+        {
+            RulePageKind.Tts => ((TtsRulesPage)page).OnNavigatedToAsync(),
+            RulePageKind.Chapter => ((ChapterRulesPage)page).OnNavigatedToAsync(),
+            RulePageKind.RegexReplacement => ((RegexReplacementRulesPage)page).OnNavigatedToAsync(),
             _ => throw new ArgumentOutOfRangeException(nameof(pageKind))
         };
     }

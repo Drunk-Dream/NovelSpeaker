@@ -1,3 +1,4 @@
+using NovelSpeaker.App.Activation;
 using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.ViewModels;
 using System.Collections.Specialized;
@@ -7,8 +8,8 @@ namespace NovelSpeaker.App.Pages;
 
 public partial class BookDetailsPage : System.Windows.Controls.Page, INavigationAware, INavigableView<BookDetailsViewModel>
 {
+    private readonly PageActivationController _activation = new();
     private readonly INavigationGuardService _navigationGuardService;
-    private IDisposable? _guardRegistration;
     private bool _pendingCurrentChapterScroll;
 
     public BookDetailsPage(
@@ -19,39 +20,48 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
         _navigationGuardService = navigationGuardService;
         InitializeComponent();
         RootViewport.DataContext = ViewModel;
-        ViewModel.Chapters.CollectionChanged += OnChaptersCollectionChanged;
     }
 
     public BookDetailsViewModel ViewModel { get; }
 
-    public BookDetailsNavigationRequest? LastRequest { get; private set; }
+    public BookDetailsRoute? LastRequest { get; private set; }
 
     public async Task OnNavigatedToAsync()
     {
-        _guardRegistration?.Dispose();
-        _guardRegistration = _navigationGuardService.Register(ViewModel.ConfirmLeaveAsync);
+        var activation = _activation.Activate();
+        activation.Register(ViewModel.HandleNavigatedFrom);
+        activation.Register(() => ViewModel.Chapters.CollectionChanged -= OnChaptersCollectionChanged);
+        ViewModel.Chapters.CollectionChanged += OnChaptersCollectionChanged;
+        activation.Register(_navigationGuardService.Register(ViewModel.ConfirmLeaveAsync));
 
-        LastRequest = DataContext as BookDetailsNavigationRequest;
+        LastRequest = DataContext as BookDetailsRoute;
         if (LastRequest is null)
         {
             return;
         }
 
         _pendingCurrentChapterScroll = true;
-        await ViewModel.LoadAsync(LastRequest.BookId, CancellationToken.None);
-        await ScrollCurrentChapterIntoViewAsync();
+        try
+        {
+            await ViewModel.LoadAsync(LastRequest.BookId, activation.CancellationToken);
+            if (activation.IsCurrent)
+            {
+                await ScrollCurrentChapterIntoViewAsync(activation);
+            }
+        }
+        catch (OperationCanceledException) when (!activation.IsCurrent)
+        {
+        }
     }
 
     public Task OnNavigatedFromAsync()
     {
-        _guardRegistration?.Dispose();
-        _guardRegistration = null;
         _pendingCurrentChapterScroll = false;
-        ViewModel.HandleNavigatedFrom();
+        _activation.Deactivate();
         return Task.CompletedTask;
     }
 
-    private async Task ScrollCurrentChapterIntoViewAsync()
+    private async Task ScrollCurrentChapterIntoViewAsync(PageActivationScope activation)
     {
         if (!_pendingCurrentChapterScroll || ViewModel.CurrentChapterItem is null)
         {
@@ -63,7 +73,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
             ChaptersListBox.UpdateLayout();
             ChaptersListBox.ScrollIntoView(ViewModel.CurrentChapterItem);
         }, System.Windows.Threading.DispatcherPriority.Loaded);
-        _pendingCurrentChapterScroll = false;
+        activation.TryCommit(() => _pendingCurrentChapterScroll = false);
     }
 
     private void OnChaptersCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -73,7 +83,10 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
             return;
         }
 
-        _ = ScrollCurrentChapterIntoViewAsync();
+        if (_activation.Current is { } activation)
+        {
+            _ = ScrollCurrentChapterIntoViewAsync(activation);
+        }
     }
 
 }

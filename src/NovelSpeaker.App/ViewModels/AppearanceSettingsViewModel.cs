@@ -1,9 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Feedback;
+using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.Theming;
 using NovelSpeaker.Domain.Settings;
-using Wpf.Ui;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -18,9 +18,9 @@ public sealed partial class AppearanceSettingsViewModel : SettingsSubpageViewMod
     public AppearanceSettingsViewModel(
         IAppSettingsService settingsService,
         IThemePreferenceService themePreferenceService,
-        INavigationService navigationService,
+        IAppNavigator navigator,
         IAppFeedbackService feedbackService)
-        : base(navigationService, feedbackService)
+        : base(navigator, feedbackService)
     {
         _settingsService = settingsService;
         _themePreferenceService = themePreferenceService;

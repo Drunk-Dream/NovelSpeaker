@@ -8,8 +8,6 @@ using NovelSpeaker.App.Dialogs;
 using NovelSpeaker.App.Feedback;
 using NovelSpeaker.App.Library;
 using NovelSpeaker.App.Navigation;
-using NovelSpeaker.App.Pages;
-using Wpf.Ui;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -31,7 +29,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     private readonly IBookDeleteDialogService _deleteDialogService;
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
     private readonly IAppFeedbackService _feedbackService;
-    private readonly IGuardedNavigationService _guardedNavigationService;
+    private readonly IAppNavigator _navigator;
     private readonly IPlaybackBookCommands _playbackCoordinator;
     private CancellationTokenSource? _searchDebounceCancellationTokenSource;
     private IReadOnlyList<LibraryBookItemViewModel> _allBooks = [];
@@ -39,6 +37,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     private int _searchVersion;
     private int _importVersion;
     private bool _isDeletingBook;
+    private bool _isPageEventsRegistered;
     private CancellationTokenSource? _activeImportCancellationTokenSource;
 
     public LibraryViewModel(
@@ -49,7 +48,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         IBookDeleteDialogService deleteDialogService,
         IBookCatalogInvalidationState catalogInvalidationState,
         IAppFeedbackService feedbackService,
-        IGuardedNavigationService guardedNavigationService,
+        IAppNavigator navigator,
         IPlaybackBookCommands playbackCoordinator,
         LibraryScrollState scrollState)
     {
@@ -60,11 +59,11 @@ public sealed partial class LibraryViewModel : ObservableObject
         _deleteDialogService = deleteDialogService;
         _catalogInvalidationState = catalogInvalidationState;
         _feedbackService = feedbackService;
-        _guardedNavigationService = guardedNavigationService;
+        _navigator = navigator;
         _playbackCoordinator = playbackCoordinator;
         ScrollState = scrollState;
         ApplyPlaybackSnapshot(playbackCoordinator.CurrentSnapshot);
-        playbackCoordinator.SnapshotChanged += OnPlaybackSnapshotChanged;
+        RegisterPageEvents();
     }
 
     public ObservableCollection<LibraryBookItemViewModel> Books { get; } = [];
@@ -169,6 +168,35 @@ public sealed partial class LibraryViewModel : ObservableObject
         IsBusy = false;
     }
 
+    public void HandleNavigatedTo()
+    {
+        RegisterPageEvents();
+        ApplyPlaybackSnapshot(_playbackCoordinator.CurrentSnapshot);
+    }
+
+    public void HandleNavigatedFrom()
+    {
+        CancelActiveImport();
+        if (!_isPageEventsRegistered)
+        {
+            return;
+        }
+
+        _playbackCoordinator.SnapshotChanged -= OnPlaybackSnapshotChanged;
+        _isPageEventsRegistered = false;
+    }
+
+    private void RegisterPageEvents()
+    {
+        if (_isPageEventsRegistered)
+        {
+            return;
+        }
+
+        _playbackCoordinator.SnapshotChanged += OnPlaybackSnapshotChanged;
+        _isPageEventsRegistered = true;
+    }
+
     [RelayCommand]
     private Task OpenBook(LibraryBookItemViewModel? book, CancellationToken cancellationToken)
     {
@@ -177,9 +205,8 @@ public sealed partial class LibraryViewModel : ObservableObject
             return Task.CompletedTask;
         }
 
-        return _guardedNavigationService.NavigateWithHierarchyAsync(
-            typeof(PlayerPage),
-            new PlayerNavigationRequest(book.BookId, PlayerNavigationMode.OpenPaused),
+        return _navigator.NavigateAsync(
+            new PlayerRoute(book.BookId, PlayerNavigationMode.OpenPaused),
             cancellationToken);
     }
 
@@ -191,10 +218,7 @@ public sealed partial class LibraryViewModel : ObservableObject
             return Task.CompletedTask;
         }
 
-        return _guardedNavigationService.NavigateWithHierarchyAsync(
-            typeof(BookDetailsPage),
-            new BookDetailsNavigationRequest(book.BookId),
-            cancellationToken);
+        return _navigator.NavigateAsync(new BookDetailsRoute(book.BookId), cancellationToken);
     }
 
     [RelayCommand]

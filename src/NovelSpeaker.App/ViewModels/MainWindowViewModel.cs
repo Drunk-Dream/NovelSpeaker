@@ -2,8 +2,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Navigation;
-using NovelSpeaker.App.Pages;
-using Wpf.Ui;
 using Wpf.Ui.Controls;
 
 namespace NovelSpeaker.App.ViewModels;
@@ -13,14 +11,14 @@ namespace NovelSpeaker.App.ViewModels;
 /// </summary>
 public sealed partial class MainWindowViewModel : ObservableObject
 {
-    private readonly IGuardedNavigationService _guardedNavigationService;
+    private readonly IAppNavigator _navigator;
     private string? _currentBookId;
 
     public MainWindowViewModel(
         IPlaybackSnapshotSource playbackCoordinator,
-        IGuardedNavigationService guardedNavigationService)
+        IAppNavigator navigator)
     {
-        _guardedNavigationService = guardedNavigationService;
+        _navigator = navigator;
         ApplySnapshot(playbackCoordinator.CurrentSnapshot);
         playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
     }
@@ -45,9 +43,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return;
         }
 
-        await _guardedNavigationService.NavigateWithHierarchyAsync(
-            typeof(PlayerPage),
-            new PlayerNavigationRequest(_currentBookId, PlayerNavigationMode.ReturnToCurrentSession),
+        await _navigator.NavigateAsync(
+            new PlayerRoute(_currentBookId, PlayerNavigationMode.ReturnToCurrentSession),
             cancellationToken).ConfigureAwait(true);
     }
 

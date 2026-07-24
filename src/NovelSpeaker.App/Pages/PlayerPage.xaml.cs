@@ -1,3 +1,4 @@
+using NovelSpeaker.App.Activation;
 using NovelSpeaker.App.Navigation;
 using NovelSpeaker.App.ViewModels;
 using Wpf.Ui.Abstractions.Controls;
@@ -6,6 +7,8 @@ namespace NovelSpeaker.App.Pages;
 
 public partial class PlayerPage : System.Windows.Controls.Page, INavigationAware, INavigableView<PlayerViewModel>
 {
+    private readonly PageActivationController _activation = new();
+
     public PlayerPage(PlayerViewModel viewModel)
     {
         ViewModel = viewModel;
@@ -15,23 +18,31 @@ public partial class PlayerPage : System.Windows.Controls.Page, INavigationAware
 
     public PlayerViewModel ViewModel { get; }
 
-    public PlayerNavigationRequest? LastRequest { get; private set; }
+    public PlayerRoute? LastRequest { get; private set; }
 
     public async Task OnNavigatedToAsync()
     {
-        LastRequest = DataContext as PlayerNavigationRequest;
+        var activation = _activation.Activate();
+        ViewModel.OnPageNavigatedTo();
+        activation.Register(ViewModel.OnPageNavigatedFrom);
+        LastRequest = DataContext as PlayerRoute;
 
-        await ViewModel.LoadAsync(CancellationToken.None);
-
-        if (LastRequest is not null)
+        try
         {
-            await ViewModel.HandleNavigationAsync(LastRequest, CancellationToken.None);
+            await ViewModel.LoadAsync(activation.CancellationToken);
+            if (LastRequest is not null && activation.IsCurrent)
+            {
+                await ViewModel.HandleNavigationAsync(LastRequest, activation.CancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (!activation.IsCurrent)
+        {
         }
     }
 
     public Task OnNavigatedFromAsync()
     {
-        ViewModel.OnPageNavigatedFrom();
+        _activation.Deactivate();
         return Task.CompletedTask;
     }
 }

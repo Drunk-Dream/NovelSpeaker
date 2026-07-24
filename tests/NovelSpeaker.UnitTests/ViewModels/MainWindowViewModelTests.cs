@@ -186,28 +186,21 @@ public sealed class MainWindowViewModelTests
         public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class FakeNavigationService : IGuardedNavigationService
+    private sealed class FakeNavigationService : IAppNavigator
     {
         public Type? LastNavigationPageType { get; private set; }
 
         public object? LastNavigationData { get; private set; }
-
-        public bool IsBypassingGuard => false;
 
         public Task<bool> GoBackAsync(CancellationToken cancellationToken, bool bypassGuard = false)
         {
             return Task.FromResult(false);
         }
 
-        public Task<bool> NavigateAsync(string pageIdOrTargetTag, CancellationToken cancellationToken, bool bypassGuard = false)
+        public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false)
         {
-            return Task.FromResult(true);
-        }
-
-        public Task<bool> NavigateWithHierarchyAsync(Type pageType, object? dataContext, CancellationToken cancellationToken, bool bypassGuard = false)
-        {
-            LastNavigationPageType = pageType;
-            LastNavigationData = dataContext;
+            LastNavigationPageType = route.Id == AppRouteId.Player ? typeof(PlayerPage) : null;
+            LastNavigationData = route;
             return Task.FromResult(true);
         }
     }

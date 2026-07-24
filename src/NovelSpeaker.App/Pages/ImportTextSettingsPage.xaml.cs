@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using NovelSpeaker.App.Activation;
 using NovelSpeaker.App.ViewModels;
 using Wpf.Ui.Abstractions.Controls;
 
@@ -6,6 +7,8 @@ namespace NovelSpeaker.App.Pages;
 
 public partial class ImportTextSettingsPage : System.Windows.Controls.Page, INavigationAware, INavigableView<ImportTextSettingsViewModel>
 {
+    private readonly PageActivationController _activation = new();
+
     public ImportTextSettingsPage(ImportTextSettingsViewModel viewModel)
     {
         ViewModel = viewModel;
@@ -15,13 +18,21 @@ public partial class ImportTextSettingsPage : System.Windows.Controls.Page, INav
 
     public ImportTextSettingsViewModel ViewModel { get; }
 
-    public Task OnNavigatedToAsync()
+    public async Task OnNavigatedToAsync()
     {
-        return ViewModel.LoadAsync(CancellationToken.None);
+        var activation = _activation.Activate();
+        try
+        {
+            await ViewModel.LoadAsync(activation.CancellationToken);
+        }
+        catch (OperationCanceledException) when (!activation.IsCurrent)
+        {
+        }
     }
 
     public Task OnNavigatedFromAsync()
     {
+        _activation.Deactivate();
         return Task.CompletedTask;
     }
 
@@ -33,12 +44,12 @@ public partial class ImportTextSettingsPage : System.Windows.Controls.Page, INav
         }
 
         e.Handled = true;
-        await ViewModel.CommitBookFileNameTemplateAsync(CancellationToken.None);
+        await ViewModel.CommitBookFileNameTemplateAsync(_activation.CurrentToken);
     }
 
     private async void BookFileNameTemplateTextBox_OnLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        await ViewModel.CommitBookFileNameTemplateAsync(CancellationToken.None);
+        await ViewModel.CommitBookFileNameTemplateAsync(_activation.CurrentToken);
     }
 
     private async void LongParagraphThresholdTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -49,11 +60,11 @@ public partial class ImportTextSettingsPage : System.Windows.Controls.Page, INav
         }
 
         e.Handled = true;
-        await ViewModel.CommitLongParagraphThresholdAsync(CancellationToken.None);
+        await ViewModel.CommitLongParagraphThresholdAsync(_activation.CurrentToken);
     }
 
     private async void LongParagraphThresholdTextBox_OnLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        await ViewModel.CommitLongParagraphThresholdAsync(CancellationToken.None);
+        await ViewModel.CommitLongParagraphThresholdAsync(_activation.CurrentToken);
     }
 }

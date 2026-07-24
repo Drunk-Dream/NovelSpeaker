@@ -45,26 +45,22 @@ public sealed class GuardedNavigationServiceTests
 
     [Theory]
     [InlineData(NavigationOperation.GoBack, true)]
-    [InlineData(NavigationOperation.PageId, true)]
-    [InlineData(NavigationOperation.Hierarchy, true)]
+    [InlineData(NavigationOperation.Route, true)]
     [InlineData(NavigationOperation.GoBack, false)]
-    [InlineData(NavigationOperation.PageId, false)]
-    [InlineData(NavigationOperation.Hierarchy, false)]
+    [InlineData(NavigationOperation.Route, false)]
     public async Task Navigation_operations_confirm_the_active_guard_before_navigating(
         NavigationOperation operation,
         bool allowNavigation)
     {
         var guard = new ConfigurableNavigationGuardService(allowNavigation);
         var inner = new RecordingNavigationService();
-        var service = new GuardedNavigationService(guard, inner);
+        var service = new ShellNavigationAdapter(guard, inner);
 
         var result = operation switch
         {
             NavigationOperation.GoBack => await service.GoBackAsync(CancellationToken.None),
-            NavigationOperation.PageId => await service.NavigateAsync("settings", CancellationToken.None),
-            NavigationOperation.Hierarchy => await service.NavigateWithHierarchyAsync(
-                typeof(System.Windows.Controls.Page),
-                null,
+            NavigationOperation.Route => await service.NavigateAsync(
+                AppRoutes.Settings,
                 CancellationToken.None),
             _ => throw new ArgumentOutOfRangeException(nameof(operation))
         };
@@ -78,8 +74,7 @@ public sealed class GuardedNavigationServiceTests
     public enum NavigationOperation
     {
         GoBack,
-        PageId,
-        Hierarchy
+        Route
     }
 
     private sealed class ConfigurableNavigationGuardService : INavigationGuardService

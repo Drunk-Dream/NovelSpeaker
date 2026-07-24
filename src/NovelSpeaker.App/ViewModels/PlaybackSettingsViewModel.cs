@@ -3,9 +3,8 @@ using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Feedback;
-using NovelSpeaker.App.Pages;
+using NovelSpeaker.App.Navigation;
 using NovelSpeaker.Domain.Settings;
-using Wpf.Ui;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -15,7 +14,7 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
 
     private readonly IAppSettingsService _settingsService;
     private readonly IPlaybackSession _playbackCoordinator;
-    private readonly INavigationService _navigationService;
+    private readonly IAppNavigator _navigator;
     private readonly TimeProvider _timeProvider;
     private bool _isLoading;
     private CancellationTokenSource? _defaultSpeakSpeedDebounceCts;
@@ -26,14 +25,14 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
     public PlaybackSettingsViewModel(
         IAppSettingsService settingsService,
         IPlaybackSession playbackCoordinator,
-        INavigationService navigationService,
+        IAppNavigator navigator,
         IAppFeedbackService feedbackService,
         TimeProvider? timeProvider = null)
-        : base(navigationService, feedbackService)
+        : base(navigator, feedbackService)
     {
         _settingsService = settingsService;
         _playbackCoordinator = playbackCoordinator;
-        _navigationService = navigationService;
+        _navigator = navigator;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -68,9 +67,9 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
     }
 
     [RelayCommand]
-    private void OpenTtsRules()
+    private Task OpenTtsRulesAsync(CancellationToken cancellationToken)
     {
-        _navigationService.NavigateWithHierarchy(typeof(TtsRulesPage));
+        return _navigator.NavigateAsync(AppRoutes.TtsRules, cancellationToken);
     }
 
     public async Task CommitDefaultSpeakSpeedAsync(CancellationToken cancellationToken)

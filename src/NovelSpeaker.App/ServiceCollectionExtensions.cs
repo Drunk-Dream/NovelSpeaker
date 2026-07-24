@@ -28,7 +28,9 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<INavigationViewPageProvider, AppNavigationPageProvider>();
         services.TryAddSingleton<INavigationService, NavigationService>();
         services.TryAddSingleton<INavigationGuardService, NavigationGuardService>();
-        services.TryAddSingleton<IGuardedNavigationService, GuardedNavigationService>();
+        services.TryAddSingleton<ShellNavigationAdapter>();
+        services.TryAddSingleton<IShellNavigationAdapter>(provider => provider.GetRequiredService<ShellNavigationAdapter>());
+        services.TryAddSingleton<IAppNavigator>(provider => provider.GetRequiredService<ShellNavigationAdapter>());
         services.TryAddSingleton<IContentDialogService, ContentDialogService>();
         services.TryAddSingleton<ISnackbarService, SnackbarService>();
         services.TryAddSingleton<IAppDialogService, AppDialogService>();

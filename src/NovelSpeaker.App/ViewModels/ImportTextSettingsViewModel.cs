@@ -1,8 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Feedback;
-using NovelSpeaker.App.Pages;
-using Wpf.Ui;
+using NovelSpeaker.App.Navigation;
 
 namespace NovelSpeaker.App.ViewModels;
 
@@ -20,9 +19,9 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
 
     public ImportTextSettingsViewModel(
         IAppSettingsService settingsService,
-        INavigationService navigationService,
+        IAppNavigator navigator,
         IAppFeedbackService feedbackService)
-        : base(navigationService, feedbackService)
+        : base(navigator, feedbackService)
     {
         _settingsService = settingsService;
     }
@@ -91,9 +90,9 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
     }
 
     [CommunityToolkit.Mvvm.Input.RelayCommand]
-    private void OpenRegexReplacementRules()
+    private Task OpenRegexReplacementRulesAsync(CancellationToken cancellationToken)
     {
-        NavigationService.NavigateWithHierarchy(typeof(RegexReplacementRulesPage));
+        return Navigator.NavigateAsync(AppRoutes.RegexReplacementRules, cancellationToken);
     }
 
     public async Task CommitLongParagraphThresholdAsync(CancellationToken cancellationToken)

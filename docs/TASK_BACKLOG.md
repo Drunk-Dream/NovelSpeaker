@@ -618,7 +618,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 验收：整卡点击尺寸、图标枚举、Tooltip/Automation Name 和原有滚动布局通过 UI 测试；完整质量门禁通过。
 
-### [ ] APP-601（P1）：建立强类型路由和 Page activation 协议
+### [x] APP-601（P1）：建立强类型路由和 Page activation 协议
 
 前置：UI-003、ARCH-101、PLAY-502。
 
@@ -630,6 +630,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 明确播放会话不随 Page activation 取消。
 
 测试：所有路由、快速重入、旧结果晚到、守卫与窗口关闭。
+
+完成说明：已建立 `AppRoute` 强类型路由、参数对象和 `IAppNavigator`，由 `ShellNavigationAdapter` 集中维护 Wpf.Ui Page 映射、主导航选中状态和导航守卫；ViewModel 不再引用 Page 或 Wpf.Ui 导航接口。所有现有导航页面均接入 `PageActivationController`，页面进入创建版本和 CTS，离开按取消页面操作、注销守卫/事件、释放 activation 资源的顺序执行，旧 activation 结果不能提交到新激活；播放协调器继续由进程级会话拥有。新增路由映射、快速重入、迟到结果、守卫和窗口关闭回归测试，更新架构债务基线；Release 构建和全量单元测试通过。
 
 ### [ ] APP-602（P1）：按 feature slice 移动 App 文件
 

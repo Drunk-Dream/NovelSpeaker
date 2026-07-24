@@ -1,18 +1,17 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using NovelSpeaker.App.Pages;
-using Wpf.Ui;
+using NovelSpeaker.App.Navigation;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 
 namespace NovelSpeaker.App.ViewModels;
 
 public sealed partial class SettingsViewModel : ObservableObject
 {
-    private readonly INavigationService _navigationService;
+    private readonly IAppNavigator _navigator;
 
-    public SettingsViewModel(INavigationService navigationService)
+    public SettingsViewModel(IAppNavigator navigator)
     {
-        _navigationService = navigationService;
+        _navigator = navigator;
         Groups =
         [
             new SettingsNavigationGroupViewModel(
@@ -40,44 +39,44 @@ public sealed partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<SettingsNavigationGroupViewModel> Groups { get; }
 
     [RelayCommand]
-    private void OpenPlaybackSettings()
+    private Task OpenPlaybackSettingsAsync(CancellationToken cancellationToken)
     {
-        _navigationService.NavigateWithHierarchy(typeof(PlaybackSettingsPage));
+        return _navigator.NavigateAsync(AppRoutes.PlaybackSettings, cancellationToken);
     }
 
     [RelayCommand]
-    private void OpenTtsRules()
+    private Task OpenTtsRulesAsync(CancellationToken cancellationToken)
     {
-        _navigationService.NavigateWithHierarchy(typeof(TtsRulesPage));
+        return _navigator.NavigateAsync(AppRoutes.TtsRules, cancellationToken);
     }
 
     [RelayCommand]
-    private void OpenImportTextSettings()
+    private Task OpenImportTextSettingsAsync(CancellationToken cancellationToken)
     {
-        _navigationService.NavigateWithHierarchy(typeof(ImportTextSettingsPage));
+        return _navigator.NavigateAsync(AppRoutes.ImportTextSettings, cancellationToken);
     }
 
     [RelayCommand]
-    private void OpenChapterRules()
+    private Task OpenChapterRulesAsync(CancellationToken cancellationToken)
     {
-        _navigationService.NavigateWithHierarchy(typeof(ChapterRulesPage));
+        return _navigator.NavigateAsync(AppRoutes.ChapterRules, cancellationToken);
     }
 
     [RelayCommand]
-    private void OpenCacheAndData()
+    private Task OpenCacheAndDataAsync(CancellationToken cancellationToken)
     {
-        _navigationService.NavigateWithHierarchy(typeof(CacheAndDataPage));
+        return _navigator.NavigateAsync(AppRoutes.CacheAndData, cancellationToken);
     }
 
     [RelayCommand]
-    private void OpenAppearanceSettings()
+    private Task OpenAppearanceSettingsAsync(CancellationToken cancellationToken)
     {
-        _navigationService.NavigateWithHierarchy(typeof(AppearanceSettingsPage));
+        return _navigator.NavigateAsync(AppRoutes.AppearanceSettings, cancellationToken);
     }
 
     [RelayCommand]
-    private void OpenDiagnosticsAbout()
+    private Task OpenDiagnosticsAboutAsync(CancellationToken cancellationToken)
     {
-        _navigationService.NavigateWithHierarchy(typeof(DiagnosticsAboutPage));
+        return _navigator.NavigateAsync(AppRoutes.DiagnosticsAbout, cancellationToken);
     }
 }
