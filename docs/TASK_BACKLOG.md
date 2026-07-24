@@ -724,7 +724,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 ## Wave 7：Bootstrap、DI 与进程生命周期
 
-### [ ] BOOT-701（P1）：模块化组合根并清除 Infrastructure 用例注册
+### [x] BOOT-701（P1）：模块化组合根并清除 Infrastructure 用例注册
 
 前置：Wave 2–6 对应用例迁移完成。
 
@@ -737,6 +737,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 删除 Infrastructure 中已经迁出的用例类和旧注册。
 
 验收：Application 项目移除 `Microsoft.Data.Sqlite.Core`，删除 Application 的 `ISqliteConnectionFactory`；架构测试零例外。
+
+完成说明：Application 组合根按 Books、Speech、Playback、Settings 模块注册全部用例；Infrastructure 顶层只组合 Persistence、FileStorage、Books、Speech、Audio、Settings、Diagnostics adapter 模块，滚动日志 provider 不再由 App 启动代码单独注册；Desktop 顶层只组合 Shared、Shell 与各 feature 注册。Debug 与测试组合启用 `ValidateOnBuild`/`ValidateScopes`，并增加用例所有权、adapter 所有权、Diagnostics 注册及 Application 无 SQLite 包/连接工厂的架构验收。核对后未删除仍由数据库初始化、恢复或端口调用的 Infrastructure adapter。
 
 ### [ ] BOOT-702（P1）：实现可测试的启动协调器
 
