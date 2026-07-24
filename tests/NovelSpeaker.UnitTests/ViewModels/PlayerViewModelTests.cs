@@ -812,6 +812,45 @@ public sealed class PlayerViewModelTests
     }
 
     [Fact]
+    public async Task CommitSpeakSpeedAsync_does_not_write_or_overwrite_state_after_activation_is_cancelled()
+    {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            1,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false));
+        var settingsService = new FakeAppSettingsService(AppSettings.Default);
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(null, null),
+            settingsService: settingsService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.SpeedEditorText = "18";
+        using var activationCancellation = new CancellationTokenSource();
+        activationCancellation.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => viewModel.CommitSpeakSpeedAsync(activationCancellation.Token));
+
+        Assert.False(settingsService.UpdateStarted.Task.IsCompleted);
+        Assert.Null(coordinator.LastChangedSpeakSpeed);
+        Assert.Equal(10, viewModel.SpeakSpeed);
+        Assert.Equal("18", viewModel.SpeedEditorText);
+    }
+
+    [Fact]
     public async Task IncreaseAndDecreaseSpeakSpeedCommands_debounce_and_apply_only_the_latest_speed()
     {
         var timeProvider = new ManualTimeProvider();
@@ -1750,6 +1789,8 @@ public sealed class PlayerViewModelTests
 
     private sealed class FakeAppSettingsService : IAppSettingsService
     {
+        public TaskCompletionSource UpdateStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public FakeAppSettingsService(AppSettings settings)
         {
             Settings = settings;
@@ -1761,6 +1802,7 @@ public sealed class PlayerViewModelTests
 
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {
+            UpdateStarted.TrySetResult();
             Settings = (Settings with
             {
                 DefaultSpeakSpeed = update.DefaultSpeakSpeed ?? Settings.DefaultSpeakSpeed

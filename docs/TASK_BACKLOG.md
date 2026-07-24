@@ -691,7 +691,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：已抽取 `ShellActivationCoordinator` 负责 Shell 初始化、初始导航、导航事件转交、Player 路由投影和关闭守卫生命周期；`WpfShellPlatformAdapter` 负责 Wpf.Ui 服务装配和导航模板；`WpfShortcutContextResolver` 负责文本编辑、Popup、菜单和 ContentDialog 上下文判定。MainWindow 仅保留 WPF 生命周期、控件事件、Pane 状态和安全反馈桥接。新增关闭并发/拒绝重试/取消、导航初始化幂等和快捷键上下文回归测试；Release 构建与全量测试通过。
 
-### [ ] APP-606（P1）：拆分 PlayerViewModel 与 Player View 行为
+### [x] APP-606（P1）：拆分 PlayerViewModel 与 Player View 行为
 
 前置：PLAY-507、APP-602。
 
@@ -703,6 +703,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - PlayerView code-behind 按滚动、进度提交、焦点提交等职责拆小型内部组件。
 
 测试按 Navigation、Commands、Projection、RulesAndSpeed、AutoCentering、VisualLayout、Accessibility 拆分。
+
+完成说明：已将正文/章节内容缓存与投影、Snapshot 语义映射、规则与语速控制拆为小型 Playback presentation 协作者；PlayerViewModel 保留页面门面、命令和播放交互编排。PlayerView 的滚动/自动居中、进度输入和语速焦点提交分别由内部控制器负责，页面事件传递 activation token，语速写入在取消前后均拒绝迟到提交。新增 Projection、Rules/Speed 和 activation 取消回归测试；Player 专项与全量测试、Release 构建通过。
 
 ### [ ] APP-607（P1）：收敛三套规则编辑会话
 
