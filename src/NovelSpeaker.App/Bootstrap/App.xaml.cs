@@ -12,7 +12,6 @@ using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Settings;
 using NovelSpeaker.App.Shell.Input;
 using NovelSpeaker.App.Shell;
-using NovelSpeaker.Infrastructure.Diagnostics;
 using NovelSpeaker.Application.Settings;
 
 namespace NovelSpeaker.App.Bootstrap;
@@ -88,11 +87,18 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IAppSettingsStore>(settingsStore);
         services.AddNovelSpeakerApplication(bootstrapSettings);
         services.AddNovelSpeakerInfrastructure();
-        services.AddSingleton<ILoggerProvider, RollingFileLoggerProvider>();
         services.AddNovelSpeakerDesktop();
 
         await ReportStartupStageAsync("dependency-injection", "正在创建服务容器。", "正在装配应用服务。");
+#if DEBUG
+        _serviceProvider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
+#else
         _serviceProvider = services.BuildServiceProvider();
+#endif
 
         var resolvedDirectories = _serviceProvider.GetRequiredService<IAppDataDirectoryProvider>();
         _startupDiagnostics?.RecordStage("paths", $"Root={resolvedDirectories.RootDirectoryPath}; Database={resolvedDirectories.DatabasePath}; Logs={resolvedDirectories.LogsDirectoryPath}");

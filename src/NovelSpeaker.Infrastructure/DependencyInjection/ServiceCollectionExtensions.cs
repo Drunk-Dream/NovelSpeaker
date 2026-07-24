@@ -17,6 +17,7 @@ public static class ServiceCollectionExtensions
         services.AddNovelSpeakerSpeechAdapters();
         services.AddNovelSpeakerAudioAdapters();
         services.AddNovelSpeakerSettingsAdapters();
+        services.AddNovelSpeakerDiagnosticsAdapters();
 
         return services;
     }
