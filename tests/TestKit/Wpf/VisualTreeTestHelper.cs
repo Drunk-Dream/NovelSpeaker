@@ -8,21 +8,30 @@ internal static class VisualTreeTestHelper
     public static T? FindDescendant<T>(DependencyObject root)
         where T : DependencyObject
     {
+        return FindDescendants<T>(root).FirstOrDefault();
+    }
+
+    public static T? FindDescendant<T>(DependencyObject root, Func<T, bool> predicate)
+        where T : DependencyObject
+    {
+        return FindDescendants(root, predicate).FirstOrDefault();
+    }
+
+    public static IEnumerable<T> FindDescendants<T>(DependencyObject root, Func<T, bool>? predicate = null)
+        where T : DependencyObject
+    {
         for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
         {
             var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typedChild)
+            if (child is T typedChild && (predicate is null || predicate(typedChild)))
             {
-                return typedChild;
+                yield return typedChild;
             }
 
-            var descendant = FindDescendant<T>(child);
-            if (descendant is not null)
+            foreach (var descendant in FindDescendants(child, predicate))
             {
-                return descendant;
+                yield return descendant;
             }
         }
-
-        return null;
     }
 }

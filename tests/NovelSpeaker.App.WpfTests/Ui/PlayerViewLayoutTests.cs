@@ -401,7 +401,7 @@ public sealed partial class PlayerViewTests
 
             var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(chaptersListBox));
             var itemContainer = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(0));
-            var titleText = FindDescendant<TextBlock>(
+            var titleText = VisualTreeTestHelper.FindDescendant<TextBlock>(
                 itemContainer,
                 static textBlock => textBlock.Text.StartsWith("第一章", StringComparison.Ordinal));
 
@@ -445,7 +445,7 @@ public sealed partial class PlayerViewTests
 
             var segmentListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
             var itemContainer = Assert.IsType<ListBoxItem>(segmentListBox.ItemContainerGenerator.ContainerFromIndex(0));
-            var segmentButton = Assert.IsType<Button>(FindDescendant<Button>(itemContainer, static _ => true));
+            var segmentButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(itemContainer));
 
             Assert.InRange(Math.Abs(segmentButton.ActualWidth - itemContainer.ActualWidth), 0d, 1d);
         });
@@ -599,13 +599,13 @@ public sealed partial class PlayerViewTests
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("BackButton")), "返回");
             Assert.Null(view.FindName("SkipCurrentSegmentButton"));
 
-            var primaryIcon = Assert.IsType<SymbolIcon>(FindDescendant<SymbolIcon>(
+            var primaryIcon = Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(
                 Assert.IsType<Button>(view.FindName("PrimaryPlaybackButton")),
                 static _ => true));
-            var previousChapterIcon = Assert.IsType<SymbolIcon>(FindDescendant<SymbolIcon>(
+            var previousChapterIcon = Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(
                 Assert.IsType<Button>(view.FindName("PreviousChapterButton")),
                 static _ => true));
-            var nextChapterIcon = Assert.IsType<SymbolIcon>(FindDescendant<SymbolIcon>(
+            var nextChapterIcon = Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(
                 Assert.IsType<Button>(view.FindName("NextChapterButton")),
                 static _ => true));
 

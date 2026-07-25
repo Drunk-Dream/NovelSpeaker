@@ -834,7 +834,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 ## Wave 9：清理、文档收口与发布级验证
 
-### [ ] CLEAN-901（P1）：全仓 cleanup-refactor 复审
+### [x] CLEAN-901（P1）：全仓 cleanup-refactor 复审
 
 前置：Wave 1–8 完成。
 
@@ -847,6 +847,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - `New/V2/Old/Compat/Helper/Manager` 可疑命名。
 
 每项继续按 A/B/C/D 分类；migration、fixture、安全边界和真实平台 adapter 不得误删。
+
+完成说明：已完成 Domain、Application、Infrastructure、App 及各测试程序集的全仓复审。已删除无引用的 `InFlightOperation.Task`、无效的 `PlaybackProgressSaveReason` 和重复 `FixedTimeProvider`，收窄 WPF 测试的 TestKit 编译引用，并将 WPF 测试中的视觉树遍历统一到 `VisualTreeTestHelper`。migration、fixture、TestAssets、真实平台 adapter、导航/激活状态所有者和外部规则兼容边界均按 D 类保留。旧测试命名空间、Application DI 组合根、页面 activation scope、App 非 Bootstrap `ServiceProvider`/WPF 视觉类型、async-void/fire-and-forget、HTTP body timeout/NAudio/cache failure ownership、限流同步等待等 C 类发现需要独立设计或特征测试，转为后续专项任务；本项行为保持型 cleanup 已收敛。Release 构建与全量测试共 737 项通过。
 
 ### [ ] DOC-902（P1）：按最终实现复核全部文档
 

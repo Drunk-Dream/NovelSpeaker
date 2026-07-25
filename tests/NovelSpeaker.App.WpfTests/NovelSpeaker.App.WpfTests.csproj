@@ -3,7 +3,7 @@
     <ProjectReference Include="..\..\src\NovelSpeaker.App\NovelSpeaker.App.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\TestKit\Common\*.cs" Link="Common\%(Filename)%(Extension)" />
+    <Compile Include="..\TestKit\Common\ManualTimeProvider.cs" Link="Common\ManualTimeProvider.cs" />
     <Compile Include="..\TestKit\Navigation\*.cs" Link="Navigation\%(Filename)%(Extension)" />
     <Compile Include="..\TestKit\Wpf\*.cs" Link="Wpf\%(Filename)%(Extension)" />
   </ItemGroup>

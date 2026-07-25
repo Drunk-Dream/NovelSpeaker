@@ -67,10 +67,10 @@ public sealed partial class ChapterRulesPageTests
             view.Arrange(new Rect(0, 0, 960, 680));
             view.UpdateLayout();
 
-            var border = FindDescendant<Border>(
+            var border = VisualTreeTestHelper.FindDescendant<Border>(
                 view,
                 candidate => AutomationProperties.GetName(candidate) == item.AutomationName);
-            var button = Assert.IsType<Button>(FindDescendant<Button>(border!, candidate =>
+            var button = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(border!, candidate =>
                 AutomationProperties.GetName(candidate) == item.AutomationName));
 
             Assert.NotNull(border);
@@ -106,11 +106,11 @@ public sealed partial class ChapterRulesPageTests
             view.Arrange(new Rect(0, 0, 368, 640));
             view.UpdateLayout();
 
-            var border = Assert.IsType<Border>(FindDescendant<Border>(view, candidate =>
+            var border = Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(view, candidate =>
                 AutomationProperties.GetName(candidate) == item.AutomationName));
-            var pattern = Assert.IsType<TextBlock>(FindDescendant<TextBlock>(border, candidate =>
+            var pattern = Assert.IsType<TextBlock>(VisualTreeTestHelper.FindDescendant<TextBlock>(border, candidate =>
                 candidate.Text == item.PatternSummary));
-            var checkBox = Assert.IsType<CheckBox>(FindDescendant<CheckBox>(border, static _ => true));
+            var checkBox = Assert.IsType<CheckBox>(VisualTreeTestHelper.FindDescendant<CheckBox>(border));
             var patternBounds = GetBoundsRelativeTo(pattern, border);
             var checkBoxBounds = GetBoundsRelativeTo(checkBox, border);
 
@@ -141,7 +141,7 @@ public sealed partial class ChapterRulesPageTests
             view.Arrange(new Rect(0, 0, 960, 680));
             view.UpdateLayout();
 
-            var checkBoxes = FindDescendants<CheckBox>(view, _ => true).ToArray();
+            var checkBoxes = VisualTreeTestHelper.FindDescendants<CheckBox>(view).ToArray();
 
             Assert.Single(checkBoxes);
             Assert.Equal("启用", checkBoxes[0].Content);
@@ -198,7 +198,7 @@ public sealed partial class ChapterRulesPageTests
             view.Arrange(new Rect(0, 0, 1000, 700));
             view.UpdateLayout();
 
-            var helpTexts = FindDescendants<TextBlock>(view, _ => true)
+            var helpTexts = VisualTreeTestHelper.FindDescendants<TextBlock>(view)
                 .Select(textBlock => textBlock.Text)
                 .ToHashSet(StringComparer.Ordinal);
 
@@ -231,10 +231,10 @@ public sealed partial class ChapterRulesPageTests
             view.Arrange(new Rect(0, 0, 960, 680));
             view.UpdateLayout();
 
-            var firstBorder = Assert.Single(FindDescendants<Border>(
+            var firstBorder = Assert.Single(VisualTreeTestHelper.FindDescendants<Border>(
                 view,
                 candidate => ReferenceEquals(candidate.DataContext, first) && candidate.Child is Grid));
-            var secondBorder = Assert.Single(FindDescendants<Border>(
+            var secondBorder = Assert.Single(VisualTreeTestHelper.FindDescendants<Border>(
                 view,
                 candidate => ReferenceEquals(candidate.DataContext, second) && candidate.Child is Grid));
 
@@ -263,45 +263,6 @@ public sealed partial class ChapterRulesPageTests
                 provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
         });
-    }
-
-    private static T? FindDescendant<T>(DependencyObject root, Func<T, bool> predicate)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typed && predicate(typed))
-            {
-                return typed;
-            }
-
-            var descendant = FindDescendant(child, predicate);
-            if (descendant is not null)
-            {
-                return descendant;
-            }
-        }
-
-        return null;
-    }
-
-    private static IEnumerable<T> FindDescendants<T>(DependencyObject root, Func<T, bool> predicate)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typed && predicate(typed))
-            {
-                yield return typed;
-            }
-
-            foreach (var descendant in FindDescendants(child, predicate))
-            {
-                yield return descendant;
-            }
-        }
     }
 
     private static Rect GetBoundsRelativeTo(FrameworkElement element, FrameworkElement root)

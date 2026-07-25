@@ -357,11 +357,6 @@ public sealed class JsonAppSettingsStoreTests
         Replace
     }
 
-    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => utcNow;
-    }
-
     private sealed class FailingSettingsFileOperations(SettingsFileFailure failure) : ISettingsFileOperations
     {
         private readonly ISettingsFileOperations _inner = PhysicalSettingsFileOperations.Instance;

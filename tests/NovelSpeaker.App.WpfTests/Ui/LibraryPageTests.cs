@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
-using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.App.Features.Library;
@@ -50,14 +49,14 @@ public sealed partial class LibraryPageTests
             view.UpdateLayout();
 
             var booksScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("BooksScrollViewer"));
-            var clearSearchButton = FindDescendant<Button>(
+            var clearSearchButton = VisualTreeTestHelper.FindDescendant<Button>(
                 view,
                 candidate => AutomationProperties.GetName(candidate) == "清空搜索");
 
             Assert.NotNull(booksScrollViewer);
             Assert.NotNull(clearSearchButton);
             AssertImportIcon(Assert.IsType<Button>(view.FindName("ToolbarImportButton")));
-            Assert.Null(FindDescendant<Button>(view, candidate => Equals(candidate.Content, "清空")));
+            Assert.Null(VisualTreeTestHelper.FindDescendant<Button>(view, candidate => Equals(candidate.Content, "清空")));
         });
     }
 
@@ -101,7 +100,7 @@ public sealed partial class LibraryPageTests
             view.Arrange(new Rect(0, 0, 960, 680));
             view.UpdateLayout();
 
-            var clearSearchAction = FindDescendant<Button>(
+            var clearSearchAction = VisualTreeTestHelper.FindDescendant<Button>(
                 view,
                 candidate => Equals(candidate.Content, "清空搜索"));
 
@@ -109,32 +108,11 @@ public sealed partial class LibraryPageTests
         });
     }
 
-    private static T? FindDescendant<T>(DependencyObject root, Func<T, bool> predicate)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typed && predicate(typed))
-            {
-                return typed;
-            }
-
-            var descendant = FindDescendant(child, predicate);
-            if (descendant is not null)
-            {
-                return descendant;
-            }
-        }
-
-        return null;
-    }
-
     private static void AssertImportIcon(Button button)
     {
         Assert.Equal("导入小说", AutomationProperties.GetName(button));
         Assert.Equal("导入小说", button.ToolTip);
-        Assert.Equal(SymbolRegular.ArrowImport24, Assert.IsType<SymbolIcon>(FindDescendant<SymbolIcon>(button, static _ => true)).Symbol);
+        Assert.Equal(SymbolRegular.ArrowImport24, Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(button)).Symbol);
     }
 
     private sealed partial class LibraryViewLayoutContext : ObservableObject

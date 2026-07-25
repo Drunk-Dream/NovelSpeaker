@@ -332,8 +332,6 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
 
         public CancellationToken ExecutionToken => _executionCts.Token;
 
-        public Task<PlaybackAudioResult> Task => _completionSource.Task;
-
         public void PromoteToCurrent()
         {
             Priority = PlaybackAudioPriority.Current;

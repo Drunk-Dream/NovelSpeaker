@@ -231,7 +231,6 @@ public sealed class PlaybackCoordinator :
                         session.HasLoadedAudio
                             ? _localAudioPlaybackCoordinator.CurrentSnapshot.PositionMilliseconds
                             : GetCurrentPositionMillisecondsForSave(session),
-                        PlaybackProgressSaveReason.ApplicationExit,
                         CancellationToken.None).ConfigureAwait(false);
                 }
                 catch (Exception exception)
@@ -413,7 +412,6 @@ public sealed class PlaybackCoordinator :
             await SaveProgressAsync(
                 _currentSession,
                 _currentSession.PositionForSave,
-                PlaybackProgressSaveReason.Pause,
                 cancellationToken);
             return;
         }
@@ -441,7 +439,6 @@ public sealed class PlaybackCoordinator :
         await SaveProgressAsync(
             _currentSession,
             _localAudioPlaybackCoordinator.CurrentSnapshot.PositionMilliseconds,
-            PlaybackProgressSaveReason.Pause,
             cancellationToken);
     }
 
@@ -523,7 +520,7 @@ public sealed class PlaybackCoordinator :
             session.UpdateAudio(_localAudioPlaybackCoordinator.CurrentSnapshot);
         }
 
-        await SaveProgressAsync(session, positionBeforeStop, PlaybackProgressSaveReason.Stop, cancellationToken);
+        await SaveProgressAsync(session, positionBeforeStop, cancellationToken);
         await _prefetchController.CancelAsync(session.SessionId, cancellationToken);
         await DisposeSessionAsync();
         ClearProtectedPlaybackFile();
@@ -959,7 +956,6 @@ public sealed class PlaybackCoordinator :
             await SaveProgressAsync(
                 _currentSession,
                 GetCurrentPositionMillisecondsForSave(_currentSession),
-                PlaybackProgressSaveReason.SessionReplaced,
                 cancellationToken).ConfigureAwait(false);
 
             // Stop the currently loaded local audio before we buffer a replacement segment.
@@ -1464,7 +1460,6 @@ public sealed class PlaybackCoordinator :
             await SaveProgressAsync(
                 session,
                 session.PositionForSave,
-                PlaybackProgressSaveReason.SegmentCompleted,
                 cancellationToken).ConfigureAwait(false);
             await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
             await DisposeSessionAsync().ConfigureAwait(false);
@@ -1482,7 +1477,6 @@ public sealed class PlaybackCoordinator :
         await SaveProgressAsync(
             session,
             snapshot.DurationMilliseconds,
-            PlaybackProgressSaveReason.SegmentCompleted,
             cancellationToken).ConfigureAwait(false);
 
         _currentBook = next.Value.Book;
@@ -1924,7 +1918,6 @@ public sealed class PlaybackCoordinator :
     private Task SaveProgressAsync(
         PlaybackSessionState session,
         long positionMilliseconds,
-        PlaybackProgressSaveReason reason,
         CancellationToken cancellationToken)
     {
         if (session.HasLoadedAudio)
@@ -1935,7 +1928,6 @@ public sealed class PlaybackCoordinator :
         session.SetPositionForSave(positionMilliseconds);
         return _progressService.SaveAsync(
             session,
-            reason,
             cancellationToken);
     }
 

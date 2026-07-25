@@ -25,7 +25,7 @@ public sealed class CachePagesViewTests
                 page.Arrange(new Rect(0, 0, 1200, 800));
                 page.UpdateLayout();
 
-                var buttons = FindVisualChildren<System.Windows.Controls.Button>(page)
+                var buttons = VisualTreeTestHelper.FindDescendants<System.Windows.Controls.Button>(page)
                     .Select(button => button.Content?.ToString())
                     .Where(text => !string.IsNullOrWhiteSpace(text))
                     .Cast<string>()
@@ -100,7 +100,7 @@ public sealed class CachePagesViewTests
                 var rootViewport = Assert.IsType<Border>(page.FindName("RootViewport"));
                 var booksScrollViewer = Assert.IsType<ScrollViewer>(page.FindName("BooksScrollViewer"));
                 var chaptersScrollViewer = Assert.IsType<ScrollViewer>(page.FindName("ChaptersScrollViewer"));
-                var textBlocks = FindVisualChildren<TextBlock>(page)
+                var textBlocks = VisualTreeTestHelper.FindDescendants<TextBlock>(page)
                     .Select(textBlock => textBlock.Text)
                     .Where(text => !string.IsNullOrWhiteSpace(text))
                     .Cast<string>()
@@ -117,18 +117,18 @@ public sealed class CachePagesViewTests
                 Assert.DoesNotContain("有缓存的书籍", textBlocks);
 
                 var firstBookCard = Assert.Single(
-                    FindVisualChildren<Border>(booksScrollViewer),
+                    VisualTreeTestHelper.FindDescendants<Border>(booksScrollViewer),
                     border => AutomationProperties.GetName(border) == books[0].AutomationName);
-                var firstBookButton = Assert.Single(FindVisualChildren<Button>(firstBookCard));
+                var firstBookButton = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(firstBookCard));
                 Assert.InRange(Math.Abs(firstBookButton.ActualWidth - firstBookCard.ActualWidth), 0d, 1d);
                 Assert.InRange(Math.Abs(firstBookButton.ActualHeight - firstBookCard.ActualHeight), 0d, 1d);
 
-                var chapterCleanupButtons = FindVisualChildren<Button>(chaptersScrollViewer)
+                var chapterCleanupButtons = VisualTreeTestHelper.FindDescendants<Button>(chaptersScrollViewer)
                     .Where(button => AutomationProperties.GetName(button) == "清理本章缓存")
                     .ToArray();
                 Assert.Equal(chapters.Length, chapterCleanupButtons.Length);
                 Assert.All(chapterCleanupButtons, button =>
-                    Assert.Equal(SymbolRegular.Delete24, Assert.IsType<SymbolIcon>(FindVisualChild<SymbolIcon>(button)).Symbol));
+                    Assert.Equal(SymbolRegular.Delete24, Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(button)).Symbol));
             }
             finally
             {
@@ -138,47 +138,4 @@ public sealed class CachePagesViewTests
         });
     }
 
-    private static IReadOnlyList<T> FindVisualChildren<T>(DependencyObject root)
-        where T : DependencyObject
-    {
-        var results = new List<T>();
-        Visit(root, results);
-        return results;
-    }
-
-    private static void Visit<T>(DependencyObject node, List<T> results)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < System.Windows.Media.VisualTreeHelper.GetChildrenCount(node); childIndex++)
-        {
-            var child = System.Windows.Media.VisualTreeHelper.GetChild(node, childIndex);
-            if (child is T typedChild)
-            {
-                results.Add(typedChild);
-            }
-
-            Visit(child, results);
-        }
-    }
-
-    private static T? FindVisualChild<T>(DependencyObject root)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typedChild)
-            {
-                return typedChild;
-            }
-
-            var descendant = FindVisualChild<T>(child);
-            if (descendant is not null)
-            {
-                return descendant;
-            }
-        }
-
-        return null;
-    }
 }

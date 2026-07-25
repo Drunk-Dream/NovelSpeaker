@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
-using System.Windows.Media;
 using System.Windows.Threading;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
@@ -50,7 +49,7 @@ public sealed class BookDetailsPageTests
                 chaptersListBox.ApplyTemplate();
                 chaptersListBox.UpdateLayout();
                 var chaptersScrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(chaptersListBox));
-                var retiredHelperCopy = FindDescendant<TextBlock>(
+                var retiredHelperCopy = VisualTreeTestHelper.FindDescendant<TextBlock>(
                     page,
                     static text => string.Equals(
                         text.Text,
@@ -106,10 +105,10 @@ public sealed class BookDetailsPageTests
 
             var firstItem = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(0));
             var secondItem = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(1));
-            var firstCard = Assert.IsType<Border>(FindDescendant<Border>(firstItem, static border => border.Child is Button));
-            var firstTitle = FindDescendant<TextBlock>(firstItem, static text => text.Text.StartsWith("第一章", StringComparison.Ordinal));
-            var firstButton = FindDescendant<Button>(firstItem, static _ => true);
-            var secondButton = FindDescendant<Button>(secondItem, static _ => true);
+            var firstCard = Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(firstItem, static border => border.Child is Button));
+            var firstTitle = VisualTreeTestHelper.FindDescendant<TextBlock>(firstItem, static text => text.Text.StartsWith("第一章", StringComparison.Ordinal));
+            var firstButton = VisualTreeTestHelper.FindDescendant<Button>(firstItem);
+            var secondButton = VisualTreeTestHelper.FindDescendant<Button>(secondItem);
 
             Assert.NotNull(firstTitle);
             Assert.NotNull(firstButton);
@@ -169,27 +168,6 @@ public sealed class BookDetailsPageTests
     {
         var topLeft = element.TranslatePoint(new Point(0, 0), root);
         return new Rect(topLeft.X, topLeft.Y, element.ActualWidth, element.ActualHeight);
-    }
-
-    private static T? FindDescendant<T>(DependencyObject root, Func<T, bool> predicate)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typed && predicate(typed))
-            {
-                return typed;
-            }
-
-            var descendant = FindDescendant(child, predicate);
-            if (descendant is not null)
-            {
-                return descendant;
-            }
-        }
-
-        return null;
     }
 
     private sealed class FakeNavigationGuardService : INavigationGuardService

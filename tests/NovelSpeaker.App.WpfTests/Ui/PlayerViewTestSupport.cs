@@ -31,45 +31,10 @@ public sealed partial class PlayerViewTests
 {
     private static FrameworkElement? FindDescendantByContent(DependencyObject root, string content)
     {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is FrameworkElement element &&
-                element is ContentControl contentControl &&
-                string.Equals(contentControl.Content as string, content, StringComparison.Ordinal))
-            {
-                return element;
-            }
-
-            var descendant = FindDescendantByContent(child, content);
-            if (descendant is not null)
-            {
-                return descendant;
-            }
-        }
-
-        return null;
-    }
-
-    private static T? FindDescendant<T>(DependencyObject root, Predicate<T> predicate)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typedChild && predicate(typedChild))
-            {
-                return typedChild;
-            }
-
-            var descendant = FindDescendant(child, predicate);
-            if (descendant is not null)
-            {
-                return descendant;
-            }
-        }
-
-        return null;
+        return VisualTreeTestHelper.FindDescendant<FrameworkElement>(
+            root,
+            element => element is ContentControl contentControl &&
+                       string.Equals(contentControl.Content as string, content, StringComparison.Ordinal));
     }
 
     private static FrameworkElement? FindVisibleDescendantByContent(DependencyObject root, string content)
@@ -85,7 +50,7 @@ public sealed partial class PlayerViewTests
 
     private static TextBlock? FindVisibleDescendantByText(DependencyObject root, string text)
     {
-        var element = FindDescendant<TextBlock>(
+        var element = VisualTreeTestHelper.FindDescendant<TextBlock>(
             root,
             textBlock => string.Equals(textBlock.Text, text, StringComparison.Ordinal));
         if (element is null || !IsEffectivelyVisible(element, root))

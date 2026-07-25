@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
-using System.Windows.Media;
 using NovelSpeaker.App.Features.Library;
 using Xunit;
 
@@ -45,7 +44,7 @@ public sealed class BookCardViewTests
                 window.Show();
                 window.UpdateLayout();
 
-                var openButton = FindDescendant<Button>(
+                var openButton = VisualTreeTestHelper.FindDescendant<Button>(
                     view,
                     candidate => AutomationProperties.GetName(candidate) == item.AutomationName);
                 var moreButton = Assert.IsType<Button>(view.FindName("MoreButton"));
@@ -62,24 +61,4 @@ public sealed class BookCardViewTests
         });
     }
 
-    private static T? FindDescendant<T>(DependencyObject root, Func<T, bool> predicate)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typed && predicate(typed))
-            {
-                return typed;
-            }
-
-            var descendant = FindDescendant(child, predicate);
-            if (descendant is not null)
-            {
-                return descendant;
-            }
-        }
-
-        return null;
-    }
 }
