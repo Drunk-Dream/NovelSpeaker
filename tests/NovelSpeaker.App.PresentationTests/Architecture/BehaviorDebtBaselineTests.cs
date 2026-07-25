@@ -83,25 +83,40 @@ public sealed class BehaviorDebtBaselineTests
     [Fact]
     public void Release_workflow_keeps_the_locked_quality_gate_and_package_validation()
     {
-        var workflow = File.ReadAllText(Absolute(".github/workflows/release.yml"));
-        var requiredFragments = new[]
+        var releaseWorkflow = File.ReadAllText(Absolute(".github/workflows/release.yml"));
+        var qualityWorkflow = File.ReadAllText(Absolute(".github/workflows/quality-matrix.yml"));
+        var releaseFragments = new[]
         {
+            "uses: ./.github/workflows/quality-matrix.yml",
             "dotnet restore --locked-mode -r win-x64",
-            "dotnet format --verify-no-changes --no-restore",
-            "dotnet build -c Release --no-restore",
-            "dotnet test -c Release --no-build",
             "dotnet publish src/NovelSpeaker.App/NovelSpeaker.App.csproj -c Release -r win-x64 --self-contained true --no-restore",
             "NovelSpeaker.App.exe",
             "THIRD-PARTY-NOTICES.txt",
+            "TestAssets",
             "demo-tone.wav",
             "demo-tone.mp3",
             "corrupt-tone.mp3",
             "Package contains test audio fixture"
         };
-
-        foreach (var fragment in requiredFragments)
+        var qualityFragments = new[]
         {
-            Assert.Contains(fragment, workflow, StringComparison.Ordinal);
+            "dotnet restore --locked-mode -r win-x64",
+            "dotnet format --verify-no-changes --no-restore",
+            "dotnet build -c Release --no-restore",
+            "dotnet test ${{ matrix.project }} -c Release --no-build",
+            "tests/NovelSpeaker.Domain.UnitTests/NovelSpeaker.Domain.UnitTests.csproj",
+            "tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj",
+            "tests/NovelSpeaker.App.WpfTests/NovelSpeaker.App.WpfTests.csproj"
+        };
+
+        foreach (var fragment in releaseFragments)
+        {
+            Assert.Contains(fragment, releaseWorkflow, StringComparison.Ordinal);
+        }
+
+        foreach (var fragment in qualityFragments)
+        {
+            Assert.Contains(fragment, qualityWorkflow, StringComparison.Ordinal);
         }
     }
 
