@@ -3,6 +3,7 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Settings;
+using NovelSpeaker.UnitTests.Common;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Settings;
@@ -12,7 +13,8 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public async Task LoadAsync_returns_defaults_when_settings_file_does_not_exist()
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        using var temporaryDirectory = new TemporaryDirectory();
+        var root = temporaryDirectory.Path;
         var directories = new LocalAppDataDirectoryProvider(root);
         var store = new JsonAppSettingsStore(directories);
 
@@ -31,7 +33,8 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public async Task SaveAsync_persists_updated_segmentation_settings()
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        using var temporaryDirectory = new TemporaryDirectory();
+        var root = temporaryDirectory.Path;
         var directories = new LocalAppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var store = new JsonAppSettingsStore(directories);
@@ -52,7 +55,8 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public async Task SaveAsync_persists_selected_tts_rule_id()
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        using var temporaryDirectory = new TemporaryDirectory();
+        var root = temporaryDirectory.Path;
         var directories = new LocalAppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var store = new JsonAppSettingsStore(directories);
@@ -66,7 +70,8 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public async Task SaveAsync_persists_cache_limit()
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        using var temporaryDirectory = new TemporaryDirectory();
+        var root = temporaryDirectory.Path;
         var directories = new LocalAppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var store = new JsonAppSettingsStore(directories);
@@ -80,7 +85,8 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public async Task SaveAsync_persists_custom_file_name_template()
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        using var temporaryDirectory = new TemporaryDirectory();
+        var root = temporaryDirectory.Path;
         var directories = new LocalAppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var store = new JsonAppSettingsStore(directories);
@@ -96,7 +102,8 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public async Task SaveAsync_preserves_empty_file_name_template()
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        using var temporaryDirectory = new TemporaryDirectory();
+        var root = temporaryDirectory.Path;
         var directories = new LocalAppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var store = new JsonAppSettingsStore(directories);
@@ -112,7 +119,8 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public async Task LoadAsync_normalizes_invalid_new_setting_values()
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        using var temporaryDirectory = new TemporaryDirectory();
+        var root = temporaryDirectory.Path;
         var directories = new LocalAppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         await File.WriteAllTextAsync(
@@ -146,7 +154,8 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public async Task LoadAsync_caps_prefetch_count_to_supported_range()
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        using var temporaryDirectory = new TemporaryDirectory();
+        var root = temporaryDirectory.Path;
         var directories = new LocalAppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         await File.WriteAllTextAsync(
@@ -172,7 +181,8 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public async Task LoadAsync_returns_defaults_when_settings_json_is_corrupt()
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        using var temporaryDirectory = new TemporaryDirectory();
+        var root = temporaryDirectory.Path;
         var directories = new LocalAppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         await File.WriteAllTextAsync(directories.SettingsPath, "{ invalid json", CancellationToken.None);
@@ -188,7 +198,8 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public async Task LoadAsync_uses_unique_corrupt_backup_names_for_the_same_utc_timestamp()
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        using var temporaryDirectory = new TemporaryDirectory();
+        var root = temporaryDirectory.Path;
         var directories = new LocalAppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var time = new FixedTimeProvider(new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero));
@@ -205,7 +216,8 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public async Task SaveAsync_atomically_replaces_existing_file_and_leaves_no_temporary_file()
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        using var temporaryDirectory = new TemporaryDirectory();
+        var root = temporaryDirectory.Path;
         var directories = new LocalAppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         await File.WriteAllTextAsync(directories.SettingsPath, "old", CancellationToken.None);
@@ -223,7 +235,8 @@ public sealed class JsonAppSettingsStoreTests
     [InlineData(SettingsFileFailure.Replace)]
     public async Task SaveAsync_failure_preserves_existing_file_and_cleans_temporary_file(SettingsFileFailure failure)
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        using var temporaryDirectory = new TemporaryDirectory();
+        var root = temporaryDirectory.Path;
         var directories = new LocalAppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         const string original = "original-settings";
@@ -248,7 +261,8 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public async Task SaveAsync_cancelled_after_flush_does_not_move_and_cleans_temporary_file()
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        using var temporaryDirectory = new TemporaryDirectory();
+        var root = temporaryDirectory.Path;
         var directories = new LocalAppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         const string original = "original-settings";
@@ -269,7 +283,8 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public async Task SaveAsync_pre_cancelled_preserves_existing_file_and_creates_no_temporary_file()
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        using var temporaryDirectory = new TemporaryDirectory();
+        var root = temporaryDirectory.Path;
         var directories = new LocalAppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         await File.WriteAllTextAsync(directories.SettingsPath, "original", CancellationToken.None);
@@ -287,7 +302,8 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public async Task GetCurrent_does_not_resume_on_the_callers_synchronization_context()
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        using var temporaryDirectory = new TemporaryDirectory();
+        var root = temporaryDirectory.Path;
         var directories = new LocalAppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var store = new JsonAppSettingsStore(directories);

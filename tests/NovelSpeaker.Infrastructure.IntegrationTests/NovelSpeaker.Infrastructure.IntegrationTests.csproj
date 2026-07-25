@@ -4,7 +4,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\TestKit\Common\*.cs" Link="Common\%(Filename)%(Extension)" />
-    <Compile Include="..\TestKit\Speech\TestHttpTtsRules.cs" Link="Speech\TestHttpTtsRules.cs" />
+    <Compile Include="..\TestKit\Audio\*.cs" Link="Audio\%(Filename)%(Extension)" />
+    <Compile Include="..\TestKit\Speech\*.cs" Link="Speech\%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Jint" />

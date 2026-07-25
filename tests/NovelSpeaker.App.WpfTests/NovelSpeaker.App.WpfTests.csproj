@@ -5,6 +5,7 @@
   <ItemGroup>
     <Compile Include="..\TestKit\Common\*.cs" Link="Common\%(Filename)%(Extension)" />
     <Compile Include="..\TestKit\Navigation\*.cs" Link="Navigation\%(Filename)%(Extension)" />
+    <Compile Include="..\TestKit\Wpf\*.cs" Link="Wpf\%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
