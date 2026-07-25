@@ -848,7 +848,16 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 每项继续按 A/B/C/D 分类；migration、fixture、安全边界和真实平台 adapter 不得误删。
 
-完成说明：已完成 Domain、Application、Infrastructure、App 及各测试程序集的全仓复审。已删除无引用的 `InFlightOperation.Task`、无效的 `PlaybackProgressSaveReason` 和重复 `FixedTimeProvider`，收窄 WPF 测试的 TestKit 编译引用，并将 WPF 测试中的视觉树遍历统一到 `VisualTreeTestHelper`。migration、fixture、TestAssets、真实平台 adapter、导航/激活状态所有者和外部规则兼容边界均按 D 类保留。旧测试命名空间、Application DI 组合根、页面 activation scope、App 非 Bootstrap `ServiceProvider`/WPF 视觉类型、async-void/fire-and-forget、HTTP body timeout/NAudio/cache failure ownership、限流同步等待等 C 类发现需要独立设计或特征测试，转为后续专项任务；本项行为保持型 cleanup 已收敛。Release 构建与全量测试共 737 项通过。
+完成说明：已完成 Domain、Application、Infrastructure、App 及各测试程序集的全仓复审。已删除无引用的 `InFlightOperation.Task`、无效的 `PlaybackProgressSaveReason` 和重复 `FixedTimeProvider`，收窄 WPF 测试的 TestKit 编译引用，并将 WPF 测试中的视觉树遍历统一到 `VisualTreeTestHelper`。migration、fixture、TestAssets、真实平台 adapter、导航/激活状态所有者和外部规则兼容边界均按 D 类保留。本项行为保持型 cleanup 已收敛；以下 C 类发现保留为下一轮计划的专项候选，当前未改变行为：
+
+- 分层与组合根：Application 仍有 DI 抽象/注册依赖；App 的非 Bootstrap 代码仍直接持有或转发 `IServiceProvider`，需要重新划分注册所有权和解析边界。
+- 页面与视觉边界：`LibraryBookItemViewModel` 的兼容构造器/旧属性及 `GeneratedBookCover` 等 WPF 视觉类型的公共暴露，需要确认调用契约后迁移或删除；页面 activation scope、取消和导航守卫需要补齐一致的生命周期设计。
+- 异步生命周期：页面 `async void` 入口的异常转交、未登记 fire-and-forget Task 的所有者/取消/异常观察，需要按事件入口和后台操作分别补充特征测试。
+- Infrastructure 所有权：HTTP response body 读取超时与取消、NAudio 播放资源和候选/临时缓存的失败清理及 owner 关系，需要建立明确的释放与故障恢复契约。
+- 同步与持久化：`TtsRateLimiter` 的同步 `Mutex.Wait`、SQLite 时间提供器/序列化差异、损坏历史记录的容错策略，需要在不改变兼容格式的前提下设计回归测试。
+- 测试整理：旧测试命名空间仍横跨大量文件，需要规划分批迁移、引用更新和提交边界，避免与行为变更混合。
+
+上述 C 类项目均需独立设计或特征测试后再实施。Release 构建与全量测试共 737 项通过。
 
 ### [ ] DOC-902（P1）：按最终实现复核全部文档
 
