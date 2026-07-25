@@ -802,7 +802,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：PlayerViewTests、PlayerViewModelTests 和 PlaybackCoordinatorTests 已按布局、导航、命令、播放流程、恢复与支撑代码等行为切片；视觉树 helper、手动时间、临时目录、本地 HTTP TTS server 和 NAudio fake 已集中到窄范围 TestKit。Release 全量测试保持 737 项通过，未引入万能 fixture。
 
-### [ ] TEST-803（P1）：消除任意延迟与全局串行
+### [x] TEST-803（P1）：消除任意延迟与全局串行
 
 前置：TEST-801、TEST-802。
 
@@ -813,6 +813,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 所有异步等待有测试超时。
 
 验收：重复运行稳定；测试耗时和 flaky 率有前后记录。
+
+完成说明：测试等待已改为可控 TimeProvider、TaskCompletionSource、属性/播放快照/请求活动信号，并为异步等待统一设置 5 秒测试超时；WPF 测试由程序集级禁并行收窄为共享 Dispatcher collection。测试源码不再使用 Task.Delay 或 Thread.Sleep，全量 Release 测试 737 项通过。
 
 ### [ ] TEST-804（P1）：更新 CI/发布矩阵
 
