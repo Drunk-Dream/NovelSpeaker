@@ -9,8 +9,10 @@ permissions:
   contents: write
 
 jobs:
-  publish:
+  validate:
     runs-on: windows-latest
+    outputs:
+      release_version: ${{ steps.version.outputs.release_version }}
     steps:
       - name: Checkout release tag
         uses: actions/checkout@v6
@@ -18,6 +20,7 @@ jobs:
           fetch-depth: 0
 
       - name: Validate release tag and main ancestry
+        id: version
         shell: pwsh
         run: |
           if ('${{ github.ref_name }}' -notmatch '^v\d+\.\d+\.\d+$') { throw 'Release tags must use vX.Y.Z.' }
@@ -25,7 +28,22 @@ jobs:
           git merge-base --is-ancestor '${{ github.sha }}' origin/main
           if ($LASTEXITCODE -ne 0) { throw 'Release tag must point to a commit reachable from main.' }
           $releaseVersion = '${{ github.ref_name }}'.Substring(1)
-          "RELEASE_VERSION=$releaseVersion" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "release_version=$releaseVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+  quality:
+    needs: validate
+    uses: ./.github/workflows/quality-matrix.yml
+    with:
+      version: ${{ needs.validate.outputs.release_version }}
+
+  publish:
+    needs: [validate, quality]
+    runs-on: windows-latest
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -35,30 +53,25 @@ jobs:
       - name: Restore
         run: dotnet restore --locked-mode -r win-x64
 
-      - name: Format
-        run: dotnet format --verify-no-changes --no-restore
-
-      - name: Build
-        run: dotnet build -c Release --no-restore -p:Version=${{ env.RELEASE_VERSION }} -p:AssemblyVersion=${{ env.RELEASE_VERSION }}.0 -p:FileVersion=${{ env.RELEASE_VERSION }}.0 -p:InformationalVersion=${{ env.RELEASE_VERSION }}
-
-      - name: Test
-        run: dotnet test -c Release --no-build
-
       - name: Publish portable package
-        run: dotnet publish src/NovelSpeaker.App/NovelSpeaker.App.csproj -c Release -r win-x64 --self-contained true --no-restore -p:Version=${{ env.RELEASE_VERSION }} -p:AssemblyVersion=${{ env.RELEASE_VERSION }}.0 -p:FileVersion=${{ env.RELEASE_VERSION }}.0 -p:InformationalVersion=${{ env.RELEASE_VERSION }} -o artifacts/publish
+        run: dotnet publish src/NovelSpeaker.App/NovelSpeaker.App.csproj -c Release -r win-x64 --self-contained true --no-restore -p:Version=${{ needs.validate.outputs.release_version }} -p:AssemblyVersion=${{ needs.validate.outputs.release_version }}.0 -p:FileVersion=${{ needs.validate.outputs.release_version }}.0 -p:InformationalVersion=${{ needs.validate.outputs.release_version }} -o artifacts/publish
 
       - name: Package and verify
         shell: pwsh
         run: |
           $forbiddenFixtures = @('demo-tone.wav', 'demo-tone.mp3', 'corrupt-tone.mp3')
+          $publishedTestAssets = Get-ChildItem artifacts/publish -Recurse -Force | Where-Object { $_.FullName -match '[\\/]TestAssets([\\/]|$)' }
+          if ($publishedTestAssets) { throw "Package contains TestAssets: $($publishedTestAssets.FullName -join ', ')" }
           $publishedFixtures = Get-ChildItem artifacts/publish -Recurse -File | Where-Object { $_.Name -in $forbiddenFixtures }
           if ($publishedFixtures) { throw "Package contains test audio fixture: $($publishedFixtures.FullName -join ', ')" }
-          $zip = "artifacts/NovelSpeaker-v${{ env.RELEASE_VERSION }}-win-x64.zip"
+          $zip = "artifacts/NovelSpeaker-v${{ needs.validate.outputs.release_version }}-win-x64.zip"
           Compress-Archive -Path artifacts/publish/* -DestinationPath $zip -Force
           $entries = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip)).Entries.FullName
           foreach ($required in @('NovelSpeaker.App.exe', 'LICENSE', 'THIRD-PARTY-NOTICES.txt')) {
             if ($entries -notcontains $required) { throw "Package is missing $required" }
           }
+          $packagedTestAssets = $entries | Where-Object { $_ -match '(^|/)TestAssets(/|$)' }
+          if ($packagedTestAssets) { throw "Package contains TestAssets: $($packagedTestAssets -join ', ')" }
           $packagedFixtures = $entries | Where-Object { [System.IO.Path]::GetFileName($_) -in $forbiddenFixtures }
           if ($packagedFixtures) { throw "Package contains test audio fixture: $($packagedFixtures -join ', ')" }
           (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() + "  " + [System.IO.Path]::GetFileName($zip) | Out-File "$zip.sha256" -Encoding ascii
