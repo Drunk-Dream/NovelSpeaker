@@ -788,7 +788,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：已拆分为 Domain.UnitTests、Application.UnitTests、Infrastructure.IntegrationTests、App.PresentationTests 和 App.WpfTests；测试资产随 Infrastructure 集成测试迁移，Solution、项目锁文件和生产程序集的测试友元边界已同步。纯测试项目使用 `net10.0` 并恢复并行，只有 App.WpfTests 保留 STA Host 与程序集级串行。
 
-### [ ] TEST-802（P2）：拆分超大测试并统一 TestKit
+### [x] TEST-802（P2）：拆分超大测试并统一 TestKit
 
 前置：TEST-801。
 
@@ -799,6 +799,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - 不建立知道所有产品接口的万能 fixture。
 
 验收：重复 helper/fake 明显减少；测试名称能直接定位行为；失败输出安全状态。
+
+完成说明：PlayerViewTests、PlayerViewModelTests 和 PlaybackCoordinatorTests 已按布局、导航、命令、播放流程、恢复与支撑代码等行为切片；视觉树 helper、手动时间、临时目录、本地 HTTP TTS server 和 NAudio fake 已集中到窄范围 TestKit。Release 全量测试保持 737 项通过，未引入万能 fixture。
 
 ### [ ] TEST-803（P1）：消除任意延迟与全局串行
 
