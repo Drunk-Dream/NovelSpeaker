@@ -7,26 +7,5 @@ on:
   pull_request:
 
 jobs:
-  build-and-test:
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          global-json-file: global.json
-
-      - name: Restore
-        run: dotnet restore --locked-mode -r win-x64
-
-      - name: Build
-        run: dotnet build -c Release --no-restore
-
-      - name: Test
-        run: dotnet test -c Release --no-build
-
-      - name: Format
-        run: dotnet format --verify-no-changes --no-restore
+  quality:
+    uses: ./.github/workflows/quality-matrix.yml

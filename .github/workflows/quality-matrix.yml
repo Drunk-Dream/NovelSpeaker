@@ -1,0 +1,64 @@
+name: Quality Matrix
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  quality:
+    name: Quality / ${{ matrix.layer }} / ${{ matrix.project }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - layer: pure
+            project: tests/NovelSpeaker.Domain.UnitTests/NovelSpeaker.Domain.UnitTests.csproj
+          - layer: pure
+            project: tests/NovelSpeaker.Application.UnitTests/NovelSpeaker.Application.UnitTests.csproj
+          - layer: presentation
+            project: tests/NovelSpeaker.App.PresentationTests/NovelSpeaker.App.PresentationTests.csproj
+          - layer: infrastructure
+            project: tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj
+          - layer: wpf
+            project: tests/NovelSpeaker.App.WpfTests/NovelSpeaker.App.WpfTests.csproj
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore locked win-x64 assets
+        run: dotnet restore --locked-mode -r win-x64
+
+      - name: Format
+        run: dotnet format --verify-no-changes --no-restore
+
+      - name: Release build
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:RELEASE_VERSION)) {
+            dotnet build -c Release --no-restore
+          }
+          else {
+            $versionArguments = @(
+              "-p:Version=$env:RELEASE_VERSION",
+              "-p:AssemblyVersion=$($env:RELEASE_VERSION).0",
+              "-p:FileVersion=$($env:RELEASE_VERSION).0",
+              "-p:InformationalVersion=$env:RELEASE_VERSION"
+            )
+            dotnet build -c Release --no-restore @versionArguments
+          }
+
+      - name: Test ${{ matrix.layer }}
+        run: dotnet test ${{ matrix.project }} -c Release --no-build
