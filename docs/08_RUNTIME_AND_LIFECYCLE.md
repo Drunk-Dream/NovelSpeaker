@@ -11,11 +11,11 @@
 | 层级 | 示例 | 所有者 |
 |---|---|---|
 | Process | 应用目录、日志、设置快照、数据库、主题、全局播放协调器 | Bootstrap / ServiceProvider |
-| Page activation | 页面加载、编辑副本、筛选、页面异步操作、导航守卫 | 当前 Page activation scope |
+| Page activation | 页面加载、编辑副本、筛选、页面异步操作、导航守卫 | 当前 Page 的 `PageActivationController` 与对应 ViewModel |
 | Operation | 导入、规则试听、导出、自动保存、缓存清理 | 发起该操作的服务/控制器 |
 | Playback session | 当前书籍、规则、语速、位置、预取和旧结果隔离 | PlaybackCoordinator |
 
-不得用 Singleton ViewModel 代替明确的页面激活状态，也不得让页面取消源终止跨页面继续存在的播放会话。
+新增页面不得用 Singleton ViewModel 代替明确的页面激活状态，也不得让页面取消源终止跨页面继续存在的播放会话。
 
 ### 2.1 注册与实际状态所有权
 
@@ -26,10 +26,10 @@
 | 应用数据目录、SQLite 初始化、Repository、设置 store、日志、主题、导航与反馈服务 | Singleton / Process | 根 `ServiceProvider`；由 Bootstrap 创建和释放 |
 | `PlaybackCoordinator`、`PlaybackSessionState`、音频生成去重、预取与缓存保护状态 | Singleton 服务内的 Playback session | `PlaybackCoordinator` 创建和终止 session；音频与预取协作者只持有当前 session 派生状态 |
 | `MainWindow`、Shell 导航状态和全局播放投影 | Singleton / Process | Shell 与全局播放协调器 |
-| Page 对象及 BookDetails、Cache、Appearance、Diagnostics 等瞬态 ViewModel | Transient / Page activation | 当前导航 Page；离开后取消并释放其操作状态 |
+| Page 对象及 BookDetails、Cache、PlaybackSettings、ImportText、Appearance、Diagnostics 等瞬态 ViewModel | Transient / Page activation | 当前导航 Page；离开后取消并释放其操作状态 |
 | 导入、规则试听、章节加载、设置防抖保存和缓存清理 | Operation | 发起操作的 ViewModel/对话框或服务；各自拥有 CTS、版本和完成通知 |
 
-当前仍注册为 Singleton 的 `LibraryViewModel`、`PlayerViewModel`、`SettingsViewModel`、`TtsRulesViewModel`、`ChapterRulesViewModel` 和 `RegexReplacementRulesViewModel` 是已登记的页面状态债务：本阶段保持既有行为，但不得将其作为新增页面的范式，也不得向其中继续加入跨 activation 的编辑副本或取消源。后续迁移到 activation scope 时，必须先用特征测试固定导航返回和播放跨页行为。
+`LibraryViewModel`、`PlayerViewModel`、`SettingsViewModel`、`TtsRulesViewModel`、`ChapterRulesViewModel` 和 `RegexReplacementRulesViewModel` 当前以 Singleton 保存跨页面工作区或播放投影；页面进入/离开仍由 Page 的 activation controller 管理事件、取消源和导航守卫。其它设置与管理页 ViewModel 按页面 Transient 创建。新增页面不得依赖 Singleton 偶然保存页面状态；需要跨页面存在的状态必须明确归属于应用级服务或播放协调器。
 
 ## 3. 启动顺序
 

@@ -217,14 +217,7 @@ SpeechText
 缓存键继续由 `AudioCacheKey.FromPlayback` 的以下字段构成：
 
 ```text
-SHA256(
-  bookId
-  + chapterIndex
-  + segmentIndex
-  + ruleId
-  + speakSpeed
-  + finalSpeechText
-)
+SHA256(UTF8(bookId + "|" + chapterIndex + "|" + segmentIndex + "|" + ruleId + "|" + speakSpeed + "|" + finalSpeechText))
 ```
 
 并由 `AudioCacheKey.CurrentVersion` 提供版本命名空间。
@@ -238,7 +231,7 @@ SHA256(
 - 即使不同书籍或不同段落产生相同 `SpeechText`，也不跨位置复用缓存。
 - 旧缓存不立即删除，交由现有 LRU 和按书籍/章节清理逻辑处理。
 
-该策略优先保持当前缓存统计、章节完整度和按书籍清理语义，不在本 Epic 中引入内容寻址缓存重构。
+该策略优先保持当前缓存统计、章节完整度和按书籍清理语义，不在本设计范围内引入内容寻址缓存重构。
 
 ---
 

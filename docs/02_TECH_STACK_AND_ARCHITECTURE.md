@@ -70,7 +70,7 @@ NovelSpeaker.Domain ----------------------------> 无项目依赖
 约束：
 
 - App 项目为了组合依赖可以引用 Infrastructure，但只有 `Bootstrap`/组合根可以使用 Infrastructure 命名空间；页面、ViewModel 和 UI 服务只依赖 Application 或 App 内部抽象。
-- Application 项目只引用 Domain 和 BCL。完成重组后必须移除 `Microsoft.Data.Sqlite.Core` 包引用。
+- Application 项目只引用 Domain、BCL 和 `Microsoft.Extensions.DependencyInjection.Abstractions`；不得引用 `Microsoft.Data.Sqlite.Core` 或其它基础设施、UI 和设备技术包。
 - Infrastructure 实现 Application 端口，可以引用 Domain。
 - Domain 不保存页面投影、HTTP 执行结果、SQLite 映射对象或导入预览 DTO。
 - 测试项目按被测层单向引用，不通过引用 App 来测试 Domain/Application。
@@ -134,24 +134,24 @@ Domain 只保留具有稳定业务含义或不变量的实体和值对象。以�
 
 ```text
 src/NovelSpeaker.Application/
-├─ Common/
-│  ├─ Time/
-│  └─ Results/
+├─ Abstractions/
 ├─ Books/
+│  ├─ ChapterRules/
 │  ├─ Import/
 │  ├─ Library/
-│  ├─ ChapterRules/
+│  ├─ RuleEditing/
 │  └─ TextProcessing/
-├─ Speech/
-│  ├─ Rules/
-│  ├─ Compilation/
-│  └─ Execution/
+├─ DependencyInjection/
 ├─ Playback/
-│  ├─ Session/
 │  ├─ Audio/
-│  ├─ Cache/
-│  └─ Progress/
-└─ Settings/
+│  └─ Cache/
+├─ Settings/
+└─ Speech/
+   ├─ Compilation/
+   ├─ Execution/
+   ├─ Rules/
+   ├─ Security/
+   └─ Testing/
 ```
 
 每个切片就近放置：
@@ -161,35 +161,29 @@ src/NovelSpeaker.Application/
 - 该用例需要的基础设施端口。
 - 纯业务编排和输入校验。
 
-不要机械创建 `Interfaces`、`Models`、`Services` 三层空目录。一个类型只有在存在第二个稳定消费者时才移入上级 `Common`；否则留在所属功能附近。
+不要机械创建 `Interfaces`、`Models`、`Services` 三层空目录。一个类型只有在存在第二个稳定消费者时才移入跨功能共享目录；否则留在所属功能附近。
 
 ### 6.3 Infrastructure
 
 ```text
 src/NovelSpeaker.Infrastructure/
-├─ Composition/
-│  └─ InfrastructureRegistration.cs
-├─ Persistence/
-│  ├─ Sqlite/
-│  │  ├─ Connection/
-│  │  ├─ Migrations/
-│  │  └─ Mapping/
-│  ├─ Books/
-│  ├─ SpeechRules/
-│  ├─ Playback/
-│  └─ RegexReplacement/
+├─ Books/
+│  ├─ FileStorage/
+│  └─ Text/
+├─ DependencyInjection/
+├─ Diagnostics/
 ├─ FileSystem/
-│  ├─ AppData/
-│  ├─ Books/
 │  └─ Cache/
-├─ Speech/
-│  ├─ Http/
-│  ├─ Legado/
-│  └─ Scripting/
-├─ Audio/
-│  └─ NAudio/
+├─ Persistence/
+│  ├─ Books/
+│  └─ Playback/
+├─ Playback/
 ├─ Settings/
-└─ Diagnostics/
+└─ Speech/
+   ├─ Http/
+   ├─ Legado/
+   ├─ Rules/
+   └─ Scripting/
 ```
 
 Infrastructure 允许包含：
@@ -232,13 +226,15 @@ src/NovelSpeaker.App/
 │  ├─ PlaybackSettings/
 │  ├─ ImportTextSettings/
 │  ├─ Appearance/
-│  └─ Diagnostics/
+│  ├─ Diagnostics/
+│  └─ RuleEditing/
 └─ Shared/
    ├─ Feedback/
    ├─ Theming/
    ├─ Dialogs/
-   ├─ Behaviors/
    └─ Presentation/
+      ├─ Books/
+      └─ Platform/
 ```
 
 Page 是导航、激活、取消和未保存保护边界。ViewModel 只暴露语义状态，不暴露 `FontWeight`、`SymbolRegular`、Dispatcher、Page 或 Window。Wpf.Ui 只在 Shell、View 和平台适配器中出现。
@@ -336,8 +332,8 @@ public interface ISqliteConnectionFactory
 
 | 生命周期 | 适用对象 |
 |---|---|
-| Singleton | 无状态解析器、线程安全仓储/适配器、应用级播放协调器、主题运行时、全局设置状态 |
-| Page/activation scope | 页面 ViewModel、编辑会话、页面取消源、页面级投影 |
+| Singleton | 无状态解析器、线程安全仓储/适配器、应用级播放协调器、主题运行时、全局设置状态，以及当前跨页面保存工作区或播放投影的指定 ViewModel |
+| Page/activation | 瞬态页面 ViewModel、编辑会话、页面取消源、页面级投影和 `PageActivationController` 资源 |
 | Transient | 轻量无状态工厂产物、短生命周期命令对象 |
 | Session-owned | PlaybackSessionState、预取窗口、规则试听和导入操作 |
 

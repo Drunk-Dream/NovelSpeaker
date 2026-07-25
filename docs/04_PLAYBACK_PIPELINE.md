@@ -160,7 +160,7 @@ On completed: save progress and advance
 
 ## 语速处理
 
-第一版的语速参数由 TTS 规则决定，不建议对已生成音频进行额外变速。
+语速参数由 TTS 规则决定，不对已生成音频进行额外变速。
 
 修改语速后：
 

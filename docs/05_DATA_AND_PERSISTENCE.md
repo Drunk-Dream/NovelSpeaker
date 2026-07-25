@@ -29,7 +29,8 @@ SQLite 与文件系统无法共享真正的原子事务。跨两者的导入、�
 │     └─ content.txt
 ├─ Cache\
 │  └─ Tts\
-│     └─ <shard>\<cache-key>.<extension>
+│     └─ v1\
+│        └─ <shard>\<cache-key>.<extension>
 ├─ Operations\
 │  └─ 跨数据库/文件操作恢复记录
 └─ Logs\
@@ -76,7 +77,7 @@ LastImportedAt TEXT NULL
 LastPlayedAt TEXT NULL
 ```
 
-`StoredFilePath` 当前为兼容字段。终态所有使用都必须经过应用存储路径解析器；后续迁移可增加 storage key，但不得让旧记录失效。
+`StoredFilePath` 当前为兼容字段；新写入值使用相对 storage key，旧绝对路径由启动兼容迁移转换。所有使用都必须经过应用存储路径解析器，不得让旧记录失效。
 
 ### 4.3 Chapters
 
@@ -248,14 +249,7 @@ Stored content
 缓存键保持现有位置相关语义：
 
 ```text
-SHA256(
-  bookId
-  + chapterIndex
-  + segmentIndex
-  + ruleId
-  + speakSpeed
-  + finalSpeechText
-)
+SHA256(UTF8(bookId + "|" + chapterIndex + "|" + segmentIndex + "|" + ruleId + "|" + speakSpeed + "|" + finalSpeechText))
 ```
 
 并使用 `AudioCacheKey.CurrentVersion` 作为版本命名空间。不得借架构重构改为跨位置内容寻址、规则配置哈希或凭据哈希。

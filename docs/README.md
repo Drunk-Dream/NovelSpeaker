@@ -41,7 +41,7 @@
 - 歌词式正文、段落进度和手动滚动后的自动居中规则。
 - Wpf.Ui Fluent 视觉、主题、响应式布局和可访问性基线。
 
-当前主线的正则替换设计见 `12_REGEX_REPLACEMENT_PIPELINE.md`。快捷键、响应式断点和可访问性验收以 `06_UI_AND_USER_FLOWS.md` 为准。已完成或被新方案替代的旧设计、Epic U/V 已实现基础和 backlog 摘要见 `archives/`。
+当前主线的正则替换设计见 `12_REGEX_REPLACEMENT_PIPELINE.md`。快捷键、响应式断点和可访问性验收以 `06_UI_AND_USER_FLOWS.md` 为准。历史设计与已完成任务的追溯材料见 `archives/`，最新约束以本入口和数字编号文档为准。
 
 ## 项目核心原则
 
@@ -60,7 +60,7 @@
 - WPF
 - Wpf.Ui 4.x
 - CommunityToolkit.Mvvm
-- Microsoft.Data.Sqlite
+- Microsoft.Data.Sqlite.Core、SQLitePCLRaw.bundle_winsqlite3
 - Jint
 - NAudio
 - xUnit

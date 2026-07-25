@@ -177,7 +177,7 @@ java.sha256Encode(value)
 - 无限循环。
 - 跨规则共享可变全局状态。
 
-第一版建议：
+实现约束：
 
 - `java.*` 兼容函数应视为 JavaScript 内辅助对象，而不是外部 Java 服务或进程。
 - `source.get(key)` / `source.put(key, value)` 推迟，不在 MVP 承诺范围内。
@@ -332,14 +332,7 @@ public interface ITtsRateLimiter
 当前实现保持位置相关缓存键：
 
 ```text
-SHA256(
-  bookId
-  + chapterIndex
-  + segmentIndex
-  + ruleId
-  + speakSpeed
-  + finalSpeechText
-)
+SHA256(UTF8(bookId + "|" + chapterIndex + "|" + segmentIndex + "|" + ruleId + "|" + speakSpeed + "|" + finalSpeechText))
 ```
 
 缓存文件同时使用 `AudioCacheKey.CurrentVersion` 作为版本命名空间。

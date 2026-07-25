@@ -64,6 +64,8 @@ TTS 规则可能包含服务凭据。NovelSpeaker 会对常规日志、错误摘
 | --- | --- |
 | `Ctrl+O` | 导入 TXT 小说 |
 | `Space` | 播放/暂停（仅播放页） |
+| `Ctrl+Left` / `Ctrl+Right` | 上一段 / 下一段（仅播放页） |
+| `Ctrl+Shift+Left` / `Ctrl+Shift+Right` | 上一章 / 下一章（仅播放页） |
 | `Alt+Left` / `Esc` | 返回或关闭当前临时界面 |
 | `Ctrl+,` | 打开设置 |
 
@@ -93,7 +95,7 @@ dotnet run --project src/NovelSpeaker.App
 
 ## 架构与文档
 
-项目使用 C#、.NET 10、WPF、CommunityToolkit.Mvvm、Microsoft.Data.Sqlite、Jint 和 NAudio。业务逻辑不写在 code-behind；ViewModel 不直接访问 HTTP 或 SQLite；规则引擎、播放器和文本切分保持独立边界。
+项目使用 C#、.NET 10、WPF、CommunityToolkit.Mvvm、Microsoft.Data.Sqlite.Core、SQLitePCLRaw.bundle_winsqlite3、Jint 和 NAudio。业务逻辑不写在 code-behind；ViewModel 不直接访问 HTTP 或 SQLite；规则引擎、播放器和文本切分保持独立边界。
 
 详细设计见 [docs/README.md](docs/README.md)。
 

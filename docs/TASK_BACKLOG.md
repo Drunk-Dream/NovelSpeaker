@@ -859,7 +859,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 上述 C 类项目均需独立设计或特征测试后再实施。Release 构建与全量测试共 737 项通过。
 
-### [ ] DOC-902（P1）：按最终实现复核全部文档
+### [x] DOC-902（P1）：按最终实现复核全部文档
 
 前置：CLEAN-901。
 
@@ -872,11 +872,15 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - Cookie/LoginInfo、SecretStore、签名和兼容风险表述一致。
 - 已完成架构任务归档，当前 backlog 只保留真正未完成项。
 
+完成说明：已复核 README、AGENTS、docs/00–12 和本文件，并按实际代码与测试修正项目依赖、目录结构、规范化正文存储、SQLite schema、TTS 兼容矩阵、缓存键、生命周期所有权、快捷键及安全限制表述。历史设计和已完成任务继续留在 `archives/`；未修改 AGENTS 约束、生产代码或测试代码。
+
 ### [ ] VERIFY-903（P0）：完成发布级自动与手动验证
 
 前置：DOC-902。
 
 自动：完整质量门禁、架构测试、故障恢复测试、长稳播放和 publish 内容检查。
+
+自动验证记录（2026-07-25）：已通过 locked `win-x64` restore、format、Release build 和 Release 全量 test；5 个测试项目合计 737 项通过，失败 0、跳过 0。已完成 self-contained `win-x64` publish，并检查 publish 目录和 ZIP：包含 `NovelSpeaker.App.exe`、`LICENSE`、`THIRD-PARTY-NOTICES.txt`，不含 `TestAssets` 或测试音频。现有自动测试覆盖播放流程、恢复和故障隔离，但没有独立的三十分钟长稳基准；按本次任务要求未执行手动验证，因此本项保持未完成。
 
 手动：
 

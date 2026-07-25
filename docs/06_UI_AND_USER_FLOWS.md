@@ -938,13 +938,15 @@ NovelSpeaker.App/
 │  ├─ PlaybackSettings/
 │  ├─ ImportTextSettings/
 │  ├─ Appearance/
-│  └─ Diagnostics/
+│  ├─ Diagnostics/
+│  └─ RuleEditing/
 └─ Shared/
    ├─ Feedback/
    ├─ Theming/
    ├─ Dialogs/
-   ├─ Behaviors/
    └─ Presentation/
+      ├─ Books/
+      └─ Platform/
 ```
 
 准入规则：
