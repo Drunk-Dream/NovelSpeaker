@@ -183,7 +183,7 @@ WPF 测试共享一个明确的 STA Host 和视觉树 helper。测试文件不�
 - 一个巨型测试类按行为拆分，例如 Playback 的 Commands、Navigation、Recovery、RegexRefresh、Projection。
 - 共享 fake 按端口命名并提供最少可配置行为；禁止建立包揽所有依赖的万能 Fake。
 - fixture、迁移、损坏音频和脱敏规则样本是受保护资产，不因“无生产引用”删除。
-- 测试音频只位于 tests/TestAssets，不复制到正式应用输出和发布包。
+- 测试音频只位于 `tests/NovelSpeaker.Infrastructure.IntegrationTests/TestAssets`，不复制到正式应用输出和发布包。
 - 每个缺陷先增加能失败的回归测试，再修改实现。
 
 ## 9. 时间、并发与稳定性

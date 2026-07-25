@@ -773,7 +773,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 ## Wave 8：测试项目与确定性
 
-### [ ] TEST-801（P1）：拆分五类测试项目
+### [x] TEST-801（P1）：拆分五类测试项目
 
 前置：BOOT-701，生产边界已稳定。
 
@@ -785,6 +785,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - Infrastructure 集成测试按需要标记 Windows 依赖，不让所有核心测试被平台绑死。
 
 验收：每个项目可单独运行；全量覆盖数量/关键场景不减少；锁文件保留 win-x64 目标。
+
+完成说明：已拆分为 Domain.UnitTests、Application.UnitTests、Infrastructure.IntegrationTests、App.PresentationTests 和 App.WpfTests；测试资产随 Infrastructure 集成测试迁移，Solution、项目锁文件和生产程序集的测试友元边界已同步。纯测试项目使用 `net10.0` 并恢复并行，只有 App.WpfTests 保留 STA Host 与程序集级串行。
 
 ### [ ] TEST-802（P2）：拆分超大测试并统一 TestKit
 
