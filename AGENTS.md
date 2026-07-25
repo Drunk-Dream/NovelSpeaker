@@ -132,6 +132,7 @@ dotnet restore -r win-x64 --force-evaluate
 - 不得使用 `git reset --hard`、`git checkout --` 等方式丢弃用户改动。
 - 用户明确要求提交时，按功能和依赖拆分原子提交；实现与直接测试放在同一提交。
 - 用户明确要求发布时，先完成版本更新、完整门禁和发布工作流要求，再提交、打标签、推送并等待远端工作流与资产验证成功。
+- 发布工作流成功创建 GitHub Release 并确认发布资产可用后，必须使用 `gh release edit <tag>` 更新最终 Release Note；Release Note 更新成功前不得宣告发布完成。
 - 在远端工作流、Release 和资产核对完成前，不得宣告发布完成。
 
 ## 交付说明
