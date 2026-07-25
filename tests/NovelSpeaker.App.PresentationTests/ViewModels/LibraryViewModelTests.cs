@@ -3,6 +3,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.UnitTests.Common;
 using Wpf.Ui;
 using Xunit;
 
@@ -45,16 +46,19 @@ public sealed class LibraryViewModelTests
     [Fact]
     public async Task Search_filters_books_by_title_and_author()
     {
+        var timeProvider = new ManualTimeProvider();
         var viewModel = CreateViewModel(
             catalogService: new FakeBookCatalogService(
                 [
                     new BookSummary("book-1", "球状闪电", "刘慈欣", "章一", DateTimeOffset.UtcNow),
                     new BookSummary("book-2", "沙丘", "Frank Herbert", "章一", DateTimeOffset.UtcNow)
-                ]));
+                ]),
+            timeProvider: timeProvider);
 
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SearchText = "frank";
-        await Task.Delay(180);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(120));
+        await Task.Yield();
 
         var book = Assert.Single(viewModel.Books);
         Assert.Equal("沙丘", book.Title);
@@ -96,6 +100,7 @@ public sealed class LibraryViewModelTests
     [Fact]
     public async Task DeleteBookAsync_keeps_current_filter_and_removes_deleted_book()
     {
+        var timeProvider = new ManualTimeProvider();
         var deleteDialogService = new FakeBookDeleteDialogService
         {
             NextResult = new BookDeleteDialogResult(true, true)
@@ -109,11 +114,13 @@ public sealed class LibraryViewModelTests
         var viewModel = CreateViewModel(
             catalogService: catalogService,
             managementService: managementService,
-            deleteDialogService: deleteDialogService);
+            deleteDialogService: deleteDialogService,
+            timeProvider: timeProvider);
 
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SearchText = "Alpha";
-        await Task.Delay(180);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(120));
+        await Task.Yield();
         catalogService.Books = [new BookSummary("book-2", "Beta", null, "章一", DateTimeOffset.UtcNow)];
 
         await viewModel.DeleteBookCommand.ExecuteAsync(viewModel.Books[0]);
@@ -128,17 +135,19 @@ public sealed class LibraryViewModelTests
     [Fact]
     public async Task LoadAsync_keeps_search_and_sort_state()
     {
+        var timeProvider = new ManualTimeProvider();
         var catalogService = new FakeBookCatalogService(
             [
                 new BookSummary("book-1", "Alpha", null, "章一", DateTimeOffset.UtcNow),
                 new BookSummary("book-2", "Beta", null, "章一", DateTimeOffset.UtcNow)
             ]);
-        var viewModel = CreateViewModel(catalogService: catalogService);
+        var viewModel = CreateViewModel(catalogService: catalogService, timeProvider: timeProvider);
 
         await viewModel.LoadAsync(CancellationToken.None);
         viewModel.SearchText = "Beta";
         viewModel.SelectedSortMode = LibrarySortMode.Title;
-        await Task.Delay(180);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(120));
+        await Task.Yield();
         catalogService.Books =
         [
             new BookSummary("book-3", "Gamma", null, "章一", DateTimeOffset.UtcNow),
@@ -283,11 +292,11 @@ public sealed class LibraryViewModelTests
         var firstFile = CreateTempTxtFile();
         var secondFile = CreateTempTxtFile();
         var firstImportTask = viewModel.ImportFilesAsync([firstFile], CancellationToken.None);
-        await WaitForAsync(() => importCoordinator.Requests.Count == 1);
+        await importCoordinator.WaitForRequestCountAsync(1);
 
         catalogService.Books = [new BookSummary("book-1", "Alpha", null, "章一", DateTimeOffset.UtcNow)];
         var secondImportTask = viewModel.ImportFilesAsync([secondFile], CancellationToken.None);
-        await WaitForAsync(() => importCoordinator.Requests.Count == 2);
+        await importCoordinator.WaitForRequestCountAsync(2);
 
         Assert.True(importCoordinator.RequestTokens[0].IsCancellationRequested);
 
@@ -327,7 +336,8 @@ public sealed class LibraryViewModelTests
         FakeBookDeleteDialogService? deleteDialogService = null,
         FakeFeedbackService? feedback = null,
         FakeNavigationService? navigationService = null,
-        FakePlaybackCoordinator? playbackCoordinator = null)
+        FakePlaybackCoordinator? playbackCoordinator = null,
+        TimeProvider? timeProvider = null)
     {
         return new LibraryViewModel(
             catalogService ?? new FakeBookCatalogService([]),
@@ -339,7 +349,8 @@ public sealed class LibraryViewModelTests
             feedback ?? new FakeFeedbackService(),
             navigationService ?? new FakeNavigationService(),
             playbackCoordinator ?? new FakePlaybackCoordinator(PlaybackSnapshot.Idle),
-            new LibraryScrollState());
+            new LibraryScrollState(),
+            timeProvider: timeProvider);
     }
 
     private static string CreateTempTxtFile()
@@ -372,6 +383,9 @@ public sealed class LibraryViewModelTests
 
     private sealed class FakeLibraryImportCoordinator : ILibraryImportCoordinator
     {
+        private readonly object _requestSignalSync = new();
+        private TaskCompletionSource _requestSignal = CreateRequestSignal();
+
         public List<string> Requests { get; } = [];
         public List<CancellationToken> RequestTokens { get; } = [];
         public Queue<Task<LibraryImportCoordinatorResult>> PendingResults { get; } = new();
@@ -384,12 +398,41 @@ public sealed class LibraryViewModelTests
             IProgress<BookImportProgress>? inlineProgress,
             CancellationToken cancellationToken)
         {
-            Requests.Add(filePath);
-            RequestTokens.Add(cancellationToken);
+            lock (_requestSignalSync)
+            {
+                Requests.Add(filePath);
+                RequestTokens.Add(cancellationToken);
+                var completedSignal = _requestSignal;
+                _requestSignal = CreateRequestSignal();
+                completedSignal.TrySetResult();
+            }
+
             return PendingResults.Count > 0
                 ? PendingResults.Dequeue()
                 : Task.FromResult(NextResult);
         }
+
+        public async Task WaitForRequestCountAsync(int expectedCount)
+        {
+            while (true)
+            {
+                Task signal;
+                lock (_requestSignalSync)
+                {
+                    if (Requests.Count >= expectedCount)
+                    {
+                        return;
+                    }
+
+                    signal = _requestSignal.Task;
+                }
+
+                await signal.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+        }
+
+        private static TaskCompletionSource CreateRequestSignal() =>
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     private sealed class FakeBookDeleteDialogService : IBookDeleteDialogService
@@ -541,17 +584,4 @@ public sealed class LibraryViewModelTests
         }
     }
 
-    private static async Task WaitForAsync(Func<bool> condition)
-    {
-        var startedAt = DateTime.UtcNow;
-        while (!condition())
-        {
-            if (DateTime.UtcNow - startedAt > TimeSpan.FromSeconds(1))
-            {
-                throw new TimeoutException("Condition was not met within the timeout.");
-            }
-
-            await Task.Delay(10);
-        }
-    }
 }

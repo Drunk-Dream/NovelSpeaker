@@ -79,7 +79,7 @@ public sealed class LocalAudioPlaybackCoordinatorTests
         await coordinator.StartAsync(CreateRequest("第二次请求", segmentIndex: 1), CancellationToken.None);
         player.RaiseHistoricalCompleted(firstSubscriptionIndex);
 
-        await WaitForAsync(() => coordinator.CurrentSnapshot.DisplayTitle == "第二次请求");
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.DisplayTitle == "第二次请求");
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
         Assert.Equal("第二次请求", coordinator.CurrentSnapshot.DisplayTitle);
         Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
@@ -95,7 +95,7 @@ public sealed class LocalAudioPlaybackCoordinatorTests
         player.SetPosition(TimeSpan.FromMilliseconds(120));
         player.RaiseFailed(PlaybackErrorKind.AudioDecode, "音频解码失败，请更换音频文件后重试。");
 
-        await WaitForAsync(() => coordinator.CurrentSnapshot.State == PlaybackState.Faulted);
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Faulted);
         Assert.Equal("损坏音频", coordinator.CurrentSnapshot.DisplayTitle);
         Assert.Equal(120, coordinator.CurrentSnapshot.PositionMilliseconds);
         Assert.Equal("音频解码失败，请更换音频文件后重试。", coordinator.CurrentSnapshot.Message);
@@ -116,18 +116,37 @@ public sealed class LocalAudioPlaybackCoordinatorTests
             false);
     }
 
-    private static async Task WaitForAsync(Func<bool> condition)
+    private static async Task WaitForAsync(
+        LocalAudioPlaybackCoordinator coordinator,
+        Func<bool> condition)
     {
-        for (var attempt = 0; attempt < 40; attempt++)
+        if (condition())
+        {
+            return;
+        }
+
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        EventHandler<LocalAudioPlaybackSnapshot>? handler = null;
+        handler = (_, _) =>
+        {
+            if (condition())
+            {
+                completion.TrySetResult();
+            }
+        };
+        coordinator.SnapshotChanged += handler;
+        try
         {
             if (condition())
             {
                 return;
             }
 
-            await Task.Delay(10);
+            await completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
         }
-
-        Assert.True(condition(), "Timed out while waiting for the playback snapshot to change.");
+        finally
+        {
+            coordinator.SnapshotChanged -= handler;
+        }
     }
 }

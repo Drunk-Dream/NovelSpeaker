@@ -12,6 +12,8 @@ public sealed class LocalHttpTtsTestServer : IAsyncDisposable
     private readonly byte[] _wavBytes;
     private readonly byte[] _mp3Bytes;
     private readonly Dictionary<string, int> _requestCounts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly TaskCompletionSource _slowRequestStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _slowRequestGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public LocalHttpTtsTestServer()
     {
@@ -25,6 +27,8 @@ public sealed class LocalHttpTtsTestServer : IAsyncDisposable
     }
 
     public Uri BaseUri { get; }
+
+    public Task SlowRequestStarted => _slowRequestStarted.Task;
 
     public string? LastJsonBody { get; private set; }
     public string? LastFormBody { get; private set; }
@@ -161,7 +165,8 @@ public sealed class LocalHttpTtsTestServer : IAsyncDisposable
                 await WriteAudioAsync(context.Response, _wavBytes, "audio/wav", cancellationToken);
                 return;
             case "/slow":
-                await Task.Delay(250, cancellationToken);
+                _slowRequestStarted.TrySetResult();
+                await _slowRequestGate.Task.WaitAsync(cancellationToken);
                 await WriteAudioAsync(context.Response, _wavBytes, "audio/wav", cancellationToken);
                 return;
             case "/empty":

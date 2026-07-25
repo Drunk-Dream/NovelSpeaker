@@ -114,9 +114,11 @@ public sealed class HttpTtsClientTests
         await using var server = new LocalHttpTtsTestServer();
         using var client = CreateClient(TimeSpan.FromMilliseconds(50));
 
-        var timeoutResult = await client.ExecuteAsync(
+        var requestTask = client.ExecuteAsync(
             CreateRequest(1, new Uri(server.BaseUri, "slow")),
             CancellationToken.None);
+        await server.SlowRequestStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        var timeoutResult = await requestTask;
 
         Assert.False(timeoutResult.IsSuccess);
         Assert.Equal(TtsErrorKind.Timeout, timeoutResult.Failure!.Kind);

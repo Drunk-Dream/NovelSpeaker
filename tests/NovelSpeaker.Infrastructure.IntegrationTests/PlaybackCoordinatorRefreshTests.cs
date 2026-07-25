@@ -83,8 +83,8 @@ public sealed partial class PlaybackCoordinatorTests
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
         localCoordinator.RaiseFailed(PlaybackErrorKind.AudioDecode, "音频损坏。");
 
-        await WaitForAsync(() => audioProvider.InvalidateCallCount == 1);
-        await WaitForAsync(() => audioProvider.Requests.Count == 2);
+        await WaitForAsync(audioProvider, () => audioProvider.InvalidateCallCount == 1);
+        await WaitForAsync(audioProvider, () => audioProvider.Requests.Count == 2);
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
     }
 
@@ -227,7 +227,7 @@ public sealed partial class PlaybackCoordinatorTests
         Assert.Equal(1, content.GetChapterCallCounts[0]);
 
         localCoordinator.RaiseCompleted();
-        await WaitForAsync(() => coordinator.CurrentSnapshot.State == PlaybackState.Stopped);
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Stopped);
 
         Assert.Equal("全书播放完成。", coordinator.CurrentSnapshot.Message);
         Assert.Equal(1, content.GetChapterCallCounts[0]);

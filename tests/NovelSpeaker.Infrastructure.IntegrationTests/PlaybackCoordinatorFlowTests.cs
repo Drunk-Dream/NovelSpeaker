@@ -41,7 +41,7 @@ public sealed partial class PlaybackCoordinatorTests
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
         localCoordinator.RaiseCompleted();
 
-        await WaitForAsync(() =>
+        await WaitForAsync(coordinator, () =>
             coordinator.CurrentSnapshot.SegmentIndex == 1 &&
             coordinator.CurrentSnapshot.State == PlaybackState.Playing);
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
@@ -59,12 +59,12 @@ public sealed partial class PlaybackCoordinatorTests
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
         localCoordinator.RaiseCompleted();
 
-        await WaitForAsync(() => coordinator.CurrentSnapshot.ChapterIndex == 1);
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.ChapterIndex == 1);
         Assert.Equal("第二章 延续", coordinator.CurrentSnapshot.ChapterTitle);
 
         localCoordinator.RaiseCompleted();
 
-        await WaitForAsync(() => coordinator.CurrentSnapshot.State == PlaybackState.Stopped);
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Stopped);
         Assert.Equal("全书播放完成。", coordinator.CurrentSnapshot.Message);
     }
 

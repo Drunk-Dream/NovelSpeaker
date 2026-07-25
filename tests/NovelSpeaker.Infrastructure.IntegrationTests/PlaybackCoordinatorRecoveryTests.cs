@@ -99,7 +99,7 @@ public sealed partial class PlaybackCoordinatorTests
         var pendingAudio = audioProvider.EnqueuePendingSuccess("audio-delayed-previous.mp3");
         var secondPreviousTask = coordinator.PreviousSegmentAsync(CancellationToken.None);
 
-        await WaitForAsync(() => audioProvider.Requests.Count == 3);
+        await WaitForAsync(audioProvider, () => audioProvider.Requests.Count == 3);
         Assert.False(localCoordinator.TryRaiseCompleted());
 
         pendingAudio.CompleteSuccess();

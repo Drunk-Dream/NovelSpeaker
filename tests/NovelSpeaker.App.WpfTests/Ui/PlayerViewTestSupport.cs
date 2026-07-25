@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Threading;
 using System.Windows.Automation;
 using System.Windows;
 using System.Windows.Controls;
@@ -150,7 +149,6 @@ public sealed partial class PlayerViewTests
             }
 
             DoEvents();
-            Thread.Sleep(15);
         }
 
         DoEvents();
@@ -163,7 +161,6 @@ public sealed partial class PlayerViewTests
         while (stopwatch.Elapsed < duration)
         {
             DoEvents();
-            Thread.Sleep(15);
         }
     }
 

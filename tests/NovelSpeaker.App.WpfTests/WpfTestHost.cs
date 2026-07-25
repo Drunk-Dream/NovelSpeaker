@@ -111,7 +111,10 @@ internal static class WpfTestHost
         thread.IsBackground = true;
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        initialized.Wait();
+        if (!initialized.Wait(TimeSpan.FromSeconds(5)))
+        {
+            throw new TimeoutException("WPF test dispatcher initialization timed out.");
+        }
 
         if (capturedException is not null)
         {

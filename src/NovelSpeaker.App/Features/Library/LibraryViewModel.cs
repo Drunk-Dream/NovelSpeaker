@@ -35,6 +35,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     private readonly IAppNavigator _navigator;
     private readonly IPlaybackBookCommands _playbackCoordinator;
     private readonly IUiScheduler _uiScheduler;
+    private readonly TimeProvider _timeProvider;
     private CancellationTokenSource? _searchDebounceCancellationTokenSource;
     private IReadOnlyList<LibraryBookItemViewModel> _allBooks = [];
     private string? _activePlaybackBookId;
@@ -55,7 +56,8 @@ public sealed partial class LibraryViewModel : ObservableObject
         IAppNavigator navigator,
         IPlaybackBookCommands playbackCoordinator,
         LibraryScrollState scrollState,
-        IUiScheduler? uiScheduler = null)
+        IUiScheduler? uiScheduler = null,
+        TimeProvider? timeProvider = null)
     {
         _bookLibraryQuery = bookLibraryQuery;
         _bookDeletionService = bookDeletionService;
@@ -67,6 +69,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         _navigator = navigator;
         _playbackCoordinator = playbackCoordinator;
         _uiScheduler = uiScheduler ?? new WpfUiScheduler();
+        _timeProvider = timeProvider ?? TimeProvider.System;
         ScrollState = scrollState;
         ApplyPlaybackSnapshot(playbackCoordinator.CurrentSnapshot);
         RegisterPageEvents();
@@ -314,7 +317,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     {
         try
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(120), cancellationToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(120), _timeProvider, cancellationToken);
             if (version != Volatile.Read(ref _searchVersion))
             {
                 return;

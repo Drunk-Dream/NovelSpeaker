@@ -3,6 +3,7 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
+using NovelSpeaker.UnitTests.Common;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Persistence;
@@ -12,7 +13,7 @@ public sealed class SqliteReadingProgressStoreTests
     [Fact]
     public async Task SaveAsync_persists_and_overwrites_progress()
     {
-        var (factory, store) = await CreateStoreWithBookAsync("book-1");
+        var (factory, store) = await CreateStoreWithBookAsync(null, "book-1");
 
         await store.SaveAsync(new PlaybackProgressUpdate("book-1", 0, 0, 0, 120), CancellationToken.None);
         await store.SaveAsync(new PlaybackProgressUpdate("book-1", 1, 2, 30, 450), CancellationToken.None);
@@ -35,10 +36,11 @@ public sealed class SqliteReadingProgressStoreTests
     [Fact]
     public async Task SaveAsync_updates_books_last_played_and_most_recent_progress()
     {
-        var (factory, store) = await CreateStoreWithBookAsync("book-1", "book-2");
+        var timeProvider = new ManualTimeProvider();
+        var (factory, store) = await CreateStoreWithBookAsync(timeProvider, "book-1", "book-2");
 
         await store.SaveAsync(new PlaybackProgressUpdate("book-1", 0, 0, 0, 120), CancellationToken.None);
-        await Task.Delay(20);
+        timeProvider.Advance(TimeSpan.FromSeconds(1));
         await store.SaveAsync(new PlaybackProgressUpdate("book-2", 0, 1, 6, 240), CancellationToken.None);
 
         var mostRecent = await store.GetMostRecentAsync(CancellationToken.None);
@@ -53,7 +55,9 @@ public sealed class SqliteReadingProgressStoreTests
         Assert.False(string.IsNullOrWhiteSpace(lastPlayedAt?.ToString()));
     }
 
-    private static async Task<(SqliteConnectionFactory Factory, SqliteReadingProgressStore Store)> CreateStoreWithBookAsync(params string[] bookIds)
+    private static async Task<(SqliteConnectionFactory Factory, SqliteReadingProgressStore Store)> CreateStoreWithBookAsync(
+        TimeProvider? timeProvider = null,
+        params string[] bookIds)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var directories = new LocalAppDataDirectoryProvider(root);
@@ -74,6 +78,6 @@ public sealed class SqliteReadingProgressStoreTests
                 CancellationToken.None);
         }
 
-        return (factory, new SqliteReadingProgressStore(factory));
+        return (factory, new SqliteReadingProgressStore(factory, timeProvider));
     }
 }

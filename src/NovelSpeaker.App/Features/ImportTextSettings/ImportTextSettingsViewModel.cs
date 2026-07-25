@@ -11,6 +11,7 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
     private const int DebounceDelayMilliseconds = 500;
 
     private readonly IAppSettingsService _settingsService;
+    private readonly TimeProvider _timeProvider;
     private bool _isLoading;
     private CancellationTokenSource? _templateDebounceCts;
     private CancellationTokenSource? _thresholdDebounceCts;
@@ -21,10 +22,12 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
     public ImportTextSettingsViewModel(
         IAppSettingsService settingsService,
         IAppNavigator navigator,
-        IAppFeedbackService feedbackService)
+        IAppFeedbackService feedbackService,
+        TimeProvider? timeProvider = null)
         : base(navigator, feedbackService)
     {
         _settingsService = settingsService;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     [ObservableProperty]
@@ -207,13 +210,13 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
         _ = RunDebouncedCommitAsync(token, commitAsync);
     }
 
-    private static async Task RunDebouncedCommitAsync(
+    private async Task RunDebouncedCommitAsync(
         CancellationToken cancellationToken,
         Func<CancellationToken, Task> commitAsync)
     {
         try
         {
-            await Task.Delay(DebounceDelayMilliseconds, cancellationToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(DebounceDelayMilliseconds), _timeProvider, cancellationToken);
             await commitAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

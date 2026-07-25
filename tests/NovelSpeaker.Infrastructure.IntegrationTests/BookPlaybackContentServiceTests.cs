@@ -18,9 +18,10 @@ public sealed class BookPlaybackContentServiceTests
     public async Task GetBookAsync_does_not_resume_on_the_callers_synchronization_context()
     {
         using var database = CreateDatabase(createContentFile: false);
+        var connectionFactory = new TestSqliteConnectionFactory(database.ConnectionString, gateOpen: true);
 
         var service = new BookPlaybackContentService(
-            new SqliteBookPlaybackMetadataQuery(new DelayedSqliteConnectionFactory(database.ConnectionString)),
+            new SqliteBookPlaybackMetadataQuery(connectionFactory),
             CreateContentReader(database),
             new TextSegmenter(),
             new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
@@ -34,12 +35,14 @@ public sealed class BookPlaybackContentServiceTests
         try
         {
             loadTask = service.GetBookAsync("book-1", CancellationToken.None);
+            await connectionFactory.OpenStarted.WaitAsync(TimeSpan.FromSeconds(5));
         }
         finally
         {
             SynchronizationContext.SetSynchronizationContext(previousContext);
         }
 
+        connectionFactory.Release();
         var book = await loadTask;
 
         Assert.NotNull(book);
@@ -55,7 +58,7 @@ public sealed class BookPlaybackContentServiceTests
         using var database = CreateDatabase(createContentFile: true);
 
         var service = new BookPlaybackContentService(
-            new SqliteBookPlaybackMetadataQuery(new DelayedSqliteConnectionFactory(database.ConnectionString)),
+            new SqliteBookPlaybackMetadataQuery(new TestSqliteConnectionFactory(database.ConnectionString)),
             CreateContentReader(database),
             new TextSegmenter(),
             new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
@@ -175,18 +178,34 @@ public sealed class BookPlaybackContentServiceTests
         return new BookContentReader(new AppStoragePathResolver(directories));
     }
 
-    private sealed class DelayedSqliteConnectionFactory : ISqliteConnectionFactory
+    private sealed class TestSqliteConnectionFactory : ISqliteConnectionFactory
     {
         private readonly string _connectionString;
+        private readonly TaskCompletionSource? _openStarted;
+        private readonly TaskCompletionSource? _releaseGate;
 
-        public DelayedSqliteConnectionFactory(string connectionString)
+        public TestSqliteConnectionFactory(string connectionString, bool gateOpen = false)
         {
             _connectionString = connectionString;
+            if (gateOpen)
+            {
+                _openStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                _releaseGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
         }
+
+        public Task OpenStarted => _openStarted?.Task ?? Task.CompletedTask;
+
+        public void Release() => _releaseGate?.TrySetResult();
 
         public async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
         {
-            await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+            _openStarted?.TrySetResult();
+            if (_releaseGate is not null)
+            {
+                await _releaseGate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+
             var connection = new SqliteConnection(_connectionString);
             await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
             return connection;

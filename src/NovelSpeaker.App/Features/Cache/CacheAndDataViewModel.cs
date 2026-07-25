@@ -24,6 +24,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     private readonly IAppNavigator _navigator;
     private readonly IAppDialogService _dialogService;
     private readonly IAppFeedbackService _feedbackService;
+    private readonly TimeProvider _timeProvider;
     private CancellationTokenSource? _cacheLimitDebounceCts;
     private CacheOverviewModel? _overview;
     private bool _isLoading;
@@ -36,7 +37,8 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         IAppDiagnosticsService diagnosticsService,
         IAppNavigator navigator,
         IAppDialogService dialogService,
-        IAppFeedbackService feedbackService)
+        IAppFeedbackService feedbackService,
+        TimeProvider? timeProvider = null)
         : base(navigator, feedbackService)
     {
         _settingsService = settingsService;
@@ -45,6 +47,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         _navigator = navigator;
         _dialogService = dialogService;
         _feedbackService = feedbackService;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public IReadOnlyList<string> CacheLimitUnits { get; } = ["GB", "MB"];
@@ -296,7 +299,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     {
         try
         {
-            await Task.Delay(DebounceDelayMilliseconds, cancellationToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(DebounceDelayMilliseconds), _timeProvider, cancellationToken);
             await CommitCacheLimitAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

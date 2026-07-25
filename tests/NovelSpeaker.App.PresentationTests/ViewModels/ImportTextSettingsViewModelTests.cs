@@ -1,6 +1,7 @@
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.UnitTests.Common;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
@@ -45,7 +46,7 @@ public sealed class ImportTextSettingsViewModelTests
         await viewModel.LoadAsync(CancellationToken.None);
 
         viewModel.EnableLongParagraphSplitting = false;
-        await Task.Delay(20);
+        await service.UpdateCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.False(service.CurrentSettings.EnableLongParagraphSplitting);
     }
@@ -53,25 +54,30 @@ public sealed class ImportTextSettingsViewModelTests
     [Fact]
     public async Task BookFileNameTemplateText_change_debounces_and_saves_latest_value()
     {
+        var timeProvider = new ManualTimeProvider();
         var service = new FakeAppSettingsService(AppSettings.Default);
-        var viewModel = CreateViewModel(service);
+        var viewModel = CreateViewModel(service, timeProvider);
         await viewModel.LoadAsync(CancellationToken.None);
 
         viewModel.BookFileNameTemplateText = "{title}";
         viewModel.BookFileNameTemplateText = "{author}-{title}";
 
-        await Task.Delay(700);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(500));
+        await service.UpdateCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal("{author}-{title}", service.CurrentSettings.BookFileNameTemplate);
         Assert.Equal("{author}-{title}", viewModel.BookFileNameTemplateText);
     }
 
-    private static ImportTextSettingsViewModel CreateViewModel(FakeAppSettingsService settingsService)
+    private static ImportTextSettingsViewModel CreateViewModel(
+        FakeAppSettingsService settingsService,
+        TimeProvider? timeProvider = null)
     {
         return new ImportTextSettingsViewModel(
             settingsService,
             new FakeNavigationService(),
-            new FakeFeedbackService());
+            new FakeFeedbackService(),
+            timeProvider);
     }
 
     private sealed class FakeAppSettingsService : IAppSettingsService
@@ -83,7 +89,10 @@ public sealed class ImportTextSettingsViewModelTests
 
         public AppSettings CurrentSettings { get; private set; }
         public AppSettings Current => CurrentSettings;
+        public Task UpdateCompleted => _updateCompleted.Task;
         public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
+
+        private readonly TaskCompletionSource _updateCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {
@@ -93,6 +102,7 @@ public sealed class ImportTextSettingsViewModelTests
                 EnableLongParagraphSplitting = update.EnableLongParagraphSplitting ?? CurrentSettings.EnableLongParagraphSplitting,
                 LongParagraphThreshold = update.LongParagraphThreshold ?? CurrentSettings.LongParagraphThreshold
             }).Normalize();
+            _updateCompleted.TrySetResult();
             return Task.FromResult(CurrentSettings);
         }
     }

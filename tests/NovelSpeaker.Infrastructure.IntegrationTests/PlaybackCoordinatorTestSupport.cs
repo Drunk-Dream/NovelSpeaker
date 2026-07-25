@@ -121,19 +121,72 @@ public sealed partial class PlaybackCoordinatorTests
         return new SelectedPlaybackRule(id, name, rule, rule.Normalize());
     }
 
-    private static async Task WaitForAsync(Func<bool> condition)
+    private static async Task WaitForAsync(
+        PlaybackCoordinator coordinator,
+        Func<bool> condition)
     {
-        for (var attempt = 0; attempt < 40; attempt++)
+        if (condition())
+        {
+            return;
+        }
+
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        EventHandler<PlaybackSnapshot>? handler = null;
+        handler = (_, _) =>
+        {
+            if (condition())
+            {
+                completion.TrySetResult();
+            }
+        };
+        coordinator.SnapshotChanged += handler;
+        try
         {
             if (condition())
             {
                 return;
             }
 
-            await Task.Delay(10);
+            await completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            coordinator.SnapshotChanged -= handler;
+        }
+    }
+
+    private static async Task WaitForAsync(
+        FakePlaybackAudioProvider audioProvider,
+        Func<bool> condition)
+    {
+        if (condition())
+        {
+            return;
         }
 
-        Assert.True(condition(), "Timed out while waiting for the playback coordinator to update.");
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        EventHandler? handler = null;
+        handler = (_, _) =>
+        {
+            if (condition())
+            {
+                completion.TrySetResult();
+            }
+        };
+        audioProvider.ActivityChanged += handler;
+        try
+        {
+            if (condition())
+            {
+                return;
+            }
+
+            await completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            audioProvider.ActivityChanged -= handler;
+        }
     }
 
     private sealed class FakeBookPlaybackContentService : IBookPlaybackContentService
@@ -214,6 +267,8 @@ public sealed partial class PlaybackCoordinatorTests
 
         public List<PlaybackAudioRequest> Requests { get; } = [];
 
+        public event EventHandler? ActivityChanged;
+
         public int InvalidateCallCount { get; private set; }
 
         public void EnqueueFailure(TtsErrorKind kind, string message)
@@ -248,6 +303,7 @@ public sealed partial class PlaybackCoordinatorTests
             CancellationToken cancellationToken)
         {
             Requests.Add(request);
+            ActivityChanged?.Invoke(this, EventArgs.Empty);
             if (_results.Count > 0)
             {
                 return _results.Dequeue().Invoke();
@@ -259,6 +315,7 @@ public sealed partial class PlaybackCoordinatorTests
         public Task InvalidateAsync(PlaybackAudioRequest request, CancellationToken cancellationToken)
         {
             InvalidateCallCount++;
+            ActivityChanged?.Invoke(this, EventArgs.Empty);
             return Task.CompletedTask;
         }
 

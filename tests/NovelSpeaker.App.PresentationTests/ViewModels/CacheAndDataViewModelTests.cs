@@ -4,6 +4,7 @@ using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.UnitTests.Common;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
@@ -105,14 +106,16 @@ public sealed class CacheAndDataViewModelTests
     [Fact]
     public async Task CacheLimitValueText_change_debounces_and_saves_latest_value()
     {
+        var timeProvider = new ManualTimeProvider();
         var settingsService = new FakeAppSettingsService(AppSettings.Default);
-        var viewModel = CreateViewModel(settingsService);
+        var viewModel = CreateViewModel(settingsService, timeProvider: timeProvider);
         await viewModel.LoadAsync(CancellationToken.None);
 
         viewModel.CacheLimitValueText = "3";
         viewModel.CacheLimitValueText = "4";
 
-        await Task.Delay(700);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(500));
+        await settingsService.UpdateCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(4L * 1024 * 1024 * 1024, settingsService.CurrentSettings.CacheLimitBytes);
         Assert.Equal("4", viewModel.CacheLimitValueText);
@@ -123,7 +126,8 @@ public sealed class CacheAndDataViewModelTests
         FakeCacheWorkspaceService? workspaceService = null,
         FakeAppDialogService? dialogService = null,
         FakeFeedbackService? feedbackService = null,
-        FakeDiagnosticsService? diagnosticsService = null)
+        FakeDiagnosticsService? diagnosticsService = null,
+        TimeProvider? timeProvider = null)
     {
         return new CacheAndDataViewModel(
             settingsService ?? new FakeAppSettingsService(AppSettings.Default),
@@ -131,7 +135,8 @@ public sealed class CacheAndDataViewModelTests
             diagnosticsService ?? new FakeDiagnosticsService(),
             new FakeNavigationService(),
             dialogService ?? new FakeAppDialogService(),
-            feedbackService ?? new FakeFeedbackService());
+            feedbackService ?? new FakeFeedbackService(),
+            timeProvider);
     }
 
     private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
@@ -210,7 +215,10 @@ public sealed class CacheAndDataViewModelTests
 
         public AppSettings CurrentSettings { get; private set; }
         public AppSettings Current => CurrentSettings;
+        public Task UpdateCompleted => _updateCompleted.Task;
         public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
+
+        private readonly TaskCompletionSource _updateCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {
@@ -218,6 +226,7 @@ public sealed class CacheAndDataViewModelTests
             {
                 CacheLimitBytes = update.CacheLimitBytes ?? CurrentSettings.CacheLimitBytes
             }).Normalize();
+            _updateCompleted.TrySetResult();
             return Task.FromResult(CurrentSettings);
         }
     }

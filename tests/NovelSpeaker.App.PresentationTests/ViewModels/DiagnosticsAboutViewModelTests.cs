@@ -33,7 +33,6 @@ public sealed class DiagnosticsAboutViewModelTests
         await viewModel.LoadAsync(CancellationToken.None);
 
         viewModel.SelectedLogLevel = "Error";
-        await Task.Delay(20);
 
         Assert.Equal("Error", settingsService.CurrentSettings.LogLevel);
     }

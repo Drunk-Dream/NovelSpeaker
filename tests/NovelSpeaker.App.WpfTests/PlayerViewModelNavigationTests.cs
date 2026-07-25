@@ -16,6 +16,7 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.ViewModels;
 
+[Collection("WpfDispatcher")]
 public sealed partial class PlayerViewModelTests
 {
     [Fact]
@@ -87,7 +88,6 @@ public sealed partial class PlayerViewModelTests
         await viewModel.HandleNavigationAsync(
             new PlayerNavigationRequest("book-2", PlayerNavigationMode.OpenPaused),
             CancellationToken.None);
-        await Task.Delay(20);
 
         Assert.Equal(1, coordinator.OpenPausedCallCount);
         Assert.Equal("book-2", coordinator.LastOpenPausedRequest!.BookId);
@@ -516,7 +516,6 @@ public sealed partial class PlayerViewModelTests
             [new SpeechSegment(0, 0, 4, "第一章第一段", "第一章第一段")]));
 
         await navigationTask;
-        await Task.Delay(20);
 
         Assert.Equal(1, viewModel.CurrentChapterIndex);
         Assert.Single(viewModel.Segments);

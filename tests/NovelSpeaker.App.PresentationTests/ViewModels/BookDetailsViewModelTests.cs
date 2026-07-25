@@ -1,6 +1,7 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
+using System.ComponentModel;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Shell.Navigation;
@@ -50,7 +51,7 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal(1, managementService.GetBookDetailsCallCount);
 
         managementService.ReleaseBlockedDetailsLoad();
-        await WaitForConditionAsync(() => viewModel.Chapters.Count == 3 && !viewModel.IsBusy);
+        await WaitForConditionAsync(viewModel, () => viewModel.Chapters.Count == 3 && !viewModel.IsBusy);
 
         Assert.Equal("共 3 章", viewModel.TotalChapterCountText);
         Assert.Equal(3, viewModel.Chapters.Count);
@@ -347,25 +348,44 @@ public sealed class BookDetailsViewModelTests
             ]);
     }
 
-    private static async Task WaitForConditionAsync(Func<bool> predicate)
+    private static async Task WaitForConditionAsync(
+        BookDetailsViewModel viewModel,
+        Func<bool> predicate)
     {
-        for (var attempt = 0; attempt < 50; attempt++)
+        if (predicate())
+        {
+            return;
+        }
+
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        PropertyChangedEventHandler? handler = null;
+        handler = (_, _) =>
+        {
+            if (predicate())
+            {
+                completion.TrySetResult();
+            }
+        };
+        viewModel.PropertyChanged += handler;
+        try
         {
             if (predicate())
             {
                 return;
             }
 
-            await Task.Delay(10);
+            await completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
         }
-
-        Assert.True(predicate());
+        finally
+        {
+            viewModel.PropertyChanged -= handler;
+        }
     }
 
     private static async Task LoadViewModelAsync(BookDetailsViewModel viewModel)
     {
         await viewModel.LoadAsync("book-1", CancellationToken.None);
-        await WaitForConditionAsync(() => !viewModel.IsBusy && viewModel.Chapters.Count == 3);
+        await WaitForConditionAsync(viewModel, () => !viewModel.IsBusy && viewModel.Chapters.Count == 3);
     }
 
     private sealed class FakeBookManagementService : IBookLibraryQuery, IBookMetadataUpdateService, IBookDeletionService

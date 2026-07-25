@@ -29,7 +29,6 @@ public sealed class AppearanceSettingsViewModelTests
         await viewModel.LoadAsync(CancellationToken.None);
 
         viewModel.SelectedTheme = "Dark";
-        await Task.Delay(20);
 
         Assert.Equal("Dark", themeService.LastRequestedTheme);
     }

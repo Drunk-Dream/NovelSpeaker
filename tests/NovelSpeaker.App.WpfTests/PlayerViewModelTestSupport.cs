@@ -369,6 +369,8 @@ public sealed partial class PlayerViewModelTests
     {
         private readonly PlaybackBookContent _book;
         private readonly Queue<Task<PlaybackChapterContent?>> _chapterLoads;
+        private readonly object _requestSignalSync = new();
+        private TaskCompletionSource _requestSignal = CreateRequestSignal();
         private int _chapterRequestCount;
 
         public DelayedBookPlaybackContentService(
@@ -387,6 +389,13 @@ public sealed partial class PlayerViewModelTests
         public Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _chapterRequestCount);
+            lock (_requestSignalSync)
+            {
+                var completedSignal = _requestSignal;
+                _requestSignal = CreateRequestSignal();
+                completedSignal.TrySetResult();
+            }
+
             return _chapterLoads.Count == 0
                 ? Task.FromResult<PlaybackChapterContent?>(null)
                 : _chapterLoads.Dequeue();
@@ -396,9 +405,23 @@ public sealed partial class PlayerViewModelTests
         {
             while (Volatile.Read(ref _chapterRequestCount) < expectedCount)
             {
-                await Task.Delay(10);
+                Task signal;
+                lock (_requestSignalSync)
+                {
+                    if (Volatile.Read(ref _chapterRequestCount) >= expectedCount)
+                    {
+                        return;
+                    }
+
+                    signal = _requestSignal.Task;
+                }
+
+                await signal.WaitAsync(TimeSpan.FromSeconds(5));
             }
         }
+
+        private static TaskCompletionSource CreateRequestSignal() =>
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     private sealed class FakeTtsRuleQueries : ITtsRuleQueries
