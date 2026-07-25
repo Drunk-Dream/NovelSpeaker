@@ -816,7 +816,7 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 
 完成说明：测试等待已改为可控 TimeProvider、TaskCompletionSource、属性/播放快照/请求活动信号，并为异步等待统一设置 5 秒测试超时；WPF 测试由程序集级禁并行收窄为共享 Dispatcher collection。测试源码不再使用 Task.Delay 或 Thread.Sleep，全量 Release 测试 737 项通过。
 
-### [ ] TEST-804（P1）：更新 CI/发布矩阵
+### [x] TEST-804（P1）：更新 CI/发布矩阵
 
 前置：TEST-801、TEST-803。
 
@@ -827,6 +827,8 @@ Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在
 - Release 使用相同门禁并验证 publish 不含 TestAssets。
 
 验收：main/PR/release 行为一致；不发生隐式无 RID restore。
+
+完成说明：CI 与 Release 共同调用分层质量矩阵，分别覆盖纯 Domain/Application、App.Presentation、Infrastructure 集成和 App.Wpf 测试；每个 job 严格执行 locked win-x64 restore → format → Release build → 指定项目 test。Release publish 等待矩阵全部通过，并同时检查 publish 目录与 ZIP 不含 TestAssets，保留 exe、LICENSE 和第三方声明校验。
 
 ---
 
