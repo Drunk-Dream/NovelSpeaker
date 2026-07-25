@@ -7,6 +7,7 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.Navigation;
 
+[Collection("WpfDispatcher")]
 public sealed class RulePageNavigationGuardTests
 {
     [Theory]

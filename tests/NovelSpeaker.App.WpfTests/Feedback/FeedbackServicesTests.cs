@@ -6,6 +6,7 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.Feedback;
 
+[Collection("WpfDispatcher")]
 public sealed class FeedbackServicesTests
 {
     [Fact]

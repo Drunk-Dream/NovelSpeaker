@@ -6,6 +6,7 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.Input;
 
+[Collection("WpfDispatcher")]
 public sealed class WpfShortcutContextResolverTests
 {
     [Fact]

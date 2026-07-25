@@ -28,6 +28,7 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.Ui;
 
+[Collection("WpfDispatcher")]
 public sealed partial class PlayerViewTests
 {
     [Fact]

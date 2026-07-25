@@ -5,6 +5,7 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.Dialogs;
 
+[Collection("WpfDispatcher")]
 public sealed class BookDeleteDialogServiceTests
 {
     [Fact]

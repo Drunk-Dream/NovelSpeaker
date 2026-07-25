@@ -9,6 +9,7 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.Shell;
 
+[Collection("WpfDispatcher")]
 public sealed class ShellActivationCoordinatorTests
 {
     [Fact]

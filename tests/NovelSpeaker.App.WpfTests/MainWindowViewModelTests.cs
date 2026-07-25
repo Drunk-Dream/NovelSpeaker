@@ -5,6 +5,7 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.ViewModels;
 
+[Collection("WpfDispatcher")]
 public sealed class MainWindowViewModelTests
 {
     [Fact]

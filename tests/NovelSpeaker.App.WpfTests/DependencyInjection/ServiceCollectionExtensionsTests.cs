@@ -31,6 +31,7 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.DependencyInjection;
 
+[Collection("WpfDispatcher")]
 public sealed class ServiceCollectionExtensionsTests
 {
     [Fact]

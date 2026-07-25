@@ -15,6 +15,7 @@ using Xunit;
 
 namespace NovelSpeaker.UnitTests.Navigation;
 
+[Collection("WpfDispatcher")]
 public sealed class NavigationPageLifecycleTests
 {
     [Fact]
