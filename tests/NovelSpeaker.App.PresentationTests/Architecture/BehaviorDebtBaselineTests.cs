@@ -61,7 +61,7 @@ public sealed class BehaviorDebtBaselineTests
             "demo-tone.mp3",
             "demo-tone.wav"
         };
-        var audioDirectory = Absolute("tests/NovelSpeaker.UnitTests/TestAssets/Audio");
+        var audioDirectory = Absolute("tests/NovelSpeaker.Infrastructure.IntegrationTests/TestAssets/Audio");
         var actual = Directory.EnumerateFiles(audioDirectory)
             .Select(path => Path.GetFileName(path)!)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -73,8 +73,8 @@ public sealed class BehaviorDebtBaselineTests
         var appProjectText = File.ReadAllText(Absolute("src/NovelSpeaker.App/NovelSpeaker.App.csproj"));
         Assert.DoesNotContain(@"Assets\Audio", appProjectText, StringComparison.OrdinalIgnoreCase);
 
-        var testProject = XDocument.Load(Absolute("tests/NovelSpeaker.UnitTests/NovelSpeaker.UnitTests.csproj"));
-        var testProjectText = File.ReadAllText(Absolute("tests/NovelSpeaker.UnitTests/NovelSpeaker.UnitTests.csproj"));
+        var testProject = XDocument.Load(Absolute("tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj"));
+        var testProjectText = File.ReadAllText(Absolute("tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj"));
         Assert.DoesNotContain(@"src\NovelSpeaker.App\Assets\Audio", testProjectText, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(testProject.Descendants("Content"), element =>
             string.Equals(element.Attribute("Include")?.Value, @"TestAssets\Audio\*.*", StringComparison.Ordinal));

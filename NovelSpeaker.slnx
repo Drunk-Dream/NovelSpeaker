@@ -6,6 +6,10 @@
     <Project Path="src/NovelSpeaker.Infrastructure/NovelSpeaker.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/NovelSpeaker.UnitTests/NovelSpeaker.UnitTests.csproj" />
+    <Project Path="tests/NovelSpeaker.Domain.UnitTests/NovelSpeaker.Domain.UnitTests.csproj" />
+    <Project Path="tests/NovelSpeaker.Application.UnitTests/NovelSpeaker.Application.UnitTests.csproj" />
+    <Project Path="tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj" />
+    <Project Path="tests/NovelSpeaker.App.PresentationTests/NovelSpeaker.App.PresentationTests.csproj" />
+    <Project Path="tests/NovelSpeaker.App.WpfTests/NovelSpeaker.App.WpfTests.csproj" />
   </Folder>
 </Solution>

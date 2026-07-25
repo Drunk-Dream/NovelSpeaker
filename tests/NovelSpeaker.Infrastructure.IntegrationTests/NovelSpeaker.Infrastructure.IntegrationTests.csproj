@@ -1,11 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="..\..\src\NovelSpeaker.Domain\NovelSpeaker.Domain.csproj" />
-    <ProjectReference Include="..\..\src\NovelSpeaker.Application\NovelSpeaker.Application.csproj" />
     <ProjectReference Include="..\..\src\NovelSpeaker.Infrastructure\NovelSpeaker.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\NovelSpeaker.App\NovelSpeaker.App.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\TestKit\Common\*.cs" Link="Common\%(Filename)%(Extension)" />
+    <Compile Include="..\TestKit\Speech\TestHttpTtsRules.cs" Link="Speech\TestHttpTtsRules.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Jint" />
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="NAudio" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
@@ -20,7 +27,8 @@
     </Content>
   </ItemGroup>
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsTestProject>true</IsTestProject>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 </Project>

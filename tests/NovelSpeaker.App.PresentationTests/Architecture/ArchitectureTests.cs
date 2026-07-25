@@ -34,7 +34,11 @@ public sealed class ArchitectureTests
             "src/NovelSpeaker.Application/NovelSpeaker.Application.csproj",
             "src/NovelSpeaker.Domain/NovelSpeaker.Domain.csproj",
             "src/NovelSpeaker.Infrastructure/NovelSpeaker.Infrastructure.csproj",
-            "tests/NovelSpeaker.UnitTests/NovelSpeaker.UnitTests.csproj"
+            "tests/NovelSpeaker.Domain.UnitTests/NovelSpeaker.Domain.UnitTests.csproj",
+            "tests/NovelSpeaker.Application.UnitTests/NovelSpeaker.Application.UnitTests.csproj",
+            "tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj",
+            "tests/NovelSpeaker.App.PresentationTests/NovelSpeaker.App.PresentationTests.csproj",
+            "tests/NovelSpeaker.App.WpfTests/NovelSpeaker.App.WpfTests.csproj"
         };
 
         AssertEqualSet(expected, Repository.ReadSolutionProjectPaths());
