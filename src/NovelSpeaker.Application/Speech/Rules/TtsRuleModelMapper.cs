@@ -6,7 +6,10 @@ namespace NovelSpeaker.Application.Speech.Rules;
 internal static class TtsRuleModelMapper
 {
     public static TtsRuleSummary ToSummary(HttpTtsRule rule, long? selectedId) =>
-        new(rule.Id, rule.Name, rule.IsEnabled, selectedId == rule.Id && rule.IsEnabled, rule.LastUsedAt);
+        new(rule.Id, rule.Name, rule.IsEnabled, selectedId == rule.Id && rule.IsEnabled, rule.LastUsedAt)
+        {
+            RequestSummary = BuildRequestSummary(rule)
+        };
 
     public static TtsRuleEditorModel ToEditor(HttpTtsRule rule) => new(
         rule.Id, rule.Name, rule.IsEnabled, rule.Url, rule.ContentType, rule.ConcurrentRate, rule.LastUpdateTime,
@@ -57,6 +60,29 @@ internal static class TtsRuleModelMapper
 
     private static bool HasName(IEnumerable<HttpTtsRule> rules, string name, long? currentId) =>
         rules.Any(rule => rule.Id != currentId && string.Equals(rule.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    private static string BuildRequestSummary(HttpTtsRule rule)
+    {
+        var method = string.IsNullOrWhiteSpace(rule.RequestMethod)
+            ? "GET"
+            : rule.RequestMethod.Trim().ToUpperInvariant();
+        var endpoint = Uri.TryCreate(rule.Url, UriKind.Absolute, out var uri)
+            ? BuildSafeEndpoint(uri)
+            : "请求地址待完善";
+        return $"{method} · {endpoint}";
+    }
+
+    private static string BuildSafeEndpoint(Uri uri)
+    {
+        var host = uri.IdnHost.Trim('[', ']');
+        if (uri.HostNameType == UriHostNameType.IPv6)
+        {
+            host = $"[{host}]";
+        }
+
+        var port = uri.IsDefaultPort ? string.Empty : $":{uri.Port}";
+        return $"{uri.Scheme.ToLowerInvariant()}://{host}{port}";
+    }
 
     private static string? Optional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
