@@ -3,7 +3,7 @@
     <ProjectReference Include="..\..\src\NovelSpeaker.Application\NovelSpeaker.Application.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\TestKit\Common\*.cs" Link="Common\%(Filename)%(Extension)" />
+    <Compile Include="..\TestKit\Common\FixedTimeProvider.cs" Link="TestKit\Common\FixedTimeProvider.cs" />
     <Compile Include="..\TestKit\Speech\TestHttpTtsRules.cs" Link="Speech\TestHttpTtsRules.cs" />
   </ItemGroup>
   <ItemGroup>
