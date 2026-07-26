@@ -125,7 +125,24 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         var destinationPath = _fileStore.GetDestinationPath(request);
         using var finalProtection = _protectionRegistry.Protect(destinationPath);
         var file = await _fileStore.StoreAsync(request, cancellationToken).ConfigureAwait(false);
-        await _index.UpsertAsync(request, file.StorageKey, file.FileSize, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _index.UpsertAsync(
+                request,
+                file.StorageKey,
+                file.FileSize,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            if (file.CreatedNew)
+            {
+                _fileStore.TryDeleteFile(file.FilePath);
+            }
+
+            throw;
+        }
+
         await _maintenance.EnforceLimitAsync(cancellationToken).ConfigureAwait(false);
         return new AudioCacheEntry(request.Key, file.FilePath);
     }

@@ -208,6 +208,77 @@ public sealed class SqliteAudioCacheTests
     }
 
     [Fact]
+    public async Task StoreAsync_pre_cancelled_does_not_consume_source_or_leave_cache_files()
+    {
+        var fixture = await CreateFixtureAsync();
+        var key = AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段");
+        var sourceFile = CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            fixture.Cache.StoreAsync(
+                new AudioCacheWriteRequest(key, "book-1", 0, 0, 1, sourceFile, "audio/mpeg"),
+                cancellation.Token));
+
+        Assert.True(File.Exists(sourceFile));
+        Assert.False(File.Exists(Path.Combine(
+            fixture.Directories.CacheDirectoryPath,
+            "Tts",
+            AudioCacheKey.CurrentVersion,
+            key.Shard,
+            $"{key.FileNameBase}.mp3")));
+        var ttsDirectory = Path.Combine(fixture.Directories.CacheDirectoryPath, "Tts");
+        if (Directory.Exists(ttsDirectory))
+        {
+            Assert.Empty(Directory.EnumerateFiles(
+                ttsDirectory,
+                "*.tmp",
+                SearchOption.AllDirectories));
+        }
+        File.Delete(sourceFile);
+    }
+
+    [Fact]
+    public async Task StoreAsync_index_failure_removes_newly_finalized_cache_file_and_staging()
+    {
+        var fixture = await CreateFixtureAsync();
+        var key = AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段");
+        await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                CREATE TRIGGER RejectAudioCacheInsert
+                BEFORE INSERT ON AudioCacheEntries
+                BEGIN
+                    SELECT RAISE(ABORT, 'fixture index failure');
+                END;
+                """;
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            fixture.Cache.StoreAsync(
+                new AudioCacheWriteRequest(
+                    key,
+                    "book-1",
+                    0,
+                    0,
+                    1,
+                    CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                    "audio/mpeg"),
+                CancellationToken.None));
+
+        var shardDirectory = Path.Combine(
+            fixture.Directories.CacheDirectoryPath,
+            "Tts",
+            AudioCacheKey.CurrentVersion,
+            key.Shard);
+        Assert.Empty(Directory.EnumerateFiles(shardDirectory));
+    }
+
+    [Fact]
     public async Task TryGetAsync_rejects_an_index_path_outside_the_application_root()
     {
         var fixture = await CreateFixtureAsync();
