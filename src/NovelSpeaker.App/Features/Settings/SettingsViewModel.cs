@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.App.Shell.Navigation;
 
 namespace NovelSpeaker.App.Features.Settings;

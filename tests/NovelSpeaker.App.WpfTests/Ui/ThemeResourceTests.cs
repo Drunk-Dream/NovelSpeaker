@@ -76,6 +76,45 @@ public sealed class ThemeResourceTests
     }
 
     [Fact]
+    public void Settings_styles_share_row_tokens_and_borderless_interaction_template()
+    {
+        var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
+        var tokens = File.ReadAllText(Path.Combine(
+            appRoot,
+            "Shared",
+            "Theming",
+            "Resources",
+            "DesignTokens.xaml"));
+        var styles = File.ReadAllText(Path.Combine(
+            appRoot,
+            "Shared",
+            "Theming",
+            "Resources",
+            "SemanticStyles.xaml"));
+
+        Assert.Contains("x:Key=\"SettingsRowMinHeight\"", tokens);
+        Assert.Contains("x:Key=\"SettingsRowPadding\"", tokens);
+        Assert.Contains("x:Key=\"SettingsGroupPadding\"", tokens);
+
+        var settingsRowStyle = GetStyleElement(styles, "SettingsRowBorderStyle");
+        var subpageItemStyle = GetStyleElement(styles, "SettingsSubpageItemBorderStyle");
+        var settingsEntryStyle = GetStyleElement(styles, "SettingsEntryButtonStyle");
+
+        Assert.Contains("x:Key=\"SettingsEntryContentTemplate\"", styles);
+        Assert.Contains("SettingsRowMinHeight", settingsRowStyle.ToString());
+        Assert.Contains("SettingsRowPadding", settingsRowStyle.ToString());
+        Assert.Equal(
+            "{StaticResource SettingsRowBorderStyle}",
+            (string?)subpageItemStyle.Attribute("BasedOn"));
+        Assert.Equal(
+            "{StaticResource BorderlessListItemButtonStyle}",
+            (string?)settingsEntryStyle.Attribute("BasedOn"));
+        Assert.Contains("SettingsRowMinHeight", settingsEntryStyle.ToString());
+        Assert.Contains("SettingsRowPadding", settingsEntryStyle.ToString());
+        Assert.Contains("SettingsEntryContentTemplate", settingsEntryStyle.ToString());
+    }
+
+    [Fact]
     public void Icon_and_list_buttons_use_shared_semantic_styles()
     {
         var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");

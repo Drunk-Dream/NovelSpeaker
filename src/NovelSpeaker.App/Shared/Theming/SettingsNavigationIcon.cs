@@ -1,4 +1,4 @@
-namespace NovelSpeaker.App.Features.Settings;
+namespace NovelSpeaker.App.Shared.Theming;
 
 public enum SettingsNavigationIcon
 {
@@ -8,5 +8,7 @@ public enum SettingsNavigationIcon
     ChapterRules,
     CacheAndData,
     Appearance,
-    Diagnostics
+    Diagnostics,
+    RegexReplacement,
+    CacheManagement
 }

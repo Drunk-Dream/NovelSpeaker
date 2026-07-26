@@ -1,4 +1,5 @@
 using NovelSpeaker.App.Features.Settings;
+using NovelSpeaker.App.Shared.Theming;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
