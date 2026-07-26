@@ -215,7 +215,7 @@ Wave 内若任务不修改同一公共合同，可以并行；涉及共享 DI、
 - WPF resource/style contract 测试。
 - 关键图标按钮存在 Tooltip/AutomationName。
 
-## [ ] UI-202（P1）：建立设置行与无边框导航入口组件
+## [x] UI-202（P1）：建立设置行与无边框导航入口组件
 
 实现：
 
