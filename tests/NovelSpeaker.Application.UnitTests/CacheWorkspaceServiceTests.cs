@@ -7,7 +7,7 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.Application.UnitTests;
 
 public sealed class CacheWorkspaceServiceTests
 {

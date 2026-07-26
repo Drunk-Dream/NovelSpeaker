@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 [Collection("WpfDispatcher")]
 public sealed class SettingsPageViewTests

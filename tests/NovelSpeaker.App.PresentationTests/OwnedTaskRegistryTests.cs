@@ -1,7 +1,7 @@
 using NovelSpeaker.App.Shared.Presentation;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Lifecycle;
+namespace NovelSpeaker.App.PresentationTests;
 
 public sealed class OwnedTaskRegistryTests
 {

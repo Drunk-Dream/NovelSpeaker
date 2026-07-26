@@ -3,12 +3,12 @@ using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.Domain.Settings;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.ViewModels;
+namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class PlaybackSettingsViewModelTests
 {

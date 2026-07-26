@@ -9,12 +9,12 @@ using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.ViewModels;
+namespace NovelSpeaker.App.WpfTests;
 
 public sealed partial class PlayerViewModelTests
 {

@@ -4,7 +4,7 @@ using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Navigation;
+namespace NovelSpeaker.App.PresentationTests;
 
 public sealed class AppRouteNavigationTests
 {

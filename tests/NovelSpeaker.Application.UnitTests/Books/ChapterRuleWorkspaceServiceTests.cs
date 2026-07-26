@@ -3,7 +3,7 @@ using NovelSpeaker.Application.Books.ChapterRules;
 using NovelSpeaker.Domain.Books;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Books;
+namespace NovelSpeaker.Application.UnitTests.Books;
 
 public sealed class ChapterRuleWorkspaceServiceTests
 {

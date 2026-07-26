@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
-namespace NovelSpeaker.UnitTests.Speech;
+namespace NovelSpeaker.TestKit.Speech;
 
 public sealed class LocalHttpTtsTestServer : IAsyncDisposable
 {

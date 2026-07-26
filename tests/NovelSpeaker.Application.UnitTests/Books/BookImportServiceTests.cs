@@ -3,10 +3,10 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.Import;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Xunit;
 
-namespace NovelSpeaker.ApplicationTests.Books.Import;
+namespace NovelSpeaker.Application.UnitTests.Books;
 
 public sealed class BookImportServiceTests
 {

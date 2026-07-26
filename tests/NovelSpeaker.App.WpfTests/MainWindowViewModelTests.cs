@@ -3,7 +3,7 @@ using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shell.Navigation;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.ViewModels;
+namespace NovelSpeaker.App.WpfTests;
 
 [Collection("WpfDispatcher")]
 public sealed class MainWindowViewModelTests

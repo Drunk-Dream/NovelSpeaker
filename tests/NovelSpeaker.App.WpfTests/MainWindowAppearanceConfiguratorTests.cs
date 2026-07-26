@@ -4,7 +4,7 @@ using System.Windows;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Theming;
+namespace NovelSpeaker.App.WpfTests;
 
 public sealed class MainWindowAppearanceConfiguratorTests
 {

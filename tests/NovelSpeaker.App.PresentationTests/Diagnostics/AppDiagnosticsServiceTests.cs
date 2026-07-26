@@ -7,7 +7,7 @@ using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Diagnostics;
+namespace NovelSpeaker.App.PresentationTests.Diagnostics;
 
 public sealed class AppDiagnosticsServiceTests
 {

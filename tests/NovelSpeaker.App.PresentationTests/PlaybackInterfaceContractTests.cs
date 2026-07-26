@@ -6,7 +6,7 @@ using NovelSpeaker.App;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.App.PresentationTests;
 
 public sealed class PlaybackInterfaceContractTests
 {

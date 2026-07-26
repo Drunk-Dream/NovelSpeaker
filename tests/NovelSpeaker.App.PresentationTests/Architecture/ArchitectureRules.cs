@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace NovelSpeaker.UnitTests.Architecture;
+namespace NovelSpeaker.App.PresentationTests.Architecture;
 
 internal static partial class ArchitectureRules
 {

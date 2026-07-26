@@ -4,7 +4,7 @@ using NovelSpeaker.Infrastructure.Playback;
 using PlaybackStatus = NovelSpeaker.Application.Playback.PlaybackState;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed class NaudioAudioPlayerTests
 {

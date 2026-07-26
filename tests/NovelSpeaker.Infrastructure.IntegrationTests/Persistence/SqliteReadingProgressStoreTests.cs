@@ -3,10 +3,10 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Persistence;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Persistence;
 
 public sealed class SqliteReadingProgressStoreTests
 {

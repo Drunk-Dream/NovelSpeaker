@@ -4,7 +4,7 @@ using System.Xml;
 using System.Xml.Linq;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 public sealed class ThemeResourceTests
 {

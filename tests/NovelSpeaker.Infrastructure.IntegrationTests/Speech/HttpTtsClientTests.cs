@@ -5,10 +5,10 @@ using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Speech.Http;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Speech;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Speech;
 
 public sealed class HttpTtsClientTests
 {

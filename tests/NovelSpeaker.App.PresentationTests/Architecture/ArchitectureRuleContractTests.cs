@@ -1,7 +1,7 @@
 using System.Windows;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Architecture;
+namespace NovelSpeaker.App.PresentationTests.Architecture;
 
 public sealed class ArchitectureRuleContractTests
 {

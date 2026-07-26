@@ -3,7 +3,7 @@ using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Speech;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Speech;
+namespace NovelSpeaker.Application.UnitTests;
 
 public sealed class TtsExecutionServiceTests
 {

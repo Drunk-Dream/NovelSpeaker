@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace NovelSpeaker.UnitTests.Common;
+namespace NovelSpeaker.TestKit.Common;
 
 internal sealed class ManualTimeProvider : TimeProvider
 {

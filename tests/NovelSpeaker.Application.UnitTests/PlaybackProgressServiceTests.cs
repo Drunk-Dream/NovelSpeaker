@@ -2,7 +2,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Domain.Books;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.Application.UnitTests;
 
 public sealed class PlaybackProgressServiceTests
 {

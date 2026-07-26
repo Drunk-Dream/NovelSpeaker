@@ -1,4 +1,4 @@
-namespace NovelSpeaker.UnitTests.Architecture;
+namespace NovelSpeaker.App.PresentationTests.Architecture;
 
 internal static class KnownArchitectureBaseline
 {

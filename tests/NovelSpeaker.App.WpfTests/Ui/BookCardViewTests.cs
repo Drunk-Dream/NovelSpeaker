@@ -4,7 +4,7 @@ using System.Windows.Controls;
 using NovelSpeaker.App.Features.Library;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 [Collection("WpfDispatcher")]
 public sealed class BookCardViewTests

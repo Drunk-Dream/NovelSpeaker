@@ -1,9 +1,9 @@
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Infrastructure.Speech.Http;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Speech;
+namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed class TtsRateLimiterTests
 {

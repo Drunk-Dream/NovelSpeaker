@@ -2,7 +2,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.Application.UnitTests;
 
 public sealed class AudioCacheKeyTests
 {

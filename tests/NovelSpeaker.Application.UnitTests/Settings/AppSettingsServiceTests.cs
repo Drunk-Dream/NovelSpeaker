@@ -2,7 +2,7 @@ using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Settings;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Settings;
+namespace NovelSpeaker.Application.UnitTests.Settings;
 
 public sealed class AppSettingsServiceTests
 {

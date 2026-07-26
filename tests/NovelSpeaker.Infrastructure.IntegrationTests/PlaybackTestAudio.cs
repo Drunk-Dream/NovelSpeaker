@@ -1,4 +1,4 @@
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 internal static class PlaybackTestAudio
 {

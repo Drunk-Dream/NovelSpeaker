@@ -8,7 +8,7 @@ using NovelSpeaker.App.Shell.Navigation;
 using Wpf.Ui;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.ViewModels;
+namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class BookDetailsViewModelTests
 {

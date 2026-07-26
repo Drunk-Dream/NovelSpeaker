@@ -3,7 +3,7 @@ using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Navigation;
+namespace NovelSpeaker.App.PresentationTests;
 
 public sealed class GuardedNavigationServiceTests
 {

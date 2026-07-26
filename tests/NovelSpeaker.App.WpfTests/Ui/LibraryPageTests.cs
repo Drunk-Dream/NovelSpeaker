@@ -9,7 +9,7 @@ using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 [Collection("WpfDispatcher")]
 public sealed partial class LibraryPageTests

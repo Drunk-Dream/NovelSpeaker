@@ -3,7 +3,7 @@ using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Dialogs;
+namespace NovelSpeaker.App.WpfTests.Dialogs;
 
 [Collection("WpfDispatcher")]
 public sealed class BookDeleteDialogServiceTests

@@ -1,7 +1,7 @@
 using NovelSpeaker.Infrastructure.FileSystem;
 using Xunit;
 
-namespace NovelSpeaker.InfrastructureTests.FileSystem;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.FileSystem;
 
 public sealed class AppStoragePathResolverTests
 {

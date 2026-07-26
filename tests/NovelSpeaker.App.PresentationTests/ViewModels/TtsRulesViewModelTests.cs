@@ -4,13 +4,13 @@ using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
-using NovelSpeaker.UnitTests.Speech;
+using NovelSpeaker.TestKit.Speech;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.ViewModels;
+namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class TtsRulesViewModelTests
 {

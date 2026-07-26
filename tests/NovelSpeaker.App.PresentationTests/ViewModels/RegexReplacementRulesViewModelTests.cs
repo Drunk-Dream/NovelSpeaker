@@ -6,7 +6,7 @@ using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.ViewModels;
+namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class RegexReplacementRulesViewModelTests
 {

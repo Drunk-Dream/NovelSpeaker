@@ -6,7 +6,7 @@ using NovelSpeaker.Infrastructure.Speech.Legado;
 using NovelSpeaker.Infrastructure.Speech.Scripting;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Speech;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Speech;
 
 public sealed class TtsRuleSampleRegressionTests
 {

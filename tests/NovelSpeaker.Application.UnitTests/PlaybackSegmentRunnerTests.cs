@@ -1,10 +1,10 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Speech;
-using NovelSpeaker.UnitTests.Speech;
+using NovelSpeaker.TestKit.Speech;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.Application.UnitTests;
 
 public sealed class PlaybackSegmentRunnerTests
 {

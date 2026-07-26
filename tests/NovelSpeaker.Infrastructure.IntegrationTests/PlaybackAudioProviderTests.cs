@@ -7,12 +7,12 @@ using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Playback;
 using NovelSpeaker.Infrastructure.Speech.Http;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Microsoft.Extensions.Logging;
-using NovelSpeaker.UnitTests.Speech;
+using NovelSpeaker.TestKit.Speech;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback.Audio;
+namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed class PlaybackAudioProviderTests
 {

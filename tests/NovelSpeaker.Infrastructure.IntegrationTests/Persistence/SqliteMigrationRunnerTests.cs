@@ -3,7 +3,7 @@ using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Persistence;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Persistence;
 
 public sealed class SqliteMigrationRunnerTests
 {

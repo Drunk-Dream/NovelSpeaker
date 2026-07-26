@@ -7,10 +7,10 @@ using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Application.Speech.Testing;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Speech.Http;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Speech.Testing;
+namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed class TtsRuleTestServiceTests
 {

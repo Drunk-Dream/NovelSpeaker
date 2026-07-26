@@ -1,6 +1,6 @@
 using NAudio.Wave;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.TestKit.Audio;
 
 internal sealed class FakeWavePlayer : IWavePlayer
 {

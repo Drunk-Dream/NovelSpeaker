@@ -10,7 +10,7 @@ using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed class BookPlaybackContentServiceTests
 {

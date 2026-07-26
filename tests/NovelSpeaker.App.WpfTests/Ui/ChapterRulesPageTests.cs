@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 [Collection("WpfDispatcher")]
 public sealed partial class ChapterRulesPageTests

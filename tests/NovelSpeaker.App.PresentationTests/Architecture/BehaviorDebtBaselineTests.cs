@@ -1,7 +1,7 @@
 using System.Xml.Linq;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Architecture;
+namespace NovelSpeaker.App.PresentationTests.Architecture;
 
 public sealed class BehaviorDebtBaselineTests
 {

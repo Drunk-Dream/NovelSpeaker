@@ -9,10 +9,10 @@ using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
 using NovelSpeaker.Infrastructure.Persistence.Playback;
 using NovelSpeaker.Infrastructure.Playback;
-using NovelSpeaker.UnitTests.Playback;
+using NovelSpeaker.Infrastructure.IntegrationTests;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Books;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Books;
 
 public sealed class BookLibraryPersistenceTests
 {

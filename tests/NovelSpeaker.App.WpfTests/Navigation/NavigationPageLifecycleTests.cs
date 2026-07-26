@@ -13,7 +13,7 @@ using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Navigation;
+namespace NovelSpeaker.App.WpfTests.Navigation;
 
 [Collection("WpfDispatcher")]
 public sealed class NavigationPageLifecycleTests

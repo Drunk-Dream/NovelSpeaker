@@ -3,10 +3,10 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Settings;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Settings;
+namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed class JsonAppSettingsStoreTests
 {

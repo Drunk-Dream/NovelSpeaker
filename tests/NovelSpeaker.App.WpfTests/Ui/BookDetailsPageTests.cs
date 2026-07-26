@@ -12,7 +12,7 @@ using NovelSpeaker.App.Shell.Navigation;
 using Wpf.Ui;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 [Collection("WpfDispatcher")]
 public sealed class BookDetailsPageTests

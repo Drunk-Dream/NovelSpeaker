@@ -3,11 +3,11 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Shell.Navigation;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Wpf.Ui;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.ViewModels;
+namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class LibraryViewModelTests
 {

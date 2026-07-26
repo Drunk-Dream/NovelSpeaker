@@ -3,7 +3,7 @@ using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shell.Activation;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Navigation;
+namespace NovelSpeaker.App.PresentationTests;
 
 public sealed class PageEventOperationRunnerTests
 {

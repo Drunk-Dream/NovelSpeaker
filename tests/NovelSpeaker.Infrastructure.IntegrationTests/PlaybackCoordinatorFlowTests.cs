@@ -5,10 +5,10 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Playback;
-using NovelSpeaker.UnitTests.Speech;
+using NovelSpeaker.TestKit.Speech;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed partial class PlaybackCoordinatorTests
 {

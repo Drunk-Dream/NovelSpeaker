@@ -1,7 +1,7 @@
 using NovelSpeaker.Infrastructure.Books.Text;
 using Xunit;
 
-namespace NovelSpeaker.InfrastructureTests.Books.Import;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Books;
 
 public sealed class Sha256ContentHasherTests
 {

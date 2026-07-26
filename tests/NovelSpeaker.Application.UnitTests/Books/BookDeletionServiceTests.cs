@@ -2,7 +2,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.Library;
 using Xunit;
 
-namespace NovelSpeaker.ApplicationTests.Books.Library;
+namespace NovelSpeaker.Application.UnitTests.Books;
 
 public sealed class BookDeletionServiceTests
 {

@@ -1,6 +1,6 @@
 using NovelSpeaker.App.Shell.Navigation;
 
-namespace NovelSpeaker.UnitTests;
+namespace NovelSpeaker.TestKit.Navigation;
 
 internal static class TestAppRouteMapper
 {

@@ -5,7 +5,7 @@ using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
 using Xunit;
 
-namespace NovelSpeaker.InfrastructureTests.Books.Import;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Books;
 
 public sealed class BookImportRepositoryTests
 {

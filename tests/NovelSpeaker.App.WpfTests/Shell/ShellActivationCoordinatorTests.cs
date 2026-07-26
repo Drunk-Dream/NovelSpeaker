@@ -7,7 +7,7 @@ using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Shell;
+namespace NovelSpeaker.App.WpfTests.Shell;
 
 [Collection("WpfDispatcher")]
 public sealed class ShellActivationCoordinatorTests

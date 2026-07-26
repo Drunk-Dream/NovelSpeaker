@@ -5,7 +5,7 @@ using System.Windows.Controls;
 using NovelSpeaker.Domain.Books;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 [Collection("WpfDispatcher")]
 public sealed class RegexReplacementRulesPageTests

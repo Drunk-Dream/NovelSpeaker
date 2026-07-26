@@ -2,7 +2,7 @@ using NovelSpeaker.App.Bootstrap;
 using NovelSpeaker.Domain.Settings;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Bootstrap;
+namespace NovelSpeaker.App.PresentationTests.Bootstrap;
 
 public sealed class StartupCoordinatorTests
 {

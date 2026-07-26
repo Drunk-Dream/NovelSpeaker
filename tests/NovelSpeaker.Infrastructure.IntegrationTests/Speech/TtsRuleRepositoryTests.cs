@@ -4,7 +4,7 @@ using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Speech.Rules;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Speech;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Speech;
 
 public sealed class TtsRuleRepositoryTests
 {

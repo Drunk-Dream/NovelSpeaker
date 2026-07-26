@@ -3,7 +3,7 @@ using NovelSpeaker.Application.Books.TextProcessing;
 using NovelSpeaker.Domain.Books;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Books;
+namespace NovelSpeaker.Application.UnitTests.Books;
 
 public sealed class TextSegmenterTests
 {

@@ -5,7 +5,7 @@ using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.ViewModels;
+namespace NovelSpeaker.App.WpfTests;
 
 [Collection("WpfDispatcher")]
 public sealed class CacheManagementViewModelTests

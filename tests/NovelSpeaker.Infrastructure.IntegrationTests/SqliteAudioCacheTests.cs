@@ -6,10 +6,10 @@ using NovelSpeaker.Infrastructure.FileSystem.Cache;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Playback;
 using NovelSpeaker.Infrastructure.Playback;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed class SqliteAudioCacheTests
 {

@@ -1,7 +1,7 @@
 using Xunit;
 using NovelSpeaker.Domain.Common;
 
-namespace NovelSpeaker.UnitTests.Common;
+namespace NovelSpeaker.App.PresentationTests;
 
 public sealed class AppInfoTests
 {

@@ -29,7 +29,7 @@ using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.DependencyInjection;
+namespace NovelSpeaker.App.WpfTests.DependencyInjection;
 
 [Collection("WpfDispatcher")]
 public sealed class ServiceCollectionExtensionsTests

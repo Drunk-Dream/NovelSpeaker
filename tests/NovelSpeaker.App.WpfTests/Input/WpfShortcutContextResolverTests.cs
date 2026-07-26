@@ -4,7 +4,7 @@ using System.Windows.Controls.Primitives;
 using NovelSpeaker.App.Shell.Input;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Input;
+namespace NovelSpeaker.App.WpfTests.Input;
 
 [Collection("WpfDispatcher")]
 public sealed class WpfShortcutContextResolverTests
