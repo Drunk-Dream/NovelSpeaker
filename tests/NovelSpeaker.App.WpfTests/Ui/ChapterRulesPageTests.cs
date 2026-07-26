@@ -5,6 +5,8 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
 using CommunityToolkit.Mvvm.ComponentModel;
+using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -12,6 +14,31 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed partial class ChapterRulesPageTests
 {
+    [Fact]
+    public void ChapterRulesPage_uses_accessible_icon_for_new_rule_tool()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new ChapterRulesPage
+            {
+                DataContext = new ChapterRulesViewLayoutContext()
+            };
+
+            view.Measure(new Size(960, 680));
+            view.Arrange(new Rect(0, 0, 960, 680));
+            view.UpdateLayout();
+
+            var button = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => AutomationProperties.GetName(candidate) == "新建规则"));
+
+            Assert.Equal("新建规则", button.ToolTip);
+            Assert.Equal(
+                SymbolRegular.DocumentAdd24,
+                Assert.IsType<SymbolIcon>(button.Content).Symbol);
+        });
+    }
+
     [Fact]
     public void ChapterRulesPage_uses_split_scrollable_workspace_without_datagrid()
     {

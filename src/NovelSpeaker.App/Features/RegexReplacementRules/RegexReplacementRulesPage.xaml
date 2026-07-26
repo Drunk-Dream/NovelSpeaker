@@ -34,9 +34,12 @@
             </StackPanel>
 
             <Button Grid.Column="1"
-                    Padding="16,8"
+                    Style="{StaticResource SecondaryIconButtonStyle}"
                     Command="{Binding NewRuleCommand}"
-                    Content="新建规则" />
+                    ToolTip="新建规则"
+                    AutomationProperties.Name="新建规则">
+                <ui:SymbolIcon Symbol="DocumentAdd24" />
+            </Button>
         </Grid>
 
         <Grid Grid.Row="1"
@@ -61,7 +64,7 @@
                     </StackPanel>
 
                     <TextBlock Margin="16,0,16,16"
-                               Text="还没有替换规则，使用右上角按钮新建一条。">
+                               Text="还没有替换规则，请先新建一条。">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock"
                                    BasedOn="{StaticResource SecondaryTextBlockStyle}">

@@ -49,9 +49,12 @@
                        HorizontalAlignment="Right"
                        VerticalAlignment="Center">
                 <Button Margin="0,0,12,0"
-                        Padding="16,8"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
                         Command="{Binding NewRuleCommand}"
-                        Content="新建规则" />
+                        ToolTip="新建规则"
+                        AutomationProperties.Name="新建规则">
+                    <ui:SymbolIcon Symbol="DocumentAdd24" />
+                </Button>
                 <Button Margin="0,0,12,0"
                         Padding="16,8"
                         Command="{Binding ImportDefaultsCommand}"
