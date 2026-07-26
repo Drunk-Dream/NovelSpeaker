@@ -1,6 +1,7 @@
 <Page x:Class="NovelSpeaker.App.Features.PlaybackSettings.PlaybackSettingsPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:theming="clr-namespace:NovelSpeaker.App.Shared.Theming"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
     <Grid Margin="{StaticResource PagePadding}">
         <Grid.RowDefinitions>
@@ -82,18 +83,13 @@
                         </StackPanel>
                     </Border>
 
-                    <Border x:Name="CurrentTtsRuleItemBorder"
-                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
-                                       Text="当前 TTS 规则" />
-                            <Button Margin="0,10,0,0"
-                                    Width="180"
-                                    HorizontalAlignment="Left"
-                                    Command="{Binding OpenTtsRulesCommand}"
-                                    Content="前往 TTS 规则" />
-                        </StackPanel>
-                    </Border>
+                    <Button x:Name="OpenTtsRulesButton"
+                            Style="{StaticResource SettingsEntryButtonStyle}"
+                            Command="{Binding OpenTtsRulesCommand}"
+                            Content="TTS 规则"
+                            Tag="{x:Static theming:SettingsNavigationIcon.TtsRules}"
+                            ToolTip="TTS 规则"
+                            AutomationProperties.Name="TTS 规则" />
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

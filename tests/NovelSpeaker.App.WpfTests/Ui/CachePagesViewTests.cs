@@ -25,14 +25,10 @@ public sealed class CachePagesViewTests
                 page.Arrange(new Rect(0, 0, 1200, 800));
                 page.UpdateLayout();
 
-                var buttons = VisualTreeTestHelper.FindDescendants<System.Windows.Controls.Button>(page)
-                    .Select(button => button.Content?.ToString())
-                    .Where(text => !string.IsNullOrWhiteSpace(text))
-                    .Cast<string>()
-                    .ToArray();
+                var buttons = VisualTreeTestHelper.FindDescendants<System.Windows.Controls.Button>(page).ToArray();
 
-                Assert.Contains("进入缓存管理", buttons);
-                Assert.DoesNotContain("清理全部缓存", buttons);
+                Assert.Contains(buttons, button => AutomationProperties.GetName(button) == "缓存管理");
+                Assert.DoesNotContain(buttons, button => button.Content?.ToString() == "清理全部缓存");
             }
             finally
             {
