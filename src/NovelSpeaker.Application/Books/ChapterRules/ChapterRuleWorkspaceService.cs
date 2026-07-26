@@ -127,13 +127,15 @@ public sealed class ChapterRuleWorkspaceService : IChapterRuleWorkspaceService
 
     private static ChapterRuleListItem MapListItem(ChapterRule rule)
     {
+        var isBuiltIn = DefaultChapterRules.IsBuiltInId(rule.Id);
         return new ChapterRuleListItem(
             rule.Id,
             rule.Name,
             RulePatternValidation.Summarize(rule.Pattern),
             rule.IsEnabled,
             rule.SortOrder,
-            DefaultChapterRules.IsBuiltInId(rule.Id));
+            isBuiltIn,
+            !isBuiltIn);
     }
 
     private static ChapterRuleEditorModel MapEditor(ChapterRule rule)

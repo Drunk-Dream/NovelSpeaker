@@ -9,4 +9,5 @@ public sealed record ChapterRuleListItem(
     string PatternSummary,
     bool IsEnabled,
     int SortOrder,
-    bool IsBuiltIn);
+    bool IsBuiltIn,
+    bool CanDelete);
