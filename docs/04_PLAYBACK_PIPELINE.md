@@ -1,317 +1,169 @@
-# 播放链路与状态机
+# 播放、预取与主动缓存
 
-## 核心原则
+## 1. 核心原则
 
-播放逻辑是项目中最重要的业务逻辑。
+- Playback session 是播放状态唯一所有者。
+- ViewModel 只发送命令和投影快照，不自行维护核心状态机。
+- 旧会话结果通过 SessionId/版本和取消 Token 隔离。
+- 当前播放、预取和主动缓存共用同一音频生成与缓存链路。
+- 页面生命周期不拥有播放会话或后台主动缓存批次。
 
-第一版实现采用两层协调结构：
+## 2. 播放状态
 
-- `ILocalAudioPlaybackCoordinator`：只负责单个本地音频文件的加载、播放、暂停、停止、定位和本地解码错误。
-- `IPlaybackSession`：面向书籍、章节、段落、规则和会话，负责状态机、导航、自动推进和旧结果隔离。
-- `IPlaybackSnapshotSource`：提供不可变播放快照和变化事件；书籍命令接口复用该只读投影。
-- `IPlaybackBookCommands`、`IPlaybackRegexReplacementRefresher`：分别承载书籍外部变化和正则替换刷新命令。
+稳定 UI 状态包括：
 
-在线 TTS 不只是一次 HTTP 请求。必须统一处理：
+- Idle
+- Buffering / Generating
+- Playing
+- Paused
+- Recovering
+- Error
 
-- 当前播放位置。
-- 缓存查询。
-- 在线合成。
-- 后续段落预取。
-- 暂停和继续。
-- 切段和切章。
-- 会话取消。
-- 旧请求结果隔离。
-- 错误恢复。
-- 进度保存。
+状态变化以 Application `PlaybackSnapshot` 为事实来源。UI 不从按钮文本、音频控件事件或缓存状态反推播放状态。
 
-## 播放状态
+## 3. 当前段播放流程
 
-```csharp
-public enum PlaybackState
-{
-    Idle,
-    Preparing,
-    Buffering,
-    Playing,
-    Paused,
-    Stopped,
-    Recovering,
-    Faulted
-}
+```text
+Resolve current chapter/segment
+  → build DisplayText/SpeechText
+  → empty SpeechText? skip audio
+  → build AudioCacheKey
+  → cache hit? validate/open
+  → otherwise acquire playback-priority rule permit
+  → execute TTS
+  → validate audio
+  → atomic cache write
+  → NAudio playback
+  → update progress
 ```
 
-状态含义：
+缓存损坏时删除该条目并允许一次正常重新生成；不能把损坏文件反复重试为成功。
 
-- `Idle`：未选择可播放内容。
-- `Preparing`：正在准备章节、段落或会话。
-- `Buffering`：等待当前段音频生成或读取。
-- `Playing`：正在播放。
-- `Paused`：播放器暂停。
-- `Stopped`：用户主动停止。
-- `Recovering`：正在重试、删除损坏缓存或重新生成。
-- `Faulted`：无法自动继续，需要用户处理。
+## 4. 会话替换
 
-## 播放会话
+以下动作建立新播放会话或替换当前 session generation：
 
-每次以下操作都应创建新会话：
-
-- 从停止状态开始播放。
 - 切换书籍。
-- 跳转章节。
-- 跳转到非相邻段落。
-- 切换 TTS 规则。
-- 修改影响音频的语速或配置。
-
-```csharp
-public sealed class PlaybackSessionState : IAsyncDisposable
-{
-    public Guid SessionId { get; }
-    public CancellationToken CancellationToken { get; }
-    public string BookId { get; }
-    public int ChapterIndex { get; set; }
-    public int SegmentIndex { get; set; }
-    public long RuleId { get; set; }
-    public int SpeakSpeed { get; set; }
-}
-```
-
-旧异步任务完成时必须检查 `SessionId`。取消 Token 不足以保证所有第三方请求立即终止。
-
-## 当前段播放流程
-
-```text
-Resolve current segment
-  ↓
-Load chapter text from Books.StoredFilePath using chapter StartOffset/Length
-  ↓
-Build runtime segment DisplayText/SpeechText
-  ↓
-Apply enabled regex replacement rules
-  ↓
-Resolve selected rule and speak speed
-  ↓
-Build cache key from final SpeechText
-  ↓
-Cache hit?
-  ├─ Yes → validate cached audio
-  └─ No  → execute HTTP TTS rule
-              ↓
-           validate response
-              ↓
-           atomic cache write
-  ↓
-Load into audio player
-  ↓
-Play
-  ↓
-Start prefetch for following segments
-  ↓
-On completed: save progress and advance
-```
-
-## 预取策略
-
-第一版默认窗口：
-
-```text
-当前段：播放或准备
-下一段：最高优先级预取
-下下段：低优先级预取
-```
-
-要求：
-
-- 每条规则默认最多 1～2 个并发网络请求。
-- 必须同时遵守 `concurrentRate`。
-- 跳章时取消旧预取。
-- 已成功写入缓存的旧请求结果可以保留。
-- 不允许旧请求改变当前 UI 或播放位置。
-- 用户暂停时可继续预取一个有限窗口。
-- 用户停止时停止预取。
-
-## 自动推进
-
-段落播放完成：
-
-1. 标记当前段完成。
-2. 保存下一段位置。
-3. 检查章节内是否还有段落。
-4. 若无，移动到下一章。
-5. 若无下一章，停止并标记全书完成。
-6. 加载缓存或进入缓冲。
-7. 开始播放。
-
-## 暂停和停止
-
-### 暂停
-
-- 保留当前音频和播放时间。
-- 保存当前位置。
-- 可保留有限预取。
-- 再次播放时从当前音频时间继续。
-
-### 停止
-
-- 停止播放器。
-- 取消当前会话和预取。
-- 保存当前位置。
-- 清理内存队列。
-- 不删除已完成缓存。
-
-## 语速处理
-
-语速参数由 TTS 规则决定，不对已生成音频进行额外变速。
-
-修改语速后：
-
-- 播放页和播放设置页写入同一全局语速；播放会话不拥有独立于全局设置的用户可编辑语速。
-- 播放页加减控件对连续输入防抖，只提交最后一次目标语速。
-- 创建新播放会话。
-- 生成新缓存键。
-- 从当前段起重新生成。
-- 旧语速缓存继续保留，交给 LRU 清理。
-
-
-## 正则替换
-
-正则替换属于当前主线，位于动态段落切分和内容消费之间：
-
-```text
-Load chapter text by StartOffset/Length
-  ↓
-Create raw runtime segments with original offsets
-  ↓
-Apply enabled global regex replacement rules per segment
-  ├─ DisplayText for UI
-  └─ SpeechText for TTS
-  ↓
-Filter empty display/speech results and map progress by original offset
-  ↓
-Build TTS request and position-related audio cache key from final SpeechText
-```
-
-要求：
-
-- 不改写 `content.txt`、`Chapters.StartOffset`、`Chapters.Length` 或原始段落边界。
-- 固定使用 `RegexOptions.CultureInvariant` 和每条规则每段 `100 ms` 超时。
-- 展示和语音可以使用不同作用范围的结果。
-- 空 DisplayText 不显示；空 SpeechText 不请求 TTS；两者都为空时完全跳过。
-- 执行字段、启用状态、排序或删除变化后立即重建当前章节，并取消受影响章节的旧预取。
-- 当前映射段 SpeechText 变化或被过滤时才停止当前音频并从段首重建会话；仅 DisplayText 变化时当前音频继续。
-- 修改前播放中则保持播放，修改前暂停中则保持暂停。
-- 音频缓存键保持现有位置相关结构，并使用最终 `SpeechText`；不实现跨位置复用。
-
-详细设计见 `12_REGEX_REPLACEMENT_PIPELINE.md`。
-
-## 错误策略
-
-| 错误 | 行为 |
-|---|---|
-| DNS、连接重置、超时 | 指数退避，最多重试 2～3 次 |
-| 401、403 | 停止当前会话，提示凭据或鉴权错误 |
-| 429 | 遵循 Retry-After，暂停该规则请求 |
-| 5xx | 有限重试 |
-| JSON/Text 错误响应 | 显示截断后的服务端错误 |
-| 空音频 | 重试一次 |
-| 缓存损坏 | 删除缓存并重新请求一次 |
-| 当前段长期失败 | 暂停并提供再次尝试或切换规则；UI 不提供跳过 |
-| 连续多段失败 | 自动暂停并显示汇总错误 |
-
-不要自动跳过失败段落，否则用户可能在不知情的情况下漏听内容。协调器内部遗留的 skip API 不属于目标公共交互，应在调用审计和特征测试后收敛。
-
-## 进度保存
-
-保存位置应至少包括：
-
-```csharp
-public sealed record BookPosition(
-    Guid BookId,
-    int ChapterIndex,
-    int SegmentIndex,
-    long AudioPositionMilliseconds,
-    int CharacterOffset);
-```
-
-保存时机：
-
-- 每段播放完成。
-- 暂停。
-- 停止。
 - 切换章节。
-- 切换书籍。
-- 应用正常关闭。
-- 应用进入异常恢复前。
+- 切换 TTS 规则。
+- 修改语速。
+- 影响 SpeechText 的文本处理配置变化。
 
-`CharacterOffset` 用于文本变化或重新分段后的近似恢复。第一版可主要依赖章节和段落索引。
+旧 HTTP/缓存/音频结果可以完成清理或形成合法缓存，但不能重新改变当前播放位置或 UI 状态。
 
-章节正文来源于导入时保存的规范化 `content.txt`，播放阶段不会从 SQLite 读取整章正文。
+## 5. 暂停与停止
 
-## 线程模型
+暂停：
 
-- UI 更新回到 WPF Dispatcher。
-- 网络、数据库、文件和脚本执行不得阻塞 UI 线程。
-- `PlaybackCoordinator` 的状态变更应串行化。
-- 可使用 `SemaphoreSlim` 或内部命令队列保护状态。
-- 不在多个事件回调中直接同时推进段落。
+- 保留当前书籍、章节、段落和可恢复位置。
+- 不继续扩展新的播放预取。
+- 再次播放从合理位置继续。
 
-## UI 快照
+停止：
 
-```csharp
-public sealed record PlaybackSnapshot(
-    PlaybackState State,
-    string? BookId,
-    string? BookTitle,
-    int ChapterIndex,
-    string? ChapterTitle,
-    int SegmentIndex,
-    int SegmentCount,
-    long? RuleId,
-    string? RuleName,
-    int SpeakSpeed,
-    long PositionMilliseconds,
-    long DurationMilliseconds,
-    string? Message,
-    bool IsUsingCache,
-    bool CanRetry);
-```
+- 结束当前播放会话并回到 Idle。
+- 不删除已经完成的缓存。
 
-ViewModel 订阅快照，而不是直接读取多个可变服务字段。
+## 6. 预取
 
-## 播放代码边界
+- 默认按设置预取少量后续段落。
+- 预取只使用当前 session 的规则/语速/文本快照。
+- 跳章、规则变化或 session 被替换后停止继续扩展旧预取。
+- 已经完成且缓存键仍合法的结果可以保留。
 
-`PlaybackCoordinator` 是 Application 的稳定门面和唯一命令串行化入口。它保留会话状态所有权，但把可独立验证的职责交给内部协作者：
+请求优先级低于当前播放，高于主动缓存。
 
-| 协作者 | 职责 |
-|---|---|
-| PlaybackSessionState | 当前书籍、章节、段落、规则、语速、SessionId 与取消源 |
-| PlaybackPositionResolver | 相邻位置、恢复位置、章节边界和原始字符偏移映射的纯计算 |
-| PlaybackSegmentRunner | 当前段音频获取、缓存损坏恢复和本地播放调用 |
-| PlaybackPrefetchController | 预取窗口、优先级、去重和会话取消 |
-| PlaybackProgressService | 统一保存/恢复进度 |
-| PlaybackSnapshotProjector | 从内部状态生成不可变快照 |
+## 7. 主动缓存批次
 
-播放器完成、失败和快照回调只投递内部命令；本地音频协调器与书籍协调器分别串行消费命令，并在会话替换或关闭时用版本号/Token 丢弃迟到事件。命令处理异常投影为安全播放状态或诊断，不让设备事件形成未观察异常。
+主动缓存由独立的 Application coordinator 管理，不属于 PlayerViewModel。
 
-Infrastructure 只实现：
+批次创建时冻结：
 
-- SQLite 阅读进度与缓存索引。
-- 文件缓存和原子写入。
-- HTTP TTS、Jint 和音频验证。
-- NAudio 单文件设备适配。
+- BookId 与章节集合。
+- TTS 规则快照。
+- 语速。
+- 章节/正则/文本分段配置所需版本或快照。
 
-ViewModel 只消费 Application 快照与命令，不自行加载正文、维护核心状态机或拼装缓存/HTTP 请求。完整分层见 `02_TECH_STACK_AND_ARCHITECTURE.md`。
+行为：
 
-## 章节加载状态
+- 全应用同一时间只有一个批次。
+- 章节按书中顺序处理；每章内部按播放段顺序处理。
+- 已有当前快照对应的有效缓存直接跳过。
+- 切换播放章节、离开播放页或打开迷你播放器不影响批次。
+- 用户可以取消尚未完成的工作；已完成缓存保留。
+- 当前播放和预取通过共享 rule limiter 获得更高 admission priority。
 
-运行时必须明确区分：
+## 8. 主动缓存进度
 
-- 章节摘要尚未加载正文。
-- 正文已加载且包含可消费段落。
-- 正文已加载，但正则规则使其没有可展示/可朗读段落。
-- 章节加载失败。取消不提交新状态，旧会话或旧操作的迟到结果不得覆盖当前章节。
+Application 发布只读任务快照，例如：
 
-不得继续使用 `Segments.Count == 0` 同时表示“未加载”和“已加载为空”，否则空章节会被反复读取、分段并干扰自动推进。
+- BatchId / BookId
+- 总章节数、已完成章节数
+- 当前章节
+- 当前章节已完成段 / 总段数
+- 全批次已完成段 / 总段数
+- Waiting / Running / Cancelling / Completed / Failed
+- 可安全展示的错误摘要
 
-## 当前能力基线
+Shell 只订阅快照并显示“缓存中 · 3/8 章 · 42%”；Flyout 可查看章节队列并取消任务。历史完成任务不持久化为“任务中心”。
 
-当前产品已经具有：双层本地/书籍播放协调、动态章节分段、正则展示/语音文本、完整下载后缓存、LRU、后续段预取、阅读进度恢复、限流、错误分类、规则/语速切换和旧会话隔离。架构重组必须保持这些行为，不得把它们重新列为待实现功能。
+## 9. 章节选择模式
+
+播放页点击缓存入口后，章节目录进入选择模式：
+
+- 单击：选中单章并清除无修饰键的旧选择。
+- `Ctrl+Click`：增减单项。
+- `Shift+Click`：按 anchor 做区间选择。
+- `Ctrl+A`：选择全部章节。
+- `Esc`：退出选择模式。
+- 选择模式中单击章节不执行播放跳转。
+
+“开始缓存”在至少选择一章且不存在冲突批次时可用。
+
+## 10. 定时停止
+
+定时停止是播放会话层临时状态，不是持久设置页配置。
+
+支持：
+
+- 15 / 30 / 45 / 60 / 90 分钟。
+- 自定义时长。
+- 当前段落结束。
+- 当前章节结束。
+- 取消定时停止。
+
+触发后只暂停播放。主动缓存继续；预取不再自然扩展新的播放需求。
+
+## 11. Windows 媒体控制
+
+系统媒体与耳机控制映射：
+
+- Play/Pause → 播放/暂停。
+- Previous → 上一段。
+- Next → 下一段。
+
+Windows 媒体面板展示当前章节标题、书名和播放状态。平台事件必须通过 Desktop/Application port 转换为播放命令，不直接操作 ViewModel。
+
+## 12. 迷你播放器
+
+迷你播放器与主窗口共享同一个 Playback session：
+
+- 只显示书名、当前章节、上一/下一章、上一/下一段、播放/暂停、进度条。
+- 提供置顶和恢复主窗口。
+- 主窗口隐藏时播放、主动缓存、托盘和媒体控制继续工作。
+- 关闭迷你播放器等价于恢复主窗口，不等价于退出应用。
+
+## 13. 正文和目录定位
+
+- 当前段自动居中遵循用户手动滚动抑制规则。
+- 用户滚动离开当前段后显示“返回当前段落”入口。
+- 播放页章节目录和书籍详情目录在滚离当前章节后显示“定位到当前章节”悬浮入口。
+- 定位使用虚拟化安全的索引/容器定位和滚动动画，不假定所有 item 已生成。
+
+## 14. 线程与事件
+
+- NAudio/平台回调只投递短命令，不直接执行长异步流程。
+- 核心会话修改串行化。
+- 所有 I/O 传递 `CancellationToken`。
+- 不用固定 `Task.Delay` 猜测事件完成。
+- fire-and-forget 任务必须有 owner、取消和异常观察。
