@@ -41,6 +41,7 @@
 
 - 允许激进清理内部 API、目录、重复抽象和低价值测试，只要数据兼容与目标行为受测试保护。
 - `IServiceProvider` 只留在组合根/框架桥接。
+- 共享 TTS admission 使用进程内、按规则隔离的异步优先级队列；当前播放和预取已通过 `TtsAdmissionPriority` 接入，主动缓存由 CACHE-402 复用同一入口并以 `ActiveCache` 优先级接入。
 - 不为下一阶段规划依赖人工验证才能关闭的任务。
 
 ## 2. 主要实现风险
@@ -70,7 +71,6 @@ HTTP response、NAudio、缓存 staging 和导出临时文件存在长期运行�
 以下问题不改变产品行为，可在对应 Backlog 任务内通过代码审计和自动验证决定：
 
 - MP3 编码采用现有可部署组件还是增加轻量编码依赖。
-- 共享 TTS admission 使用优先级 channel、调度器还是其它无同步阻塞实现。
 - Windows 系统媒体控制使用的具体平台 API/adapter。
 - 托盘能力使用框架内置能力还是小型 Windows/WPF adapter。
 

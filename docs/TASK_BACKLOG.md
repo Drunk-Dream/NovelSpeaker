@@ -177,7 +177,7 @@ Wave 内若任务不修改同一公共合同，可以并行；涉及共享 DI、
 - 五个测试项目职责与引用边界测试通过。
 - 删除测试后核心行为覆盖仍由契约/回归测试固定。
 
-## [ ] AUDIT-107（P1）：设计—实现一致性源码审计
+## [x] AUDIT-107（P1）：设计—实现一致性源码审计
 
 对照 `docs/00–12` 自动/源码级审计：
 
@@ -219,8 +219,8 @@ Wave 内若任务不修改同一公共合同，可以并行；涉及共享 DI、
 
 实现：
 
-- 建立轻量 Setting Row/Group 样式。
-- 建立 `icon + 标题 + Chevron` 的整行导航样式。
+- 收敛并扩展现有 `SettingsGroupBorderStyle`、`SettingsSubpageItemBorderStyle` 和 `SettingsEntryButtonStyle`，建立轻量 Setting Row/Group 样式。
+- 复用设置首页已有的 `icon + 标题 + Chevron` 整行入口，将同一语义扩展到二级进入三级的导航。
 - 二级进入三级页面不再使用传统按钮外观。
 - 入口不显示冗余说明文字。
 - Hover/focus 复用 UI-201 状态语言。
@@ -297,7 +297,7 @@ Wave 内若任务不修改同一公共合同，可以并行；涉及共享 DI、
 
 实现：
 
-- 设置首页入口迁移到 UI-202 导航样式。
+- 保留设置首页已符合 `icon + 标题 + Chevron` 的入口，并迁移到 UI-202 收敛后的导航样式。
 - 播放设置、导入与文本、缓存与数据、外观、诊断与关于改为统一 Setting Row 视觉。
 - 正则替换、缓存管理等三级入口统一。
 - 删除页面内重复圆角/边框/hover 样式。
@@ -335,7 +335,8 @@ Wave 内若任务不修改同一公共合同，可以并行；涉及共享 DI、
 
 实现：
 
-- 在 SYNC-104 异步 limiter 上加入明确调用优先级。
+- 复用 SYNC-104 已建立的 `TtsAdmissionPriority` 和按规则异步优先级队列，不重建第二套调度器。
+- 将 CACHE-401 的请求以 `ActiveCache` 优先级接入现有限流器，并固定播放/预取已有映射。
 - 当前播放 > 预取 > 主动缓存。
 - 同一规则所有请求共享并发/速率上限。
 - 主动缓存不能绕过 limiter 或创建独立 HTTP client。
@@ -520,6 +521,7 @@ Wave 内若任务不修改同一公共合同，可以并行；涉及共享 DI、
 
 在所有新功能稳定后再次审计：
 
+- 将 `LibraryViewModel` / `LibraryImportCoordinator` 的本地文件检查，以及 `TtsRulesViewModel` 的规则文件读写，收敛到明确、可取消且可测试的 Application/presentation operation port；文件选择继续复用现有对话框 port。
 - 新增功能形成的重复 DTO、adapter、helper 和状态复制。
 - 死代码、空目录、旧测试、临时 migration bridge。
 - `async void`、未登记 Task、通用 catch、同步阻塞异步。
