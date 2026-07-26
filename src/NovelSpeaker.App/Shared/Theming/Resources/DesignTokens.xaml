@@ -9,6 +9,15 @@
     <Thickness x:Key="DialogPadding">24</Thickness>
     <CornerRadius x:Key="CardCornerRadius">12</CornerRadius>
     <CornerRadius x:Key="DialogCornerRadius">16</CornerRadius>
+    <CornerRadius x:Key="InteractiveSurfaceCornerRadius">8</CornerRadius>
+    <CornerRadius x:Key="IconButtonCornerRadius">8</CornerRadius>
+    <CornerRadius x:Key="MediaControlCornerRadius">999</CornerRadius>
+    <Thickness x:Key="KeyboardFocusRingThickness">1</Thickness>
+    <sys:Double x:Key="DisabledControlOpacity">0.5</sys:Double>
+    <sys:Double x:Key="IconButtonSize">40</sys:Double>
+    <sys:Double x:Key="SecondaryIconButtonSize">44</sys:Double>
+    <sys:Double x:Key="MediaControlButtonSize">44</sys:Double>
+    <sys:Double x:Key="PrimaryMediaControlButtonSize">52</sys:Double>
     <sys:Double x:Key="CoverSmallWidth">72</sys:Double>
     <sys:Double x:Key="CoverSmallHeight">96</sys:Double>
     <sys:Double x:Key="CoverMediumWidth">96</sys:Double>
