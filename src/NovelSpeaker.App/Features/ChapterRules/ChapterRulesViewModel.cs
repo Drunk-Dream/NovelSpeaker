@@ -71,19 +71,11 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         !string.IsNullOrWhiteSpace(NameValidationMessage) ||
         !string.IsNullOrWhiteSpace(PatternValidationMessage);
 
-    public bool CanSaveDraft => HasEditor && !IsBusy && !HasValidationErrors && (HasUnsavedChanges || IsEditingNewRule);
+    public bool CanSaveDraft => HasEditor && HasUnsavedChanges && !IsBusy && !HasValidationErrors;
 
-    public bool CanCancelEditing => HasEditor && !IsBusy;
-
-    public bool CanDeleteCurrentRule => HasEditor && !IsEditingNewRule && CurrentRuleId is not null && !DraftIsBuiltIn && !IsBusy;
+    public bool CanCancelEditing => HasEditor && HasUnsavedChanges && !IsBusy;
 
     public string? CurrentRuleId => IsEditingNewRule ? null : _editorSession.EditorId;
-
-    public string DeleteRestrictionMessage => DraftIsBuiltIn
-        ? "内置规则不可删除，可禁用或恢复默认。"
-        : string.Empty;
-
-    public bool ShowDeleteRestrictionMessage => DraftIsBuiltIn;
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -223,10 +215,12 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
-    private async Task DeleteRuleAsync(CancellationToken cancellationToken)
+    public async Task DeleteRuleFromListAsync(
+        ChapterRuleListItemViewModel rule,
+        CancellationToken cancellationToken)
     {
-        if (!CanDeleteCurrentRule || CurrentRuleId is not string ruleId)
+        ArgumentNullException.ThrowIfNull(rule);
+        if (!rule.CanDeleteAction)
         {
             return;
         }
@@ -236,8 +230,9 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             return;
         }
 
-        var currentRule = Rules.FirstOrDefault(rule => string.Equals(rule.Id, ruleId, StringComparison.Ordinal));
-        if (currentRule is null)
+        var currentRule = Rules.FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, rule.Id, StringComparison.Ordinal));
+        if (currentRule is null || !currentRule.CanDelete)
         {
             return;
         }
@@ -251,13 +246,20 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             return;
         }
 
-        var fallbackRuleId = GetAdjacentRuleId(ruleId);
+        var deletingOpenEditor = !IsEditingNewRule &&
+                                 string.Equals(CurrentRuleId, currentRule.Id, StringComparison.Ordinal);
+        var preferredRuleId = deletingOpenEditor
+            ? GetAdjacentRuleId(currentRule.Id)
+            : CurrentRuleId;
 
         try
         {
             SetBusy(true);
-            await _workspaceService.DeleteRuleAsync(ruleId, cancellationToken);
-            await RefreshRulesAsync(fallbackRuleId, openEditorIfNeeded: true, cancellationToken);
+            await _workspaceService.DeleteRuleAsync(currentRule.Id, cancellationToken);
+            await RefreshRulesAsync(
+                preferredRuleId,
+                openEditorIfNeeded: deletingOpenEditor,
+                cancellationToken);
             _feedbackService.ShowSuccess("章节规则已删除", $"已删除规则：{currentRule.Name}。");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -320,6 +322,11 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             await _workspaceService.SetRuleEnabledAsync(rule.Id, rule.IsEnabled, cancellationToken);
             await RefreshRulesAsync(null, openEditorIfNeeded: false, cancellationToken);
         }
+        catch (OperationCanceledException)
+        {
+            rule.IsEnabled = originalValue;
+            throw;
+        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             rule.IsEnabled = originalValue;
@@ -334,7 +341,18 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     [RelayCommand]
     private async Task MoveRuleUpAsync(ChapterRuleListItemViewModel? rule, CancellationToken cancellationToken)
     {
-        if (rule is null || !rule.CanMoveUp)
+        if (rule is not null)
+        {
+            await MoveRuleUpFromListAsync(rule, cancellationToken);
+        }
+    }
+
+    public async Task MoveRuleUpFromListAsync(
+        ChapterRuleListItemViewModel rule,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        if (!rule.CanMoveUp)
         {
             return;
         }
@@ -353,7 +371,18 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     [RelayCommand]
     private async Task MoveRuleDownAsync(ChapterRuleListItemViewModel? rule, CancellationToken cancellationToken)
     {
-        if (rule is null || !rule.CanMoveDown)
+        if (rule is not null)
+        {
+            await MoveRuleDownFromListAsync(rule, cancellationToken);
+        }
+    }
+
+    public async Task MoveRuleDownFromListAsync(
+        ChapterRuleListItemViewModel rule,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        if (!rule.CanMoveDown)
         {
             return;
         }
@@ -440,6 +469,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
                 rule.PatternSummary,
                 rule.IsEnabled,
                 rule.IsBuiltIn,
+                rule.CanDelete,
                 !IsEditingNewRule && string.Equals(HighlightedRuleId, rule.Id, StringComparison.Ordinal)));
 
         if (openEditorIfNeeded && !IsEditingNewRule)
@@ -655,12 +685,18 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
 
     private async Task SaveRuleOrderAsync(IReadOnlyList<string> orderedIds, CancellationToken cancellationToken)
     {
+        var originalOrder = Rules.Select(rule => rule.Id).ToArray();
         ApplyRuleOrder(orderedIds);
 
         try
         {
             SetBusy(true);
             await _workspaceService.SaveOrderAsync(orderedIds, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            ApplyRuleOrder(originalOrder);
+            throw;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -748,10 +784,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         OnPropertyChanged(nameof(HasValidationErrors));
         OnPropertyChanged(nameof(CanSaveDraft));
         OnPropertyChanged(nameof(CanCancelEditing));
-        OnPropertyChanged(nameof(CanDeleteCurrentRule));
         OnPropertyChanged(nameof(CurrentRuleId));
-        OnPropertyChanged(nameof(DeleteRestrictionMessage));
-        OnPropertyChanged(nameof(ShowDeleteRestrictionMessage));
     }
 
     private void HandleProjectedError(string title, Exception exception)

@@ -123,4 +123,62 @@ public partial class ChapterRulesPage : System.Windows.Controls.Page, INavigatio
             "调整章节规则顺序失败",
             cancellationToken => ViewModel.ReorderByDropAsync(sourceRule, targetRule, cancellationToken));
     }
+
+    private void RuleMoreButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button button ||
+            button.ContextMenu is null ||
+            button.DataContext is not ChapterRuleListItemViewModel rule)
+        {
+            return;
+        }
+
+        button.ContextMenu.DataContext = rule;
+        foreach (var item in button.ContextMenu.Items.OfType<FrameworkElement>())
+        {
+            item.DataContext = rule;
+        }
+
+        button.ContextMenu.PlacementTarget = button;
+        button.ContextMenu.IsOpen = true;
+    }
+
+    private async void MoveRuleUpMenuItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem { DataContext: ChapterRuleListItemViewModel rule })
+        {
+            return;
+        }
+
+        await _eventOperations.RunAsync(
+            _activation,
+            "调整章节规则顺序失败",
+            cancellationToken => ViewModel.MoveRuleUpFromListAsync(rule, cancellationToken));
+    }
+
+    private async void MoveRuleDownMenuItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem { DataContext: ChapterRuleListItemViewModel rule })
+        {
+            return;
+        }
+
+        await _eventOperations.RunAsync(
+            _activation,
+            "调整章节规则顺序失败",
+            cancellationToken => ViewModel.MoveRuleDownFromListAsync(rule, cancellationToken));
+    }
+
+    private async void DeleteRuleMenuItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem { DataContext: ChapterRuleListItemViewModel rule })
+        {
+            return;
+        }
+
+        await _eventOperations.RunAsync(
+            _activation,
+            "删除章节规则失败",
+            cancellationToken => ViewModel.DeleteRuleFromListAsync(rule, cancellationToken));
+    }
 }
