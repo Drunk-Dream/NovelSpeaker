@@ -120,11 +120,21 @@ public sealed class CachePagesViewTests
                 Assert.InRange(Math.Abs(firstBookButton.ActualHeight - firstBookCard.ActualHeight), 0d, 1d);
 
                 var chapterCleanupButtons = VisualTreeTestHelper.FindDescendants<Button>(chaptersScrollViewer)
-                    .Where(button => AutomationProperties.GetName(button) == "清理本章缓存")
+                    .Where(button => AutomationProperties.GetName(button).StartsWith("清理第 ", StringComparison.Ordinal))
                     .ToArray();
                 Assert.Equal(chapters.Length, chapterCleanupButtons.Length);
                 Assert.All(chapterCleanupButtons, button =>
-                    Assert.Equal(SymbolRegular.Delete24, Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(button)).Symbol));
+                {
+                    Assert.Equal("清理", button.ToolTip);
+                    Assert.Equal(
+                        SymbolRegular.Broom24,
+                        Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(button)).Symbol);
+                });
+
+                var clearBookButton = Assert.Single(
+                    VisualTreeTestHelper.FindDescendants<Button>(page),
+                    button => Equals(button.Content, "清理"));
+                Assert.Equal("清理", clearBookButton.Content);
             }
             finally
             {

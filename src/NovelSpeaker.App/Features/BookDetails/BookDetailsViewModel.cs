@@ -229,7 +229,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
         var decision = await _dialogService.ShowConfirmationAsync(
             "清理本书缓存",
-            "将删除这本书的音频缓存，不会删除书籍、阅读进度或内部 TXT。",
+            "将清理这本书的音频缓存，不会删除书籍、阅读进度或内部 TXT。",
             "清理",
             "取消",
             cancellationToken);
@@ -262,7 +262,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         {
             var projected = _feedbackService.Project(exception);
             StatusMessage = projected.UserMessage;
-            _feedbackService.ShowProjectedNotification("清理缓存失败", projected);
+            _feedbackService.ShowProjectedNotification("清理失败", projected);
         }
         finally
         {

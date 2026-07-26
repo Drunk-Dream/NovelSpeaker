@@ -87,10 +87,14 @@ public sealed class CacheManagementViewModelTests
             new CachedChapterCacheItem("book-1", 0, "第一章", 1, 2, 1024, 2)
         ];
         var feedbackService = new FakeFeedbackService();
+        var dialogService = new FakeAppDialogService
+        {
+            NextConfirmationDecision = AppConfirmationDecision.Confirm
+        };
         var viewModel = CreateViewModel(
             workspaceService,
             feedbackService: feedbackService,
-            dialogService: new FakeAppDialogService { NextConfirmationDecision = AppConfirmationDecision.Confirm });
+            dialogService: dialogService);
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
 
@@ -100,6 +104,7 @@ public sealed class CacheManagementViewModelTests
         Assert.True(viewModel.ShowSelectedBookEmptyState);
         Assert.Empty(viewModel.Books);
         Assert.Equal("缓存已部分清理", feedbackService.LastTitle);
+        Assert.Equal("清理", dialogService.LastPrimaryButtonText);
     }
 
     [Fact]
@@ -235,6 +240,8 @@ public sealed class CacheManagementViewModelTests
     {
         public AppConfirmationDecision NextConfirmationDecision { get; set; } = AppConfirmationDecision.Confirm;
 
+        public string? LastPrimaryButtonText { get; private set; }
+
         public Task<AppConfirmationDecision> ShowConfirmationAsync(
             string title,
             string message,
@@ -242,6 +249,7 @@ public sealed class CacheManagementViewModelTests
             string closeButtonText,
             CancellationToken cancellationToken)
         {
+            LastPrimaryButtonText = primaryButtonText;
             return Task.FromResult(NextConfirmationDecision);
         }
 

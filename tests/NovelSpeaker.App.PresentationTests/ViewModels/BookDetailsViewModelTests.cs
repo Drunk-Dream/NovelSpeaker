@@ -180,6 +180,8 @@ public sealed class BookDetailsViewModelTests
 
         Assert.Equal("缓存已部分清理", feedbackService.LastTitle);
         Assert.Equal("512 B", viewModel.CacheSizeText);
+        Assert.Equal("清理", dialogService.LastPrimaryButtonText);
+        Assert.StartsWith("将清理这本书的音频缓存", dialogService.LastMessage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -550,6 +552,10 @@ public sealed class BookDetailsViewModelTests
 
         public UnsavedChangesDecision NextUnsavedDecision { get; set; } = UnsavedChangesDecision.Cancel;
 
+        public string? LastMessage { get; private set; }
+
+        public string? LastPrimaryButtonText { get; private set; }
+
         public Task<AppConfirmationDecision> ShowConfirmationAsync(
             string title,
             string message,
@@ -557,6 +563,8 @@ public sealed class BookDetailsViewModelTests
             string closeButtonText,
             CancellationToken cancellationToken)
         {
+            LastMessage = message;
+            LastPrimaryButtonText = primaryButtonText;
             return Task.FromResult(NextConfirmationDecision);
         }
 

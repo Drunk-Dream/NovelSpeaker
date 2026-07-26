@@ -18,6 +18,29 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed class BookDetailsPageTests
 {
     [Fact]
+    public void BookDetailsPage_uses_short_cleanup_action_and_keeps_explicit_entity_delete()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var page = new BookDetailsPage(CreateViewModel(), new FakeNavigationGuardService());
+
+            page.Measure(new Size(900, 640));
+            page.Arrange(new Rect(0, 0, 900, 640));
+            page.UpdateLayout();
+
+            var actionLabels = VisualTreeTestHelper.FindDescendants<Button>(page)
+                .Select(button => button.Content as string)
+                .Where(content => content is not null)
+                .ToArray();
+
+            Assert.Contains("清理", actionLabels);
+            Assert.Contains("删除", actionLabels);
+            Assert.Contains("保存", actionLabels);
+            Assert.DoesNotContain("清理缓存", actionLabels);
+        });
+    }
+
+    [Fact]
     public void BookDetailsPage_uses_fixed_workspace_layout_and_virtualized_catalog()
     {
         WpfTestHost.RunInSta(() =>

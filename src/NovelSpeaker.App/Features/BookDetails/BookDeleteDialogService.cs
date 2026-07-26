@@ -32,7 +32,7 @@ public sealed class BookDeleteDialogService : IBookDeleteDialogService
 
         var deleteCacheCheckBox = new global::System.Windows.Controls.CheckBox
         {
-            Content = "同时删除音频缓存",
+            Content = "同时清理音频缓存",
             IsChecked = request.DeleteAudioCacheByDefault,
             Margin = new Thickness(0, 12, 0, 0)
         };

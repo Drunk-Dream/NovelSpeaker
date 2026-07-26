@@ -129,7 +129,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         var decision = await _dialogService.ShowConfirmationAsync(
             "清理全部缓存",
             $"将清理全部音频缓存。{CleanupImpactMessage}",
-            "清理全部",
+            "清理",
             "取消",
             cancellationToken);
         if (decision != AppConfirmationDecision.Confirm)
@@ -154,7 +154,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         var decision = await _dialogService.ShowConfirmationAsync(
             "清理本书缓存",
             $"将清理《{SelectedBookTitle}》的音频缓存。{CleanupImpactMessage}",
-            "清理本书",
+            "清理",
             "取消",
             cancellationToken);
         if (decision != AppConfirmationDecision.Confirm)
@@ -180,7 +180,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         var decision = await _dialogService.ShowConfirmationAsync(
             "清理本章缓存",
             $"将清理“{item.Title}”的音频缓存。{CleanupImpactMessage}",
-            "清理本章",
+            "清理",
             "取消",
             cancellationToken);
         if (decision != AppConfirmationDecision.Confirm)
@@ -240,7 +240,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            _feedbackService.ShowProjectedNotification("清理缓存失败", _feedbackService.Project(exception));
+            _feedbackService.ShowProjectedNotification("清理失败", _feedbackService.Project(exception));
         }
         finally
         {

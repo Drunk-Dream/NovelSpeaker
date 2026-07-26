@@ -19,6 +19,7 @@ public sealed class CachedChapterListItemViewModel
         EntryCountText = entryCountText;
         CompletenessText = completenessText;
         AutomationName = $"{orderText}，{title}，{cacheSizeText}，{completenessText}";
+        CleanupAutomationName = $"清理{orderText}“{title}”的缓存";
     }
 
     public string BookId { get; }
@@ -36,4 +37,6 @@ public sealed class CachedChapterListItemViewModel
     public string CompletenessText { get; }
 
     public string AutomationName { get; }
+
+    public string CleanupAutomationName { get; }
 }

@@ -180,6 +180,28 @@ public sealed class ThemeResourceTests
     }
 
     [Fact]
+    public void Cache_cleanup_buttons_use_short_action_except_explicit_clear_all_danger_action()
+    {
+        var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
+        var cleanupLabels = Directory
+            .EnumerateFiles(appRoot, "*.xaml", SearchOption.AllDirectories)
+            .Select(XDocument.Load)
+            .SelectMany(static document => document
+                .Descendants()
+                .Where(static element => element.Name.LocalName == "Button")
+                .Select(static element => (string?)element.Attribute("Content")))
+            .Where(static content => content?.Contains("清理", StringComparison.Ordinal) == true)
+            .ToArray();
+
+        Assert.All(
+            cleanupLabels,
+            static label => Assert.True(
+                label is "清理" or "清理全部缓存",
+                $"Unexpected cache cleanup button label: {label}"));
+        Assert.Single(cleanupLabels, static label => label == "清理全部缓存");
+    }
+
+    [Fact]
     public void App_textblocks_explicitly_bind_to_semantic_text_styles()
     {
         var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");

@@ -198,7 +198,7 @@
                                     Padding="16,8"
                                     VerticalAlignment="Top"
                                     Command="{Binding ClearBookCommand}"
-                                    Content="清理本书全部缓存" />
+                                    Content="清理" />
                         </Grid>
 
                         <StackPanel Grid.Row="1"
@@ -279,9 +279,9 @@
                                                         VerticalAlignment="Top"
                                                         Command="{Binding DataContext.ClearChapterCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         CommandParameter="{Binding}"
-                                                        ToolTip="清理本章缓存"
-                                                        AutomationProperties.Name="清理本章缓存">
-                                                    <ui:SymbolIcon Symbol="Delete24" />
+                                                        ToolTip="清理"
+                                                        AutomationProperties.Name="{Binding CleanupAutomationName}">
+                                                    <ui:SymbolIcon Symbol="Broom24" />
                                                 </Button>
                                             </Grid>
                                         </Border>
