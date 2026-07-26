@@ -158,7 +158,40 @@ public sealed class TtsRuleRepositoryTests
         Assert.True(stored.RequestBodyIsJsonStructure);
     }
 
+    [Fact]
+    public async Task GetAllAsync_accepts_legacy_times_and_skips_damaged_history()
+    {
+        var (factory, repository) = await CreateRepositoryFixtureAsync();
+        await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                INSERT INTO HttpTtsRules
+                    (Name, Url, IsEnabled, CreatedAt, UpdatedAt)
+                VALUES
+                    ('旧时间', 'https://example.com/legacy', 1, '2026-07-16 09:08:07', '2026-07-16T09:09:08Z'),
+                    ('损坏时间', 'https://example.com/damaged', 1, 'not-a-date', 'also-invalid');
+                """;
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        var rules = await repository.GetAllAsync(CancellationToken.None);
+
+        var legacy = Assert.Single(rules);
+        Assert.Equal("旧时间", legacy.Name);
+        Assert.Equal(
+            new DateTimeOffset(2026, 7, 16, 9, 8, 7, TimeSpan.Zero),
+            legacy.CreatedAt);
+    }
+
     private static async Task<TtsRuleRepository> CreateRepositoryAsync()
+    {
+        return (await CreateRepositoryFixtureAsync()).Repository;
+    }
+
+    private static async Task<(SqliteConnectionFactory Factory, TtsRuleRepository Repository)>
+        CreateRepositoryFixtureAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var directories = new LocalAppDataDirectoryProvider(root);
@@ -169,6 +202,6 @@ public sealed class TtsRuleRepositoryTests
         var initializer = new StartupDatabaseInitializer(directories, runner, seeder);
 
         await initializer.InitializeAsync(CancellationToken.None);
-        return new TtsRuleRepository(factory);
+        return (factory, new TtsRuleRepository(factory));
     }
 }

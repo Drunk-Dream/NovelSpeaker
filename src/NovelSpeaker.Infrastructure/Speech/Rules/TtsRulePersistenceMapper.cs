@@ -1,3 +1,4 @@
+using System.Text.Json;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Persistence;
 
@@ -35,4 +36,25 @@ internal static class TtsRulePersistenceMapper
         SqliteDateTimeMapper.Parse(row.CreatedAt),
         SqliteDateTimeMapper.Parse(row.UpdatedAt));
 
+    public static bool TryToDomain(TtsRuleRow row, out HttpTtsRule rule)
+    {
+        rule = null!;
+        if ((row.LastUsedAt is not null &&
+             !SqliteDateTimeMapper.TryParse(row.LastUsedAt, out _)) ||
+            !SqliteDateTimeMapper.TryParse(row.CreatedAt, out _) ||
+            !SqliteDateTimeMapper.TryParse(row.UpdatedAt, out _))
+        {
+            return false;
+        }
+
+        try
+        {
+            rule = ToDomain(row);
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 }

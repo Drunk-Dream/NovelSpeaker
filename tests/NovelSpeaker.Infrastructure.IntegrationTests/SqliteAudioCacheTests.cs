@@ -6,6 +6,7 @@ using NovelSpeaker.Infrastructure.FileSystem.Cache;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Playback;
 using NovelSpeaker.Infrastructure.Playback;
+using NovelSpeaker.UnitTests.Common;
 using Xunit;
 
 namespace NovelSpeaker.UnitTests.Playback;
@@ -208,6 +209,36 @@ public sealed class SqliteAudioCacheTests
     }
 
     [Fact]
+    public async Task StoreAsync_uses_the_shared_time_provider_and_canonical_sqlite_format()
+    {
+        var now = new DateTimeOffset(2026, 7, 16, 9, 8, 7, TimeSpan.FromHours(8));
+        var fixture = await CreateFixtureAsync(timeProvider: new ManualTimeProvider(now));
+        var key = AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段");
+
+        await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                key,
+                "book-1",
+                0,
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+
+        await using var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT CreatedAt, LastAccessedAt FROM AudioCacheEntries WHERE CacheKey = $cacheKey;";
+        command.Parameters.AddWithValue("$cacheKey", key.Value);
+        await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
+
+        Assert.True(await reader.ReadAsync(CancellationToken.None));
+        Assert.Equal("2026-07-16T01:08:07.0000000+00:00", reader.GetString(0));
+        Assert.Equal("2026-07-16T01:08:07.0000000+00:00", reader.GetString(1));
+    }
+
+    [Fact]
     public async Task StoreAsync_pre_cancelled_does_not_consume_source_or_leave_cache_files()
     {
         var fixture = await CreateFixtureAsync();
@@ -308,7 +339,8 @@ public sealed class SqliteAudioCacheTests
 
     private static async Task<CacheFixture> CreateFixtureAsync(
         long? cacheLimitBytes = null,
-        AudioCacheProtectionRegistry? registry = null)
+        AudioCacheProtectionRegistry? registry = null,
+        TimeProvider? timeProvider = null)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var directories = new LocalAppDataDirectoryProvider(root);
@@ -325,7 +357,7 @@ public sealed class SqliteAudioCacheTests
             CurrentLimitBytes = cacheLimitBytes ?? AppSettings.DefaultCacheLimitBytes
         };
         var pathResolver = new AppStoragePathResolver(directories);
-        var index = new SqliteAudioCacheIndex(factory);
+        var index = new SqliteAudioCacheIndex(factory, timeProvider ?? TimeProvider.System);
         var fileStore = new AudioCacheFileStore(directories, pathResolver, registry);
         var maintenance = new AudioCacheMaintenance(index, fileStore, limitProvider, registry);
         var cache = new AudioCacheFacade(index, fileStore, maintenance, registry);

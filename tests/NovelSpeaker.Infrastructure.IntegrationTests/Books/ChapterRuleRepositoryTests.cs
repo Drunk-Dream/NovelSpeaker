@@ -90,4 +90,38 @@ public sealed class ChapterRuleRepositoryTests
         Assert.Equal("builtin:chapter-number", orderedIds[1]);
         Assert.Equal("custom:one", orderedIds[2]);
     }
+
+    [Fact]
+    public async Task GetAllAsync_accepts_legacy_utc_times_and_skips_damaged_history()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new LocalAppDataDirectoryProvider(root);
+        var factory = new SqliteConnectionFactory(directories);
+        var runner = new SqliteMigrationRunner(factory);
+        var seederRepository = new ChapterRuleRepository(factory);
+        var seeder = new DefaultChapterRuleSeeder(seederRepository);
+        var initializer = new StartupDatabaseInitializer(directories, runner, seeder);
+        await initializer.InitializeAsync(CancellationToken.None);
+
+        await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                INSERT INTO ChapterRules (Id, Name, Pattern, SortOrder, IsEnabled, CreatedAt, UpdatedAt)
+                VALUES
+                    ('legacy-time', '旧时间', '^legacy$', 100, 1, '2026-07-16 09:08:07', '2026-07-16T09:09:08Z'),
+                    ('damaged-time', '损坏时间', '^damaged$', 101, 1, 'not-a-date', 'also-invalid');
+                """;
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        var rules = await new ChapterRuleRepository(factory).GetAllAsync(CancellationToken.None);
+
+        var legacy = Assert.Single(rules, rule => rule.Id == "legacy-time");
+        Assert.Equal(
+            new DateTimeOffset(2026, 7, 16, 9, 8, 7, TimeSpan.Zero),
+            legacy.CreatedAt);
+        Assert.DoesNotContain(rules, rule => rule.Id == "damaged-time");
+    }
 }

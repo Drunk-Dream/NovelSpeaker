@@ -247,7 +247,7 @@ public sealed class BookLibraryPersistenceTests
 
         var protectionRegistry = new AudioCacheProtectionRegistry();
         var pathResolver = new AppStoragePathResolver(directories);
-        var index = new SqliteAudioCacheIndex(factory);
+        var index = new SqliteAudioCacheIndex(factory, TimeProvider.System);
         var fileStore = new AudioCacheFileStore(directories, pathResolver, protectionRegistry);
         var limitProvider = new FixedAudioCacheLimitProvider(AppSettings.DefaultCacheLimitBytes);
         var maintenance = new AudioCacheMaintenance(index, fileStore, limitProvider, protectionRegistry);

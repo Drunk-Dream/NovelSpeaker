@@ -14,10 +14,14 @@ internal sealed class SqliteAudioCacheIndex
 {
     private const int ReadyStatus = 1;
     private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly TimeProvider _timeProvider;
 
-    public SqliteAudioCacheIndex(ISqliteConnectionFactory connectionFactory)
+    public SqliteAudioCacheIndex(
+        ISqliteConnectionFactory connectionFactory,
+        TimeProvider timeProvider)
     {
         _connectionFactory = connectionFactory;
+        _timeProvider = timeProvider;
     }
 
     public async Task<AudioCacheIndexEntry?> FindAsync(
@@ -56,7 +60,9 @@ internal sealed class SqliteAudioCacheIndex
             WHERE CacheKey = $cacheKey;
             """;
         command.Parameters.AddWithValue("$cacheKey", cacheKey);
-        command.Parameters.AddWithValue("$lastAccessedAt", DateTime.UtcNow.ToString("O"));
+        command.Parameters.AddWithValue(
+            "$lastAccessedAt",
+            SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow()));
         command.Parameters.AddWithValue("$filePath", storageKey);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -67,7 +73,7 @@ internal sealed class SqliteAudioCacheIndex
         long fileSize,
         CancellationToken cancellationToken)
     {
-        var now = DateTime.UtcNow.ToString("O");
+        var now = SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow());
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         var command = connection.CreateCommand();
         command.CommandText =

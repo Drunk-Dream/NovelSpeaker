@@ -20,7 +20,7 @@ public sealed class SqliteDateTimeMapperTests
             var encoded = SqliteDateTimeMapper.Format(value);
             var decoded = SqliteDateTimeMapper.Parse(encoded);
 
-            Assert.Equal("2026-07-16T09:08:07.6543210+05:30", encoded);
+            Assert.Equal("2026-07-16T03:38:07.6543210+00:00", encoded);
             Assert.Equal(value, decoded);
         }
         finally
@@ -28,5 +28,26 @@ public sealed class SqliteDateTimeMapperTests
             CultureInfo.CurrentCulture = originalCulture;
             CultureInfo.CurrentUICulture = originalUiCulture;
         }
+    }
+
+    [Theory]
+    [InlineData("2026-07-16 09:08:07", "2026-07-16T09:08:07.0000000+00:00")]
+    [InlineData("2026-07-16T09:08:07Z", "2026-07-16T09:08:07.0000000+00:00")]
+    [InlineData("2026-07-16T09:08:07.1234567+08:00", "2026-07-16T09:08:07.1234567+08:00")]
+    public void TryParse_accepts_supported_legacy_and_roundtrip_formats(string storedValue, string expected)
+    {
+        var parsed = SqliteDateTimeMapper.TryParse(storedValue, out var value);
+
+        Assert.True(parsed);
+        Assert.Equal(DateTimeOffset.Parse(expected, CultureInfo.InvariantCulture), value);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not-a-date")]
+    [InlineData("2026-99-99 25:61:61")]
+    public void TryParse_rejects_damaged_values_without_throwing(string storedValue)
+    {
+        Assert.False(SqliteDateTimeMapper.TryParse(storedValue, out _));
     }
 }

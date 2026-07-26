@@ -77,7 +77,7 @@ public sealed class SqliteReadingProgressStore : IReadingProgressStore
         command.Parameters.AddWithValue("$bookId", bookId);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        return await ReadSingleAsync(reader, cancellationToken).ConfigureAwait(false);
+        return await ReadFirstValidAsync(reader, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<ReadingProgressEntry?> GetMostRecentAsync(CancellationToken cancellationToken)
@@ -89,27 +89,56 @@ public sealed class SqliteReadingProgressStore : IReadingProgressStore
             SELECT rp.BookId, rp.ChapterIndex, rp.SegmentIndex, rp.CharacterOffset, rp.AudioPositionMilliseconds, rp.UpdatedAt
             FROM ReadingProgress rp
             INNER JOIN Books b ON b.Id = rp.BookId
-            ORDER BY rp.UpdatedAt DESC, b.LastPlayedAt DESC
-            LIMIT 1;
+            ORDER BY rp.UpdatedAt DESC, b.LastPlayedAt DESC;
             """;
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        return await ReadSingleAsync(reader, cancellationToken).ConfigureAwait(false);
+        return await ReadFirstValidAsync(reader, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task<ReadingProgressEntry?> ReadSingleAsync(Microsoft.Data.Sqlite.SqliteDataReader reader, CancellationToken cancellationToken)
+    private static async Task<ReadingProgressEntry?> ReadFirstValidAsync(
+        Microsoft.Data.Sqlite.SqliteDataReader reader,
+        CancellationToken cancellationToken)
     {
-        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            return null;
+            if (TryReadProgress(reader, out var progress))
+            {
+                return progress;
+            }
         }
 
-        return new ReadingProgressEntry(
-            reader.GetString(0),
-            reader.GetInt32(1),
-            reader.GetInt32(2),
-            reader.GetInt32(3),
-            reader.GetInt64(4),
-            SqliteDateTimeMapper.Parse(reader.GetString(5)));
+        return null;
+    }
+
+    private static bool TryReadProgress(
+        Microsoft.Data.Sqlite.SqliteDataReader reader,
+        out ReadingProgressEntry progress)
+    {
+        progress = null!;
+        try
+        {
+            if (!SqliteDateTimeMapper.TryParse(reader.GetString(5), out var updatedAt))
+            {
+                return false;
+            }
+
+            progress = new ReadingProgressEntry(
+                reader.GetString(0),
+                reader.GetInt32(1),
+                reader.GetInt32(2),
+                reader.GetInt32(3),
+                reader.GetInt64(4),
+                updatedAt);
+            return true;
+        }
+        catch (InvalidCastException)
+        {
+            return false;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
     }
 }
