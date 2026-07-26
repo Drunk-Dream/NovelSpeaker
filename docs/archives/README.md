@@ -12,3 +12,4 @@
 
 - `2026-07-06_COMPLETED_UI_BACKLOG_ARCHIVE.md`：旧 UI 改造完成项。
 - `2026-07-10_UV_IMPLEMENTED_FOUNDATIONS_ARCHIVE.md`：Epic U、Epic V 在重新拆分前已经实现的基础能力。
+- `2026-07-26_ARCHITECTURE_REFACTOR_COMPLETED.md`：上一阶段架构重构、自动质量门禁与最终验证完成摘要。
