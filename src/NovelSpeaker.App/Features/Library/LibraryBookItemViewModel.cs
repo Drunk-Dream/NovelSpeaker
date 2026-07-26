@@ -1,33 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using NovelSpeaker.App.Shared.Presentation.Books;
-using NovelSpeaker.App.Features.Library;
-using System.Windows.Media;
 
 namespace NovelSpeaker.App.Features.Library;
 
 public sealed partial class LibraryBookItemViewModel : ObservableObject
 {
-    public LibraryBookItemViewModel(
-        string id,
-        string title,
-        string? author,
-        string currentChapterTitle,
-        string importedAt,
-        string? lastPlayedAt = null)
-        : this(
-            id,
-            title,
-            string.IsNullOrWhiteSpace(author) ? "未知作者" : author.Trim(),
-            currentChapterTitle,
-            string.Empty,
-            0,
-            false,
-            lastPlayedAt,
-            CreateCompatibilityCover(title),
-            canDelete: true)
-    {
-        ImportedAt = importedAt;
-    }
+    private readonly string _normalizedSearchText;
 
     public LibraryBookItemViewModel(
         string bookId,
@@ -42,7 +20,6 @@ public sealed partial class LibraryBookItemViewModel : ObservableObject
         bool canDelete)
     {
         BookId = bookId;
-        ImportedAt = string.Empty;
         Title = title;
         DisplayAuthor = displayAuthor;
         CurrentChapterTitle = currentChapterTitle;
@@ -52,14 +29,10 @@ public sealed partial class LibraryBookItemViewModel : ObservableObject
         LastPlayedAt = lastPlayedAt;
         Cover = cover;
         CanDelete = canDelete;
-        NormalizedSearchText = $"{NormalizeSearchText(title)}|{NormalizeSearchText(displayAuthor)}";
+        _normalizedSearchText = $"{NormalizeSearchText(title)}|{NormalizeSearchText(displayAuthor)}";
     }
 
     public string BookId { get; }
-
-    public string Id => BookId;
-
-    public string ImportedAt { get; }
 
     public string Title { get; }
 
@@ -83,8 +56,6 @@ public sealed partial class LibraryBookItemViewModel : ObservableObject
 
     public string SortTitleKey => Cover.NormalizedTitleKey;
 
-    public string NormalizedSearchText { get; }
-
     public string ProgressAutomationText => HasReadingProgress
         ? $"总体进度 {Math.Round(ProgressRatio * 100d, 0):0}%"
         : "尚无阅读进度";
@@ -100,7 +71,7 @@ public sealed partial class LibraryBookItemViewModel : ObservableObject
     public bool MatchesSearch(string normalizedSearchTerm)
     {
         return string.IsNullOrEmpty(normalizedSearchTerm) ||
-            NormalizedSearchText.Contains(normalizedSearchTerm, StringComparison.Ordinal);
+            _normalizedSearchText.Contains(normalizedSearchTerm, StringComparison.Ordinal);
     }
 
     internal static string NormalizeSearchText(string? value)
@@ -110,18 +81,5 @@ public sealed partial class LibraryBookItemViewModel : ObservableObject
             (value ?? string.Empty)
                 .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .ToUpperInvariant();
-    }
-
-    private static GeneratedBookCover CreateCompatibilityCover(string title)
-    {
-        return new GeneratedBookCover(
-            BookCoverGenerator.NormalizeTitleKey(title),
-            BookCoverGenerator.BuildDisplayLines(title),
-            palettePresetId: 4,
-            decorationPresetId: 0,
-            foregroundTone: BookCoverForegroundTone.Dark,
-            startColor: Color.FromRgb(226, 232, 240),
-            endColor: Color.FromRgb(148, 163, 184),
-            accentColor: Color.FromArgb(100, 71, 85, 105));
     }
 }
