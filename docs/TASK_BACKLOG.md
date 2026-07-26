@@ -76,7 +76,7 @@ Wave 内若任务不修改同一公共合同，可以并行；涉及共享 DI、
 
 目标：先消除会让后台缓存、托盘和媒体集成变复杂的技术债，再新增功能。
 
-## [ ] ARCH-101（P0）：收紧 DI 与 `IServiceProvider` 边界
+## [x] ARCH-101（P0）：收紧 DI 与 `IServiceProvider` 边界
 
 范围：Application 注册、App Bootstrap、Page provider/factory、现有非 Bootstrap 容器解析。
 

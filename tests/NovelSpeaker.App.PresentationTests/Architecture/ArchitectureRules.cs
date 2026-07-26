@@ -58,6 +58,33 @@ internal static partial class ArchitectureRules
         return violations.ToArray();
     }
 
+    public static IReadOnlyList<string> FindServiceLocationDependencies(
+        IEnumerable<SourceFileDescriptor> files,
+        IReadOnlyCollection<string> allowedRelativePaths)
+    {
+        var allowed = allowedRelativePaths.ToHashSet(StringComparer.Ordinal);
+        var violations = new SortedSet<string>(StringComparer.Ordinal);
+
+        foreach (var file in files)
+        {
+            if (allowed.Contains(file.RelativePath))
+            {
+                continue;
+            }
+
+            var source = StripCommentsAndLiterals(file.Content);
+            if (Regex.IsMatch(
+                source,
+                @"(?<![A-Za-z0-9_])I?ServiceProvider(?![A-Za-z0-9_])|\.\s*GetRequiredService(?:\s*<|\s*\()|\.\s*GetService(?:\s*<|\s*\()",
+                RegexOptions.CultureInvariant))
+            {
+                violations.Add(file.RelativePath);
+            }
+        }
+
+        return violations.ToArray();
+    }
+
     public static IReadOnlyList<string> FindSourceLayoutViolations(
         IEnumerable<SourceFileDescriptor> files)
     {

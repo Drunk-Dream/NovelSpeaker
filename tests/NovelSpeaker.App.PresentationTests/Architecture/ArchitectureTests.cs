@@ -184,6 +184,28 @@ public sealed class ArchitectureTests
     }
 
     [Fact]
+    public void ServiceProviderUsageStaysInsideCompositionAndFrameworkBridges()
+    {
+        var allowedRelativePaths = new[]
+        {
+            "src/NovelSpeaker.App/Bootstrap/WpfStartupRuntime.cs",
+            "src/NovelSpeaker.App/Shell/Activation/WpfShellPlatformAdapter.cs",
+            "src/NovelSpeaker.App/Shell/Navigation/AppNavigationPageProvider.cs",
+            "src/NovelSpeaker.App/Shell/ShellServiceCollectionExtensions.cs",
+            "src/NovelSpeaker.Application/Playback/PlaybackRegistration.cs",
+            "src/NovelSpeaker.Application/Settings/SettingsRegistration.cs",
+            "src/NovelSpeaker.Infrastructure/DependencyInjection/AudioRegistration.cs",
+            "src/NovelSpeaker.Infrastructure/DependencyInjection/SettingsRegistration.cs"
+        };
+
+        var actual = ArchitectureRules.FindServiceLocationDependencies(
+            Repository.ReadProductSourceFiles(),
+            allowedRelativePaths);
+
+        Assert.Empty(actual);
+    }
+
+    [Fact]
     public void ViewModelsDoNotAddWpfOrWpfUiTypesToPublicApi()
     {
         var actual = ArchitectureRules.FindForbiddenPublicApiDependencies(

@@ -54,6 +54,28 @@ public sealed class ArchitectureRuleContractTests
     }
 
     [Fact]
+    public void ServiceLocationRuleRejectsProviderUsageOutsideAllowedBoundaries()
+    {
+        var files = new[]
+        {
+            Source(
+                "src/NovelSpeaker.App/Features/InvalidViewModel.cs",
+                "src/NovelSpeaker.App",
+                "namespace NovelSpeaker.App.Features; public sealed class InvalidViewModel(IServiceProvider services) { public object Resolve() => services.GetRequiredService<object>(); }"),
+            Source(
+                "src/NovelSpeaker.App/Bootstrap/AllowedComposition.cs",
+                "src/NovelSpeaker.App",
+                "namespace NovelSpeaker.App.Bootstrap; public sealed class AllowedComposition(IServiceProvider services);")
+        };
+
+        var violations = ArchitectureRules.FindServiceLocationDependencies(
+            files,
+            ["src/NovelSpeaker.App/Bootstrap/AllowedComposition.cs"]);
+
+        Assert.Equal(["src/NovelSpeaker.App/Features/InvalidViewModel.cs"], violations);
+    }
+
+    [Fact]
     public void PublicApiRuleRejectsWpfType()
     {
         var violations = ArchitectureRules.FindForbiddenPublicApiDependencies(
