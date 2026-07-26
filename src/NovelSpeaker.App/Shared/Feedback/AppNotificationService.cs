@@ -1,5 +1,6 @@
 using System;
 using NovelSpeaker.App.Shared.Presentation.Platform;
+using NovelSpeaker.App.Shared.Presentation;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 
@@ -11,6 +12,7 @@ public sealed class AppNotificationService : IAppNotificationService
 
     private readonly ISnackbarService _snackbarService;
     private readonly IUiScheduler _uiScheduler;
+    private readonly OwnedTaskRegistry _processTasks = new();
 
     public AppNotificationService(ISnackbarService snackbarService, IUiScheduler? uiScheduler = null)
     {
@@ -37,7 +39,7 @@ public sealed class AppNotificationService : IAppNotificationService
     {
         if (!_uiScheduler.CheckAccess())
         {
-            _ = _uiScheduler.InvokeAsync(() => ShowCore(title, message, appearance));
+            _processTasks.Register(_uiScheduler.InvokeAsync(() => ShowCore(title, message, appearance)));
             return;
         }
 

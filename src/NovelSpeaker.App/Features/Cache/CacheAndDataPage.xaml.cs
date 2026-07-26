@@ -8,10 +8,14 @@ namespace NovelSpeaker.App.Features.Cache;
 public partial class CacheAndDataPage : System.Windows.Controls.Page, INavigationAware, INavigableView<CacheAndDataViewModel>
 {
     private readonly PageActivationController _activation = new();
+    private readonly PageEventOperationRunner _eventOperations;
 
-    public CacheAndDataPage(CacheAndDataViewModel viewModel)
+    public CacheAndDataPage(
+        CacheAndDataViewModel viewModel,
+        PageEventOperationRunner eventOperations)
     {
         ViewModel = viewModel;
+        _eventOperations = eventOperations;
         DataContext = ViewModel;
         InitializeComponent();
     }
@@ -21,7 +25,8 @@ public partial class CacheAndDataPage : System.Windows.Controls.Page, INavigatio
     public async Task OnNavigatedToAsync()
     {
         var activation = _activation.Activate();
-        ViewModel.Activate(activation.CancellationToken);
+        ViewModel.Activate(activation);
+        activation.Register(ViewModel.Deactivate);
         try
         {
             await ViewModel.LoadAsync(activation.CancellationToken);
@@ -34,7 +39,6 @@ public partial class CacheAndDataPage : System.Windows.Controls.Page, INavigatio
     public Task OnNavigatedFromAsync()
     {
         _activation.Deactivate();
-        ViewModel.Deactivate();
         return Task.CompletedTask;
     }
 
@@ -46,12 +50,18 @@ public partial class CacheAndDataPage : System.Windows.Controls.Page, INavigatio
         }
 
         e.Handled = true;
-        await ViewModel.CommitCacheLimitAsync(_activation.CurrentToken);
+        await _eventOperations.RunAsync(
+            _activation,
+            "保存缓存上限失败",
+            ViewModel.CommitCacheLimitAsync);
     }
 
     private async void CacheLimitValueTextBox_OnLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        await ViewModel.CommitCacheLimitAsync(_activation.CurrentToken);
+        await _eventOperations.RunAsync(
+            _activation,
+            "保存缓存上限失败",
+            ViewModel.CommitCacheLimitAsync);
     }
 
     private void CacheLimitUnitComboBox_OnSelectionChanged(object sender, SelectionChangedEventArgs e)

@@ -10,17 +10,20 @@ public partial class ChapterRulesPage : System.Windows.Controls.Page, INavigatio
 {
     private readonly PageActivationController _activation = new();
     private readonly INavigationGuardService _navigationGuardService;
+    private readonly PageEventOperationRunner _eventOperations;
     private Point _dragStartPoint;
     private ChapterRuleListItemViewModel? _dragSourceRule;
     private bool _hasLoaded;
 
     public ChapterRulesPage(
         ChapterRulesViewModel viewModel,
-        INavigationGuardService navigationGuardService)
+        INavigationGuardService navigationGuardService,
+        PageEventOperationRunner eventOperations)
         : this()
     {
         ViewModel = viewModel;
         _navigationGuardService = navigationGuardService;
+        _eventOperations = eventOperations;
         DataContext = ViewModel;
     }
 
@@ -28,6 +31,7 @@ public partial class ChapterRulesPage : System.Windows.Controls.Page, INavigatio
     {
         ViewModel = null!;
         _navigationGuardService = null!;
+        _eventOperations = PageEventOperationRunner.DesignTime;
         InitializeComponent();
     }
 
@@ -114,6 +118,9 @@ public partial class ChapterRulesPage : System.Windows.Controls.Page, INavigatio
         }
 
         var targetRule = (sender as FrameworkElement)?.DataContext as ChapterRuleListItemViewModel;
-        await ViewModel.ReorderByDropAsync(sourceRule, targetRule, _activation.CurrentToken);
+        await _eventOperations.RunAsync(
+            _activation,
+            "调整章节规则顺序失败",
+            cancellationToken => ViewModel.ReorderByDropAsync(sourceRule, targetRule, cancellationToken));
     }
 }

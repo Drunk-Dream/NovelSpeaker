@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Shared.Presentation.Platform;
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
 using System.Windows;
 using System.Windows.Controls;
@@ -77,20 +78,31 @@ public sealed class RulePageNavigationGuardTests
                 viewModel,
                 guard,
                 provider.GetRequiredService<IPresentationFileDialogService>(),
-                provider.GetRequiredService<IPresentationClipboard>()),
+                provider.GetRequiredService<IPresentationClipboard>(),
+                provider.GetRequiredService<PageEventOperationRunner>()),
             viewModel);
     }
 
     private static (Page, object) CreateChapterPage(IServiceProvider provider, INavigationGuardService guard)
     {
         var viewModel = provider.GetRequiredService<ChapterRulesViewModel>();
-        return (new ChapterRulesPage(viewModel, guard), viewModel);
+        return (
+            new ChapterRulesPage(
+                viewModel,
+                guard,
+                provider.GetRequiredService<PageEventOperationRunner>()),
+            viewModel);
     }
 
     private static (Page, object) CreateRegexReplacementPage(IServiceProvider provider, INavigationGuardService guard)
     {
         var viewModel = provider.GetRequiredService<RegexReplacementRulesViewModel>();
-        return (new RegexReplacementRulesPage(viewModel, guard), viewModel);
+        return (
+            new RegexReplacementRulesPage(
+                viewModel,
+                guard,
+                provider.GetRequiredService<PageEventOperationRunner>()),
+            viewModel);
     }
 
     private static Task OnNavigatedFromAsync(RulePageKind pageKind, Page page)

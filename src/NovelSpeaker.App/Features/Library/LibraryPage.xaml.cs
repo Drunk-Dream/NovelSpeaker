@@ -12,16 +12,19 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
     private readonly PageActivationController _activation = new();
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
     private readonly IPresentationFileDialogService _fileDialogs;
+    private readonly PageEventOperationRunner _eventOperations;
     private bool _hasLoaded;
 
     public LibraryPage(
         LibraryViewModel viewModel,
         IBookCatalogInvalidationState catalogInvalidationState,
-        IPresentationFileDialogService fileDialogs)
+        IPresentationFileDialogService fileDialogs,
+        PageEventOperationRunner eventOperations)
         : this()
     {
         _catalogInvalidationState = catalogInvalidationState;
         _fileDialogs = fileDialogs;
+        _eventOperations = eventOperations;
         ViewModel = viewModel;
         DataContext = ViewModel;
     }
@@ -30,6 +33,7 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
     {
         _catalogInvalidationState = null!;
         _fileDialogs = null!;
+        _eventOperations = PageEventOperationRunner.DesignTime;
         ViewModel = null!;
         InitializeComponent();
     }
@@ -64,7 +68,7 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
 
     private async void ImportButton_OnClick(object sender, RoutedEventArgs e)
     {
-        await ShowImportFileDialogAsync();
+        await RunEventOperationAsync("导入失败", ShowImportFileDialogAsync);
     }
 
     private void RootGrid_OnDragEnter(object sender, DragEventArgs e)
@@ -76,12 +80,13 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
     private async void RootGrid_OnDrop(object sender, DragEventArgs e)
     {
         var files = e.Data.GetData(DataFormats.FileDrop) as string[];
-        await ViewModel.ImportFilesAsync(files ?? [], _activation.CurrentToken);
+        await RunEventOperationAsync(
+            "导入失败",
+            cancellationToken => ViewModel.ImportFilesAsync(files ?? [], cancellationToken));
     }
 
-    private async Task ShowImportFileDialogAsync()
+    private async Task ShowImportFileDialogAsync(CancellationToken cancellationToken)
     {
-        var cancellationToken = _activation.CurrentToken;
         var filePath = await _fileDialogs.PickOpenFileAsync(
             new PresentationFileDialogOptions("Text files (*.txt)|*.txt|All files (*.*)|*.*"),
             cancellationToken);
@@ -89,5 +94,12 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
         {
             await ViewModel.ImportFilesAsync([filePath], cancellationToken);
         }
+    }
+
+    private Task RunEventOperationAsync(
+        string failureTitle,
+        Func<CancellationToken, Task> operation)
+    {
+        return _eventOperations.RunAsync(_activation, failureTitle, operation);
     }
 }

@@ -56,15 +56,23 @@ public sealed partial class AppearanceSettingsViewModel : SettingsSubpageViewMod
         }
 
         var version = Interlocked.Increment(ref _themeSelectionVersion);
-        _ = ApplyThemeSelectionAsync(value, version);
+        RunPageOperation(
+            "主题切换失败",
+            cancellationToken => ApplyThemeSelectionAsync(value, version, cancellationToken));
     }
 
-    private async Task ApplyThemeSelectionAsync(string selectedThemeValue, int version)
+    private async Task ApplyThemeSelectionAsync(
+        string selectedThemeValue,
+        int version,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var result = await _themePreferenceService.ApplyAsync(selectedThemeValue, ActivationToken).ConfigureAwait(false);
-            if (result.IsStale || version != Volatile.Read(ref _themeSelectionVersion))
+            var result = await _themePreferenceService.ApplyAsync(selectedThemeValue, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsCurrentActivation(cancellationToken) ||
+                result.IsStale ||
+                version != Volatile.Read(ref _themeSelectionVersion))
             {
                 return;
             }
@@ -81,12 +89,16 @@ public sealed partial class AppearanceSettingsViewModel : SettingsSubpageViewMod
                 SetSelectedThemeWithoutApplying(result.EffectiveTheme);
             }
         }
-        catch (OperationCanceledException) when (ActivationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
         catch (Exception exception)
         {
-            ShowSaveFailure("主题切换失败", exception);
+            if (IsCurrentActivation(cancellationToken) &&
+                version == Volatile.Read(ref _themeSelectionVersion))
+            {
+                ShowSaveFailure("主题切换失败", exception);
+            }
         }
     }
 

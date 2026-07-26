@@ -18,6 +18,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
     private readonly IAppDialogService _dialogService;
     private readonly IAppNavigator _navigator;
     private CancellationTokenSource? _chapterLoadCts;
+    private int _bookLoadVersion;
     private int _chapterLoadVersion;
     private string? _selectedBookId;
 
@@ -77,11 +78,13 @@ public sealed partial class CacheManagementViewModel : ObservableObject
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
         await LoadBooksAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         ClearSelection();
     }
 
     public void HandleNavigatedFrom()
     {
+        Interlocked.Increment(ref _bookLoadVersion);
         CancelChapterLoad();
     }
 
@@ -248,10 +251,17 @@ public sealed partial class CacheManagementViewModel : ObservableObject
 
     private async Task LoadBooksAsync(CancellationToken cancellationToken)
     {
+        var version = Interlocked.Increment(ref _bookLoadVersion);
         IsLoadingBooks = true;
         try
         {
             var books = await _cacheWorkspaceService.GetCachedBooksAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (version != Volatile.Read(ref _bookLoadVersion))
+            {
+                return;
+            }
+
             Books.Clear();
             foreach (var book in books)
             {
@@ -276,7 +286,10 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         }
         finally
         {
-            IsLoadingBooks = false;
+            if (version == Volatile.Read(ref _bookLoadVersion))
+            {
+                IsLoadingBooks = false;
+            }
         }
     }
 

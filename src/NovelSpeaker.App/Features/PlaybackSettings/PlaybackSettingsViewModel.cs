@@ -51,6 +51,7 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
 
     public override async Task LoadAsync(CancellationToken cancellationToken)
     {
+        Activate(cancellationToken);
         _isLoading = true;
         try
         {
@@ -65,6 +66,13 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
         {
             _isLoading = false;
         }
+    }
+
+    public override void Deactivate()
+    {
+        CancelPendingSave(ref _defaultSpeakSpeedDebounceCts);
+        CancelPendingSave(ref _prefetchCountDebounceCts);
+        base.Deactivate();
     }
 
     [RelayCommand]
@@ -93,6 +101,7 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
                 },
                 cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             if (version != Volatile.Read(ref _defaultSpeakSpeedVersion))
             {
                 return;
@@ -104,6 +113,7 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
             if (!string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId) &&
                 _playbackCoordinator.CurrentSnapshot.SpeakSpeed != settings.DefaultSpeakSpeed)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 await _playbackCoordinator.ChangeSpeedAsync(settings.DefaultSpeakSpeed, cancellationToken);
             }
         }
@@ -112,7 +122,8 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
         }
         catch (Exception exception)
         {
-            if (version == Volatile.Read(ref _defaultSpeakSpeedVersion))
+            if (!cancellationToken.IsCancellationRequested &&
+                version == Volatile.Read(ref _defaultSpeakSpeedVersion))
             {
                 ShowSaveFailure("更新语速失败", exception);
             }
@@ -139,6 +150,7 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
                 },
                 cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             if (version != Volatile.Read(ref _prefetchCountVersion))
             {
                 return;
@@ -152,7 +164,8 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
         }
         catch (Exception exception)
         {
-            if (version == Volatile.Read(ref _prefetchCountVersion))
+            if (!cancellationToken.IsCancellationRequested &&
+                version == Volatile.Read(ref _prefetchCountVersion))
             {
                 ShowSaveFailure("保存预取段落数量失败", exception);
             }
@@ -184,23 +197,44 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
         Func<CancellationToken, Task> commitAsync)
     {
         CancelPendingSave(ref cancellationTokenSource);
-        cancellationTokenSource = new CancellationTokenSource();
-        var token = cancellationTokenSource.Token;
+        CancellationTokenSource? operationCts = null;
 
-        _ = RunDebouncedCommitAsync(token, commitAsync);
+        RunPageOperation(
+            "保存播放设置失败",
+            currentActivationToken =>
+            {
+                operationCts = CancellationTokenSource.CreateLinkedTokenSource(currentActivationToken);
+                return RunDebouncedCommitAsync(
+                    operationCts,
+                    currentActivationToken,
+                    commitAsync);
+            });
+        cancellationTokenSource = operationCts;
     }
 
     private async Task RunDebouncedCommitAsync(
-        CancellationToken cancellationToken,
+        CancellationTokenSource operationCts,
+        CancellationToken activationToken,
         Func<CancellationToken, Task> commitAsync)
     {
+        var cancellationToken = operationCts.Token;
         try
         {
             await Task.Delay(TimeSpan.FromMilliseconds(DebounceDelayMilliseconds), _timeProvider, cancellationToken);
+            activationToken.ThrowIfCancellationRequested();
+            if (!IsCurrentActivation(activationToken))
+            {
+                return;
+            }
+
             await commitAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+        }
+        finally
+        {
+            operationCts.Dispose();
         }
     }
 
@@ -217,7 +251,6 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
     {
         if (cancellationTokenSource is not null && cancellationTokenSource.Token == commitToken)
         {
-            cancellationTokenSource.Dispose();
             cancellationTokenSource = null;
             return;
         }

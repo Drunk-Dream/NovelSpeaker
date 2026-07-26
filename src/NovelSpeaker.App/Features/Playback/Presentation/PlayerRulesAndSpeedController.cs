@@ -3,6 +3,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.App.Features.Playback.Presentation;
@@ -20,6 +21,7 @@ internal sealed class PlayerRulesAndSpeedController : IDisposable
     private readonly IAppSettingsService _settingsService;
     private readonly IAppFeedbackService _feedbackService;
     private readonly TimeProvider _timeProvider;
+    private readonly OwnedTaskRegistry _operationTasks = new();
 
     private CancellationTokenSource? _speakSpeedStepDebounceCts;
 
@@ -121,7 +123,8 @@ internal sealed class PlayerRulesAndSpeedController : IDisposable
     {
         CancelPendingSpeakSpeedChange();
         _speakSpeedStepDebounceCts = new CancellationTokenSource();
-        _ = ApplyDebouncedSpeakSpeedChangeAsync(speakSpeed, _speakSpeedStepDebounceCts.Token);
+        _operationTasks.Register(
+            ApplyDebouncedSpeakSpeedChangeAsync(speakSpeed, _speakSpeedStepDebounceCts.Token));
     }
 
     public void CancelPendingSpeakSpeedChange()

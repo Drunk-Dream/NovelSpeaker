@@ -28,7 +28,9 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
     private readonly IAppNavigator _navigator;
     private readonly IPlaybackBookCommands _playbackCoordinator;
+    private readonly OwnedTaskRegistry _pageTasks = new();
     private CancellationTokenSource? _activeLoadCancellationTokenSource;
+    private int _loadVersion;
     private BookDetailsHeader? _loadedHeader;
     private BookDetailsModel? _loadedDetails;
     private string? _bookId;
@@ -121,6 +123,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
 
+        var version = Interlocked.Increment(ref _loadVersion);
         CancelPendingLoad();
         _bookId = bookId;
         IsBusy = true;
@@ -129,6 +132,12 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         try
         {
             var header = await _bookLibraryQuery.GetBookDetailsHeaderAsync(bookId, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (version != Volatile.Read(ref _loadVersion))
+            {
+                return;
+            }
+
             if (header is null)
             {
                 ClearBook();
@@ -142,8 +151,23 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             ResetDetailSupplementProjection();
             BeginLoadDetailsSupplement(bookId, cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (version == Volatile.Read(ref _loadVersion))
+            {
+                IsBusy = false;
+                NotifyCommandStateChanged();
+            }
+
+            throw;
+        }
         catch (Exception exception)
         {
+            if (version != Volatile.Read(ref _loadVersion))
+            {
+                return;
+            }
+
             var projected = _feedbackService.Project(exception);
             ClearBook();
             StatusMessage = projected.UserMessage;
@@ -155,6 +179,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
     public void HandleNavigatedFrom()
     {
+        Interlocked.Increment(ref _loadVersion);
         CancelPendingLoad();
         IsBusy = false;
         NotifyCommandStateChanged();
@@ -410,7 +435,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     {
         var linkedCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _activeLoadCancellationTokenSource = linkedCancellationTokenSource;
-        _ = LoadDetailsSupplementAsync(bookId, linkedCancellationTokenSource);
+        _pageTasks.Register(LoadDetailsSupplementAsync(bookId, linkedCancellationTokenSource));
     }
 
     private async Task LoadDetailsSupplementAsync(string bookId, CancellationTokenSource cancellationTokenSource)

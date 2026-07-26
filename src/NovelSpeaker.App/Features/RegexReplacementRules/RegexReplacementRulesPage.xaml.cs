@@ -10,16 +10,19 @@ public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, I
 {
     private readonly PageActivationController _activation = new();
     private readonly INavigationGuardService _navigationGuardService;
+    private readonly PageEventOperationRunner _eventOperations;
     private Point _dragStartPoint;
     private RegexReplacementRuleListItemViewModel? _dragSourceRule;
 
     public RegexReplacementRulesPage(
         RegexReplacementRulesViewModel viewModel,
-        INavigationGuardService navigationGuardService)
+        INavigationGuardService navigationGuardService,
+        PageEventOperationRunner eventOperations)
         : this()
     {
         ViewModel = viewModel;
         _navigationGuardService = navigationGuardService;
+        _eventOperations = eventOperations;
         DataContext = viewModel;
     }
 
@@ -27,6 +30,7 @@ public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, I
     {
         ViewModel = null!;
         _navigationGuardService = null!;
+        _eventOperations = PageEventOperationRunner.DesignTime;
         InitializeComponent();
     }
 
@@ -102,6 +106,9 @@ public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, I
         }
 
         var target = (sender as FrameworkElement)?.DataContext as RegexReplacementRuleListItemViewModel;
-        await ViewModel.ReorderByDropAsync(source, target, _activation.CurrentToken);
+        await _eventOperations.RunAsync(
+            _activation,
+            "调整替换规则顺序失败",
+            cancellationToken => ViewModel.ReorderByDropAsync(source, target, cancellationToken));
     }
 }

@@ -7,10 +7,14 @@ namespace NovelSpeaker.App.Features.PlaybackSettings;
 public partial class PlaybackSettingsPage : System.Windows.Controls.Page, INavigationAware, INavigableView<PlaybackSettingsViewModel>
 {
     private readonly PageActivationController _activation = new();
+    private readonly PageEventOperationRunner _eventOperations;
 
-    public PlaybackSettingsPage(PlaybackSettingsViewModel viewModel)
+    public PlaybackSettingsPage(
+        PlaybackSettingsViewModel viewModel,
+        PageEventOperationRunner eventOperations)
     {
         ViewModel = viewModel;
+        _eventOperations = eventOperations;
         DataContext = ViewModel;
         InitializeComponent();
     }
@@ -20,7 +24,8 @@ public partial class PlaybackSettingsPage : System.Windows.Controls.Page, INavig
     public async Task OnNavigatedToAsync()
     {
         var activation = _activation.Activate();
-        ViewModel.Activate(activation.CancellationToken);
+        ViewModel.Activate(activation);
+        activation.Register(ViewModel.Deactivate);
         try
         {
             await ViewModel.LoadAsync(activation.CancellationToken);
@@ -33,7 +38,6 @@ public partial class PlaybackSettingsPage : System.Windows.Controls.Page, INavig
     public Task OnNavigatedFromAsync()
     {
         _activation.Deactivate();
-        ViewModel.Deactivate();
         return Task.CompletedTask;
     }
 
@@ -45,12 +49,18 @@ public partial class PlaybackSettingsPage : System.Windows.Controls.Page, INavig
         }
 
         e.Handled = true;
-        await ViewModel.CommitDefaultSpeakSpeedAsync(_activation.CurrentToken);
+        await _eventOperations.RunAsync(
+            _activation,
+            "更新默认语速失败",
+            ViewModel.CommitDefaultSpeakSpeedAsync);
     }
 
     private async void DefaultSpeakSpeedTextBox_OnLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        await ViewModel.CommitDefaultSpeakSpeedAsync(_activation.CurrentToken);
+        await _eventOperations.RunAsync(
+            _activation,
+            "更新默认语速失败",
+            ViewModel.CommitDefaultSpeakSpeedAsync);
     }
 
     private async void PrefetchCountTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -61,11 +71,17 @@ public partial class PlaybackSettingsPage : System.Windows.Controls.Page, INavig
         }
 
         e.Handled = true;
-        await ViewModel.CommitPrefetchCountAsync(_activation.CurrentToken);
+        await _eventOperations.RunAsync(
+            _activation,
+            "保存预取段落数量失败",
+            ViewModel.CommitPrefetchCountAsync);
     }
 
     private async void PrefetchCountTextBox_OnLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        await ViewModel.CommitPrefetchCountAsync(_activation.CurrentToken);
+        await _eventOperations.RunAsync(
+            _activation,
+            "保存预取段落数量失败",
+            ViewModel.CommitPrefetchCountAsync);
     }
 }

@@ -24,6 +24,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private readonly PlayerContentProjection _contentProjection;
     private readonly PlayerSnapshotProjection _snapshotProjection;
     private readonly PlayerRulesAndSpeedController _rulesAndSpeedController;
+    private readonly OwnedTaskRegistry _pageTasks = new();
 
     private string? _requestedBookId;
     private int _segmentCenterRequestVersion;
@@ -206,6 +207,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         }
 
         await RefreshRulesAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
     }
 
@@ -723,18 +725,24 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         if (!_uiScheduler.CheckAccess())
         {
-            _ = _uiScheduler.InvokeAsync(() => HandleSnapshotUpdateAsync(snapshot));
+            _pageTasks.Register(
+                _uiScheduler.InvokeAsync(() => HandleSnapshotUpdateAsync(snapshot)),
+                exception => ReportViewOperationFailure("更新播放页面失败", exception));
             return;
         }
 
-        _ = HandleSnapshotUpdateAsync(snapshot);
+        _pageTasks.Register(
+            HandleSnapshotUpdateAsync(snapshot),
+            exception => ReportViewOperationFailure("更新播放页面失败", exception));
     }
 
     private void OnAutoScrollStateChanged(object? sender, EventArgs e)
     {
         if (!_uiScheduler.CheckAccess())
         {
-            _ = _uiScheduler.InvokeAsync(ApplyAutoScrollState);
+            _pageTasks.Register(
+                _uiScheduler.InvokeAsync(ApplyAutoScrollState),
+                exception => ReportViewOperationFailure("更新滚动状态失败", exception));
             return;
         }
 

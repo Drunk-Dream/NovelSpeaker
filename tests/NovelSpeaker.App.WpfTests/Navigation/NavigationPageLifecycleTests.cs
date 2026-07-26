@@ -80,6 +80,50 @@ public sealed class NavigationPageLifecycleTests
         });
     }
 
+    [Fact]
+    public void Leaving_player_page_does_not_stop_the_playback_session()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var playback = new FakePlaybackCoordinator(new PlaybackSnapshot(
+                PlaybackState.Playing,
+                "book-7",
+                "示例小说",
+                0,
+                "第一章",
+                0,
+                1,
+                1,
+                "默认规则",
+                10,
+                0,
+                0,
+                null,
+                false,
+                false));
+            var viewModel = new PlayerViewModel(
+                playback,
+                new FakeBookPlaybackContentService(
+                    new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                    PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
+                new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
+                new FakeAppSettingsService(AppSettings.Default),
+                new FakeAppFeedbackService(),
+                new FakeNavigationService(),
+                new FakePlayerAutoScrollCoordinator());
+            var page = new PlayerPage(viewModel)
+            {
+                DataContext = new PlayerNavigationRequest("book-7", PlayerNavigationMode.ReturnToCurrentSession)
+            };
+
+            page.OnNavigatedToAsync().GetAwaiter().GetResult();
+            page.OnNavigatedFromAsync().GetAwaiter().GetResult();
+
+            Assert.Equal(0, playback.StopCallCount);
+            Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
+        });
+    }
+
     private sealed class FakePlaybackCoordinator : IPlaybackSession
     {
         public FakePlaybackCoordinator(PlaybackSnapshot snapshot)
@@ -88,6 +132,8 @@ public sealed class NavigationPageLifecycleTests
         }
 
         public PlaybackSnapshot CurrentSnapshot { get; private set; }
+
+        public int StopCallCount { get; private set; }
 
         public event EventHandler<PlaybackSnapshot>? SnapshotChanged
         {
@@ -99,7 +145,11 @@ public sealed class NavigationPageLifecycleTests
         public Task OpenPausedAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task PauseAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ResumeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            StopCallCount++;
+            return Task.CompletedTask;
+        }
         public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken) => Task.CompletedTask;
