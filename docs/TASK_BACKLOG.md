@@ -94,7 +94,7 @@ Wave 内若任务不修改同一公共合同，可以并行；涉及共享 DI、
 - 容器 `ValidateOnBuild/ValidateScopes` 和关键 service resolution 测试通过。
 - 完整 Solution build/test 通过。
 
-## [ ] LIFE-102（P0）：统一页面 activation、操作和后台任务所有权
+## [x] LIFE-102（P0）：统一页面 activation、操作和后台任务所有权
 
 前置：ARCH-101。
 

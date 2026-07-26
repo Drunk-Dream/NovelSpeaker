@@ -206,6 +206,17 @@ public sealed class ArchitectureTests
     }
 
     [Fact]
+    public void AppDoesNotDirectlyDiscardAsyncOperations()
+    {
+        var appFiles = Repository.ReadProductSourceFiles()
+            .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.App");
+
+        var actual = ArchitectureRules.FindUnregisteredFireAndForgetOperations(appFiles);
+
+        Assert.Empty(actual);
+    }
+
+    [Fact]
     public void ViewModelsDoNotAddWpfOrWpfUiTypesToPublicApi()
     {
         var actual = ArchitectureRules.FindForbiddenPublicApiDependencies(

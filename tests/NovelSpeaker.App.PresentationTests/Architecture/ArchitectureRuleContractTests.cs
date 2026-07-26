@@ -76,6 +76,31 @@ public sealed class ArchitectureRuleContractTests
     }
 
     [Fact]
+    public void FireAndForgetRuleRejectsDirectlyDiscardedAsyncOperation()
+    {
+        var files = new[]
+        {
+            Source(
+                "src/NovelSpeaker.App/Features/InvalidViewModel.cs",
+                "src/NovelSpeaker.App",
+                """
+                namespace NovelSpeaker.App.Features;
+                public sealed class InvalidViewModel
+                {
+                    public void Start() => _ = SaveAsync();
+                    private static Task SaveAsync() => Task.CompletedTask;
+                }
+                """)
+        };
+
+        var violations = ArchitectureRules.FindUnregisteredFireAndForgetOperations(files);
+
+        Assert.Equal(
+            ["src/NovelSpeaker.App/Features/InvalidViewModel.cs: directly discarded SaveAsync task"],
+            violations);
+    }
+
+    [Fact]
     public void PublicApiRuleRejectsWpfType()
     {
         var violations = ArchitectureRules.FindForbiddenPublicApiDependencies(

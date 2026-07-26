@@ -85,6 +85,24 @@ internal static partial class ArchitectureRules
         return violations.ToArray();
     }
 
+    public static IReadOnlyList<string> FindUnregisteredFireAndForgetOperations(
+        IEnumerable<SourceFileDescriptor> files)
+    {
+        var violations = new SortedSet<string>(StringComparer.Ordinal);
+
+        foreach (var file in files)
+        {
+            var source = StripCommentsAndLiterals(file.Content);
+            foreach (Match match in DirectlyDiscardedAsyncOperationRegex().Matches(source))
+            {
+                violations.Add(
+                    $"{file.RelativePath}: directly discarded {match.Groups["operation"].Value} task");
+            }
+        }
+
+        return violations.ToArray();
+    }
+
     public static IReadOnlyList<string> FindSourceLayoutViolations(
         IEnumerable<SourceFileDescriptor> files)
     {
@@ -417,4 +435,9 @@ internal static partial class ArchitectureRules
         @"(?m)^\s*public\s+(?:(?:sealed|abstract|static|partial|readonly|ref)\s+)*(?:class|struct|interface|enum|record(?:\s+(?:class|struct))?)\s+(?<name>[A-Za-z_][A-Za-z0-9_]*)",
         RegexOptions.CultureInvariant)]
     private static partial Regex PublicTypeDeclarationRegex();
+
+    [GeneratedRegex(
+        @"_\s*=\s*(?:[A-Za-z_][A-Za-z0-9_]*\s*\.\s*)*(?<operation>[A-Za-z_][A-Za-z0-9_]*Async)\s*\(",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex DirectlyDiscardedAsyncOperationRegex();
 }

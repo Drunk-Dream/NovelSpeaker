@@ -40,6 +40,31 @@ public sealed class BehaviorDebtBaselineTests
     }
 
     [Fact]
+    public void Async_event_pages_require_the_shared_exception_runner()
+    {
+        var pagePaths = new[]
+        {
+            "src/NovelSpeaker.App/Features/Cache/CacheAndDataPage.xaml.cs",
+            "src/NovelSpeaker.App/Features/ChapterRules/ChapterRulesPage.xaml.cs",
+            "src/NovelSpeaker.App/Features/ImportTextSettings/ImportTextSettingsPage.xaml.cs",
+            "src/NovelSpeaker.App/Features/Library/LibraryPage.xaml.cs",
+            "src/NovelSpeaker.App/Features/PlaybackSettings/PlaybackSettingsPage.xaml.cs",
+            "src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml.cs",
+            "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml.cs"
+        };
+
+        foreach (var relativePath in pagePaths)
+        {
+            var page = File.ReadAllText(Absolute(relativePath));
+            Assert.Contains("PageEventOperationRunner eventOperations", page, StringComparison.Ordinal);
+            Assert.Contains("_eventOperations.RunAsync(", page, StringComparison.Ordinal);
+            Assert.DoesNotContain("PageEventOperationRunner?", page, StringComparison.Ordinal);
+            Assert.DoesNotContain("eventOperations = null", page, StringComparison.Ordinal);
+            Assert.DoesNotContain("?? operation(", page, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void Tts_rules_page_consumes_platform_ports_without_constructing_adapters()
     {
         var page = File.ReadAllText(Absolute("src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml.cs"));
