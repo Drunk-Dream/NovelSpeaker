@@ -196,8 +196,8 @@ public sealed partial class PlayerViewTests
 
             var returnButton = Assert.IsType<Button>(view.FindName("ReturnToCurrentSegmentButton"));
             Assert.Equal(Visibility.Visible, returnButton.Visibility);
-            Assert.Equal("回到当前段", returnButton.ToolTip);
-            Assert.Equal("回到当前段", AutomationProperties.GetName(returnButton));
+            Assert.Equal("返回当前段落", returnButton.ToolTip);
+            Assert.Equal("返回当前段落", AutomationProperties.GetName(returnButton));
         });
     }
 
@@ -595,7 +595,7 @@ public sealed partial class PlayerViewTests
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("PrimaryPlaybackButton")), "播放");
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("NextSegmentButton")), "下一段");
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("NextChapterButton")), "下一章");
-            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("ReturnToCurrentSegmentButton")), "回到当前段");
+            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("ReturnToCurrentSegmentButton")), "返回当前段落");
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("BackButton")), "返回");
             Assert.Null(view.FindName("SkipCurrentSegmentButton"));
 

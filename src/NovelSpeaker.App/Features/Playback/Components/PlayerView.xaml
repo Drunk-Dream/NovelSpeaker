@@ -553,8 +553,8 @@
                                     Margin="0,0,12,12"
                                     Panel.ZIndex="2"
                                     Command="{Binding ReturnToCurrentSegmentCommand}"
-                                    ToolTip="回到当前段"
-                                    AutomationProperties.Name="回到当前段">
+                                    ToolTip="返回当前段落"
+                                    AutomationProperties.Name="返回当前段落">
                                 <Border Width="40"
                                         Height="40"
                                         Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
