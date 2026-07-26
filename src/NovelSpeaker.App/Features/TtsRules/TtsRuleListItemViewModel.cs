@@ -4,10 +4,27 @@ namespace NovelSpeaker.App.Features.TtsRules;
 
 public sealed partial class TtsRuleListItemViewModel : ObservableObject
 {
-    public TtsRuleListItemViewModel(long id, string name, bool isEnabled, bool isCurrent, bool isSelected)
+    public TtsRuleListItemViewModel(
+        long id,
+        string name,
+        bool isEnabled,
+        bool isCurrent,
+        bool isSelected)
+        : this(id, name, string.Empty, isEnabled, isCurrent, isSelected)
+    {
+    }
+
+    public TtsRuleListItemViewModel(
+        long id,
+        string name,
+        string requestSummary,
+        bool isEnabled,
+        bool isCurrent,
+        bool isSelected)
     {
         Id = id;
         Name = name;
+        RequestSummary = requestSummary;
         IsEnabled = isEnabled;
         IsCurrent = isCurrent;
         this.isSelected = isSelected;
@@ -16,6 +33,8 @@ public sealed partial class TtsRuleListItemViewModel : ObservableObject
     public long Id { get; }
 
     public string Name { get; }
+
+    public string RequestSummary { get; }
 
     public bool IsEnabled { get; }
 

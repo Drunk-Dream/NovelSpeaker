@@ -84,6 +84,104 @@ public sealed partial class TtsRulesPageTests
     }
 
     [Fact]
+    public void TtsRulesPage_card_contains_summary_enabled_current_and_more_actions()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var rule = new TtsRuleListItemViewModel(
+                2,
+                "备用规则",
+                "POST · https://speech.example.com",
+                true,
+                false,
+                true);
+            var view = new TtsRulesPage
+            {
+                DataContext = new TtsRulesViewLayoutContext
+                {
+                    HasEditor = true,
+                    Rules = [rule]
+                }
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            Assert.NotNull(VisualTreeTestHelper.FindDescendant<TextBlock>(
+                view,
+                candidate => candidate.Text == rule.RequestSummary));
+            Assert.NotNull(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => AutomationProperties.GetName(candidate) == "切换规则启用状态：备用规则"));
+            Assert.NotNull(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => Equals(candidate.Content, "设为当前")));
+            var moreButton = VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => AutomationProperties.GetName(candidate) == "更多操作：备用规则");
+            Assert.NotNull(moreButton);
+            Assert.Equal(
+                ["导出", "删除"],
+                moreButton!.ContextMenu!.Items
+                    .Cast<MenuItem>()
+                    .Select(item => (string)item.Header)
+                    .ToArray());
+        });
+    }
+
+    [Fact]
+    public void TtsRulesPage_right_editor_keeps_only_audition_cancel_and_save_actions()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new TtsRulesPage
+            {
+                DataContext = new TtsRulesViewLayoutContext
+                {
+                    HasEditor = true,
+                    CanSaveDraft = false,
+                    CanCancelEditing = false,
+                    Rules =
+                    [
+                        new TtsRuleListItemViewModel(
+                            1,
+                            "规则一",
+                            "GET · https://example.com",
+                            true,
+                            true,
+                            true)
+                    ]
+                }
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var audition = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
+                view,
+                candidate => Equals(candidate.Content, "试听")));
+            var cancel = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
+                view,
+                candidate => Equals(candidate.Content, "取消")));
+            var save = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
+                view,
+                candidate => Equals(candidate.Content, "保存")));
+
+            Assert.True(audition.IsEnabled);
+            Assert.False(cancel.IsEnabled);
+            Assert.False(save.IsEnabled);
+            Assert.Null(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => Equals(candidate.Content, "导出")));
+            Assert.Null(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => Equals(candidate.Content, "删除")));
+        });
+    }
+
+    [Fact]
     public void TtsRulesPage_uses_icon_buttons_for_toolbar_import_actions()
     {
         WpfTestHost.RunInSta(() =>
@@ -331,9 +429,9 @@ public sealed partial class TtsRulesPageTests
 
         public string DraftConcurrentRate { get; init; } = "2/1000";
 
-        public bool CanSaveDraft => true;
+        public bool CanSaveDraft { get; init; }
 
-        public bool CanCancelEditing => true;
+        public bool CanCancelEditing { get; init; }
 
         public bool CanDeleteCurrentRule => true;
 

@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
@@ -103,8 +104,27 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
             });
     }
 
-    private async void ExportDraftButton_OnClick(object sender, RoutedEventArgs e)
+    private void RuleMoreButton_OnClick(object sender, RoutedEventArgs e)
     {
+        if (sender is not Button button ||
+            button.ContextMenu is null ||
+            button.DataContext is not TtsRuleListItemViewModel rule)
+        {
+            return;
+        }
+
+        button.ContextMenu.DataContext = rule;
+        button.ContextMenu.PlacementTarget = button;
+        button.ContextMenu.IsOpen = true;
+    }
+
+    private async void ExportRuleMenuItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { DataContext: TtsRuleListItemViewModel rule })
+        {
+            return;
+        }
+
         await RunEventOperationAsync(
             "导出规则失败",
             async cancellationToken =>
@@ -116,9 +136,21 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
                     cancellationToken);
                 if (!string.IsNullOrWhiteSpace(filePath))
                 {
-                    await ViewModel.ExportDraftToFileAsync(filePath, cancellationToken);
+                    await ViewModel.ExportRuleToFileAsync(rule, filePath, cancellationToken);
                 }
             });
+    }
+
+    private async void DeleteRuleMenuItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { DataContext: TtsRuleListItemViewModel rule })
+        {
+            return;
+        }
+
+        await RunEventOperationAsync(
+            "删除规则失败",
+            cancellationToken => ViewModel.DeleteRuleFromListAsync(rule, cancellationToken));
     }
 
     private Task RunEventOperationAsync(

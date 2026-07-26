@@ -83,8 +83,8 @@
               Margin="0,20,0,0"
               MinHeight="0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="320" />
-                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="360" />
+                <ColumnDefinition Width="20" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -123,60 +123,101 @@
                         <ItemsControl ItemsSource="{Binding Rules}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Button Style="{StaticResource SelectableListItemButtonStyle}"
-                                            Command="{Binding DataContext.SelectRuleCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                            CommandParameter="{Binding}"
-                                            AutomationProperties.Name="{Binding AutomationName}">
+                                    <Border Margin="0,0,0,10"
+                                            Padding="0"
+                                            Style="{StaticResource CardBorderStyle}">
                                         <Grid>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto" />
                                                 <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
 
-                                            <TextBlock Style="{StaticResource StrongTextBlockStyle}"
-                                                       Text="{Binding Name}"
-                                                       TextTrimming="CharacterEllipsis" />
+                                            <Button Padding="12,10"
+                                                    Style="{StaticResource SelectableListItemButtonStyle}"
+                                                    Command="{Binding DataContext.SelectRuleCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                    CommandParameter="{Binding}"
+                                                    AutomationProperties.Name="{Binding AutomationName}">
+                                                <StackPanel>
+                                                    <TextBlock Style="{StaticResource StrongTextBlockStyle}"
+                                                               Text="{Binding Name}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Margin="0,6,0,0"
+                                                               Style="{StaticResource SecondaryTextBlockStyle}"
+                                                               Text="{Binding RequestSummary}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Button>
 
-                                            <TextBlock Grid.Column="1"
-                                                       Margin="12,0,0,0"
-                                                       VerticalAlignment="Center"
-                                                       Text="当前">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock"
-                                                           BasedOn="{StaticResource StrongTextBlockStyle}">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                        <Setter Property="Foreground" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
+                                            <Grid Grid.Row="1"
+                                                  Margin="12,2,8,10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
 
-                                            <TextBlock Grid.Row="1"
-                                                       Grid.ColumnSpan="2"
-                                                       Margin="0,8,0,0"
-                                                       Text="{Binding IsEnabled, StringFormat=状态：{0}}">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock"
-                                                           BasedOn="{StaticResource SecondaryTextBlockStyle}">
-                                                        <Setter Property="Text" Value="状态：已启用" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                                                <Setter Property="Text" Value="状态：已禁用" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
+                                                <Button VerticalAlignment="Center"
+                                                        HorizontalAlignment="Left"
+                                                        Padding="4"
+                                                        Style="{StaticResource BorderlessListItemButtonStyle}"
+                                                        Command="{Binding DataContext.ToggleRuleEnabledCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                        CommandParameter="{Binding}"
+                                                        AutomationProperties.Name="{Binding Name, StringFormat=切换规则启用状态：{0}}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox VerticalAlignment="Center"
+                                                                  Focusable="False"
+                                                                  IsHitTestVisible="False"
+                                                                  IsChecked="{Binding IsEnabled, Mode=OneWay}" />
+                                                        <TextBlock Margin="6,0,0,0"
+                                                                   VerticalAlignment="Center"
+                                                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                                                   Text="启用" />
+                                                    </StackPanel>
+                                                </Button>
+
+                                                <Button Grid.Column="2"
+                                                        Margin="8,0,4,0"
+                                                        Padding="8,4"
+                                                        Command="{Binding DataContext.SetCurrentRuleCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                        CommandParameter="{Binding}"
+                                                        AutomationProperties.Name="{Binding Name, StringFormat=设为当前规则：{0}}">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button"
+                                                               BasedOn="{StaticResource BorderlessListItemButtonStyle}">
+                                                            <Setter Property="Content" Value="设为当前" />
+                                                            <Setter Property="IsEnabled" Value="True" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                                    <Setter Property="IsEnabled" Value="False" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                                    <Setter Property="Content" Value="当前规则" />
+                                                                    <Setter Property="IsEnabled" Value="False" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+
+                                                <Button Grid.Column="3"
+                                                        Style="{StaticResource BorderlessIconButtonStyle}"
+                                                        Click="RuleMoreButton_OnClick"
+                                                        ToolTip="更多操作"
+                                                        AutomationProperties.Name="{Binding Name, StringFormat=更多操作：{0}}">
+                                                    <ui:SymbolIcon Symbol="MoreHorizontal24" />
+                                                    <Button.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="导出"
+                                                                      Click="ExportRuleMenuItem_OnClick" />
+                                                            <MenuItem Header="删除"
+                                                                      Click="DeleteRuleMenuItem_OnClick" />
+                                                        </ContextMenu>
+                                                    </Button.ContextMenu>
+                                                </Button>
+                                            </Grid>
                                         </Grid>
-                                    </Button>
+                                    </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -236,24 +277,11 @@
                                        Text="规则编辑" />
 
                             <Grid Margin="0,20,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="16" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-
-                                <StackPanel Grid.Column="0">
+                                <StackPanel>
                                     <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                                Text="名称" />
                                     <TextBox Margin="0,6,0,0"
                                              Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Column="2">
-                                    <TextBlock Style="{StaticResource StrongTextBlockStyle}"
-                                               Text="启用" />
-                                    <CheckBox Margin="0,8,0,0"
-                                              IsChecked="{Binding DraftIsEnabled}" />
                                 </StackPanel>
                             </Grid>
 
@@ -350,24 +378,9 @@
                             <WrapPanel Margin="0,24,0,0">
                                 <Button Margin="0,0,12,12"
                                         Padding="16,8"
-                                        Command="{Binding SetCurrentRuleCommand}"
-                                        Content="设为当前"
-                                        IsEnabled="{Binding CanSetCurrentRule}" />
-                                <Button Margin="0,0,12,12"
-                                        Padding="16,8"
                                         Command="{Binding TestDraftCommand}"
                                         Content="试听"
                                         IsEnabled="{Binding CanTestDraft}" />
-                                <Button Margin="0,0,12,12"
-                                        Padding="16,8"
-                                        Click="ExportDraftButton_OnClick"
-                                        Content="导出"
-                                        IsEnabled="{Binding CanExportDraft}" />
-                                <Button Margin="0,0,12,12"
-                                        Padding="16,8"
-                                        Command="{Binding DeleteRuleCommand}"
-                                        Content="删除"
-                                        IsEnabled="{Binding CanDeleteCurrentRule}" />
                                 <Button Margin="0,0,12,12"
                                         Padding="16,8"
                                         Command="{Binding CancelEditingCommand}"
