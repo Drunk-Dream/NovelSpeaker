@@ -25,6 +25,13 @@ public sealed partial class RegexReplacementRuleListItemViewModel : ObservableOb
     public string EnabledStateText => IsEnabled ? "已启用" : "已禁用";
     [ObservableProperty] private bool isEnabled;
     [ObservableProperty] private bool isSelected;
+    [ObservableProperty] private bool isDropTarget;
+    [ObservableProperty] private bool canQuickActions = true;
+    [ObservableProperty] private bool canMoveUp = true;
+    [ObservableProperty] private bool canMoveDown = true;
+
+    public bool CanDeleteAction => CanQuickActions;
+
     public string AutomationName => $"{Name}，{EnabledStateText}，{ScopeDisplayName}{(HasError ? "，规则错误" : string.Empty)}{(IsSelected ? "，已选中" : string.Empty)}";
     partial void OnIsEnabledChanged(bool value)
     {
@@ -32,4 +39,5 @@ public sealed partial class RegexReplacementRuleListItemViewModel : ObservableOb
         OnPropertyChanged(nameof(AutomationName));
     }
     partial void OnIsSelectedChanged(bool value) => OnPropertyChanged(nameof(AutomationName));
+    partial void OnCanQuickActionsChanged(bool value) => OnPropertyChanged(nameof(CanDeleteAction));
 }

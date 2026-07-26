@@ -76,7 +76,7 @@ public sealed class RegexReplacementRulesPageTests
             Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(rulesList));
 
             var statusBoxes = VisualTreeTestHelper.FindDescendants<CheckBox>(view).ToArray();
-            Assert.Equal(["已启用", "已禁用"], statusBoxes.Select(box => box.Content).ToArray());
+            Assert.Equal(["启用", "启用"], statusBoxes.Select(box => box.Content).ToArray());
             Assert.True(statusBoxes[0].IsChecked is true);
             Assert.True(statusBoxes[1].IsChecked is false);
             Assert.Contains("规则执行失败", VisualTreeTestHelper.FindDescendants<TextBlock>(view).Select(block => block.Text));
@@ -85,9 +85,55 @@ public sealed class RegexReplacementRulesPageTests
         });
     }
 
+    [Fact]
+    public void RegexReplacementRulesPage_places_fallback_actions_in_more_menu_and_exposes_help()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var rule = new RegexReplacementRuleListItemViewModel(
+                Guid.NewGuid(),
+                "空白清理",
+                "\\s+",
+                true,
+                RegexReplacementScope.Both,
+                true,
+                null);
+            var view = new RegexReplacementRulesPage
+            {
+                DataContext = new RegexReplacementRulesViewLayoutContext
+                {
+                    Rules = [rule],
+                    HasEditor = true
+                }
+            };
+
+            view.Measure(new Size(960, 680));
+            view.Arrange(new Rect(0, 0, 960, 680));
+            view.UpdateLayout();
+
+            var moreButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => AutomationProperties.GetName(candidate) == "更多操作：空白清理"));
+            var menu = Assert.IsType<ContextMenu>(moreButton.ContextMenu);
+            Assert.Equal(
+                ["上移", "下移", "删除"],
+                menu.Items.OfType<MenuItem>().Select(item => item.Header).ToArray());
+            Assert.NotNull(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => AutomationProperties.GetName(candidate) == "正则替换帮助"));
+            Assert.DoesNotContain(
+                VisualTreeTestHelper.FindDescendants<Button>(view),
+                button => Equals(button.Content, "删除"));
+        });
+    }
+
     private sealed class RegexReplacementRulesViewLayoutContext
     {
         public ObservableCollection<RegexReplacementRuleListItemViewModel> Rules { get; init; } = [];
+        public bool HasEditor { get; init; }
+        public bool CanCancel { get; init; }
+        public bool CanSave { get; init; }
+        public bool IsHelpDrawerOpen { get; init; }
         public string DraftName { get; init; } = "规则名称";
         public string DraftPattern { get; init; } = "pattern";
         public string DraftReplacement { get; init; } = "replacement";

@@ -147,6 +147,11 @@ public sealed class ThemeResourceTests
         var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
         var playerView = File.ReadAllText(Path.Combine(appRoot, "Features", "Playback", "Components", "PlayerView.xaml"));
         var chapterRulesPage = File.ReadAllText(Path.Combine(appRoot, "Features", "ChapterRules", "ChapterRulesPage.xaml"));
+        var regexReplacementRulesPage = File.ReadAllText(Path.Combine(
+            appRoot,
+            "Features",
+            "RegexReplacementRules",
+            "RegexReplacementRulesPage.xaml"));
         var libraryPage = File.ReadAllText(Path.Combine(appRoot, "Features", "Library", "LibraryPage.xaml"));
         var bookCardView = File.ReadAllText(Path.Combine(appRoot, "Features", "Library", "BookCardView.xaml"));
 
@@ -157,8 +162,13 @@ public sealed class ThemeResourceTests
         Assert.Contains("BorderlessIconButtonStyle", libraryPage);
         Assert.Contains("BorderlessListItemButtonStyle", bookCardView);
         Assert.Contains("ReOrder24", chapterRulesPage);
-        Assert.Contains("AutomationProperties.Name=\"上移\"", chapterRulesPage);
-        Assert.Contains("AutomationProperties.Name=\"下移\"", chapterRulesPage);
+        Assert.Contains("MoreHorizontal24", chapterRulesPage);
+        Assert.Contains("Header=\"上移\"", chapterRulesPage);
+        Assert.Contains("Header=\"下移\"", chapterRulesPage);
+        Assert.Contains("ReOrder24", regexReplacementRulesPage);
+        Assert.Contains("MoreHorizontal24", regexReplacementRulesPage);
+        Assert.Contains("Header=\"上移\"", regexReplacementRulesPage);
+        Assert.Contains("Header=\"下移\"", regexReplacementRulesPage);
     }
 
     [Fact]

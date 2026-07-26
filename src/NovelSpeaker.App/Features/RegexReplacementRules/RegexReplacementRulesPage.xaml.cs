@@ -39,6 +39,7 @@ public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, I
     public async Task OnNavigatedToAsync()
     {
         var activation = _activation.Activate();
+        activation.Register(ViewModel.HandleNavigatedFrom);
         activation.Register(_navigationGuardService.Register(ViewModel.ConfirmLeaveAsync));
         try
         {
@@ -83,11 +84,13 @@ public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, I
         if (e.Data.GetData(typeof(RegexReplacementRuleListItemViewModel)) is RegexReplacementRuleListItemViewModel)
         {
             e.Effects = DragDropEffects.Move;
+            ViewModel.SetDragTarget((sender as FrameworkElement)?.DataContext as RegexReplacementRuleListItemViewModel);
         }
     }
 
     private void RuleItem_OnDragLeave(object sender, DragEventArgs e)
     {
+        ViewModel.ClearDragTarget();
     }
 
     private void RuleItem_OnDragOver(object sender, DragEventArgs e)
@@ -110,5 +113,63 @@ public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, I
             _activation,
             "调整替换规则顺序失败",
             cancellationToken => ViewModel.ReorderByDropAsync(source, target, cancellationToken));
+    }
+
+    private void RuleMoreButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button button ||
+            button.ContextMenu is null ||
+            button.DataContext is not RegexReplacementRuleListItemViewModel rule)
+        {
+            return;
+        }
+
+        button.ContextMenu.DataContext = rule;
+        foreach (var item in button.ContextMenu.Items.OfType<FrameworkElement>())
+        {
+            item.DataContext = rule;
+        }
+
+        button.ContextMenu.PlacementTarget = button;
+        button.ContextMenu.IsOpen = true;
+    }
+
+    private async void MoveRuleUpMenuItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem { DataContext: RegexReplacementRuleListItemViewModel rule })
+        {
+            return;
+        }
+
+        await _eventOperations.RunAsync(
+            _activation,
+            "调整替换规则顺序失败",
+            cancellationToken => ViewModel.MoveRuleUpFromListAsync(rule, cancellationToken));
+    }
+
+    private async void MoveRuleDownMenuItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem { DataContext: RegexReplacementRuleListItemViewModel rule })
+        {
+            return;
+        }
+
+        await _eventOperations.RunAsync(
+            _activation,
+            "调整替换规则顺序失败",
+            cancellationToken => ViewModel.MoveRuleDownFromListAsync(rule, cancellationToken));
+    }
+
+    private async void DeleteRuleMenuItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem { DataContext: RegexReplacementRuleListItemViewModel rule })
+        {
+            return;
+        }
+
+        await _eventOperations.RunAsync(
+            _activation,
+            "删除正则替换规则失败",
+            cancellationToken => ViewModel.DeleteRuleFromListAsync(rule, cancellationToken));
     }
 }
