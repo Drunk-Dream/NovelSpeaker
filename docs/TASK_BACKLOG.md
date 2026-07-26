@@ -127,7 +127,7 @@ Wave 内若任务不修改同一公共合同，可以并行；涉及共享 DI、
 - NAudio 多次替换/失败释放测试。
 - 临时文件 cleanup 和文件锁回归测试。
 
-## [ ] SYNC-104（P0）：异步化 TTS admission，并整理持久化同步边界
+## [x] SYNC-104（P0）：异步化 TTS admission，并整理持久化同步边界
 
 实现：
 

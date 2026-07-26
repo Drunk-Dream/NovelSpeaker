@@ -78,6 +78,23 @@ public sealed class BehaviorDebtBaselineTests
     }
 
     [Fact]
+    public void Tts_admission_and_settings_storage_do_not_synchronously_wait_for_async_work()
+    {
+        var limiter = File.ReadAllText(
+            Absolute("src/NovelSpeaker.Infrastructure/Speech/Http/TtsRateLimiter.cs"));
+        var settingsStore = File.ReadAllText(
+            Absolute("src/NovelSpeaker.Infrastructure/Settings/JsonAppSettingsStore.cs"));
+
+        Assert.DoesNotContain("SemaphoreSlim", limiter, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Wait(", limiter, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Result", limiter, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetAwaiter().GetResult()", limiter, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Wait(", settingsStore, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Result", settingsStore, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetAwaiter().GetResult()", settingsStore, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Test_audio_fixtures_are_owned_by_tests_and_excluded_from_the_app()
     {
         var fixtureNames = new[]

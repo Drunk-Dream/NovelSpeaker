@@ -39,14 +39,18 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (!_files.Exists(_directories.SettingsPath))
+        if (!await Task.Run(
+                () => _files.Exists(_directories.SettingsPath),
+                cancellationToken).ConfigureAwait(false))
         {
             return AppSettings.Default;
         }
 
         try
         {
-            await using var stream = _files.OpenRead(_directories.SettingsPath);
+            await using var stream = await Task.Run(
+                () => _files.OpenRead(_directories.SettingsPath),
+                cancellationToken).ConfigureAwait(false);
             var settings = await JsonSerializer.DeserializeAsync<AppSettings>(
                 stream,
                 SerializerOptions,
@@ -56,7 +60,7 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
         }
         catch (JsonException)
         {
-            IsolateCorruptFile();
+            await IsolateCorruptFileAsync(cancellationToken).ConfigureAwait(false);
             return AppSettings.Default;
         }
     }
@@ -70,28 +74,46 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
         try
         {
             var normalized = settings.Normalize();
-            await using (var stream = _files.CreateForWrite(temporaryPath))
+            await using (var stream = await Task.Run(
+                () => _files.CreateForWrite(temporaryPath),
+                cancellationToken).ConfigureAwait(false))
             {
                 await JsonSerializer.SerializeAsync(stream, normalized, SerializerOptions, cancellationToken).ConfigureAwait(false);
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
-                _files.FlushToDisk(stream);
+                await Task.Run(
+                    () => _files.FlushToDisk(stream),
+                    cancellationToken).ConfigureAwait(false);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            _files.Move(temporaryPath, _directories.SettingsPath, overwrite: true);
+            await Task.Run(
+                () => _files.Move(temporaryPath, _directories.SettingsPath, overwrite: true),
+                cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            if (_files.Exists(temporaryPath))
-            {
-                _files.Delete(temporaryPath);
-            }
+            await Task.Run(
+                () =>
+                {
+                    if (_files.Exists(temporaryPath))
+                    {
+                        _files.Delete(temporaryPath);
+                    }
+                }).ConfigureAwait(false);
         }
+    }
+
+    private Task IsolateCorruptFileAsync(CancellationToken cancellationToken)
+    {
+        return Task.Run(IsolateCorruptFile, cancellationToken);
     }
 
     private void IsolateCorruptFile()
     {
-        var timestamp = _timeProvider.GetUtcNow().ToString("yyyyMMddTHHmmssfffffffZ", CultureInfo.InvariantCulture);
+        var timestamp = _timeProvider
+            .GetUtcNow()
+            .ToUniversalTime()
+            .ToString("yyyyMMddTHHmmssfffffffZ", CultureInfo.InvariantCulture);
         for (var suffix = 0; ; suffix++)
         {
             var suffixText = suffix == 0 ? string.Empty : $".{suffix}";
