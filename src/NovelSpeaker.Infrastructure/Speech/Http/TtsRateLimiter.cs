@@ -8,8 +8,10 @@ namespace NovelSpeaker.Infrastructure.Speech.Http;
 /// </summary>
 public sealed class TtsRateLimiter : ITtsRateLimiter
 {
+    private const int MaximumPriorityBypasses = 8;
     private readonly ConcurrentDictionary<long, RuleState> _states = new();
     private readonly TimeProvider _timeProvider;
+    private long _nextSequence;
 
     public TtsRateLimiter(TimeProvider timeProvider)
     {
@@ -19,63 +21,48 @@ public sealed class TtsRateLimiter : ITtsRateLimiter
     public async Task WaitAsync(
         long ruleId,
         string? concurrentRate,
+        TtsAdmissionPriority priority,
         CancellationToken cancellationToken)
     {
         var policy = RateLimitPolicy.Parse(concurrentRate);
+        cancellationToken.ThrowIfCancellationRequested();
+
         var state = _states.GetOrAdd(ruleId, static _ => new RuleState());
-        await state.Mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
-        var holdsMutex = true;
-        try
+        var waiter = new AdmissionWaiter(
+            policy,
+            priority,
+            Interlocked.Increment(ref _nextSequence),
+            cancellationToken);
+
+        lock (state.SyncRoot)
         {
-            while (true)
+            waiter.Node = state.Waiters.AddLast(waiter);
+            if (!state.PumpRunning)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var now = _timeProvider.GetUtcNow();
-                if (policy is not null)
-                {
-                    TrimWindow(state, policy, now);
-                }
-
-                var waitTime = GetRequiredWait(state, policy, now);
-                if (waitTime <= TimeSpan.Zero)
-                {
-                    if (policy is not null)
-                    {
-                        state.RequestTimestamps.Enqueue(now);
-                        if (state.RequestTimestamps.Count > policy.MaxRequests)
-                        {
-                            state.RequestTimestamps.Dequeue();
-                        }
-                    }
-
-                    if (state.BlockedUntilUtc <= now)
-                    {
-                        state.BlockedUntilUtc = DateTimeOffset.MinValue;
-                    }
-
-                    return;
-                }
-
-                state.Mutex.Release();
-                holdsMutex = false;
-                try
-                {
-                    await Task.Delay(waitTime, _timeProvider, cancellationToken).ConfigureAwait(false);
-                }
-                finally
-                {
-                    await state.Mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
-                    holdsMutex = true;
-                }
+                state.PumpRunning = true;
+                state.PumpTask = PumpAsync(state);
+            }
+            else
+            {
+                state.QueueChanged.TrySetResult();
             }
         }
-        finally
-        {
-            if (holdsMutex)
+
+        using var cancellationRegistration = cancellationToken.Register(
+            static callbackState =>
             {
-                state.Mutex.Release();
-            }
+                var (ruleState, admissionWaiter) = ((RuleState, AdmissionWaiter))callbackState!;
+                CancelWaiter(ruleState, admissionWaiter);
+            },
+            (state, waiter));
+
+        try
+        {
+            await waiter.Completion.Task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
     }
 
@@ -87,8 +74,7 @@ public sealed class TtsRateLimiter : ITtsRateLimiter
         }
 
         var state = _states.GetOrAdd(ruleId, static _ => new RuleState());
-        state.Mutex.Wait();
-        try
+        lock (state.SyncRoot)
         {
             var blockedUntil = _timeProvider.GetUtcNow() + retryAfter;
             if (blockedUntil > state.BlockedUntilUtc)
@@ -96,11 +82,173 @@ public sealed class TtsRateLimiter : ITtsRateLimiter
                 state.BlockedUntilUtc = blockedUntil;
             }
         }
-        finally
+    }
+
+    private async Task PumpAsync(RuleState state)
+    {
+        await Task.Yield();
+        try
         {
-            state.Mutex.Release();
+            while (true)
+            {
+                AdmissionWaiter? admitted = null;
+                Task? waitTask = null;
+
+                lock (state.SyncRoot)
+                {
+                    if (state.Waiters.Count == 0)
+                    {
+                        state.PumpRunning = false;
+                        state.PumpTask = null;
+                        return;
+                    }
+
+                    var waiter = SelectNextWaiter(state);
+                    var now = _timeProvider.GetUtcNow();
+                    if (waiter.Policy is not null)
+                    {
+                        TrimWindow(state, waiter.Policy, now);
+                    }
+
+                    var waitTime = GetRequiredWait(state, waiter.Policy, now);
+                    if (waitTime <= TimeSpan.Zero)
+                    {
+                        state.Waiters.Remove(waiter.Node!);
+                        waiter.Node = null;
+                        RecordAdmission(state, waiter, now);
+                        admitted = waiter;
+                    }
+                    else
+                    {
+                        if (state.QueueChanged.Task.IsCompleted)
+                        {
+                            state.QueueChanged = CreateSignal();
+                        }
+
+                        waitTask = WaitForDelayOrQueueChangeAsync(
+                            waitTime,
+                            state.QueueChanged.Task);
+                    }
+                }
+
+                if (admitted is not null)
+                {
+                    admitted.Completion.TrySetResult();
+                    continue;
+                }
+
+                await waitTask!.ConfigureAwait(false);
+            }
+        }
+        catch (Exception exception)
+        {
+            AdmissionWaiter[] abandoned;
+            lock (state.SyncRoot)
+            {
+                abandoned = state.Waiters.ToArray();
+                state.Waiters.Clear();
+                state.PumpRunning = false;
+                state.PumpTask = null;
+            }
+
+            foreach (var waiter in abandoned)
+            {
+                waiter.Completion.TrySetException(exception);
+            }
         }
     }
+
+    private async Task WaitForDelayOrQueueChangeAsync(
+        TimeSpan delay,
+        Task queueChanged)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var delayTask = Task.Delay(delay, _timeProvider, cancellation.Token);
+        if (await Task.WhenAny(delayTask, queueChanged).ConfigureAwait(false) != delayTask)
+        {
+            await cancellation.CancelAsync().ConfigureAwait(false);
+            try
+            {
+                await delayTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+            {
+                return;
+            }
+
+            return;
+        }
+
+        await delayTask.ConfigureAwait(false);
+    }
+
+    private static AdmissionWaiter SelectNextWaiter(RuleState state)
+    {
+        var starved = state.Waiters
+            .Where(static waiter => waiter.PriorityBypasses >= MaximumPriorityBypasses)
+            .OrderBy(static waiter => waiter.Sequence)
+            .FirstOrDefault();
+        if (starved is not null)
+        {
+            return starved;
+        }
+
+        return state.Waiters
+            .OrderByDescending(static waiter => waiter.Priority)
+            .ThenBy(static waiter => waiter.Sequence)
+            .First();
+    }
+
+    private static void RecordAdmission(
+        RuleState state,
+        AdmissionWaiter admitted,
+        DateTimeOffset admittedAt)
+    {
+        foreach (var waiter in state.Waiters)
+        {
+            if (waiter.Priority < admitted.Priority)
+            {
+                waiter.PriorityBypasses++;
+            }
+        }
+
+        if (admitted.Policy is not null)
+        {
+            state.RequestTimestamps.Enqueue(admittedAt);
+            if (state.RequestTimestamps.Count > admitted.Policy.MaxRequests)
+            {
+                state.RequestTimestamps.Dequeue();
+            }
+        }
+
+        if (state.BlockedUntilUtc <= admittedAt)
+        {
+            state.BlockedUntilUtc = DateTimeOffset.MinValue;
+        }
+    }
+
+    private static void CancelWaiter(RuleState state, AdmissionWaiter waiter)
+    {
+        var removed = false;
+        lock (state.SyncRoot)
+        {
+            if (waiter.Node?.List is not null)
+            {
+                state.Waiters.Remove(waiter.Node);
+                waiter.Node = null;
+                removed = true;
+                state.QueueChanged.TrySetResult();
+            }
+        }
+
+        if (removed)
+        {
+            waiter.Completion.TrySetCanceled(waiter.CancellationToken);
+        }
+    }
+
+    private static TaskCompletionSource CreateSignal() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private static void TrimWindow(RuleState state, RateLimitPolicy policy, DateTimeOffset now)
     {
@@ -134,11 +282,41 @@ public sealed class TtsRateLimiter : ITtsRateLimiter
 
     private sealed class RuleState
     {
-        public SemaphoreSlim Mutex { get; } = new(1, 1);
+        public object SyncRoot { get; } = new();
+
+        public LinkedList<AdmissionWaiter> Waiters { get; } = [];
 
         public Queue<DateTimeOffset> RequestTimestamps { get; } = new();
 
         public DateTimeOffset BlockedUntilUtc { get; set; } = DateTimeOffset.MinValue;
+
+        public bool PumpRunning { get; set; }
+
+        public Task? PumpTask { get; set; }
+
+        public TaskCompletionSource QueueChanged { get; set; } = CreateSignal();
+    }
+
+    private sealed class AdmissionWaiter(
+        RateLimitPolicy? policy,
+        TtsAdmissionPriority priority,
+        long sequence,
+        CancellationToken cancellationToken)
+    {
+        public RateLimitPolicy? Policy { get; } = policy;
+
+        public TtsAdmissionPriority Priority { get; } = priority;
+
+        public long Sequence { get; } = sequence;
+
+        public CancellationToken CancellationToken { get; } = cancellationToken;
+
+        public TaskCompletionSource Completion { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public LinkedListNode<AdmissionWaiter>? Node { get; set; }
+
+        public int PriorityBypasses { get; set; }
     }
 
     private sealed record RateLimitPolicy(int MaxRequests, TimeSpan Window)

@@ -8,6 +8,7 @@ public interface ITtsRateLimiter
     Task WaitAsync(
         long ruleId,
         string? concurrentRate,
+        TtsAdmissionPriority priority,
         CancellationToken cancellationToken);
 
     void ApplyRetryAfter(

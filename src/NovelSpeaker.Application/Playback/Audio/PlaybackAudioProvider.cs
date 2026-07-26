@@ -176,6 +176,9 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
                     await _rateLimiter.WaitAsync(
                         request.RuleId,
                         request.NormalizedRule.ConcurrentRate,
+                        operation.Priority == PlaybackAudioPriority.Current
+                            ? TtsAdmissionPriority.CurrentPlayback
+                            : TtsAdmissionPriority.Prefetch,
                         operation.ExecutionToken).ConfigureAwait(false);
                 }
                 catch (FormatException exception)

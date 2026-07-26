@@ -23,6 +23,17 @@ internal sealed class ManualTimeProvider : TimeProvider
 
     public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
 
+    public int PendingTimerCount
+    {
+        get
+        {
+            lock (_syncRoot)
+            {
+                return _timers.Count(static timer => timer.TryGetNextDue(out _));
+            }
+        }
+    }
+
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {
         var timer = new ManualTimer(this, callback, state, dueTime, period);

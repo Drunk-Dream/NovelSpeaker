@@ -232,6 +232,30 @@ public sealed class PlaybackAudioProviderTests
         Assert.Equal("默认规则", compiler.LastContext!.Source.Name);
     }
 
+    [Theory]
+    [InlineData(PlaybackAudioPriority.Current, TtsAdmissionPriority.CurrentPlayback)]
+    [InlineData(PlaybackAudioPriority.Prefetch, TtsAdmissionPriority.Prefetch)]
+    public async Task GetAudioAsync_maps_playback_priority_to_shared_admission(
+        PlaybackAudioPriority playbackPriority,
+        TtsAdmissionPriority expectedAdmissionPriority)
+    {
+        var limiter = new CountingRateLimiter();
+        var provider = new PlaybackAudioProvider(
+            new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
+            new FakeHttpTtsClient(),
+            new FakeAudioCache(),
+            limiter);
+
+        var result = await provider.GetAudioAsync(
+            CreatePlaybackRequest(),
+            playbackPriority,
+            null,
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(expectedAdmissionPriority, limiter.LastPriority);
+    }
+
     [Fact]
     public async Task GetAudioAsync_projects_safe_unexpected_failure_and_redacts_log()
     {
@@ -479,9 +503,16 @@ public sealed class PlaybackAudioProviderTests
 
         public int RetryAfterCallCount { get; private set; }
 
-        public Task WaitAsync(long ruleId, string? concurrentRate, CancellationToken cancellationToken)
+        public TtsAdmissionPriority? LastPriority { get; private set; }
+
+        public Task WaitAsync(
+            long ruleId,
+            string? concurrentRate,
+            TtsAdmissionPriority priority,
+            CancellationToken cancellationToken)
         {
             WaitCallCount++;
+            LastPriority = priority;
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
