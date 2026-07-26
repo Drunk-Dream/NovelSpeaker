@@ -29,121 +29,157 @@
                            Text="缓存与数据" />
 
                 <Border Margin="{StaticResource SectionSpacing}"
-                        Style="{StaticResource SettingsSubpageItemBorderStyle}">
+                        Style="{StaticResource SettingsRowsGroupBorderStyle}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
-                                   Text="缓存总览" />
+                        <Border x:Name="CacheOverviewItemBorder"
+                                Style="{StaticResource SettingsRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                               Text="缓存总览" />
+                                    <TextBlock Style="{StaticResource SettingsRowDescriptionTextBlockStyle}"
+                                               Text="{Binding CacheEntryCountText}" />
+                                </StackPanel>
 
-                        <StackPanel Margin="0,10,0,0">
-                            <StackPanel.Style>
-                                <Style TargetType="StackPanel">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding HasLoadError}" Value="True">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </StackPanel.Style>
-
-                            <TextBlock Style="{StaticResource StrongTextBlockStyle}"
-                                       FontSize="22"
-                                       Text="{Binding TotalCacheSizeText}" />
-                            <TextBlock Margin="0,6,0,0"
-                                       Style="{StaticResource SecondaryTextBlockStyle}"
-                                       Text="{Binding CacheEntryCountText}" />
-                            <ProgressBar Margin="0,12,0,0"
-                                         Height="8"
-                                         Maximum="100"
-                                         Value="{Binding UsagePercentage}" />
-                            <TextBlock Margin="0,8,0,0"
-                                       Style="{StaticResource SecondaryTextBlockStyle}"
-                                       Text="{Binding UsageText}" />
-                        </StackPanel>
-
-                        <StackPanel Margin="0,10,0,0">
-                            <StackPanel.Style>
-                                <Style TargetType="StackPanel">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding HasLoadError}" Value="True">
+                                <StackPanel Grid.Column="1"
+                                            Margin="{StaticResource SettingsRowControlMargin}"
+                                            Width="{StaticResource SettingsRowControlWidth}"
+                                            VerticalAlignment="Center">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
                                             <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </StackPanel.Style>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasLoadError}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
 
-                            <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
-                                       Text="{Binding LoadErrorMessage}" />
-                            <Button Margin="0,10,0,0"
-                                    Width="120"
-                                    HorizontalAlignment="Left"
-                                    Command="{Binding RetryCommand}"
-                                    Content="重试" />
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
+                                    <TextBlock HorizontalAlignment="Right"
+                                               Style="{StaticResource StrongTextBlockStyle}"
+                                               FontSize="22"
+                                               Text="{Binding TotalCacheSizeText}"
+                                               AutomationProperties.Name="当前缓存占用" />
+                                    <ProgressBar Margin="0,8,0,0"
+                                                 Height="8"
+                                                 Maximum="100"
+                                                 Value="{Binding UsagePercentage}"
+                                                 AutomationProperties.Name="缓存使用率" />
+                                    <TextBlock Margin="0,6,0,0"
+                                               HorizontalAlignment="Right"
+                                               Style="{StaticResource SecondaryTextBlockStyle}"
+                                               Text="{Binding UsageText}" />
+                                </StackPanel>
 
-                <Border Style="{StaticResource SettingsSubpageItemBorderStyle}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
-                                   Text="缓存上限" />
-                        <StackPanel Margin="0,10,0,0"
-                                    Orientation="Horizontal">
-                            <TextBox x:Name="CacheLimitValueTextBox"
-                                     Width="160"
-                                     HorizontalAlignment="Left"
-                                     PreviewKeyDown="CacheLimitValueTextBox_OnPreviewKeyDown"
-                                     LostKeyboardFocus="CacheLimitValueTextBox_OnLostKeyboardFocus"
-                                     Text="{Binding CacheLimitValueText, UpdateSourceTrigger=PropertyChanged}" />
-                            <ComboBox x:Name="CacheLimitUnitComboBox"
-                                      Width="100"
-                                      Margin="12,0,0,0"
-                                      HorizontalAlignment="Left"
-                                      SelectionChanged="CacheLimitUnitComboBox_OnSelectionChanged"
-                                      ItemsSource="{Binding CacheLimitUnits}"
-                                      SelectedItem="{Binding SelectedCacheLimitUnit}" />
-                        </StackPanel>
-                        <TextBlock Margin="0,6,0,0"
-                                   Style="{StaticResource SecondaryTextBlockStyle}"
-                                   Text="仅支持整数输入，最低为 256 MB。" />
-                        <TextBlock Margin="0,6,0,0"
-                                   Text="{Binding CacheLimitErrorText}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock"
-                                       BasedOn="{StaticResource ErrorTextBlockStyle}">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding CacheLimitErrorText}" Value="">
+                                <StackPanel Grid.Column="1"
+                                            Margin="{StaticResource SettingsRowControlMargin}"
+                                            Width="{StaticResource SettingsRowControlWidth}"
+                                            VerticalAlignment="Center">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
                                             <Setter Property="Visibility" Value="Collapsed" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </StackPanel>
-                </Border>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasLoadError}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
 
-                <Border Style="{StaticResource SettingsSubpageItemBorderStyle}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
-                                   Text="缓存策略" />
-                        <TextBlock Margin="0,10,0,0"
-                                   Style="{StaticResource SecondaryTextBlockStyle}"
-                                   Text="缓存按最近最少使用顺序清理。正在播放或仍受保护的音频会暂时保留，停止播放后可继续清理。"
-                                   TextWrapping="Wrap" />
+                                    <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
+                                               Text="{Binding LoadErrorMessage}" />
+                                    <Button Margin="0,8,0,0"
+                                            Width="120"
+                                            HorizontalAlignment="Right"
+                                            Command="{Binding RetryCommand}"
+                                            Content="重试"
+                                            AutomationProperties.Name="重试加载缓存总览" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border x:Name="CacheLimitItemBorder"
+                                Style="{StaticResource SettingsRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                               Text="缓存上限" />
+                                    <TextBlock Style="{StaticResource SettingsRowDescriptionTextBlockStyle}"
+                                               Text="仅支持整数输入，最低为 256 MB。" />
+                                    <TextBlock Text="{Binding CacheLimitErrorText}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock"
+                                                   BasedOn="{StaticResource ErrorTextBlockStyle}">
+                                                <Setter Property="Margin" Value="0,4,0,0" />
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CacheLimitErrorText}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1"
+                                            Margin="{StaticResource SettingsRowControlMargin}"
+                                            VerticalAlignment="Center"
+                                            Orientation="Horizontal">
+                                    <TextBox x:Name="CacheLimitValueTextBox"
+                                             Width="160"
+                                             PreviewKeyDown="CacheLimitValueTextBox_OnPreviewKeyDown"
+                                             LostKeyboardFocus="CacheLimitValueTextBox_OnLostKeyboardFocus"
+                                             Text="{Binding CacheLimitValueText, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="缓存上限数值" />
+                                    <ComboBox x:Name="CacheLimitUnitComboBox"
+                                              Width="100"
+                                              Margin="12,0,0,0"
+                                              SelectionChanged="CacheLimitUnitComboBox_OnSelectionChanged"
+                                              ItemsSource="{Binding CacheLimitUnits}"
+                                              SelectedItem="{Binding SelectedCacheLimitUnit}"
+                                              AutomationProperties.Name="缓存上限单位" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border x:Name="CachePolicyItemBorder"
+                                Style="{StaticResource SettingsRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                               Text="缓存策略" />
+                                    <TextBlock Style="{StaticResource SettingsRowDescriptionTextBlockStyle}"
+                                               Text="按最近最少使用顺序清理；正在播放或受保护的音频会暂时保留。" />
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        Margin="{StaticResource SettingsRowControlMargin}"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding OpenAppDataDirectoryCommand}"
+                                        Content="打开应用数据目录"
+                                        AutomationProperties.Name="打开应用数据目录" />
+                            </Grid>
+                        </Border>
+
                         <Button x:Name="OpenCacheManagementButton"
-                                Margin="0,8,0,0"
-                                Style="{StaticResource SettingsEntryButtonStyle}"
+                                Style="{StaticResource SettingsNavigationRowButtonStyle}"
                                 Command="{Binding OpenCacheManagementCommand}"
                                 Content="缓存管理"
                                 Tag="{x:Static theming:SettingsNavigationIcon.CacheManagement}"
                                 ToolTip="缓存管理"
                                 AutomationProperties.Name="缓存管理" />
-                        <Button Margin="0,8,0,0"
-                                HorizontalAlignment="Left"
-                                Command="{Binding OpenAppDataDirectoryCommand}"
-                                Content="打开应用数据目录" />
                     </StackPanel>
                 </Border>
             </StackPanel>

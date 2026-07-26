@@ -9,6 +9,7 @@
     <Thickness x:Key="DialogPadding">24</Thickness>
     <Thickness x:Key="SettingsGroupPadding">16</Thickness>
     <Thickness x:Key="SettingsRowPadding">12,10</Thickness>
+    <Thickness x:Key="SettingsRowControlMargin">24,0,0,0</Thickness>
     <CornerRadius x:Key="CardCornerRadius">12</CornerRadius>
     <CornerRadius x:Key="DialogCornerRadius">16</CornerRadius>
     <CornerRadius x:Key="InteractiveSurfaceCornerRadius">8</CornerRadius>
@@ -19,6 +20,7 @@
     <sys:Double x:Key="IconButtonSize">40</sys:Double>
     <sys:Double x:Key="SecondaryIconButtonSize">44</sys:Double>
     <sys:Double x:Key="SettingsRowMinHeight">52</sys:Double>
+    <sys:Double x:Key="SettingsRowControlWidth">260</sys:Double>
     <sys:Double x:Key="MediaControlButtonSize">44</sys:Double>
     <sys:Double x:Key="PrimaryMediaControlButtonSize">52</sys:Double>
     <sys:Double x:Key="CoverSmallWidth">72</sys:Double>

@@ -28,6 +28,7 @@ public sealed class SettingsPageViewTests
                     .ToArray();
                 var allButtons = VisualTreeTestHelper.FindDescendants<System.Windows.Controls.Button>(page).ToArray();
                 var allIcons = VisualTreeTestHelper.FindDescendants<SymbolIcon>(page).ToArray();
+                var navigationRowStyle = Assert.IsType<Style>(page.FindResource("SettingsNavigationRowButtonStyle"));
 
                 Assert.Contains("常用", allText);
                 Assert.Contains("文本处理", allText);
@@ -38,6 +39,7 @@ public sealed class SettingsPageViewTests
                 Assert.Empty(VisualTreeTestHelper.FindDescendants<System.Windows.Controls.ComboBox>(page));
                 Assert.Equal(14, allIcons.Length);
                 Assert.Equal(7, allIcons.Count(icon => icon.Symbol == SymbolRegular.ChevronRight24));
+                Assert.Equal(7, allButtons.Count(button => ReferenceEquals(button.Style, navigationRowStyle)));
                 Assert.Equal(
                     3,
                     VisualTreeTestHelper.FindDescendants<System.Windows.Controls.Border>(page)

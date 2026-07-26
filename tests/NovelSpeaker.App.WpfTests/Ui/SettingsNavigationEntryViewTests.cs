@@ -49,7 +49,7 @@ public sealed class SettingsNavigationEntryViewTests
         page.UpdateLayout();
 
         var button = Assert.IsType<Button>(page.FindName(buttonName));
-        var expectedStyle = Assert.IsType<Style>(page.FindResource("SettingsEntryButtonStyle"));
+        var expectedStyle = Assert.IsType<Style>(page.FindResource("SettingsNavigationRowButtonStyle"));
 
         Assert.Same(expectedStyle, button.Style);
         Assert.Equal(title, button.Content);

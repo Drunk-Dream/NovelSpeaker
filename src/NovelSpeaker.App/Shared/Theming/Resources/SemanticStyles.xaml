@@ -33,13 +33,13 @@
            BasedOn="{StaticResource PrimaryTextBlockStyle}">
     </Style>
 
-    <Style x:Key="SettingsEntryTitleTextBlockStyle"
+    <Style x:Key="SettingsNavigationRowTitleTextBlockStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource StrongTextBlockStyle}">
         <Setter Property="FontSize" Value="15" />
     </Style>
 
-    <DataTemplate x:Key="SettingsEntryContentTemplate">
+    <DataTemplate x:Key="SettingsNavigationRowContentTemplate">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -90,7 +90,7 @@
             </ui:SymbolIcon>
             <TextBlock Grid.Column="1"
                        VerticalAlignment="Center"
-                       Style="{StaticResource SettingsEntryTitleTextBlockStyle}"
+                       Style="{StaticResource SettingsNavigationRowTitleTextBlockStyle}"
                        Text="{Binding}" />
             <ui:SymbolIcon Grid.Column="2"
                            Margin="16,0,0,0"
@@ -108,6 +108,13 @@
         <Setter Property="Padding" Value="{StaticResource SettingsGroupPadding}" />
     </Style>
 
+    <Style x:Key="SettingsRowsGroupBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
+    </Style>
+
     <Style x:Key="SettingsRowBorderStyle" TargetType="Border">
         <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="0,0,0,1" />
@@ -115,15 +122,33 @@
         <Setter Property="Padding" Value="{StaticResource SettingsRowPadding}" />
     </Style>
 
-    <Style x:Key="SettingsSubpageItemBorderStyle"
+    <Style x:Key="SettingsLastRowBorderStyle"
            TargetType="Border"
            BasedOn="{StaticResource SettingsRowBorderStyle}">
+        <Setter Property="BorderThickness" Value="0" />
     </Style>
 
-    <Style x:Key="SettingsSubpageItemTitleTextBlockStyle"
+    <Style x:Key="SettingsRowTitleTextBlockStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource StrongTextBlockStyle}">
         <Setter Property="FontSize" Value="15" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="SettingsRowDescriptionTextBlockStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource SecondaryTextBlockStyle}">
+        <Setter Property="Margin" Value="0,4,0,0" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="SettingsRowValueTextBlockStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource PrimaryTextBlockStyle}">
+        <Setter Property="Width" Value="{StaticResource SettingsRowControlWidth}" />
+        <Setter Property="TextAlignment" Value="Right" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
     <Style x:Key="DialogTitleTextBlockStyle" TargetType="TextBlock">
@@ -412,13 +437,13 @@
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
     </Style>
 
-    <Style x:Key="SettingsEntryButtonStyle"
+    <Style x:Key="SettingsNavigationRowButtonStyle"
            TargetType="Button"
            BasedOn="{StaticResource BorderlessListItemButtonStyle}">
         <Setter Property="MinHeight" Value="{StaticResource SettingsRowMinHeight}" />
         <Setter Property="Padding" Value="{StaticResource SettingsRowPadding}" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="ContentTemplate" Value="{StaticResource SettingsEntryContentTemplate}" />
+        <Setter Property="ContentTemplate" Value="{StaticResource SettingsNavigationRowContentTemplate}" />
     </Style>
 
     <Style x:Key="SelectableListItemButtonStyle"

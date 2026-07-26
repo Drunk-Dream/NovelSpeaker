@@ -23,124 +23,185 @@
                 <TextBlock Style="{StaticResource PageTitleTextBlockStyle}"
                            Text="诊断与关于" />
 
-                <StackPanel Margin="{StaticResource SectionSpacing}">
-                    <Border x:Name="AppNameItemBorder"
-                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
-                                       Text="应用名称" />
-                            <TextBlock Margin="0,10,0,0"
-                                       Style="{StaticResource PrimaryTextBlockStyle}"
-                                       Text="{Binding AppName}" />
-                        </StackPanel>
-                    </Border>
+                <Border Margin="{StaticResource SectionSpacing}"
+                        Style="{StaticResource SettingsRowsGroupBorderStyle}">
+                    <StackPanel>
+                        <Border x:Name="AppNameItemBorder"
+                                Style="{StaticResource SettingsRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                           Text="应用名称" />
+                                <TextBlock Grid.Column="1"
+                                           Margin="{StaticResource SettingsRowControlMargin}"
+                                           HorizontalAlignment="Right"
+                                           Style="{StaticResource SettingsRowValueTextBlockStyle}"
+                                           Text="{Binding AppName}"
+                                           AutomationProperties.Name="应用名称" />
+                            </Grid>
+                        </Border>
 
-                    <Border x:Name="AppVersionItemBorder"
-                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
-                                       Text="应用版本" />
-                            <TextBlock Margin="0,10,0,0"
-                                       Style="{StaticResource PrimaryTextBlockStyle}"
-                                       Text="{Binding AppVersion}" />
-                        </StackPanel>
-                    </Border>
+                        <Border x:Name="AppVersionItemBorder"
+                                Style="{StaticResource SettingsRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                           Text="应用版本" />
+                                <TextBlock Grid.Column="1"
+                                           Margin="{StaticResource SettingsRowControlMargin}"
+                                           HorizontalAlignment="Right"
+                                           Style="{StaticResource SettingsRowValueTextBlockStyle}"
+                                           Text="{Binding AppVersion}"
+                                           AutomationProperties.Name="应用版本" />
+                            </Grid>
+                        </Border>
 
-                    <Border x:Name="DescriptionItemBorder"
-                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
-                                       Text="项目说明" />
-                            <TextBlock Margin="0,10,0,0"
-                                       Style="{StaticResource PrimaryTextBlockStyle}"
-                                       Text="{Binding Description}"
-                                       TextWrapping="Wrap" />
-                        </StackPanel>
-                    </Border>
+                        <Border x:Name="DescriptionItemBorder"
+                                Style="{StaticResource SettingsRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                           Text="项目说明" />
+                                <TextBlock Grid.Column="1"
+                                           Margin="{StaticResource SettingsRowControlMargin}"
+                                           HorizontalAlignment="Right"
+                                           Style="{StaticResource SettingsRowValueTextBlockStyle}"
+                                           Text="{Binding Description}"
+                                           AutomationProperties.Name="项目说明" />
+                            </Grid>
+                        </Border>
 
-                    <Border x:Name="DatabaseSchemaVersionItemBorder"
-                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
-                                       Text="数据库版本" />
-                            <TextBlock Margin="0,10,0,0"
-                                       Style="{StaticResource PrimaryTextBlockStyle}"
-                                       Text="{Binding DatabaseSchemaVersionText}" />
-                        </StackPanel>
-                    </Border>
+                        <Border x:Name="DatabaseSchemaVersionItemBorder"
+                                Style="{StaticResource SettingsRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                           Text="数据库版本" />
+                                <TextBlock Grid.Column="1"
+                                           Margin="{StaticResource SettingsRowControlMargin}"
+                                           HorizontalAlignment="Right"
+                                           Style="{StaticResource SettingsRowValueTextBlockStyle}"
+                                           Text="{Binding DatabaseSchemaVersionText}"
+                                           AutomationProperties.Name="数据库版本" />
+                            </Grid>
+                        </Border>
 
-                    <Border x:Name="AppDataDirectoryItemBorder"
-                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
-                                       Text="应用数据目录" />
-                            <TextBlock Margin="0,10,0,0"
-                                       Style="{StaticResource PrimaryTextBlockStyle}"
-                                       Text="{Binding AppDataDirectoryPath}"
-                                       TextWrapping="Wrap" />
-                        </StackPanel>
-                    </Border>
+                        <Border x:Name="AppDataDirectoryItemBorder"
+                                Style="{StaticResource SettingsRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                           Text="应用数据目录" />
+                                <TextBlock Grid.Column="1"
+                                           Margin="{StaticResource SettingsRowControlMargin}"
+                                           HorizontalAlignment="Right"
+                                           Style="{StaticResource SettingsRowValueTextBlockStyle}"
+                                           Text="{Binding AppDataDirectoryPath}"
+                                           AutomationProperties.Name="应用数据目录" />
+                            </Grid>
+                        </Border>
 
-                    <Border x:Name="LogsDirectoryItemBorder"
-                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
-                                       Text="日志目录" />
-                            <TextBlock Margin="0,10,0,0"
-                                       Style="{StaticResource PrimaryTextBlockStyle}"
-                                       Text="{Binding LogsDirectoryPath}"
-                                       TextWrapping="Wrap" />
-                            <Button Margin="0,10,0,0"
-                                    Width="180"
-                                    HorizontalAlignment="Left"
-                                    Command="{Binding OpenLogsDirectoryCommand}"
-                                    Content="打开日志目录" />
-                        </StackPanel>
-                    </Border>
+                        <Border x:Name="LogsDirectoryItemBorder"
+                                Style="{StaticResource SettingsRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                               Text="日志目录" />
+                                    <TextBlock Style="{StaticResource SettingsRowDescriptionTextBlockStyle}"
+                                               Text="{Binding LogsDirectoryPath}" />
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        Margin="{StaticResource SettingsRowControlMargin}"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding OpenLogsDirectoryCommand}"
+                                        Content="打开日志目录"
+                                        AutomationProperties.Name="打开日志目录" />
+                            </Grid>
+                        </Border>
 
-                    <Border x:Name="LogLevelItemBorder"
-                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
-                                       Text="日志级别" />
-                            <ComboBox Margin="0,10,0,0"
-                                      Width="220"
-                                      HorizontalAlignment="Left"
-                                      ItemsSource="{Binding AvailableLogLevels}"
-                                      SelectedItem="{Binding SelectedLogLevel}" />
-                        </StackPanel>
-                    </Border>
+                        <Border x:Name="LogLevelItemBorder"
+                                Style="{StaticResource SettingsRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                               Text="日志级别" />
+                                    <TextBlock Style="{StaticResource SettingsRowDescriptionTextBlockStyle}"
+                                               Text="控制写入日志的最低详细程度。" />
+                                </StackPanel>
+                                <ComboBox Grid.Column="1"
+                                          Margin="{StaticResource SettingsRowControlMargin}"
+                                          Width="{StaticResource SettingsRowControlWidth}"
+                                          VerticalAlignment="Center"
+                                          ItemsSource="{Binding AvailableLogLevels}"
+                                          SelectedItem="{Binding SelectedLogLevel}"
+                                          AutomationProperties.Name="日志级别" />
+                            </Grid>
+                        </Border>
 
-                    <Border x:Name="DiagnosticsSummaryItemBorder"
-                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
-                                       Text="脱敏诊断摘要" />
-                            <TextBlock Margin="0,10,0,0"
-                                       Style="{StaticResource SecondaryTextBlockStyle}"
-                                       Text="仅包含版本、运行环境和目录信息，不包含小说正文、规则或凭据。"
-                                       TextWrapping="Wrap" />
-                            <Button Margin="0,10,0,0"
-                                    Width="180"
-                                    HorizontalAlignment="Left"
-                                    Command="{Binding CopyRedactedSummaryCommand}"
-                                    Content="复制脱敏诊断摘要" />
-                        </StackPanel>
-                    </Border>
+                        <Border x:Name="DiagnosticsSummaryItemBorder"
+                                Style="{StaticResource SettingsRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                               Text="脱敏诊断摘要" />
+                                    <TextBlock Style="{StaticResource SettingsRowDescriptionTextBlockStyle}"
+                                               Text="仅包含版本、运行环境和目录信息，不包含小说正文、规则或凭据。" />
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        Margin="{StaticResource SettingsRowControlMargin}"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding CopyRedactedSummaryCommand}"
+                                        Content="复制摘要"
+                                        AutomationProperties.Name="复制脱敏诊断摘要" />
+                            </Grid>
+                        </Border>
 
-                    <Border x:Name="ThirdPartyNoticesItemBorder"
-                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
-                                       Text="第三方许可证" />
-                            <Button Margin="0,10,0,0"
-                                    Width="180"
-                                    HorizontalAlignment="Left"
-                                    Command="{Binding OpenThirdPartyNoticesCommand}"
-                                    Content="打开第三方许可证" />
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
+                        <Border x:Name="ThirdPartyNoticesItemBorder"
+                                Style="{StaticResource SettingsLastRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                           Text="第三方许可证" />
+                                <Button Grid.Column="1"
+                                        Margin="{StaticResource SettingsRowControlMargin}"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding OpenThirdPartyNoticesCommand}"
+                                        Content="打开许可证"
+                                        AutomationProperties.Name="打开第三方许可证" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </ScrollViewer>
     </Grid>

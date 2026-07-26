@@ -95,23 +95,32 @@ public sealed class ThemeResourceTests
         Assert.Contains("x:Key=\"SettingsRowMinHeight\"", tokens);
         Assert.Contains("x:Key=\"SettingsRowPadding\"", tokens);
         Assert.Contains("x:Key=\"SettingsGroupPadding\"", tokens);
+        Assert.Contains("x:Key=\"SettingsRowControlMargin\"", tokens);
+        Assert.Contains("x:Key=\"SettingsRowControlWidth\"", tokens);
 
+        var rowsGroupStyle = GetStyleElement(styles, "SettingsRowsGroupBorderStyle");
         var settingsRowStyle = GetStyleElement(styles, "SettingsRowBorderStyle");
-        var subpageItemStyle = GetStyleElement(styles, "SettingsSubpageItemBorderStyle");
-        var settingsEntryStyle = GetStyleElement(styles, "SettingsEntryButtonStyle");
+        var lastRowStyle = GetStyleElement(styles, "SettingsLastRowBorderStyle");
+        var rowTitleStyle = GetStyleElement(styles, "SettingsRowTitleTextBlockStyle");
+        var rowValueStyle = GetStyleElement(styles, "SettingsRowValueTextBlockStyle");
+        var navigationRowStyle = GetStyleElement(styles, "SettingsNavigationRowButtonStyle");
 
-        Assert.Contains("x:Key=\"SettingsEntryContentTemplate\"", styles);
+        Assert.Contains("x:Key=\"SettingsNavigationRowContentTemplate\"", styles);
+        Assert.Contains("CardCornerRadius", rowsGroupStyle.ToString());
         Assert.Contains("SettingsRowMinHeight", settingsRowStyle.ToString());
         Assert.Contains("SettingsRowPadding", settingsRowStyle.ToString());
+        Assert.Contains("Property=\"VerticalAlignment\" Value=\"Center\"", rowTitleStyle.ToString());
+        Assert.Contains("Property=\"VerticalAlignment\" Value=\"Center\"", rowValueStyle.ToString());
         Assert.Equal(
             "{StaticResource SettingsRowBorderStyle}",
-            (string?)subpageItemStyle.Attribute("BasedOn"));
+            (string?)lastRowStyle.Attribute("BasedOn"));
+        Assert.Contains("Property=\"BorderThickness\" Value=\"0\"", lastRowStyle.ToString());
         Assert.Equal(
             "{StaticResource BorderlessListItemButtonStyle}",
-            (string?)settingsEntryStyle.Attribute("BasedOn"));
-        Assert.Contains("SettingsRowMinHeight", settingsEntryStyle.ToString());
-        Assert.Contains("SettingsRowPadding", settingsEntryStyle.ToString());
-        Assert.Contains("SettingsEntryContentTemplate", settingsEntryStyle.ToString());
+            (string?)navigationRowStyle.Attribute("BasedOn"));
+        Assert.Contains("SettingsRowMinHeight", navigationRowStyle.ToString());
+        Assert.Contains("SettingsRowPadding", navigationRowStyle.ToString());
+        Assert.Contains("SettingsNavigationRowContentTemplate", navigationRowStyle.ToString());
     }
 
     [Fact]

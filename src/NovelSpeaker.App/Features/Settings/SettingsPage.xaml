@@ -21,7 +21,7 @@
                                               ItemsSource="{Binding Items}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Button Style="{StaticResource SettingsEntryButtonStyle}"
+                                            <Button Style="{StaticResource SettingsNavigationRowButtonStyle}"
                                                     Command="{Binding Command}"
                                                     Content="{Binding Title}"
                                                     Tag="{Binding Icon}"
