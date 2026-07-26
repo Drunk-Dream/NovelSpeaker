@@ -55,6 +55,7 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
         }
         catch (Exception exception)
         {
+            ReleaseAudioResources();
             State = PlaybackStatus.Faulted;
             PlaybackFailed?.Invoke(this, PlaybackErrorMapper.Map(exception));
             throw;
@@ -77,6 +78,7 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
         }
         catch (Exception exception)
         {
+            ReleaseAudioResources();
             State = PlaybackStatus.Faulted;
             PlaybackFailed?.Invoke(this, PlaybackErrorMapper.Map(exception));
             throw;
@@ -141,22 +143,7 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
         }
 
         _disposed = true;
-
-        if (_wavePlayer is not null)
-        {
-            if (_playbackStoppedHandler is not null)
-            {
-                _wavePlayer.PlaybackStopped -= _playbackStoppedHandler;
-                _playbackStoppedHandler = null;
-            }
-
-            _wavePlayer.Dispose();
-            _wavePlayer = null;
-        }
-
-        _switchingWaveProvider.SetSource(null);
-        _audioFileReader?.Dispose();
-        _audioFileReader = null;
+        ReleaseAudioResources();
 
         State = PlaybackStatus.Stopped;
         return ValueTask.CompletedTask;
@@ -169,17 +156,25 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
             throw new FileNotFoundException("Audio file was not found.", filePath);
         }
 
-        EnsureWavePlayerInitialized();
+        AudioFileReader? reader = null;
+        try
+        {
+            reader = new AudioFileReader(filePath);
+            var playbackProvider = CreatePlaybackProvider(reader);
+            EnsureWavePlayerInitialized();
+            var previousReader = _audioFileReader;
 
-        var reader = new AudioFileReader(filePath);
-        var playbackProvider = CreatePlaybackProvider(reader);
-        var previousReader = _audioFileReader;
+            StopWavePlayerIfActive();
 
-        StopWavePlayerIfActive();
-
-        _switchingWaveProvider.SetSource(playbackProvider);
-        _audioFileReader = reader;
-        previousReader?.Dispose();
+            _switchingWaveProvider.SetSource(playbackProvider);
+            _audioFileReader = reader;
+            reader = null;
+            previousReader?.Dispose();
+        }
+        finally
+        {
+            reader?.Dispose();
+        }
     }
 
     private void EnsureWavePlayerInitialized()
@@ -189,10 +184,21 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
             return;
         }
 
-        _wavePlayer = _wavePlayerFactory();
-        _wavePlayer.Init(_switchingWaveProvider);
-        _playbackStoppedHandler = (_, e) => OnPlaybackStopped(e);
-        _wavePlayer.PlaybackStopped += _playbackStoppedHandler;
+        var wavePlayer = _wavePlayerFactory();
+        EventHandler<StoppedEventArgs> playbackStoppedHandler = (_, e) => OnPlaybackStopped(e);
+        try
+        {
+            wavePlayer.Init(_switchingWaveProvider);
+            wavePlayer.PlaybackStopped += playbackStoppedHandler;
+        }
+        catch
+        {
+            wavePlayer.Dispose();
+            throw;
+        }
+
+        _playbackStoppedHandler = playbackStoppedHandler;
+        _wavePlayer = wavePlayer;
     }
 
     private static IWaveProvider CreatePlaybackProvider(AudioFileReader reader)
@@ -275,7 +281,52 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
         }
 
         _suppressNextPlaybackStopped = true;
-        _wavePlayer.Stop();
+        try
+        {
+            _wavePlayer.Stop();
+        }
+        catch
+        {
+            _suppressNextPlaybackStopped = false;
+            throw;
+        }
+    }
+
+    private void ReleaseAudioResources()
+    {
+        var wavePlayer = _wavePlayer;
+        var reader = _audioFileReader;
+        var handler = _playbackStoppedHandler;
+        _wavePlayer = null;
+        _audioFileReader = null;
+        _playbackStoppedHandler = null;
+        _suppressNextPlaybackStopped = false;
+
+        if (wavePlayer is not null && handler is not null)
+        {
+            wavePlayer.PlaybackStopped -= handler;
+        }
+
+        try
+        {
+            if (wavePlayer is not null &&
+                wavePlayer.PlaybackState != NAudio.Wave.PlaybackState.Stopped)
+            {
+                wavePlayer.Stop();
+            }
+        }
+        finally
+        {
+            _switchingWaveProvider.SetSource(null);
+            try
+            {
+                reader?.Dispose();
+            }
+            finally
+            {
+                wavePlayer?.Dispose();
+            }
+        }
     }
 
     private sealed class SwitchingWaveProvider : IWaveProvider

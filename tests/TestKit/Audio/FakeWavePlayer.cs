@@ -6,6 +6,8 @@ internal sealed class FakeWavePlayer : IWavePlayer
 {
     private EventHandler<StoppedEventArgs>? _playbackStopped;
 
+    public bool IsDisposed { get; private set; }
+
     public PlaybackState PlaybackState { get; private set; } = PlaybackState.Stopped;
 
     public WaveFormat? OutputWaveFormat => WaveProvider?.WaveFormat;
@@ -64,5 +66,6 @@ internal sealed class FakeWavePlayer : IWavePlayer
 
     public void Dispose()
     {
+        IsDisposed = true;
     }
 }

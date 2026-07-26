@@ -180,12 +180,138 @@ public sealed class NaudioAudioPlayerTests
         Assert.Equal(PlaybackStatus.Stopped, player.State);
     }
 
+    [Fact]
+    public async Task LoadAsync_releases_output_device_when_initialization_fails()
+    {
+        var wavePlayer = new ThrowingInitWavePlayer();
+        var player = new NaudioAudioPlayer(() => wavePlayer);
+        try
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                player.LoadAsync(PlaybackTestAudio.DemoWavPath, CancellationToken.None));
+
+            Assert.True(wavePlayer.IsDisposed);
+        }
+        finally
+        {
+            await player.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task LoadAsync_releases_reader_when_format_conversion_fails()
+    {
+        var filePath = CreateThreeChannelWaveFile();
+        await using var player = new NaudioAudioPlayer(() => new FakeWavePlayer());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            player.LoadAsync(filePath, CancellationToken.None));
+
+        using var exclusive = new FileStream(
+            filePath,
+            FileMode.Open,
+            FileAccess.ReadWrite,
+            FileShare.None);
+    }
+
+    [Fact]
+    public async Task Replacing_audio_releases_previous_reader_and_dispose_releases_current_reader()
+    {
+        var firstPath = CopyToTemporaryFile(PlaybackTestAudio.DemoWavPath);
+        var secondPath = CopyToTemporaryFile(PlaybackTestAudio.DemoMp3Path);
+        var wavePlayer = new FakeWavePlayer();
+        var player = new NaudioAudioPlayer(() => wavePlayer);
+
+        await player.LoadAsync(firstPath, CancellationToken.None);
+        await player.LoadAsync(secondPath, CancellationToken.None);
+
+        using (new FileStream(firstPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+        }
+
+        await player.DisposeAsync();
+
+        using (new FileStream(secondPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+        }
+        Assert.True(wavePlayer.IsDisposed);
+    }
+
+    [Fact]
+    public async Task Play_failure_releases_reader_and_output_device()
+    {
+        var filePath = CopyToTemporaryFile(PlaybackTestAudio.DemoWavPath);
+        var wavePlayer = new ThrowingPlayWavePlayer();
+        var player = new NaudioAudioPlayer(() => wavePlayer);
+        await player.LoadAsync(filePath, CancellationToken.None);
+
+        Assert.Throws<InvalidOperationException>(player.Play);
+
+        using (new FileStream(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+        }
+        Assert.True(wavePlayer.IsDisposed);
+        await player.DisposeAsync();
+    }
+
     private static string CreateShortWaveFile()
     {
         var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.wav");
         using var writer = new WaveFileWriter(filePath, new WaveFormat(8000, 16, 1));
         writer.WriteSample(0.1f);
         return filePath;
+    }
+
+    private static string CreateThreeChannelWaveFile()
+    {
+        var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.wav");
+        using var writer = new WaveFileWriter(filePath, new WaveFormat(44100, 16, 3));
+        writer.Write(new byte[6], 0, 6);
+        return filePath;
+    }
+
+    private static string CopyToTemporaryFile(string sourcePath)
+    {
+        var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}{Path.GetExtension(sourcePath)}");
+        File.Copy(sourcePath, filePath);
+        return filePath;
+    }
+
+    private sealed class ThrowingInitWavePlayer : IWavePlayer
+    {
+        public bool IsDisposed { get; private set; }
+        public NAudio.Wave.PlaybackState PlaybackState => NAudio.Wave.PlaybackState.Stopped;
+        public WaveFormat OutputWaveFormat => new(44100, 16, 2);
+        public float Volume { get; set; }
+        public event EventHandler<StoppedEventArgs>? PlaybackStopped
+        {
+            add { }
+            remove { }
+        }
+        public void Init(IWaveProvider waveProvider) => throw new InvalidOperationException("init failed");
+        public void Play() { }
+        public void Pause() { }
+        public void Stop() { }
+        public void Dispose() => IsDisposed = true;
+    }
+
+    private sealed class ThrowingPlayWavePlayer : IWavePlayer
+    {
+        public bool IsDisposed { get; private set; }
+        public NAudio.Wave.PlaybackState PlaybackState => NAudio.Wave.PlaybackState.Stopped;
+        public WaveFormat OutputWaveFormat { get; private set; } = new(44100, 16, 2);
+        public float Volume { get; set; }
+        public event EventHandler<StoppedEventArgs>? PlaybackStopped
+        {
+            add { }
+            remove { }
+        }
+
+        public void Init(IWaveProvider waveProvider) => OutputWaveFormat = waveProvider.WaveFormat;
+        public void Play() => throw new InvalidOperationException("play failed");
+        public void Pause() { }
+        public void Stop() { }
+        public void Dispose() => IsDisposed = true;
     }
 
     private sealed class FakeWavePlayerFactory
