@@ -603,7 +603,7 @@
                     <WrapPanel HorizontalAlignment="Center">
                         <Button x:Name="PreviousChapterButton"
                                 Margin="0,0,12,0"
-                                Style="{StaticResource SecondaryIconButtonStyle}"
+                                Style="{StaticResource MediaIconButtonStyle}"
                                 IsEnabled="{Binding CanGoToPreviousChapter}"
                                 Command="{Binding PreviousChapterCommand}"
                                 ToolTip="上一章"
@@ -612,7 +612,7 @@
                         </Button>
                         <Button x:Name="PreviousSegmentButton"
                                 Margin="0,0,12,0"
-                                Style="{StaticResource SecondaryIconButtonStyle}"
+                                Style="{StaticResource MediaIconButtonStyle}"
                                 IsEnabled="{Binding CanGoToPreviousSegment}"
                                 Command="{Binding PreviousSegmentCommand}"
                                 ToolTip="上一段"
@@ -650,7 +650,7 @@
                         </Button>
                         <Button x:Name="NextSegmentButton"
                                 Margin="0,0,12,0"
-                                Style="{StaticResource SecondaryIconButtonStyle}"
+                                Style="{StaticResource MediaIconButtonStyle}"
                                 IsEnabled="{Binding CanGoToNextSegment}"
                                 Command="{Binding NextSegmentCommand}"
                                 ToolTip="下一段"
@@ -658,7 +658,7 @@
                             <ui:SymbolIcon Symbol="ArrowNext24" />
                         </Button>
                         <Button x:Name="NextChapterButton"
-                                Style="{StaticResource SecondaryIconButtonStyle}"
+                                Style="{StaticResource MediaIconButtonStyle}"
                                 IsEnabled="{Binding CanGoToNextChapter}"
                                 Command="{Binding NextChapterCommand}"
                                 ToolTip="下一章"

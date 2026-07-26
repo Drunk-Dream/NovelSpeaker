@@ -65,6 +65,14 @@ public sealed class ThemeResourceTests
         Assert.Contains("Property=\"IsKeyboardFocused\"", content);
         Assert.Contains("Property=\"IsEnabled\" Value=\"False\"", content);
         Assert.Contains("AccentFillColorDefaultBrush", content);
+        Assert.Contains("x:Key=\"IconButtonControlTemplate\"", content);
+        Assert.Contains("x:Key=\"MediaIconButtonControlTemplate\"", content);
+        Assert.Contains("TargetName=\"KeyboardFocusRing\"", content);
+        Assert.Contains("CornerRadius=\"{StaticResource IconButtonCornerRadius}\"", content);
+        Assert.Contains("CornerRadius=\"{StaticResource MediaControlCornerRadius}\"", content);
+        Assert.DoesNotContain(
+            "<Setter Property=\"BorderThickness\" Value=\"1\" />",
+            GetStyleElement(content, "BorderlessIconButtonStyle").ToString());
     }
 
     [Fact]
@@ -78,12 +86,31 @@ public sealed class ThemeResourceTests
 
         Assert.Contains("ToolbarValueButtonStyle", playerView);
         Assert.Contains("PrimaryPlaybackIconButtonStyle", playerView);
+        Assert.Contains("MediaIconButtonStyle", playerView);
         Assert.Contains("FloatingIconButtonStyle", playerView);
         Assert.Contains("BorderlessIconButtonStyle", libraryPage);
         Assert.Contains("BorderlessListItemButtonStyle", bookCardView);
         Assert.Contains("ReOrder24", chapterRulesPage);
         Assert.Contains("AutomationProperties.Name=\"上移\"", chapterRulesPage);
         Assert.Contains("AutomationProperties.Name=\"下移\"", chapterRulesPage);
+    }
+
+    [Fact]
+    public void Icon_buttons_expose_tooltips_and_automation_names()
+    {
+        var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
+        var xamlFiles = Directory
+            .EnumerateFiles(appRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(static path => !path.Contains(
+                $"{Path.DirectorySeparatorChar}Shared{Path.DirectorySeparatorChar}Theming{Path.DirectorySeparatorChar}Resources{Path.DirectorySeparatorChar}",
+                StringComparison.Ordinal));
+        var violations = xamlFiles
+            .SelectMany(FindIconButtonsWithoutAccessibleMetadata)
+            .ToArray();
+
+        Assert.True(
+            violations.Length == 0,
+            $"Found icon buttons without Tooltip and AutomationProperties.Name:{Environment.NewLine}{string.Join(Environment.NewLine, violations)}");
     }
 
     [Fact]
@@ -125,6 +152,49 @@ public sealed class ThemeResourceTests
             var lineInfo = (IXmlLineInfo)textBlock;
             yield return $"{Path.GetRelativePath(GetRepositoryRoot(), xamlPath)}:{lineInfo.LineNumber}";
         }
+    }
+
+    private static IEnumerable<string> FindIconButtonsWithoutAccessibleMetadata(string xamlPath)
+    {
+        var document = XDocument.Load(xamlPath, LoadOptions.SetLineInfo);
+        var presentationNamespace = document.Root?.GetDefaultNamespace() ?? XNamespace.None;
+        var xamlNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+
+        foreach (var button in document.Descendants(presentationNamespace + "Button"))
+        {
+            var containsIcon = button
+                .Descendants()
+                .Any(static element => element.Name.LocalName == "SymbolIcon");
+            if (!containsIcon)
+            {
+                continue;
+            }
+
+            var hasToolTip = button.Attribute("ToolTip") is not null ||
+                             button.Elements().Any(static element => element.Name.LocalName == "Button.ToolTip");
+            var hasAutomationName = button
+                .Attributes()
+                .Any(attribute => attribute.Name.LocalName == "AutomationProperties.Name" &&
+                                  attribute.Name.Namespace != xamlNamespace);
+            if (hasToolTip && hasAutomationName)
+            {
+                continue;
+            }
+
+            var lineInfo = (IXmlLineInfo)button;
+            yield return $"{Path.GetRelativePath(GetRepositoryRoot(), xamlPath)}:{lineInfo.LineNumber}";
+        }
+    }
+
+    private static XElement GetStyleElement(string content, string key)
+    {
+        var document = XDocument.Parse(content);
+        var xamlNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+
+        return Assert.Single(
+            document.Descendants(),
+            element => element.Name.LocalName == "Style" &&
+                       (string?)element.Attribute(xamlNamespace + "Key") == key);
     }
 
     private static string GetRepositoryRoot()
