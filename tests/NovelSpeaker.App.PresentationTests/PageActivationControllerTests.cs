@@ -62,7 +62,7 @@ public sealed class PageActivationControllerTests
         controller.Deactivate();
 
         Assert.Equal(2, cleanupCount);
-        Assert.False(controller.IsActive);
+        Assert.Null(controller.Current);
         Assert.False(activation.IsCurrent);
     }
 

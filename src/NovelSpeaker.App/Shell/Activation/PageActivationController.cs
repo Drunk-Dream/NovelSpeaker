@@ -16,10 +16,6 @@ public sealed class PageActivationController : IDisposable
         return scope;
     }
 
-    public CancellationToken CurrentToken => _current?.CancellationToken ?? new CancellationToken(canceled: true);
-
-    public bool IsActive => _current is not null;
-
     public PageActivationScope? Current => Volatile.Read(ref _current);
 
     public void Deactivate()
