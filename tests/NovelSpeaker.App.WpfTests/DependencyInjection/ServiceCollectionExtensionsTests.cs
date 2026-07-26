@@ -35,6 +35,27 @@ namespace NovelSpeaker.UnitTests.DependencyInjection;
 public sealed class ServiceCollectionExtensionsTests
 {
     [Fact]
+    public void Production_service_provider_builder_validates_missing_dependencies()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<MissingDependencyConsumer>();
+
+        Assert.Throws<AggregateException>(
+            () => WpfStartupRuntime.BuildValidatedServiceProvider(services));
+    }
+
+    [Fact]
+    public void Production_service_provider_builder_validates_scoped_dependencies()
+    {
+        var services = new ServiceCollection();
+        services.AddScoped<ScopedDependency>();
+        services.AddSingleton<ScopedDependencyConsumer>();
+
+        Assert.Throws<AggregateException>(
+            () => WpfStartupRuntime.BuildValidatedServiceProvider(services));
+    }
+
+    [Fact]
     public void Composition_root_registers_and_validates_core_services()
     {
         WpfTestHost.RunInSta(() =>
@@ -158,6 +179,9 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.Same(
                     provider.GetRequiredService<INavigationGuardService>(),
                     provider.GetRequiredService<INavigationGuardService>());
+                Assert.Same(
+                    provider.GetRequiredService<IShellNavigationAdapter>(),
+                    provider.GetRequiredService<IAppNavigator>());
                 Assert.NotSame(
                     provider.GetRequiredService<BookDetailsViewModel>(),
                     provider.GetRequiredService<BookDetailsViewModel>());
@@ -267,5 +291,23 @@ public sealed class ServiceCollectionExtensionsTests
         return descriptor.ImplementationFactory?.Method.DeclaringType?.Assembly
             ?? throw new InvalidOperationException(
                 $"Registration for {descriptor.ServiceType.FullName} has no implementation owner.");
+    }
+
+    private sealed class MissingDependencyConsumer(MissingDependency dependency)
+    {
+        public MissingDependency Dependency { get; } = dependency;
+    }
+
+    private sealed class MissingDependency
+    {
+    }
+
+    private sealed class ScopedDependencyConsumer(ScopedDependency dependency)
+    {
+        public ScopedDependency Dependency { get; } = dependency;
+    }
+
+    private sealed class ScopedDependency
+    {
     }
 }

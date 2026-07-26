@@ -118,17 +118,20 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         services.AddNovelSpeakerInfrastructure();
         services.AddNovelSpeakerDesktop();
 
-#if DEBUG
-        _serviceProvider = services.BuildServiceProvider(new ServiceProviderOptions
+        _serviceProvider = BuildValidatedServiceProvider(services);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
+
+    internal static ServiceProvider BuildValidatedServiceProvider(IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        return services.BuildServiceProvider(new ServiceProviderOptions
         {
             ValidateOnBuild = true,
             ValidateScopes = true
         });
-#else
-        _serviceProvider = services.BuildServiceProvider();
-#endif
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.CompletedTask;
     }
 
     public Task InitializeDatabaseAsync(CancellationToken cancellationToken) =>
