@@ -435,18 +435,27 @@
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="SelectableListItemContainerStyle" TargetType="Border">
-        <Setter Property="Margin" Value="0,0,0,10" />
-        <Setter Property="Padding" Value="14,12" />
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderBrush" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
+    <Style x:Key="SelectedCardContainerStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource CardBorderStyle}">
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsSelected}" Value="True">
                 <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
                 <Setter Property="BorderThickness" Value="0,0,0,2" />
             </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="SelectableListItemContainerStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource SelectedCardContainerStyle}">
+        <Setter Property="Margin" Value="0,0,0,10" />
+        <Setter Property="Padding" Value="14,12" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Style.Triggers>
             <DataTrigger Binding="{Binding IsEnabled}" Value="False">
                 <Setter Property="Opacity" Value="0.5" />
             </DataTrigger>

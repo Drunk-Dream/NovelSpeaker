@@ -115,6 +115,33 @@ public sealed class ThemeResourceTests
     }
 
     [Fact]
+    public void Selected_cards_use_one_theme_backed_full_card_visual_state()
+    {
+        var styles = File.ReadAllText(Path.Combine(
+            GetRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "SemanticStyles.xaml"));
+
+        var selectedCardStyle = GetStyleElement(styles, "SelectedCardContainerStyle");
+        var selectableListItemStyle = GetStyleElement(styles, "SelectableListItemContainerStyle");
+
+        Assert.Equal(
+            "{StaticResource CardBorderStyle}",
+            (string?)selectedCardStyle.Attribute("BasedOn"));
+        Assert.Contains("Binding=\"{Binding IsSelected}\"", selectedCardStyle.ToString());
+        Assert.Contains("ControlFillColorSecondaryBrush", selectedCardStyle.ToString());
+        Assert.Contains("AccentFillColorDefaultBrush", selectedCardStyle.ToString());
+        Assert.Contains("Property=\"BorderThickness\" Value=\"0,0,0,2\"", selectedCardStyle.ToString());
+        Assert.Equal(
+            "{StaticResource SelectedCardContainerStyle}",
+            (string?)selectableListItemStyle.Attribute("BasedOn"));
+    }
+
+    [Fact]
     public void Icon_and_list_buttons_use_shared_semantic_styles()
     {
         var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
