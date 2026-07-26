@@ -126,6 +126,9 @@ public sealed class TtsResponseValidatorTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             validator.ValidateAsync(CreateRequest(), response, cancellation.Token));
+
+        var temporaryDirectory = Path.Combine(directories.CacheDirectoryPath, "RuleTests");
+        Assert.Empty(Directory.EnumerateFiles(temporaryDirectory));
     }
 
     [Fact]

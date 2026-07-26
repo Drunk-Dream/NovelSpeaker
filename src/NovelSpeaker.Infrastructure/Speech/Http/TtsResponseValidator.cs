@@ -103,7 +103,13 @@ public sealed class TtsResponseValidator : ITtsResponseValidator
                     TemporaryAudioStore.Delete(temporaryPath);
                     temporaryPath = null;
                     return new TtsHttpExecutionResult(
-                        new TtsAudioResponse(candidate, response.StatusCode, response.ContentType, extension), null);
+                        new TtsAudioResponse(
+                            candidate,
+                            response.StatusCode,
+                            response.ContentType,
+                            extension,
+                            _temporaryStore.TransferOwnership(candidate)),
+                        null);
                 }
 
                 TemporaryAudioStore.Delete(candidate);

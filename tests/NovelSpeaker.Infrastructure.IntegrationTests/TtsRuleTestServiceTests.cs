@@ -116,6 +116,51 @@ public sealed class TtsRuleTestServiceTests
         Assert.Equal(1, player.DisposeCallCount);
     }
 
+    [Fact]
+    public async Task TestAsync_failed_playback_disposes_downloaded_audio()
+    {
+        var input = CreateInput("fixture-token", "fixture-body", "fixture-text");
+        var audioOwner = new TrackingAudioOwner();
+        var httpClient = new SuccessfulHttpClient(audioOwner);
+        await using var service = new TtsRuleTestService(
+            new FakeRuleEditorUseCase(input.Editor),
+            new SuccessfulCompiler(),
+            httpClient,
+            new FakeAudioPlayerFactory(new FakeAudioPlayer
+            {
+                LoadException = new InvalidOperationException("load failed")
+            }));
+
+        var result = await service.TestAsync(input, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(1, audioOwner.DisposeCallCount);
+    }
+
+    [Fact]
+    public async Task TestAsync_replacement_disposes_previous_audio_and_service_disposes_current()
+    {
+        var input = CreateInput("fixture-token", "fixture-body", "fixture-text");
+        var firstOwner = new TrackingAudioOwner();
+        var secondOwner = new TrackingAudioOwner();
+        var httpClient = new SuccessfulHttpClient(firstOwner, secondOwner);
+        var service = new TtsRuleTestService(
+            new FakeRuleEditorUseCase(input.Editor),
+            new SuccessfulCompiler(),
+            httpClient,
+            new FakeAudioPlayerFactory(new FakeAudioPlayer()));
+
+        Assert.True((await service.TestAsync(input, CancellationToken.None)).IsSuccess);
+        Assert.True((await service.TestAsync(input, CancellationToken.None)).IsSuccess);
+
+        Assert.Equal(1, firstOwner.DisposeCallCount);
+        Assert.Equal(0, secondOwner.DisposeCallCount);
+
+        await service.DisposeAsync();
+
+        Assert.Equal(1, secondOwner.DisposeCallCount);
+    }
+
     private static TtsRuleTestService CreateService(
         TtsRuleEditorModel editor,
         CapturingLogger<TtsRuleTestFailureReporter> logger,
@@ -193,6 +238,13 @@ public sealed class TtsRuleTestServiceTests
 
     private sealed class SuccessfulHttpClient : IHttpTtsClient
     {
+        private readonly Queue<IAsyncDisposable?> _owners;
+
+        public SuccessfulHttpClient(params IAsyncDisposable[] owners)
+        {
+            _owners = new Queue<IAsyncDisposable?>(owners);
+        }
+
         public int CallCount { get; private set; }
 
         public Task<TtsHttpExecutionResult> ExecuteAsync(
@@ -201,8 +253,24 @@ public sealed class TtsRuleTestServiceTests
         {
             CallCount++;
             return Task.FromResult(new TtsHttpExecutionResult(
-                new TtsAudioResponse("fixture.mp3", 200, "audio/mpeg", "mp3"),
+                new TtsAudioResponse(
+                    "fixture.mp3",
+                    200,
+                    "audio/mpeg",
+                    "mp3",
+                    _owners.Count > 0 ? _owners.Dequeue() : null),
                 null));
+        }
+    }
+
+    private sealed class TrackingAudioOwner : IAsyncDisposable
+    {
+        public int DisposeCallCount { get; private set; }
+
+        public ValueTask DisposeAsync()
+        {
+            DisposeCallCount++;
+            return ValueTask.CompletedTask;
         }
     }
 

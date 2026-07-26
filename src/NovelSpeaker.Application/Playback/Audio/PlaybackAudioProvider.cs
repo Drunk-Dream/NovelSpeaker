@@ -200,17 +200,21 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
 
                 if (execution.IsSuccess)
                 {
-                    var stored = await _audioCache.StoreAsync(
-                        new AudioCacheWriteRequest(
-                            cacheKey,
-                            request.BookId,
-                            request.ChapterIndex,
-                            request.SegmentIndex,
-                            request.RuleId,
-                            execution.Audio!.FilePath,
-                            execution.Audio.ResponseContentType),
-                        operation.ExecutionToken).ConfigureAwait(false);
-                    return new PlaybackAudioResult(stored.FilePath, false, null);
+                    var audio = execution.Audio!;
+                    await using (audio.ConfigureAwait(false))
+                    {
+                        var stored = await _audioCache.StoreAsync(
+                            new AudioCacheWriteRequest(
+                                cacheKey,
+                                request.BookId,
+                                request.ChapterIndex,
+                                request.SegmentIndex,
+                                request.RuleId,
+                                audio.FilePath,
+                                audio.ResponseContentType),
+                            operation.ExecutionToken).ConfigureAwait(false);
+                        return new PlaybackAudioResult(stored.FilePath, false, null);
+                    }
                 }
 
                 var failure = execution.Failure!;

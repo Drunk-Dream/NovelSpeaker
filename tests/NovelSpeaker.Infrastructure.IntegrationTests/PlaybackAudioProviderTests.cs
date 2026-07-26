@@ -311,6 +311,35 @@ public sealed class PlaybackAudioProviderTests
         Assert.DoesNotContain(novelText, entry.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task GetAudioAsync_disposes_generated_audio_when_cache_store_fails()
+    {
+        var temporaryPath = CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path);
+        var owner = new TrackingAudioOwner(temporaryPath);
+        var httpClient = new FakeHttpTtsClient();
+        httpClient.EnqueueSuccess(new TtsAudioResponse(
+            temporaryPath,
+            200,
+            "audio/mpeg",
+            "mp3",
+            owner));
+        var provider = new PlaybackAudioProvider(
+            new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
+            httpClient,
+            new FakeAudioCache { StoreException = new IOException("cache write failed") },
+            new CountingRateLimiter());
+
+        var result = await provider.GetAudioAsync(
+            CreatePlaybackRequest(),
+            PlaybackAudioPriority.Current,
+            null,
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.True(owner.IsDisposed);
+        Assert.False(File.Exists(temporaryPath));
+    }
+
     private static PlaybackAudioRequest CreatePlaybackRequest(
         int segmentIndex = 0,
         string speechText = "第一段")
@@ -380,6 +409,8 @@ public sealed class PlaybackAudioProviderTests
 
         public Exception? LookupException { get; init; }
 
+        public Exception? StoreException { get; init; }
+
         public AudioCacheWriteRequest? StoredRequest { get; private set; }
 
         public AudioCacheEntry? StoredResult { get; private set; }
@@ -398,6 +429,11 @@ public sealed class PlaybackAudioProviderTests
 
         public Task<AudioCacheEntry> StoreAsync(AudioCacheWriteRequest request, CancellationToken cancellationToken)
         {
+            if (StoreException is not null)
+            {
+                throw StoreException;
+            }
+
             StoredRequest = request;
             StoredResult = new AudioCacheEntry(request.Key, $"stored-{Path.GetFileName(request.SourceFilePath)}");
             return Task.FromResult(StoredResult);
@@ -480,10 +516,10 @@ public sealed class PlaybackAudioProviderTests
             return pending;
         }
 
-        public void EnqueueSuccess()
+        public void EnqueueSuccess(TtsAudioResponse? audio = null)
         {
             _results.Enqueue(_ => Task.FromResult(new TtsHttpExecutionResult(
-                new TtsAudioResponse(CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), 200, "audio/mpeg", "mp3"),
+                audio ?? CreateTemporaryAudioResponse(),
                 null)));
         }
 
@@ -510,7 +546,7 @@ public sealed class PlaybackAudioProviderTests
             }
 
             return Task.FromResult(new TtsHttpExecutionResult(
-                new TtsAudioResponse(CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), 200, "audio/mpeg", "mp3"),
+                CreateTemporaryAudioResponse(),
                 null));
         }
 
@@ -541,7 +577,7 @@ public sealed class PlaybackAudioProviderTests
             public void CompleteSuccess()
             {
                 _completionSource.TrySetResult(new TtsHttpExecutionResult(
-                    new TtsAudioResponse(CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), 200, "audio/mpeg", "mp3"),
+                    CreateTemporaryAudioResponse(),
                     null));
             }
 
@@ -550,6 +586,29 @@ public sealed class PlaybackAudioProviderTests
                 _cancellationRequested.TrySetResult();
                 _completionSource.TrySetCanceled(CancellationToken);
             }
+        }
+
+        private static TtsAudioResponse CreateTemporaryAudioResponse()
+        {
+            var path = CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path);
+            return new TtsAudioResponse(
+                path,
+                200,
+                "audio/mpeg",
+                "mp3",
+                new TrackingAudioOwner(path));
+        }
+    }
+
+    private sealed class TrackingAudioOwner(string path) : IAsyncDisposable
+    {
+        public bool IsDisposed { get; private set; }
+
+        public ValueTask DisposeAsync()
+        {
+            IsDisposed = true;
+            File.Delete(path);
+            return ValueTask.CompletedTask;
         }
     }
 }
