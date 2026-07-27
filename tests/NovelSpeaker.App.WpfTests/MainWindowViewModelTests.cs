@@ -1,4 +1,7 @@
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.ActiveCache;
+using NovelSpeaker.App.Shared.Dialogs;
+using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shell.Navigation;
 using Xunit;
@@ -9,12 +12,79 @@ namespace NovelSpeaker.App.WpfTests;
 public sealed class MainWindowViewModelTests
 {
     [Fact]
+    public void Active_cache_projection_is_process_scoped_and_unchanged_by_playback_updates()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var playback = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+            var activeCache = new FakeActiveCacheCoordinator(new ActiveCacheSnapshot(
+                Guid.NewGuid(),
+                "book-1",
+                "示例小说",
+                ActiveCacheBatchStatus.Running,
+                1,
+                2,
+                3,
+                6,
+                1,
+                "第二章",
+                [
+                    new ActiveCacheChapterSnapshot(
+                        0,
+                        "第一章",
+                        3,
+                        3,
+                        ActiveCacheChapterStatus.Completed,
+                        null),
+                    new ActiveCacheChapterSnapshot(
+                        1,
+                        "第二章",
+                        0,
+                        3,
+                        ActiveCacheChapterStatus.Running,
+                        null)
+                ],
+                null));
+            var activeProjection = new ShellActiveCacheController(
+                activeCache,
+                new FakeAppFeedbackService());
+            var viewModel = new MainWindowViewModel(
+                playback,
+                activeProjection,
+                new FakeNavigationService());
+
+            playback.Publish(new PlaybackSnapshot(
+                PlaybackState.Paused,
+                "book-2",
+                "另一本书",
+                0,
+                "第一章",
+                0,
+                1,
+                1,
+                "默认规则",
+                10,
+                0,
+                0,
+                null,
+                false,
+                false));
+
+            Assert.Same(activeProjection, viewModel.ActiveCache);
+            Assert.True(viewModel.ActiveCache.IsVisible);
+            Assert.Equal("缓存中 · 1/2 章 · 50%", viewModel.ActiveCache.CompactStatusText);
+        });
+    }
+
+    [Fact]
     public void Idle_snapshot_hides_now_playing_entry()
     {
         WpfTestHost.RunInSta(() =>
         {
             var navigationService = new FakeNavigationService();
-            var viewModel = new MainWindowViewModel(new FakePlaybackCoordinator(PlaybackSnapshot.Idle), navigationService);
+            var viewModel = CreateViewModel(
+                new FakePlaybackCoordinator(PlaybackSnapshot.Idle),
+                navigationService);
 
             Assert.False(viewModel.IsNowPlayingVisible);
             Assert.Equal(NowPlayingVisualState.Inactive, viewModel.NowPlayingVisualState);
@@ -36,7 +106,7 @@ public sealed class MainWindowViewModelTests
         {
             var navigationService = new FakeNavigationService();
             var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
-            var viewModel = new MainWindowViewModel(coordinator, navigationService);
+            var viewModel = CreateViewModel(coordinator, navigationService);
 
             coordinator.Publish(new PlaybackSnapshot(
                 state,
@@ -84,7 +154,7 @@ public sealed class MainWindowViewModelTests
                 null,
                 false,
                 false));
-            var viewModel = new MainWindowViewModel(coordinator, navigationService);
+            var viewModel = CreateViewModel(coordinator, navigationService);
 
             await viewModel.NavigateToNowPlayingCommand.ExecuteAsync(null);
 
@@ -119,13 +189,47 @@ public sealed class MainWindowViewModelTests
                 false,
                 "作者甲",
                 false));
-            var viewModel = new MainWindowViewModel(coordinator, navigationService);
+            var viewModel = CreateViewModel(coordinator, navigationService);
 
             Assert.True(viewModel.IsNowPlayingVisible);
             Assert.Equal("示例小说", viewModel.NowPlayingTitle);
             Assert.Equal("已停止", viewModel.NowPlayingStatus);
             Assert.Equal(NowPlayingVisualState.Inactive, viewModel.NowPlayingVisualState);
         });
+    }
+
+    private static MainWindowViewModel CreateViewModel(
+        IPlaybackSnapshotSource playbackCoordinator,
+        IAppNavigator navigator) =>
+        new(
+            playbackCoordinator,
+            new ShellActiveCacheController(
+                new FakeActiveCacheCoordinator(),
+                new FakeAppFeedbackService()),
+            navigator);
+
+    private sealed class FakeAppFeedbackService : IAppFeedbackService
+    {
+        public ProjectedUiError Project(Exception exception) =>
+            new("操作失败。", UiMessageSeverity.Error, false);
+
+        public void ShowProjectedNotification(string title, ProjectedUiError projected)
+        {
+        }
+
+        public void ShowSuccess(string title, string message)
+        {
+        }
+
+        public void ShowWarning(string title, string message)
+        {
+        }
+
+        public Task<AppConfirmationDecision> ConfirmDeletionAsync(
+            string title,
+            string message,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FakePlaybackCoordinator : IPlaybackSnapshotSource

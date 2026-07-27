@@ -19,14 +19,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public MainWindowViewModel(
         IPlaybackSnapshotSource playbackCoordinator,
+        ShellActiveCacheController activeCache,
         IAppNavigator navigator,
         IUiScheduler? uiScheduler = null)
     {
+        ActiveCache = activeCache;
         _navigator = navigator;
         _uiScheduler = uiScheduler ?? new WpfUiScheduler();
         ApplySnapshot(playbackCoordinator.CurrentSnapshot);
         playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
     }
+
+    public ShellActiveCacheController ActiveCache { get; }
 
     [ObservableProperty]
     private bool isNowPlayingVisible;

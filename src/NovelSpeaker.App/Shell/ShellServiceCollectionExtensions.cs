@@ -23,6 +23,7 @@ public static class ShellServiceCollectionExtensions
         services.TryAddSingleton<IShellPlatformAdapter, WpfShellPlatformAdapter>();
         services.TryAddSingleton<IShellActivationCoordinator, ShellActivationCoordinator>();
         services.TryAddSingleton<IShellLayoutController, ShellLayoutController>();
+        services.TryAddSingleton<ShellActiveCacheController>();
         services.TryAddSingleton<MainWindowViewModel>();
         services.TryAddSingleton<MainWindow>();
         return services;
