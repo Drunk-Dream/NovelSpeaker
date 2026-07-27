@@ -11,7 +11,5 @@ public interface IPlaybackStopTimer
     event EventHandler<PlaybackStopTimerSnapshot>? SnapshotChanged;
 
     void ScheduleAfter(TimeSpan duration);
-    void ScheduleAtEndOfSegment();
-    void ScheduleAtEndOfChapter();
     void Cancel();
 }

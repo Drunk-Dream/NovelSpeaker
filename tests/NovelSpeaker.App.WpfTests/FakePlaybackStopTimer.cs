@@ -4,7 +4,13 @@ namespace NovelSpeaker.App.WpfTests;
 
 internal sealed class FakePlaybackStopTimer : IPlaybackStopTimer
 {
+    private readonly TimeProvider _timeProvider;
     private long _version;
+
+    public FakePlaybackStopTimer(TimeProvider? timeProvider = null)
+    {
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     public PlaybackStopTimerSnapshot CurrentSnapshot { get; private set; } =
         PlaybackStopTimerSnapshot.None;
@@ -14,15 +20,9 @@ internal sealed class FakePlaybackStopTimer : IPlaybackStopTimer
     public void ScheduleAfter(TimeSpan duration) =>
         Publish(new PlaybackStopTimerSnapshot(
             PlaybackStopTimerMode.Duration,
-            DateTimeOffset.UtcNow + duration,
+            _timeProvider.GetUtcNow() + duration,
             duration,
             ++_version));
-
-    public void ScheduleAtEndOfSegment() =>
-        Publish(new PlaybackStopTimerSnapshot(PlaybackStopTimerMode.EndOfSegment, null, null, ++_version));
-
-    public void ScheduleAtEndOfChapter() =>
-        Publish(new PlaybackStopTimerSnapshot(PlaybackStopTimerMode.EndOfChapter, null, null, ++_version));
 
     public void Cancel() =>
         Publish(new PlaybackStopTimerSnapshot(PlaybackStopTimerMode.None, null, null, ++_version));

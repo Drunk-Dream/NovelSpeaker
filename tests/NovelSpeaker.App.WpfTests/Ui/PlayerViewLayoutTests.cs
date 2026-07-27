@@ -526,8 +526,10 @@ public sealed partial class PlayerViewTests
             var titleText = VisualTreeTestHelper.FindDescendant<TextBlock>(
                 itemContainer,
                 static textBlock => textBlock.Text.StartsWith("第一章", StringComparison.Ordinal));
+            var chapterButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(itemContainer));
 
             Assert.NotNull(titleText);
+            Assert.Equal(chapters[0].Title, chapterButton.ToolTip);
             Assert.Equal(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(chaptersListBox));
             Assert.Equal(TextWrapping.NoWrap, titleText!.TextWrapping);
             Assert.Equal(TextTrimming.CharacterEllipsis, titleText.TextTrimming);
@@ -604,13 +606,20 @@ public sealed partial class PlayerViewTests
             view.UpdateLayout();
 
             var ruleButton = Assert.IsType<Button>(view.FindName("RuleMenuButton"));
+            var stopTimerButton = Assert.IsType<Button>(view.FindName("StopTimerToolButton"));
             var speedButton = Assert.IsType<Button>(view.FindName("SpeedMenuButton"));
+            var stopTimerPill = Assert.IsType<Border>(view.FindName("StopTimerPillBorder"));
             var speedPill = Assert.IsType<Border>(view.FindName("SpeedMenuPillBorder"));
 
             Assert.InRange(Math.Abs(ruleButton.ActualHeight - speedButton.ActualHeight), 0d, 1d);
+            Assert.InRange(Math.Abs(stopTimerButton.ActualHeight - speedButton.ActualHeight), 0d, 1d);
+            Assert.Equal("定时停止", stopTimerButton.ToolTip);
             Assert.Equal(80d, speedPill.ActualWidth);
             Assert.Equal(40d, speedPill.ActualHeight);
             Assert.Equal(new CornerRadius(12), speedPill.CornerRadius);
+            Assert.Equal(80d, stopTimerPill.ActualWidth);
+            Assert.Equal(40d, stopTimerPill.ActualHeight);
+            Assert.Equal(new CornerRadius(12), stopTimerPill.CornerRadius);
         });
     }
 

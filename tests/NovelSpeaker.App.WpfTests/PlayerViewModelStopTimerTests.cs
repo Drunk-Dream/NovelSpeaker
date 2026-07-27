@@ -25,7 +25,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(TimeSpan.FromMinutes(15), stopTimer.CurrentSnapshot.Duration);
         Assert.Equal(0, activeCache.CancelCallCount);
         Assert.True(viewModel.HasActiveStopTimer);
-        Assert.Equal("将在 15 分钟后暂停", viewModel.StopTimerStatusText);
+        Assert.Equal("15", viewModel.StopTimerRemainingText);
     }
 
     [Fact]
@@ -48,10 +48,11 @@ public sealed partial class PlayerViewModelTests
 
         Assert.Equal(string.Empty, viewModel.CustomStopTimerErrorText);
         Assert.Equal(TimeSpan.FromMinutes(125), stopTimer.CurrentSnapshot.Duration);
+        Assert.Equal("125", viewModel.StopTimerRemainingText);
     }
 
     [Fact]
-    public void Boundary_and_cancel_commands_project_timer_status()
+    public void Cancel_command_clears_timer_projection()
     {
         var stopTimer = new FakePlaybackStopTimer();
         var viewModel = CreateViewModel(
@@ -59,16 +60,16 @@ public sealed partial class PlayerViewModelTests
             new FakeBookPlaybackContentService(CreateBook(), null),
             stopTimer: stopTimer);
 
-        viewModel.ScheduleStopAtEndOfChapterCommand.Execute(null);
+        viewModel.ScheduleStopAfter15MinutesCommand.Execute(null);
 
-        Assert.Equal(PlaybackStopTimerMode.EndOfChapter, stopTimer.CurrentSnapshot.Mode);
-        Assert.Equal("将在当前章节结束后暂停", viewModel.StopTimerStatusText);
+        Assert.Equal(PlaybackStopTimerMode.Duration, stopTimer.CurrentSnapshot.Mode);
+        Assert.Equal("15", viewModel.StopTimerRemainingText);
 
         viewModel.CancelStopTimerCommand.Execute(null);
 
         Assert.Equal(PlaybackStopTimerMode.None, stopTimer.CurrentSnapshot.Mode);
         Assert.False(viewModel.HasActiveStopTimer);
-        Assert.Equal("未设置定时停止", viewModel.StopTimerStatusText);
+        Assert.Equal("—", viewModel.StopTimerRemainingText);
     }
 
     [Fact]
@@ -112,7 +113,28 @@ public sealed partial class PlayerViewModelTests
 
         Assert.Equal(current, stopTimer.CurrentSnapshot);
         Assert.True(viewModel.HasActiveStopTimer);
-        Assert.Equal("将在 30 分钟后暂停", viewModel.StopTimerStatusText);
+        Assert.Equal("30", viewModel.StopTimerRemainingText);
+    }
+
+    [Fact]
+    public void Remaining_timer_text_refreshes_when_time_provider_advances()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var stopTimer = new FakePlaybackStopTimer(timeProvider);
+        var viewModel = CreateViewModel(
+            new FakePlaybackCoordinator(CreatePlayingSnapshot()),
+            new FakeBookPlaybackContentService(CreateBook(), null),
+            stopTimer: stopTimer,
+            timeProvider: timeProvider);
+
+        viewModel.OnPageNavigatedTo(CancellationToken.None);
+        viewModel.ScheduleStopAfter15MinutesCommand.Execute(null);
+
+        Assert.Equal("15", viewModel.StopTimerRemainingText);
+
+        timeProvider.Advance(TimeSpan.FromMinutes(1));
+
+        Assert.Equal("14", viewModel.StopTimerRemainingText);
     }
 
     private static PlaybackSnapshot CreatePlayingSnapshot() => new(

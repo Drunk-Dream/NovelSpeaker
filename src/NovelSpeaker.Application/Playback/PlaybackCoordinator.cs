@@ -117,10 +117,6 @@ public sealed class PlaybackCoordinator :
 
     void IPlaybackStopTimer.ScheduleAfter(TimeSpan duration) => _stopTimer.ScheduleAfter(duration);
 
-    void IPlaybackStopTimer.ScheduleAtEndOfSegment() => _stopTimer.ScheduleAtEndOfSegment();
-
-    void IPlaybackStopTimer.ScheduleAtEndOfChapter() => _stopTimer.ScheduleAtEndOfChapter();
-
     void IPlaybackStopTimer.Cancel() => _stopTimer.Cancel();
 
     public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken)
@@ -1481,33 +1477,8 @@ public sealed class PlaybackCoordinator :
             session.SegmentIndex,
             1,
             cancellationToken).ConfigureAwait(false);
-        var chapterEnded = next is null || next.Value.ChapterIndex != session.ChapterIndex;
-        if (next is not null && _stopTimer.TryConsumeBoundary(chapterEnded))
-        {
-            session.SetPositionForSave(snapshot.DurationMilliseconds);
-            await SaveProgressAsync(
-                session,
-                session.PositionForSave,
-                cancellationToken).ConfigureAwait(false);
-
-            await StartNewSessionAsync(
-                next.Value.Book,
-                next.Value.ChapterIndex,
-                next.Value.SegmentIndex,
-                0,
-                _currentRule,
-                session.SpeakSpeed,
-                forceInvalidate: false,
-                playImmediately: false,
-                pausedState: PlaybackState.Paused,
-                pausedMessage: "定时停止已触发。",
-                cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
         if (next is null)
         {
-            _stopTimer.TryConsumeBoundary(chapterEnded: true);
             session.SetPositionForSave(snapshot.DurationMilliseconds);
             await SaveProgressAsync(
                 session,

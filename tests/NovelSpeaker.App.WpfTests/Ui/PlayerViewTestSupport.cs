@@ -166,7 +166,13 @@ public sealed partial class PlayerViewTests
 
         public IRelayCommand ToggleRuleMenuCommand { get; } = new RelayCommand(() => { });
 
+        public IRelayCommand ToggleStopTimerMenuCommand { get; } = new RelayCommand(() => { });
+
         public IRelayCommand ToggleSpeedMenuCommand { get; } = new RelayCommand(() => { });
+
+        public IRelayCommand ScheduleCustomStopTimerCommand { get; } = new RelayCommand(() => { });
+
+        public IRelayCommand CancelStopTimerCommand { get; } = new RelayCommand(() => { });
 
         public IRelayCommand EnterActiveCacheSelectionCommand { get; } = new RelayCommand(() => { });
 
@@ -209,6 +215,10 @@ public sealed partial class PlayerViewTests
         public string CurrentChapterTitle { get; } = "第二章 头铁的落款";
 
         public string SpeakSpeedButtonText { get; } = "语速 10";
+
+        public string StopTimerButtonAutomationName { get; } = "定时停止";
+
+        public string StopTimerRemainingText { get; } = "—";
 
         public int SpeakSpeed { get; } = 10;
 
@@ -257,6 +267,10 @@ public sealed partial class PlayerViewTests
         public bool CanDecreaseSpeakSpeed { get; } = true;
 
         public bool CanIncreaseSpeakSpeed { get; } = true;
+
+        public bool CanScheduleStopTimer { get; } = true;
+
+        public bool HasActiveStopTimer { get; } = false;
 
         public bool CanGoToPreviousChapter { get; } = true;
 

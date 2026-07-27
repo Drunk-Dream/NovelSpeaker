@@ -144,37 +144,6 @@ public sealed class PlaybackStopTimerControllerTests
         Assert.Equal([1L, 3L, 2L], observedVersions);
     }
 
-    [Fact]
-    public async Task Segment_boundary_consumes_segment_mode()
-    {
-        await using var controller = new PlaybackStopTimerController(
-            TimeProvider.System,
-            _ => Task.CompletedTask,
-            () => { });
-        controller.ScheduleAtEndOfSegment();
-
-        var shouldPause = controller.TryConsumeBoundary(chapterEnded: false);
-
-        Assert.True(shouldPause);
-        Assert.Equal(PlaybackStopTimerMode.None, controller.CurrentSnapshot.Mode);
-    }
-
-    [Fact]
-    public async Task Chapter_boundary_ignores_segments_until_chapter_ends()
-    {
-        await using var controller = new PlaybackStopTimerController(
-            TimeProvider.System,
-            _ => Task.CompletedTask,
-            () => { });
-        controller.ScheduleAtEndOfChapter();
-
-        Assert.False(controller.TryConsumeBoundary(chapterEnded: false));
-        Assert.Equal(PlaybackStopTimerMode.EndOfChapter, controller.CurrentSnapshot.Mode);
-
-        Assert.True(controller.TryConsumeBoundary(chapterEnded: true));
-        Assert.Equal(PlaybackStopTimerMode.None, controller.CurrentSnapshot.Mode);
-    }
-
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]

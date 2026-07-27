@@ -139,7 +139,6 @@ Playback current > Prefetch > Active cache
 计时器属于 Playback session 的临时控制器：
 
 - 定时模式使用可替换 CTS/TimeProvider。
-- “当前段结束/当前章结束”订阅稳定播放边界事件，不轮询 UI。
 - 触发后调用 Pause，不取消主动缓存。
 - 退出应用时取消；下次启动不恢复。
 

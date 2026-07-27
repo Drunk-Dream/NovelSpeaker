@@ -96,6 +96,7 @@
 - dirty state：未修改时取消/保存禁用。
 - 导航 guard。
 - 当前章节定位与虚拟化列表。
+- 播放页章节卡片 Tooltip 显示完整章节名。
 - 播放页和详情页目录的当前章节无文字标记、缓存百分比投影、缓存变化刷新和页面退订。
 - 主动缓存多选项的整卡视觉状态，包含当前章节同时被选中的组合状态。
 - icon button semantic style、focus 和 AutomationName。

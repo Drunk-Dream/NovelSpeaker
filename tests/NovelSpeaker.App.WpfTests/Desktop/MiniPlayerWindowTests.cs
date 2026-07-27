@@ -19,6 +19,7 @@ public sealed class MiniPlayerWindowTests
             try
             {
                 var window = provider.GetRequiredService<MiniPlayerWindow>();
+                Assert.Equal(WindowStyle.None, window.WindowStyle);
 
                 var bookTitle = Assert.IsType<TextBlock>(window.FindName("MiniPlayerBookTitle"));
                 Assert.NotNull(bookTitle.GetBindingExpression(TextBlock.TextProperty));

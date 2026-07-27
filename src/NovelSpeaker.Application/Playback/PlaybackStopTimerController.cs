@@ -1,8 +1,7 @@
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
-/// Owns one replaceable playback stop request. Duration work is tracked and drained;
-/// playback boundaries are consumed synchronously by the serialized session owner.
+/// Owns one replaceable duration-based playback stop request. Duration work is tracked and drained.
 /// </summary>
 internal sealed class PlaybackStopTimerController : IPlaybackStopTimer, IAsyncDisposable
 {
@@ -75,12 +74,6 @@ internal sealed class PlaybackStopTimerController : IPlaybackStopTimer, IAsyncDi
         SnapshotChanged?.Invoke(this, snapshot);
     }
 
-    public void ScheduleAtEndOfSegment() =>
-        ScheduleBoundary(PlaybackStopTimerMode.EndOfSegment);
-
-    public void ScheduleAtEndOfChapter() =>
-        ScheduleBoundary(PlaybackStopTimerMode.EndOfChapter);
-
     public void Cancel()
     {
         CancellationTokenSource? cancellation;
@@ -110,35 +103,6 @@ internal sealed class PlaybackStopTimerController : IPlaybackStopTimer, IAsyncDi
         {
             SnapshotChanged?.Invoke(this, snapshot);
         }
-    }
-
-    public bool TryConsumeBoundary(bool chapterEnded)
-    {
-        CancellationTokenSource? cancellation;
-        PlaybackStopTimerSnapshot snapshot;
-        lock (_syncRoot)
-        {
-            if (_disposed ||
-                (_currentSnapshot.Mode != PlaybackStopTimerMode.EndOfSegment &&
-                 !(_currentSnapshot.Mode == PlaybackStopTimerMode.EndOfChapter && chapterEnded)))
-            {
-                return false;
-            }
-
-            cancellation = _durationCancellation;
-            _durationCancellation = null;
-            var version = ++_generation;
-            snapshot = new PlaybackStopTimerSnapshot(
-                PlaybackStopTimerMode.None,
-                null,
-                null,
-                version);
-            _currentSnapshot = snapshot;
-        }
-
-        CancelAndDispose(cancellation);
-        SnapshotChanged?.Invoke(this, snapshot);
-        return true;
     }
 
     internal Task WaitForPendingOperationAsync()
@@ -174,24 +138,6 @@ internal sealed class PlaybackStopTimerController : IPlaybackStopTimer, IAsyncDi
 
         CancelAndDispose(cancellation);
         await WaitForPendingOperationAsync().ConfigureAwait(false);
-    }
-
-    private void ScheduleBoundary(PlaybackStopTimerMode mode)
-    {
-        CancellationTokenSource? previousCancellation;
-        PlaybackStopTimerSnapshot snapshot;
-        lock (_syncRoot)
-        {
-            ThrowIfDisposed();
-            previousCancellation = _durationCancellation;
-            _durationCancellation = null;
-            var version = ++_generation;
-            snapshot = new PlaybackStopTimerSnapshot(mode, null, null, version);
-            _currentSnapshot = snapshot;
-        }
-
-        CancelAndDispose(previousCancellation);
-        SnapshotChanged?.Invoke(this, snapshot);
     }
 
     private async Task RunDurationAsync(
