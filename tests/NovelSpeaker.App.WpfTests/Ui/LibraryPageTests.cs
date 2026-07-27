@@ -105,6 +105,7 @@ public sealed partial class LibraryPageTests
                 candidate => Equals(candidate.Content, "清空搜索"));
 
             Assert.NotNull(clearSearchAction);
+            Assert.Equal(HorizontalAlignment.Center, clearSearchAction.HorizontalAlignment);
         });
     }
 
