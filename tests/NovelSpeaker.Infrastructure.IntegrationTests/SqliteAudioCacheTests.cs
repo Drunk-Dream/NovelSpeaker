@@ -65,6 +65,108 @@ public sealed class SqliteAudioCacheTests
     }
 
     [Fact]
+    public async Task GetValidEntriesAsync_reads_all_requested_index_entries_through_one_connection()
+    {
+        var fixture = await CreateFixtureAsync();
+        var firstKey = AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "第一段");
+        var secondKey = AudioCacheKey.FromPlayback("book-1", 0, 1, 7, 12, "第二段");
+        await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                firstKey,
+                "book-1",
+                0,
+                0,
+                7,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                secondKey,
+                "book-1",
+                0,
+                1,
+                7,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        fixture.CacheConnectionFactory.Reset();
+
+        var result = await fixture.Cache.GetValidEntriesAsync(
+            [firstKey, secondKey],
+            CancellationToken.None);
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal(1, fixture.CacheConnectionFactory.OpenCount);
+    }
+
+    [Fact]
+    public async Task GetValidEntriesAsync_does_not_block_cleanup_and_reads_the_committed_snapshot()
+    {
+        var fixture = await CreateFixtureAsync();
+        var key = AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "第一段");
+        await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                key,
+                "book-1",
+                0,
+                0,
+                7,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        fixture.CacheConnectionFactory.BlockNextOpen();
+
+        var validityTask = fixture.Cache.GetValidEntriesAsync([key], CancellationToken.None);
+        await fixture.CacheConnectionFactory.BlockedOpenStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            var cleanup = await fixture.Cache
+                .ClearChapterAsync("book-1", 0, CancellationToken.None)
+                .WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Equal(1, cleanup.DeletedEntryCount);
+        }
+        finally
+        {
+            fixture.CacheConnectionFactory.ReleaseBlockedOpen();
+        }
+
+        Assert.Empty(await validityTask);
+    }
+
+    [Fact]
+    public async Task Changed_is_published_after_successful_mutations_and_not_for_no_ops()
+    {
+        var fixture = await CreateFixtureAsync();
+        var key = AudioCacheKey.FromPlayback("book-1", 2, 0, 1, 10, "第一段");
+        var changes = new List<CacheChangedEventArgs>();
+        fixture.Cache.Changed += (_, eventArgs) => changes.Add(eventArgs);
+
+        await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                key,
+                "book-1",
+                2,
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+
+        Assert.Equal([new CacheChangedEventArgs("book-1", 2)], changes);
+        Assert.Equal(1, (await fixture.Cache.GetSummaryAsync(CancellationToken.None)).EntryCount);
+
+        changes.Clear();
+        await fixture.Cache.ClearChapterAsync("book-1", 9, CancellationToken.None);
+        Assert.Empty(changes);
+
+        await fixture.Cache.InvalidateAsync(key, CancellationToken.None);
+        Assert.Equal([new CacheChangedEventArgs(null, null)], changes);
+        Assert.Equal(0, (await fixture.Cache.GetSummaryAsync(CancellationToken.None)).EntryCount);
+    }
+
+    [Fact]
     public async Task StoreAsync_persists_audio_under_sharded_path_and_try_get_hits()
     {
         var fixture = await CreateFixtureAsync();
@@ -447,11 +549,12 @@ public sealed class SqliteAudioCacheTests
             CurrentLimitBytes = cacheLimitBytes ?? AppSettings.DefaultCacheLimitBytes
         };
         var pathResolver = new AppStoragePathResolver(directories);
-        var index = new SqliteAudioCacheIndex(factory, timeProvider ?? TimeProvider.System);
+        var cacheConnectionFactory = new CountingSqliteConnectionFactory(factory);
+        var index = new SqliteAudioCacheIndex(cacheConnectionFactory, timeProvider ?? TimeProvider.System);
         var fileStore = new AudioCacheFileStore(directories, pathResolver, registry);
         var maintenance = new AudioCacheMaintenance(index, fileStore, limitProvider, registry);
         var cache = new AudioCacheFacade(index, fileStore, maintenance, registry, new AudioProbe());
-        return new CacheFixture(directories, factory, cache, limitProvider);
+        return new CacheFixture(directories, factory, cacheConnectionFactory, cache, limitProvider);
     }
 
     private static async Task<string> ReadLastAccessedAtAsync(CacheFixture fixture, AudioCacheKey key)
@@ -494,8 +597,56 @@ public sealed class SqliteAudioCacheTests
     private sealed record CacheFixture(
         LocalAppDataDirectoryProvider Directories,
         SqliteConnectionFactory ConnectionFactory,
+        CountingSqliteConnectionFactory CacheConnectionFactory,
         AudioCacheFacade Cache,
         MutableAudioCacheLimitProvider LimitProvider);
+
+    private sealed class CountingSqliteConnectionFactory(
+        ISqliteConnectionFactory inner) : ISqliteConnectionFactory
+    {
+        private int _openCount;
+        private int _blockNextOpen;
+        private TaskCompletionSource _blockedOpenStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private TaskCompletionSource _releaseBlockedOpen =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int OpenCount => Volatile.Read(ref _openCount);
+
+        public Task BlockedOpenStarted => _blockedOpenStarted.Task;
+
+        public async Task<Microsoft.Data.Sqlite.SqliteConnection> OpenConnectionAsync(
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _openCount);
+            if (Interlocked.Exchange(ref _blockNextOpen, 0) == 1)
+            {
+                _blockedOpenStarted.TrySetResult();
+                await _releaseBlockedOpen.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return await inner.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public void BlockNextOpen()
+        {
+            _blockedOpenStarted =
+                new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _releaseBlockedOpen =
+                new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            Interlocked.Exchange(ref _blockNextOpen, 1);
+        }
+
+        public void ReleaseBlockedOpen()
+        {
+            _releaseBlockedOpen.TrySetResult();
+        }
+
+        public void Reset()
+        {
+            Interlocked.Exchange(ref _openCount, 0);
+        }
+    }
 
     private sealed class MutableAudioCacheLimitProvider : IAudioCacheLimitProvider
     {

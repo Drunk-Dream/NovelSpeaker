@@ -103,6 +103,91 @@ public sealed class CacheWorkspaceServiceTests
     }
 
     [Fact]
+    public async Task GetCachedChaptersAsync_batches_content_and_validity_queries_for_all_cached_chapters()
+    {
+        var store = new FakeAudioCacheStore
+        {
+            ChaptersResult =
+            [
+                new CachedChapterStoreSummary("book-1", 0, 1, 1, 1024),
+                new CachedChapterStoreSummary("book-1", 1, 1, 1, 1024)
+            ]
+        };
+        var content = new FakeBookPlaybackContentService();
+        content.Chapters[("book-1", 0)] = PlaybackChapterContent.FromLoaded(
+            0,
+            "第一章",
+            [new SpeechSegment(0, 0, 1, "甲", "甲")]);
+        content.Chapters[("book-1", 1)] = PlaybackChapterContent.FromLoaded(
+            1,
+            "第二章",
+            [new SpeechSegment(0, 0, 1, "乙", "乙")]);
+        var service = CreateService(store, new FakeBookPlaybackMetadataQuery(), content);
+
+        var chapters = await service.GetCachedChaptersAsync("book-1", CancellationToken.None);
+
+        Assert.Equal(2, chapters.Count);
+        Assert.Equal(1, content.BatchRequestCount);
+        Assert.Equal([0, 1], content.LastBatchIndices);
+        Assert.Equal(1, store.ValidityQueryCount);
+        Assert.Equal(2, store.LastValidityQuery.Count);
+    }
+
+    [Fact]
+    public async Task GetChapterCacheStatusesAsync_returns_all_requested_chapters_in_order()
+    {
+        var firstKey = AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 10, "甲");
+        var store = new FakeAudioCacheStore
+        {
+            ValidKeys = new HashSet<AudioCacheKey> { firstKey }
+        };
+        var content = new FakeBookPlaybackContentService();
+        content.Chapters[("book-1", 0)] = PlaybackChapterContent.FromLoaded(
+            0,
+            "第一章",
+            [new SpeechSegment(0, 0, 1, "甲", "甲")]);
+        content.Chapters[("book-1", 2)] = PlaybackChapterContent.FromLoaded(
+            2,
+            "第三章",
+            [
+                new SpeechSegment(0, 0, 1, "丙", "丙"),
+                new SpeechSegment(1, 1, 1, "丁", "丁")
+            ]);
+        var service = CreateService(store, new FakeBookPlaybackMetadataQuery(), content);
+
+        var statuses = await service.GetChapterCacheStatusesAsync(
+            "book-1",
+            [2, 0, 2, 1],
+            CancellationToken.None);
+
+        Assert.Equal([0, 1, 2], statuses.Select(status => status.ChapterIndex));
+        Assert.Equal(new ChapterCacheStatus(0, 1, 1), statuses[0]);
+        Assert.Equal(new ChapterCacheStatus(1, 0, null), statuses[1]);
+        Assert.Equal(new ChapterCacheStatus(2, 0, 2), statuses[2]);
+        Assert.Equal(1, content.BatchRequestCount);
+        Assert.Equal(1, store.ValidityQueryCount);
+    }
+
+    [Fact]
+    public void Changed_forwards_store_change_with_workspace_as_sender()
+    {
+        var store = new FakeAudioCacheStore();
+        var service = CreateService(store, new FakeBookPlaybackMetadataQuery());
+        object? sender = null;
+        CacheChangedEventArgs? received = null;
+        service.Changed += (eventSender, eventArgs) =>
+        {
+            sender = eventSender;
+            received = eventArgs;
+        };
+
+        store.RaiseChanged("book-1", 3);
+
+        Assert.Same(service, sender);
+        Assert.Equal(new CacheChangedEventArgs("book-1", 3), received);
+    }
+
+    [Fact]
     public async Task GetCachedChaptersAsync_reports_current_configuration_unavailable_for_expected_content_failures()
     {
         var service = CreateChapterService(new FakeBookPlaybackContentService
@@ -225,6 +310,8 @@ public sealed class CacheWorkspaceServiceTests
 
     private sealed class FakeAudioCacheStore : IAudioCacheStore
     {
+        public event EventHandler<CacheChangedEventArgs>? Changed;
+
         public AudioCacheStoreSummary SummaryResult { get; set; } =
             new(0, 0, AppSettings.DefaultCacheLimitBytes, false);
 
@@ -237,6 +324,8 @@ public sealed class CacheWorkspaceServiceTests
         public IReadOnlySet<AudioCacheKey> ValidKeys { get; set; } = new HashSet<AudioCacheKey>();
 
         public IReadOnlyList<AudioCacheKey> LastValidityQuery { get; private set; } = [];
+
+        public int ValidityQueryCount { get; private set; }
 
         public Action? BeforeValidityQuery { get; init; }
 
@@ -262,6 +351,7 @@ public sealed class CacheWorkspaceServiceTests
         {
             BeforeValidityQuery?.Invoke();
             cancellationToken.ThrowIfCancellationRequested();
+            ValidityQueryCount++;
             LastValidityQuery = keys.ToArray();
             return Task.FromResult<IReadOnlySet<AudioCacheKey>>(
                 keys.Where(ValidKeys.Contains).ToHashSet());
@@ -299,6 +389,11 @@ public sealed class CacheWorkspaceServiceTests
             MaintenanceRequested = true;
             return Task.CompletedTask;
         }
+
+        public void RaiseChanged(string? bookId, int? chapterIndex)
+        {
+            Changed?.Invoke(this, new CacheChangedEventArgs(bookId, chapterIndex));
+        }
     }
 
     private sealed class FakeBookPlaybackMetadataQuery : IBookPlaybackMetadataQuery
@@ -327,6 +422,10 @@ public sealed class CacheWorkspaceServiceTests
 
         public Exception? Exception { get; init; }
 
+        public int BatchRequestCount { get; private set; }
+
+        public IReadOnlyList<int> LastBatchIndices { get; private set; } = [];
+
         public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
@@ -342,6 +441,27 @@ public sealed class CacheWorkspaceServiceTests
             }
 
             return Task.FromResult(Chapters.GetValueOrDefault((bookId, chapterIndex)));
+        }
+
+        public Task<IReadOnlyList<PlaybackChapterContent>> GetChaptersAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Exception is not null)
+            {
+                throw Exception;
+            }
+
+            BatchRequestCount++;
+            LastBatchIndices = chapterIndices.ToArray();
+            return Task.FromResult<IReadOnlyList<PlaybackChapterContent>>(
+                chapterIndices
+                    .Select(index => Chapters.GetValueOrDefault((bookId, index)))
+                    .Where(chapter => chapter is not null)
+                    .Cast<PlaybackChapterContent>()
+                    .ToArray());
         }
     }
 

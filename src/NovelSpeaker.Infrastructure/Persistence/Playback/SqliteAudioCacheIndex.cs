@@ -45,6 +45,57 @@ internal sealed class SqliteAudioCacheIndex
             : null;
     }
 
+    public async Task<IReadOnlyDictionary<string, AudioCacheIndexEntry>> FindManyAsync(
+        IReadOnlyCollection<AudioCacheKey> keys,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+
+        var cacheKeys = keys
+            .Select(key => key.Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (cacheKeys.Length == 0)
+        {
+            return new Dictionary<string, AudioCacheIndexEntry>(StringComparer.Ordinal);
+        }
+
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var entries = new Dictionary<string, AudioCacheIndexEntry>(
+            cacheKeys.Length,
+            StringComparer.Ordinal);
+        const int batchSize = 400;
+        for (var offset = 0; offset < cacheKeys.Length; offset += batchSize)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var batchCount = Math.Min(batchSize, cacheKeys.Length - offset);
+            var command = connection.CreateCommand();
+            var parameterNames = new string[batchCount];
+            for (var index = 0; index < batchCount; index++)
+            {
+                var parameterName = $"$cacheKey{index}";
+                parameterNames[index] = parameterName;
+                command.Parameters.AddWithValue(parameterName, cacheKeys[offset + index]);
+            }
+
+            command.CommandText =
+                $"""
+                SELECT CacheKey, FilePath, FileSize
+                FROM AudioCacheEntries
+                WHERE CacheKey IN ({string.Join(", ", parameterNames)});
+                """;
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                var entry = ReadEntry(reader);
+                entries.Add(entry.CacheKey, entry);
+            }
+        }
+
+        return entries;
+    }
+
     public async Task TouchAsync(
         string cacheKey,
         string storageKey,

@@ -77,6 +77,37 @@ public sealed class BookPlaybackContentServiceTests
     }
 
     [Fact]
+    public async Task GetChaptersAsync_loads_all_requested_metadata_through_one_database_connection()
+    {
+        using var database = CreateDatabase(createContentFile: true);
+        await using (var connection = new SqliteConnection(database.ConnectionString))
+        {
+            await connection.OpenAsync(CancellationToken.None);
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
+                VALUES ('chapter-2', 'book-1', 1, 1, '第二章', 3, 9);
+                """;
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        var connectionFactory = new TestSqliteConnectionFactory(database.ConnectionString);
+        var service = new BookPlaybackContentService(
+            new SqliteBookPlaybackMetadataQuery(connectionFactory),
+            CreateContentReader(database),
+            new TextSegmenter(),
+            new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
+            new PassthroughRegexReplacementPipeline());
+
+        var chapters = await service.GetChaptersAsync("book-1", [1, 0], CancellationToken.None);
+
+        Assert.Equal([0, 1], chapters.Select(chapter => chapter.ChapterIndex));
+        Assert.All(chapters, chapter => Assert.Equal(PlaybackChapterLoadState.Loaded, chapter.LoadState));
+        Assert.Equal(1, connectionFactory.OpenCount);
+    }
+
+    [Fact]
     public async Task GetChapterAsync_marks_regex_filtered_chapter_as_loaded_empty()
     {
         var service = new BookPlaybackContentService(
@@ -183,6 +214,7 @@ public sealed class BookPlaybackContentServiceTests
         private readonly string _connectionString;
         private readonly TaskCompletionSource? _openStarted;
         private readonly TaskCompletionSource? _releaseGate;
+        private int _openCount;
 
         public TestSqliteConnectionFactory(string connectionString, bool gateOpen = false)
         {
@@ -196,10 +228,13 @@ public sealed class BookPlaybackContentServiceTests
 
         public Task OpenStarted => _openStarted?.Task ?? Task.CompletedTask;
 
+        public int OpenCount => Volatile.Read(ref _openCount);
+
         public void Release() => _releaseGate?.TrySetResult();
 
         public async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
         {
+            Interlocked.Increment(ref _openCount);
             _openStarted?.TrySetResult();
             if (_releaseGate is not null)
             {

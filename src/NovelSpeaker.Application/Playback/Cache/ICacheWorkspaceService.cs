@@ -5,11 +5,18 @@ namespace NovelSpeaker.Application.Playback.Cache;
 /// </summary>
 public interface ICacheWorkspaceService
 {
+    event EventHandler<CacheChangedEventArgs>? Changed;
+
     Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken);
 
     Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken);
 
     Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(string bookId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
+        string bookId,
+        IReadOnlyCollection<int> chapterIndices,
+        CancellationToken cancellationToken);
 
     Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken);
 

@@ -95,4 +95,51 @@ public sealed class SqliteBookPlaybackMetadataQuery : IBookPlaybackMetadataQuery
                 reader.GetInt32(4))
             : null;
     }
+
+    public async Task<IReadOnlyList<PlaybackChapterMetadata>> GetChaptersAsync(
+        string bookId,
+        IReadOnlyCollection<int> chapterIndices,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        ArgumentNullException.ThrowIfNull(chapterIndices);
+
+        var requestedIndices = chapterIndices.ToHashSet();
+        if (requestedIndices.Count == 0)
+        {
+            return [];
+        }
+
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT c.ChapterIndex, c.Title, b.StoredFilePath, c.StartOffset, c.Length
+            FROM Chapters c
+            INNER JOIN Books b ON b.Id = c.BookId
+            WHERE c.BookId = $bookId
+            ORDER BY c.SortOrder, c.ChapterIndex;
+            """;
+        command.Parameters.AddWithValue("$bookId", bookId);
+
+        var chapters = new List<PlaybackChapterMetadata>(requestedIndices.Count);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var chapterIndex = reader.GetInt32(0);
+            if (!requestedIndices.Contains(chapterIndex))
+            {
+                continue;
+            }
+
+            chapters.Add(new PlaybackChapterMetadata(
+                chapterIndex,
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetInt32(3),
+                reader.GetInt32(4)));
+        }
+
+        return chapters;
+    }
 }
