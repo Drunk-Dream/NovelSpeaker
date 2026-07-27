@@ -173,14 +173,6 @@
                             </Grid>
                         </Border>
 
-                        <Button x:Name="OpenCacheManagementButton"
-                                Style="{StaticResource SettingsNavigationRowButtonStyle}"
-                                Command="{Binding OpenCacheManagementCommand}"
-                                Content="缓存管理"
-                                Tag="{x:Static theming:SettingsNavigationIcon.CacheManagement}"
-                                ToolTip="缓存管理"
-                                AutomationProperties.Name="缓存管理" />
-
                         <Border x:Name="ClearAllCacheItemBorder"
                                 Style="{StaticResource SettingsRowBorderStyle}">
                             <Grid>
@@ -204,6 +196,14 @@
                                         AutomationProperties.Name="清理全部缓存" />
                             </Grid>
                         </Border>
+
+                        <Button x:Name="OpenCacheManagementButton"
+                                Style="{StaticResource SettingsNavigationRowButtonStyle}"
+                                Command="{Binding OpenCacheManagementCommand}"
+                                Content="缓存管理"
+                                Tag="{x:Static theming:SettingsNavigationIcon.CacheManagement}"
+                                ToolTip="缓存管理"
+                                AutomationProperties.Name="缓存管理" />
                     </StackPanel>
                 </Border>
             </StackPanel>

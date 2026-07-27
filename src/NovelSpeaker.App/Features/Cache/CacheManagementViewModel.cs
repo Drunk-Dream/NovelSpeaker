@@ -112,8 +112,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         !IsExporting &&
         HasSelection &&
         !string.IsNullOrWhiteSpace(_selectedBookId) &&
-        _chapterSelection.Count > 0 &&
-        SelectedChaptersAreExportable();
+        _chapterSelection.Count > 0;
 
     public bool CanCancelExport => IsExporting;
 
@@ -137,7 +136,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
 
             return SelectedChaptersAreExportable()
                 ? "将所选章节导出为 MP3"
-                : "所选章节缓存不完整，无法导出";
+                : "导出可用章节；不可导出章节将先请求确认";
         }
     }
 
@@ -258,6 +257,25 @@ public sealed partial class CacheManagementViewModel : ObservableObject
             return;
         }
 
+        var selectedBookId = _selectedBookId;
+        var selectedChapters = Chapters
+            .Where(chapter => _chapterSelection.IsSelected(chapter.ChapterIndex))
+            .OrderBy(chapter => chapter.ChapterIndex)
+            .ToArray();
+        var exportableChapterIndices = selectedChapters
+            .Where(chapter => chapter.IsExportable)
+            .Select(chapter => chapter.ChapterIndex)
+            .ToArray();
+        var skippedChapterCount = selectedChapters.Length - exportableChapterIndices.Length;
+
+        if (exportableChapterIndices.Length == 0)
+        {
+            _feedbackService.ShowWarning(
+                "没有可导出的章节",
+                "所选章节当前均不可导出，请先完成缓存后重试。");
+            return;
+        }
+
         var operationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (Interlocked.CompareExchange(ref _exportCts, operationCts, null) is not null)
         {
@@ -265,16 +283,34 @@ public sealed partial class CacheManagementViewModel : ObservableObject
             return;
         }
 
-        var selectedBookId = _selectedBookId;
-        var selectedChapterIndices = SelectedChapterIndices.Order().ToArray();
         IsExporting = true;
         IsBusy = true;
         LastExportDirectoryPath = null;
-        ExportStatusText = "请选择导出位置…";
+        ExportStatusText = skippedChapterCount > 0
+            ? "请确认是否跳过不可导出章节…"
+            : "请选择导出位置…";
         NotifyCommandStateChanged();
 
         try
         {
+            if (skippedChapterCount > 0)
+            {
+                var decision = await _dialogService.ShowConfirmationAsync(
+                    "跳过不可导出章节",
+                    $"所选 {selectedChapters.Length} 章中有 {skippedChapterCount} 章当前不可导出。" +
+                    $"是否跳过这 {skippedChapterCount} 章并导出其余 {exportableChapterIndices.Length} 章？",
+                    "跳过并导出",
+                    "取消",
+                    operationCts.Token);
+                operationCts.Token.ThrowIfCancellationRequested();
+                if (decision != AppConfirmationDecision.Confirm)
+                {
+                    ExportStatusText = "导出已取消";
+                    return;
+                }
+            }
+
+            ExportStatusText = "请选择导出位置…";
             var destinationRoot = await _fileDialogs.PickFolderAsync(
                 new PresentationFolderDialogOptions("选择章节 MP3 导出位置"),
                 operationCts.Token);
@@ -284,15 +320,15 @@ public sealed partial class CacheManagementViewModel : ObservableObject
                 return;
             }
 
-            ExportStatusText = $"正在导出 {selectedChapterIndices.Length} 章…";
+            ExportStatusText = $"正在导出 {exportableChapterIndices.Length} 章…";
             var result = await _exportChaptersService.ExportAsync(
                 new ExportChaptersRequest(
                     selectedBookId,
-                    selectedChapterIndices,
+                    exportableChapterIndices,
                     destinationRoot),
                 operationCts.Token);
             operationCts.Token.ThrowIfCancellationRequested();
-            ShowExportResult(result);
+            ShowExportResult(result, skippedChapterCount);
         }
         catch (OperationCanceledException) when (operationCts.IsCancellationRequested)
         {
@@ -608,14 +644,14 @@ public sealed partial class CacheManagementViewModel : ObservableObject
     {
         if (chapter.CurrentConfigurationSegmentCount is null)
         {
-            return "当前配置完整度：不可用";
+            return "完整度：不可用";
         }
 
         var totalSegmentCount = chapter.CurrentConfigurationSegmentCount.Value;
         var ratio = totalSegmentCount == 0
             ? 1
             : Math.Clamp(chapter.CachedSegmentCount / (double)totalSegmentCount, 0, 1);
-        return $"当前配置完整度：{chapter.CachedSegmentCount}/{totalSegmentCount} 段 · {ratio:P0}";
+        return $"完整度：{chapter.CachedSegmentCount}/{totalSegmentCount} 段 · {ratio:P0}";
     }
 
     private bool SelectedChaptersAreExportable()
@@ -636,17 +672,17 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         _exportCts?.Cancel();
     }
 
-    private void ShowExportResult(ExportChaptersResult result)
+    private void ShowExportResult(ExportChaptersResult result, int skippedChapterCount)
     {
         switch (result.Status)
         {
             case ExportChaptersStatus.Succeeded
                 when !string.IsNullOrWhiteSpace(result.ExportDirectoryPath):
                 LastExportDirectoryPath = result.ExportDirectoryPath;
-                ExportStatusText = $"已导出 {result.Files.Count} 章";
+                ExportStatusText = FormatExportSummary(result.Files.Count, skippedChapterCount);
                 _feedbackService.ShowSuccess(
                     "导出完成",
-                    $"已将 {result.Files.Count} 章导出为 MP3。可在缓存管理页打开导出目录。");
+                    $"{FormatExportSummary(result.Files.Count, skippedChapterCount)}。可在缓存管理页打开导出目录。");
                 break;
             case ExportChaptersStatus.IncompleteCache:
                 ExportStatusText = "所选章节缓存不完整";
@@ -676,6 +712,13 @@ public sealed partial class CacheManagementViewModel : ObservableObject
             default:
                 throw new InvalidOperationException("The export service returned an invalid result.");
         }
+    }
+
+    private static string FormatExportSummary(int exportedChapterCount, int skippedChapterCount)
+    {
+        return skippedChapterCount == 0
+            ? $"已导出 {exportedChapterCount} 章"
+            : $"已导出 {exportedChapterCount} 章，跳过 {skippedChapterCount} 章";
     }
 
     private static string FormatChapterFailure(int? chapterIndex, string reason)

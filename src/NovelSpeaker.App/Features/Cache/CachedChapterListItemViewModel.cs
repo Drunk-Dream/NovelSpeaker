@@ -13,7 +13,7 @@ public sealed partial class CachedChapterListItemViewModel : ObservableObject
         string entryCountText,
         string completenessText,
         bool isExportable = false,
-        string exportStatusText = "不可导出",
+        string exportAccessibilityText = "不可导出",
         string exportToolTip = "当前章节无法导出。")
     {
         BookId = bookId;
@@ -24,7 +24,7 @@ public sealed partial class CachedChapterListItemViewModel : ObservableObject
         EntryCountText = entryCountText;
         CompletenessText = completenessText;
         IsExportable = isExportable;
-        ExportStatusText = exportStatusText;
+        ExportAccessibilityText = exportAccessibilityText;
         ExportToolTip = exportToolTip;
     }
 
@@ -44,12 +44,12 @@ public sealed partial class CachedChapterListItemViewModel : ObservableObject
 
     public bool IsExportable { get; }
 
-    public string ExportStatusText { get; }
+    public string ExportAccessibilityText { get; }
 
     public string ExportToolTip { get; }
 
     public string AutomationName =>
-        $"{OrderText}，{Title}，{CacheSizeText}，{CompletenessText}，{ExportStatusText}" +
+        $"{OrderText}，{Title}，{CacheSizeText}，{CompletenessText}，{ExportAccessibilityText}" +
         (IsSelected ? "，已选择" : string.Empty);
 
     [ObservableProperty]
