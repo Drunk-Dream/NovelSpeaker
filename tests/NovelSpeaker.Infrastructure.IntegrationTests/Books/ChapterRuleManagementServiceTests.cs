@@ -5,7 +5,7 @@ using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Books;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Books;
 
 public sealed class ChapterRuleManagementServiceTests
 {

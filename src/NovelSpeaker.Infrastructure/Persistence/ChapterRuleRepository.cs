@@ -36,17 +36,44 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
 
         while (await reader.ReadAsync(cancellationToken))
         {
-            items.Add(new ChapterRule(
+            if (TryReadRule(reader, out var rule))
+            {
+                items.Add(rule);
+            }
+        }
+
+        return items;
+    }
+
+    private static bool TryReadRule(SqliteDataReader reader, out ChapterRule rule)
+    {
+        rule = null!;
+        try
+        {
+            if (!SqliteDateTimeMapper.TryParse(reader.GetString(5), out var createdAt) ||
+                !SqliteDateTimeMapper.TryParse(reader.GetString(6), out var updatedAt))
+            {
+                return false;
+            }
+
+            rule = new ChapterRule(
                 reader.GetString(0),
                 reader.GetString(1),
                 reader.GetString(2),
                 reader.GetInt32(3),
                 reader.GetInt64(4) == 1,
-                SqliteDateTimeMapper.Parse(reader.GetString(5)),
-                SqliteDateTimeMapper.Parse(reader.GetString(6))));
+                createdAt,
+                updatedAt);
+            return true;
         }
-
-        return items;
+        catch (InvalidCastException)
+        {
+            return false;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
     }
 
     public async Task<IReadOnlyList<ChapterRule>> GetEnabledAsync(CancellationToken cancellationToken)

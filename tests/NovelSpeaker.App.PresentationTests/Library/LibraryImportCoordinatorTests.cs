@@ -2,7 +2,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.App.Features.Library;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Library;
+namespace NovelSpeaker.App.PresentationTests.Library;
 
 public sealed class LibraryImportCoordinatorTests
 {

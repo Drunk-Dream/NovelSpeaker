@@ -1,8 +1,8 @@
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.UnitTests.Speech;
+using NovelSpeaker.TestKit.Speech;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.Application.UnitTests;
 
 public sealed class PlaybackPrefetchControllerTests
 {

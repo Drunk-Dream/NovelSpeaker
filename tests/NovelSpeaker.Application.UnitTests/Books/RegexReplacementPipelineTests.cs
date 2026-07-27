@@ -1,9 +1,10 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.TextProcessing;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Domain.Books;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Books;
+namespace NovelSpeaker.Application.UnitTests.Books;
 
 public sealed class RegexReplacementPipelineTests
 {
@@ -26,6 +27,31 @@ public sealed class RegexReplacementPipelineTests
         Assert.Equal("x", segment.SpeechText);
         Assert.Equal(7, segment.StartOffset);
         Assert.Empty(result.RuleErrors);
+    }
+
+    [Fact]
+    public async Task ApplyAsync_orders_by_sort_order_and_id_and_ignores_disabled_rules()
+    {
+        var firstId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var secondId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+        var disabled = Rule(Guid.NewGuid(), 1, "a", "disabled", RegexReplacementScope.Both) with
+        {
+            IsEnabled = false
+        };
+        var pipeline = CreatePipeline(new FakeRepository(
+        [
+            Rule(secondId, 10, "b", "c", RegexReplacementScope.Both),
+            disabled,
+            Rule(firstId, 10, "a", "b", RegexReplacementScope.Both)
+        ]));
+
+        var result = await pipeline.ApplyAsync(
+            [new SpeechSegment(0, 0, 1, "a", "a")],
+            CancellationToken.None);
+
+        var segment = Assert.Single(result.Segments);
+        Assert.Equal("c", segment.DisplayText);
+        Assert.Equal("c", segment.SpeechText);
     }
 
     [Fact]
@@ -80,6 +106,28 @@ public sealed class RegexReplacementPipelineTests
         Assert.Equal("隐藏", result.Segments[0].SpeechText);
         Assert.Equal("静音", result.Segments[1].DisplayText);
         Assert.Equal(string.Empty, result.Segments[1].SpeechText);
+    }
+
+    [Fact]
+    public async Task Final_speech_projection_drives_cache_identity_independently_from_display_projection()
+    {
+        var source = new[] { new SpeechSegment(0, 0, 1, "a", "a") };
+        var displayResult = await CreatePipeline(new FakeRepository(
+            [Rule(Guid.NewGuid(), 10, "a", "display-only", RegexReplacementScope.Display)]))
+            .ApplyAsync(source, CancellationToken.None);
+        var speechResult = await CreatePipeline(new FakeRepository(
+            [Rule(Guid.NewGuid(), 10, "a", "speech-only", RegexReplacementScope.Speech)]))
+            .ApplyAsync(source, CancellationToken.None);
+
+        var displaySegment = Assert.Single(displayResult.Segments);
+        var speechSegment = Assert.Single(speechResult.Segments);
+        var baselineKey = AudioCacheKey.FromPlayback("book", 0, 0, 1, 10, "a");
+        var displayKey = AudioCacheKey.FromPlayback("book", 0, 0, 1, 10, displaySegment.SpeechText);
+        var speechKey = AudioCacheKey.FromPlayback("book", 0, 0, 1, 10, speechSegment.SpeechText);
+
+        Assert.Equal("display-only", displaySegment.DisplayText);
+        Assert.Equal(baselineKey, displayKey);
+        Assert.NotEqual(baselineKey, speechKey);
     }
 
     [Fact]

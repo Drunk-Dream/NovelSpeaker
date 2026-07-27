@@ -43,8 +43,11 @@ public sealed class HttpTtsClient : ITtsHttpTransport, IDisposable
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(_requestTimeout);
+        var timeoutCts = new CancellationTokenSource(_requestTimeout);
+        var operationCts = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            timeoutCts.Token);
+        var ownershipTransferred = false;
         HttpResponseMessage? response = null;
         try
         {
@@ -52,17 +55,22 @@ public sealed class HttpTtsClient : ITtsHttpTransport, IDisposable
             response = await _client.SendAsync(
                 message,
                 HttpCompletionOption.ResponseHeadersRead,
-                timeoutCts.Token).ConfigureAwait(false);
-            var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                operationCts.Token).ConfigureAwait(false);
+            var responseStream = await response.Content
+                .ReadAsStreamAsync(operationCts.Token)
+                .ConfigureAwait(false);
+            var stream = new CancellationBoundStream(responseStream, operationCts.Token);
             var result = new TtsTransportResult(
                 new TtsTransportResponse(
                     (int)response.StatusCode,
                     response.Content.Headers.ContentType?.ToString(),
                     stream,
                     ParseRetryAfter(response.Headers.RetryAfter),
-                    new ResponseOwner(response)),
+                    new ResponseOwner(response, operationCts, timeoutCts),
+                    timeoutCts.Token),
                 null);
             response = null;
+            ownershipTransferred = true;
             return result;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -86,6 +94,11 @@ public sealed class HttpTtsClient : ITtsHttpTransport, IDisposable
         finally
         {
             response?.Dispose();
+            if (!ownershipTransferred)
+            {
+                operationCts.Dispose();
+                timeoutCts.Dispose();
+            }
         }
     }
 
@@ -150,12 +163,92 @@ public sealed class HttpTtsClient : ITtsHttpTransport, IDisposable
         return value <= MaxRetryAfter ? value : MaxRetryAfter;
     }
 
-    private sealed class ResponseOwner(HttpResponseMessage response) : IAsyncDisposable
+    private sealed class ResponseOwner(
+        HttpResponseMessage response,
+        CancellationTokenSource operationCts,
+        CancellationTokenSource timeoutCts) : IAsyncDisposable
     {
         public ValueTask DisposeAsync()
         {
-            response.Dispose();
+            try
+            {
+                response.Dispose();
+            }
+            finally
+            {
+                operationCts.Dispose();
+                timeoutCts.Dispose();
+            }
+
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class CancellationBoundStream(
+        Stream inner,
+        CancellationToken operationToken) : Stream
+    {
+        public override bool CanRead => inner.CanRead;
+        public override bool CanSeek => inner.CanSeek;
+        public override bool CanWrite => inner.CanWrite;
+        public override long Length => inner.Length;
+        public override long Position
+        {
+            get => inner.Position;
+            set => inner.Position = value;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            inner.Read(buffer, offset, count);
+
+        public override int Read(Span<byte> buffer) => inner.Read(buffer);
+
+        public override async Task<int> ReadAsync(
+            byte[] buffer,
+            int offset,
+            int count,
+            CancellationToken cancellationToken)
+        {
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                operationToken);
+            return await inner
+                .ReadAsync(buffer, offset, count, linkedCts.Token)
+                .ConfigureAwait(false);
+        }
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                operationToken);
+            return await inner.ReadAsync(buffer, linkedCts.Token).ConfigureAwait(false);
+        }
+
+        public override void Flush() => inner.Flush();
+        public override Task FlushAsync(CancellationToken cancellationToken) =>
+            inner.FlushAsync(cancellationToken);
+        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+        public override void SetLength(long value) => inner.SetLength(value);
+        public override void Write(byte[] buffer, int offset, int count) =>
+            inner.Write(buffer, offset, count);
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            await inner.DisposeAsync().ConfigureAwait(false);
+            GC.SuppressFinalize(this);
         }
     }
 }

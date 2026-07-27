@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using NovelSpeaker.Application.Desktop;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
@@ -23,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.AddNovelSpeakerBooksApplication();
         services.AddNovelSpeakerSpeechApplication();
         services.AddNovelSpeakerPlaybackApplication();
+        services.AddNovelSpeakerDesktopApplication();
         services.AddNovelSpeakerSettingsApplication(startupSettings);
 
         return services;

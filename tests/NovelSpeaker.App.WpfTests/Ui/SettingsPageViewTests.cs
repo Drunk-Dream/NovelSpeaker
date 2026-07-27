@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 [Collection("WpfDispatcher")]
 public sealed class SettingsPageViewTests
@@ -21,26 +21,28 @@ public sealed class SettingsPageViewTests
                 page.Arrange(new Rect(0, 0, 1200, 800));
                 page.UpdateLayout();
 
-                var allText = FindVisualChildren<System.Windows.Controls.TextBlock>(page)
+                var allText = VisualTreeTestHelper.FindDescendants<System.Windows.Controls.TextBlock>(page)
                     .Select(text => text.Text)
                     .Where(text => !string.IsNullOrWhiteSpace(text))
                     .Cast<string>()
                     .ToArray();
-                var allButtons = FindVisualChildren<System.Windows.Controls.Button>(page).ToArray();
-                var allIcons = FindVisualChildren<SymbolIcon>(page).ToArray();
+                var allButtons = VisualTreeTestHelper.FindDescendants<System.Windows.Controls.Button>(page).ToArray();
+                var allIcons = VisualTreeTestHelper.FindDescendants<SymbolIcon>(page).ToArray();
+                var navigationRowStyle = Assert.IsType<Style>(page.FindResource("SettingsNavigationRowButtonStyle"));
 
                 Assert.Contains("常用", allText);
                 Assert.Contains("文本处理", allText);
                 Assert.Contains("应用", allText);
                 Assert.DoesNotContain("保存设置", allText);
                 Assert.DoesNotContain(allButtons, button => string.Equals(button.Content?.ToString(), "保存设置", StringComparison.Ordinal));
-                Assert.Empty(FindVisualChildren<System.Windows.Controls.TextBox>(page));
-                Assert.Empty(FindVisualChildren<System.Windows.Controls.ComboBox>(page));
-                Assert.Equal(14, allIcons.Length);
-                Assert.Equal(7, allIcons.Count(icon => icon.Symbol == SymbolRegular.ChevronRight24));
+                Assert.Empty(VisualTreeTestHelper.FindDescendants<System.Windows.Controls.TextBox>(page));
+                Assert.Empty(VisualTreeTestHelper.FindDescendants<System.Windows.Controls.ComboBox>(page));
+                Assert.Equal(16, allIcons.Length);
+                Assert.Equal(8, allIcons.Count(icon => icon.Symbol == SymbolRegular.ChevronRight24));
+                Assert.Equal(8, allButtons.Count(button => ReferenceEquals(button.Style, navigationRowStyle)));
                 Assert.Equal(
                     3,
-                    FindVisualChildren<System.Windows.Controls.Border>(page)
+                    VisualTreeTestHelper.FindDescendants<System.Windows.Controls.Border>(page)
                         .Count(border => string.Equals(border.Tag?.ToString(), "SettingsGroupSeparator", StringComparison.Ordinal)));
             }
             finally
@@ -50,26 +52,4 @@ public sealed class SettingsPageViewTests
         });
     }
 
-    private static IReadOnlyList<T> FindVisualChildren<T>(DependencyObject root)
-        where T : DependencyObject
-    {
-        var results = new List<T>();
-        Visit(root, results);
-        return results;
-    }
-
-    private static void Visit<T>(DependencyObject node, List<T> results)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < System.Windows.Media.VisualTreeHelper.GetChildrenCount(node); childIndex++)
-        {
-            var child = System.Windows.Media.VisualTreeHelper.GetChild(node, childIndex);
-            if (child is T typedChild)
-            {
-                results.Add(typedChild);
-            }
-
-            Visit(child, results);
-        }
-    }
 }

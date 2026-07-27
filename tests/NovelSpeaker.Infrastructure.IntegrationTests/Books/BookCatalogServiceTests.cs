@@ -4,7 +4,7 @@ using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Books;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Books;
 
 public sealed class BookLibraryQueryTests
 {
@@ -60,6 +60,24 @@ public sealed class BookLibraryQueryTests
 
         Assert.NotNull(details);
         Assert.Equal([0, 1, 2], details.Chapters.Select(static chapter => chapter.ChapterIndex));
+    }
+
+    [Fact]
+    public async Task GetBooksAsync_accepts_legacy_times_and_skips_rows_with_damaged_times()
+    {
+        var (factory, service) = await CreateCatalogAsync();
+        await SeedBookAsync(factory, "legacy-time", "第一章", "第二章");
+        await SeedBookAsync(factory, "damaged-time", "第一章", "第二章");
+        await SetImportedAtAsync(factory, "legacy-time", "2026-07-16 09:08:07");
+        await SetImportedAtAsync(factory, "damaged-time", "not-a-date");
+
+        var books = await service.GetBooksAsync(CancellationToken.None);
+
+        var legacy = Assert.Single(books);
+        Assert.Equal("legacy-time", legacy.Id);
+        Assert.Equal(
+            new DateTimeOffset(2026, 7, 16, 9, 8, 7, TimeSpan.Zero),
+            legacy.ImportedAt);
     }
 
     private static async Task<(SqliteConnectionFactory Factory, BookLibraryQuery Service)> CreateCatalogAsync()

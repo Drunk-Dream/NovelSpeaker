@@ -2,7 +2,8 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:navigation="clr-namespace:NovelSpeaker.App.Shell.Navigation"
-      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      PreviewKeyDown="Page_OnPreviewKeyDown">
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
 
@@ -20,36 +21,24 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid>
+        <Grid VerticalAlignment="Center">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Grid VerticalAlignment="Center">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
+            <Button Style="{StaticResource BackIconButtonStyle}"
+                    Command="{Binding BackCommand}"
+                    ToolTip="返回"
+                    AutomationProperties.Name="返回">
+                <ui:SymbolIcon Symbol="ChevronLeft24" />
+            </Button>
 
-                <Button Style="{StaticResource BackIconButtonStyle}"
-                        Command="{Binding BackCommand}"
-                        ToolTip="返回"
-                        AutomationProperties.Name="返回">
-                    <ui:SymbolIcon Symbol="ChevronLeft24" />
-                </Button>
-
-                <TextBlock Grid.Column="1"
-                           Margin="12,0,0,0"
-                           VerticalAlignment="Center"
-                           Style="{StaticResource PageTitleTextBlockStyle}"
-                           Text="缓存管理" />
-            </Grid>
-
-            <Button Grid.Column="1"
-                    Padding="16,8"
-                    Command="{Binding ClearAllCommand}"
-                    Content="清理全部缓存" />
+            <TextBlock Grid.Column="1"
+                       Margin="12,0,0,0"
+                       VerticalAlignment="Center"
+                       Style="{StaticResource PageTitleTextBlockStyle}"
+                       Text="缓存管理" />
         </Grid>
 
         <Grid Grid.Row="1"
@@ -152,7 +141,7 @@
                         <TextBlock Margin="0,10,0,0"
                                    HorizontalAlignment="Center"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
-                                   Text="选中后可查看章节缓存、完整度估算，并清理本章或本书缓存。"
+                                   Text="选中后可查看当前配置下的章节缓存完整度，并选择一个或多个章节清理或导出。"
                                    TextAlignment="Center"
                                    TextWrapping="Wrap" />
                     </StackPanel>
@@ -194,11 +183,71 @@
                                            Text="{Binding SelectedBookCacheSizeText}" />
                             </StackPanel>
 
-                            <Button Grid.Column="1"
-                                    Padding="16,8"
-                                    VerticalAlignment="Top"
-                                    Command="{Binding ClearBookCommand}"
-                                    Content="清理本书全部缓存" />
+                            <StackPanel Grid.Column="1"
+                                        Margin="16,0,0,0"
+                                        VerticalAlignment="Top">
+                                <TextBlock HorizontalAlignment="Right"
+                                           Margin="0,0,0,8"
+                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                           Text="{Binding ChapterSelectionSummary}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="ClearSelectedChaptersButton"
+                                            Padding="16,8"
+                                            Command="{Binding ClearSelectedChaptersCommand}"
+                                            Content="清理"
+                                            ToolTip="清理所选章节缓存"
+                                            AutomationProperties.Name="清理所选章节缓存" />
+                                    <Button x:Name="ExportSelectedChaptersButton"
+                                            Margin="8,0,0,0"
+                                            Padding="16,8"
+                                            Command="{Binding ExportSelectedChaptersCommand}"
+                                            Content="导出"
+                                            ToolTip="{Binding ExportCommandToolTip}"
+                                            AutomationProperties.Name="导出所选章节" />
+                                </StackPanel>
+
+                                <StackPanel x:Name="ExportProgressPanel"
+                                            Margin="0,12,0,0">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsExporting}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <ProgressBar Height="4"
+                                                 IsIndeterminate="True"
+                                                 AutomationProperties.Name="章节导出进度" />
+                                    <DockPanel Margin="0,8,0,0"
+                                               LastChildFill="True">
+                                        <Button x:Name="CancelExportButton"
+                                                DockPanel.Dock="Right"
+                                                Margin="12,0,0,0"
+                                                Padding="10,4"
+                                                Command="{Binding CancelExportCommand}"
+                                                Content="取消"
+                                                ToolTip="取消导出"
+                                                AutomationProperties.Name="取消章节导出" />
+                                        <TextBlock VerticalAlignment="Center"
+                                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                                   Text="{Binding ExportStatusText}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DockPanel>
+                                </StackPanel>
+
+                                <Button x:Name="OpenExportDirectoryButton"
+                                        Margin="0,12,0,0"
+                                        HorizontalAlignment="Right"
+                                        Padding="10,4"
+                                        Command="{Binding OpenExportDirectoryCommand}"
+                                        Content="打开目录"
+                                        ToolTip="打开目录"
+                                        AutomationProperties.Name="打开导出目录"
+                                        Visibility="{Binding CanOpenExportDirectory, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            </StackPanel>
                         </Grid>
 
                         <StackPanel Grid.Row="1"
@@ -226,69 +275,102 @@
                                        TextWrapping="Wrap" />
                         </StackPanel>
 
-                        <ScrollViewer x:Name="ChaptersScrollViewer"
-                                      Grid.Row="1"
-                                      Margin="0,20,0,0"
-                                      VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl ItemsSource="{Binding Chapters}">
-                                <ItemsControl.Style>
-                                    <Style TargetType="ItemsControl">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding ShowSelectedBookContent}" Value="False">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ItemsControl.Style>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Margin="0,0,0,12"
-                                                Padding="16"
-                                                Style="{StaticResource CardBorderStyle}"
-                                                AutomationProperties.Name="{Binding AutomationName}">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <StackPanel>
-                                                    <TextBlock Style="{StaticResource StrongTextBlockStyle}"
+                        <ListBox x:Name="ChaptersListBox"
+                                 Grid.Row="1"
+                                 Margin="0,20,0,0"
+                                 Padding="0"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 ScrollViewer.CanContentScroll="True"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 VirtualizingPanel.IsVirtualizing="True"
+                                 VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                                 VirtualizingPanel.ScrollUnit="Pixel"
+                                 VirtualizingPanel.VirtualizationMode="Recycling"
+                                 ItemsSource="{Binding Chapters}"
+                                 SelectionMode="Extended">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="Margin" Value="0" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="IsTabStop" Value="False" />
+                                    <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=OneWay}" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="BorderThickness" Value="0" />
+                                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <ContentPresenter />
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.Style>
+                                <Style TargetType="ListBox">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ShowSelectedBookContent}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ListBox.Style>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Margin="0,0,0,12"
+                                            Padding="0"
+                                            HorizontalContentAlignment="Stretch"
+                                            Style="{StaticResource BorderlessListItemButtonStyle}"
+                                            Click="ChapterCard_OnClick"
+                                            ToolTip="{Binding ExportToolTip}"
+                                            AutomationProperties.Name="{Binding AutomationName}">
+                                        <Border Padding="16">
+                                            <Border.Style>
+                                                <Style TargetType="Border"
+                                                       BasedOn="{StaticResource CardBorderStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource AccentFillColorSecondaryBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <StackPanel>
+                                                <DockPanel LastChildFill="True">
+                                                    <TextBlock DockPanel.Dock="Left"
+                                                               Margin="0,0,12,0"
+                                                               Style="{StaticResource StrongTextBlockStyle}"
                                                                Text="{Binding OrderText}" />
-                                                    <TextBlock Margin="0,6,0,0"
-                                                               Style="{StaticResource PrimaryTextBlockStyle}"
+                                                    <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
                                                                Text="{Binding Title}"
-                                                               TextWrapping="Wrap" />
-                                                    <WrapPanel Margin="0,10,0,0">
-                                                        <TextBlock Margin="0,0,12,0"
-                                                                   Style="{StaticResource SecondaryTextBlockStyle}"
-                                                                   Text="{Binding CacheSizeText}" />
-                                                        <TextBlock Margin="0,0,12,0"
-                                                                   Style="{StaticResource SecondaryTextBlockStyle}"
-                                                                   Text="{Binding EntryCountText}" />
-                                                        <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
-                                                                   Text="{Binding CompletenessText}" />
-                                                    </WrapPanel>
-                                                </StackPanel>
-
-                                                <Button Grid.Column="1"
-                                                        Margin="16,0,0,0"
-                                                        Style="{StaticResource BorderlessIconButtonStyle}"
-                                                        VerticalAlignment="Top"
-                                                        Command="{Binding DataContext.ClearChapterCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                        CommandParameter="{Binding}"
-                                                        ToolTip="清理本章缓存"
-                                                        AutomationProperties.Name="清理本章缓存">
-                                                    <ui:SymbolIcon Symbol="Delete24" />
-                                                </Button>
-                                            </Grid>
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </DockPanel>
+                                                <WrapPanel Margin="0,10,0,0">
+                                                    <TextBlock Margin="0,0,12,0"
+                                                               Style="{StaticResource SecondaryTextBlockStyle}"
+                                                               Text="{Binding CacheSizeText}" />
+                                                    <TextBlock Margin="0,0,12,0"
+                                                               Style="{StaticResource SecondaryTextBlockStyle}"
+                                                               Text="{Binding EntryCountText}" />
+                                                    <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
+                                                               Text="{Binding CompletenessText}" />
+                                                </WrapPanel>
+                                            </StackPanel>
                                         </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
+                                    </Button>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                     </Grid>
                 </Grid>
             </Border>

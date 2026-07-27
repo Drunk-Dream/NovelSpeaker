@@ -1,7 +1,7 @@
 using NovelSpeaker.Application.Playback;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.Application.UnitTests;
 
 public sealed class LocalAudioPlaybackCoordinatorTests
 {

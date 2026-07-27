@@ -1,7 +1,7 @@
 using System.Windows;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Architecture;
+namespace NovelSpeaker.App.PresentationTests.Architecture;
 
 public sealed class ArchitectureRuleContractTests
 {
@@ -51,6 +51,53 @@ public sealed class ArchitectureRuleContractTests
         };
 
         Assert.Empty(ArchitectureRules.FindAppInfrastructureDependencies(files));
+    }
+
+    [Fact]
+    public void ServiceLocationRuleRejectsProviderUsageOutsideAllowedBoundaries()
+    {
+        var files = new[]
+        {
+            Source(
+                "src/NovelSpeaker.App/Features/InvalidViewModel.cs",
+                "src/NovelSpeaker.App",
+                "namespace NovelSpeaker.App.Features; public sealed class InvalidViewModel(IServiceProvider services) { public object Resolve() => services.GetRequiredService<object>(); }"),
+            Source(
+                "src/NovelSpeaker.App/Bootstrap/AllowedComposition.cs",
+                "src/NovelSpeaker.App",
+                "namespace NovelSpeaker.App.Bootstrap; public sealed class AllowedComposition(IServiceProvider services);")
+        };
+
+        var violations = ArchitectureRules.FindServiceLocationDependencies(
+            files,
+            ["src/NovelSpeaker.App/Bootstrap/AllowedComposition.cs"]);
+
+        Assert.Equal(["src/NovelSpeaker.App/Features/InvalidViewModel.cs"], violations);
+    }
+
+    [Fact]
+    public void FireAndForgetRuleRejectsDirectlyDiscardedAsyncOperation()
+    {
+        var files = new[]
+        {
+            Source(
+                "src/NovelSpeaker.App/Features/InvalidViewModel.cs",
+                "src/NovelSpeaker.App",
+                """
+                namespace NovelSpeaker.App.Features;
+                public sealed class InvalidViewModel
+                {
+                    public void Start() => _ = SaveAsync();
+                    private static Task SaveAsync() => Task.CompletedTask;
+                }
+                """)
+        };
+
+        var violations = ArchitectureRules.FindUnregisteredFireAndForgetOperations(files);
+
+        Assert.Equal(
+            ["src/NovelSpeaker.App/Features/InvalidViewModel.cs: directly discarded SaveAsync task"],
+            violations);
     }
 
     [Fact]

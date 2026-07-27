@@ -61,6 +61,40 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
             return null;
         }
 
+        return await LoadChapterAsync(metadata, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<PlaybackChapterContent>> GetChaptersAsync(
+        string bookId,
+        IReadOnlyCollection<int> chapterIndices,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        ArgumentNullException.ThrowIfNull(chapterIndices);
+
+        var normalizedIndices = chapterIndices.Distinct().Order().ToArray();
+        if (normalizedIndices.Length == 0)
+        {
+            return [];
+        }
+
+        var metadata = await _metadataQuery
+            .GetChaptersAsync(bookId, normalizedIndices, cancellationToken)
+            .ConfigureAwait(false);
+        var chapters = new List<PlaybackChapterContent>(metadata.Count);
+        foreach (var chapter in metadata)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            chapters.Add(await LoadChapterAsync(chapter, cancellationToken).ConfigureAwait(false));
+        }
+
+        return chapters;
+    }
+
+    private async Task<PlaybackChapterContent> LoadChapterAsync(
+        PlaybackChapterMetadata metadata,
+        CancellationToken cancellationToken)
+    {
         var chapterText = await _bookContentReader.ReadChapterTextAsync(
             metadata.StoredFilePath,
             metadata.StartOffset,

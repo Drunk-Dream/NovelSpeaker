@@ -2,22 +2,46 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
-using System.Windows.Media;
 using System.Windows.Threading;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.Domain.Settings;
 using Wpf.Ui;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 [Collection("WpfDispatcher")]
 public sealed class BookDetailsPageTests
 {
+    [Fact]
+    public void BookDetailsPage_uses_short_cleanup_action_and_keeps_explicit_entity_delete()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var page = new BookDetailsPage(CreateViewModel(), new FakeNavigationGuardService());
+
+            page.Measure(new Size(900, 640));
+            page.Arrange(new Rect(0, 0, 900, 640));
+            page.UpdateLayout();
+
+            var actionLabels = VisualTreeTestHelper.FindDescendants<Button>(page)
+                .Select(button => button.Content as string)
+                .Where(content => content is not null)
+                .ToArray();
+
+            Assert.Contains("清理", actionLabels);
+            Assert.Contains("删除", actionLabels);
+            Assert.Contains("保存", actionLabels);
+            Assert.DoesNotContain("清理缓存", actionLabels);
+        });
+    }
+
     [Fact]
     public void BookDetailsPage_uses_fixed_workspace_layout_and_virtualized_catalog()
     {
@@ -50,7 +74,7 @@ public sealed class BookDetailsPageTests
                 chaptersListBox.ApplyTemplate();
                 chaptersListBox.UpdateLayout();
                 var chaptersScrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(chaptersListBox));
-                var retiredHelperCopy = FindDescendant<TextBlock>(
+                var retiredHelperCopy = VisualTreeTestHelper.FindDescendant<TextBlock>(
                     page,
                     static text => string.Equals(
                         text.Text,
@@ -89,11 +113,13 @@ public sealed class BookDetailsPageTests
                 "第 1 章",
                 "第一章 这是一个非常非常长的章节标题用于验证详情页目录的单行截断与 Tooltip 展示",
                 false));
-            viewModel.Chapters.Add(new BookDetailsChapterItemViewModel(
+            var currentChapter = new BookDetailsChapterItemViewModel(
                 1,
                 "第 2 章",
                 "第二章 当前章节标题",
-                true));
+                true);
+            currentChapter.ApplyCacheStatus(1, 4);
+            viewModel.Chapters.Add(currentChapter);
 
             var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService());
 
@@ -106,10 +132,10 @@ public sealed class BookDetailsPageTests
 
             var firstItem = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(0));
             var secondItem = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(1));
-            var firstCard = Assert.IsType<Border>(FindDescendant<Border>(firstItem, static border => border.Child is Button));
-            var firstTitle = FindDescendant<TextBlock>(firstItem, static text => text.Text.StartsWith("第一章", StringComparison.Ordinal));
-            var firstButton = FindDescendant<Button>(firstItem, static _ => true);
-            var secondButton = FindDescendant<Button>(secondItem, static _ => true);
+            var firstCard = Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(firstItem, static border => border.Child is Button));
+            var firstTitle = VisualTreeTestHelper.FindDescendant<TextBlock>(firstItem, static text => text.Text.StartsWith("第一章", StringComparison.Ordinal));
+            var firstButton = VisualTreeTestHelper.FindDescendant<Button>(firstItem);
+            var secondButton = VisualTreeTestHelper.FindDescendant<Button>(secondItem);
 
             Assert.NotNull(firstTitle);
             Assert.NotNull(firstButton);
@@ -120,6 +146,18 @@ public sealed class BookDetailsPageTests
             Assert.InRange(Math.Abs(firstButton.ActualHeight - firstCard.ActualHeight), 0d, 1d);
             Assert.NotNull(secondButton);
             Assert.Contains("当前章节", AutomationProperties.GetName(secondButton!));
+            Assert.Contains("缓存进度 25%", AutomationProperties.GetName(secondButton), StringComparison.Ordinal);
+            Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
+                chaptersListBox,
+                static textBlock => string.Equals(textBlock.Text, "当前", StringComparison.Ordinal)));
+            Assert.NotNull(VisualTreeTestHelper.FindDescendant<TextBlock>(
+                secondItem,
+                static textBlock => string.Equals(textBlock.Text, "25%", StringComparison.Ordinal) &&
+                                    textBlock.Visibility == Visibility.Visible));
+            Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
+                firstItem,
+                static textBlock => textBlock.Text.EndsWith('%') &&
+                                    textBlock.Visibility == Visibility.Visible));
         });
     }
 
@@ -130,6 +168,7 @@ public sealed class BookDetailsPageTests
             new FakeBookManagementService(),
             new FakeBookManagementService(),
             new FakeCacheWorkspaceService(),
+            new FakeAppSettingsService(),
             new BookCoverGenerator(),
             new FakeFeedbackService(),
             new FakeAppDialogService(),
@@ -169,27 +208,6 @@ public sealed class BookDetailsPageTests
     {
         var topLeft = element.TranslatePoint(new Point(0, 0), root);
         return new Rect(topLeft.X, topLeft.Y, element.ActualWidth, element.ActualHeight);
-    }
-
-    private static T? FindDescendant<T>(DependencyObject root, Func<T, bool> predicate)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typed && predicate(typed))
-            {
-                return typed;
-            }
-
-            var descendant = FindDescendant(child, predicate);
-            if (descendant is not null)
-            {
-                return descendant;
-            }
-        }
-
-        return null;
     }
 
     private sealed class FakeNavigationGuardService : INavigationGuardService
@@ -233,12 +251,24 @@ public sealed class BookDetailsPageTests
 
     private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
     {
+        public event EventHandler<CacheChangedEventArgs>? Changed
+        {
+            add { }
+            remove { }
+        }
+
         public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(string bookId, CancellationToken cancellationToken)
             => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ChapterCacheStatus>>([]);
 
         public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
@@ -248,7 +278,27 @@ public sealed class BookDetailsPageTests
         public Task<CacheCleanupResult> ClearChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
             => throw new NotSupportedException();
 
+        public Task<CacheCleanupResult> ClearChaptersAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class FakeAppSettingsService : IAppSettingsService
+    {
+        public AppSettings Current => AppSettings.Default;
+
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) =>
+            Task.FromResult(Current);
     }
 
     private sealed class FakeFeedbackService : IAppFeedbackService

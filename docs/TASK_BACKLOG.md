@@ -1,46 +1,49 @@
-# NovelSpeaker 架构优化任务 Backlog
+# NovelSpeaker 下一阶段开发 Backlog
 
-## 1. 文档定位
+## 1. 阶段定位
 
-本文件是架构优化期间唯一的过程与任务状态文档。数字编号文档描述产品和架构终态；本文件描述从当前实现迁移到终态的批次、依赖、风险和验收。
+上一轮架构重构和发布验证已经完成，历史摘要见 `archives/2026-07-26_ARCHITECTURE_REFACTOR_COMPLETED.md`。
 
-目标不是改写产品，而是在保持现有功能、SQLite 数据、缓存和 UI 行为的前提下：
+本阶段目标从“迁移架构”转为：
 
-- 恢复 Domain、Application、Infrastructure、App 的真实职责边界。
-- 按功能切片重新组织代码。
-- 拆分播放、页面和持久化中的超大职责集合。
-- 建立明确的启动、页面、操作和播放生命周期。
-- 重组测试体系并用自动检查防止架构回退。
-- 删除迁移产生的旧入口、重复 DTO 和一次性适配器。
+1. 清理历史代码、低价值测试和残余架构债。
+2. 收紧 DI、生命周期、资源所有权和 TTS 并发模型。
+3. 统一 UI 视觉语言和桌面交互。
+4. 完善规则与设置体验。
+5. 新增主动缓存、章节 MP3 导出、媒体控制、托盘、迷你播放器和定时停止。
+6. 对照终态文档完成设计—实现一致性收口。
 
-已完成的历史功能/UI backlog 见 `docs/archives/`，不再复制到本文件。
+不扩展到 EPUB、在线书源、云同步或其它新的内容生态。
 
-## 2. 状态、优先级与任务规则
+## 2. 状态与优先级
 
 状态：
 
-- `[ ]`：未开始。
-- `[~]`：进行中，只能有一个负责该任务的主 Agent。
-- `[x]`：实现、测试、文档和清理全部完成。
-- `[!]`：被明确阻塞，必须记录阻塞证据和恢复条件。
+- `[ ]` 未开始
+- `[~]` 进行中
+- `[x]` 完成
+- `[!]` 阻塞；必须记录可验证证据和恢复条件
 
 优先级：
 
-- `P0`：安全、数据或后续迁移保护网，必须先完成。
-- `P1`：架构主路径。
-- `P2`：可维护性收口，不能跳过但可在主迁移后执行。
+- `P0`：后续功能依赖、数据/资源/并发正确性。
+- `P1`：本阶段主线能力和主要体验。
+- `P2`：全局一致性和清理收口。
 
-每个任务交给 AI 时必须遵守：
+## 3. 任务规则
 
-1. 阅读任务列出的设计文档、相关生产代码和现有测试。
-2. 先增加或确认能固定当前行为的测试。
-3. 一次只建立一个目标实现，不创建长期 `New/V2/Refactored/Compat` 平行版本。
-4. 迁移所有调用者和直接测试后，在同一任务删除旧入口。
-5. 不修改任务“非目标”中的行为。
-6. 运行任务级测试；Wave 收口运行完整质量门禁。
-7. 行为或边界变化同步数字设计文档；只移动代码时不要把迁移过程写入数字文档。
+每个任务必须：
 
-完整质量门禁固定为：
+1. 先阅读对应数字设计文档、生产代码和直接测试。
+2. 行为变化先补或调整自动化测试。
+3. 可以重构内部 API、目录和测试，但不得破坏已发布数据兼容。
+4. 同一任务建立目标实现后删除无继续价值的旧入口/compat wrapper。
+5. 不把“手动验证”规划为任务完成条件。
+6. 任务级执行针对性测试；Wave 收口执行完整质量门禁。
+7. 实现与文档有差异时同步数字文档；README 只有在功能实际实现后才增加该能力。
+8. Git 提交遵循 `AGENTS.md`：一个任务切片也要按逻辑目的继续拆分多个原子 commit。
+
+完整自动质量门禁：
 
 ```powershell
 dotnet restore --locked-mode -r win-x64
@@ -49,870 +52,523 @@ dotnet build -c Release --no-restore
 dotnet test -c Release --no-build
 ```
 
-## 3. 审计基线
-
-### 3.1 量化证据
-
-审计时点的主要规模：
-
-| 区域 | 证据 |
-|---|---|
-| Domain | 30 个 C# 文件，约 580 行；混入 HTTP、导入预览和 UI read model |
-| Application | 约 120 个 C# 文件、1664 行、121 个公共类型；主要是接口/DTO，几乎没有用例实现 |
-| Infrastructure | 59 个 C# 文件、约 10827 行；同时承载 SQL、文件、HTTP、Jint、NAudio 和大量业务用例 |
-| App | 128 个 C# 文件、约 11610 行；Page/View/ViewModel 按技术类型分散 |
-| Tests | 单项目 90 个 C# 文件、约 18267 行；纯单元、SQLite、HTTP、NAudio 和 WPF 混合且全局禁用并行 |
-| PlaybackCoordinator | 2070 行，约 50 个方法，拥有全部播放状态与多类协作职责 |
-| PlayerViewModel | 1193 行，混合命令、内容加载、Snapshot 投影、规则/设置和滚动请求 |
-| PlayerViewTests | 2053 行；PlayerViewModelTests 1794 行 |
-
-### 3.2 Cleanup/refactor 风险分类
-
-#### A：安全清理
-
-- 播放协调器文件名与类型名错位：`BookPlaybackCoordinator.cs` 实际是 `PlaybackCoordinator`，`PlaybackCoordinator.cs` 实际是 `LocalAudioPlaybackCoordinator`。
-- 正式 App 输出包含三个测试音频，包括损坏 MP3；应移入 tests/TestAssets。
-- `BookManagementService.GetBookCachedBytesAsync` 无引用。
-- 多处代码注释仍把已实现的缓存、进度或恢复称为未来功能。
-
-#### B：低风险重构
-
-- 正则 Workspace 的压缩单行风格与相邻代码不一致。
-- 当前段与预取重复构造同一缓存键。
-- UI 测试重复实现视觉树遍历和大量相同 fake。
-- Infrastructure/App DI 注册平铺为超长清单。
-- `CacheWorkspaceService` 通用 catch 吞取消；设置同步阻塞异步读取；JSON 保存非原子。
-
-#### C：必须分阶段验证
-
-- Application 去 SQLite、迁移用例出 Infrastructure。
-- Domain 模型重新归位。
-- Books/TTS/Cache 公共接口和重复 DTO 收敛。
-- 2070 行播放协调器、1193 行 PlayerViewModel 和三套规则工作台拆分。
-- App feature slice、强类型导航和 Page activation。
-- 数据库/文件恢复 journal、路径格式和 schema 追加迁移。
-- 测试项目拆分。
-
-#### D：架构重组中不得顺手改变
-
-- 已发布 SQLite migration 4/5 和版本历史。
-- `AudioCacheKey` 的位置相关字段顺序、最终 SpeechText 和版本命名空间。
-- Jint 白名单、超时、语句、递归和输出限制。
-- Playback SessionId、取消、迟到结果隔离和暂停跳转语义。
-- 正在播放/预取/写入文件的缓存保护。
-- 迁移、规则样本、损坏音频和 WPF STA Host 等回归资产。
-- 当前产品不支持 Cookie/LoginInfo 的事实；若要实现必须另立功能 Epic。
-
-## 4. 总体依赖顺序
+## 4. 总体依赖
 
 ```text
-Wave 0 事实基线与保护网
+Wave 1 代码清理与架构基础
   ↓
-Wave 1 架构骨架、Application 纯化准备、设置/SQLite 基础加固
+Wave 2 全局视觉与桌面交互基础
   ↓
-Wave 2 Books 与 TextProcessing 纵向迁移
+Wave 3 规则工作台与设置体验
   ↓
-Wave 3 Speech/TTS 纵向迁移
+Wave 4 主动缓存、缓存管理与 MP3 导出
   ↓
-Wave 4 Cache 纵向迁移
+Wave 5 Windows 媒体、托盘、迷你播放器与定时停止
   ↓
-Wave 5 Playback 状态机迁移与拆分
-  ↓
-Wave 6 App 导航、feature slice 与 ViewModel 拆分
-  ↓
-Wave 7 Bootstrap、DI 和进程生命周期
-  ↓
-Wave 8 测试项目拆分与确定性测试
-  ↓
-Wave 9 全仓清理、文档收口和发布级验证
+Wave 6 体验一致性与全仓收口
 ```
 
-Wave 内标注依赖的任务必须按依赖执行。不同功能任务只有在不修改同一公共合同/DI 文件时才可并行。
+Wave 内若任务不修改同一公共合同，可以并行；涉及共享 DI、播放合同、Design Token 或缓存用例时优先串行。
 
 ---
 
-## Wave 0：事实基线与保护网
+# Wave 1：代码清理与架构基础
 
-### [x] ARC-000（P0）：完成全仓架构审计和终态设计
+目标：先消除会让后台缓存、托盘和媒体集成变复杂的技术债，再新增功能。
 
-交付：
+## [x] ARCH-101（P0）：收紧 DI 与 `IServiceProvider` 边界
 
-- 核对四项目、主要业务链路、App/WPF、持久化、启动和测试组织。
-- 修正 Cookie/LoginInfo、schema、播放能力和质量门禁等文档事实冲突。
-- 更新 `02/05/06/08/09/10/11/12` 与本 backlog。
-
-说明：本任务只修改文档/项目基线说明，未修改业务代码。
-
-### [x] ARC-001（P0）：建立架构依赖测试
-
-前置：ARC-000。
-
-范围：当前测试项目、四个 csproj、Solution；暂不移动生产类型。
+范围：Application 注册、App Bootstrap、Page provider/factory、现有非 Bootstrap 容器解析。
 
 实现：
 
-- 检查 Domain 不引用其它产品项目或技术包。
-- 检查 Application 不新增 SQLite/Jint/NAudio/WPF/Wpf.Ui/Infrastructure 依赖；对现有 SQLite 引用建立“已知唯一例外”并要求后续清零。
-- 检查 App 中只有 Bootstrap/App 组合根可引用 Infrastructure。
-- 检查 Infrastructure 不引用 App/WPF。
-- 检查 ViewModel 公共 API 不新增 WPF/Wpf.Ui 类型。
-- 检查文件名、主公共类型和命名空间的基本一致性。
+- 清点所有 `IServiceProvider` 注入、字段、参数和转发。
+- Application 的用例注册保持模块化，但不把容器作为业务依赖向内扩散。
+- App 非 Bootstrap/Page provider/framework bridge 代码改为显式构造依赖或专用 factory。
+- 删除仅用于 service-locate 的中间 wrapper。
+- 明确 Singleton/Transient 的真实状态所有权。
 
-验收：测试能对故意加入的非法引用失败；不引入重量级架构框架。
+自动验收：
 
-完成说明：已在当前综合测试项目中增加零第三方架构框架的仓库级检查和规则契约测试，覆盖 Solution/项目依赖、Application SQLite 唯一例外、App 启动组合边界、ViewModel 公共 UI 类型以及文件/命名空间/主公共类型一致性。既有 ViewModel UI 公共签名和文件命名债务使用精确基线冻结，新增或清理条目都必须显式更新基线；生产类型未移动。
+- 架构测试禁止新的非允许位置 `IServiceProvider` 依赖。
+- 容器 `ValidateOnBuild/ValidateScopes` 和关键 service resolution 测试通过。
+- 完整 Solution build/test 通过。
 
-### [x] ARC-002（P0）：冻结关键行为特征测试
-
-前置：ARC-001。
-
-范围：播放、导入/删除、规则 Workspace、设置、缓存、导航生命周期现有测试。
-
-补充：
-
-- 播放的暂停跳转、快速切换、旧结果晚到、正则仅 Display/Speech 变化、缓存损坏和事件协作者抛错。
-- 导入/删除的文件与数据库故障点。
-- TTS/章节/正则编辑从所有 Shell 导航路径离开的未保存保护。
-- DI 关键服务可解析和生命周期基线。
-- 正式发布输出不得包含测试 fixture。
-
-非目标：不先重写实现来迎合测试；测试描述用户可观察行为。
-
-完成说明：已在现有综合测试项目中补充播放快速跳转最终态、独立 SessionId、重复损坏恢复和事件订阅异常，导入最终切换失败清理、删除遇受保护缓存时的文件/数据库恢复，设置取消与损坏 JSON 回退，以及 TTS/章节/正则编辑草稿的保存、放弃、取消和保存失败保护。Shell 导航入口、DI 可解析与 Singleton/Transient 生命周期、Release 门禁和正式输出测试音频均建立了精确契约测试。UI-003 前三个规则 Page 尚未接入全局导航守卫，CLEAN-004 前正式输出仍包含三个测试音频；两项已作为显式债务基线冻结，本任务未提前修复或误报完成。
-
-### [x] UI-003（P0）：修复规则页面全局未保存保护缺口
-
-前置：ARC-002。
-
-证据：当前只有 `BookDetailsPage` 注册 `INavigationGuardService`；TTS、章节和正则页只保护自己的 Back/选择命令。
-
-实现：
-
-- 将三个规则 Page 注册到现有全局导航守卫。
-- 覆盖返回按钮、一级导航、`Alt+Left`、`Ctrl+,`、正在播放入口和窗口关闭。
-- 页面离开/销毁时可靠注销，避免旧页面继续阻止导航。
-
-验收：保存、放弃、取消三条路径均有 Shell 级测试；不改变编辑字段和视觉布局。
-
-完成说明：TTS、章节和正则规则 Page 已在进入/重新加载时注册统一导航守卫，并在离开或卸载时幂等注销；三个 ViewModel 公开并复用同一保存/放弃/取消协议。主窗口关闭已通过异步 Closing 桥接覆盖取消、批准、重复关闭和异常投影，现有一级导航、快捷键与正在播放入口继续统一经过守卫。已删除对应债务基线并增加协议、注册生命周期和窗口关闭回归测试。
-
-### [x] CLEAN-004（P0）：移出正式包中的测试音频
-
-前置：ARC-002。
-
-实现：
-
-- 将 demo/corrupt 音频移动到 `tests/.../TestAssets/Audio`。
-- 测试项目直接复制测试资产，不再从 App 资产链接。
-- 移除 App csproj 的 `Assets/Audio/*.*` Content。
-
-验收：相关 NAudio/WPF 测试通过；publish 输出不含 demo/corrupt 音频。
-
-完成说明：三个受保护音频 fixture 已原样移入测试项目的 `TestAssets/Audio`，测试项目直接复制自身资产，App 项目不再声明或持有测试音频。债务基线已改为正向隔离契约；Release 工作流在压缩前检查 publish 目录，并在压缩后再次检查 ZIP 条目，发现任一 fixture 即失败。
-
-### [x] COMPAT-005（P0）：统一 Cookie/LoginInfo 不支持行为
-
-前置：ARC-002。
-
-实现：
-
-- 规则转换、导入、新建/保存和 UI 错误投影一致地将 Cookie/LoginInfo 依赖判为不兼容。
-- 保留脱敏器对相关字段的防御性识别。
-- 将 `cookie-sample.json`、`login-info-sample.json` 明确归类为不支持回归样本；若后者实际只含普通 Header，应改名避免误导。
-- 删除或标记未调用的 Cookie 成功端点，只有在确认不再作为未来 fixture 时才能删除。
-
-验收：不得通过当前 handler 产生 Cookie；文档、测试名和 UI 结果一致。
-
-完成说明：转换、导入、编辑校验、旧持久化规则编译和 HTTP 执行现统一拒绝 Cookie/LoginInfo 依赖；导入与保存 UI 使用固定脱敏文案明确提示不兼容，混合导入继续报告新增、失败和跳过数量。普通 Authorization Header 保持支持，测试样本已拆分为支持的 Header 样本与不支持的 Cookie/LoginInfo 样本；Cookie Header 负向端点用于验证请求发送前即被拒绝，未使用的 Cookie 成功端点已删除。
-
----
-
-## Wave 1：架构骨架与基础加固
-
-### [x] ARCH-101（P1）：建立目标功能命名空间与模块化注册骨架
-
-前置：Wave 0 全部完成。
-
-实现：
-
-- 在 Application 建立 Books、Speech、Playback、Settings 功能目录和 `AddNovelSpeakerApplication()`。
-- 在 Infrastructure 建立 Persistence、Storage、Speech、Audio 等适配器注册模块。
-- 顶层注册方法先委托现有实现，保持行为和生命周期不变。
-- 记录每个 Singleton/Page/operation/session 的状态所有权。
-
-验收：仅结构和注册重排；所有旧测试与 DI 可解析测试通过；不出现循环注册或 service locator。
-
-完成说明：Application 已提供幂等的 `AddNovelSpeakerApplication()`，按 Books、Speech、Playback、Settings 功能边界组合注册并统一提供进程级 `TimeProvider`。Infrastructure 原单体清单已拆为 Persistence、FileStorage、Books、Speech、Audio、Settings 适配器模块，顶层方法只按固定顺序组合；App 与 WPF Test Host 统一按 Application、Infrastructure、Desktop 三层装配。现有服务映射和 Singleton/Transient 生命周期保持不变，所有注册入口可重复调用；DI 测试覆盖容器 scope/build 校验、关键服务解析、共享实现映射和瞬态实例。运行时文档已登记 process/page/operation/playback session 的实际状态所有权，以及仍为 Singleton 的页面 ViewModel 迁移债务。
-
-### [x] DOMAIN-102（P1）：清理 Domain 中的流程/传输/UI 模型
-
-前置：ARCH-101。
-
-范围：`Domain/Speech` 为主，并审计 Books/Settings。
-
-实现：
-
-- 将 import preview/item/result、rule summary/test result、请求预览、parsed HTTP request/response 等移到对应 Application 切片。
-- 为 SQLite row 和 JSON source DTO 建立 Infrastructure mapper，不让 Domain 保存持久化字符串格式。
-- `HttpTtsRule` 不在实体方法中解析模板；规范化由 Application 服务完成。
-- 统一新代码的 `DateTimeOffset`/`TimeProvider` 边界；数据库字段保持兼容。
-
-验收：Domain 不包含 UI/HTTP/SQLite DTO；schema 和序列化输出不变；调用者/测试一次迁完，无兼容副本。
-
-完成说明：Domain/Speech 现仅保留结构化 `HttpTtsRule` 与 `TtsErrorKind`；规则导入/列表/测试投影、模板规范化、请求编译模型和 HTTP 执行结果已一次迁入 Application 的 Rules、Compilation、Execution 切片，并由 `ITtsRuleNormalizer` 负责实体到运行时模板的转换。Infrastructure 新增 Legado JSON source DTO、TTS SQLite/JSON mapper 和统一 SQLite 时间 mapper，继续按既有 `Header`、`RequestOptionsJson`、ISO round-trip 格式读写且导出 JSON 语义不变；Domain 仅保存语义化 body 文本及其结构值标志，不保存 JSON 引号编码。Book、ChapterRule、BookSummary、ReadingProgressEntry 与 TTS 元数据已改用 `DateTimeOffset`，导入、章节规则、规则保存、书籍元数据和进度流程通过 `TimeProvider` 获取时间；迁移 4/5 与 schema 未修改。架构测试锁定 Domain/Speech 类型白名单并禁止 transport/SQLite DTO，Speech/Books 特征与持久化 round-trip 测试及完整测试均通过。
-
-### [x] DB-103（P0）：加固 SQLite 连接和版本检查
-
-前置：ARC-002，可与 DOMAIN-102 并行。
-
-实现：
-
-- 每连接启用 `PRAGMA foreign_keys=ON` 和合理 busy timeout。
-- 明确评估 WAL；只有并发测试证明需要且兼容时启用。
-- migration runner 拒绝高于当前版本的数据库。
-- 保留并追加 migration，绝不改写 4/5。
-
-测试：FK 约束/级联、版本 3/6 拒绝、并发 busy/cancel、迁移回滚。
-
-完成说明：`SqliteConnectionFactory` 现对每个连接启用外键、设置 5 秒命令默认超时和 5000 ms busy timeout，初始化失败会释放连接并原样传播异常，预取消也在打开前终止。Migration runner 在执行新迁移前统一拒绝版本 1–3 与高于当前版本 5 的数据库；仅增加 Infrastructure internal 的故障迁移测试入口，迁移 4/5 内容保持不变。独立连接测试证明默认 rollback journal 下等待中的写入可在持锁事务释放后成功，且 journal mode 未切换为 WAL，因此本任务不启用 WAL。回归测试覆盖逐连接 PRAGMA、非法外键、Books 删除对 Chapters/ReadingProgress 的级联、版本 3/6 安全拒绝、busy 等待/释放、预取消，以及失败迁移对 DDL、数据和版本号的完整回滚。
-
-### [x] SETTINGS-104（P0）：建立单一设置快照和原子 JSON 保存
+## [x] LIFE-102（P0）：统一页面 activation、操作和后台任务所有权
 
 前置：ARCH-101。
 
 实现：
 
-- 启动只读取一次设置，日志与容器复用同一规范化快照。
-- 同步 provider 只读内存，不再同步阻塞 `LoadAsync`。
-- 设置更新串行化并发布变更通知。
-- 保存使用同目录临时文件、flush 和原子 replace；定义损坏文件恢复。
-- 使用 `TimeProvider` 处理更新时间或防抖。
+- 统一 Page activation scope、版本、CTS、进入/离开与 guard 注册。
+- 审计页面 `async void`、`_ = Task`、后台 Task 和事件订阅。
+- 事件入口只桥接到可等待流程；fire-and-forget 进入明确 registry/owner。
+- 播放、主动缓存等进程/会话任务不被 Page 离开误取消。
+- 删除重复 activation/operation helper。
 
-测试：并发更新、旧保存晚到、取消、写入中断、损坏 JSON、SynchronizationContext 下不死锁。
+自动验收：
 
-完成说明：Application 的 `AppSettingsService` 现拥有唯一进程级规范化快照，公开同步只读 `Current`、串行 `UpdateAsync` 和带 previous/current 的变更通知；缓存限额、文件名模板、分段选项、主题、诊断、页面与播放消费者均只读该内存快照，不再同步阻塞或重复加载 JSON。启动复用同一目录 provider 与 `JsonAppSettingsStore`，仅加载一次并将同一快照用于日志和 DI。JSON 保存使用同目录唯一临时文件、异步序列化、flush/落盘刷新、提交前取消检查和同卷覆盖移动；失败清理临时文件且保留旧文件。损坏 JSON 使用 `TimeProvider` 的 UTC 时间戳隔离为唯一 `.corrupt` 备份，当前进程采用默认快照，首次成功更新再创建新文件。回归测试覆盖零读盘同步 provider、并发合并与旧保存顺序、等待/保存及 flush 后提交前取消、通知顺序、首次创建/替换、write/flush/replace 故障、临时文件清理、损坏隔离与同一时间戳冲突，以及自定义 `SynchronizationContext` 下无死锁。
+- 页面进入、离开、快速重入、旧结果晚到和异常转交测试。
+- 架构/源码规则覆盖未登记 fire-and-forget 的已知入口。
 
-### [x] INFRA-105（P0）：修复取消和安全错误投影基础缺陷
-
-前置：ARC-002。
-
-实现：
-
-- `CacheWorkspaceService.TryEstimateSegmentCountAsync` 传播取消，只降级预期异常。
-- HTTP/模板异常不把原始 `Exception.Message` 拼入用户结果。
-- 详细异常只经 redactor 写日志；用户消息使用稳定错误类别。
-- 增加异常文本含 token/query/body/正文的回归测试。
-
-非目标：不在本任务拆分整个 HTTP client 或 Cache 服务。
-
-完成说明：`CacheWorkspaceService` 的章节段落估算现显式传播取消，仅对文件缺失/目录缺失、无权限、I/O、损坏 UTF-8、损坏正文范围等列明异常降级为未知估算；负偏移/非正长度直接视为不可估算，其它异常继续传播。模板编译、规则规范化、HTTP 执行、试听及播放音频生成边界不再把 `Exception.Message` 拼入用户结果，统一保留稳定 `TtsErrorKind`、固定安全文案以及既有状态码、Content-Type、Retry-After 和已脱敏响应摘要。各边界使用 typed logger，日志不传原始异常对象，只记录异常类型和经 `SensitiveDataRedactor` 及当前 URL/Header/Body/模板/`SpeakText` known-secret 集合二次清理的摘要；取消不记录 Error。回归测试覆盖 token、Authorization、query、body、Cookie/LoginInfo 与小说正文不会进入用户消息、preview/result、播放错误或捕获日志，并覆盖缓存估算取消/预期降级/意外异常、编译 body 输入错误和初始缓存故障的安全语义。
-
----
-
-## Wave 2：Books 与 TextProcessing 纵向迁移
-
-### [x] BOOK-201（P1）：建立书籍 read/write 语义端口
-
-前置：DOMAIN-102、DB-103。
+## [x] RES-103（P0）：明确 HTTP、NAudio 与临时文件资源所有权
 
 实现：
 
-- 按用例建立书库摘要、详情/章节查询、导入提交、元信息更新和删除所需端口。
-- SQL 与 ordinal mapper 全部留在 Infrastructure/Persistence/Books。
-- 拆开 `IBookManagementService` 中 query、metadata update、delete 三类用例合同。
-- Application 合同不返回活动 connection、绝对路径或 SQLite 类型。
+- 审计 HTTP response/stream 的所有权转移、读取超时和取消。
+- 统一 NAudio reader/output/stream 的创建、会话替换和 Dispose 路径。
+- 审计 TTS 临时文件、缓存 staging/候选文件的成功、失败、取消清理。
+- 失败恢复不留下孤儿临时文件或被锁定的缓存文件。
+- 必要时拆分过大的 adapter，但不改变用户行为。
 
-验收：现有 UI 结果字段不减少；repository/query 集成测试覆盖缺失书籍、排序和事务。
+自动验收：
 
-完成说明：书库摘要、详情/章节读取统一通过 `IBookLibraryQuery` 返回断开连接的 Application 投影；元信息更新和删除分别由 `IBookMetadataUpdateService`、`IBookDeletionService` 表达，旧 `IBookManagementService`、`IBookCatalogService` 及无实际调用的缓存清理入口已删除。书籍查询、导入提交、判重、元信息写入和删除 SQL/ordinal mapper 已集中到 `Infrastructure/Persistence/Books`；`BookDetails` 不再暴露内部正文绝对路径、原始文件名或编码，删除所需路径只存在于 Infrastructure 内部模型。App 调用者、DI 与测试 fake 已迁移；集成测试覆盖缺失书籍、书库与章节稳定排序、导入写事务回滚、元信息缺失写入隔离，以及删除数据库失败和受保护缓存时的文件/数据恢复。
+- transport 取消/异常释放测试。
+- NAudio 多次替换/失败释放测试。
+- 临时文件 cleanup 和文件锁回归测试。
 
-### [x] TEXT-202（P1）：迁移章节规则和正则 Workspace 到 Application
-
-前置：BOOK-201。
-
-实现：
-
-- 移动 `ChapterRuleManagementService`、`ChapterRuleWorkspaceService`、`RegexReplacementRuleWorkspaceService` 的用例行为。
-- Repository 留在 Infrastructure；正则/章节纯校验与排序逻辑留在 Application/Domain。
-- `IRegexReplacementRuleErrorStore` 和主线 Pipeline 改为必需依赖，不允许 null/no-op 绕过。
-- 展开正则 Workspace 压缩代码并与章节 Workspace 共享明确的小型校验/编辑会话模式；不得做万能泛型框架。
-
-测试：字段级保存不覆盖左侧状态、非法历史规则隔离、取消传播、规则刷新行为。
-
-完成说明：章节规则管理与编辑工作区已迁入 `Application/Books/ChapterRules`，正则替换工作区、执行管线和进程内错误投影已迁入 `Application/Books/TextProcessing`；两类规则共享仅负责 Pattern 规范化、校验和摘要的小型协作者。Application 注册用例与纯管线，Infrastructure 仅注册 SQLite repository 等适配器；播放内容加载必须注入正则管线，正则工作区与管线必须注入错误存储，不再允许 null/no-op 绕过。正则 repository 已展开压缩实现、改用 `TimeProvider` 并逐行隔离非法标识、Scope、时间或类型，历史非法 Pattern 在工作区标错且运行时跳过。回归测试覆盖字段级保存保留启用/排序、非法历史规则不破坏列表和运行链、取消传播、执行字段刷新播放及仅名称变化不刷新。
-
-### [x] BOOK-203（P1）：迁移直接导入用例到 Application
-
-前置：BOOK-201、TEXT-202、SETTINGS-104。
+## [x] SYNC-104（P0）：异步化 TTS admission，并整理持久化同步边界
 
 实现：
 
-- `DirectBookImportService` 移入 Application/Books/Import。
-- 文件分析、hash、正文 store 和数据库提交通过语义端口协作。
-- 元数据时间和 ID 生成使用可控服务。
-- 保持高置信度直接导入、低置信度选择、重复拒绝和取消语义。
+- 移除 `TtsRateLimiter` 等路径中的同步 `Mutex.Wait`/同步阻塞。
+- 建立可取消的规则级异步 admission/rate limiter，为后续优先级调度预留明确入口。
+- 保持当前规则已有并发/速率语义兼容。
+- 统一 SQLite 时间提供器、时间序列化和损坏历史记录容错。
+- 设置读取/保存不使用同步阻塞等待。
 
-测试：所有原导入测试迁移到 Application/Infrastructure 对应层；不访问真实用户文件。
+自动验收：
 
-完成说明：`DirectBookImportService`、正文规范化、章节拆分与纯文件名模板解析已迁入 `Application/Books/Import`，用例仅通过文本分析、内容 hash、判重、章节规则、正文暂存和导入提交等语义端口协调；Application 不再引用 Infrastructure、SQLite 或拼接应用数据路径。导入时间改为必需的 `TimeProvider` 依赖，书籍和章节 ID 由专用 `IBookImportIdGenerator` 生成并提供默认实现，测试可注入固定序列。Application DI 注册用例、ID 生成器和纯解析协作者，Infrastructure DI 仅注册文件、hash 与 SQLite adapter。保留高置信度直接导入、低置信度选择、手动编码重试、重复拒绝、失败清理和取消传播语义；清理端口现显式接收取消参数，取消后的最终补偿使用有说明的不可取消清理。原导入测试按 Application/Infrastructure 命名空间分层，并补充固定时间/ID、端口取消传播及提交取消后清理回归测试，文件类集成测试仅使用隔离临时文件。
+- limiter 并发、取消、计时和公平性基础测试。
+- SQLite 旧时间格式/损坏记录 fixture 回归。
+- 设置损坏/原子保存测试。
 
-### [x] BOOK-204（P0）：实现导入/删除 operation journal 与路径约束
+## [x] CLEAN-105（P1）：激进清理内部 API 与冗余实现
 
-前置：BOOK-203。
-
-实现：
-
-- 设计 Staged → DatabaseCommitted → Completed 的持久化操作记录。
-- 启动时幂等恢复中断的导入和删除。
-- 建立 `IAppStoragePathResolver`，做 canonicalization、root containment 和 reparse point 策略。
-- 新记录优先存相对 storage key；旧绝对路径兼容读取并通过新增 migration/惰性迁移处理。
-- 删除用例拆为 Application 协调 + Infrastructure 原子数据/文件操作；永不触碰外部 TXT。
-
-测试：每个故障点进程中断、journal 重放两次、恶意 DB 路径、`..`、根外文件、部分缓存删除失败。
-
-完成说明：新增 schema 6 `BookOperations`，导入按 `Staged → DatabaseCommitted → Completed` 记录持久化状态，启动恢复以 Books 行是否存在消除数据库提交与状态推进之间的崩溃歧义，并幂等完成正文切换或回滚孤立元数据。删除用例已迁入 Application 协调，Infrastructure 语义端口负责验证并暂存内部正文/可选缓存、原子删除数据库行和清理暂存；提交前恢复文件，提交后重复清理，外部源 TXT 从不进入删除目标。`IAppStoragePathResolver` 集中执行 canonicalization、根目录包含和现存 reparse point 拒绝策略，并对书籍、缓存、journal 暂存目录施加更窄的所有权约束；新正文/缓存记录写相对 storage key，启动惰性迁移合法旧绝对路径，非法或根外值保留并在消费入口拒绝。回归测试覆盖所有导入恢复相位、删除提交前后、双重重放、缺失/部分暂存缓存、journal 与数据库恶意路径、`..`、根外文件、reparse point、协调失败补偿和 schema 4/5→6。
-
-### [x] BOOK-205（P1）：拆分播放内容查询与装配
-
-前置：BOOK-201、TEXT-202。
-
-实现：
-
-- SQLite adapter 只返回书籍/章节元数据；Application 内容服务负责读取、分段和正则装配。
-- 建立显式 `Unloaded/LoadedEmpty/Loaded/Failed` 章节状态，不用 `Segments.Count == 0` 表示未加载。
-- 进度映射仍使用原始字符偏移。
-
-测试：正则把整章过滤为空时只加载一次、自动推进稳定、取消与旧结果隔离。
-
-完成说明：播放内容装配已迁入 Application，依次通过 SQLite 元数据查询端口、受约束正文读取端口、Application 分段器和必需的正则管线生成运行时章节；Infrastructure 的 SQLite adapter 只返回书籍/章节标题、正文 storage path 与原始偏移元数据，不再读取正文或执行分段/正则。`PlaybackChapterContent` 只能通过显式工厂建立 `Unloaded`、`LoadedEmpty`、`Loaded`、`Failed` 状态，协调器按状态决定是否加载，已加载空章节不会因空集合被重复读取。取消后的迟到装配结果在提交前被拒绝，页面既有 operation version 继续隔离旧章节结果；进度恢复仍按 `SpeechSegment.StartOffset` 对应的原始字符偏移映射。专项回归覆盖整章过滤为空只加载一次并稳定推进到下一章、装配取消后的迟到结果、元数据与正文装配边界，以及原始字符偏移恢复。
-
----
-
-## Wave 3：Speech/TTS 纵向迁移
-
-### [x] TTS-301（P1）：拆分规则来源、业务规则、运行时规则和持久化行
-
-前置：DOMAIN-102、SETTINGS-104、COMPAT-005。
-
-实现：
-
-- Legado/NovelSpeaker JSON source DTO 留在 Infrastructure/Speech/Legado。
-- Domain 只保留业务规则和值；Application 拥有 editor/import/preview/result 和 normalized runtime contract。
-- SQLite mapper 单独负责 row ↔ business model。
-- `ITtsRuleConverter` 不再以 `JsonElement` 作为高层公共用例接口；来源 parser/convert adapter 明确分层。
-
-验收：导入、导出和脱敏预览字节/语义兼容；不保存原始 JSON 真相源。
-
-完成说明：Legado 与 NovelSpeaker JSON 对象/数组来源现由 Infrastructure `Speech/Legado` 的 source parser 解析为 typed DTO，再由 convert adapter 生成 Domain `HttpTtsRule`；规则库和 Application 公共合同不再接触 `JsonElement`。Domain 只保存结构化业务字段，Application 继续拥有 editor/import/preview/result 与 normalized runtime contracts。SQLite `TtsRuleRow` 通过专用 persistence mapper 与业务模型双向转换，Header/request options 编解码已拆为内部 codec，导出从结构化字段重新生成 JSON，不保存原始导入 JSON。回归测试锁定对象/数组与无效项解析、公共来源 API 边界、Legado 样本、Cookie/LoginInfo 拒绝，以及 NovelSpeaker 导出→导入→导出的字节和结构化语义一致性。
-
-### [x] TTS-302（P1）：拆分并迁移 TTS 规则库用例
-
-前置：TTS-301。
-
-实现：
-
-- 将 533 行大服务拆为 Import、Editor、Selection 和 Queries 用例并迁入 Application。
-- 当前规则只有一个写入口；删除/禁用保护复用 Selection 用例。
-- mapper、validator、serializer 拆分但保持 internal，不建立公共万能映射器。
-- UI 迁移到窄接口，删除旧 `ITtsRuleLibraryService` 后一次修复所有重复 fake。
-
-测试：对象/数组导入、重复/同名、编辑副本、设为当前、禁用/删除当前、导出和试听草稿。
-
-完成说明：原 Infrastructure `TtsRuleLibraryService` 与 Application `ITtsRuleLibraryService` 已删除，规则管理迁入 Application `Speech/Rules`，按 Import、Editor、Selection、Queries 四个窄用例接口组合；播放页只依赖只读查询，播放规则提供器只依赖 Selection，试听服务只通过 Editor 校验并准备不持久化的候选业务规则。当前规则选择/清空只有 Selection 写入口，导入和新建的自动选择、播放页切换以及删除/禁用当前规则保护均复用该入口。Legado/NovelSpeaker 对象或数组来源继续由 Infrastructure typed source adapter 解析转换，Application 内部 mapper、validator 和 serializer 只处理业务规则与编辑副本，不暴露万能映射接口。回归测试覆盖真实对象/数组 adapter、精确重复/同名重命名、混合失败/跳过、Cookie/LoginInfo 拒绝、canonical roundtrip、编辑副本与字段校验、结构化试听草稿准备/导出零保存、设为当前、替换/清空后禁用或删除、查询投影及试听草稿零保存。
-
-### [x] TTS-303（P1）：拆分编译、运输、重试和响应验证
-
-前置：TTS-301。
-
-实现：
-
-- Application 保留编译/执行合同和用例编排。
-- Infrastructure 分出 Template/Jint evaluator、Http transport、Retry policy、Response validator、TemporaryAudioStore、AudioProbe。
-- `HttpTtsClient` 不再同时负责全部职责；明确 HttpClient/handler ownership。
-- 限流与 Retry-After 协同但仍为独立概念。
-
-测试：GET/POST、Header/Body、超时/取消、401/429/5xx、错误消息脱敏、临时文件清理和音频解码。
-
-完成说明：Application `Speech.Compilation` 现拥有 `TtsRequestCompiler`，通过受限 `ITemplateEvaluator` 端口编排模板求值、GET/POST/Header/Body 组装和脱敏 preview；纯 BCL 脱敏器随安全合同迁入 Application，技术异常日志通过窄 `ITtsCompilationFailureReporter` 端口交给 Infrastructure。Application `Speech.Execution` 拥有 transport-neutral 执行合同与 `TtsExecutionService` 用例编排，统一协调 HTTP transport、有限 retry policy 和 response validator，并在执行边界保留 Cookie 防御；现有 `TtsRuleTestService` 与 `PlaybackAudioProvider` 只迁移到该执行合同，试听、播放、缓存与优先级编排仍留待 TTS-304。Infrastructure 的 `HttpTtsClient` 只持有进程级 `HttpClient`、禁用 Cookie 的 handler、请求消息映射、单次超时和 response/stream ownership，不再负责编译、重试、响应落盘或 NAudio 验证；Jint evaluator、重试策略、响应分类、TemporaryAudioStore 与 AudioProbe 已分别拆出。调用方取消稳定映射为 `Cancelled` 且不记录 Error，其它响应读取、文件或验证异常经 Infrastructure 脱敏记录后返回固定 `Unknown`；response owner 与临时候选文件均由 finally 清理。429 由响应验证返回受限 `Retry-After`，播放调用方继续将其应用到规则级 limiter，主动 `concurrentRate` 与服务端 backoff 保持独立。回归测试覆盖 GET/POST JSON/Form、Header/Body、超时/取消、401/429/5xx、Cookie 执行边界、脱敏日志、response/owner 释放、复制故障残片清理、临时文件清理、损坏音频和真实 WAV 解码。
-
-### [x] TTS-304（P1）：迁移试听与播放音频提供用例
-
-前置：TTS-302、TTS-303、Wave 4 的 CACHE-401 接口可用。
-
-实现：
-
-- `TtsRuleTestService` 的校验/编译/执行/试听编排进入 Application。
-- `PlaybackAudioProvider` 进入 Application/Playback/Audio。
-- HTTP、缓存、临时音频和本地播放器都通过端口调用。
-- 统一当前段和预取的缓存键转换，删除重复构造方法。
-
-验收：规则页试听与正式播放使用同一编译/执行安全边界；草稿不被自动保存。
-
-完成说明：规则试听编排现位于 Application `Speech/Testing`，继续通过 `ITtsRuleEditorUseCase.PrepareDraftAsync` 校验并构造不持久化的候选规则，再与正式播放共同调用 Application 的 `ITtsRequestCompiler` 和 `IHttpTtsClient` 安全边界；试听独立 `IAudioPlayer` 仍由该用例创建并在 `DisposeAsync` 中且仅释放一次。`PlaybackAudioProvider` 已迁入 Application `Playback/Audio`，缓存查询/写入/失效、HTTP 执行、规则级限流及本地技术诊断均只依赖 Application 端口，原有缓存命中与二次检查、in-flight 去重、current 抢占 prefetch、规则级串行、429 `Retry-After`、取消映射和安全错误结果保持不变。试听与正式播放分别通过窄诊断 reporter 端口交给 Infrastructure adapter 复用 `SensitiveFailureLogger`，纯 `PlaybackErrorMapper` 作为唯一实现迁入 Application，未引入 Infrastructure、日志框架、NAudio 或 HTTP 技术类型依赖。`PlaybackAudioRequest.ToCacheKey()` 成为当前段、失效和 `PrefetchScheduler` 的唯一转换入口，删除两处重复构造方法，`AudioCacheKey.CurrentVersion` 与 UTF-8/SHA-256 字节语义保持兼容。Application 注册两个用例，Infrastructure 只注册 reporter、播放器、缓存、HTTP 与限流等技术 adapter；回归测试覆盖草稿零保存、共享编译/执行端口、试听播放器所有权、安全诊断、播放既有并发/限流/缓存行为、固定缓存键字节值及 DI 实现归属。
-
----
-
-## Wave 4：Cache 纵向迁移
-
-### [x] CACHE-401（P1）：收敛缓存用例接口和结果模型
-
-前置：BOOK-201、DOMAIN-102。
-
-实现：
-
-- 合并 `AudioCacheSummary/CacheOverviewModel` 等双层近重复 DTO，只保留 Infrastructure store model 与 Application use-case model 两层。
-- Application 提供缓存查询/清理门面；App 不依赖 SQLite cache 类型。
-- 章节完整度通过 Books/Text 查询端口组合，不在 Cache 服务中直接 SQL。
-
-验收：二级总览、书籍/章节列表、完整度和四类清理 UI 字段保持不变。
-
-完成说明：缓存管理现收敛为 Application `ICacheWorkspaceService` 用例门面与 `IAudioCacheStore` 存储端口两层合同；原 `AudioCacheSummary/CacheOverviewModel`、`CachedBookSummary/CachedBookCacheItem`、`CachedChapterSummary/CachedChapterCacheItem`、`AudioCacheCleanupResult/CacheCleanupResult` 近重复命名已分别明确为 `*Store*` 存储投影和 UI 无关的用例投影，App 的页面、ViewModel 与启动维护均只消费 Application 门面。`CacheWorkspaceService` 已移入 Application，通过 `IBookPlaybackMetadataQuery` 与 Books/Text 的 `IBookContentReader`、`ITextSegmenter` 组合书籍/章节元数据和完整度，不再持有 SQLite connection 或查询 `Books/Chapters`；`SqliteAudioCache` 仅实现存储端口，未提前拆分其索引、文件、维护和保护职责。总览、维护到上限、按章/按书/全部清理及其结果字段保持不变；预期正文读取失败仍降级为未知完整度，取消与意外异常继续传播。回归测试覆盖总览映射、元数据组合与孤儿回退、完整度、预期读取失败、取消、意外异常以及三类清理和维护委托。
-
-### [x] CACHE-402（P1）：拆分 SqliteAudioCache
-
-前置：CACHE-401、DB-103、BOOK-204 路径解析器。
-
-实现：
-
-- 拆为 SQLite index/query、音频 file store、maintenance/LRU 和保护 registry。
-- 保留一个窄 facade 供迁移期调用；任务结束迁移所有调用者并删除旧大类入口。
-- 所有路径使用 resolver；设置/缓存写入遵循原子协议。
-- 当前播放、生成和写入保护语义不变。
-
-测试：命中、写入、并发、损坏重建、孤儿清理、LRU、保护和根外路径。
-
-完成说明：原 `SqliteAudioCache` 已删除，缓存入口由唯一的 Infrastructure `AudioCacheFacade` 组合 `SqliteAudioCacheIndex`、`AudioCacheFileStore` 和 `AudioCacheMaintenance`；SQLite 查询、文件暂存/同卷切换、索引/文件漂移修复、LRU 和保护注册表职责分离。缓存端口与缓存键保持不变，DI 只把 facade 注册为 `IAudioCache`/`IAudioCacheStore`；所有索引路径经 `IAppStoragePathResolver` 且缓存目录额外施加 `Cache/Tts` 所有权检查。并发写入、缺失索引文件清理、临时/孤儿清理、LRU、受保护文件、缓存边界和根外路径回归测试通过；未改变 CACHE-403 的 Workspace 用例。
-
-### [x] CACHE-403（P1）：迁移缓存 Workspace 到 Application
-
-前置：CACHE-401、CACHE-402、BOOK-205。
-
-实现：
-
-- 将缓存总览/书籍/章节组合、完整度估算和清理结果映射移入 Application。
-- 使用 Books/Chapter/Text 端口，不直接连接 SQLite。
-- 取消必须传播；预期内容读取失败才把完整度降级为未知，并记录安全诊断。
-
-验收：CacheAndData/CacheManagement/BookDetails 复用同一用例与保护策略。
-
-完成说明：缓存 Workspace、总览/书籍/章节结果模型、存储端口及缓存键/保护合同已归拢到 Application `Playback.Cache`；Workspace 只通过 `IAudioCacheStore`、`IBookPlaybackMetadataQuery`、`IBookContentReader`、`ITextSegmenter` 和设置语义端口组合，不连接 SQLite 或引用 Infrastructure。CacheAndData、CacheManagement、BookDetails 均继续注入同一个 Application `ICacheWorkspaceService` Singleton，清理仍由同一个缓存 facade/保护注册表执行。完整度估算继续传播取消和意外异常，仅对明确的文件/目录、权限、I/O、编码或正文范围读取失败降级为未知，并经独立诊断端口只记录固定操作和异常类型，不记录正文、路径或原始异常消息。相关 Application/Infrastructure 编译、Workspace/DI/架构回归测试通过。
-
----
-
-## Wave 5：Playback 状态机迁移与拆分
-
-本 Wave 风险最高，必须在 Books、Speech、Cache 端口稳定后执行。每项只迁移一个职责并运行完整 Playback 测试。
-
-### [x] PLAY-501（P1）：校正播放文件/类型命名和必需合同
-
-前置：ARC-002、BOOK-205。
-
-实现：
-
-- 文件名改为 `PlaybackCoordinator.cs` 与 `LocalAudioPlaybackCoordinator.cs`，测试名同步。
-- 修正仍称缓存/进度为未来功能的注释。
-- 删除 `RefreshRegexReplacementAsync` 默认 no-op；正则 Pipeline/ErrorStore 改必需依赖。
-- 对 UI 不使用的 Skip API 做调用审计；先以测试固定“UI 不暴露跳过”，是否删除在 PLAY-507 完成。
-
-验收：只做命名和合同强制，不改变状态转换。
-
-完成说明：播放协调器和本地音频协调器的生产文件、测试文件及测试类型已按主类型纠正；`RefreshRegexReplacementAsync` 已改为必需合同，并补齐生产外实现与测试 fake。修正播放代码中将缓存和进度描述为未来能力的注释；审计确认 UI 不调用 Skip API，并以 PlayerView 测试固定不暴露跳过控件。Skip/CanSkip 的最终删除与公共接口收敛在 PLAY-507 完成。
-
-### [x] PLAY-502（P1）：将播放协调用例迁入 Application
-
-前置：TTS-304、CACHE-403、PLAY-501。
-
-实现：
-
-- 移动书籍级 `PlaybackCoordinator`、本地音频协调器、PrefetchScheduler 和相关用例实现到 Application。
-- Infrastructure 只保留 NAudio、SQLite progress/cache、HTTP/Jint/file adapter。
-- 保持当前 facade、DI 生命周期和 Snapshot 事件。
-
-验收：Application 不需引用任何技术包；所有原播放测试仅调整命名空间仍通过。
-
-完成说明：书籍级 `PlaybackCoordinator`、`LocalAudioPlaybackCoordinator`、预取协调器和 `SelectedTtsRuleProvider` 已迁入 Application `Playback`，Application 播放注册模块负责其 Singleton 生命周期；Infrastructure 的音频注册仅保留 NAudio 播放器/工厂、缓存保护、缓存与进度存储及安全诊断 reporter。播放 facade、会话状态所有权、预取取消、低层 Snapshot/Completed/Failed 事件和现有用户行为保持不变。为满足 Application 纯化边界，SQLite 连接工厂归 Infrastructure 内部，App 诊断改用 `IDatabaseSchemaVersionProvider` 语义端口；Application 不再引用 SQLite 包或类型。播放、DI、架构和诊断回归测试通过。
-
-### [x] PLAY-503（P1）：抽取纯位置解析与 Snapshot 投影
-
-前置：PLAY-502。
-
-实现：
-
-- 抽取 `PlaybackPositionResolver`：相邻段/章、恢复、边界、原始偏移映射。
-- 抽取 `PlaybackSnapshotProjector`。
-- 协调器仍是唯一可变状态所有者；新协作者为纯函数/internal。
-
-测试：表驱动覆盖首尾章节、空章节、连续空 Speech、恢复越界和映射回退。
-
-完成说明：`PlaybackPositionResolver` 以 internal static 纯计算协作者承载章节搜索、相邻段/章、连续空语音跳过、恢复位置和原始字符偏移映射；章节装载、会话和状态提交仍由 `PlaybackCoordinator` 唯一拥有。`PlaybackSnapshotProjector` 从显式不可变输入生成 `PlaybackSnapshot`，不保存协调器状态或发布事件。新增表驱动位置解析和 Snapshot 投影测试，并将未使用的 Skip API 留待后续公共接口审计。
-
-### [x] PLAY-504（P1）：抽取当前段执行与恢复策略
-
-前置：PLAY-503。
-
-实现：
-
-- `PlaybackSegmentRunner` 负责当前段音频获取和本地播放调用。
-- `PlaybackRecoveryPolicy` 负责损坏缓存重建、重试次数和连续失败暂停决策。
-- 协调器提交状态和快照，runner/policy 不直接发布 UI 事件。
-
-测试：缓存命中/未命中、空语音、音频损坏、失败阈值、401/429/5xx。
-
-完成说明：新增 Application 内部 `PlaybackSegmentRunner`，统一当前段音频缓存命中/生成、按需失效和本地音频启动；runner 只返回显式执行结果，不拥有会话、保护句柄或 Snapshot。新增无状态 `PlaybackRecoveryPolicy`，使用显式不可变输入/输出决定损坏音频的一次重建、连续段失败阈值和可重试/可跳转结果；取消不会转成失败，也不由 runner/policy 发布 UI 事件。`PlaybackCoordinator` 继续唯一提交 `PlaybackSessionState`、缓存保护句柄和 `PlaybackSnapshot`，保留现有 facade、DI、旧 session 隔离和 Skip API。专项测试覆盖 runner 执行、缓存命中/未命中、空语音、损坏缓存、失败阈值、取消以及 401/429/5xx 分类行为。
-
-### [x] PLAY-505（P1）：抽取预取、进度与会话资源
-
-前置：PLAY-504。
-
-实现：
-
-- 预取 controller 拥有窗口、优先级、去重和 session Token。
-- Progress service 统一保存/恢复时机。
-- PlaybackSessionState 唯一拥有当前书/规则/位置/SessionId/CTS/文件保护句柄。
-- 暂停最多预取一个、停止取消、换章隔离语义保持。
-
-测试：预取迟到、并发去重、暂停/停止、保存失败和退出保存。
-
-完成说明：Application 新增 `PlaybackPrefetchController`，以显式有序窗口拥有预取优先级、窗口替换、缓存键去重、session CTS、活动请求取消和旧 session 隔离；`PlaybackCoordinator` 只解析并提交窗口，暂停最多提交一个请求，停止/换章会取消旧窗口。新增 `PlaybackProgressService` 统一恢复、字符偏移映射和暂停/停止/切换/完成/退出保存，所有进度端口读写继续接收并传播 `CancellationToken`，存储失败保持原异常传播语义。新增 `PlaybackSessionState`，唯一拥有当前书籍、规则、位置、SessionId、CTS、当前音频快照和音频缓存保护句柄；协调器只负责状态机和 Snapshot 提交。保留既有 public facade、DI Singleton、取消和播放行为；事件命令队列/安全关闭留给 PLAY-506，Skip API 及其内部逻辑留给 PLAY-507。专项预取、进度、资源隔离和协调器回归测试通过。
-
-### [x] PLAY-506（P0）：建立事件命令队列与安全关闭
-
-前置：PLAY-505。
-
-实现：
-
-- NAudio 完成/失败/Snapshot 事件只投递内部命令，不在 `async void` 中执行长流程。
-- 事件命令复用协调器串行入口和进程/session Token。
-- 所有异常映射为状态或安全日志，不形成未观察异常。
-- Dispose 阻止新命令、保存进度、取消会话并释放播放器。
-
-测试：事件依赖抛错、Dispose 竞态、重复完成、完成后立即跳章。
-
-完成说明：本地音频协调器将播放器 Completed/Failed 事件送入拥有者的单读命令队列，书籍播放协调器再将低层 Snapshot/Completed/Failed 事件送入 session-aware 命令队列；事件入口不执行长流程，处理过程复用串行锁、生命周期 Token 和 SessionId，迟到或重复事件被安全丢弃。事件依赖抛错投影为安全 Faulted 状态，关闭先阻止新命令并取消生命周期/会话，再保存进度、取消预取、释放会话和播放器，重复关闭共享同一释放任务。新增事件异常、关闭竞态、重复完成和完成后立即跳章回归测试。
-
-### [x] PLAY-507（P1）：收敛播放公共接口和删除过渡代码
-
-前置：PLAY-506。
-
-实现：
-
-- 按 UI/应用实际命令拆窄接口或保留单 facade，删除只为旧大接口产生的重复 fake。
-- 若全仓无产品调用，删除 `SkipCurrentSegmentAsync`、`CanSkip` 和对应内部分支；更新状态机测试与文档。
-- 删除旧 namespace、默认实现、可选主线依赖和迁移 adapter。
-
-验收：播放 facade 职责明确；无功能行为回退；全量长稳测试通过。
-
-完成说明：按 UI/应用真实调用拆分 `IPlaybackSession`、`IPlaybackSnapshotSource`、`IPlaybackBookCommands` 和 `IPlaybackRegexReplacementRefresher`，由同一个 `PlaybackCoordinator` Singleton 实现；各 ViewModel 和测试 fake 只依赖所需角色，删除旧 `IPlaybackCoordinator` 与重复 Skip fake。调用审计确认全仓无产品 Skip 调用，因此删除 `SkipCurrentSegmentAsync`、`CanSkip`、恢复策略中的跳过能力和对应状态机分支；PlayerView 保持不暴露跳过控件。删除旧接口后补充反射契约与 DI 单例回归测试，完整测试通过。
-
----
-
-## Wave 6：App 导航、feature slice 与 ViewModel
-
-### [x] UI-608（P2）：收敛管理页整卡点击热区与高频操作图标
-
-实现：
-
-- 书籍详情章节目录、章节规则列表和缓存管理书籍列表的主体按钮覆盖整张卡片内容区，保留快捷操作的独立命中目标。
-- 缓存管理章节清理、书库导入和 TTS 规则页新建/文件导入/剪贴板导入改为带 Tooltip 与无障碍名称的纯图标入口；缓存管理书籍列表标题统一为“书籍”。
-- 同步 UI 设计、设置页说明、README 和 WPF 视觉回归测试。
-
-验收：整卡点击尺寸、图标枚举、Tooltip/Automation Name 和原有滚动布局通过 UI 测试；完整质量门禁通过。
-
-### [x] APP-601（P1）：建立强类型路由和 Page activation 协议
-
-前置：UI-003、ARCH-101、PLAY-502。
-
-实现：
-
-- 定义 App route ID、强类型参数和 navigator；ViewModel 不引用 Page 类型。
-- Wpf.Ui Page 映射集中到 Shell adapter，移除 MainWindow 的分散反射选中逻辑。
-- Page 进入创建 activation CTS/version，离开取消并注销事件/guard。
-- 明确播放会话不随 Page activation 取消。
-
-测试：所有路由、快速重入、旧结果晚到、守卫与窗口关闭。
-
-完成说明：已建立 `AppRoute` 强类型路由、参数对象和 `IAppNavigator`，由 `ShellNavigationAdapter` 集中维护 Wpf.Ui Page 映射、主导航选中状态和导航守卫；ViewModel 不再引用 Page 或 Wpf.Ui 导航接口。所有现有导航页面均接入 `PageActivationController`，页面进入创建版本和 CTS，离开按取消页面操作、注销守卫/事件、释放 activation 资源的顺序执行，旧 activation 结果不能提交到新激活；播放协调器继续由进程级会话拥有。新增路由映射、快速重入、迟到结果、守卫和窗口关闭回归测试，更新架构债务基线；Release 构建和全量单元测试通过。
-
-### [x] APP-602（P1）：按 feature slice 移动 App 文件
-
-前置：APP-601。
-
-实现：
-
-- 按 `06` 目标结构移动 Library、BookDetails、Playback、三类 Rules、Cache、Settings、Appearance、Diagnostics。
-- 每个 feature 就近放 Page、ViewModel、组件、presentation service 和 DI module。
-- Shared 只保留两个以上稳定消费者。
-- 本任务只移动/改 namespace/注册，不拆 ViewModel 行为。
-
-验收：导航、XAML pack URI、资源、截图和 UI 测试全部通过；全局 Pages/Views/ViewModels 旧目录清空删除。
-
-完成说明：按 feature slice 重组 App 的页面、ViewModel、组件和就近 presentation service，建立 Bootstrap、Shell、Shared 边界；同步更新 XAML `x:Class`、pack URI、导航映射、DI 注册和测试命名空间。保留跨功能稳定能力于 Shared，删除旧的全局 Pages、Views、ViewModels 目录，并增加 feature-slice 结构与命名空间架构契约。Release 构建、架构测试和全量单元/UI 测试通过。
-
-### [x] APP-603（P1）：收敛 Page + 同名 View 一对一 wrapper
-
-前置：APP-602。
-
-实现：
-
-- 导航目标直接使用 Page。
-- 只保留 BookCard、BookCover、歌词正文、播放控制等可复用或独立视觉行为组件。
-- 合并页面 XAML/code-behind 时保留 activation、虚拟化、滚动和独立测试能力。
-
-验收：无纯 DataContext 转发 wrapper；视觉树、导航生命周期和页面高度测试通过。
-
-完成说明：已将 Library、Settings、TTS Rules、Chapter Rules、Regex Replacement Rules 的同名整页 UserControl 视觉树与事件桥接合并到导航 Page，Page 继续作为 activation、导航守卫和视口高度边界；保留 BookCard、BookCover 与 PlayerView 等具有复用、歌词滚动、播放控制或独立视觉测试价值的组件。视觉测试改为直接验证 Page，并新增结构契约限制可保留的 `*View.xaml` 集合。
-
-### [x] APP-604（P1）：统一平台适配并清除 ViewModel 视觉类型
-
-前置：APP-602。
-
-实现：
-
-- 统一文件打开/保存、剪贴板、目录打开、Dispatcher/UiScheduler 等 presentation port。
-- TTS 规则页不直接 new Open/SaveFileDialog 或访问 Clipboard。
-- ViewModel 以语义状态替代 `FontWeight`、`SymbolRegular` 等类型；XAML 映射视觉。
-- 页面事件使用 activation/operation Token，不再散落无理由 `CancellationToken.None`。
-
-验收：架构测试禁止回退；平台 adapter 可独立测试。
-
-完成说明：已将文件打开/保存、剪贴板、目录打开和 UI 调度收敛到 `Shared/Presentation/Platform` 端口及 WPF adapter；TTS 规则页、书库、诊断和 Shell 通过注入端口使用平台能力，页面不再自行创建文件对话框或访问剪贴板。Playback、Settings、Shell 的 ViewModel 公共状态改为语义枚举，由 XAML 映射图标和字重；页面操作统一传递 activation/operation token，并补充架构回退测试。原有视觉类型债务已清除，Release 构建和全量测试通过。
-
-### [x] APP-605（P1）：拆分 Shell/MainWindow 职责
-
-前置：APP-601、APP-602。
-
-实现：
-
-- 抽取 Shell activation/navigation coordinator、shortcut context resolver 和必要的平台模板适配。
-- MainWindow code-behind 只连接 WPF 生命周期、控件事件和视觉适配。
-- 保留全局快捷键仲裁、临时界面优先级、Pane 和正在播放入口行为。
-
-测试：文本输入/Popup/Dialog 不误触快捷键，导航选中和播放入口一致。
-
-完成说明：已抽取 `ShellActivationCoordinator` 负责 Shell 初始化、初始导航、导航事件转交、Player 路由投影和关闭守卫生命周期；`WpfShellPlatformAdapter` 负责 Wpf.Ui 服务装配和导航模板；`WpfShortcutContextResolver` 负责文本编辑、Popup、菜单和 ContentDialog 上下文判定。MainWindow 仅保留 WPF 生命周期、控件事件、Pane 状态和安全反馈桥接。新增关闭并发/拒绝重试/取消、导航初始化幂等和快捷键上下文回归测试；Release 构建与全量测试通过。
-
-### [x] APP-606（P1）：拆分 PlayerViewModel 与 Player View 行为
-
-前置：PLAY-507、APP-602。
-
-实现：
-
-- PlayerViewModel 保留页面门面和命令。
-- 抽取 ContentProjection、SnapshotProjection、RulesAndSpeedController。
-- 滚动输入、动画和视觉树定位留在 Scrolling/View；状态恢复使用可控时间。
-- PlayerView code-behind 按滚动、进度提交、焦点提交等职责拆小型内部组件。
-
-测试按 Navigation、Commands、Projection、RulesAndSpeed、AutoCentering、VisualLayout、Accessibility 拆分。
-
-完成说明：已将正文/章节内容缓存与投影、Snapshot 语义映射、规则与语速控制拆为小型 Playback presentation 协作者；PlayerViewModel 保留页面门面、命令和播放交互编排。PlayerView 的滚动/自动居中、进度输入和语速焦点提交分别由内部控制器负责，页面事件传递 activation token，语速写入在取消前后均拒绝迟到提交。新增 Projection、Rules/Speed 和 activation 取消回归测试；Player 专项与全量测试、Release 构建通过。
-
-### [x] APP-607（P1）：收敛三套规则编辑会话
-
-前置：TTS-302、TEXT-202、APP-602。
-
-实现：
-
-- 先固定 TTS/章节/正则在新建、选择、dirty、save/discard/cancel、fallback selection 上的差异。
-- 提取小型 `EditorSession<TId,TEditor>` 或等价内部组件，只管理编辑基线/脏状态/离开决策。
-- 领域校验、字段级保存、试听和默认规则行为留在各 feature。
-
-验收：减少重复但不形成万能规则框架；所有未保存保护路径通过。
-
-完成说明：已新增仅负责编辑基线、编辑标识、新建/fallback 和脏状态比较的内部 `EditorSession<TId, TEditor>`，并迁移 TTS、章节和正则替换三个规则工作区；领域校验、字段级保存、试听、正则播放刷新、默认规则、启用与排序仍由各 feature 保持。补充新建、选择、保存/放弃/取消、fallback 恢复、保存失败阻止离开和取消传播测试；三套规则专项测试与全量测试通过。
-
----
-
-## Wave 7：Bootstrap、DI 与进程生命周期
-
-### [x] BOOT-701（P1）：模块化组合根并清除 Infrastructure 用例注册
-
-前置：Wave 2–6 对应用例迁移完成。
-
-实现：
-
-- `AddNovelSpeakerApplication()` 注册所有用例。
-- Infrastructure 按 Persistence、Storage、Speech、Audio、Diagnostics 注册 adapter。
-- Desktop 按 feature 注册 Page/VM/presentation service。
-- 根方法只组合模块；测试/Debug 启用 ValidateOnBuild/ValidateScopes。
-- 删除 Infrastructure 中已经迁出的用例类和旧注册。
-
-验收：Application 项目移除 `Microsoft.Data.Sqlite.Core`，删除 Application 的 `ISqliteConnectionFactory`；架构测试零例外。
-
-完成说明：Application 组合根按 Books、Speech、Playback、Settings 模块注册全部用例；Infrastructure 顶层只组合 Persistence、FileStorage、Books、Speech、Audio、Settings、Diagnostics adapter 模块，滚动日志 provider 不再由 App 启动代码单独注册；Desktop 顶层只组合 Shared、Shell 与各 feature 注册。Debug 与测试组合启用 `ValidateOnBuild`/`ValidateScopes`，并增加用例所有权、adapter 所有权、Diagnostics 注册及 Application 无 SQLite 包/连接工厂的架构验收。核对后未删除仍由数据库初始化、恢复或端口调用的 Infrastructure adapter。
-
-### [x] BOOT-702（P1）：实现可测试的启动协调器
-
-前置：SETTINGS-104、BOOK-204、BOOT-701。
-
-实现：
-
-- 将目录、设置、日志、DI、数据库/恢复、主题、Shell 阶段移入 Bootstrap coordinator。
-- 引入进程级 CTS 和安全阶段结果。
-- App.xaml.cs 只桥接 WPF OnStartup/OnExit/异常事件。
-- 启动失败在 Shell 前使用最小安全反馈，且不泄露路径/凭据。
-
-测试：每阶段失败、取消、恢复失败、主题失败降级和设置只加载一次。
-
-完成说明：启动阶段已由 `StartupCoordinator` 串行拥有，WPF `App.xaml.cs` 仅桥接进程生命周期和异常事件；进程级 CTS 贯穿启动并在协调器释放时清理，设置快照只读取一次并复用于日志与 DI。数据库/恢复失败阻止主题和 Shell，主题失败记录脱敏诊断并回退系统主题后继续启动；最小启动反馈和启动日志只投影安全阶段消息与异常类型。新增阶段失败、取消、进程取消、数据库恢复阻断、主题降级、设置单次加载和诊断脱敏测试。
-
-### [x] BOOT-703（P1）：登记后台任务并实现异步关闭
-
-前置：BOOT-702、PLAY-506。
-
-实现：
-
-- 缓存维护等进程任务由 lifecycle registry 拥有，不再裸 fire-and-forget。
-- 关闭顺序：阻止新操作 → guard → 保存/结束播放 → 取消进程 Token → 限时等待任务 → 刷新日志/设置 → 释放容器。
-- WPF 同步退出只保留有限桥接，不在 Dispatcher 无界等待。
-
-测试：后台失败、关闭超时、播放保存失败、重复退出和资源释放顺序。
-
-完成说明：新增进程级后台任务 registry 与 shutdown gate；缓存维护现在登记任务引用、使用进程 Token、局部观察并安全记录异常，关闭时在固定上限内等待。Shell 在页面 guard 前阻止新提交，guard 拒绝后恢复；guard 通过后复用 `PlaybackCoordinator.DisposeAsync` 保存并结束播放，再取消进程 Token、等待后台任务、执行当前设置/同步日志的安全刷新点并异步释放容器。正常窗口关闭共享同一异步任务，WPF `OnExit` 仅保留五秒上限同步桥接。新增后台失败、后台超时、播放保存失败后继续关闭、重复关闭和资源释放顺序测试。
-
----
-
-## Wave 8：测试项目与确定性
-
-### [x] TEST-801（P1）：拆分五类测试项目
-
-前置：BOOT-701，生产边界已稳定。
-
-实现：
-
-- 建立 Domain.UnitTests、Application.UnitTests、Infrastructure.IntegrationTests、App.PresentationTests、App.WpfTests。
-- 移动测试和 TestAssets，更新 Solution、包锁和 CI。
-- 纯项目不引用 App/WPF；只有 WPF 项目使用 STA Host 并串行。
-- Infrastructure 集成测试按需要标记 Windows 依赖，不让所有核心测试被平台绑死。
-
-验收：每个项目可单独运行；全量覆盖数量/关键场景不减少；锁文件保留 win-x64 目标。
-
-完成说明：已拆分为 Domain.UnitTests、Application.UnitTests、Infrastructure.IntegrationTests、App.PresentationTests 和 App.WpfTests；测试资产随 Infrastructure 集成测试迁移，Solution、项目锁文件和生产程序集的测试友元边界已同步。纯测试项目使用 `net10.0` 并恢复并行，只有 App.WpfTests 保留 STA Host 与程序集级串行。
-
-### [x] TEST-802（P2）：拆分超大测试并统一 TestKit
-
-前置：TEST-801。
-
-实现：
-
-- 按行为拆 PlayerViewTests、PlayerViewModelTests、PlaybackCoordinatorTests。
-- 统一视觉树 helper、手动时间、临时目录、本地 HTTP server 和窄端口 fake。
-- 不建立知道所有产品接口的万能 fixture。
-
-验收：重复 helper/fake 明显减少；测试名称能直接定位行为；失败输出安全状态。
-
-完成说明：PlayerViewTests、PlayerViewModelTests 和 PlaybackCoordinatorTests 已按布局、导航、命令、播放流程、恢复与支撑代码等行为切片；视觉树 helper、手动时间、临时目录、本地 HTTP TTS server 和 NAudio fake 已集中到窄范围 TestKit。Release 全量测试保持 737 项通过，未引入万能 fixture。
-
-### [x] TEST-803（P1）：消除任意延迟与全局串行
-
-前置：TEST-801、TEST-802。
-
-实现：
-
-- 用 TimeProvider、TaskCompletionSource、事件/状态版本替换任意 `Task.Delay`/`Thread.Sleep`。
-- 纯测试恢复并行；只对共享 Dispatcher/设备/数据库 fixture 串行。
-- 所有异步等待有测试超时。
-
-验收：重复运行稳定；测试耗时和 flaky 率有前后记录。
-
-完成说明：测试等待已改为可控 TimeProvider、TaskCompletionSource、属性/播放快照/请求活动信号，并为异步等待统一设置 5 秒测试超时；WPF 测试由程序集级禁并行收窄为共享 Dispatcher collection。测试源码不再使用 Task.Delay 或 Thread.Sleep，全量 Release 测试 737 项通过。
-
-### [x] TEST-804（P1）：更新 CI/发布矩阵
-
-前置：TEST-801、TEST-803。
-
-实现：
-
-- CI 严格按 locked restore → format → Release build → test。
-- 按纯测试、Infrastructure、WPF 合理拆 job 或顺序，保留失败可定位性。
-- Release 使用相同门禁并验证 publish 不含 TestAssets。
-
-验收：main/PR/release 行为一致；不发生隐式无 RID restore。
-
-完成说明：CI 与 Release 共同调用分层质量矩阵，分别覆盖纯 Domain/Application、App.Presentation、Infrastructure 集成和 App.Wpf 测试；每个 job 严格执行 locked win-x64 restore → format → Release build → 指定项目 test。Release publish 等待矩阵全部通过，并同时检查 publish 目录与 ZIP 不含 TestAssets，保留 exe、LICENSE 和第三方声明校验。
-
----
-
-## Wave 9：清理、文档收口与发布级验证
-
-### [ ] CLEAN-901（P1）：全仓 cleanup-refactor 复审
-
-前置：Wave 1–8 完成。
+前置：ARCH-101、LIFE-102。
 
 审计并处理：
 
-- 旧命名空间、空目录、迁移 adapter、默认 no-op、可选主线依赖。
-- 无引用私有代码、重复 DTO、重复缓存键、重复 mapper/validator。
-- 一次性 wrapper、Page/View 双层残留和 DI 转发。
-- 过度嵌套、通用 catch、同步阻塞异步、无所有者 Task。
-- `New/V2/Old/Compat/Helper/Manager` 可疑命名。
+- 无引用私有代码、失效接口、重复 DTO/mapper/validator。
+- `LibraryBookItemViewModel` 等历史兼容构造器/属性。
+- Presentation 公共合同中不必要的 WPF 视觉类型暴露。
+- 一次性 wrapper、空目录、旧命名空间、误导性类型/文件名。
+- 过大 service 中可以明确拆出的单一职责。
+- 与目标架构不再匹配的注释和 TODO。
 
-每项继续按 A/B/C/D 分类；migration、fixture、安全边界和真实平台 adapter 不得误删。
+要求：
 
-### [ ] DOC-902（P1）：按最终实现复核全部文档
+- 不为内部 API 保留无实际调用价值的兼容层。
+- 纯移动/重命名与行为变化尽量拆开提交。
 
-前置：CLEAN-901。
+## [x] TEST-106（P1）：重构并瘦身测试体系
 
-范围：README、AGENTS、docs/00–12 和 TASK_BACKLOG。
+实现：
 
-验收：
+- 迁移旧测试命名空间到当前项目/功能切片。
+- 统一重复 TestKit、fake、visual-tree helper 和 setup。
+- 删除只为旧架构/compat wrapper 存在的测试。
+- 合并完全重复、低故障价值的 ViewModel 转发测试。
+- 保留 migration、fixture、缺陷回归、并发/取消、安全和 WPF 关键契约。
+- 让纯单元测试尽可能并行，不因 WPF 测试全局禁用并行。
 
-- 数字文档只描述最终行为和架构，无历史 Epic、未来实现误报或临时类名。
-- 代码目录、项目依赖、schema、TTS 矩阵、播放/缓存和测试命令一致。
-- Cookie/LoginInfo、SecretStore、签名和兼容风险表述一致。
-- 已完成架构任务归档，当前 backlog 只保留真正未完成项。
+自动验收：
 
-### [ ] VERIFY-903（P0）：完成发布级自动与手动验证
+- 五个测试项目职责与引用边界测试通过。
+- 删除测试后核心行为覆盖仍由契约/回归测试固定。
 
-前置：DOC-902。
+## [x] AUDIT-107（P1）：设计—实现一致性源码审计
 
-自动：完整质量门禁、架构测试、故障恢复测试、长稳播放和 publish 内容检查。
+对照 `docs/00–12` 自动/源码级审计：
 
-手动：
+- 文档已有但实现缺失的交互。
+- 已实现但文档仍写“后续”的残留。
+- UI 文案、按钮状态、导航入口和生命周期不一致。
+- 重复或局部自建的平台能力。
 
-- 干净 Windows 10/11 用户目录启动。
-- 导入不同编码 TXT、低置信度选择和重复拒绝。
-- 导入/编辑/试听支持的 TTS 规则，拒绝 Cookie/LoginInfo 依赖规则。
-- 播放、暂停、跳章/段、规则/语速/正则变化、返回书库继续、换书、重启恢复。
-- 缓存命中、按章/书/全部清理和 LRU。
-- 所有未保存保护路径、深浅主题、键盘和基础可访问性。
-- 模拟中断后 operation journal 恢复，验证根外文件不受影响。
+低风险差异在任务内修复；涉及新公共合同或跨 Wave 功能的差异追加到对应现有任务说明，不创建无边界的大杂烩任务。
 
-完成条件：所有阻塞问题关闭；非阻塞风险写入已知限制；不得用“文档已更新”代替运行验证。
+### Wave 1 Gate
 
-## 5. 每个 AI 任务的交付模板
+- 完整质量门禁通过。
+- 不新增非允许的 `IServiceProvider`/同步异步阻塞/无 owner Task。
+- 资源释放专项测试通过。
 
-后续分派任务时要求使用以下交付结构：
+---
 
-```md
-任务：<ID 与名称>
-前置：<已完成依赖>
-阅读：<设计文档、生产文件、测试文件>
-允许修改：<目录/合同>
-不可改变：<行为、schema、缓存键、安全边界>
+# Wave 2：全局视觉与桌面交互基础
 
-实现步骤：
-1. 先补/确认特征测试。
-2. 建立目标实现。
-3. 迁移调用者与直接测试。
-4. 删除旧入口和临时适配。
-5. 运行任务级测试与质量门禁。
+目标：先统一可复用视觉和选择语义，避免后续每个页面分别实现。
 
-交付：
-- 修改内容与设计理由。
-- 新增/更新测试。
-- 实际执行的命令与结果。
-- 未执行检查、剩余风险和后续依赖。
-```
+## [x] UI-201（P1）：重构全局图标按钮和交互状态层
 
-## 6. 全局完成标准
+实现：
 
-- Product 四项目依赖和职责符合 `02_TECH_STACK_AND_ARCHITECTURE.md`。
-- Application 不引用 SQLite/Jint/NAudio/WPF/Wpf.Ui/Infrastructure。
-- Infrastructure 不再承载业务用例、页面 Workspace 或播放状态机。
-- Domain 不再是 HTTP/SQLite/UI DTO 仓库。
-- App 按 feature slice 组织，Page activation、导航守卫和取消统一。
-- 播放协调器、PlayerViewModel、规则工作台、Book/Cache/TTS 服务职责可解释且有唯一状态所有者。
-- 跨数据库/文件操作可恢复，持久化路径受根目录约束。
-- 五类测试项目职责清晰，纯测试可并行且不依赖 WPF。
-- 旧实现、重复 DTO、迁移 adapter 和测试 fixture 发布残留已清除。
-- 全量门禁、长稳和发布包验证通过；现有用户数据、缓存键与产品行为兼容。
+- 扩充 `DesignTokens.xaml` / `SemanticStyles.xaml`。
+- 普通 icon button 默认无边框；hover 使用圆角矩形背景，不出现方形 stroke。
+- pressed、disabled、keyboard focus 使用统一状态。
+- 媒体控制保持圆形/近圆形状态层。
+- 清理页面内重复 button Trigger/局部样式。
+
+自动验收：
+
+- WPF resource/style contract 测试。
+- 关键图标按钮存在 Tooltip/AutomationName。
+
+## [x] UI-202（P1）：建立设置行与无边框导航入口组件
+
+实现：
+
+- 收敛并扩展现有 `SettingsGroupBorderStyle`、`SettingsSubpageItemBorderStyle` 和 `SettingsEntryButtonStyle`，建立轻量 Setting Row/Group 样式。
+- 复用设置首页已有的 `icon + 标题 + Chevron` 整行入口，将同一语义扩展到二级进入三级的导航。
+- 二级进入三级页面不再使用传统按钮外观。
+- 入口不显示冗余说明文字。
+- Hover/focus 复用 UI-201 状态语言。
+
+## [x] UI-203（P0）：建立可复用桌面多选模型
+
+实现：
+
+- Presentation 层实现与虚拟化解耦的 selection state/controller。
+- 支持单击、Ctrl 增减、Shift 区间、Ctrl+A、Esc。
+- 维护 anchor/primary selection。
+- 建立统一 Selected Card 视觉状态。
+- 不依赖 checkbox 或已生成的 WPF item container 保存选择事实。
+
+自动验收：
+
+- 选择、区间、全选、取消、列表变化和虚拟化边界测试。
+
+## [x] UI-204（P1）：统一 UI 文案与 icon 使用原则
+
+实现：
+
+- 全局审计明显冗长或不一致的用户文案。
+- “清理缓存”语义统一为“清理”；实体操作使用“删除”。
+- 适合纯图标的工具按钮替换文本，同时补 Tooltip/AutomationName。
+- 主动作、危险确认和含义不明确的动作保留文字。
+- 不在本任务提前修改 Wave 4 缓存页面的功能结构。
+
+### Wave 2 Gate
+
+- Design Token/semantic style 测试通过。
+- 多选 controller 单元测试通过。
+- 完整质量门禁通过。
+
+---
+
+# Wave 3：规则工作台与设置体验
+
+目标：减少按钮堆叠，统一 dirty state、列表卡片和设置视觉。
+
+## [x] RULE-301（P1）：重构 TTS 规则工作台
+
+实现：
+
+- 左侧卡片承载名称、摘要、启用状态、当前规则入口和 `⋮`。
+- `⋮` 放导出、删除等低频动作。
+- 右侧只保留规则字段、试听、取消、保存。
+- 无修改时取消/保存禁用；有修改时启用。
+- 试听始终使用当前编辑副本。
+- dirty-state guard 覆盖规则切换、返回、一级导航、快捷键和退出。
+- 调整左栏宽度/卡片排版，使管理操作不再挤占右侧。
+
+自动验收：
+
+- dirty state、当前规则、启用、导出、删除、试听和导航 guard 测试。
+
+## [x] RULE-302（P1）：统一章节规则工作台
+
+实现：
+
+- 左侧名称、摘要、启用、拖动排序、`⋮`。
+- `⋮` 提供删除、上移/下移备用操作。
+- 右侧聚焦字段编辑、取消、保存和帮助。
+- 无修改时取消/保存禁用。
+- 默认规则导入/恢复继续使用现有语义，不显示“内置/自定义”标签。
+
+## [x] RULE-303（P1）：统一正则替换工作台
+
+实现目标与 RULE-302 一致，并保持 Display/Speech pipeline 语义和播放刷新规则不变。
+
+自动验收覆盖：排序、启用、空输出、dirty state、缓存键和当前播放刷新。
+
+## [x] SET-304（P1）：重构设置首页和普通设置子页
+
+实现：
+
+- 保留设置首页已符合 `icon + 标题 + Chevron` 的入口，并迁移到 UI-202 收敛后的导航样式。
+- 播放设置、导入与文本、缓存与数据、外观、诊断与关于改为统一 Setting Row 视觉。
+- 正则替换、缓存管理等三级入口统一。
+- 删除页面内重复圆角/边框/hover 样式。
+- 文案按最终产品口径清理。
+
+### Wave 3 Gate
+
+- 三类规则工作台的 dirty-state/guard 自动测试通过。
+- 设置导航和 semantic style WPF 测试通过。
+- 完整质量门禁通过。
+
+---
+
+# Wave 4：主动缓存、缓存管理与 MP3 导出
+
+目标：把“播放时顺便缓存”升级为可管理的章节级后台工作流，并提供可靠章节导出。
+
+## [x] CACHE-401（P0）：建立应用级主动缓存协调器
+
+前置：SYNC-104、UI-203。
+
+实现：
+
+- 新建 Application active-cache use case/coordinator，不挂在 PlayerViewModel。
+- 全应用只允许一个 active batch。
+- 批次冻结 Book/Chapter、TTS rule、语速和文本处理快照。
+- 按章节、段落顺序处理；命中有效缓存直接跳过。
+- 播放页切章、页面离开、主窗口隐藏不取消批次。
+- 支持取消，已完成缓存保留。
+- 发布 `ActiveCacheSnapshot`：总进度、当前章节、章节状态和安全错误摘要。
+
+## [x] CACHE-402（P0）：实现共享优先级 TTS admission
+
+前置：CACHE-401。
+
+实现：
+
+- 复用 SYNC-104 已建立的 `TtsAdmissionPriority` 和按规则异步优先级队列，不重建第二套调度器。
+- 将 CACHE-401 的请求以 `ActiveCache` 优先级接入现有限流器，并固定播放/预取已有映射。
+- 当前播放 > 预取 > 主动缓存。
+- 同一规则所有请求共享并发/速率上限。
+- 主动缓存不能绕过 limiter 或创建独立 HTTP client。
+- 取消等待不占许可；失败不会卡死队列。
+
+自动验收：
+
+- 可控 barrier/clock 下验证优先级、取消、并发上限和无死锁。
+
+## [x] CACHE-403（P1）：播放页章节主动缓存选择体验
+
+实现：
+
+- 播放页增加缓存工具图标。
+- 点击后章节列表进入选择模式，复用 UI-203。
+- 选择模式中普通单击只选择，不跳章。
+- 显示已选章节数、取消选择和开始缓存。
+- 已存在 active batch 时不允许启动第二批次，并明确展示当前状态。
+- 退出选择模式后恢复正常章节点击语义。
+
+## [x] CACHE-404（P1）：Shell 主动缓存状态与进度 Flyout
+
+实现：
+
+- 有 active batch 时显示 `缓存中 · x/y 章 · n%`。
+- Flyout 显示各章完成/当前/等待状态、段落进度和取消。
+- 页面切换后仍可见。
+- PlayerPage 与 Shell 订阅同一 Application snapshot，不复制状态。
+- 完成后入口消失，Snackbar 提示结果。
+
+## [x] CACHE-405（P1）：重构缓存管理为文件管理器式章节操作
+
+前置：UI-203。
+
+实现：
+
+- 左侧保持单书选择，不支持跨书多选。
+- 右侧章节卡片使用统一多选模型和 selected visual state。
+- 删除逐章清理按钮和“清理本书”按钮。
+- 顶部只保留“清理”“导出”；0 项选择时禁用。
+- 清理只处理选中章节；选择全书全部章节等价于清理本书。
+- 将“清理全部缓存”移动/保留在“缓存与数据”二级页。
+- 章节卡片明确显示当前配置下的缓存完整度。
+- 章节查询批量读取元数据和缓存索引，文件/解码验证不长期占用缓存全局互斥锁。
+- 章节列表使用 Recycling 虚拟化。
+
+## [x] EXPORT-406（P0）：建立章节 MP3 导出用例
+
+实现前先通过代码/依赖审计确定统一 MP3 编码方案，标准：自包含发布可靠、许可证兼容、可测试、资源可释放。
+
+实现：
+
+- 输入为当前书 + 选中章节 + 当前 TTS/语速/文本配置快照。
+- 仅完整缓存章节可导出，不自动补全。
+- 同章节多个缓存段按播放顺序统一编码/合并为一个 MP3。
+- 不同章节分别输出。
+- 用户选择根目录，自动建立安全书名子目录。
+- 文件名含章节序号和章节名。
+- 集中 filename sanitizer 处理非法字符、Windows 保留名、尾部点/空格和路径边界。
+- 已存在文件生成 ` (2)` 等后缀，不覆盖。
+- staging/encoder/stream 在成功、失败、取消时确定性释放。
+
+自动验收：
+
+- 顺序合并和输出音频可解码测试。
+- 不完整缓存拒绝测试。
+- 文件名参数化测试。
+- 同名冲突和取消/失败 cleanup 测试。
+- publish 包依赖检查。
+
+## [x] EXPORT-407（P1）：接入缓存管理导出 UI
+
+前置：CACHE-405、EXPORT-406。
+
+实现：
+
+- “导出”在至少选择一章时启用；混合选择在确认后跳过不可导出章节。
+- 不可导出原因通过 Tooltip/AutomationName 提供，不在卡片常驻显示状态文案。
+- 目录选择通过统一 presentation file dialog port。
+- 导出期间显示可取消进度，完成后 Snackbar 摘要并支持打开目录。
+
+### Wave 4 Gate
+
+- 主动缓存优先级/跨页面/取消测试通过。
+- 多选缓存清理测试通过。
+- MP3 导出和文件名安全测试通过。
+- 完整质量门禁 + 自动 publish 内容检查通过。
+
+---
+
+# Wave 5：Windows 媒体、托盘、迷你播放器与定时停止
+
+## [x] MEDIA-501（P1）：Windows 系统媒体控制与耳机按键
+
+实现：
+
+- 建立平台无关 media-control port 和 Windows adapter。
+- Play/Pause 映射播放/暂停。
+- Previous/Next 映射上一/下一段。
+- 系统媒体信息显示当前章节标题、书名和播放状态。
+- 平台回调不直接触碰 WPF ViewModel/控件。
+
+自动验收：
+
+- adapter contract/fake platform 测试。
+- 播放状态到系统元数据投影测试。
+
+## [x] TRAY-502（P1）：关闭行为、托盘与常规设置
+
+实现：
+
+- 新增“常规”设置二级页。
+- 关闭主窗口：最小化到托盘 / 退出应用 / 每次询问。
+- 启动后最小化到托盘。
+- 托盘菜单：显示主窗口、播放/暂停、迷你播放器、退出。
+- Close、Hide、显式 Exit 使用单一 desktop lifecycle coordinator。
+- 未保存导航 guard 只在真正退出时阻止进程关闭；隐藏到托盘不误触发完整 shutdown。
+
+## [x] MINI-503（P1）：迷你播放器
+
+前置：TRAY-502。
+
+实现：
+
+- 播放页和托盘菜单提供入口。
+- 打开后隐藏主窗口。
+- 显示书名、当前章节、上一/下一章、上一/下一段、播放/暂停，以及复用播放页视觉的可拖动章节段落进度条；悬浮或拖动时显示 `xx/xx` Tooltip。
+- 提供置顶和恢复主窗口；置顶状态有明确视觉区分，空白区域可拖动窗口且不拦截按钮交互。
+- 关闭迷你窗口等价于恢复主窗口。
+- 记忆窗口位置和置顶；不记忆迷你模式。
+- 复用现有 PlaybackSnapshot，不创建第二套播放状态机。
+
+## [x] TIMER-504（P1）：播放页定时停止
+
+实现：
+
+- 播放页计时器 icon + Flyout。
+- 15/30/45/60/90 分钟、自定义时长。
+- 取消定时停止。
+- 工具按钮直接显示剩余分钟数，不显示单位。
+- 到时只 Pause；主动缓存继续。
+- 定时状态不持久化。
+
+自动验收：
+
+- 使用 fake `TimeProvider`，不依赖真实等待。
+- session 替换、取消和后台缓存独立性测试。
+
+### Wave 5 Gate
+
+- 媒体、托盘、迷你窗口、定时停止状态机自动测试通过。
+- 进程 shutdown/隐藏路径无重复 dispose 或未观察异常。
+- 完整质量门禁通过。
+
+---
+
+# Wave 6：体验一致性与全仓收口
+
+## [ ] UX-601（P1）：章节列表“定位到当前章节”
+
+实现：
+
+- 书籍详情目录和播放页章节目录均增加悬浮定位按钮。
+- 只有用户滚动使当前章节离开可见区域时显示。
+- 点击后使用虚拟化安全定位和平滑滚动。
+- 到达当前章节后自动隐藏。
+- Tooltip/AutomationName 为“定位到当前章节”。
+
+自动验收：滚离/回到、虚拟化索引和章节切换测试。
+
+## [ ] UX-602（P1）：全局交互状态与文案收口
+
+审计并修复：
+
+- 应可禁用但仍可点击的保存/取消/清理/导出/缓存动作。
+- 空状态、加载状态、错误状态和 Snackbar 文案。
+- 仍出现方形 hover 边框的 icon button。
+- 可以合理替换为 icon 的低频工具文字按钮。
+- 二/三级入口仍使用传统执行按钮的页面。
+- “清理本书缓存”等与最终文案不一致的残留。
+- Tooltip、AutomationName、键盘 focus 和 disabled 视觉。
+
+## [ ] CLEAN-603（P2）：最终全仓 cleanup/refactor 复审
+
+在所有新功能稳定后再次审计：
+
+- 将 `LibraryViewModel` / `LibraryImportCoordinator` 的本地文件检查，以及 `TtsRulesViewModel` 的规则文件读写，收敛到明确、可取消且可测试的 Application/presentation operation port；文件选择继续复用现有对话框 port。
+- 新增功能形成的重复 DTO、adapter、helper 和状态复制。
+- 死代码、空目录、旧测试、临时 migration bridge。
+- `async void`、未登记 Task、通用 catch、同步阻塞异步。
+- 资源 Dispose/CTS/事件退订。
+- 文档与代码中的“后续/暂时”历史注释。
+- 未使用依赖和 publish 冗余。
+
+不得删除 migration、必要 fixture、安全防御代码或真实平台 adapter。
+
+## [ ] DOC-604（P1）：按实际实现更新用户文档
+
+前置：本阶段功能任务完成。
+
+实现：
+
+- 根 `README.md` 增加已经真正实现的主动缓存、MP3 导出、媒体/托盘/迷你播放器/定时停止能力。
+- 核对快捷键、设置入口和当前限制。
+- 数字文档只修正最终实现偏差，不写迁移历史。
+- 已完成 Backlog 可再归档摘要，但当前任务状态要保持可追溯。
+
+## [ ] QA-605（P0）：最终自动发布质量门禁
+
+只使用自动化验证：
+
+- locked restore / format / Release build / 全量 test。
+- 架构依赖和源码规则测试。
+- migration/路径安全/资源释放/并发取消测试。
+- 主动缓存、导出、媒体、托盘、迷你窗口、定时停止测试。
+- self-contained `win-x64` publish。
+- 自动检查发布目录和 ZIP 不含测试资产/临时文件，且包含所需许可证和运行依赖。
+
+完成条件：所有自动阻塞项通过，发现的非阻塞问题必须被修复或记录为新的明确 Backlog，不使用“人工验证待完成”作为阶段尾项。
+
+---
+
+## 5. 阶段完成标准
+
+- DI/生命周期/资源所有权没有已知高风险边界债务。
+- 代码和测试已完成一轮激进但受保护的清理，不为历史架构保留无用 compat API。
+- 全局 UI 使用统一 Design Token、圆角 hover/focus 语言和设置导航样式。
+- TTS、章节、正则规则工作台操作职责清楚，dirty state 一致。
+- 主动缓存支持多章节选择、后台进度、取消和共享限流优先级。
+- 缓存管理采用文件管理器式多选，清理和导出作用于选中章节。
+- 完整章节可稳定导出为按章独立 MP3，文件名和同名冲突安全。
+- Windows 媒体控制、托盘、迷你播放器和定时停止共享同一个播放状态。
+- 书籍详情和播放页均能快速定位当前章节。
+- 根 README 与实际发布能力一致。
+- 完整自动质量门禁和 publish 检查通过。

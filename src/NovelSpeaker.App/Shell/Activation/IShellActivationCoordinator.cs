@@ -6,8 +6,6 @@ public interface IShellActivationCoordinator : IDisposable
 {
     CancellationToken LifetimeToken { get; }
 
-    bool IsCloseApproved { get; }
-
     bool IsShutdownRequested { get; }
 
     bool IsPlayerPageActive { get; }
@@ -20,5 +18,4 @@ public interface IShellActivationCoordinator : IDisposable
 
     void HandleNavigated(EventArgs eventArgs);
 
-    Task RequestCloseAsync(Func<Task> closeWindowAsync);
 }

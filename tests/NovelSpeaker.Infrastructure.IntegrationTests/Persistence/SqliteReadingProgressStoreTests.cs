@@ -3,10 +3,10 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Persistence;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Persistence;
 
 public sealed class SqliteReadingProgressStoreTests
 {
@@ -51,8 +51,35 @@ public sealed class SqliteReadingProgressStoreTests
         var command = connection.CreateCommand();
         command.CommandText = "SELECT LastPlayedAt FROM Books WHERE Id = 'book-2';";
         var lastPlayedAt = await command.ExecuteScalarAsync(CancellationToken.None);
-        Assert.NotNull(lastPlayedAt);
-        Assert.False(string.IsNullOrWhiteSpace(lastPlayedAt?.ToString()));
+        Assert.Equal("2026-06-26T00:00:01.0000000+00:00", lastPlayedAt);
+    }
+
+    [Fact]
+    public async Task GetAsync_accepts_legacy_time_and_returns_null_for_damaged_time()
+    {
+        var (factory, store) = await CreateStoreWithBookAsync(null, "book-1", "book-2");
+        await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                INSERT INTO ReadingProgress
+                    (BookId, ChapterIndex, SegmentIndex, CharacterOffset, AudioPositionMilliseconds, UpdatedAt)
+                VALUES
+                    ('book-1', 0, 1, 2, 3, '2026-07-16 09:08:07'),
+                    ('book-2', 0, 1, 2, 3, 'not-a-date');
+                """;
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        var legacy = await store.GetAsync("book-1", CancellationToken.None);
+        var damaged = await store.GetAsync("book-2", CancellationToken.None);
+
+        Assert.NotNull(legacy);
+        Assert.Equal(
+            new DateTimeOffset(2026, 7, 16, 9, 8, 7, TimeSpan.Zero),
+            legacy!.UpdatedAt);
+        Assert.Null(damaged);
     }
 
     private static async Task<(SqliteConnectionFactory Factory, SqliteReadingProgressStore Store)> CreateStoreWithBookAsync(

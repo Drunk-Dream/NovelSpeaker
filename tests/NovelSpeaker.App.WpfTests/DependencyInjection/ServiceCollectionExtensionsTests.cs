@@ -3,14 +3,19 @@ using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.ActiveCache;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Playback.Export;
 using NovelSpeaker.Application.Playback.Audio;
+using NovelSpeaker.Application.Desktop.MediaControls;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Speech.Testing;
 using NovelSpeaker.App;
+using NovelSpeaker.App.Desktop.Lifecycle;
+using NovelSpeaker.App.Desktop.MiniPlayer;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Library;
@@ -20,6 +25,7 @@ using NovelSpeaker.App.Shell.Input;
 using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shared.Theming;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using NovelSpeaker.Infrastructure.Diagnostics;
 using NovelSpeaker.Infrastructure.Playback;
@@ -29,11 +35,32 @@ using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.DependencyInjection;
+namespace NovelSpeaker.App.WpfTests.DependencyInjection;
 
 [Collection("WpfDispatcher")]
 public sealed class ServiceCollectionExtensionsTests
 {
+    [Fact]
+    public void Production_service_provider_builder_validates_missing_dependencies()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<MissingDependencyConsumer>();
+
+        Assert.Throws<AggregateException>(
+            () => WpfStartupRuntime.BuildValidatedServiceProvider(services));
+    }
+
+    [Fact]
+    public void Production_service_provider_builder_validates_scoped_dependencies()
+    {
+        var services = new ServiceCollection();
+        services.AddScoped<ScopedDependency>();
+        services.AddSingleton<ScopedDependencyConsumer>();
+
+        Assert.Throws<AggregateException>(
+            () => WpfStartupRuntime.BuildValidatedServiceProvider(services));
+    }
+
     [Fact]
     public void Composition_root_registers_and_validates_core_services()
     {
@@ -57,6 +84,10 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAppNotificationService>(provider.GetRequiredService<IAppNotificationService>());
                 Assert.IsAssignableFrom<IExceptionProjector>(provider.GetRequiredService<IExceptionProjector>());
                 Assert.IsAssignableFrom<IAppFeedbackService>(provider.GetRequiredService<IAppFeedbackService>());
+                Assert.IsAssignableFrom<IPresentationFileDialogService>(
+                    provider.GetRequiredService<IPresentationFileDialogService>());
+                Assert.IsAssignableFrom<IPresentationLauncher>(
+                    provider.GetRequiredService<IPresentationLauncher>());
                 Assert.IsAssignableFrom<IAppDiagnosticsService>(provider.GetRequiredService<IAppDiagnosticsService>());
                 Assert.IsAssignableFrom<IEncodingSelectionDialogService>(provider.GetRequiredService<IEncodingSelectionDialogService>());
                 Assert.IsAssignableFrom<IImportProgressDialogService>(provider.GetRequiredService<IImportProgressDialogService>());
@@ -108,10 +139,15 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAudioPlayer>(provider.GetRequiredService<IAudioPlayer>());
                 Assert.IsType<LocalAudioPlaybackCoordinator>(provider.GetRequiredService<ILocalAudioPlaybackCoordinator>());
                 Assert.IsType<PlaybackCoordinator>(provider.GetRequiredService<PlaybackCoordinator>());
+                Assert.IsAssignableFrom<IMediaControlCoordinator>(
+                    provider.GetRequiredService<IMediaControlCoordinator>());
+                Assert.IsAssignableFrom<IMediaControlPlatform>(
+                    provider.GetRequiredService<IMediaControlPlatform>());
                 Assert.IsAssignableFrom<IBookPlaybackContentService>(provider.GetRequiredService<IBookPlaybackContentService>());
                 Assert.IsType<SelectedTtsRuleProvider>(provider.GetRequiredService<ISelectedTtsRuleProvider>());
                 Assert.IsAssignableFrom<IPlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
                 Assert.IsType<PlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
+                Assert.IsType<ActiveCacheCoordinator>(provider.GetRequiredService<IActiveCacheCoordinator>());
                 Assert.IsType<PlaybackSegmentRunner>(provider.GetRequiredService<PlaybackSegmentRunner>());
                 Assert.IsType<PlaybackRecoveryPolicy>(provider.GetRequiredService<PlaybackRecoveryPolicy>());
                 Assert.IsType<PlaybackAudioFailureReporter>(provider.GetRequiredService<IPlaybackAudioFailureReporter>());
@@ -125,11 +161,13 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAudioCache>(provider.GetRequiredService<IAudioCache>());
                 Assert.IsAssignableFrom<IAudioCacheStore>(provider.GetRequiredService<IAudioCacheStore>());
                 Assert.IsAssignableFrom<ICacheWorkspaceService>(provider.GetRequiredService<ICacheWorkspaceService>());
+                Assert.IsAssignableFrom<IExportChaptersService>(provider.GetRequiredService<IExportChaptersService>());
                 Assert.IsAssignableFrom<IAudioCacheProtectionRegistry>(provider.GetRequiredService<IAudioCacheProtectionRegistry>());
                 Assert.IsType<PlaybackPrefetchController>(provider.GetRequiredService<IPlaybackPrefetchController>());
                 Assert.IsAssignableFrom<IReadingProgressStore>(provider.GetRequiredService<IReadingProgressStore>());
                 Assert.IsAssignableFrom<TimeProvider>(provider.GetRequiredService<TimeProvider>());
                 Assert.IsType<MainWindow>(provider.GetRequiredService<MainWindow>());
+                Assert.IsType<MiniPlayerWindow>(provider.GetRequiredService<MiniPlayerWindow>());
 
                 Assert.Same(
                     provider.GetRequiredService<PlaybackCoordinator>(),
@@ -156,8 +194,23 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<IAudioCache>(),
                     provider.GetRequiredService<IAudioCacheStore>());
                 Assert.Same(
+                    provider.GetRequiredService<IActiveCacheCoordinator>(),
+                    provider.GetRequiredService<IActiveCacheCoordinator>());
+                Assert.Same(
+                    provider.GetRequiredService<DesktopLifecycleCoordinator>(),
+                    provider.GetRequiredService<IDesktopLifecycleCoordinator>());
+                Assert.Same(
+                    provider.GetRequiredService<DesktopLifecycleCoordinator>(),
+                    provider.GetRequiredService<IMiniPlayerLauncher>());
+                Assert.Same(
+                    provider.GetRequiredService<WindowsTrayLifecycleAdapter>(),
+                    provider.GetRequiredService<IDesktopLifecyclePlatform>());
+                Assert.Same(
                     provider.GetRequiredService<INavigationGuardService>(),
                     provider.GetRequiredService<INavigationGuardService>());
+                Assert.Same(
+                    provider.GetRequiredService<IShellNavigationAdapter>(),
+                    provider.GetRequiredService<IAppNavigator>());
                 Assert.NotSame(
                     provider.GetRequiredService<BookDetailsViewModel>(),
                     provider.GetRequiredService<BookDetailsViewModel>());
@@ -216,6 +269,7 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(IBookPlaybackContentService),
             typeof(ICacheWorkspaceService),
             typeof(IPlaybackAudioProvider),
+            typeof(IActiveCacheCoordinator),
             typeof(ILocalAudioPlaybackCoordinator),
             typeof(IPlaybackPrefetchController),
             typeof(IPlaybackSession),
@@ -267,5 +321,23 @@ public sealed class ServiceCollectionExtensionsTests
         return descriptor.ImplementationFactory?.Method.DeclaringType?.Assembly
             ?? throw new InvalidOperationException(
                 $"Registration for {descriptor.ServiceType.FullName} has no implementation owner.");
+    }
+
+    private sealed class MissingDependencyConsumer(MissingDependency dependency)
+    {
+        public MissingDependency Dependency { get; } = dependency;
+    }
+
+    private sealed class MissingDependency
+    {
+    }
+
+    private sealed class ScopedDependencyConsumer(ScopedDependency dependency)
+    {
+        public ScopedDependency Dependency { get; } = dependency;
+    }
+
+    private sealed class ScopedDependency
+    {
     }
 }

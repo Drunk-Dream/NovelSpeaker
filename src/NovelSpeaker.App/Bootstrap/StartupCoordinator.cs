@@ -143,6 +143,18 @@ internal sealed class StartupCoordinator : IAsyncDisposable
         }
 
         await RunShutdownStepAsync(
+            "desktop-lifecycle-shutdown",
+            "注销系统托盘失败，将继续关闭。",
+            _runtime.StopDesktopLifecycleAsync,
+            cancellationToken).ConfigureAwait(false);
+
+        await RunShutdownStepAsync(
+            "media-control-shutdown",
+            "注销系统媒体控制失败，将继续关闭。",
+            _runtime.StopMediaControlsAsync,
+            cancellationToken).ConfigureAwait(false);
+
+        await RunShutdownStepAsync(
             "playback-shutdown",
             "保存并结束播放失败，将继续关闭。",
             _runtime.StopPlaybackAsync,

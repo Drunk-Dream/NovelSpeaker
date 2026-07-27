@@ -1,7 +1,7 @@
 using NovelSpeaker.App.Shell;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Shell;
+namespace NovelSpeaker.App.PresentationTests;
 
 public sealed class ShellLayoutControllerTests
 {

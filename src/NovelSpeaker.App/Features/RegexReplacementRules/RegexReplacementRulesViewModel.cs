@@ -40,6 +40,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     public ObservableCollection<RegexReplacementRuleListItemViewModel> Rules { get; } = [];
 
     [ObservableProperty] private bool isBusy;
+    [ObservableProperty] private bool isHelpDrawerOpen;
     [ObservableProperty] private Guid? selectedRuleId;
     [ObservableProperty] private string draftName = string.Empty;
     [ObservableProperty] private string draftPattern = string.Empty;
@@ -51,10 +52,32 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     public bool IsEditingNewRule => _editorSession.IsNew;
     public bool HasUnsavedChanges => _editorSession.IsDirty;
     public Array Scopes => Enum.GetValues(typeof(RegexReplacementScope));
-    public bool CanSave => HasEditor && !IsBusy && string.IsNullOrEmpty(ValidationMessage) && (HasUnsavedChanges || IsEditingNewRule);
-    public bool CanDelete => HasEditor && !IsEditingNewRule && SelectedRuleId is not null && !IsBusy;
+    public bool CanSave => HasEditor && HasUnsavedChanges && !IsBusy && string.IsNullOrEmpty(ValidationMessage);
+    public bool CanCancel => HasEditor && HasUnsavedChanges && !IsBusy;
 
     public async Task LoadAsync(CancellationToken cancellationToken) => await RefreshAsync(SelectedRuleId, !HasEditor, cancellationToken);
+
+    public void HandleNavigatedFrom()
+    {
+        IsHelpDrawerOpen = false;
+        ClearDragTarget();
+    }
+
+    public void SetDragTarget(RegexReplacementRuleListItemViewModel? targetRule)
+    {
+        foreach (var rule in Rules)
+        {
+            rule.IsDropTarget = targetRule is not null && rule.Id == targetRule.Id;
+        }
+    }
+
+    public void ClearDragTarget()
+    {
+        foreach (var rule in Rules)
+        {
+            rule.IsDropTarget = false;
+        }
+    }
 
     [RelayCommand]
     private async Task BackAsync(CancellationToken cancellationToken)
@@ -84,19 +107,34 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     [RelayCommand]
     private async Task ToggleEnabledAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken)
     {
-        if (rule is null || IsBusy) return;
+        if (rule is null || !rule.CanQuickActions) return;
         var old = rule.IsEnabled;
+        var persisted = false;
         rule.IsEnabled = !old;
         try
         {
             IsBusy = true;
             await _workspace.SetRuleEnabledAsync(rule.Id, rule.IsEnabled, cancellationToken);
+            persisted = true;
             await RefreshAsync(SelectedRuleId, false, cancellationToken);
             await _playback.RefreshRegexReplacementAsync(cancellationToken);
         }
+        catch (OperationCanceledException)
+        {
+            if (!persisted)
+            {
+                rule.IsEnabled = old;
+            }
+
+            throw;
+        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            rule.IsEnabled = old;
+            if (!persisted)
+            {
+                rule.IsEnabled = old;
+            }
+
             _feedback.ShowProjectedNotification("保存启用状态失败", _feedback.Project(exception));
         }
         finally { IsBusy = false; NotifyCommandState(); }
@@ -107,11 +145,20 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
 
     public async Task ReorderByDropAsync(RegexReplacementRuleListItemViewModel? source, RegexReplacementRuleListItemViewModel? target, CancellationToken cancellationToken)
     {
-        if (source is null || target is null || source.Id == target.Id || IsBusy) return;
+        if (source is null || target is null || source.Id == target.Id || IsBusy)
+        {
+            ClearDragTarget();
+            return;
+        }
+
         var ids = Rules.Select(rule => rule.Id).ToList();
         var sourceIndex = ids.IndexOf(source.Id);
         var targetIndex = ids.IndexOf(target.Id);
-        if (sourceIndex < 0 || targetIndex < 0) return;
+        if (sourceIndex < 0 || targetIndex < 0)
+        {
+            ClearDragTarget();
+            return;
+        }
         ids.RemoveAt(sourceIndex);
         ids.Insert(targetIndex, source.Id);
         await SaveOrderAsync(ids, cancellationToken);
@@ -130,21 +177,23 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
         await DiscardDraftAsync(cancellationToken);
     }
 
-    [RelayCommand]
-    private async Task DeleteAsync(CancellationToken cancellationToken)
+    public async Task DeleteRuleFromListAsync(
+        RegexReplacementRuleListItemViewModel rule,
+        CancellationToken cancellationToken)
     {
-        if (SelectedRuleId is not Guid id || !CanDelete) return;
+        ArgumentNullException.ThrowIfNull(rule);
+        if (!rule.CanDeleteAction) return;
         if (!await ConfirmLeaveAsync(cancellationToken)) return;
-        var item = Rules.FirstOrDefault(rule => rule.Id == id);
+        var item = Rules.FirstOrDefault(candidate => candidate.Id == rule.Id);
         if (item is null || await _feedback.ConfirmDeletionAsync("删除正则替换规则", $"将删除规则“{item.Name}”。此操作不可撤销。", cancellationToken) != AppConfirmationDecision.Confirm) return;
 
-        var fallback = GetAdjacentRuleId(id);
+        var deletingOpenEditor = !IsEditingNewRule && SelectedRuleId == item.Id;
+        var preferredRuleId = deletingOpenEditor ? GetAdjacentRuleId(item.Id) : SelectedRuleId;
         try
         {
             IsBusy = true;
-            await _workspace.DeleteRuleAsync(id, cancellationToken);
-            CloseEditor();
-            await RefreshAsync(fallback, true, cancellationToken);
+            await _workspace.DeleteRuleAsync(item.Id, cancellationToken);
+            await RefreshAsync(preferredRuleId, deletingOpenEditor, cancellationToken);
             await _playback.RefreshRegexReplacementAsync(cancellationToken);
             _feedback.ShowSuccess("正则替换规则已删除", item.Name);
         }
@@ -159,7 +208,11 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     partial void OnDraftPatternChanged(string value) => Changed();
     partial void OnDraftReplacementChanged(string value) => Changed();
     partial void OnDraftScopeChanged(RegexReplacementScope value) => Changed();
-    partial void OnIsBusyChanged(bool value) => NotifyCommandState();
+    partial void OnIsBusyChanged(bool value)
+    {
+        UpdateRuleItemStates();
+        NotifyCommandState();
+    }
     partial void OnSelectedRuleIdChanged(Guid? value) => NotifyCommandState();
 
     private async Task<RegexReplacementRuleEditorModel?> SaveCoreAsync(CancellationToken cancellationToken)
@@ -202,6 +255,28 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
         await SaveOrderAsync(ids, cancellationToken);
     }
 
+    public Task MoveRuleUpFromListAsync(
+        RegexReplacementRuleListItemViewModel rule,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        return MoveAsync(rule, -1, cancellationToken);
+    }
+
+    public Task MoveRuleDownFromListAsync(
+        RegexReplacementRuleListItemViewModel rule,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        return MoveAsync(rule, 1, cancellationToken);
+    }
+
+    [RelayCommand]
+    private void OpenHelp() => IsHelpDrawerOpen = true;
+
+    [RelayCommand]
+    private void CloseHelp() => IsHelpDrawerOpen = false;
+
     private async Task SaveOrderAsync(IReadOnlyList<Guid> orderedIds, CancellationToken cancellationToken)
     {
         try
@@ -216,7 +291,12 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
             await RefreshAsync(SelectedRuleId, false, cancellationToken);
             _feedback.ShowProjectedNotification("保存排序失败", _feedback.Project(exception));
         }
-        finally { IsBusy = false; NotifyCommandState(); }
+        finally
+        {
+            ClearDragTarget();
+            IsBusy = false;
+            NotifyCommandState();
+        }
     }
 
     public async Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken)
@@ -300,6 +380,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
         _loading = false;
         Validate();
         foreach (var rule in Rules) rule.IsSelected = rule.Id == editor.Id;
+        UpdateRuleItemStates();
         NotifyCommandState();
     }
 
@@ -315,6 +396,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
         ValidationMessage = string.Empty;
         _loading = false;
         foreach (var rule in Rules) rule.IsSelected = false;
+        UpdateRuleItemStates();
         NotifyCommandState();
     }
 
@@ -334,6 +416,9 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
             if (target is not null) await LoadEditorAsync(target.Id, cancellationToken);
             else CloseEditor();
         }
+
+        UpdateRuleItemStates();
+        NotifyCommandState();
     }
 
     private Guid? GetAdjacentRuleId(Guid id)
@@ -361,6 +446,17 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
         OnPropertyChanged(nameof(IsEditingNewRule));
         OnPropertyChanged(nameof(HasUnsavedChanges));
         OnPropertyChanged(nameof(CanSave));
-        OnPropertyChanged(nameof(CanDelete));
+        OnPropertyChanged(nameof(CanCancel));
+    }
+
+    private void UpdateRuleItemStates()
+    {
+        for (var index = 0; index < Rules.Count; index++)
+        {
+            var rule = Rules[index];
+            rule.CanQuickActions = !IsBusy;
+            rule.CanMoveUp = !IsBusy && index > 0;
+            rule.CanMoveDown = !IsBusy && index < Rules.Count - 1;
+        }
     }
 }

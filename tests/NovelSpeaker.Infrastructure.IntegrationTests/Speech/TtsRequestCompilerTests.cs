@@ -2,10 +2,10 @@ using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Infrastructure.Speech.Scripting;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Speech;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Speech;
 
 public sealed class TtsRequestCompilerTests
 {

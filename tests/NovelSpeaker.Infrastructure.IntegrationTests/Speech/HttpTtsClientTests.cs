@@ -5,10 +5,10 @@ using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Speech.Http;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Speech;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Speech;
 
 public sealed class HttpTtsClientTests
 {
@@ -25,6 +25,7 @@ public sealed class HttpTtsClientTests
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Audio);
         Assert.True(File.Exists(result.Audio!.FilePath));
+        await result.Audio.DisposeAsync();
     }
 
     [Fact]
@@ -91,6 +92,8 @@ public sealed class HttpTtsClientTests
         Assert.NotNull(server.LastFormBody);
         Assert.Contains("text=demo", server.LastFormBody);
         Assert.Contains("speed=10", server.LastFormBody);
+        await jsonResult.Audio!.DisposeAsync();
+        await formResult.Audio!.DisposeAsync();
     }
 
     [Fact]
@@ -136,6 +139,7 @@ public sealed class HttpTtsClientTests
 
         Assert.True(retryResult.IsSuccess);
         Assert.Equal(3, server.GetRequestCount("/server-error"));
+        await retryResult.Audio!.DisposeAsync();
     }
 
     [Fact]
@@ -236,6 +240,61 @@ public sealed class HttpTtsClientTests
         Assert.True(content.IsDisposed);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_times_out_while_reading_response_body_and_disposes_response()
+    {
+        var content = new BlockingReadContent();
+        using var transport = new HttpTtsClient(
+            new StaticResponseHandler(content),
+            requestTimeout: TimeSpan.FromMilliseconds(50));
+        using var harness = CreateHarness(CreateDirectories(), transport);
+
+        var result = await harness.ExecuteAsync(
+                CreateRequest(1, new Uri("https://example.com/tts")),
+                CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(TtsErrorKind.Timeout, result.Failure!.Kind);
+        Assert.True(content.IsDisposed);
+        Assert.True(content.Stream.IsDisposed);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_cancellation_while_reading_response_body_disposes_response()
+    {
+        var content = new BlockingReadContent();
+        using var transport = new HttpTtsClient(new StaticResponseHandler(content));
+        using var harness = CreateHarness(CreateDirectories(), transport);
+        using var cancellation = new CancellationTokenSource();
+
+        var resultTask = harness.ExecuteAsync(
+            CreateRequest(1, new Uri("https://example.com/tts")),
+            cancellation.Token);
+        await content.Stream.ReadStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        cancellation.Cancel();
+        var result = await resultTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(TtsErrorKind.Cancelled, result.Failure!.Kind);
+        Assert.True(content.IsDisposed);
+        Assert.True(content.Stream.IsDisposed);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_read_failure_disposes_response()
+    {
+        var content = new ThrowingReadContent();
+        using var transport = new HttpTtsClient(new StaticResponseHandler(content));
+        using var harness = CreateHarness(CreateDirectories(), transport);
+
+        var result = await harness.ExecuteAsync(
+            CreateRequest(1, new Uri("https://example.com/tts")),
+            CancellationToken.None);
+
+        Assert.Equal(TtsErrorKind.Unknown, result.Failure!.Kind);
+        Assert.True(content.IsDisposed);
+        Assert.True(content.Stream.IsDisposed);
+    }
+
     private static ExecutionHarness CreateClient(TimeSpan? requestTimeout = null)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -252,6 +311,14 @@ public sealed class HttpTtsClientTests
         var directories = new LocalAppDataDirectoryProvider(root);
         directories.EnsureCreatedAsync(CancellationToken.None).GetAwaiter().GetResult();
         return CreateHarness(directories, new HttpTtsClient(handler, logger: logger));
+    }
+
+    private static LocalAppDataDirectoryProvider CreateDirectories()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new LocalAppDataDirectoryProvider(root);
+        directories.EnsureCreatedAsync(CancellationToken.None).GetAwaiter().GetResult();
+        return directories;
     }
 
     private static ExecutionHarness CreateHarness(
@@ -324,6 +391,132 @@ public sealed class HttpTtsClientTests
             length = bytes.Length;
             return true;
         }
+
+        protected override void Dispose(bool disposing)
+        {
+            IsDisposed = true;
+            base.Dispose(disposing);
+        }
+    }
+
+    private sealed class BlockingReadContent : HttpContent
+    {
+        public BlockingReadStream Stream { get; } = new();
+
+        public bool IsDisposed { get; private set; }
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            throw new NotSupportedException();
+
+        protected override Task<Stream> CreateContentReadStreamAsync() =>
+            Task.FromResult<Stream>(Stream);
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            IsDisposed = true;
+            base.Dispose(disposing);
+        }
+    }
+
+    private sealed class ThrowingReadContent : HttpContent
+    {
+        public ThrowingReadStream Stream { get; } = new();
+
+        public bool IsDisposed { get; private set; }
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            throw new NotSupportedException();
+
+        protected override Task<Stream> CreateContentReadStreamAsync() =>
+            Task.FromResult<Stream>(Stream);
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            IsDisposed = true;
+            base.Dispose(disposing);
+        }
+    }
+
+    private sealed class BlockingReadStream : Stream
+    {
+        private readonly TaskCompletionSource _readStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task ReadStarted => _readStarted.Task;
+
+        public bool IsDisposed { get; private set; }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            _readStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
+
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            IsDisposed = true;
+            base.Dispose(disposing);
+        }
+    }
+
+    private sealed class ThrowingReadStream : Stream
+    {
+        public bool IsDisposed { get; private set; }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            throw new IOException("fixture read failure");
+
+        public override ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromException<int>(new IOException("fixture read failure"));
+
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 
         protected override void Dispose(bool disposing)
         {

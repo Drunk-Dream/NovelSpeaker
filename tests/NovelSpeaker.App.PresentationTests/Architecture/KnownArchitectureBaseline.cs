@@ -1,4 +1,4 @@
-namespace NovelSpeaker.UnitTests.Architecture;
+namespace NovelSpeaker.App.PresentationTests.Architecture;
 
 internal static class KnownArchitectureBaseline
 {
@@ -9,10 +9,7 @@ internal static class KnownArchitectureBaseline
         };
 
     public static readonly IReadOnlySet<string> SourceLayoutViolations =
-        new HashSet<string>(StringComparer.Ordinal)
-        {
-            "src/NovelSpeaker.App/Shared/Dialogs/AppDialogDecision.cs: public types [AppConfirmationDecision, UnsavedChangesDecision], expected primary type 'AppDialogDecision'",
-        };
+        new HashSet<string>(StringComparer.Ordinal);
 
     public static readonly IReadOnlySet<string> ViewModelForbiddenPublicApiDependencies =
         new HashSet<string>(StringComparer.Ordinal);

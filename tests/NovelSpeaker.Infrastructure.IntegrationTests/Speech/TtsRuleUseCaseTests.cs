@@ -8,7 +8,7 @@ using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Speech.Legado;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Speech;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Speech;
 
 public sealed class TtsRuleUseCaseTests
 {
@@ -209,6 +209,38 @@ public sealed class TtsRuleUseCaseTests
 
         Assert.True(summaries.Single(rule => rule.Id == 1).IsSelected);
         Assert.False(summaries.Single(rule => rule.Id == 2).IsSelected);
+    }
+
+    [Theory]
+    [InlineData(
+        "https://username:password@例子.测试:8443/private/path?token=secret#fragment",
+        "POST · https://xn--fsqu00a.xn--0zwm56d:8443")]
+    [InlineData(
+        "http://username:password@[2001:db8::1]:8080/private/path?token=secret#fragment",
+        "POST · http://[2001:db8::1]:8080")]
+    [InlineData(
+        "https://username:password@example.com:443/private/path?token=secret#fragment",
+        "POST · https://example.com")]
+    public async Task Queries_builds_safe_request_summary_from_scheme_host_and_non_default_port(
+        string url,
+        string expectedSummary)
+    {
+        var rule = Rule(1, "摘要规则", url) with { RequestMethod = "post" };
+        using var provider = CreateProvider(
+            new FakeRepository([rule]),
+            new FakeSourceAdapter(new([], null)),
+            AppSettings.Default);
+
+        var summary = Assert.Single(
+            await provider.GetRequiredService<ITtsRuleQueries>().GetRulesAsync(CancellationToken.None));
+
+        Assert.Equal(expectedSummary, summary.RequestSummary);
+        Assert.DoesNotContain("username", summary.RequestSummary, StringComparison.Ordinal);
+        Assert.DoesNotContain("password", summary.RequestSummary, StringComparison.Ordinal);
+        Assert.DoesNotContain("private", summary.RequestSummary, StringComparison.Ordinal);
+        Assert.DoesNotContain("token", summary.RequestSummary, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret", summary.RequestSummary, StringComparison.Ordinal);
+        Assert.DoesNotContain("fragment", summary.RequestSummary, StringComparison.Ordinal);
     }
 
     [Fact]

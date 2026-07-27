@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NovelSpeaker.Application.Playback.ActiveCache;
 using NovelSpeaker.Application.Playback.Audio;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Playback.Export;
 using NovelSpeaker.Application.Settings;
 
 namespace NovelSpeaker.Application.Playback;
@@ -16,7 +18,10 @@ public static class PlaybackRegistration
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<IBookPlaybackContentService, BookPlaybackContentService>();
         services.TryAddSingleton<ICacheWorkspaceService, CacheWorkspaceService>();
+        services.TryAddSingleton<ExportFileNameSanitizer>();
+        services.TryAddSingleton<IExportChaptersService, ExportChaptersService>();
         services.TryAddSingleton<IPlaybackAudioProvider, PlaybackAudioProvider>();
+        services.TryAddSingleton<IActiveCacheCoordinator, ActiveCacheCoordinator>();
         services.TryAddSingleton<ILocalAudioPlaybackCoordinator, LocalAudioPlaybackCoordinator>();
         services.TryAddSingleton<PlaybackSegmentRunner>();
         services.TryAddSingleton<PlaybackRecoveryPolicy>();
@@ -32,10 +37,13 @@ public static class PlaybackRegistration
                 serviceProvider.GetRequiredService<ILocalAudioPlaybackCoordinator>(),
                 serviceProvider.GetRequiredService<PlaybackProgressService>(),
                 serviceProvider.GetRequiredService<IPlaybackPrefetchController>(),
-                serviceProvider.GetRequiredService<IAppSettingsService>()));
+                serviceProvider.GetRequiredService<IAppSettingsService>(),
+                serviceProvider.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton<IPlaybackSnapshotSource>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
         services.TryAddSingleton<IPlaybackSession>(serviceProvider =>
+            serviceProvider.GetRequiredService<PlaybackCoordinator>());
+        services.TryAddSingleton<IPlaybackStopTimer>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
         services.TryAddSingleton<IPlaybackBookCommands>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());

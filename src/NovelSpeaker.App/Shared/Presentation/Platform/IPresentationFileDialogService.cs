@@ -12,4 +12,8 @@ public interface IPresentationFileDialogService
     Task<string?> PickSaveFileAsync(
         PresentationFileDialogOptions options,
         CancellationToken cancellationToken);
+
+    Task<string?> PickFolderAsync(
+        PresentationFolderDialogOptions options,
+        CancellationToken cancellationToken);
 }

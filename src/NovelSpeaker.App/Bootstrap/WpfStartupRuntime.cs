@@ -6,6 +6,8 @@ using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Desktop.MediaControls;
+using NovelSpeaker.App.Desktop.Lifecycle;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.App.Shell;
@@ -118,17 +120,20 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         services.AddNovelSpeakerInfrastructure();
         services.AddNovelSpeakerDesktop();
 
-#if DEBUG
-        _serviceProvider = services.BuildServiceProvider(new ServiceProviderOptions
+        _serviceProvider = BuildValidatedServiceProvider(services);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
+
+    internal static ServiceProvider BuildValidatedServiceProvider(IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        return services.BuildServiceProvider(new ServiceProviderOptions
         {
             ValidateOnBuild = true,
             ValidateScopes = true
         });
-#else
-        _serviceProvider = services.BuildServiceProvider();
-#endif
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.CompletedTask;
     }
 
     public Task InitializeDatabaseAsync(CancellationToken cancellationToken) =>
@@ -148,24 +153,62 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         return Task.CompletedTask;
     }
 
-    public Task ShowShellAsync(CancellationToken cancellationToken)
+    public async Task ShowShellAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var window = RequireServices().GetRequiredService<MainWindow>();
-        window.ConfigureShutdown(
-            ShutdownRequestedAsync
-            ?? throw new InvalidOperationException("应用关闭回调尚未配置。"));
+        RequireServices()
+            .GetRequiredService<WindowsTrayLifecycleAdapter>()
+            .AttachMainWindow(window);
+        var shutdownAsync = ShutdownRequestedAsync
+            ?? throw new InvalidOperationException("应用关闭回调尚未配置。");
+        RequireServices().GetRequiredService<IProcessShutdownRequest>().Configure(shutdownAsync);
+        var desktopLifecycle = RequireServices().GetRequiredService<IDesktopLifecycleCoordinator>();
+        window.ConfigureDesktopLifecycle(
+            desktopLifecycle.RequestMainWindowCloseAsync,
+            () => desktopLifecycle.IsExitApproved);
         _setMainWindow(window);
         CloseStartupStatus();
-        window.Show();
+        await desktopLifecycle.StartAsync(cancellationToken).ConfigureAwait(true);
+        await RequireServices()
+            .GetRequiredService<IMediaControlCoordinator>()
+            .StartAsync(cancellationToken)
+            .ConfigureAwait(true);
         StartBackgroundCacheMaintenance(cancellationToken);
-        return Task.CompletedTask;
     }
 
     public void BeginShutdown()
     {
         _shutdownGate.TryBeginShutdown();
         _backgroundTasks.StopAccepting();
+    }
+
+    public async Task StopDesktopLifecycleAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_serviceProvider is null)
+        {
+            return;
+        }
+
+        await _serviceProvider
+            .GetRequiredService<IDesktopLifecycleCoordinator>()
+            .StopAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task StopMediaControlsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_serviceProvider is null)
+        {
+            return;
+        }
+
+        await _serviceProvider
+            .GetRequiredService<IMediaControlCoordinator>()
+            .StopAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task StopPlaybackAsync(CancellationToken cancellationToken)

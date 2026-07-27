@@ -19,7 +19,8 @@ public partial class MainWindow : FluentWindow
     private readonly IShortcutContextResolver _shortcutContextResolver;
     private readonly IShellLayoutController _shellLayoutController;
     private readonly MainWindowViewModel _viewModel;
-    private Func<CancellationToken, Task>? _shutdownAsync;
+    private Func<CancellationToken, Task>? _requestCloseAsync;
+    private Func<bool>? _isExitApproved;
     private bool _navigationEventsConnected;
 
     public MainWindow(
@@ -51,14 +52,17 @@ public partial class MainWindow : FluentWindow
 
     internal NavigationView NavigationViewControl => RootNavigationView;
 
-    internal void ConfigureShutdown(Func<CancellationToken, Task> shutdownAsync)
+    internal void ConfigureDesktopLifecycle(
+        Func<CancellationToken, Task> requestCloseAsync,
+        Func<bool> isExitApproved)
     {
-        _shutdownAsync = shutdownAsync ?? throw new ArgumentNullException(nameof(shutdownAsync));
+        _requestCloseAsync = requestCloseAsync ?? throw new ArgumentNullException(nameof(requestCloseAsync));
+        _isExitApproved = isExitApproved ?? throw new ArgumentNullException(nameof(isExitApproved));
     }
 
     private async void OnClosing(object? sender, CancelEventArgs e)
     {
-        if (_activationCoordinator.IsCloseApproved)
+        if (_isExitApproved?.Invoke() == true)
         {
             return;
         }
@@ -66,16 +70,9 @@ public partial class MainWindow : FluentWindow
         e.Cancel = true;
         try
         {
-            await _activationCoordinator.RequestCloseAsync(
-                async () =>
-                {
-                    var shutdownAsync = _shutdownAsync
-                        ?? throw new InvalidOperationException("应用关闭回调尚未配置。");
-                    // Once the guard approves process exit, final cleanup must not be
-                    // abandoned by a page or window lifetime cancellation.
-                    await shutdownAsync(CancellationToken.None).ConfigureAwait(true);
-                    await Dispatcher.InvokeAsync(Close);
-                }).ConfigureAwait(true);
+            var requestCloseAsync = _requestCloseAsync
+                ?? throw new InvalidOperationException("桌面生命周期回调尚未配置。");
+            await requestCloseAsync(_activationCoordinator.LifetimeToken).ConfigureAwait(true);
         }
         catch (OperationCanceledException) when (
             _activationCoordinator.LifetimeToken.IsCancellationRequested ||
@@ -208,6 +205,19 @@ public partial class MainWindow : FluentWindow
         catch (Exception exception)
         {
             _feedbackService.ShowProjectedNotification("打开正在播放失败", _feedbackService.Project(exception));
+        }
+    }
+
+    private void ActiveCacheNavigationItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (_activationCoordinator.IsShutdownRequested)
+        {
+            return;
+        }
+
+        if (_viewModel.ActiveCache.ToggleFlyoutCommand.CanExecute(null))
+        {
+            _viewModel.ActiveCache.ToggleFlyoutCommand.Execute(null);
         }
     }
 

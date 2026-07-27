@@ -85,6 +85,10 @@ public sealed class TtsExecutionService : IHttpTtsClient
             {
                 return Failure(TtsErrorKind.Cancelled, "已取消当前 HTTP TTS 请求。");
             }
+            catch (OperationCanceledException) when (response.IsReadTimedOut)
+            {
+                return Failure(TtsErrorKind.Timeout, "请求超时，请稍后重试。");
+            }
             catch (Exception)
             {
                 return Failure(TtsErrorKind.Unknown, "HTTP TTS 执行失败，请稍后重试。");

@@ -3,10 +3,28 @@ using NovelSpeaker.Application.Books.ChapterRules;
 using NovelSpeaker.Domain.Books;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Books;
+namespace NovelSpeaker.Application.UnitTests.Books;
 
 public sealed class ChapterRuleWorkspaceServiceTests
 {
+    [Fact]
+    public async Task GetRulesAsync_projects_delete_capability_without_changing_list_identity()
+    {
+        var service = new ChapterRuleWorkspaceService(
+            new FakeChapterRuleRepository(
+            [
+                new ChapterRule("builtin:chapter-number", "默认规则", @"^默认$", 10, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
+                new ChapterRule("custom:one", "自定义规则", @"^自定义$", 20, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
+            ]),
+            new FakeChapterRuleManagementService(),
+            TimeProvider.System);
+
+        var rules = await service.GetRulesAsync(CancellationToken.None);
+
+        Assert.False(rules.Single(rule => rule.Id == "builtin:chapter-number").CanDelete);
+        Assert.True(rules.Single(rule => rule.Id == "custom:one").CanDelete);
+    }
+
     [Fact]
     public async Task SaveEditorAsync_deduplicates_rule_names_for_new_rules()
     {

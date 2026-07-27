@@ -3,7 +3,7 @@ using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.Domain.Settings;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Theming;
+namespace NovelSpeaker.App.PresentationTests.Theming;
 
 public sealed class ThemePreferenceServiceTests
 {

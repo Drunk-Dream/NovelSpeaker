@@ -59,7 +59,10 @@ public sealed class BookLibraryQuery : IBookLibraryQuery
         var books = new List<BookSummary>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            books.Add(MapSummary(reader));
+            if (TryMapSummary(reader, out var summary))
+            {
+                books.Add(summary);
+            }
         }
 
         return books;
@@ -127,27 +130,52 @@ public sealed class BookLibraryQuery : IBookLibraryQuery
             chapters);
     }
 
-    private static BookSummary MapSummary(Microsoft.Data.Sqlite.SqliteDataReader reader)
+    private static bool TryMapSummary(
+        Microsoft.Data.Sqlite.SqliteDataReader reader,
+        out BookSummary summary)
     {
-        var totalChapterCount = reader.GetInt32(6);
-        var currentChapterIndex = reader.IsDBNull(7) ? (int?)null : reader.GetInt32(7);
-        var hasReadingProgress = reader.GetInt64(8) == 1 && currentChapterIndex is not null;
-        var clampedIndex = hasReadingProgress && totalChapterCount > 0
-            ? Math.Clamp(currentChapterIndex!.Value, 0, totalChapterCount - 1)
-            : (int?)null;
+        summary = null!;
+        try
+        {
+            if (!SqliteDateTimeMapper.TryParse(reader.GetString(4), out var importedAt) ||
+                (!reader.IsDBNull(5) &&
+                 !SqliteDateTimeMapper.TryParse(reader.GetString(5), out _)))
+            {
+                return false;
+            }
 
-        return new BookSummary(
-            reader.GetString(0),
-            reader.GetString(1),
-            reader.IsDBNull(2) ? null : reader.GetString(2),
-            reader.GetString(3),
-            SqliteDateTimeMapper.Parse(reader.GetString(4)),
-            reader.IsDBNull(5) ? null : SqliteDateTimeMapper.Parse(reader.GetString(5)),
-            totalChapterCount,
-            clampedIndex,
-            clampedIndex is null ? totalChapterCount : Math.Max(0, totalChapterCount - clampedIndex.Value - 1),
-            clampedIndex is null || totalChapterCount == 0 ? 0 : (double)(clampedIndex.Value + 1) / totalChapterCount,
-            hasReadingProgress);
+            var lastPlayedAt = reader.IsDBNull(5)
+                ? (DateTimeOffset?)null
+                : SqliteDateTimeMapper.Parse(reader.GetString(5));
+            var totalChapterCount = reader.GetInt32(6);
+            var currentChapterIndex = reader.IsDBNull(7) ? (int?)null : reader.GetInt32(7);
+            var hasReadingProgress = reader.GetInt64(8) == 1 && currentChapterIndex is not null;
+            var clampedIndex = hasReadingProgress && totalChapterCount > 0
+                ? Math.Clamp(currentChapterIndex!.Value, 0, totalChapterCount - 1)
+                : (int?)null;
+
+            summary = new BookSummary(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.IsDBNull(2) ? null : reader.GetString(2),
+                reader.GetString(3),
+                importedAt,
+                lastPlayedAt,
+                totalChapterCount,
+                clampedIndex,
+                clampedIndex is null ? totalChapterCount : Math.Max(0, totalChapterCount - clampedIndex.Value - 1),
+                clampedIndex is null || totalChapterCount == 0 ? 0 : (double)(clampedIndex.Value + 1) / totalChapterCount,
+                hasReadingProgress);
+            return true;
+        }
+        catch (InvalidCastException)
+        {
+            return false;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
     }
 
     private static async Task<DetailsHeader?> ReadDetailsHeaderAsync(

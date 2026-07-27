@@ -26,8 +26,11 @@ internal sealed class AudioCacheMaintenance
         _protectionRegistry = protectionRegistry;
     }
 
-    public async Task RunAsync(CancellationToken cancellationToken)
+    public async Task<bool> RunAsync(
+        CancellationToken cancellationToken,
+        Action? cacheChanged = null)
     {
+        var changed = false;
         _fileStore.DeleteResidualTemporaryFiles(cancellationToken);
 
         var entries = await _index.GetAllEntriesAsync(cancellationToken).ConfigureAwait(false);
@@ -40,23 +43,28 @@ internal sealed class AudioCacheMaintenance
             if (!_fileStore.Exists(filePath))
             {
                 await _index.RemoveAsync(entry.CacheKey, cancellationToken).ConfigureAwait(false);
+                changed = true;
+                cacheChanged?.Invoke();
             }
         }
 
         _fileStore.DeleteOrphanCacheFiles(knownPaths, cancellationToken);
-        await EnforceLimitAsync(cancellationToken).ConfigureAwait(false);
+        return await EnforceLimitAsync(cancellationToken, cacheChanged).ConfigureAwait(false) || changed;
     }
 
-    public async Task EnforceLimitAsync(CancellationToken cancellationToken)
+    public async Task<bool> EnforceLimitAsync(
+        CancellationToken cancellationToken,
+        Action? cacheChanged = null)
     {
         var limitBytes = _limitProvider.GetCurrentLimitBytes();
         var summary = await _index.GetSummaryAsync(cancellationToken).ConfigureAwait(false);
         if (summary.TotalSizeBytes <= limitBytes)
         {
-            return;
+            return false;
         }
 
         var totalSize = summary.TotalSizeBytes;
+        var changed = false;
         var entries = await _index.GetLruEntriesAsync(cancellationToken).ConfigureAwait(false);
         foreach (var entry in entries)
         {
@@ -76,8 +84,12 @@ internal sealed class AudioCacheMaintenance
             {
                 await _index.RemoveAsync(entry.CacheKey, cancellationToken).ConfigureAwait(false);
                 totalSize = Math.Max(0, totalSize - entry.FileSize);
+                changed = true;
+                cacheChanged?.Invoke();
             }
         }
+
+        return changed;
     }
 
     public long GetCurrentLimitBytes() => _limitProvider.GetCurrentLimitBytes();

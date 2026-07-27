@@ -54,6 +54,11 @@ public sealed class TemporaryAudioStore
         }
     }
 
+    internal IAsyncDisposable TransferOwnership(string path)
+    {
+        return new TemporaryAudioFileOwner(path, _fileOperations);
+    }
+
     public static void Delete(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -91,5 +96,23 @@ internal sealed class TemporaryAudioFileOperations : ITemporaryAudioFileOperatio
     public void Delete(string path)
     {
         TemporaryAudioStore.Delete(path);
+    }
+}
+
+internal sealed class TemporaryAudioFileOwner(
+    string path,
+    ITemporaryAudioFileOperations fileOperations) : IAsyncDisposable
+{
+    private string? _path = path;
+
+    public ValueTask DisposeAsync()
+    {
+        var ownedPath = Interlocked.Exchange(ref _path, null);
+        if (ownedPath is not null)
+        {
+            fileOperations.Delete(ownedPath);
+        }
+
+        return ValueTask.CompletedTask;
     }
 }

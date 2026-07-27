@@ -3,11 +3,11 @@ using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Speech.Http;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Speech;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Speech;
 
 public sealed class TtsResponseValidatorTests
 {
@@ -126,6 +126,9 @@ public sealed class TtsResponseValidatorTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             validator.ValidateAsync(CreateRequest(), response, cancellation.Token));
+
+        var temporaryDirectory = Path.Combine(directories.CacheDirectoryPath, "RuleTests");
+        Assert.Empty(Directory.EnumerateFiles(temporaryDirectory));
     }
 
     [Fact]

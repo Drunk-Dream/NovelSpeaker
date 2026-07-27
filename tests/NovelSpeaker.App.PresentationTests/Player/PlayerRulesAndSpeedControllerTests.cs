@@ -7,7 +7,7 @@ using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.Domain.Settings;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Player;
+namespace NovelSpeaker.App.PresentationTests.Player;
 
 public sealed class PlayerRulesAndSpeedControllerTests
 {

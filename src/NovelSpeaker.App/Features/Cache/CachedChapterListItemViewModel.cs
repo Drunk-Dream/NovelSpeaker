@@ -1,6 +1,8 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace NovelSpeaker.App.Features.Cache;
 
-public sealed class CachedChapterListItemViewModel
+public sealed partial class CachedChapterListItemViewModel : ObservableObject
 {
     public CachedChapterListItemViewModel(
         string bookId,
@@ -9,7 +11,10 @@ public sealed class CachedChapterListItemViewModel
         string title,
         string cacheSizeText,
         string entryCountText,
-        string completenessText)
+        string completenessText,
+        bool isExportable = false,
+        string exportAccessibilityText = "不可导出",
+        string exportToolTip = "当前章节无法导出。")
     {
         BookId = bookId;
         ChapterIndex = chapterIndex;
@@ -18,7 +23,9 @@ public sealed class CachedChapterListItemViewModel
         CacheSizeText = cacheSizeText;
         EntryCountText = entryCountText;
         CompletenessText = completenessText;
-        AutomationName = $"{orderText}，{title}，{cacheSizeText}，{completenessText}";
+        IsExportable = isExportable;
+        ExportAccessibilityText = exportAccessibilityText;
+        ExportToolTip = exportToolTip;
     }
 
     public string BookId { get; }
@@ -35,5 +42,17 @@ public sealed class CachedChapterListItemViewModel
 
     public string CompletenessText { get; }
 
-    public string AutomationName { get; }
+    public bool IsExportable { get; }
+
+    public string ExportAccessibilityText { get; }
+
+    public string ExportToolTip { get; }
+
+    public string AutomationName =>
+        $"{OrderText}，{Title}，{CacheSizeText}，{CompletenessText}，{ExportAccessibilityText}" +
+        (IsSelected ? "，已选择" : string.Empty);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutomationName))]
+    private bool isSelected;
 }

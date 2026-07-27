@@ -6,6 +6,7 @@ using NovelSpeaker.App.Features.Cache;
 using NovelSpeaker.App.Features.ChapterRules;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Features.ImportTextSettings;
+using NovelSpeaker.App.Features.GeneralSettings;
 using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Features.Playback;
 using NovelSpeaker.App.Features.PlaybackSettings;
@@ -34,6 +35,7 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
             [AppRouteId.ChapterRules] = typeof(ChapterRulesPage),
             [AppRouteId.CacheAndData] = typeof(CacheAndDataPage),
             [AppRouteId.CacheManagement] = typeof(CacheManagementPage),
+            [AppRouteId.GeneralSettings] = typeof(GeneralSettingsPage),
             [AppRouteId.AppearanceSettings] = typeof(AppearanceSettingsPage),
             [AppRouteId.DiagnosticsAbout] = typeof(DiagnosticsAboutPage)
         };
@@ -278,6 +280,7 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
             or AppRouteId.ChapterRules
             or AppRouteId.CacheAndData
             or AppRouteId.CacheManagement
+            or AppRouteId.GeneralSettings
             or AppRouteId.AppearanceSettings
             or AppRouteId.DiagnosticsAbout;
     }

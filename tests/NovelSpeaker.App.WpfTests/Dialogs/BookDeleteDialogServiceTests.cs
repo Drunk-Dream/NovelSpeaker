@@ -3,7 +3,7 @@ using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Dialogs;
+namespace NovelSpeaker.App.WpfTests.Dialogs;
 
 [Collection("WpfDispatcher")]
 public sealed class BookDeleteDialogServiceTests
@@ -57,6 +57,7 @@ public sealed class BookDeleteDialogServiceTests
         {
             var stackPanel = Assert.IsType<StackPanel>(dialog.Content);
             var deleteCacheCheckBox = Assert.IsType<CheckBox>(stackPanel.Children[3]);
+            Assert.Equal("同时清理音频缓存", deleteCacheCheckBox.Content);
             deleteCacheCheckBox.IsChecked = false;
 
             return Task.Run(() => NextResult, cancellationToken);

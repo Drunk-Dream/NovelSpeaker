@@ -8,4 +8,7 @@ public sealed record TtsRuleSummary(
     string Name,
     bool IsEnabled,
     bool IsSelected,
-    DateTimeOffset? LastUsedAt);
+    DateTimeOffset? LastUsedAt)
+{
+    public string RequestSummary { get; init; } = string.Empty;
+}

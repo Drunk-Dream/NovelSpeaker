@@ -14,7 +14,12 @@ public sealed record AppSettings(
     string Theme = "System",
     string? BookFileNameTemplate = "{{name}} 作者：{{author}}",
     long CacheLimitBytes = 2L * 1024 * 1024 * 1024,
-    long? SelectedTtsRuleId = null)
+    long? SelectedTtsRuleId = null,
+    MainWindowCloseBehavior MainWindowCloseBehavior = MainWindowCloseBehavior.MinimizeToTray,
+    bool StartMinimizedToTray = false,
+    double? MiniPlayerLeft = null,
+    double? MiniPlayerTop = null,
+    bool MiniPlayerTopmost = false)
 {
     public const int MinSpeakSpeed = 1;
     public const int MaxSpeakSpeed = 20;
@@ -42,7 +47,12 @@ public sealed record AppSettings(
             DefaultTheme,
             DefaultBookFileNameTemplate,
             DefaultCacheLimitBytes,
-            null);
+            null,
+            MainWindowCloseBehavior.MinimizeToTray,
+            false,
+            null,
+            null,
+            false);
 
     public TextSegmentationOptions ToTextSegmentationOptions()
     {
@@ -80,7 +90,12 @@ public sealed record AppSettings(
             LogLevel = NormalizeOption(LogLevel, SupportedLogLevels, DefaultLogLevel),
             Theme = NormalizeOption(Theme, SupportedThemes, DefaultTheme),
             BookFileNameTemplate = NormalizeFileNameTemplate(BookFileNameTemplate),
-            CacheLimitBytes = NormalizeCacheLimitBytes(CacheLimitBytes)
+            CacheLimitBytes = NormalizeCacheLimitBytes(CacheLimitBytes),
+            MainWindowCloseBehavior = Enum.IsDefined(MainWindowCloseBehavior)
+                ? MainWindowCloseBehavior
+                : MainWindowCloseBehavior.MinimizeToTray,
+            MiniPlayerLeft = NormalizeCoordinate(MiniPlayerLeft),
+            MiniPlayerTop = NormalizeCoordinate(MiniPlayerTop)
         };
     }
 
@@ -121,4 +136,9 @@ public sealed record AppSettings(
 
         return defaultValue;
     }
+
+    private static double? NormalizeCoordinate(double? value) =>
+        value is { } coordinate && double.IsFinite(coordinate)
+            ? coordinate
+            : null;
 }

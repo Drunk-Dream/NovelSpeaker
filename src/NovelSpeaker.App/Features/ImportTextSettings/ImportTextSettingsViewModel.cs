@@ -61,9 +61,16 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
         }
     }
 
-    public async Task CommitBookFileNameTemplateAsync(CancellationToken cancellationToken)
+    public override void Deactivate()
     {
         CancelPendingSave(ref _templateDebounceCts);
+        CancelPendingSave(ref _thresholdDebounceCts);
+        base.Deactivate();
+    }
+
+    public async Task CommitBookFileNameTemplateAsync(CancellationToken cancellationToken)
+    {
+        CompleteOrCancelPendingSave(ref _templateDebounceCts, cancellationToken);
         var version = Interlocked.Increment(ref _templateVersion);
 
         try
@@ -75,6 +82,7 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
                 },
                 cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             if (version != Volatile.Read(ref _templateVersion))
             {
                 return;
@@ -87,7 +95,8 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
         }
         catch (Exception exception)
         {
-            if (version == Volatile.Read(ref _templateVersion))
+            if (!cancellationToken.IsCancellationRequested &&
+                version == Volatile.Read(ref _templateVersion))
             {
                 ShowSaveFailure("保存文件名模板失败", exception);
             }
@@ -102,7 +111,7 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
 
     public async Task CommitLongParagraphThresholdAsync(CancellationToken cancellationToken)
     {
-        CancelPendingSave(ref _thresholdDebounceCts);
+        CompleteOrCancelPendingSave(ref _thresholdDebounceCts, cancellationToken);
         var version = Interlocked.Increment(ref _thresholdVersion);
 
         if (!int.TryParse(LongParagraphThresholdText, out var parsedThreshold))
@@ -120,6 +129,7 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
                 },
                 cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             if (version != Volatile.Read(ref _thresholdVersion))
             {
                 return;
@@ -133,7 +143,8 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
         }
         catch (Exception exception)
         {
-            if (version == Volatile.Read(ref _thresholdVersion))
+            if (!cancellationToken.IsCancellationRequested &&
+                version == Volatile.Read(ref _thresholdVersion))
             {
                 ShowSaveFailure("保存长段拆分阈值失败", exception);
             }
@@ -158,7 +169,9 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
         }
 
         var version = Interlocked.Increment(ref _longParagraphSplitVersion);
-        _ = SaveLongParagraphSplittingAsync(value, version);
+        RunPageOperation(
+            "保存超长段落拆分设置失败",
+            cancellationToken => SaveLongParagraphSplittingAsync(value, version, cancellationToken));
     }
 
     partial void OnLongParagraphThresholdTextChanged(string value)
@@ -171,7 +184,10 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
         ScheduleDebouncedCommit(ref _thresholdDebounceCts, ct => CommitLongParagraphThresholdAsync(ct));
     }
 
-    private async Task SaveLongParagraphSplittingAsync(bool value, int version)
+    private async Task SaveLongParagraphSplittingAsync(
+        bool value,
+        int version,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -180,19 +196,22 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
                 {
                     EnableLongParagraphSplitting = value
                 },
-                ActivationToken);
+                cancellationToken);
 
-            if (version != Volatile.Read(ref _longParagraphSplitVersion))
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsCurrentActivation(cancellationToken) ||
+                version != Volatile.Read(ref _longParagraphSplitVersion))
             {
                 return;
             }
         }
-        catch (OperationCanceledException) when (ActivationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
         catch (Exception exception)
         {
-            if (version == Volatile.Read(ref _longParagraphSplitVersion))
+            if (IsCurrentActivation(cancellationToken) &&
+                version == Volatile.Read(ref _longParagraphSplitVersion))
             {
                 ShowSaveFailure("保存超长段落拆分设置失败", exception);
             }
@@ -204,23 +223,44 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
         Func<CancellationToken, Task> commitAsync)
     {
         CancelPendingSave(ref cancellationTokenSource);
-        cancellationTokenSource = new CancellationTokenSource();
-        var token = cancellationTokenSource.Token;
+        CancellationTokenSource? operationCts = null;
 
-        _ = RunDebouncedCommitAsync(token, commitAsync);
+        RunPageOperation(
+            "保存文本设置失败",
+            currentActivationToken =>
+            {
+                operationCts = CancellationTokenSource.CreateLinkedTokenSource(currentActivationToken);
+                return RunDebouncedCommitAsync(
+                    operationCts,
+                    currentActivationToken,
+                    commitAsync);
+            });
+        cancellationTokenSource = operationCts;
     }
 
     private async Task RunDebouncedCommitAsync(
-        CancellationToken cancellationToken,
+        CancellationTokenSource operationCts,
+        CancellationToken activationToken,
         Func<CancellationToken, Task> commitAsync)
     {
+        var cancellationToken = operationCts.Token;
         try
         {
             await Task.Delay(TimeSpan.FromMilliseconds(DebounceDelayMilliseconds), _timeProvider, cancellationToken);
+            activationToken.ThrowIfCancellationRequested();
+            if (!IsCurrentActivation(activationToken))
+            {
+                return;
+            }
+
             await commitAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+        }
+        finally
+        {
+            operationCts.Dispose();
         }
     }
 
@@ -229,5 +269,19 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
         cancellationTokenSource?.Cancel();
         cancellationTokenSource?.Dispose();
         cancellationTokenSource = null;
+    }
+
+    private static void CompleteOrCancelPendingSave(
+        ref CancellationTokenSource? cancellationTokenSource,
+        CancellationToken commitToken)
+    {
+        if (cancellationTokenSource is not null &&
+            cancellationTokenSource.Token == commitToken)
+        {
+            cancellationTokenSource = null;
+            return;
+        }
+
+        CancelPendingSave(ref cancellationTokenSource);
     }
 }

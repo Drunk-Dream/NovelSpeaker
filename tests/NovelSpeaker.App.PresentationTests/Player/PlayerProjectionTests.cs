@@ -3,7 +3,7 @@ using NovelSpeaker.App.Features.Playback.Presentation;
 using NovelSpeaker.Domain.Books;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Player;
+namespace NovelSpeaker.App.PresentationTests.Player;
 
 public sealed class PlayerContentProjectionTests
 {

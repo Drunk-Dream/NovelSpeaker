@@ -1,7 +1,7 @@
 using NovelSpeaker.App.Shell.Navigation;
 using Wpf.Ui;
 
-namespace NovelSpeaker.UnitTests;
+namespace NovelSpeaker.TestKit.Navigation;
 
 internal interface ITestNavigationService : INavigationService, IAppNavigator
 {

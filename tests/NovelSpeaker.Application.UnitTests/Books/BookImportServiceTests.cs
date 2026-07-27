@@ -3,9 +3,10 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.Import;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.TestKit.Common;
 using Xunit;
 
-namespace NovelSpeaker.ApplicationTests.Books.Import;
+namespace NovelSpeaker.Application.UnitTests.Books;
 
 public sealed class BookImportServiceTests
 {
@@ -296,11 +297,6 @@ public sealed class BookImportServiceTests
             BookImportRequest request,
             IProgress<BookImportProgress>? progress,
             CancellationToken cancellationToken) => throw new DecoderFallbackException();
-    }
-
-    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 
     private sealed class SequenceBookImportIdGenerator(params string[] ids) : IBookImportIdGenerator

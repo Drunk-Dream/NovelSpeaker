@@ -61,6 +61,7 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
         try
         {
             var snapshot = await _diagnosticsService.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             var settings = _settingsService.Current;
 
             AppName = snapshot.AppName;
@@ -73,7 +74,10 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
         }
         finally
         {
-            _isLoading = false;
+            if (IsCurrentActivation(cancellationToken))
+            {
+                _isLoading = false;
+            }
         }
     }
 
@@ -135,10 +139,15 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
         }
 
         var version = Interlocked.Increment(ref _logLevelVersion);
-        _ = SaveLogLevelAsync(value, version);
+        RunPageOperation(
+            "保存日志级别失败",
+            cancellationToken => SaveLogLevelAsync(value, version, cancellationToken));
     }
 
-    private async Task SaveLogLevelAsync(string value, int version)
+    private async Task SaveLogLevelAsync(
+        string value,
+        int version,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -147,9 +156,11 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
                 {
                     LogLevel = value
                 },
-                ActivationToken).ConfigureAwait(false);
+                cancellationToken).ConfigureAwait(false);
 
-            if (version != Volatile.Read(ref _logLevelVersion))
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsCurrentActivation(cancellationToken) ||
+                version != Volatile.Read(ref _logLevelVersion))
             {
                 return;
             }
@@ -159,12 +170,13 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
                 SelectedLogLevel = settings.LogLevel;
             }
         }
-        catch (OperationCanceledException) when (ActivationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
         catch (Exception exception)
         {
-            if (version == Volatile.Read(ref _logLevelVersion))
+            if (IsCurrentActivation(cancellationToken) &&
+                version == Volatile.Read(ref _logLevelVersion))
             {
                 ShowSaveFailure("保存日志级别失败", exception);
             }

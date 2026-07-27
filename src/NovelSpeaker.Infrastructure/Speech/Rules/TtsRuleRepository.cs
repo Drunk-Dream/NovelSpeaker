@@ -47,7 +47,10 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
         var items = new List<HttpTtsRule>();
         while (await reader.ReadAsync(cancellationToken))
         {
-            items.Add(ReadRule(reader));
+            if (TryReadRule(reader, out var rule))
+            {
+                items.Add(rule);
+            }
         }
 
         return items;
@@ -77,8 +80,9 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
         command.Parameters.AddWithValue("$id", ruleId);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        return await reader.ReadAsync(cancellationToken)
-            ? ReadRule(reader)
+        return await reader.ReadAsync(cancellationToken) &&
+               TryReadRule(reader, out var rule)
+            ? rule
             : null;
     }
 
@@ -170,21 +174,33 @@ public sealed class TtsRuleRepository : ITtsRuleRepository
         command.Parameters.AddWithValue("$updatedAt", row.UpdatedAt);
     }
 
-    private static HttpTtsRule ReadRule(SqliteDataReader reader)
+    private static bool TryReadRule(SqliteDataReader reader, out HttpTtsRule rule)
     {
-        var row = new TtsRuleRow(
-            reader.GetInt64(0),
-            reader.GetString(1),
-            reader.GetString(2),
-            reader.IsDBNull(3) ? null : reader.GetString(3),
-            reader.IsDBNull(4) ? null : reader.GetString(4),
-            reader.IsDBNull(5) ? null : reader.GetString(5),
-            reader.IsDBNull(6) ? null : reader.GetString(6),
-            reader.IsDBNull(7) ? null : reader.GetInt64(7),
-            reader.GetInt64(8) == 1,
-            reader.IsDBNull(9) ? null : reader.GetString(9),
-            reader.GetString(10),
-            reader.GetString(11));
-        return TtsRulePersistenceMapper.ToDomain(row);
+        rule = null!;
+        try
+        {
+            var row = new TtsRuleRow(
+                reader.GetInt64(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.IsDBNull(4) ? null : reader.GetString(4),
+                reader.IsDBNull(5) ? null : reader.GetString(5),
+                reader.IsDBNull(6) ? null : reader.GetString(6),
+                reader.IsDBNull(7) ? null : reader.GetInt64(7),
+                reader.GetInt64(8) == 1,
+                reader.IsDBNull(9) ? null : reader.GetString(9),
+                reader.GetString(10),
+                reader.GetString(11));
+            return TtsRulePersistenceMapper.TryToDomain(row, out rule);
+        }
+        catch (InvalidCastException)
+        {
+            return false;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
     }
 }

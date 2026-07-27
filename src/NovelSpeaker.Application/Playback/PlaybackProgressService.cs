@@ -1,14 +1,5 @@
 namespace NovelSpeaker.Application.Playback;
 
-internal enum PlaybackProgressSaveReason
-{
-    SegmentCompleted,
-    Pause,
-    Stop,
-    SessionReplaced,
-    ApplicationExit
-}
-
 /// <summary>
 /// Owns progress persistence semantics, including character-offset mapping and save timing.
 /// </summary>
@@ -29,13 +20,11 @@ internal sealed class PlaybackProgressService
 
     public Task SaveAsync(
         PlaybackSessionState session,
-        PlaybackProgressSaveReason reason,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);
         cancellationToken.ThrowIfCancellationRequested();
 
-        _ = reason;
         var chapter = session.Book.Chapters.FirstOrDefault(
             candidate => candidate.ChapterIndex == session.ChapterIndex);
         var characterOffset = chapter is not null &&

@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using NovelSpeaker.App.Shared.Theming;
 
 namespace NovelSpeaker.App.Features.Settings;
 

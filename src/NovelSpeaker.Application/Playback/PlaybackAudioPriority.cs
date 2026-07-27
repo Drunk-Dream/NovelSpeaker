@@ -5,6 +5,7 @@ namespace NovelSpeaker.Application.Playback;
 /// </summary>
 public enum PlaybackAudioPriority
 {
-    Current = 0,
-    Prefetch = 1
+    ActiveCache = 0,
+    Prefetch = 1,
+    Current = 2
 }

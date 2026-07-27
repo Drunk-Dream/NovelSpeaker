@@ -1,8 +1,8 @@
 using NovelSpeaker.App.Features.Playback.Scrolling;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Player;
+namespace NovelSpeaker.App.PresentationTests;
 
 public sealed class PlayerAutoScrollCoordinatorTests
 {

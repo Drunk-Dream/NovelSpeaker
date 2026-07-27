@@ -1,10 +1,12 @@
 using NAudio.Wave;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.TestKit.Audio;
 
 internal sealed class FakeWavePlayer : IWavePlayer
 {
     private EventHandler<StoppedEventArgs>? _playbackStopped;
+
+    public bool IsDisposed { get; private set; }
 
     public PlaybackState PlaybackState { get; private set; } = PlaybackState.Stopped;
 
@@ -64,5 +66,6 @@ internal sealed class FakeWavePlayer : IWavePlayer
 
     public void Dispose()
     {
+        IsDisposed = true;
     }
 }

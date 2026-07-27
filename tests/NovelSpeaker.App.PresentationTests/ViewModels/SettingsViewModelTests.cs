@@ -1,9 +1,10 @@
 using NovelSpeaker.App.Features.Settings;
+using NovelSpeaker.App.Shared.Theming;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.ViewModels;
+namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class SettingsViewModelTests
 {
@@ -17,8 +18,10 @@ public sealed class SettingsViewModelTests
             group =>
             {
                 Assert.Equal("常用", group.Title);
-                Assert.Equal(["播放设置", "TTS 规则"], group.Items.Select(item => item.Title));
-                Assert.Equal([SettingsNavigationIcon.Playback, SettingsNavigationIcon.TtsRules], group.Items.Select(item => item.Icon));
+                Assert.Equal(["播放设置", "TTS 规则", "常规"], group.Items.Select(item => item.Title));
+                Assert.Equal(
+                    [SettingsNavigationIcon.Playback, SettingsNavigationIcon.TtsRules, SettingsNavigationIcon.General],
+                    group.Items.Select(item => item.Icon));
             },
             group =>
             {

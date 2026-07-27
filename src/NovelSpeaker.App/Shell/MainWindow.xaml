@@ -55,6 +55,16 @@
             </ui:NavigationView.MenuItems>
 
             <ui:NavigationView.FooterMenuItems>
+                <ui:NavigationViewItem x:Name="ActiveCacheNavigationItem"
+                                       Content="{Binding ActiveCache.CompactStatusText}"
+                                       Click="ActiveCacheNavigationItem_OnClick"
+                                       ToolTip="查看主动缓存进度"
+                                       AutomationProperties.Name="{Binding ActiveCache.CompactStatusText}"
+                                       Visibility="{Binding ActiveCache.IsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="ArrowDownload24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
                 <ui:NavigationViewItem x:Name="PlaybackNavigationItem"
                                        Click="PlaybackNavigationItem_OnClick"
                                        Visibility="{Binding IsNowPlayingVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -88,6 +98,93 @@
                 </ui:NavigationViewItem>
             </ui:NavigationView.FooterMenuItems>
         </ui:NavigationView>
+
+        <Popup x:Name="ActiveCacheFlyout"
+               PlacementTarget="{Binding ElementName=ActiveCacheNavigationItem}"
+               Placement="Right"
+               HorizontalOffset="8"
+               AllowsTransparency="True"
+               StaysOpen="False"
+               IsOpen="{Binding ActiveCache.IsFlyoutOpen, Mode=TwoWay}">
+            <Border Width="360"
+                    Padding="{StaticResource CardPaddingLarge}"
+                    Style="{StaticResource PopupSurfaceBorderStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                               Text="{Binding ActiveCache.BatchStatusText}" />
+                    <TextBlock Margin="0,4,0,0"
+                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Text="{Binding ActiveCache.BookTitle}"
+                               TextTrimming="CharacterEllipsis" />
+
+                    <ListBox x:Name="ActiveCacheChapterList"
+                             MaxHeight="300"
+                             Margin="0,16,0,0"
+                             ItemsSource="{Binding ActiveCache.Chapters}"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="IsHitTestVisible" Value="False" />
+                                <Setter Property="Focusable" Value="False" />
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="Margin" Value="0,0,0,4" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="10,8"
+                                        CornerRadius="8">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsFailed}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBackgroundBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
+                                                   Text="{Binding Title}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="1"
+                                                   Margin="12,0,0,0"
+                                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                                   Text="{Binding StatusText}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <TextBlock Margin="0,12,0,0"
+                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Text="{Binding ActiveCache.TotalSegmentProgressText}" />
+                    <Button x:Name="CancelActiveCacheButton"
+                            Margin="0,16,0,0"
+                            HorizontalAlignment="Right"
+                            Padding="12,7"
+                            Command="{Binding ActiveCache.CancelCommand}"
+                            Content="取消任务"
+                            ToolTip="取消主动缓存任务"
+                            AutomationProperties.Name="取消主动缓存任务" />
+                </StackPanel>
+            </Border>
+        </Popup>
 
         <ui:ContentDialogHost x:Name="RootContentDialogHost"
                               Grid.RowSpan="2"

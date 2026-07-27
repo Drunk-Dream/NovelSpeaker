@@ -1,6 +1,6 @@
 using NovelSpeaker.Application.Playback;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.Application.UnitTests;
 
 internal sealed class FakeAudioPlayer : IAudioPlayer
 {

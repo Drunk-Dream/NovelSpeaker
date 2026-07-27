@@ -8,7 +8,7 @@ using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 [Collection("WpfDispatcher")]
 public sealed partial class TtsRulesPageTests
@@ -74,12 +74,110 @@ public sealed partial class TtsRulesPageTests
             view.Arrange(new Rect(0, 0, 960, 680));
             view.UpdateLayout();
 
-            var button = FindDescendant<Button>(
+            var button = VisualTreeTestHelper.FindDescendant<Button>(
                 view,
                 candidate => AutomationProperties.GetName(candidate) == targetRule.AutomationName);
 
             Assert.NotNull(button);
             Assert.Equal("当前规则，已禁用，当前规则，已选中", AutomationProperties.GetName(button!));
+        });
+    }
+
+    [Fact]
+    public void TtsRulesPage_card_contains_summary_enabled_current_and_more_actions()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var rule = new TtsRuleListItemViewModel(
+                2,
+                "备用规则",
+                "POST · https://speech.example.com",
+                true,
+                false,
+                true);
+            var view = new TtsRulesPage
+            {
+                DataContext = new TtsRulesViewLayoutContext
+                {
+                    HasEditor = true,
+                    Rules = [rule]
+                }
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            Assert.NotNull(VisualTreeTestHelper.FindDescendant<TextBlock>(
+                view,
+                candidate => candidate.Text == rule.RequestSummary));
+            Assert.NotNull(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => AutomationProperties.GetName(candidate) == "切换规则启用状态：备用规则"));
+            Assert.NotNull(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => Equals(candidate.Content, "设为当前")));
+            var moreButton = VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => AutomationProperties.GetName(candidate) == "更多操作：备用规则");
+            Assert.NotNull(moreButton);
+            Assert.Equal(
+                ["导出", "删除"],
+                moreButton!.ContextMenu!.Items
+                    .Cast<MenuItem>()
+                    .Select(item => (string)item.Header)
+                    .ToArray());
+        });
+    }
+
+    [Fact]
+    public void TtsRulesPage_right_editor_keeps_only_audition_cancel_and_save_actions()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new TtsRulesPage
+            {
+                DataContext = new TtsRulesViewLayoutContext
+                {
+                    HasEditor = true,
+                    CanSaveDraft = false,
+                    CanCancelEditing = false,
+                    Rules =
+                    [
+                        new TtsRuleListItemViewModel(
+                            1,
+                            "规则一",
+                            "GET · https://example.com",
+                            true,
+                            true,
+                            true)
+                    ]
+                }
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var audition = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
+                view,
+                candidate => Equals(candidate.Content, "试听")));
+            var cancel = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
+                view,
+                candidate => Equals(candidate.Content, "取消")));
+            var save = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
+                view,
+                candidate => Equals(candidate.Content, "保存")));
+
+            Assert.True(audition.IsEnabled);
+            Assert.False(cancel.IsEnabled);
+            Assert.False(save.IsEnabled);
+            Assert.Null(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => Equals(candidate.Content, "导出")));
+            Assert.Null(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => Equals(candidate.Content, "删除")));
         });
     }
 
@@ -105,10 +203,12 @@ public sealed partial class TtsRulesPageTests
 
     private static void AssertToolbarIcon(TtsRulesPage view, string automationName, SymbolRegular expectedSymbol)
     {
-        var button = Assert.Single(FindDescendants<Button>(
+        var button = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
             view,
             candidate => AutomationProperties.GetName(candidate) == automationName));
-        Assert.Equal(expectedSymbol, Assert.IsType<SymbolIcon>(FindDescendant<SymbolIcon>(button, static _ => true)).Symbol);
+        Assert.Equal(
+            expectedSymbol,
+            Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(button)).Symbol);
         Assert.Equal(automationName, button.ToolTip);
     }
 
@@ -162,7 +262,7 @@ public sealed partial class TtsRulesPageTests
             view.Arrange(new Rect(0, 0, 1000, 700));
             view.UpdateLayout();
 
-            var helpTexts = FindDescendants<TextBlock>(view, _ => true)
+            var helpTexts = VisualTreeTestHelper.FindDescendants<TextBlock>(view)
                 .Select(textBlock => textBlock.Text)
                 .ToHashSet(StringComparer.Ordinal);
 
@@ -218,13 +318,13 @@ public sealed partial class TtsRulesPageTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            Assert.Null(FindDescendant<TextBlock>(view, candidate => candidate.Text == "LoginInfo"));
-            Assert.Null(FindDescendant<Expander>(view, candidate => Equals(candidate.Header, "高级设置")));
-            Assert.Null(FindDescendant<TextBlock>(view, candidate => candidate.Text == "请求预览与结果"));
-            Assert.Null(FindDescendant<Button>(view, candidate => Equals(candidate.Content, "生成预览")));
-            Assert.Null(FindDescendant<Button>(view, candidate => Equals(candidate.Content, "取消试听")));
-            Assert.Null(FindDescendant<Button>(view, candidate => Equals(candidate.Content, "清除 Cookie")));
-            Assert.Null(FindDescendant<TextBlock>(view, candidate => candidate.Text == "超时 (ms)"));
+            Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(view, candidate => candidate.Text == "LoginInfo"));
+            Assert.Null(VisualTreeTestHelper.FindDescendant<Expander>(view, candidate => Equals(candidate.Header, "高级设置")));
+            Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(view, candidate => candidate.Text == "请求预览与结果"));
+            Assert.Null(VisualTreeTestHelper.FindDescendant<Button>(view, candidate => Equals(candidate.Content, "生成预览")));
+            Assert.Null(VisualTreeTestHelper.FindDescendant<Button>(view, candidate => Equals(candidate.Content, "取消试听")));
+            Assert.Null(VisualTreeTestHelper.FindDescendant<Button>(view, candidate => Equals(candidate.Content, "清除 Cookie")));
+            Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(view, candidate => candidate.Text == "超时 (ms)"));
         });
     }
 
@@ -246,7 +346,7 @@ public sealed partial class TtsRulesPageTests
             getView.Arrange(new Rect(0, 0, 1280, 760));
             getView.UpdateLayout();
 
-            var hiddenRequestBodyLabel = FindDescendant<TextBlock>(getView, candidate => candidate.Text == "请求体");
+            var hiddenRequestBodyLabel = VisualTreeTestHelper.FindDescendant<TextBlock>(getView, candidate => candidate.Text == "请求体");
             Assert.NotNull(hiddenRequestBodyLabel);
             Assert.Equal(Visibility.Collapsed, ((FrameworkElement)hiddenRequestBodyLabel!.Parent).Visibility);
 
@@ -263,7 +363,7 @@ public sealed partial class TtsRulesPageTests
             postView.Arrange(new Rect(0, 0, 1280, 760));
             postView.UpdateLayout();
 
-            var visibleRequestBodyLabel = FindDescendant<TextBlock>(postView, candidate => candidate.Text == "请求体");
+            var visibleRequestBodyLabel = VisualTreeTestHelper.FindDescendant<TextBlock>(postView, candidate => candidate.Text == "请求体");
             Assert.NotNull(visibleRequestBodyLabel);
             Assert.Equal(Visibility.Visible, ((FrameworkElement)visibleRequestBodyLabel!.Parent).Visibility);
         });
@@ -287,51 +387,12 @@ public sealed partial class TtsRulesPageTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var tooltipTextBox = FindDescendant<TextBox>(
+            var tooltipTextBox = VisualTreeTestHelper.FindDescendant<TextBox>(
                 view,
                 candidate => Equals(candidate.ToolTip, "格式：次数/毫秒，例如 2/1000"));
 
             Assert.NotNull(tooltipTextBox);
         });
-    }
-
-    private static T? FindDescendant<T>(DependencyObject root, Func<T, bool> predicate)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typed && predicate(typed))
-            {
-                return typed;
-            }
-
-            var descendant = FindDescendant(child, predicate);
-            if (descendant is not null)
-            {
-                return descendant;
-            }
-        }
-
-        return null;
-    }
-
-    private static IEnumerable<T> FindDescendants<T>(DependencyObject root, Func<T, bool> predicate)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typed && predicate(typed))
-            {
-                yield return typed;
-            }
-
-            foreach (var descendant in FindDescendants(child, predicate))
-            {
-                yield return descendant;
-            }
-        }
     }
 
     private sealed partial class TtsRulesViewLayoutContext : ObservableObject
@@ -368,9 +429,9 @@ public sealed partial class TtsRulesPageTests
 
         public string DraftConcurrentRate { get; init; } = "2/1000";
 
-        public bool CanSaveDraft => true;
+        public bool CanSaveDraft { get; init; }
 
-        public bool CanCancelEditing => true;
+        public bool CanCancelEditing { get; init; }
 
         public bool CanDeleteCurrentRule => true;
 

@@ -4,7 +4,7 @@ using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Feedback;
+namespace NovelSpeaker.App.WpfTests.Feedback;
 
 [Collection("WpfDispatcher")]
 public sealed class FeedbackServicesTests

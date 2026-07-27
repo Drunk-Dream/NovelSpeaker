@@ -5,10 +5,11 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Playback;
-using NovelSpeaker.UnitTests.Speech;
+using NovelSpeaker.TestKit.Common;
+using NovelSpeaker.TestKit.Speech;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed partial class PlaybackCoordinatorTests
 {
@@ -66,6 +67,77 @@ public sealed partial class PlaybackCoordinatorTests
 
         await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Stopped);
         Assert.Equal("全书播放完成。", coordinator.CurrentSnapshot.Message);
+    }
+
+    [Fact]
+    public async Task Replacing_playback_session_prevents_old_duration_from_pausing_new_session()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            timeProvider: timeProvider);
+        var timer = (IPlaybackStopTimer)coordinator;
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        timer.ScheduleAfter(TimeSpan.FromMinutes(15));
+        await coordinator.JumpToSegmentAsync(0, 1, CancellationToken.None);
+
+        timeProvider.Advance(TimeSpan.FromHours(1));
+
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(PlaybackStopTimerMode.None, timer.CurrentSnapshot.Mode);
+    }
+
+    [Fact]
+    public async Task Duration_timer_uses_fake_time_and_only_pauses_the_current_session()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            timeProvider: timeProvider);
+        var timer = (IPlaybackStopTimer)coordinator;
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        timer.ScheduleAfter(TimeSpan.FromMinutes(30));
+
+        timeProvider.Advance(TimeSpan.FromMinutes(30));
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Paused);
+
+        Assert.Equal(1, localCoordinator.PauseCallCount);
+        Assert.Equal(0, localCoordinator.StopCallCount);
+        Assert.Equal(PlaybackStopTimerMode.None, timer.CurrentSnapshot.Mode);
+    }
+
+    [Fact]
+    public async Task Duration_pause_failure_publishes_only_safe_timer_message()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var progressStore = new FakeReadingProgressStore
+        {
+            SaveFailure = new InvalidOperationException("private-progress-detail")
+        };
+        var coordinator = CreateCoordinator(
+            localCoordinator,
+            readingProgressStore: progressStore,
+            timeProvider: timeProvider);
+        var timer = (IPlaybackStopTimer)coordinator;
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        timer.ScheduleAfter(TimeSpan.FromMinutes(15));
+        timeProvider.Advance(TimeSpan.FromMinutes(15));
+
+        await WaitForAsync(
+            coordinator,
+            () => coordinator.CurrentSnapshot.Message == "定时停止执行失败，请重新设置。");
+
+        Assert.DoesNotContain("private-progress-detail", coordinator.CurrentSnapshot.Message, StringComparison.Ordinal);
+
+        progressStore.SaveFailure = null;
+        await coordinator.DisposeAsync();
     }
 
     [Theory]

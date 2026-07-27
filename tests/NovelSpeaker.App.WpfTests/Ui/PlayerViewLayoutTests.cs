@@ -26,11 +26,122 @@ using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 [Collection("WpfDispatcher")]
 public sealed partial class PlayerViewTests
 {
+    [Fact]
+    public void PlayerView_highlights_every_active_cache_selection_and_replaces_current_badge_with_percentage()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>
+            {
+                new(0, "第一章")
+                {
+                    IsCurrent = true,
+                    IsSelectedForActiveCache = true,
+                    CachePercentageText = "25%"
+                },
+                new(1, "第二章")
+                {
+                    IsSelectedForActiveCache = true,
+                    CachePercentageText = "50%"
+                },
+                new(2, "第三章")
+            };
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(
+                    chapters,
+                    new ObservableCollection<PlayerSegmentItemViewModel>
+                    {
+                        new(0, 0, "第一段")
+                    },
+                    isActiveCacheSelectionMode: true)
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var listBox = Assert.IsType<ListBox>(view.FindName("WideChaptersListBox"));
+            var firstItem = Assert.IsType<ListBoxItem>(listBox.ItemContainerGenerator.ContainerFromIndex(0));
+            var secondItem = Assert.IsType<ListBoxItem>(listBox.ItemContainerGenerator.ContainerFromIndex(1));
+            var thirdItem = Assert.IsType<ListBoxItem>(listBox.ItemContainerGenerator.ContainerFromIndex(2));
+            var firstCard = FindChapterCard(firstItem);
+            var secondCard = FindChapterCard(secondItem);
+            var thirdCard = FindChapterCard(thirdItem);
+            var firstButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(firstItem));
+            var secondButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(secondItem));
+            var currentAccent = VisualTreeTestHelper.FindDescendant<Border>(
+                firstItem,
+                static border => Grid.GetColumn(border) == 0 &&
+                                 border.Child is null &&
+                                 border.Opacity == 1);
+
+            Assert.NotEqual(Brushes.Transparent, firstCard.Background);
+            Assert.NotEqual(Brushes.Transparent, secondCard.Background);
+            Assert.NotEqual(Brushes.Transparent, firstCard.BorderBrush);
+            Assert.NotEqual(Brushes.Transparent, secondCard.BorderBrush);
+            Assert.Equal(Brushes.Transparent, thirdCard.Background);
+            Assert.Equal(Brushes.Transparent, thirdCard.BorderBrush);
+            Assert.NotNull(currentAccent);
+            Assert.Null(FindVisibleDescendantByText(listBox, "当前"));
+            Assert.NotNull(FindVisibleDescendantByText(firstItem, "25%"));
+            Assert.NotNull(FindVisibleDescendantByText(secondItem, "50%"));
+            Assert.Contains("当前章节", AutomationProperties.GetName(firstButton), StringComparison.Ordinal);
+            Assert.Contains("已选择缓存", AutomationProperties.GetName(firstButton), StringComparison.Ordinal);
+            Assert.Contains("缓存进度 25%", AutomationProperties.GetName(firstButton), StringComparison.Ordinal);
+            Assert.Contains("已选择缓存", AutomationProperties.GetName(secondButton), StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void PlayerView_exposes_active_cache_tool_and_selection_actions_with_automation_names()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>
+            {
+                new(0, "第一章") { IsSelectedForActiveCache = true },
+                new(1, "第二章") { IsSelectedForActiveCache = true }
+            };
+            var segments = new ObservableCollection<PlayerSegmentItemViewModel>
+            {
+                new(0, 0, "第一段")
+            };
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(
+                    chapters,
+                    segments,
+                    isActiveCacheSelectionMode: true,
+                    canStartActiveCache: false,
+                    activeCacheStatusText: "已有主动缓存批次正在运行，完成或取消后可开始新批次。")
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var toolButton = Assert.IsType<Button>(view.FindName("ActiveCacheToolButton"));
+            var selectionToolbar = Assert.IsType<StackPanel>(view.FindName("ActiveCacheSelectionToolbar"));
+            var cancelButton = Assert.IsType<Button>(view.FindName("CancelActiveCacheSelectionButton"));
+            var startButton = Assert.IsType<Button>(view.FindName("StartActiveCacheButton"));
+
+            Assert.Equal("主动缓存章节", toolButton.ToolTip);
+            Assert.Equal("主动缓存章节", AutomationProperties.GetName(toolButton));
+            Assert.Equal(Visibility.Visible, selectionToolbar.Visibility);
+            Assert.NotNull(FindVisibleDescendantByText(selectionToolbar, "已选择 2 章"));
+            Assert.NotNull(FindVisibleDescendantByText(selectionToolbar, "已有主动缓存批次正在运行，完成或取消后可开始新批次。"));
+            Assert.Equal("取消选择", AutomationProperties.GetName(cancelButton));
+            Assert.Equal("开始缓存", AutomationProperties.GetName(startButton));
+            Assert.False(startButton.IsEnabled);
+        });
+    }
+
     [Fact]
     public void PlayerView_keeps_catalog_and_segments_scrollable_inside_their_cards()
     {
@@ -80,6 +191,17 @@ public sealed partial class PlayerViewTests
             Assert.True(chaptersScrollViewer!.ScrollableHeight > 0);
             Assert.True(segmentsScrollViewer!.ScrollableHeight > 0);
         });
+    }
+
+    private static Border FindChapterCard(DependencyObject item)
+    {
+        return Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(
+            item,
+            static border =>
+                Grid.GetColumn(border) == 1 &&
+                border.Child is Grid &&
+                border.Padding.Left == 12 &&
+                border.Padding.Top == 8));
     }
 
     [Fact]
@@ -196,8 +318,8 @@ public sealed partial class PlayerViewTests
 
             var returnButton = Assert.IsType<Button>(view.FindName("ReturnToCurrentSegmentButton"));
             Assert.Equal(Visibility.Visible, returnButton.Visibility);
-            Assert.Equal("回到当前段", returnButton.ToolTip);
-            Assert.Equal("回到当前段", AutomationProperties.GetName(returnButton));
+            Assert.Equal("返回当前段落", returnButton.ToolTip);
+            Assert.Equal("返回当前段落", AutomationProperties.GetName(returnButton));
         });
     }
 
@@ -401,11 +523,13 @@ public sealed partial class PlayerViewTests
 
             var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(chaptersListBox));
             var itemContainer = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(0));
-            var titleText = FindDescendant<TextBlock>(
+            var titleText = VisualTreeTestHelper.FindDescendant<TextBlock>(
                 itemContainer,
                 static textBlock => textBlock.Text.StartsWith("第一章", StringComparison.Ordinal));
+            var chapterButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(itemContainer));
 
             Assert.NotNull(titleText);
+            Assert.Equal(chapters[0].Title, chapterButton.ToolTip);
             Assert.Equal(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(chaptersListBox));
             Assert.Equal(TextWrapping.NoWrap, titleText!.TextWrapping);
             Assert.Equal(TextTrimming.CharacterEllipsis, titleText.TextTrimming);
@@ -445,7 +569,7 @@ public sealed partial class PlayerViewTests
 
             var segmentListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
             var itemContainer = Assert.IsType<ListBoxItem>(segmentListBox.ItemContainerGenerator.ContainerFromIndex(0));
-            var segmentButton = Assert.IsType<Button>(FindDescendant<Button>(itemContainer, static _ => true));
+            var segmentButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(itemContainer));
 
             Assert.InRange(Math.Abs(segmentButton.ActualWidth - itemContainer.ActualWidth), 0d, 1d);
         });
@@ -482,13 +606,20 @@ public sealed partial class PlayerViewTests
             view.UpdateLayout();
 
             var ruleButton = Assert.IsType<Button>(view.FindName("RuleMenuButton"));
+            var stopTimerButton = Assert.IsType<Button>(view.FindName("StopTimerToolButton"));
             var speedButton = Assert.IsType<Button>(view.FindName("SpeedMenuButton"));
+            var stopTimerPill = Assert.IsType<Border>(view.FindName("StopTimerPillBorder"));
             var speedPill = Assert.IsType<Border>(view.FindName("SpeedMenuPillBorder"));
 
             Assert.InRange(Math.Abs(ruleButton.ActualHeight - speedButton.ActualHeight), 0d, 1d);
+            Assert.InRange(Math.Abs(stopTimerButton.ActualHeight - speedButton.ActualHeight), 0d, 1d);
+            Assert.Equal("定时停止", stopTimerButton.ToolTip);
             Assert.Equal(80d, speedPill.ActualWidth);
             Assert.Equal(40d, speedPill.ActualHeight);
             Assert.Equal(new CornerRadius(12), speedPill.CornerRadius);
+            Assert.Equal(80d, stopTimerPill.ActualWidth);
+            Assert.Equal(40d, stopTimerPill.ActualHeight);
+            Assert.Equal(new CornerRadius(12), stopTimerPill.CornerRadius);
         });
     }
 
@@ -557,6 +688,8 @@ public sealed partial class PlayerViewTests
             Assert.Equal(slider.Value, fillBar.Value);
             Assert.True(fillBar.Value > 0);
             Assert.True(fillBar.Maximum > fillBar.Value);
+            Assert.Equal("33 / 140", slider.ToolTip);
+            Assert.NotNull(slider.GetBindingExpression(FrameworkElement.ToolTipProperty));
         });
     }
 
@@ -595,17 +728,17 @@ public sealed partial class PlayerViewTests
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("PrimaryPlaybackButton")), "播放");
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("NextSegmentButton")), "下一段");
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("NextChapterButton")), "下一章");
-            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("ReturnToCurrentSegmentButton")), "回到当前段");
+            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("ReturnToCurrentSegmentButton")), "返回当前段落");
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("BackButton")), "返回");
             Assert.Null(view.FindName("SkipCurrentSegmentButton"));
 
-            var primaryIcon = Assert.IsType<SymbolIcon>(FindDescendant<SymbolIcon>(
+            var primaryIcon = Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(
                 Assert.IsType<Button>(view.FindName("PrimaryPlaybackButton")),
                 static _ => true));
-            var previousChapterIcon = Assert.IsType<SymbolIcon>(FindDescendant<SymbolIcon>(
+            var previousChapterIcon = Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(
                 Assert.IsType<Button>(view.FindName("PreviousChapterButton")),
                 static _ => true));
-            var nextChapterIcon = Assert.IsType<SymbolIcon>(FindDescendant<SymbolIcon>(
+            var nextChapterIcon = Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(
                 Assert.IsType<Button>(view.FindName("NextChapterButton")),
                 static _ => true));
 

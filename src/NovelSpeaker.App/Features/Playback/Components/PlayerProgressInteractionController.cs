@@ -1,69 +1,68 @@
 using System.Windows.Controls;
 using System.Windows.Input;
-using NovelSpeaker.App.Features.Playback.Presentation;
 
 namespace NovelSpeaker.App.Features.Playback.Components;
 
 internal sealed class PlayerProgressInteractionController
 {
-    private readonly Func<PlayerViewModel?> _getViewModel;
+    private readonly Func<ISegmentProgressInteractionTarget?> _getTarget;
     private readonly Func<CancellationToken> _getActivationToken;
     private bool _isKeyboardAdjusting;
 
     public PlayerProgressInteractionController(
-        Func<PlayerViewModel?> getViewModel,
+        Func<ISegmentProgressInteractionTarget?> getTarget,
         Func<CancellationToken> getActivationToken)
     {
-        _getViewModel = getViewModel;
+        _getTarget = getTarget;
         _getActivationToken = getActivationToken;
     }
 
     public void Preview(double value)
     {
-        var viewModel = _getViewModel();
-        if (viewModel?.IsSegmentProgressDragging == true)
+        var target = _getTarget();
+        if (target?.IsSegmentProgressDragging == true)
         {
-            viewModel.PreviewSegmentProgress(value);
+            target.PreviewSegmentProgress(value);
         }
     }
 
     public void BeginMouse(Slider slider)
     {
-        var viewModel = _getViewModel();
-        viewModel?.BeginSegmentProgressInteraction();
-        viewModel?.PreviewSegmentProgress(slider.Value);
+        var target = _getTarget();
+        target?.BeginSegmentProgressInteraction();
+        target?.PreviewSegmentProgress(slider.Value);
     }
 
     public Task CommitMouseAsync(Slider slider)
     {
-        var viewModel = _getViewModel();
-        return viewModel?.IsSegmentProgressDragging == true
-            ? viewModel.CommitSegmentProgressAsync(slider.Value, _getActivationToken())
+        var target = _getTarget();
+        return target?.IsSegmentProgressDragging == true
+            ? target.CommitSegmentProgressAsync(slider.Value, _getActivationToken())
             : Task.CompletedTask;
     }
 
     public void BeginKeyboard(Key key)
     {
-        var viewModel = _getViewModel();
-        if (viewModel is null || !IsProgressKey(key) || _isKeyboardAdjusting)
+        var target = _getTarget();
+        if (target is null || !IsProgressKey(key) || _isKeyboardAdjusting)
         {
             return;
         }
 
         _isKeyboardAdjusting = true;
-        viewModel.BeginSegmentProgressInteraction();
+        target.BeginSegmentProgressInteraction();
     }
 
     public Task CommitKeyboardAsync(Slider slider, Key key)
     {
-        var viewModel = _getViewModel();
-        if (viewModel is null || !_isKeyboardAdjusting || !IsProgressKey(key))
+        var target = _getTarget();
+        if (target is null || !_isKeyboardAdjusting || !IsProgressKey(key))
         {
             return Task.CompletedTask;
         }
 
         _isKeyboardAdjusting = false;
-        return viewModel.CommitSegmentProgressAsync(slider.Value, _getActivationToken());
+        return target.CommitSegmentProgressAsync(slider.Value, _getActivationToken());
     }
 
     private static bool IsProgressKey(Key key)

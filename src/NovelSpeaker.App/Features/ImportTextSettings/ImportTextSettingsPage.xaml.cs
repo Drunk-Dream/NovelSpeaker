@@ -7,10 +7,14 @@ namespace NovelSpeaker.App.Features.ImportTextSettings;
 public partial class ImportTextSettingsPage : System.Windows.Controls.Page, INavigationAware, INavigableView<ImportTextSettingsViewModel>
 {
     private readonly PageActivationController _activation = new();
+    private readonly PageEventOperationRunner _eventOperations;
 
-    public ImportTextSettingsPage(ImportTextSettingsViewModel viewModel)
+    public ImportTextSettingsPage(
+        ImportTextSettingsViewModel viewModel,
+        PageEventOperationRunner eventOperations)
     {
         ViewModel = viewModel;
+        _eventOperations = eventOperations;
         DataContext = ViewModel;
         InitializeComponent();
     }
@@ -20,7 +24,8 @@ public partial class ImportTextSettingsPage : System.Windows.Controls.Page, INav
     public async Task OnNavigatedToAsync()
     {
         var activation = _activation.Activate();
-        ViewModel.Activate(activation.CancellationToken);
+        ViewModel.Activate(activation);
+        activation.Register(ViewModel.Deactivate);
         try
         {
             await ViewModel.LoadAsync(activation.CancellationToken);
@@ -33,7 +38,6 @@ public partial class ImportTextSettingsPage : System.Windows.Controls.Page, INav
     public Task OnNavigatedFromAsync()
     {
         _activation.Deactivate();
-        ViewModel.Deactivate();
         return Task.CompletedTask;
     }
 
@@ -45,12 +49,18 @@ public partial class ImportTextSettingsPage : System.Windows.Controls.Page, INav
         }
 
         e.Handled = true;
-        await ViewModel.CommitBookFileNameTemplateAsync(_activation.CurrentToken);
+        await _eventOperations.RunAsync(
+            _activation,
+            "保存文件名模板失败",
+            ViewModel.CommitBookFileNameTemplateAsync);
     }
 
     private async void BookFileNameTemplateTextBox_OnLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        await ViewModel.CommitBookFileNameTemplateAsync(_activation.CurrentToken);
+        await _eventOperations.RunAsync(
+            _activation,
+            "保存文件名模板失败",
+            ViewModel.CommitBookFileNameTemplateAsync);
     }
 
     private async void LongParagraphThresholdTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -61,11 +71,17 @@ public partial class ImportTextSettingsPage : System.Windows.Controls.Page, INav
         }
 
         e.Handled = true;
-        await ViewModel.CommitLongParagraphThresholdAsync(_activation.CurrentToken);
+        await _eventOperations.RunAsync(
+            _activation,
+            "保存长段拆分阈值失败",
+            ViewModel.CommitLongParagraphThresholdAsync);
     }
 
     private async void LongParagraphThresholdTextBox_OnLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        await ViewModel.CommitLongParagraphThresholdAsync(_activation.CurrentToken);
+        await _eventOperations.RunAsync(
+            _activation,
+            "保存长段拆分阈值失败",
+            ViewModel.CommitLongParagraphThresholdAsync);
     }
 }

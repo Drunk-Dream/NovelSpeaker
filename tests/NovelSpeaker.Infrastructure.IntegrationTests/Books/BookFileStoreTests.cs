@@ -2,7 +2,7 @@ using NovelSpeaker.Infrastructure.Books.FileStorage;
 using NovelSpeaker.Infrastructure.FileSystem;
 using Xunit;
 
-namespace NovelSpeaker.InfrastructureTests.Books.Import;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Books;
 
 public sealed class BookFileStoreTests
 {

@@ -2,7 +2,7 @@ using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Settings;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Settings;
+namespace NovelSpeaker.Application.UnitTests.Settings;
 
 public sealed class AppSettingsServiceTests
 {
@@ -103,6 +103,31 @@ public sealed class AppSettingsServiceTests
 
         Assert.Equal(AppSettings.MinCacheLimitBytes, settings.CacheLimitBytes);
         Assert.Equal(AppSettings.MinCacheLimitBytes, service.GetCurrentLimitBytes());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_persists_desktop_lifecycle_preferences()
+    {
+        var store = new FakeAppSettingsStore(AppSettings.Default);
+        var service = new AppSettingsService(store, store.CurrentSettings);
+
+        var settings = await service.UpdateAsync(
+            new AppSettingsUpdate
+            {
+                MainWindowCloseBehavior = MainWindowCloseBehavior.AskEveryTime,
+                StartMinimizedToTray = true,
+                MiniPlayerLeft = 120,
+                MiniPlayerTop = 240,
+                MiniPlayerTopmost = true
+            },
+            CancellationToken.None);
+
+        Assert.Equal(MainWindowCloseBehavior.AskEveryTime, settings.MainWindowCloseBehavior);
+        Assert.True(settings.StartMinimizedToTray);
+        Assert.Equal(120, settings.MiniPlayerLeft);
+        Assert.Equal(240, settings.MiniPlayerTop);
+        Assert.True(settings.MiniPlayerTopmost);
+        Assert.Equal(settings, store.CurrentSettings);
     }
 
     [Fact]

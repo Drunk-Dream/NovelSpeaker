@@ -19,7 +19,8 @@ public partial class AppearanceSettingsPage : System.Windows.Controls.Page, INav
     public async Task OnNavigatedToAsync()
     {
         var activation = _activation.Activate();
-        ViewModel.Activate(activation.CancellationToken);
+        ViewModel.Activate(activation);
+        activation.Register(ViewModel.Deactivate);
         try
         {
             await ViewModel.LoadAsync(activation.CancellationToken);
@@ -32,7 +33,6 @@ public partial class AppearanceSettingsPage : System.Windows.Controls.Page, INav
     public Task OnNavigatedFromAsync()
     {
         _activation.Deactivate();
-        ViewModel.Deactivate();
         return Task.CompletedTask;
     }
 }

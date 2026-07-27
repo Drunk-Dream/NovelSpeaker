@@ -64,16 +64,20 @@ jobs:
           if ($publishedTestAssets) { throw "Package contains TestAssets: $($publishedTestAssets.FullName -join ', ')" }
           $publishedFixtures = Get-ChildItem artifacts/publish -Recurse -File | Where-Object { $_.Name -in $forbiddenFixtures }
           if ($publishedFixtures) { throw "Package contains test audio fixture: $($publishedFixtures.FullName -join ', ')" }
+          $publishedTestAssemblies = Get-ChildItem artifacts/publish -Recurse -File | Where-Object { $_.Name -match 'Tests\.dll$' }
+          if ($publishedTestAssemblies) { throw "Package contains test assembly: $($publishedTestAssemblies.FullName -join ', ')" }
           $zip = "artifacts/NovelSpeaker-v${{ needs.validate.outputs.release_version }}-win-x64.zip"
           Compress-Archive -Path artifacts/publish/* -DestinationPath $zip -Force
           $entries = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip)).Entries.FullName
-          foreach ($required in @('NovelSpeaker.App.exe', 'LICENSE', 'THIRD-PARTY-NOTICES.txt')) {
+          foreach ($required in @('NovelSpeaker.App.exe', 'LICENSE', 'THIRD-PARTY-NOTICES.txt', 'NAudio.dll', 'NAudio.Wasapi.dll')) {
             if ($entries -notcontains $required) { throw "Package is missing $required" }
           }
           $packagedTestAssets = $entries | Where-Object { $_ -match '(^|/)TestAssets(/|$)' }
           if ($packagedTestAssets) { throw "Package contains TestAssets: $($packagedTestAssets -join ', ')" }
           $packagedFixtures = $entries | Where-Object { [System.IO.Path]::GetFileName($_) -in $forbiddenFixtures }
           if ($packagedFixtures) { throw "Package contains test audio fixture: $($packagedFixtures -join ', ')" }
+          $packagedTestAssemblies = $entries | Where-Object { [System.IO.Path]::GetFileName($_) -match 'Tests\.dll$' }
+          if ($packagedTestAssemblies) { throw "Package contains test assembly: $($packagedTestAssemblies -join ', ')" }
           (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() + "  " + [System.IO.Path]::GetFileName($zip) | Out-File "$zip.sha256" -Encoding ascii
 
       - name: Create GitHub release

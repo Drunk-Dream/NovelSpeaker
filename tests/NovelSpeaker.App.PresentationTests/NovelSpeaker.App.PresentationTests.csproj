@@ -3,7 +3,7 @@
     <ProjectReference Include="..\..\src\NovelSpeaker.App\NovelSpeaker.App.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\TestKit\Common\*.cs" Link="Common\%(Filename)%(Extension)" />
+    <Compile Include="..\TestKit\Common\ManualTimeProvider.cs" Link="TestKit\Common\ManualTimeProvider.cs" />
     <Compile Include="..\TestKit\Navigation\*.cs" Link="Navigation\%(Filename)%(Extension)" />
     <Compile Include="..\TestKit\Speech\TestHttpTtsRules.cs" Link="Speech\TestHttpTtsRules.cs" />
   </ItemGroup>
@@ -14,7 +14,7 @@
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <IsTestProject>true</IsTestProject>
     <IsPackable>false</IsPackable>
   </PropertyGroup>

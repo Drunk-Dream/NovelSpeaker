@@ -1,389 +1,150 @@
 # 技术栈与目标架构
 
-## 1. 文档定位
+## 1. 技术栈
 
-本文定义 NovelSpeaker 长期维护所遵循的目标代码架构。它描述的是重组完成后的稳定形态，不记录迁移批次、临时适配器或任务状态；迁移过程和验收项统一维护在 `TASK_BACKLOG.md`。
+- C# / .NET 10
+- WPF + Wpf.Ui 4.x
+- CommunityToolkit.Mvvm
+- Microsoft.Extensions.DependencyInjection
+- Microsoft.Data.Sqlite.Core + SQLitePCLRaw.bundle_winsqlite3
+- Jint
+- NAudio
+- xUnit
 
-架构优化必须保持现有产品行为、SQLite 数据、内部 `content.txt`、音频缓存键和发布形式兼容。不得借重构暗中扩大产品范围，也不得以一次性“大爆炸重写”替代可验证的纵向迁移。
+目标平台为 Windows 10/11 x64，自包含发布。
 
-## 2. 技术栈
-
-| 领域 | 选择 |
-|---|---|
-| 语言与运行时 | C#、.NET 10 |
-| 桌面 UI | WPF、Wpf.Ui 4.x |
-| MVVM | CommunityToolkit.Mvvm |
-| 数据库 | Microsoft.Data.Sqlite.Core、SQLitePCLRaw.bundle_winsqlite3 |
-| 规则表达式 | Jint |
-| 音频 | NAudio |
-| 组合与日志 | Microsoft.Extensions.DependencyInjection、Microsoft.Extensions.Logging |
-| JSON | System.Text.Json |
-| 测试 | xUnit、Microsoft.NET.Test.Sdk |
-
-不引入 Prism、MediatR、通用插件框架、完整 DDD/CQRS 框架、事件溯源或自建后端。重组目标是让现有四层结构真正承担清晰职责，而不是增加框架和项目数量来制造表面分层。
-
-## 3. 架构原则
-
-1. **按功能内聚，按依赖分层。** Books、Speech、Playback、Settings 等功能在各层拥有对应切片；不再把所有接口、DTO、页面或服务平铺到单一大目录。
-2. **Application 拥有用例。** 导入、规则管理、播放会话、缓存管理和设置更新等流程编排属于 Application；Infrastructure 只实现数据库、文件、HTTP、脚本、音频和日志适配。
-3. **依赖指向业务内核。** Domain 不依赖任何外部技术；Application 不暴露 SQLite、WPF、Wpf.Ui、Jint、NAudio 或 `HttpClient` 类型。
-4. **语义端口优先。** 应用层依赖“读取书籍详情”“保存导入结果”“生成音频”之类业务语义接口，不依赖连接、命令、事务或路径拼接细节。
-5. **单一状态所有者。** 播放状态、页面激活状态、编辑副本和后台任务各有唯一所有者；不得在 ViewModel、协调器和适配器中复制同一份可变状态。
-6. **取消和迟到结果隔离是架构能力。** 所有可等待流程传递 `CancellationToken`，并在会话或页面切换时通过版本号/会话 ID 拒绝旧结果。
-7. **先锁定行为，再移动和拆分。** 任何大类拆分、命名空间移动或项目拆分都先增加特征测试；每个批次应可独立编译、测试和回滚。
-
-## 4. 解决方案与依赖方向
-
-目标解决方案保持四个产品项目：
+## 2. 依赖方向
 
 ```text
-NovelSpeaker.slnx
-├─ src/
-│  ├─ NovelSpeaker.Domain
-│  ├─ NovelSpeaker.Application
-│  ├─ NovelSpeaker.Infrastructure
-│  └─ NovelSpeaker.App
-└─ tests/
-   ├─ NovelSpeaker.Domain.UnitTests
-   ├─ NovelSpeaker.Application.UnitTests
-   ├─ NovelSpeaker.Infrastructure.IntegrationTests
-   ├─ NovelSpeaker.App.PresentationTests
-   └─ NovelSpeaker.App.WpfTests
+NovelSpeaker.Domain
+        ↑
+NovelSpeaker.Application
+        ↑
+NovelSpeaker.Infrastructure
+        ↑
+NovelSpeaker.App
 ```
 
-产品项目依赖固定为：
+实际项目引用遵循 Clean Architecture 方向：
 
-```text
-NovelSpeaker.App --------------------> NovelSpeaker.Application
-       │                                         │
-       │ 仅 Bootstrap/Composition Root           v
-       └-----------------------------> NovelSpeaker.Infrastructure
-                                                 │
-NovelSpeaker.Infrastructure --------------------┤
-                                                 v
-                                      NovelSpeaker.Domain
+- Domain：纯业务值、状态和不含技术细节的规则模型。
+- Application：用例、端口、DTO、播放/缓存/规则编排。
+- Infrastructure：SQLite、文件、HTTP、Jint、NAudio、设置和诊断适配。
+- App：WPF Shell、Page/View/ViewModel、平台桥接和组合根。
 
-NovelSpeaker.Application ----------------------> NovelSpeaker.Domain
-NovelSpeaker.Domain ----------------------------> 无项目依赖
-```
+App 的业务页面不得直接依赖 Infrastructure；所有业务动作通过 Application 合同进入。
 
-约束：
+## 3. 功能切片
 
-- App 项目为了组合依赖可以引用 Infrastructure，但只有 `Bootstrap`/组合根可以使用 Infrastructure 命名空间；页面、ViewModel 和 UI 服务只依赖 Application 或 App 内部抽象。
-- Application 项目只引用 Domain 和 BCL。完成重组后必须移除 `Microsoft.Data.Sqlite.Core` 包引用。
-- Infrastructure 实现 Application 端口，可以引用 Domain。
-- Domain 不保存页面投影、HTTP 执行结果、SQLite 映射对象或导入预览 DTO。
-- 测试项目按被测层单向引用，不通过引用 App 来测试 Domain/Application。
+稳定功能切片如下：
 
-## 5. 功能切片
-
-四层中的稳定功能边界如下：
-
-| 功能切片 | 主要职责 | 不负责 |
+| 切片 | Application 负责 | Infrastructure 负责 |
 |---|---|---|
-| Books.Import | TXT 分析、规范化、去重、章节识别、内部文件与元数据提交 | UI 文件选择、SQLite 命令 |
-| Books.Library | 书库摘要、详情、元信息更新、删除 | 播放状态机、卡片视觉 |
-| Books.ChapterRules | 章节规则编辑、默认规则、排序与启用 | 正文替换 |
-| Books.TextProcessing | 动态分段、正则替换、原始偏移映射 | 章节重新识别、HTTP 请求 |
-| Speech.Rules | 规则导入、编辑、验证、当前规则 | 播放调度 |
-| Speech.Compilation | 模板解析、受限求值、请求模型编译和脱敏预览 | 直接播放或缓存 |
-| Speech.Execution | 限流、HTTP 执行、响应与音频验证 | 页面错误文案 |
-| Playback.Session | 会话状态机、跳转、旧结果隔离、快照 | SQL、HTTP 模板语法、WPF |
-| Playback.Audio | 当前段缓存命中或在线生成、本地音频协调 | 章节解析和规则编辑 |
-| Playback.Cache | 缓存键、索引、原子写入、保护、LRU 和管理查询 | 播放页面状态 |
-| Playback.Progress | 进度保存、恢复和字符偏移定位 | UI 滚动 |
-| Settings | 设置读取、校验、更新和变更语义 | JSON 文件格式、具体页面控件 |
+| Books | 导入、删除、元数据、章节规则、文本处理 | 正文文件、编码分析、SQLite repository |
+| Speech | 规则导入/编辑、请求编译、试听、错误分类 | JSON parser、Jint、HTTP transport、音频探测 |
+| Playback | 会话状态机、当前段调度、预取、进度 | NAudio 播放、进度 repository |
+| Cache | 缓存键、查询、保护、LRU、主动缓存、导出编排 | 缓存文件、索引、MP3 编码/合并 |
+| Settings | 设置更新、规范化、业务约束 | `settings.json` 原子存取 |
+| Desktop | 媒体控制、托盘、迷你窗口的 Application port | Windows/WPF 平台 adapter |
 
-功能之间通过 Application 中的小型明确接口协作。不得建立一个跨越全部功能的 `CommonService`、`Manager`、事件总线或万能上下文对象。
+不得为了“未来可能复用”建立通用事件总线、万能 Manager 或新的 Service Locator。
 
-`Speech.Rules` 的稳定用例边界按调用意图拆分为 Import、Editor、Selection 和 Queries。规则页组合这些窄接口；播放页只读取 Queries，播放规则提供器只写 Selection，试听只通过 Editor 校验并准备不持久化的候选业务规则。当前规则选择、清空以及删除/禁用当前规则的保护只能通过 Selection 写入口完成。外部 JSON 的对象/数组解析与 Legado 来源转换由 Infrastructure typed source adapter 实现，Application 用例不接触 `JsonElement`；编辑映射、业务校验和 NovelSpeaker 自有导出序列化器保持为该切片的内部协作者。
+## 4. Application 用例原则
 
-## 6. 目标目录结构
+- 用例名称表达动作或查询，不暴露 SQLite、HTTP、Jint、NAudio、WPF 类型。
+- 公共接口只在存在真实边界、替换价值或测试隔离价值时创建。
+- 同一状态只能有一个所有者；ViewModel 不复制播放状态机、缓存队列或规则编辑状态。
+- DTO 只服务于实际调用边界；重复的 read model、mapper 和兼容 wrapper 应收敛。
+- 用户可观察错误使用稳定结果类型或安全异常投影，技术异常不直接泄露到 UI。
 
-### 6.1 Domain
+## 5. DI 与组合根
 
-```text
-src/NovelSpeaker.Domain/
-├─ Books/
-│  ├─ Book.cs
-│  ├─ Chapter.cs
-│  ├─ ChapterRule.cs
-│  ├─ RegexReplacementRule.cs
-│  └─ TextSegmentationOptions.cs
-├─ Speech/
-│  ├─ HttpTtsRule.cs
-│  └─ TtsErrorKind.cs
-├─ Playback/
-│  └─ 纯值对象或状态枚举（仅在确有领域不变量时存在）
-├─ Settings/
-│  └─ AppSettings.cs
-└─ Common/
-   └─ AppInfo.cs
-```
+目标规则：
 
-Domain 只保留具有稳定业务含义或不变量的实体和值对象。以下内容属于 Application 合同而不是 Domain：
+- `IServiceProvider` 只允许存在于 App 组合根、框架要求的 Page provider/factory 等桥接层。
+- Page、ViewModel、Application service 不得主动从容器解析依赖。
+- 各功能通过 `AddNovelSpeaker...()` 注册模块集中声明生命周期。
+- Singleton 不捕获页面级对象或短生命周期资源。
+- 页面实例由集中导航 provider/factory 创建，不在页面内部 service-locate。
+- 构建测试开启可解析、scope/lifetime 和依赖方向验证。
 
-- 导入预览、列表摘要、编辑器模型和 UI 状态。
-- `ParsedTtsRequest`、请求体、响应文件、重试信息和 HTTP 状态。
-- `PlaybackSnapshot`、缓存查询结果和用例执行结果。
-- SQLite 时间戳字符串、行映射或事务对象。
+## 6. 状态所有权
 
-领域对象不应为了持久化方便而承担模板编译、JSON 解析或数据库映射。规范化和映射由对应 Application/Infrastructure 切片负责。
+| 状态 | 唯一所有者 | 生命周期 |
+|---|---|---|
+| 当前播放会话 | Playback Application service | Playback session |
+| 当前音频输出 | Local audio coordinator | Playback session |
+| 页面加载/编辑副本 | 对应 Page/ViewModel | Page activation |
+| 主动缓存批次 | Application background cache coordinator | Process/background job |
+| 托盘/迷你窗口 | Desktop shell coordinator | Process |
+| 当前设置快照 | Settings service | Process |
+| 短操作 | 发起用例/控制器 | Operation |
 
-### 6.2 Application
+页面离开只能取消页面拥有的工作，不能误取消正在播放或已经启动的主动缓存任务。
+
+## 7. 播放与主动缓存架构
+
+播放、预取和主动缓存共用一条音频获取能力：
 
 ```text
-src/NovelSpeaker.Application/
-├─ Common/
-│  ├─ Time/
-│  └─ Results/
-├─ Books/
-│  ├─ Import/
-│  ├─ Library/
-│  ├─ ChapterRules/
-│  └─ TextProcessing/
-├─ Speech/
-│  ├─ Rules/
-│  ├─ Compilation/
-│  └─ Execution/
-├─ Playback/
-│  ├─ Session/
-│  ├─ Audio/
-│  ├─ Cache/
-│  └─ Progress/
-└─ Settings/
+Text snapshot
+  → AudioCacheKey
+  → cache lookup
+  → rule-level admission / rate limit
+  → TTS execution
+  → validated audio
+  → atomic cache write
 ```
 
-每个切片就近放置：
-
-- 对外用例接口和实现。
-- 命令、查询、结果和只读投影。
-- 该用例需要的基础设施端口。
-- 纯业务编排和输入校验。
-
-不要机械创建 `Interfaces`、`Models`、`Services` 三层空目录。一个类型只有在存在第二个稳定消费者时才移入上级 `Common`；否则留在所属功能附近。
-
-### 6.3 Infrastructure
+优先级固定为：
 
 ```text
-src/NovelSpeaker.Infrastructure/
-├─ Composition/
-│  └─ InfrastructureRegistration.cs
-├─ Persistence/
-│  ├─ Sqlite/
-│  │  ├─ Connection/
-│  │  ├─ Migrations/
-│  │  └─ Mapping/
-│  ├─ Books/
-│  ├─ SpeechRules/
-│  ├─ Playback/
-│  └─ RegexReplacement/
-├─ FileSystem/
-│  ├─ AppData/
-│  ├─ Books/
-│  └─ Cache/
-├─ Speech/
-│  ├─ Http/
-│  ├─ Legado/
-│  └─ Scripting/
-├─ Audio/
-│  └─ NAudio/
-├─ Settings/
-└─ Diagnostics/
+Current playback > Playback prefetch > Active cache
 ```
 
-Infrastructure 允许包含：
+同一规则的所有请求必须经过同一异步并发/速率限制器，不能为主动缓存另建绕过限制的客户端或 semaphore。
 
-- SQLite 连接工厂、SQL、迁移、事务和行映射。
-- 文件路径、临时文件、原子替换和目录维护。
-- `HttpClient`、HTTP Header/Body 转换、Cookie 策略和响应流。
-- Jint 引擎配置与安全沙箱。
-- NAudio 设备和解码实现。
-- JSON 设置存储和滚动日志。
+主动缓存协调器负责批次快照、章节队列、进度、取消和状态发布；播放器只提交缓存请求，不拥有后台批次。
 
-Infrastructure 不应包含：
+## 8. 桌面平台边界
 
-- `PlaybackCoordinator` 等业务状态机。
-- 规则编辑工作区、导入用例或设置校验用例。
-- 面向页面的列表项、编辑器副本和 Snackbar 文案。
-- 仅因“实现会访问数据库”而被放入本层的应用服务。
+以下能力必须通过可测试端口进入平台实现：
 
-SQLite 连接工厂是 Infrastructure 内部细节，不作为 Application 公共端口。需要跨多表或数据库与文件的一致性时，由 Infrastructure 提供语义化、可测试的原子操作端口，而不是把 `SqliteConnection` 或 `SqliteTransaction` 暴露给 Application。
+- 文件/目录选择。
+- 剪贴板和打开目录。
+- Windows 系统媒体传输控制。
+- 耳机/键盘媒体按键。
+- 系统托盘。
+- 迷你播放器窗口创建、位置和置顶。
+- UI Dispatcher 调度。
 
-### 6.4 App
+Application 不引用 Windows/WPF 类型；App adapter 负责平台事件与 Application 命令之间的转换。
 
-App 的详细约束见 `06_UI_AND_USER_FLOWS.md`，目标结构概览为：
+## 9. 资源所有权
 
-```text
-src/NovelSpeaker.App/
-├─ Bootstrap/
-├─ Shell/
-│  ├─ Navigation/
-│  ├─ Activation/
-│  └─ Input/
-├─ Features/
-│  ├─ Library/
-│  ├─ BookDetails/
-│  ├─ Playback/
-│  ├─ TtsRules/
-│  ├─ ChapterRules/
-│  ├─ RegexReplacementRules/
-│  ├─ Cache/
-│  ├─ PlaybackSettings/
-│  ├─ ImportTextSettings/
-│  ├─ Appearance/
-│  └─ Diagnostics/
-└─ Shared/
-   ├─ Feedback/
-   ├─ Theming/
-   ├─ Dialogs/
-   ├─ Behaviors/
-   └─ Presentation/
-```
+- HTTP transport 明确拥有 `HttpResponseMessage` 与 response stream，直到结果所有权转交或释放。
+- 临时 TTS 文件、缓存 staging 文件和 MP3 导出临时文件均有唯一 owner，并在失败/取消时清理。
+- NAudio 播放器、reader/stream 和输出设备必须在会话替换或进程关闭时确定性释放。
+- fire-and-forget 任务必须登记到进程/操作所有者，并观察异常。
+- `async void` 仅限 WPF 事件入口，且立即转交可等待流程。
 
-Page 是导航、激活、取消和未保存保护边界。ViewModel 只暴露语义状态，不暴露 `FontWeight`、`SymbolRegular`、Dispatcher、Page 或 Window。Wpf.Ui 只在 Shell、View 和平台适配器中出现。
+## 10. 数据兼容边界
 
-## 7. Application 用例与端口
+- SQLite 当前 schema 为 6；已发布 migration 只能追加。
+- 现有内部正文、阅读进度、缓存键和合法历史记录不得因重构失效。
+- 数据格式变化必须有独立迁移和升级测试，不用兼容 wrapper 永久掩盖旧模型。
+- 所有持久化路径必须通过应用数据根目录约束的 resolver。
 
-### 7.1 命名
+## 11. 架构自动约束
 
-- `*Service`：一个清晰功能用例集合，例如书籍导入或规则库。
-- `*Repository`：领域实体或聚合的持久化集合语义。
-- `*Store`：设置、进度、文件或其它键值/状态存储语义。
-- `*Gateway`/`*Client`：外部系统边界，例如 HTTP TTS。
-- `*Coordinator`：确实拥有状态机并协调多个异步协作者的长期对象。
-- `*Workspace`：仅用于具有编辑副本、启用/排序即时保存和未保存保护语义的管理用例。
+测试持续验证：
 
-避免新增含糊的 `Manager`、`Helper`、`Utils`、`Processor`。接口不应只为每个实现机械复制；纯内部、无替换需求的 Application 协作者可以使用 `internal sealed` 类。
+- Domain 无产品层反向引用。
+- Application 不暴露具体基础设施/UI 技术类型。
+- Infrastructure 不引用 App。
+- App 非 Bootstrap 代码不直接依赖 Infrastructure。
+- ViewModel 公共合同不暴露 Page/Window/Dispatcher/WPF 视觉类型。
+- 文件名、主公共类型和命名空间保持一致。
+- 非组合根代码不新增 `IServiceProvider` 依赖。
 
-### 7.2 端口粒度
-
-端口表达完整语义，而不是底层操作。例如：
-
-```csharp
-public interface IBookImportStore
-{
-    Task<bool> ExistsBySourceHashAsync(string sourceHash, CancellationToken cancellationToken);
-
-    Task SaveAsync(
-        Book book,
-        IReadOnlyList<Chapter> chapters,
-        CancellationToken cancellationToken);
-}
-```
-
-不允许：
-
-```csharp
-public interface ISqliteConnectionFactory
-{
-    Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken);
-}
-```
-
-后一接口把具体数据库类型泄露到 Application，导致 Application 必须引用 SQLite 包，并允许任意用例绕过仓储边界。
-
-### 7.3 结果与异常
-
-- 预期业务分支使用明确结果类型或状态枚举，例如重复书籍、需要选择编码、无可用规则。
-- 编程错误和不可恢复基础设施失败使用异常；Application 在边界处投影为安全错误类别。
-- Infrastructure 异常不得直接成为 UI 文案。
-- 用户可见结果不得包含小说正文、完整 URL、Header、Body、Token 或服务端完整错误正文。
-
-## 8. 播放架构
-
-播放公共边界按调用职责拆分为 `IPlaybackSession`、`IPlaybackSnapshotSource`、`IPlaybackBookCommands` 和 `IPlaybackRegexReplacementRefresher`；它们都由同一个 Application `PlaybackCoordinator` Singleton 实现。会话接口接收播放、暂停、跳转和规则/语速变化，书籍接口接收正文元数据/删除通知，正则接口接收替换刷新，快照接口发布不可变 `PlaybackSnapshot`。
-
-协调器内部按职责拆分，但不把共享可变状态散落到多个服务：
-
-| 协作者 | 职责 |
-|---|---|
-| PlaybackSessionState | 当前书籍、规则、位置、会话 ID 与取消源的唯一所有者 |
-| PlaybackPositionResolver | 纯计算相邻段落/章节、恢复位置和原始偏移映射 |
-| PlaybackSegmentRunner | 为当前段获取音频、调用本地播放并分类结果 |
-| PlaybackPrefetchController | 维护有限预取窗口、去重、优先级和会话取消 |
-| PlaybackProgressService | 保存/恢复进度，统一保存时机 |
-| PlaybackSnapshotProjector | 从状态生成不可变 UI 快照 |
-
-播放器的 Completed、Failed 和 Snapshot 事件只进入由本地音频协调器及书籍播放协调器各自拥有的内部命令队列；队列处理复用串行锁、生命周期 Token 和 SessionId 隔离。事件入口不执行长流程，处理异常只能投影为安全状态或诊断，不能形成未观察 Task 异常。
-
-拆分顺序应从纯计算和 I/O 边界开始；`PlaybackCoordinator` 始终保留唯一命令串行化入口。不得为了缩短文件而建立一组互相回调、共同修改状态的微服务。
-
-本地音频边界保持独立：Application 的本地音频协调器只处理单文件加载、播放、暂停、停止和定位；Infrastructure 的 NAudio 适配器只访问设备与解码器。
-
-## 9. 数据与文件一致性
-
-- SQLite schema 与迁移由 Infrastructure 独占。
-- 导入、删除和缓存写入涉及数据库与文件时，使用“暂存文件 → 数据事务 → 最终清理/补偿”的显式协议。
-- Application 只看到语义化提交结果，不直接协调 SQL 事务。
-- 迁移文件、兼容读取和数据修复属于不可随意清理的基础设施资产。
-- 重构不得改变现有表、数据目录、章节偏移或缓存键；确需改变时必须单独设计迁移并增加升级测试。
-
-具体数据模型见 `05_DATA_AND_PERSISTENCE.md`。
-
-## 10. 导航、激活与桌面生命周期
-
-- App 使用自有强类型路由和参数；Wpf.Ui Page 类型映射集中在 Shell 导航适配器。
-- ViewModel 不直接引用具体 Page 类型。
-- 每个 Page 激活时创建 activation scope 和取消源，离开时取消页面工作并注销事件/导航守卫。
-- 未保存保护是统一的页面离开协议，必须覆盖按钮返回、一级导航、快捷键、正在播放入口和窗口关闭。
-- 应用级播放会话可以跨页面存在；页面 activation 状态不得通过 Singleton ViewModel 偶然保存。
-- 启动、数据库初始化、主题应用、窗口展示和后台维护由 Bootstrap 中的启动协调器顺序执行。
-
-## 11. 依赖注入与生命周期
-
-生命周期按状态所有权决定：
-
-| 生命周期 | 适用对象 |
-|---|---|
-| Singleton | 无状态解析器、线程安全仓储/适配器、应用级播放协调器、主题运行时、全局设置状态 |
-| Page/activation scope | 页面 ViewModel、编辑会话、页面取消源、页面级投影 |
-| Transient | 轻量无状态工厂产物、短生命周期命令对象 |
-| Session-owned | PlaybackSessionState、预取窗口、规则试听和导入操作 |
-
-根注册方法只组合功能注册模块，例如 Books、Speech、Playback、Settings、Shell。每个功能模块负责本切片的实现映射；禁止恢复一个包含全部类型的超长注册清单。
-
-构建服务容器时必须在测试中验证关键服务可解析、生命周期符合预期，并尽可能启用 scope/build 验证。Singleton 不得捕获页面作用域服务。
-
-## 12. 并发、取消与时间
-
-- 所有异步 I/O 和可等待业务流程接收并传递 `CancellationToken`。
-- `CancellationToken.None` 只允许出现在应用退出后的尽力清理、不可取消的最终持久化或明确记录原因的进程级后台任务中。
-- 页面事件、导航回调、导入、试听和自动保存必须使用对应 activation/operation Token。
-- 旧播放会话依赖 `SessionId + CancellationToken` 双重隔离。
-- 防抖、限流、重试和超时使用可注入 `TimeProvider` 或可控调度抽象，测试不得依赖任意固定延迟来等待状态变化。
-- `async void` 仅限 WPF/播放器事件入口；入口必须捕获异常并尽快转交串行协调器。
-
-## 13. 安全和隐私边界
-
-- Jint 脚本是不可信输入，禁止 CLR、文件、进程、反射、任意网络、环境变量和宿主对象访问。
-- 规则编译和执行限制必须集中配置，并覆盖超时、语句数、递归深度和输出长度。
-- 日志、异常投影、请求预览、Snackbar 和诊断摘要统一经过脱敏器。
-- 安全脱敏应防御 Cookie/LoginInfo 等字段，即使当前版本尚未执行这些兼容能力。
-- 当前没有 SecretStore；规则结构化字段未静态加密的限制保持可见。
-
-## 14. 架构自动约束
-
-测试必须阻止以下回归：
-
-- Domain 出现对 Application、Infrastructure、App 或外部技术包的引用。
-- Application 引用 SQLite、WPF、Wpf.Ui、Jint、NAudio 或 Infrastructure。
-- App 的 Features/Shared 引用 Infrastructure；只有 Bootstrap 可引用。
-- Infrastructure 中出现页面/ViewModel 类型或 WPF 引用。
-- ViewModel 公共属性暴露 WPF/Wpf.Ui 类型。
-- 非 Infrastructure 代码出现 `SqliteConnection`、`SqliteCommand` 或 SQL 文本。
-- 测试项目产生反向引用或纯单元测试依赖 WPF STA Host。
-
-这些检查应使用轻量反射、项目文件检查或现有分析器完成；除非收益明确，不为此引入重量级架构框架。
-
-## 15. 重组完成标准
-
-- 四个产品项目符合第 4 节依赖方向，Application 不再引用 SQLite 包。
-- 业务用例实现位于 Application；Infrastructure 只保留技术适配器和原子持久化实现。
-- Domain 不再容纳 HTTP/页面/导入流程 DTO。
-- `PlaybackCoordinator`、`PlayerViewModel`、规则工作台和 Shell 已按单一职责拆分，并保留唯一状态所有者。
-- App 采用 feature slice；页面、ViewModel、组件和功能 DI 注册就近组织。
-- 所有页面具有统一激活、取消和未保存保护协议。
-- 测试按 Domain、Application、Infrastructure、Presentation、WPF 分层，纯测试可并行且不依赖 STA。
-- 现有 SQLite 数据、内部书籍文件、阅读进度、音频缓存和 UI/播放行为保持兼容。
-- 每个迁移批次都通过 `09_TESTING_AND_QUALITY.md` 规定的质量门禁。
+架构收口任务见 `TASK_BACKLOG.md`，本文件不记录迁移过程。

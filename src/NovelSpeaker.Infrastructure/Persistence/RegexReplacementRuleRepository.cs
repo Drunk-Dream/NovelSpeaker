@@ -130,8 +130,8 @@ public sealed class RegexReplacementRuleRepository : IRegexReplacementRuleReposi
         {
             if (!Guid.TryParse(reader.GetString(0), out var id) ||
                 !TryParseScope(reader.GetString(6), out var scope) ||
-                !DateTimeOffset.TryParse(reader.GetString(7), out var createdAt) ||
-                !DateTimeOffset.TryParse(reader.GetString(8), out var updatedAt))
+                !SqliteDateTimeMapper.TryParse(reader.GetString(7), out var createdAt) ||
+                !SqliteDateTimeMapper.TryParse(reader.GetString(8), out var updatedAt))
             {
                 return false;
             }

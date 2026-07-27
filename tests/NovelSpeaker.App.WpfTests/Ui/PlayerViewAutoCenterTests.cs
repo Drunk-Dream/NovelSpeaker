@@ -26,7 +26,7 @@ using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 public sealed partial class PlayerViewTests
 {
@@ -66,6 +66,8 @@ public sealed partial class PlayerViewTests
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
+                new FakePlaybackStopTimer(),
+                new FakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
@@ -73,7 +75,9 @@ public sealed partial class PlayerViewTests
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
-                new FakePlayerAutoScrollCoordinator());
+                new FakePlayerAutoScrollCoordinator(),
+                new FakeCacheWorkspaceService(),
+                new FakeMiniPlayerLauncher());
 
             var page = new PlayerPage(viewModel)
             {
@@ -155,6 +159,8 @@ public sealed partial class PlayerViewTests
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
+                new FakePlaybackStopTimer(),
+                new FakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
@@ -162,7 +168,9 @@ public sealed partial class PlayerViewTests
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
-                new PlayerAutoScrollCoordinator(TimeProvider.System));
+                new PlayerAutoScrollCoordinator(TimeProvider.System),
+                new FakeCacheWorkspaceService(),
+                new FakeMiniPlayerLauncher());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
@@ -251,6 +259,8 @@ public sealed partial class PlayerViewTests
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
+                new FakePlaybackStopTimer(),
+                new FakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
@@ -258,7 +268,9 @@ public sealed partial class PlayerViewTests
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
-                new PlayerAutoScrollCoordinator(TimeProvider.System));
+                new PlayerAutoScrollCoordinator(TimeProvider.System),
+                new FakeCacheWorkspaceService(),
+                new FakeMiniPlayerLauncher());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
@@ -345,6 +357,8 @@ public sealed partial class PlayerViewTests
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
+                new FakePlaybackStopTimer(),
+                new FakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
@@ -352,7 +366,9 @@ public sealed partial class PlayerViewTests
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
-                new PlayerAutoScrollCoordinator(TimeProvider.System));
+                new PlayerAutoScrollCoordinator(TimeProvider.System),
+                new FakeCacheWorkspaceService(),
+                new FakeMiniPlayerLauncher());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
@@ -442,6 +458,8 @@ public sealed partial class PlayerViewTests
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
+                new FakePlaybackStopTimer(),
+                new FakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
@@ -449,7 +467,9 @@ public sealed partial class PlayerViewTests
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
-                new PlayerAutoScrollCoordinator(TimeProvider.System));
+                new PlayerAutoScrollCoordinator(TimeProvider.System),
+                new FakeCacheWorkspaceService(),
+                new FakeMiniPlayerLauncher());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(

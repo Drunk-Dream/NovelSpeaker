@@ -5,10 +5,13 @@ using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Presentation.Books;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Presentation;
+using NovelSpeaker.App.Shared.Presentation.Cache;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Shell.Navigation;
 using BookDetailsModel = NovelSpeaker.Application.Books.BookDetails;
@@ -21,6 +24,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private readonly IBookMetadataUpdateService _bookMetadataUpdateService;
     private readonly IBookDeletionService _bookDeletionService;
     private readonly ICacheWorkspaceService _cacheWorkspaceService;
+    private readonly IAppSettingsService _settingsService;
+    private readonly IUiScheduler _uiScheduler;
     private readonly IBookCoverGenerator _bookCoverGenerator;
     private readonly IAppFeedbackService _feedbackService;
     private readonly IAppDialogService _dialogService;
@@ -28,28 +33,37 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
     private readonly IAppNavigator _navigator;
     private readonly IPlaybackBookCommands _playbackCoordinator;
+    private readonly ChapterCacheStatusRefreshController _cacheStatusRefresh;
+    private readonly OwnedTaskRegistry _pageTasks = new();
     private CancellationTokenSource? _activeLoadCancellationTokenSource;
+    private int _loadVersion;
     private BookDetailsHeader? _loadedHeader;
     private BookDetailsModel? _loadedDetails;
     private string? _bookId;
+    private CancellationTokenSource? _cacheStatusCancellationTokenSource;
+    private bool _isCacheStatusUpdatesActive;
 
     public BookDetailsViewModel(
         IBookLibraryQuery bookLibraryQuery,
         IBookMetadataUpdateService bookMetadataUpdateService,
         IBookDeletionService bookDeletionService,
         ICacheWorkspaceService cacheWorkspaceService,
+        IAppSettingsService settingsService,
         IBookCoverGenerator bookCoverGenerator,
         IAppFeedbackService feedbackService,
         IAppDialogService dialogService,
         IBookDeleteDialogService deleteDialogService,
         IBookCatalogInvalidationState catalogInvalidationState,
         IPlaybackBookCommands playbackCoordinator,
-        IAppNavigator navigator)
+        IAppNavigator navigator,
+        IUiScheduler? uiScheduler = null)
     {
         _bookLibraryQuery = bookLibraryQuery;
         _bookMetadataUpdateService = bookMetadataUpdateService;
         _bookDeletionService = bookDeletionService;
         _cacheWorkspaceService = cacheWorkspaceService;
+        _settingsService = settingsService;
+        _uiScheduler = uiScheduler ?? new WpfUiScheduler();
         _bookCoverGenerator = bookCoverGenerator;
         _feedbackService = feedbackService;
         _dialogService = dialogService;
@@ -57,6 +71,11 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         _catalogInvalidationState = catalogInvalidationState;
         _playbackCoordinator = playbackCoordinator;
         _navigator = navigator;
+        _cacheStatusRefresh = new ChapterCacheStatusRefreshController(
+            _cacheWorkspaceService,
+            _uiScheduler,
+            ApplyChapterCacheStatuses,
+            ReportCacheStatusRefreshFailure);
         Cover = _bookCoverGenerator.Generate("未命名书籍");
     }
 
@@ -121,14 +140,22 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
 
+        var version = Interlocked.Increment(ref _loadVersion);
         CancelPendingLoad();
         _bookId = bookId;
+        ActivateCacheStatusUpdates(cancellationToken);
         IsBusy = true;
         StatusMessage = string.Empty;
 
         try
         {
             var header = await _bookLibraryQuery.GetBookDetailsHeaderAsync(bookId, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (version != Volatile.Read(ref _loadVersion))
+            {
+                return;
+            }
+
             if (header is null)
             {
                 ClearBook();
@@ -142,8 +169,23 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             ResetDetailSupplementProjection();
             BeginLoadDetailsSupplement(bookId, cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (version == Volatile.Read(ref _loadVersion))
+            {
+                IsBusy = false;
+                NotifyCommandStateChanged();
+            }
+
+            throw;
+        }
         catch (Exception exception)
         {
+            if (version != Volatile.Read(ref _loadVersion))
+            {
+                return;
+            }
+
             var projected = _feedbackService.Project(exception);
             ClearBook();
             StatusMessage = projected.UserMessage;
@@ -155,7 +197,9 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
     public void HandleNavigatedFrom()
     {
+        Interlocked.Increment(ref _loadVersion);
         CancelPendingLoad();
+        DeactivateCacheStatusUpdates();
         IsBusy = false;
         NotifyCommandStateChanged();
     }
@@ -204,7 +248,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
         var decision = await _dialogService.ShowConfirmationAsync(
             "清理本书缓存",
-            "将删除这本书的音频缓存，不会删除书籍、阅读进度或内部 TXT。",
+            "将清理这本书的音频缓存，不会删除书籍、阅读进度或内部 TXT。",
             "清理",
             "取消",
             cancellationToken);
@@ -237,7 +281,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         {
             var projected = _feedbackService.Project(exception);
             StatusMessage = projected.UserMessage;
-            _feedbackService.ShowProjectedNotification("清理缓存失败", projected);
+            _feedbackService.ShowProjectedNotification("清理失败", projected);
         }
         finally
         {
@@ -410,7 +454,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     {
         var linkedCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _activeLoadCancellationTokenSource = linkedCancellationTokenSource;
-        _ = LoadDetailsSupplementAsync(bookId, linkedCancellationTokenSource);
+        _pageTasks.Register(LoadDetailsSupplementAsync(bookId, linkedCancellationTokenSource));
     }
 
     private async Task LoadDetailsSupplementAsync(string bookId, CancellationTokenSource cancellationTokenSource)
@@ -499,6 +543,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             $"第 {chapter.ChapterIndex + 1} 章",
             chapter.Title,
             chapter.IsCurrent));
+        QueueCacheStatusRefresh(chapterIndex: null);
         OnPropertyChanged(nameof(CurrentChapterItem));
 
         StatusMessage = string.Empty;
@@ -533,6 +578,124 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         _activeLoadCancellationTokenSource?.Cancel();
         _activeLoadCancellationTokenSource?.Dispose();
         _activeLoadCancellationTokenSource = null;
+    }
+
+    private void ActivateCacheStatusUpdates(CancellationToken cancellationToken)
+    {
+        DeactivateCacheStatusUpdates();
+        _cacheStatusCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _cacheStatusRefresh.Activate(_cacheStatusCancellationTokenSource.Token);
+        _cacheWorkspaceService.Changed += OnCacheChanged;
+        _settingsService.Changed += OnSettingsChanged;
+        _isCacheStatusUpdatesActive = true;
+    }
+
+    private void DeactivateCacheStatusUpdates()
+    {
+        if (_isCacheStatusUpdatesActive)
+        {
+            _cacheWorkspaceService.Changed -= OnCacheChanged;
+            _settingsService.Changed -= OnSettingsChanged;
+            _isCacheStatusUpdatesActive = false;
+        }
+
+        _cacheStatusCancellationTokenSource?.Cancel();
+        _cacheStatusCancellationTokenSource?.Dispose();
+        _cacheStatusCancellationTokenSource = null;
+        _cacheStatusRefresh.Deactivate();
+    }
+
+    private void OnCacheChanged(object? sender, CacheChangedEventArgs eventArgs)
+    {
+        if (string.IsNullOrWhiteSpace(_bookId) ||
+            (!string.IsNullOrWhiteSpace(eventArgs.BookId) &&
+             !string.Equals(eventArgs.BookId, _bookId, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        ScheduleCacheStatusRefresh(eventArgs.ChapterIndex);
+    }
+
+    private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs eventArgs)
+    {
+        if (eventArgs.Previous.DefaultSpeakSpeed == eventArgs.Current.DefaultSpeakSpeed &&
+            eventArgs.Previous.SelectedTtsRuleId == eventArgs.Current.SelectedTtsRuleId &&
+            eventArgs.Previous.EnableLongParagraphSplitting == eventArgs.Current.EnableLongParagraphSplitting &&
+            eventArgs.Previous.LongParagraphThreshold == eventArgs.Current.LongParagraphThreshold)
+        {
+            return;
+        }
+
+        ScheduleCacheStatusRefresh(chapterIndex: null);
+    }
+
+    private void ScheduleCacheStatusRefresh(int? chapterIndex)
+    {
+        var cancellationToken = _cacheStatusCancellationTokenSource?.Token ?? new CancellationToken(canceled: true);
+        if (!_uiScheduler.CheckAccess())
+        {
+            _pageTasks.Register(
+                _uiScheduler.InvokeAsync(() => QueueCacheStatusRefresh(chapterIndex), cancellationToken),
+                ReportCacheStatusRefreshFailure);
+            return;
+        }
+
+        QueueCacheStatusRefresh(chapterIndex);
+    }
+
+    private void QueueCacheStatusRefresh(int? chapterIndex)
+    {
+        if (!_isCacheStatusUpdatesActive ||
+            _cacheStatusCancellationTokenSource is not { IsCancellationRequested: false } ||
+            string.IsNullOrWhiteSpace(_bookId))
+        {
+            return;
+        }
+
+        var bookId = _bookId;
+        var chapterIndices = chapterIndex is null
+            ? Chapters.Select(static chapter => chapter.ChapterIndex)
+            : Chapters.Where(chapter => chapter.ChapterIndex == chapterIndex.Value)
+                .Select(static chapter => chapter.ChapterIndex);
+
+        _cacheStatusRefresh.Request(bookId, chapterIndices.ToArray());
+    }
+
+    private void ApplyChapterCacheStatuses(
+        string bookId,
+        IReadOnlyCollection<int> requestedChapterIndices,
+        IReadOnlyCollection<ChapterCacheStatus> statuses)
+    {
+        if (!_isCacheStatusUpdatesActive ||
+            !string.Equals(_bookId, bookId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var statusesByChapter = statuses.ToDictionary(static status => status.ChapterIndex);
+        foreach (var chapter in Chapters.Where(chapter => requestedChapterIndices.Contains(chapter.ChapterIndex)))
+        {
+            if (statusesByChapter.TryGetValue(chapter.ChapterIndex, out var status))
+            {
+                chapter.ApplyCacheStatus(status.CachedSegmentCount, status.TotalSegmentCount);
+            }
+            else
+            {
+                chapter.ApplyCacheStatus(0, totalSegmentCount: null);
+            }
+        }
+    }
+
+    private void ReportCacheStatusRefreshFailure(Exception exception)
+    {
+        if (!_isCacheStatusUpdatesActive)
+        {
+            return;
+        }
+
+        var projected = _feedbackService.Project(exception);
+        _feedbackService.ShowProjectedNotification("刷新章节缓存进度失败", projected);
     }
 
     private void ResetDetailSupplementProjection()

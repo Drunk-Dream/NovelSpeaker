@@ -1,6 +1,6 @@
 using System.Xml.Linq;
 
-namespace NovelSpeaker.UnitTests.Architecture;
+namespace NovelSpeaker.App.PresentationTests.Architecture;
 
 internal sealed class ArchitectureTestRepository
 {

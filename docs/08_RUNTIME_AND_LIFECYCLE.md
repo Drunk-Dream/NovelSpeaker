@@ -1,183 +1,168 @@
-# 运行时、启动与生命周期
+# 运行时与生命周期
 
-## 1. 文档定位
+## 1. 生命周期层级
 
-本文定义 NovelSpeaker 的进程启动、页面激活、长期会话、后台任务和关闭语义。开发阶段、迁移批次和任务依赖不属于数字编号设计文档，统一记录在 `TASK_BACKLOG.md`。
-
-## 2. 生命周期层级
-
-应用中只允许以下四类状态生命周期：
+NovelSpeaker 只使用下列明确生命周期：
 
 | 层级 | 示例 | 所有者 |
 |---|---|---|
-| Process | 应用目录、日志、设置快照、数据库、主题、全局播放协调器 | Bootstrap / ServiceProvider |
-| Page activation | 页面加载、编辑副本、筛选、页面异步操作、导航守卫 | 当前 Page activation scope |
-| Operation | 导入、规则试听、导出、自动保存、缓存清理 | 发起该操作的服务/控制器 |
-| Playback session | 当前书籍、规则、语速、位置、预取和旧结果隔离 | PlaybackCoordinator |
+| Process | Shell、设置快照、托盘、媒体控制、后台任务注册 | App lifecycle coordinator |
+| Playback session | 当前书籍/章节/段落、音频、预取 | Playback coordinator |
+| Page activation | 页面加载、编辑副本、页面导航守卫 | Page/ViewModel activation scope |
+| Background job | 主动缓存批次 | Active cache coordinator |
+| Operation | 导入、试听、清理、导出、保存 | 发起用例/控制器 |
 
-不得用 Singleton ViewModel 代替明确的页面激活状态，也不得让页面取消源终止跨页面继续存在的播放会话。
+状态不能跨层级复制所有权。
 
-### 2.1 注册与实际状态所有权
+## 2. 启动顺序
 
-组合模块必须按下表声明生命周期，调用方不得复制同一状态或通过 `IServiceProvider` 另建实例：
-
-| 注册/状态 | 当前生命周期 | 唯一所有者 |
-|---|---|---|
-| 应用数据目录、SQLite 初始化、Repository、设置 store、日志、主题、导航与反馈服务 | Singleton / Process | 根 `ServiceProvider`；由 Bootstrap 创建和释放 |
-| `PlaybackCoordinator`、`PlaybackSessionState`、音频生成去重、预取与缓存保护状态 | Singleton 服务内的 Playback session | `PlaybackCoordinator` 创建和终止 session；音频与预取协作者只持有当前 session 派生状态 |
-| `MainWindow`、Shell 导航状态和全局播放投影 | Singleton / Process | Shell 与全局播放协调器 |
-| Page 对象及 BookDetails、Cache、Appearance、Diagnostics 等瞬态 ViewModel | Transient / Page activation | 当前导航 Page；离开后取消并释放其操作状态 |
-| 导入、规则试听、章节加载、设置防抖保存和缓存清理 | Operation | 发起操作的 ViewModel/对话框或服务；各自拥有 CTS、版本和完成通知 |
-
-当前仍注册为 Singleton 的 `LibraryViewModel`、`PlayerViewModel`、`SettingsViewModel`、`TtsRulesViewModel`、`ChapterRulesViewModel` 和 `RegexReplacementRulesViewModel` 是已登记的页面状态债务：本阶段保持既有行为，但不得将其作为新增页面的范式，也不得向其中继续加入跨 activation 的编辑副本或取消源。后续迁移到 activation scope 时，必须先用特征测试固定导航返回和播放跨页行为。
-
-## 3. 启动顺序
-
-启动由 `Bootstrap` 中的协调器按固定阶段执行：
+建议启动：
 
 ```text
-创建进程级 CancellationTokenSource
-  ↓
-解析并确保应用数据目录
-  ↓
-读取、规范化一次 settings snapshot
-  ↓
-建立脱敏日志
-  ↓
-构建并校验 DI 容器
-  ↓
-初始化 SQLite、运行迁移和恢复未完成文件操作
-  ↓
-载入默认数据
-  ↓
-应用主题与窗口外观
-  ↓
-创建 Shell，进入书库
-  ↓
-登记后台缓存维护
+configure logging
+  → load/normalize settings
+  → build DI container
+  → initialize/migrate database
+  → recover unfinished operations
+  → initialize playback/desktop coordinators
+  → create Shell
+  → apply theme and close/tray preference
+  → show main window or tray according to setting
 ```
 
-要求：
+启动失败在 Shell 可用前必须投影为最小安全错误；不能继续运行半初始化数据库或播放器。
 
-- 设置不能在 DI 前后各创建一套 store 并重复读取。
-- 每个阶段可测试、可取消，并只输出脱敏诊断。
-- 数据库/恢复失败时不展示主 Shell；使用启动状态窗口和最小安全错误提示。
-- 不支持的数据库版本必须在任何业务写入前终止启动。
-- 启动成功后才关闭启动状态窗口。
+## 3. 组合根
 
-## 4. 组合根
+- `App.xaml.cs` 只连接 WPF 生命周期和启动协调器。
+- 注册按 Domain/Application/Infrastructure/App 功能模块分组。
+- 非 Bootstrap 代码不注入或转发 `IServiceProvider`。
+- 框架需要按 route 创建页面时，集中 Page provider/factory 是唯一允许的容器解析桥接。
+- 测试验证关键服务可解析和 lifetime 合法。
 
-`App.xaml.cs` 只连接 WPF 生命周期和启动协调器，不平铺所有服务注册与启动步骤。
+## 4. Page activation
 
-组合顺序：
+每个可导航页面使用统一 activation scope：
 
-```csharp
-services.AddNovelSpeakerApplication();
-services.AddNovelSpeakerInfrastructure();
-services.AddNovelSpeakerDesktop();
-```
+- 进入时创建新的 activation/version 和 CTS。
+- 页面加载、刷新和 UI 投影绑定该 scope。
+- 离开时取消页面拥有的工作并注销导航守卫/事件订阅。
+- 快速离开再进入时，旧结果通过版本检查丢弃。
+- activation 取消不得传播为用户错误 Snackbar。
 
-`AddNovelSpeakerInfrastructure()` 依次组合 Persistence、FileStorage、Books、Speech、Audio 和 Settings 适配器模块；顶层组合根不逐项注册适配器。生命周期决策在各功能注册模块中集中声明，并由测试启用 `ValidateOnBuild`/`ValidateScopes` 验证。App 的非 Bootstrap 代码不得解析 `IServiceProvider`。
+播放会话、主动缓存、托盘和媒体控制不属于页面 scope。
 
-## 5. 页面激活
+## 5. 页面事件入口
 
-每个导航 Page 是 activation 边界：
+- `async void` 只允许 WPF event handler。
+- handler 立即转交 ViewModel/controller 的可等待方法。
+- 所有异常必须被统一入口捕获并交给安全错误投影。
+- 不允许未登记的 `_ = SomeTaskAsync()`；确需 fire-and-forget 时必须注册 owner、取消和异常观察。
 
-1. `OnNavigatedTo` 创建新的 activation scope、版本号和 CancellationTokenSource。
-2. 加载 ViewModel 所需数据，并忽略旧 activation 的迟到结果。
-3. 若页面存在编辑副本，向统一导航守卫注册 `CanLeaveAsync`。
-4. `OnNavigatedFrom` 先取消页面操作，再注销事件和守卫，最后释放 scope。
+## 6. Operation 生命周期
 
-未保存保护必须覆盖：
+导入、试听、缓存清理、MP3 导出、设置保存等短操作：
 
-- 页面自己的返回按钮。
-- 一级导航。
-- `Alt+Left`、`Esc`、`Ctrl+,` 等快捷键。
-- 导航栏“正在播放”入口。
-- 由其它功能发起的跳转。
-- 窗口关闭。
+- 各自拥有 CTS。
+- 重复启动时按操作定义决定拒绝、替换或排队。
+- 调用方取消直接结束，不转成失败。
+- 需要临时文件/数据库事务时，finally 完成确定性释放和补偿。
 
-不得只在某个 ViewModel 的 BackCommand 内实现保护。
+缓存管理页的 MP3 导出从目录选择开始占用一个页面 Operation slot，重复启动直接拒绝。
+取消按钮和页面离开取消该 Operation CTS；导出不会转交为 Process 级后台批次，也不会影响已移交给
+主动缓存协调器的后台缓存任务。
 
-## 6. 操作生命周期
+## 7. Playback session
 
-导入、试听、缓存清理和自动保存等操作具有独立 CancellationTokenSource：
+- 新书籍/章节/规则/语速/关键文本配置产生新 session generation。
+- 当前音频、预取和进度保存都绑定 session/version。
+- NAudio 事件只投递内部命令。
+- 迟到 HTTP、缓存或音频回调不能更新新 session。
+- Session 关闭按顺序取消预取、保存必要进度、停止音频、释放资源。
 
-- 同类新操作可以取消旧操作并递增版本。
-- 页面离开时取消只属于该页面的操作。
-- 用户取消映射为正常取消结果，不显示错误 Snackbar。
-- 不可取消的提交区必须尽量短，并在进入前检查取消。
-- 任何 `async void` 事件只负责捕获 WPF/设备事件并转交可等待方法；异常不得逃逸到进程级处理器。
+## 8. 主动缓存后台任务
 
-## 7. 播放会话
+主动缓存是 Process 下的 Background job：
 
-播放是进程级服务拥有的长期会话，可以在书库和设置页面之间继续存在。以下操作创建新会话或新版本：
+- 全应用最多一个批次。
+- 批次拥有独立 CTS 和不可变配置快照。
+- 页面切换、播放切章和主窗口隐藏不取消任务。
+- Application 暴露只读 progress snapshot；Shell/PlayerPage 可以同时订阅。
+- 取消后停止未开始工作；已完成缓存保留。
+- 完成/取消/失败后从 active slot 释放，不保留历史任务中心。
 
-- 打开或切换书籍。
-- 从停止状态开始播放。
-- 跳章、跳到非相邻段或从详情页定位章节。
-- 切换规则或语速。
-- 正则语音文本变化导致当前段重建。
+后台任务 registry 负责进程关闭时的取消和异常观察；不能只有“Task 列表登记”而没有业务状态 owner。
 
-取消 Token 负责尽快停止工作，SessionId/版本号负责拒绝无法及时取消的迟到结果。只有协调器可以提交当前播放位置和快照。
+## 9. 共享 TTS admission
 
-播放器的完成、失败和 Snapshot 回调只负责投递内部命令；本地音频协调器与书籍播放协调器各自拥有单读命令队列，处理过程复用串行入口和生命周期/会话 Token。事件处理异常投影为安全状态或诊断，不形成未观察 Task 异常。
+当前播放、预取、主动缓存通过同一规则级异步 limiter 申请执行资格。
 
-## 8. 后台任务
-
-后台缓存维护、日志刷新等进程级任务必须登记到生命周期协调器：
-
-- 使用进程级 Token。
-- 记录任务引用和安全失败结果。
-- 不使用无所有者的 fire-and-forget `Task.Run`。
-- 应用退出时发出取消并等待限定时间。
-- 后台任务失败不得从未观察 Task 异常路径泄漏敏感内容。
-
-预取不是任意后台任务，它属于当前 `PlaybackSessionState`；停止或换书时必须取消。
-
-## 9. 关闭顺序
+优先级：
 
 ```text
-阻止新的页面/操作提交
-  ↓
-请求当前页面未保存保护
-  ↓
-保存并停止/结束播放会话
-  ↓
-取消进程级 Token
-  ↓
-等待已登记后台任务的限定退出
-  ↓
-刷新设置与日志
-  ↓
-异步释放播放器、HTTP 与 ServiceProvider
-  ↓
-关闭进程
+Playback current > Prefetch > Active cache
 ```
 
-播放协调器关闭时先阻止新事件命令并取消生命周期/会话 Token，再串行保存进度、取消预取、释放会话和播放器；重复关闭共享同一个可等待释放任务。WPF 的同步退出事件可以保留最小桥接，但不得在 UI Dispatcher 上无界同步等待异步 I/O。超时后记录安全诊断并继续退出。
+等待必须可取消；不使用同步 Mutex 等待。优先级调度要避免主动缓存永久占用许可，也要避免在长时间播放时形成无法取消的积压。
 
-## 10. 未处理异常
+## 10. 托盘与主窗口
 
-- Dispatcher、AppDomain 和未观察 Task 异常都进入统一安全投影与滚动日志。
-- 进程级处理器只用于最后防线，不能替代局部错误处理。
-- UI 不显示堆栈、规则原文、完整 URL、Header、正文或服务端完整响应。
-- 启动前错误使用独立最小窗口/MessageBox；Shell 建立后使用统一反馈服务。
-- 发生致命错误前尽力保存当前阅读进度，但不得因保存失败覆盖原始故障。
+关闭主窗口时按设置：
 
-## 11. 时间和测试
+- Hide to tray：取消 WPF close，隐藏主窗口，进程继续。
+- Exit：经过导航/未保存保护后执行完整进程关闭。
+- Ask：显示一次选择，按用户决定执行上述路径。
 
-- 防抖、自动居中恢复、限流、重试和超时使用 `TimeProvider` 或可控调度器。
-- 测试通过手动时间推进或明确完成信号等待，不使用任意 `Task.Delay`/`Thread.Sleep` 猜测状态。
-- 页面生命周期测试覆盖进入、离开、快速重入、旧结果晚到和守卫取消。
-- 进程生命周期测试覆盖启动阶段失败、后台任务失败、关闭取消和资源释放顺序。
+启动最小化到托盘只改变初始窗口可见性，不改变应用初始化顺序。
 
-## 12. 验收标准
+托盘“退出”始终走显式 shutdown，不等价于关闭主窗口事件。
 
-- 启动只读取一份设置快照，DI 容器可验证且关键服务可解析。
-- 所有页面具有一致的 activation/cancellation/guard 协议。
-- 离开页面后，旧加载、试听、导入或自动保存不会更新新页面状态。
-- 播放跨页面继续，但换书/跳转/规则变化不会接受旧会话结果。
-- 后台任务均有所有者、取消源和退出等待。
-- 关闭不在 UI 线程无界阻塞，并能释放播放器与日志资源。
-- 生命周期测试不依赖固定延迟。
+## 11. 迷你播放器
+
+- 与主窗口共享 Process/Playback services，不创建第二套播放器或 ViewModel 状态机。
+- 打开时隐藏主窗口；恢复时关闭/隐藏迷你窗口并显示主窗口。
+- 关闭迷你窗口触发恢复主窗口，不退出进程。
+- 窗口位置和置顶状态持久化；迷你模式本身不持久化。
+
+## 12. 系统媒体控制
+
+平台 adapter 在进程生命周期注册/注销媒体事件：
+
+- Play/Pause → Application 播放命令。
+- Previous/Next → 上一/下一段。
+- 播放快照 → 系统媒体标题/副标题/播放状态。
+
+回调线程不直接操作 WPF 控件，必须经平台调度器/应用命令边界。
+
+## 13. 定时停止
+
+计时器属于 Playback session 的临时控制器：
+
+- 定时模式使用可替换 CTS/TimeProvider。
+- 触发后调用 Pause，不取消主动缓存。
+- 退出应用时取消；下次启动不恢复。
+
+## 14. 关闭顺序
+
+显式退出：
+
+```text
+block new UI operations
+  → resolve navigation/edit guards
+  → cancel active cache/background jobs
+  → stop media/tray callbacks
+  → persist playback/settings state
+  → stop/release NAudio
+  → flush diagnostics
+  → dispose host/container
+```
+
+关闭流程必须可等待、可重复调用且有上限；不得在 UI Dispatcher 上无界同步等待。
+
+## 15. 测试要求
+
+- Page lifecycle：进入、离开、快速重入、旧结果晚到。
+- Playback：session 替换、暂停、媒体命令、定时停止。
+- Background cache：跨页面持续、优先级、取消、完成、失败。
+- Tray/mini：隐藏/恢复/退出状态转换。
+- 所有异步测试基于事件、状态版本或可控 `TimeProvider`，不用固定延时猜测。

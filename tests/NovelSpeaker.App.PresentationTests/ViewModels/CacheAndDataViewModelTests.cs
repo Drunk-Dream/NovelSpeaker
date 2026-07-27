@@ -4,12 +4,12 @@ using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.Domain.Settings;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.ViewModels;
+namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class CacheAndDataViewModelTests
 {
@@ -121,6 +121,36 @@ public sealed class CacheAndDataViewModelTests
         Assert.Equal("4", viewModel.CacheLimitValueText);
     }
 
+    [Fact]
+    public async Task ClearAllAsync_is_confirmed_from_cache_and_data_page_and_refreshes_overview()
+    {
+        var workspaceService = new FakeCacheWorkspaceService
+        {
+            Overviews =
+            [
+                new CacheOverviewModel(4096, 4, AppSettings.DefaultCacheLimitBytes, false),
+                new CacheOverviewModel(1024, 1, AppSettings.DefaultCacheLimitBytes, false)
+            ],
+            ClearAllResult = new CacheCleanupResult(3072, 3, 1, 0)
+        };
+        var dialogService = new FakeAppDialogService
+        {
+            NextConfirmationDecision = AppConfirmationDecision.Confirm
+        };
+        var feedbackService = new FakeFeedbackService();
+        var viewModel = CreateViewModel(
+            workspaceService: workspaceService,
+            dialogService: dialogService,
+            feedbackService: feedbackService);
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        await viewModel.ClearAllCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, workspaceService.ClearAllCallCount);
+        Assert.Equal("1 KB", viewModel.TotalCacheSizeText);
+        Assert.Equal("缓存已部分清理", feedbackService.LastTitle);
+    }
+
     private static CacheAndDataViewModel CreateViewModel(
         FakeAppSettingsService? settingsService = null,
         FakeCacheWorkspaceService? workspaceService = null,
@@ -143,6 +173,12 @@ public sealed class CacheAndDataViewModelTests
     {
         private readonly Queue<CacheOverviewModel> _overviewQueue = new();
 
+        public event EventHandler<CacheChangedEventArgs>? Changed
+        {
+            add { }
+            remove { }
+        }
+
         public CacheOverviewModel Overview { get; set; } = new(0, 0, AppSettings.DefaultCacheLimitBytes, false);
 
         public IReadOnlyList<CacheOverviewModel>? Overviews
@@ -164,6 +200,10 @@ public sealed class CacheAndDataViewModelTests
 
         public bool TrimCalled { get; private set; }
 
+        public CacheCleanupResult ClearAllResult { get; set; } = new(0, 0, 0, 0);
+
+        public int ClearAllCallCount { get; private set; }
+
         public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken)
         {
             if (_overviewQueue.Count > 0)
@@ -184,6 +224,14 @@ public sealed class CacheAndDataViewModelTests
             throw new NotSupportedException();
         }
 
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
         public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken)
         {
             TrimCalled = true;
@@ -200,9 +248,18 @@ public sealed class CacheAndDataViewModelTests
             throw new NotSupportedException();
         }
 
-        public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken)
+        public Task<CacheCleanupResult> ClearChaptersAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
+        }
+
+        public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken)
+        {
+            ClearAllCallCount++;
+            return Task.FromResult(ClearAllResult);
         }
     }
 

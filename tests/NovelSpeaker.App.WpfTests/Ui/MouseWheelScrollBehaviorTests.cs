@@ -5,7 +5,7 @@ using System.Windows.Threading;
 using NovelSpeaker.App.Shell.Input;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 [Collection("WpfDispatcher")]
 public sealed class MouseWheelScrollBehaviorTests

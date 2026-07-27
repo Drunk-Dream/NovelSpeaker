@@ -20,18 +20,18 @@ NovelSpeaker 专注于一条清晰可靠的链路：导入本地 TXT 小说，�
 
 从 [Releases](https://github.com/Drunk-Dream/NovelSpeaker/releases/latest) 下载 `NovelSpeaker-vX.Y.Z-win-x64.zip`，解压到任意有写入权限的目录后运行 `NovelSpeaker.App.exe`。
 
-- 适用系统：Windows 10 22H2+ 或 Windows 11，x64。
-- 发布包是自包含的，不需要另装 .NET Runtime。
-- 未进行代码签名；首次运行时 Windows SmartScreen 可能提示，请仅从本仓库 Release 下载。
+- Windows 10 22H2+ 或 Windows 11，x64。
+- 发布包自包含，不需要另装 .NET Runtime。
+- 当前发布未进行代码签名；SmartScreen 首次运行可能提示，请仅从本仓库 Release 获取程序。
 
-应用数据保存在 `%LocalAppData%\NovelSpeaker`；卸载或删除程序目录不会自动删除书籍、缓存和设置。
+应用数据保存在 `%LocalAppData%\NovelSpeaker`；删除程序目录不会自动删除书籍、缓存和设置。
 
 ## 快速开始
 
-1. 在书库页点击“导入小说”图标，选择本地 TXT。常见编码会直接导入，无法确定时再选择编码。
-2. 在“设置 → TTS 规则”点击新建或导入图标，导入或新建兼容 Legado 风格的 HTTP GET/POST 规则，并使用“试听”验证。
-3. 打开书籍后开始播放；目录可跳章，播放页可跳段、调节语速和恢复当前位置。
-4. 在“设置 → 导入与文本”管理章节规则和正则替换；在“缓存与数据”查看或清理缓存。
+1. 在书库页点击“导入小说”图标，选择本地 TXT。常见编码会直接导入，无法可靠判断时再选择编码。
+2. 在“设置 → TTS 规则”新建或导入兼容的 HTTP TTS 规则，并使用“试听”验证。
+3. 打开书籍开始播放；播放页支持章节/段落切换、语速调整、播放进度和正文自动定位。
+4. 在“设置 → 章节规则”管理章节识别；在“设置 → 导入与文本 → 正则替换”管理展示/朗读文本替换；在“缓存与数据”查看、清理缓存，并将当前配置下完整缓存的章节导出为 MP3。
 
 ## 界面预览
 
@@ -43,20 +43,21 @@ NovelSpeaker 专注于一条清晰可靠的链路：导入本地 TXT 小说，�
 | --- | --- |
 | ![TTS 规则截图](docs/assets/screenshots/ttsRules.png) | ![设置截图](docs/assets/screenshots/settings.png) |
 
-## 主要能力
+## 当前能力
 
-- 本地 TXT 导入、编码检测、章节识别、文本分段和进度恢复。
+- 本地 TXT 导入、编码检测、章节识别、动态文本分段和进度恢复。
 - Legado 风格 HTTP TTS 规则：GET、POST JSON、POST Form、Header、Body、模板变量和受限 JavaScript 表达式。
-- 完整下载后播放、后续段落预取、NAudio 本地播放与本地音频 LRU 缓存。
-- 全局正则替换：分别处理展示文本和朗读文本，不需要重新导入小说。
-- 深色、浅色和跟随系统主题；键盘快捷键与基础可访问性支持。
+- 完整下载后播放、后续段落预取、NAudio 本地播放和 LRU 音频缓存。
+- 全局正则替换：可分别处理展示文本和朗读文本，不需要重新导入小说。
+- 章节规则管理、规则试听、未保存修改保护，以及按章缓存管理和 MP3 导出。
+- 深色、浅色、跟随系统主题；键盘快捷键和基础可访问性支持。
 - “诊断与关于”提供日志目录、脱敏诊断摘要和第三方许可证入口。
 
 ## 隐私与安全
 
-TTS 规则可能包含服务凭据。NovelSpeaker 会对常规日志、错误摘要和诊断摘要中的 Header、Cookie、Token、LoginInfo、正文类字段进行脱敏；不要在截图、Issue 或日志中主动分享规则原文或凭据。
+TTS 规则可能包含服务凭据。NovelSpeaker 会对常规日志、错误摘要和诊断摘要中的请求凭据与正文类字段进行脱敏；不要在截图、Issue 或日志中主动分享规则原文或私人小说正文。
 
-当前版本不提供 SecretStore：规则中的敏感值存储在本地 SQLite 中，尚未进行静态加密。规则脚本由受限 Jint 引擎执行，不能访问 CLR、文件系统、进程或反射。
+当前规则中的敏感值保存在本地应用数据中，尚未提供独立 SecretStore。规则脚本由受限 Jint 环境执行，不能访问 CLR、文件系统、进程或反射。
 
 ## 快捷键
 
@@ -64,6 +65,8 @@ TTS 规则可能包含服务凭据。NovelSpeaker 会对常规日志、错误摘
 | --- | --- |
 | `Ctrl+O` | 导入 TXT 小说 |
 | `Space` | 播放/暂停（仅播放页） |
+| `Ctrl+Left` / `Ctrl+Right` | 上一段 / 下一段（仅播放页） |
+| `Ctrl+Shift+Left` / `Ctrl+Shift+Right` | 上一章 / 下一章（仅播放页） |
 | `Alt+Left` / `Esc` | 返回或关闭当前临时界面 |
 | `Ctrl+,` | 打开设置 |
 
@@ -72,10 +75,10 @@ TTS 规则可能包含服务凭据。NovelSpeaker 会对常规日志、错误摘
 ## 当前限制
 
 - 仅支持 TXT；不支持 EPUB、PDF、MOBI 和在线书源。
-- 仅支持 HTTP GET/POST TTS，不支持 WebSocket 和真正的边生成边播放。
-- 当前不支持会话 Cookie、Cookie 持久化、LoginInfo、`jsLib` 或复杂 `source.get/put` 规则。
-- 不提供用户账户、云同步、语音克隆、有声书导出、插件市场、自动更新或 Windows 本地 TTS 回退。
-- 首发版本未进行代码签名，且规则敏感值尚未静态加密。
+- TTS 仅实现当前文档定义的 HTTP 规则兼容子集，不保证所有社区规则无需修改即可运行。
+- 音频采用完整段落生成后播放，不提供真正的实时流式 TTS。
+- 不提供用户账户、云同步、语音克隆、插件市场或自动更新。
+- 首发版本未进行代码签名，规则敏感值尚未使用独立凭据存储加密。
 
 ## 本地开发
 
@@ -89,14 +92,14 @@ dotnet test -c Release --no-build
 dotnet run --project src/NovelSpeaker.App
 ```
 
-仓库级 `RuntimeIdentifiers` 会让命令行和 IDE 的隐式还原都保留 `win-x64` 锁文件目标；日常启动不需要额外指定 `-r` 或 `--no-restore`。
+仓库级 `RuntimeIdentifiers` 会让命令行和 IDE 的隐式还原都保留 `win-x64` 锁文件目标。
 
-## 架构与文档
+## 架构与开发计划
 
-项目使用 C#、.NET 10、WPF、CommunityToolkit.Mvvm、Microsoft.Data.Sqlite、Jint 和 NAudio。业务逻辑不写在 code-behind；ViewModel 不直接访问 HTTP 或 SQLite；规则引擎、播放器和文本切分保持独立边界。
+项目使用 Domain / Application / Infrastructure / App 分层。业务逻辑不写在 code-behind；ViewModel 不直接访问 HTTP 或 SQLite；播放、缓存、规则执行和 UI 生命周期保持明确状态所有权。
 
-详细设计见 [docs/README.md](docs/README.md)。
+详细设计与下一阶段开发计划见 [docs/README.md](docs/README.md)。
 
 ## 许可证
 
-NovelSpeaker 以 [GPL-3.0-or-later](LICENSE) 发布。第三方组件及其许可证见 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)。
+NovelSpeaker 以 [GPL-3.0-or-later](LICENSE) 发布。第三方组件及许可证见 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)。

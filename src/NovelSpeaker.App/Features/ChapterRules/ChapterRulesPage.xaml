@@ -49,9 +49,12 @@
                        HorizontalAlignment="Right"
                        VerticalAlignment="Center">
                 <Button Margin="0,0,12,0"
-                        Padding="16,8"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
                         Command="{Binding NewRuleCommand}"
-                        Content="新建规则" />
+                        ToolTip="新建规则"
+                        AutomationProperties.Name="新建规则">
+                    <ui:SymbolIcon Symbol="DocumentAdd24" />
+                </Button>
                 <Button Margin="0,0,12,0"
                         Padding="16,8"
                         Command="{Binding ImportDefaultsCommand}"
@@ -60,12 +63,6 @@
                         Padding="16,8"
                         Command="{Binding RestoreDefaultsCommand}"
                         Content="恢复默认" />
-                <Button Style="{StaticResource SecondaryIconButtonStyle}"
-                        Command="{Binding OpenHelpCommand}"
-                        ToolTip="章节规则帮助"
-                        AutomationProperties.Name="章节规则帮助">
-                    <ui:SymbolIcon Symbol="QuestionCircle24" />
-                </Button>
             </WrapPanel>
         </Grid>
 
@@ -154,9 +151,7 @@
                                                   Panel.ZIndex="1">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="8" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="8" />
                                                     <ColumnDefinition Width="Auto" />
@@ -168,12 +163,13 @@
                                                           IsEnabled="{Binding CanQuickActions}"
                                                           Command="{Binding DataContext.ToggleRuleEnabledCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                           CommandParameter="{Binding}"
+                                                          AutomationProperties.Name="{Binding Name, StringFormat=切换规则启用状态：{0}}"
                                                           Content="启用" />
 
                                                 <Button Grid.Column="2"
-                                                        Style="{StaticResource SecondaryIconButtonStyle}"
+                                                        Style="{StaticResource BorderlessIconButtonStyle}"
                                                         ToolTip="拖动排序"
-                                                        AutomationProperties.Name="拖动排序"
+                                                        AutomationProperties.Name="{Binding Name, StringFormat=拖动排序：{0}}"
                                                         IsEnabled="{Binding CanQuickActions}"
                                                         PreviewMouseLeftButtonDown="DragHandle_OnPreviewMouseLeftButtonDown"
                                                         PreviewMouseMove="DragHandle_OnPreviewMouseMove"
@@ -182,23 +178,26 @@
                                                 </Button>
 
                                                 <Button Grid.Column="4"
-                                                        Style="{StaticResource SecondaryIconButtonStyle}"
-                                                        Command="{Binding DataContext.MoveRuleUpCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                        CommandParameter="{Binding}"
-                                                        IsEnabled="{Binding CanMoveUp}"
-                                                        ToolTip="上移"
-                                                        AutomationProperties.Name="上移">
-                                                    <ui:SymbolIcon Symbol="ArrowUp24" />
-                                                </Button>
-
-                                                <Button Grid.Column="6"
-                                                        Style="{StaticResource SecondaryIconButtonStyle}"
-                                                        Command="{Binding DataContext.MoveRuleDownCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                        CommandParameter="{Binding}"
-                                                        IsEnabled="{Binding CanMoveDown}"
-                                                        ToolTip="下移"
-                                                        AutomationProperties.Name="下移">
-                                                    <ui:SymbolIcon Symbol="ArrowDown24" />
+                                                        Style="{StaticResource BorderlessIconButtonStyle}"
+                                                        Click="RuleMoreButton_OnClick"
+                                                        IsEnabled="{Binding CanQuickActions}"
+                                                        ToolTip="更多操作"
+                                                        AutomationProperties.Name="{Binding Name, StringFormat=更多操作：{0}}">
+                                                    <ui:SymbolIcon Symbol="MoreHorizontal24" />
+                                                    <Button.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="上移"
+                                                                      IsEnabled="{Binding CanMoveUp}"
+                                                                      Click="MoveRuleUpMenuItem_OnClick" />
+                                                            <MenuItem Header="下移"
+                                                                      IsEnabled="{Binding CanMoveDown}"
+                                                                      Click="MoveRuleDownMenuItem_OnClick" />
+                                                            <Separator />
+                                                            <MenuItem Header="删除"
+                                                                      IsEnabled="{Binding CanDeleteAction}"
+                                                                      Click="DeleteRuleMenuItem_OnClick" />
+                                                        </ContextMenu>
+                                                    </Button.ContextMenu>
                                                 </Button>
                                             </Grid>
                                         </Grid>
@@ -258,8 +257,22 @@
                         </ScrollViewer.Style>
 
                         <StackPanel>
-                            <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
-                                       Text="规则编辑" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center"
+                                           Style="{StaticResource SectionTitleTextBlockStyle}"
+                                           Text="规则编辑" />
+                                <Button Grid.Column="1"
+                                        Style="{StaticResource SecondaryIconButtonStyle}"
+                                        Command="{Binding OpenHelpCommand}"
+                                        ToolTip="章节规则帮助"
+                                        AutomationProperties.Name="章节规则帮助">
+                                    <ui:SymbolIcon Symbol="QuestionCircle24" />
+                                </Button>
+                            </Grid>
 
                             <StackPanel Margin="0,20,0,0">
                                 <TextBlock Style="{StaticResource StrongTextBlockStyle}"
@@ -309,17 +322,9 @@
                                 </TextBlock.Style>
                             </TextBlock>
 
-                            <TextBlock Margin="0,18,0,0"
-                                       Style="{StaticResource SecondaryTextBlockStyle}"
-                                       Text="{Binding DeleteRestrictionMessage}"
-                                       TextWrapping="Wrap"
-                                       Visibility="{Binding ShowDeleteRestrictionMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
-
                             <Grid Margin="0,24,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="12" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="12" />
                                     <ColumnDefinition Width="Auto" />
@@ -327,15 +332,10 @@
 
                                 <Button Grid.Column="1"
                                         Padding="16,8"
-                                        Command="{Binding DeleteRuleCommand}"
-                                        IsEnabled="{Binding CanDeleteCurrentRule}"
-                                        Content="删除" />
-                                <Button Grid.Column="3"
-                                        Padding="16,8"
                                         Command="{Binding CancelEditingCommand}"
                                         IsEnabled="{Binding CanCancelEditing}"
                                         Content="取消" />
-                                <Button Grid.Column="5"
+                                <Button Grid.Column="3"
                                         Padding="16,8"
                                         Command="{Binding SaveDraftCommand}"
                                         IsEnabled="{Binding CanSaveDraft}"

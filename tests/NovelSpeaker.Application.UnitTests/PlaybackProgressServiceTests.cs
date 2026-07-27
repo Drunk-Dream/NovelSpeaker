@@ -2,7 +2,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Domain.Books;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.Application.UnitTests;
 
 public sealed class PlaybackProgressServiceTests
 {
@@ -24,7 +24,7 @@ public sealed class PlaybackProgressServiceTests
             null,
             true));
 
-        await service.SaveAsync(session, PlaybackProgressSaveReason.Pause, cancellationSource.Token);
+        await service.SaveAsync(session, cancellationSource.Token);
 
         Assert.Equal(cancellationSource.Token, store.SaveToken);
         Assert.NotNull(store.SavedProgress);
@@ -42,7 +42,7 @@ public sealed class PlaybackProgressServiceTests
         var session = new PlaybackSessionState(CreateBook(), 0, 0, rule: null, speakSpeed: 10);
 
         var actual = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.SaveAsync(session, PlaybackProgressSaveReason.Stop, CancellationToken.None));
+            service.SaveAsync(session, CancellationToken.None));
 
         Assert.Same(expected, actual);
     }

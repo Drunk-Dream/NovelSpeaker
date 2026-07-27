@@ -23,20 +23,31 @@
                 <TextBlock Style="{StaticResource PageTitleTextBlockStyle}"
                            Text="外观" />
 
-                <StackPanel Margin="{StaticResource SectionSpacing}">
+                <Border Margin="{StaticResource SectionSpacing}"
+                        Style="{StaticResource SettingsRowsGroupBorderStyle}">
                     <Border x:Name="ThemeItemBorder"
-                            Style="{StaticResource SettingsSubpageItemBorderStyle}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource SettingsSubpageItemTitleTextBlockStyle}"
-                                       Text="主题" />
-                            <ComboBox Margin="0,10,0,0"
-                                      Width="220"
-                                      HorizontalAlignment="Left"
+                            Style="{StaticResource SettingsLastRowBorderStyle}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                           Text="应用主题" />
+                                <TextBlock Style="{StaticResource SettingsRowDescriptionTextBlockStyle}"
+                                           Text="跟随系统，或固定使用浅色、深色主题。" />
+                            </StackPanel>
+                            <ComboBox Grid.Column="1"
+                                      Margin="{StaticResource SettingsRowControlMargin}"
+                                      Width="{StaticResource SettingsRowControlWidth}"
+                                      VerticalAlignment="Center"
                                       ItemsSource="{Binding AvailableThemes}"
-                                      SelectedItem="{Binding SelectedTheme}" />
-                        </StackPanel>
+                                      SelectedItem="{Binding SelectedTheme}"
+                                      AutomationProperties.Name="应用主题" />
+                        </Grid>
                     </Border>
-                </StackPanel>
+                </Border>
             </StackPanel>
         </ScrollViewer>
     </Grid>

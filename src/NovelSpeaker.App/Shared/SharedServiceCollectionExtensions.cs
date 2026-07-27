@@ -5,6 +5,7 @@ using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Books;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Theming;
+using NovelSpeaker.App.Shell.Activation;
 using Wpf.Ui;
 
 namespace NovelSpeaker.App.Shared;
@@ -19,6 +20,7 @@ public static class SharedServiceCollectionExtensions
         services.TryAddSingleton<IAppNotificationService, AppNotificationService>();
         services.TryAddSingleton<IExceptionProjector, ExceptionProjector>();
         services.TryAddSingleton<IAppFeedbackService, AppFeedbackService>();
+        services.TryAddSingleton<PageEventOperationRunner>();
         services.TryAddSingleton<IUiScheduler, WpfUiScheduler>();
         services.TryAddSingleton<IPresentationFileDialogService, WpfPresentationFileDialogService>();
         services.TryAddSingleton<IPresentationClipboard, WpfPresentationClipboard>();

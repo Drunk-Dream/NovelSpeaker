@@ -3,7 +3,7 @@ using NovelSpeaker.Infrastructure.Diagnostics;
 using NovelSpeaker.Infrastructure.FileSystem;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Diagnostics;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Diagnostics;
 
 public sealed class RollingFileLoggerProviderTests
 {

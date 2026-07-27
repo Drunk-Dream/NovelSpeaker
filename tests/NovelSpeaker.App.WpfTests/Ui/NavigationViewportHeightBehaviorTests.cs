@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Shell.Navigation;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 [Collection("WpfDispatcher")]
 public sealed class NavigationViewportHeightBehaviorTests

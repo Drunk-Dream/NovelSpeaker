@@ -73,7 +73,12 @@ public sealed class AppSettingsService :
             Theme = update.Theme ?? current.Theme,
             BookFileNameTemplate = update.BookFileNameTemplate ?? current.BookFileNameTemplate,
             CacheLimitBytes = update.CacheLimitBytes ?? current.CacheLimitBytes,
-            SelectedTtsRuleId = update.ClearSelectedTtsRuleId ? null : update.SelectedTtsRuleId ?? current.SelectedTtsRuleId
+            SelectedTtsRuleId = update.ClearSelectedTtsRuleId ? null : update.SelectedTtsRuleId ?? current.SelectedTtsRuleId,
+            MainWindowCloseBehavior = update.MainWindowCloseBehavior ?? current.MainWindowCloseBehavior,
+            StartMinimizedToTray = update.StartMinimizedToTray ?? current.StartMinimizedToTray,
+            MiniPlayerLeft = update.ClearMiniPlayerLeft ? null : update.MiniPlayerLeft ?? current.MiniPlayerLeft,
+            MiniPlayerTop = update.ClearMiniPlayerTop ? null : update.MiniPlayerTop ?? current.MiniPlayerTop,
+            MiniPlayerTopmost = update.MiniPlayerTopmost ?? current.MiniPlayerTopmost
         };
     }
 }

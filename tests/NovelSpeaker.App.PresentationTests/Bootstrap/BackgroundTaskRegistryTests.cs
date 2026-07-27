@@ -1,8 +1,8 @@
 using NovelSpeaker.App.Bootstrap;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Bootstrap;
+namespace NovelSpeaker.App.PresentationTests.Bootstrap;
 
 public sealed class BackgroundTaskRegistryTests
 {

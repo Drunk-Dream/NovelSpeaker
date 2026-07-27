@@ -1,6 +1,6 @@
 using NovelSpeaker.App.Shell.Navigation;
 
-namespace NovelSpeaker.UnitTests;
+namespace NovelSpeaker.TestKit.Navigation;
 
 internal static class TestAppRouteMapper
 {
@@ -17,6 +17,7 @@ internal static class TestAppRouteMapper
         AppRouteId.ChapterRules => typeof(ChapterRulesPage),
         AppRouteId.CacheAndData => typeof(CacheAndDataPage),
         AppRouteId.CacheManagement => typeof(CacheManagementPage),
+        AppRouteId.GeneralSettings => typeof(GeneralSettingsPage),
         AppRouteId.AppearanceSettings => typeof(AppearanceSettingsPage),
         AppRouteId.DiagnosticsAbout => typeof(DiagnosticsAboutPage),
         _ => throw new ArgumentOutOfRangeException(nameof(routeId))

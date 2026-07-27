@@ -84,7 +84,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
 
         if (_activation.Current is { } activation)
         {
-            _ = ScrollCurrentChapterIntoViewAsync(activation);
+            activation.Register(ScrollCurrentChapterIntoViewAsync(activation));
         }
     }
 

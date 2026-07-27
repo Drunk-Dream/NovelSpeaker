@@ -6,7 +6,7 @@ using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.ViewModels;
+namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class RegexReplacementRulesViewModelTests
 {
@@ -83,6 +83,29 @@ public sealed class RegexReplacementRulesViewModelTests
     }
 
     [Fact]
+    public async Task Editor_actions_are_disabled_until_the_draft_changes()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Discard);
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+
+        Assert.False(fixture.ViewModel.HasUnsavedChanges);
+        Assert.False(fixture.ViewModel.CanCancel);
+        Assert.False(fixture.ViewModel.CanSave);
+
+        fixture.ViewModel.DraftReplacement = "新替换";
+
+        Assert.True(fixture.ViewModel.HasUnsavedChanges);
+        Assert.True(fixture.ViewModel.CanCancel);
+        Assert.True(fixture.ViewModel.CanSave);
+
+        await fixture.ViewModel.CancelCommand.ExecuteAsync(null);
+
+        Assert.False(fixture.ViewModel.HasUnsavedChanges);
+        Assert.False(fixture.ViewModel.CanCancel);
+        Assert.False(fixture.ViewModel.CanSave);
+    }
+
+    [Fact]
     public async Task SelectRuleAsync_save_failure_keeps_current_draft_and_blocks_leave()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
@@ -138,6 +161,93 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal(0, fixture.Playback.RegexRefreshCount);
     }
 
+    [Fact]
+    public async Task ToggleEnabledAsync_persists_state_and_refreshes_current_playback()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Save);
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        var rule = fixture.ViewModel.Rules[0];
+
+        await fixture.ViewModel.ToggleEnabledCommand.ExecuteAsync(rule);
+
+        Assert.False(fixture.ViewModel.Rules[0].IsEnabled);
+        Assert.Equal(1, fixture.Playback.RegexRefreshCount);
+    }
+
+    [Fact]
+    public async Task ToggleEnabledAsync_cancellation_rolls_back_immediately_and_propagates()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Save);
+        fixture.Workspace.SetEnabledException = new OperationCanceledException();
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        var rule = fixture.ViewModel.Rules[0];
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => fixture.ViewModel.ToggleEnabledCommand.ExecuteAsync(rule));
+
+        Assert.True(rule.IsEnabled);
+        Assert.Equal("已启用", rule.EnabledStateText);
+        Assert.Equal(0, fixture.Playback.RegexRefreshCount);
+        Assert.Null(fixture.Feedback.LastProjectedTitle);
+    }
+
+    [Fact]
+    public async Task ToggleEnabledAsync_playback_refresh_cancellation_keeps_persisted_list_state_and_propagates()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Save);
+        fixture.Playback.RefreshException = new OperationCanceledException();
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        var optimisticItem = fixture.ViewModel.Rules[0];
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => fixture.ViewModel.ToggleEnabledCommand.ExecuteAsync(optimisticItem));
+
+        var currentItem = fixture.ViewModel.Rules[0];
+        Assert.NotSame(optimisticItem, currentItem);
+        Assert.DoesNotContain(optimisticItem, fixture.ViewModel.Rules);
+        Assert.False(currentItem.IsEnabled);
+        Assert.Equal("已禁用", currentItem.EnabledStateText);
+        Assert.Equal(1, fixture.Playback.RegexRefreshCount);
+        Assert.Null(fixture.Feedback.LastProjectedTitle);
+    }
+
+    [Fact]
+    public async Task MoveRuleDownFromListAsync_persists_order_updates_boundaries_and_refreshes_playback()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Save);
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+
+        await fixture.ViewModel.MoveRuleDownFromListAsync(
+            fixture.ViewModel.Rules[0],
+            CancellationToken.None);
+
+        Assert.Equal([fixture.SecondRuleId, fixture.FirstRuleId], fixture.Workspace.OrderedRuleIds);
+        Assert.Equal(fixture.SecondRuleId, fixture.ViewModel.Rules[0].Id);
+        Assert.False(fixture.ViewModel.Rules[0].CanMoveUp);
+        Assert.True(fixture.ViewModel.Rules[0].CanMoveDown);
+        Assert.True(fixture.ViewModel.Rules[1].CanMoveUp);
+        Assert.False(fixture.ViewModel.Rules[1].CanMoveDown);
+        Assert.Equal(1, fixture.Playback.RegexRefreshCount);
+    }
+
+    [Fact]
+    public async Task DeleteRuleFromListAsync_deletes_the_menu_target_without_closing_another_editor()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Save);
+        fixture.Feedback.DeletionDecision = AppConfirmationDecision.Confirm;
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+
+        await fixture.ViewModel.DeleteRuleFromListAsync(
+            fixture.ViewModel.Rules[1],
+            CancellationToken.None);
+
+        Assert.Equal([fixture.FirstRuleId], fixture.Workspace.OrderedRuleIds);
+        Assert.Equal(fixture.FirstRuleId, fixture.ViewModel.SelectedRuleId);
+        Assert.Equal("规则一", fixture.ViewModel.DraftName);
+        Assert.False(fixture.ViewModel.HasUnsavedChanges);
+        Assert.Equal(1, fixture.Playback.RegexRefreshCount);
+    }
+
     private static TestFixture CreateFixture(UnsavedChangesDecision decision)
     {
         var firstRuleId = Guid.NewGuid();
@@ -167,26 +277,33 @@ public sealed class RegexReplacementRulesViewModelTests
     private sealed class FakeRegexReplacementRuleWorkspaceService : IRegexReplacementRuleWorkspaceService
     {
         private readonly Dictionary<Guid, RegexReplacementRuleEditorModel> _editors;
+        private readonly Dictionary<Guid, bool> _enabled;
+        private List<Guid> _orderedRuleIds;
 
         public FakeRegexReplacementRuleWorkspaceService(params RegexReplacementRuleEditorModel[] editors)
         {
             _editors = editors.ToDictionary(editor => editor.Id!.Value);
+            _enabled = editors.ToDictionary(editor => editor.Id!.Value, _ => true);
+            _orderedRuleIds = editors.Select(editor => editor.Id!.Value).ToList();
         }
 
         public int SaveEditorCallCount { get; private set; }
 
         public Exception? SaveException { get; set; }
+        public Exception? SetEnabledException { get; set; }
+        public IReadOnlyList<Guid> OrderedRuleIds => _orderedRuleIds;
 
         public Task<IReadOnlyList<RegexReplacementRuleListItem>> GetRulesAsync(CancellationToken cancellationToken)
         {
-            IReadOnlyList<RegexReplacementRuleListItem> rules = _editors.Values
-                .Select((editor, index) => new RegexReplacementRuleListItem(
-                    editor.Id!.Value,
-                    editor.Name,
-                    editor.Pattern,
-                    true,
-                    (index + 1) * 10,
-                    editor.Scope))
+            IReadOnlyList<RegexReplacementRuleListItem> rules = _orderedRuleIds
+                .Select((id, index) => (Editor: _editors[id], IsEnabled: _enabled[id], Index: index))
+                .Select(item => new RegexReplacementRuleListItem(
+                    item.Editor.Id!.Value,
+                    item.Editor.Name,
+                    item.Editor.Pattern,
+                    item.IsEnabled,
+                    (item.Index + 1) * 10,
+                    item.Editor.Scope))
                 .ToArray();
             return Task.FromResult(rules);
         }
@@ -208,16 +325,36 @@ public sealed class RegexReplacementRulesViewModelTests
 
             var saved = editor.Id is null ? editor with { Id = Guid.NewGuid() } : editor;
             _editors[saved.Id!.Value] = saved;
+            if (!_orderedRuleIds.Contains(saved.Id.Value))
+            {
+                _orderedRuleIds.Add(saved.Id.Value);
+                _enabled.Add(saved.Id.Value, true);
+            }
             return Task.FromResult(saved);
         }
 
-        public Task SetRuleEnabledAsync(Guid ruleId, bool isEnabled, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SetRuleEnabledAsync(Guid ruleId, bool isEnabled, CancellationToken cancellationToken)
+        {
+            if (SetEnabledException is not null)
+            {
+                throw SetEnabledException;
+            }
 
-        public Task SaveOrderAsync(IReadOnlyList<Guid> orderedRuleIds, CancellationToken cancellationToken) => Task.CompletedTask;
+            _enabled[ruleId] = isEnabled;
+            return Task.CompletedTask;
+        }
+
+        public Task SaveOrderAsync(IReadOnlyList<Guid> orderedRuleIds, CancellationToken cancellationToken)
+        {
+            _orderedRuleIds = orderedRuleIds.ToList();
+            return Task.CompletedTask;
+        }
 
         public Task DeleteRuleAsync(Guid ruleId, CancellationToken cancellationToken)
         {
             _editors.Remove(ruleId);
+            _enabled.Remove(ruleId);
+            _orderedRuleIds.Remove(ruleId);
             return Task.CompletedTask;
         }
     }
@@ -250,6 +387,7 @@ public sealed class RegexReplacementRulesViewModelTests
     private sealed class FakeFeedbackService : IAppFeedbackService
     {
         public string? LastProjectedTitle { get; private set; }
+        public AppConfirmationDecision DeletionDecision { get; set; } = AppConfirmationDecision.Cancel;
 
         public ProjectedUiError Project(Exception exception) => new("操作失败。", UiMessageSeverity.Error, false);
 
@@ -269,7 +407,7 @@ public sealed class RegexReplacementRulesViewModelTests
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(
             string title,
             string message,
-            CancellationToken cancellationToken) => Task.FromResult(AppConfirmationDecision.Cancel);
+            CancellationToken cancellationToken) => Task.FromResult(DeletionDecision);
     }
 
     private sealed class FakeNavigationService : ITestNavigationService
@@ -288,6 +426,7 @@ public sealed class RegexReplacementRulesViewModelTests
     private sealed class FakePlaybackCoordinator : IPlaybackRegexReplacementRefresher
     {
         public int RegexRefreshCount { get; private set; }
+        public Exception? RefreshException { get; set; }
 
         public PlaybackSnapshot CurrentSnapshot => PlaybackSnapshot.Idle;
 
@@ -316,6 +455,11 @@ public sealed class RegexReplacementRulesViewModelTests
         public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken)
         {
             RegexRefreshCount++;
+            if (RefreshException is not null)
+            {
+                throw RefreshException;
+            }
+
             return Task.CompletedTask;
         }
         public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;

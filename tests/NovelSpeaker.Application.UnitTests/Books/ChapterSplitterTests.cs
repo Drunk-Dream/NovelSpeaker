@@ -2,7 +2,7 @@ using NovelSpeaker.Application.Books.Import;
 using NovelSpeaker.Domain.Books;
 using Xunit;
 
-namespace NovelSpeaker.ApplicationTests.Books.Import;
+namespace NovelSpeaker.Application.UnitTests.Books;
 
 public sealed class ChapterSplitterTests
 {

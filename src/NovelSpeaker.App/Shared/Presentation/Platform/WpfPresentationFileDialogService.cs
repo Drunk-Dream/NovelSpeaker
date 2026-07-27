@@ -36,4 +36,20 @@ public sealed class WpfPresentationFileDialogService : IPresentationFileDialogSe
 
         return Task.FromResult(dialog.ShowDialog() == true ? dialog.FileName : null);
     }
+
+    public Task<string?> PickFolderAsync(
+        PresentationFolderDialogOptions options,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var dialog = new OpenFolderDialog
+        {
+            Title = options.Title,
+            InitialDirectory = options.InitialDirectory ?? string.Empty
+        };
+
+        return Task.FromResult(dialog.ShowDialog() == true ? dialog.FolderName : null);
+    }
 }

@@ -5,10 +5,10 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Playback;
-using NovelSpeaker.UnitTests.Speech;
+using NovelSpeaker.TestKit.Speech;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Playback;
+namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed partial class PlaybackCoordinatorTests
 {
@@ -20,7 +20,8 @@ public sealed partial class PlaybackCoordinatorTests
         PlaybackBookContent? book = null,
         FakeReadingProgressStore? readingProgressStore = null,
         FakePrefetchScheduler? prefetchScheduler = null,
-        FakeAppSettingsStore? appSettingsStore = null)
+        FakeAppSettingsStore? appSettingsStore = null,
+        TimeProvider? timeProvider = null)
     {
         return new PlaybackCoordinator(
             bookContentService ?? new FakeBookPlaybackContentService(book ?? CreateBook()),
@@ -33,7 +34,8 @@ public sealed partial class PlaybackCoordinatorTests
             localCoordinator,
             new PlaybackProgressService(readingProgressStore ?? new FakeReadingProgressStore()),
             prefetchScheduler ?? new FakePrefetchScheduler(),
-            appSettingsStore ?? new FakeAppSettingsStore(AppSettings.Default));
+            appSettingsStore ?? new FakeAppSettingsStore(AppSettings.Default),
+            timeProvider ?? TimeProvider.System);
     }
 
     private static PlaybackBookContent CreateBook()
@@ -343,6 +345,10 @@ public sealed partial class PlaybackCoordinatorTests
 
         public LocalAudioPlaybackRequest? LastStartedRequest { get; private set; }
 
+        public int StartCallCount { get; private set; }
+
+        public int PauseCallCount { get; private set; }
+
         public int StopCallCount { get; private set; }
 
         public bool WasDisposed { get; private set; }
@@ -355,6 +361,7 @@ public sealed partial class PlaybackCoordinatorTests
 
         public Task StartAsync(LocalAudioPlaybackRequest request, CancellationToken cancellationToken)
         {
+            StartCallCount++;
             LastStartedRequest = request;
             CurrentSnapshot = new LocalAudioPlaybackSnapshot(
                 PlaybackState.Playing,
@@ -379,6 +386,7 @@ public sealed partial class PlaybackCoordinatorTests
 
         public Task PauseAsync(CancellationToken cancellationToken)
         {
+            PauseCallCount++;
             CurrentSnapshot = CurrentSnapshot with { State = PlaybackState.Paused };
             SnapshotChanged?.Invoke(this, CurrentSnapshot);
             return Task.CompletedTask;

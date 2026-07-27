@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace NovelSpeaker.UnitTests.Common;
+namespace NovelSpeaker.TestKit.Common;
 
 internal sealed class ManualTimeProvider : TimeProvider
 {
@@ -22,6 +22,17 @@ internal sealed class ManualTimeProvider : TimeProvider
     }
 
     public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+
+    public int PendingTimerCount
+    {
+        get
+        {
+            lock (_syncRoot)
+            {
+                return _timers.Count(static timer => timer.TryGetNextDue(out _));
+            }
+        }
+    }
 
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {

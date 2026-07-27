@@ -3,7 +3,7 @@ using NovelSpeaker.Infrastructure.Books.FileStorage;
 using NovelSpeaker.Infrastructure.FileSystem;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Books;
+namespace NovelSpeaker.Infrastructure.IntegrationTests.Books;
 
 public sealed class BookContentReaderTests
 {

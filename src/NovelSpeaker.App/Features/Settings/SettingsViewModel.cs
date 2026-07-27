@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.App.Shell.Navigation;
 
 namespace NovelSpeaker.App.Features.Settings;
@@ -17,7 +18,8 @@ public sealed partial class SettingsViewModel : ObservableObject
                 "常用",
                 [
                     new SettingsNavigationItemViewModel("播放设置", SettingsNavigationIcon.Playback, OpenPlaybackSettingsCommand),
-                    new SettingsNavigationItemViewModel("TTS 规则", SettingsNavigationIcon.TtsRules, OpenTtsRulesCommand)
+                    new SettingsNavigationItemViewModel("TTS 规则", SettingsNavigationIcon.TtsRules, OpenTtsRulesCommand),
+                    new SettingsNavigationItemViewModel("常规", SettingsNavigationIcon.General, OpenGeneralSettingsCommand)
                 ]),
             new SettingsNavigationGroupViewModel(
                 "文本处理",
@@ -71,6 +73,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     private Task OpenAppearanceSettingsAsync(CancellationToken cancellationToken)
     {
         return _navigator.NavigateAsync(AppRoutes.AppearanceSettings, cancellationToken);
+    }
+
+    [RelayCommand]
+    private Task OpenGeneralSettingsAsync(CancellationToken cancellationToken)
+    {
+        return _navigator.NavigateAsync(AppRoutes.GeneralSettings, cancellationToken);
     }
 
     [RelayCommand]

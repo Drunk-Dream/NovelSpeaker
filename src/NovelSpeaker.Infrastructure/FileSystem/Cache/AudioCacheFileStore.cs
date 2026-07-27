@@ -48,6 +48,7 @@ internal sealed class AudioCacheFileStore
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var finalPath = GetDestinationPath(request);
         var shardDirectory = Path.GetDirectoryName(finalPath)
@@ -66,11 +67,13 @@ internal sealed class AudioCacheFileStore
                 temporaryPath,
                 cancellationToken).ConfigureAwait(false);
 
+            var createdNew = false;
             try
             {
                 if (!File.Exists(finalPath))
                 {
                     File.Move(temporaryPath, finalPath);
+                    createdNew = true;
                 }
             }
             catch (IOException) when (File.Exists(finalPath))
@@ -84,7 +87,11 @@ internal sealed class AudioCacheFileStore
                 throw new IOException("缓存文件写入失败。");
             }
 
-            return new AudioCacheFile(finalPath, fileInfo.Length, GetStorageKey(finalPath));
+            return new AudioCacheFile(
+                finalPath,
+                fileInfo.Length,
+                GetStorageKey(finalPath),
+                createdNew);
         }
         finally
         {
@@ -253,4 +260,5 @@ internal sealed class AudioCacheFileStore
 internal sealed record AudioCacheFile(
     string FilePath,
     long FileSize,
-    string StorageKey);
+    string StorageKey,
+    bool CreatedNew);

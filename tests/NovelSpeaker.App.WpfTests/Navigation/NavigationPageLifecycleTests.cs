@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
@@ -13,7 +14,7 @@ using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Navigation;
+namespace NovelSpeaker.App.WpfTests.Navigation;
 
 [Collection("WpfDispatcher")]
 public sealed class NavigationPageLifecycleTests
@@ -62,6 +63,8 @@ public sealed class NavigationPageLifecycleTests
                     null,
                     false,
                     false)),
+                new NovelSpeaker.App.WpfTests.FakePlaybackStopTimer(),
+                new NovelSpeaker.App.WpfTests.FakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
                     PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
@@ -69,7 +72,9 @@ public sealed class NavigationPageLifecycleTests
                 new FakeAppSettingsService(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
-                new FakePlayerAutoScrollCoordinator());
+                new FakePlayerAutoScrollCoordinator(),
+                new FakeCacheWorkspaceService(),
+                new NovelSpeaker.App.WpfTests.FakeMiniPlayerLauncher());
             var page = new PlayerPage(viewModel);
             page.DataContext = new PlayerNavigationRequest("book-7", PlayerNavigationMode.ReturnToCurrentSession);
 
@@ -77,6 +82,54 @@ public sealed class NavigationPageLifecycleTests
 
             Assert.Equal("book-7", page.LastRequest?.BookId);
             Assert.Equal(PlayerNavigationMode.ReturnToCurrentSession, page.LastRequest?.Mode);
+        });
+    }
+
+    [Fact]
+    public void Leaving_player_page_does_not_stop_the_playback_session()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var playback = new FakePlaybackCoordinator(new PlaybackSnapshot(
+                PlaybackState.Playing,
+                "book-7",
+                "示例小说",
+                0,
+                "第一章",
+                0,
+                1,
+                1,
+                "默认规则",
+                10,
+                0,
+                0,
+                null,
+                false,
+                false));
+            var viewModel = new PlayerViewModel(
+                playback,
+                new NovelSpeaker.App.WpfTests.FakePlaybackStopTimer(),
+                new NovelSpeaker.App.WpfTests.FakeActiveCacheCoordinator(),
+                new FakeBookPlaybackContentService(
+                    new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                    PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
+                new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
+                new FakeAppSettingsService(AppSettings.Default),
+                new FakeAppFeedbackService(),
+                new FakeNavigationService(),
+                new FakePlayerAutoScrollCoordinator(),
+                new FakeCacheWorkspaceService(),
+                new NovelSpeaker.App.WpfTests.FakeMiniPlayerLauncher());
+            var page = new PlayerPage(viewModel)
+            {
+                DataContext = new PlayerNavigationRequest("book-7", PlayerNavigationMode.ReturnToCurrentSession)
+            };
+
+            page.OnNavigatedToAsync().GetAwaiter().GetResult();
+            page.OnNavigatedFromAsync().GetAwaiter().GetResult();
+
+            Assert.Equal(0, playback.StopCallCount);
+            Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
         });
     }
 
@@ -89,6 +142,8 @@ public sealed class NavigationPageLifecycleTests
 
         public PlaybackSnapshot CurrentSnapshot { get; private set; }
 
+        public int StopCallCount { get; private set; }
+
         public event EventHandler<PlaybackSnapshot>? SnapshotChanged
         {
             add { }
@@ -99,7 +154,11 @@ public sealed class NavigationPageLifecycleTests
         public Task OpenPausedAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task PauseAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ResumeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            StopCallCount++;
+            return Task.CompletedTask;
+        }
         public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -114,6 +173,53 @@ public sealed class NavigationPageLifecycleTests
         public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
+    {
+        public event EventHandler<CacheChangedEventArgs>? Changed
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(
+            string bookId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ChapterCacheStatus>>([]);
+
+        public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearChapterAsync(
+            string bookId,
+            int chapterIndex,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearChaptersAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FakeBookPlaybackContentService : IBookPlaybackContentService

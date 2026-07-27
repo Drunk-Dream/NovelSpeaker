@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shell.Navigation;
 
@@ -13,18 +14,23 @@ public sealed partial class MainWindowViewModel : ObservableObject
 {
     private readonly IAppNavigator _navigator;
     private readonly IUiScheduler _uiScheduler;
+    private readonly OwnedTaskRegistry _processTasks = new();
     private string? _currentBookId;
 
     public MainWindowViewModel(
         IPlaybackSnapshotSource playbackCoordinator,
+        ShellActiveCacheController activeCache,
         IAppNavigator navigator,
         IUiScheduler? uiScheduler = null)
     {
+        ActiveCache = activeCache;
         _navigator = navigator;
         _uiScheduler = uiScheduler ?? new WpfUiScheduler();
         ApplySnapshot(playbackCoordinator.CurrentSnapshot);
         playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
     }
+
+    public ShellActiveCacheController ActiveCache { get; }
 
     [ObservableProperty]
     private bool isNowPlayingVisible;
@@ -55,7 +61,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         if (!_uiScheduler.CheckAccess())
         {
-            _ = _uiScheduler.InvokeAsync(() => ApplySnapshot(snapshot));
+            _processTasks.Register(_uiScheduler.InvokeAsync(() => ApplySnapshot(snapshot)));
             return;
         }
 

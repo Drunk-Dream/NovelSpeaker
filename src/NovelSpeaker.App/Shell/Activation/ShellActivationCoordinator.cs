@@ -5,27 +5,22 @@ namespace NovelSpeaker.App.Shell.Activation;
 
 public sealed class ShellActivationCoordinator : IShellActivationCoordinator
 {
-    private readonly object _closeSyncRoot = new();
-    private readonly INavigationGuardService _navigationGuardService;
     private readonly IShellLayoutController _shellLayoutController;
     private readonly IShellNavigationAdapter _navigationAdapter;
     private readonly IShellPlatformAdapter _platformAdapter;
     private readonly IProcessShutdownGate _processShutdownGate;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly CancellationToken _lifetimeToken;
-    private Task? _closeTask;
     private bool _infrastructureConfigured;
     private bool _navigationInitialized;
     private bool _disposed;
 
     public ShellActivationCoordinator(
-        INavigationGuardService navigationGuardService,
         IShellLayoutController shellLayoutController,
         IShellNavigationAdapter navigationAdapter,
         IShellPlatformAdapter platformAdapter,
         IProcessShutdownGate processShutdownGate)
     {
-        _navigationGuardService = navigationGuardService;
         _shellLayoutController = shellLayoutController;
         _navigationAdapter = navigationAdapter;
         _platformAdapter = platformAdapter;
@@ -34,8 +29,6 @@ public sealed class ShellActivationCoordinator : IShellActivationCoordinator
     }
 
     public CancellationToken LifetimeToken => _lifetimeToken;
-
-    public bool IsCloseApproved { get; private set; }
 
     public bool IsShutdownRequested => _processShutdownGate.IsShutdownRequested;
 
@@ -99,33 +92,6 @@ public sealed class ShellActivationCoordinator : IShellActivationCoordinator
         IsPlayerPageActive = _navigationAdapter.CurrentRouteId == AppRouteId.Player;
     }
 
-    public Task RequestCloseAsync(Func<Task> closeWindowAsync)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        ArgumentNullException.ThrowIfNull(closeWindowAsync);
-
-        lock (_closeSyncRoot)
-        {
-            if (_closeTask is not null)
-            {
-                return _closeTask;
-            }
-
-            if (!_processShutdownGate.TryBeginShutdown())
-            {
-                return _closeTask ?? Task.CompletedTask;
-            }
-
-            var closeTask = ConfirmAndCloseAsync(closeWindowAsync);
-            if (!closeTask.IsCompleted)
-            {
-                _closeTask = closeTask;
-            }
-
-            return closeTask;
-        }
-    }
-
     public void Dispose()
     {
         if (_disposed)
@@ -136,37 +102,6 @@ public sealed class ShellActivationCoordinator : IShellActivationCoordinator
         _disposed = true;
         _lifetimeCancellation.Cancel();
         _lifetimeCancellation.Dispose();
-    }
-
-    private async Task ConfirmAndCloseAsync(Func<Task> closeWindowAsync)
-    {
-        try
-        {
-            if (!await _navigationGuardService
-                    .ConfirmNavigationAsync(LifetimeToken)
-                    .ConfigureAwait(true))
-            {
-                _processShutdownGate.CancelShutdownRequest();
-                return;
-            }
-
-            LifetimeToken.ThrowIfCancellationRequested();
-            IsCloseApproved = true;
-            await closeWindowAsync().ConfigureAwait(true);
-        }
-        catch
-        {
-            IsCloseApproved = false;
-            _processShutdownGate.CancelShutdownRequest();
-            throw;
-        }
-        finally
-        {
-            lock (_closeSyncRoot)
-            {
-                _closeTask = null;
-            }
-        }
     }
 
     private void ThrowIfShutdownRequested()

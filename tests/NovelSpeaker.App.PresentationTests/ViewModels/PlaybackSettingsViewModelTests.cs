@@ -1,13 +1,14 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.Domain.Settings;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.ViewModels;
+namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class PlaybackSettingsViewModelTests
 {
@@ -88,6 +89,60 @@ public sealed class PlaybackSettingsViewModelTests
 
         Assert.Equal(12, service.CurrentSettings.DefaultSpeakSpeed);
         Assert.Equal(12, coordinator.LastChangedSpeakSpeed);
+    }
+
+    [Fact]
+    public async Task Leaving_page_cancels_pending_debounced_setting_operation()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var service = new FakeAppSettingsService(AppSettings.Default);
+        var viewModel = CreateViewModel(service, timeProvider: timeProvider);
+        using var activationController = new PageActivationController();
+        var activation = activationController.Activate();
+        viewModel.Activate(activation);
+        activation.Register(viewModel.Deactivate);
+        await viewModel.LoadAsync(activation.CancellationToken);
+
+        viewModel.DefaultSpeakSpeedText = "12";
+        activationController.Deactivate();
+        timeProvider.Advance(TimeSpan.FromMilliseconds(500));
+        await activation.WaitForPendingOperationsAsync();
+
+        Assert.Equal(AppSettings.DefaultSpeakSpeedValue, service.CurrentSettings.DefaultSpeakSpeed);
+    }
+
+    [Fact]
+    public async Task Late_debounced_result_from_old_activation_cannot_update_reentered_page()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var service = new FakeAppSettingsService(AppSettings.Default)
+        {
+            DelayUpdates = true
+        };
+        var playback = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+        var viewModel = CreateViewModel(
+            service,
+            playbackCoordinator: playback,
+            timeProvider: timeProvider);
+        using var activationController = new PageActivationController();
+        var oldActivation = activationController.Activate();
+        viewModel.Activate(oldActivation);
+        oldActivation.Register(viewModel.Deactivate);
+        await viewModel.LoadAsync(oldActivation.CancellationToken);
+
+        viewModel.DefaultSpeakSpeedText = "12";
+        timeProvider.Advance(TimeSpan.FromMilliseconds(500));
+        await service.UpdateStarted;
+
+        var newActivation = activationController.Activate();
+        viewModel.Activate(newActivation);
+        newActivation.Register(viewModel.Deactivate);
+        await viewModel.LoadAsync(newActivation.CancellationToken);
+        service.CompleteUpdate();
+        await oldActivation.WaitForPendingOperationsAsync();
+
+        Assert.Equal(AppSettings.DefaultSpeakSpeedValue.ToString(), viewModel.DefaultSpeakSpeedText);
+        Assert.Null(playback.LastChangedSpeakSpeed);
     }
 
     [Fact]
@@ -177,17 +232,35 @@ public sealed class PlaybackSettingsViewModelTests
 
         public AppSettings CurrentSettings { get; private set; }
         public AppSettings Current => CurrentSettings;
+        public bool DelayUpdates { get; init; }
+        public Task UpdateStarted => _updateStarted.Task;
         public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
 
-        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
+        private readonly TaskCompletionSource _updateStarted = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _updateCompletion = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {
+            if (DelayUpdates)
+            {
+                _updateStarted.TrySetResult();
+                await _updateCompletion.Task;
+            }
+
             CurrentSettings = CurrentSettings with
             {
                 DefaultSpeakSpeed = update.DefaultSpeakSpeed ?? CurrentSettings.DefaultSpeakSpeed,
                 PrefetchCount = update.PrefetchCount ?? CurrentSettings.PrefetchCount
             };
             CurrentSettings = CurrentSettings.Normalize();
-            return Task.FromResult(CurrentSettings);
+            return CurrentSettings;
+        }
+
+        public void CompleteUpdate()
+        {
+            _updateCompletion.TrySetResult();
         }
     }
 

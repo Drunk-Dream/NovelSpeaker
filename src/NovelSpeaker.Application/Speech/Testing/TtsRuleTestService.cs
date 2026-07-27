@@ -19,6 +19,7 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
     private readonly ITtsRuleNormalizer _ruleNormalizer;
     private readonly IAudioPlayer _audioPlayer;
     private readonly ITtsRuleTestFailureReporter? _failureReporter;
+    private TtsAudioResponse? _currentAudio;
     private bool _disposed;
 
     public TtsRuleTestService(
@@ -131,11 +132,21 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
                 execution.Failure?.RetryAfter);
         }
 
+        var downloadedAudio = execution.Audio!;
+        var ownsDownloadedAudio = true;
         try
         {
             _audioPlayer.Stop();
-            await _audioPlayer.LoadAsync(execution.Audio!.FilePath, cancellationToken);
+            await _audioPlayer.LoadAsync(downloadedAudio.FilePath, cancellationToken);
             _audioPlayer.Play();
+
+            var previousAudio = _currentAudio;
+            _currentAudio = downloadedAudio;
+            ownsDownloadedAudio = false;
+            if (previousAudio is not null)
+            {
+                await previousAudio.DisposeAsync().ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -156,6 +167,13 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
                 null,
                 null);
         }
+        finally
+        {
+            if (ownsDownloadedAudio)
+            {
+                await downloadedAudio.DisposeAsync().ConfigureAwait(false);
+            }
+        }
 
         return new TtsRuleTestResult(
             true,
@@ -163,9 +181,9 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
             null,
             compilation.Warnings,
             null,
-            execution.Audio!.StatusCode,
-            execution.Audio.ResponseContentType,
-            execution.Audio.DetectedAudioFormat,
+            downloadedAudio.StatusCode,
+            downloadedAudio.ResponseContentType,
+            downloadedAudio.DetectedAudioFormat,
             null);
     }
 
@@ -196,7 +214,18 @@ public sealed class TtsRuleTestService : ITtsRuleTestService, IAsyncDisposable
         }
 
         _disposed = true;
-        await _audioPlayer.DisposeAsync();
+        try
+        {
+            await _audioPlayer.DisposeAsync();
+        }
+        finally
+        {
+            var currentAudio = Interlocked.Exchange(ref _currentAudio, null);
+            if (currentAudio is not null)
+            {
+                await currentAudio.DisposeAsync().ConfigureAwait(false);
+            }
+        }
     }
 
 }

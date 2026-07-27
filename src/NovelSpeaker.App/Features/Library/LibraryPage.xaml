@@ -206,6 +206,7 @@
                            Style="{StaticResource SecondaryTextBlockStyle}"
                            Text="试试修改关键词，或清空搜索条件。"/>
                 <Button Margin="0,16,0,0"
+                        HorizontalAlignment="Center"
                         Command="{Binding ClearSearchCommand}"
                         Content="清空搜索"/>
             </StackPanel>

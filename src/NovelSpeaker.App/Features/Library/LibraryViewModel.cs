@@ -36,6 +36,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     private readonly IPlaybackBookCommands _playbackCoordinator;
     private readonly IUiScheduler _uiScheduler;
     private readonly TimeProvider _timeProvider;
+    private readonly OwnedTaskRegistry _pageTasks = new();
     private CancellationTokenSource? _searchDebounceCancellationTokenSource;
     private IReadOnlyList<LibraryBookItemViewModel> _allBooks = [];
     private string? _activePlaybackBookId;
@@ -111,6 +112,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
         var books = await _bookLibraryQuery.GetBooksAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         _allBooks = books
             .Select(MapBook)
             .ToArray();
@@ -188,6 +190,10 @@ public sealed partial class LibraryViewModel : ObservableObject
     public void HandleNavigatedFrom()
     {
         CancelActiveImport();
+        _searchDebounceCancellationTokenSource?.Cancel();
+        _searchDebounceCancellationTokenSource?.Dispose();
+        _searchDebounceCancellationTokenSource = null;
+        Interlocked.Increment(ref _searchVersion);
         if (!_isPageEventsRegistered)
         {
             return;
@@ -310,7 +316,11 @@ public sealed partial class LibraryViewModel : ObservableObject
         _searchDebounceCancellationTokenSource?.Dispose();
         _searchDebounceCancellationTokenSource = new CancellationTokenSource();
         var version = Interlocked.Increment(ref _searchVersion);
-        _ = ApplyVisibleBooksAsync(version, _searchDebounceCancellationTokenSource.Token);
+        _pageTasks.Register(
+            ApplyVisibleBooksAsync(version, _searchDebounceCancellationTokenSource.Token),
+            exception => _feedbackService.ShowProjectedNotification(
+                "更新书库筛选失败",
+                _feedbackService.Project(exception)));
     }
 
     private async Task ApplyVisibleBooksAsync(int version, CancellationToken cancellationToken)
@@ -412,7 +422,11 @@ public sealed partial class LibraryViewModel : ObservableObject
     {
         if (!_uiScheduler.CheckAccess())
         {
-            _ = _uiScheduler.InvokeAsync(() => ApplyPlaybackSnapshot(snapshot));
+            _pageTasks.Register(
+                _uiScheduler.InvokeAsync(() => ApplyPlaybackSnapshot(snapshot)),
+                exception => _feedbackService.ShowProjectedNotification(
+                    "更新书库播放状态失败",
+                    _feedbackService.Project(exception)));
             return;
         }
 

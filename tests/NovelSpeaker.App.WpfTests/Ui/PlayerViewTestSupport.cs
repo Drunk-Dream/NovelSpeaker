@@ -11,6 +11,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
@@ -25,51 +26,16 @@ using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 public sealed partial class PlayerViewTests
 {
     private static FrameworkElement? FindDescendantByContent(DependencyObject root, string content)
     {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is FrameworkElement element &&
-                element is ContentControl contentControl &&
-                string.Equals(contentControl.Content as string, content, StringComparison.Ordinal))
-            {
-                return element;
-            }
-
-            var descendant = FindDescendantByContent(child, content);
-            if (descendant is not null)
-            {
-                return descendant;
-            }
-        }
-
-        return null;
-    }
-
-    private static T? FindDescendant<T>(DependencyObject root, Predicate<T> predicate)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typedChild && predicate(typedChild))
-            {
-                return typedChild;
-            }
-
-            var descendant = FindDescendant(child, predicate);
-            if (descendant is not null)
-            {
-                return descendant;
-            }
-        }
-
-        return null;
+        return VisualTreeTestHelper.FindDescendant<FrameworkElement>(
+            root,
+            element => element is ContentControl contentControl &&
+                       string.Equals(contentControl.Content as string, content, StringComparison.Ordinal));
     }
 
     private static FrameworkElement? FindVisibleDescendantByContent(DependencyObject root, string content)
@@ -85,7 +51,7 @@ public sealed partial class PlayerViewTests
 
     private static TextBlock? FindVisibleDescendantByText(DependencyObject root, string text)
     {
-        var element = FindDescendant<TextBlock>(
+        var element = VisualTreeTestHelper.FindDescendant<TextBlock>(
             root,
             textBlock => string.Equals(textBlock.Text, text, StringComparison.Ordinal));
         if (element is null || !IsEffectivelyVisible(element, root))
@@ -175,7 +141,10 @@ public sealed partial class PlayerViewTests
             bool showPlaybackErrorBar = false,
             string errorText = "",
             bool showInlineLoadingState = false,
-            string inlineLoadingText = "")
+            string inlineLoadingText = "",
+            bool isActiveCacheSelectionMode = false,
+            bool canStartActiveCache = false,
+            string activeCacheStatusText = "")
         {
             Chapters = chapters;
             Segments = segments;
@@ -188,13 +157,28 @@ public sealed partial class PlayerViewTests
             ErrorText = errorText;
             ShowInlineLoadingState = showInlineLoadingState;
             InlineLoadingText = inlineLoadingText;
+            IsActiveCacheSelectionMode = isActiveCacheSelectionMode;
+            CanStartActiveCache = canStartActiveCache;
+            ActiveCacheStatusText = activeCacheStatusText;
         }
 
         public IRelayCommand BackCommand { get; } = new RelayCommand(() => { });
 
         public IRelayCommand ToggleRuleMenuCommand { get; } = new RelayCommand(() => { });
 
+        public IRelayCommand ToggleStopTimerMenuCommand { get; } = new RelayCommand(() => { });
+
         public IRelayCommand ToggleSpeedMenuCommand { get; } = new RelayCommand(() => { });
+
+        public IRelayCommand ScheduleCustomStopTimerCommand { get; } = new RelayCommand(() => { });
+
+        public IRelayCommand CancelStopTimerCommand { get; } = new RelayCommand(() => { });
+
+        public IRelayCommand EnterActiveCacheSelectionCommand { get; } = new RelayCommand(() => { });
+
+        public IRelayCommand CancelActiveCacheSelectionCommand { get; } = new RelayCommand(() => { });
+
+        public IRelayCommand StartActiveCacheCommand { get; } = new RelayCommand(() => { });
 
         public IRelayCommand OpenRuleMenuCommand { get; } = new RelayCommand(() => { });
 
@@ -232,6 +216,10 @@ public sealed partial class PlayerViewTests
 
         public string SpeakSpeedButtonText { get; } = "语速 10";
 
+        public string StopTimerButtonAutomationName { get; } = "定时停止";
+
+        public string StopTimerRemainingText { get; } = "—";
+
         public int SpeakSpeed { get; } = 10;
 
         public SymbolRegular PrimaryActionSymbol { get; } = SymbolRegular.PlayCircle24;
@@ -241,6 +229,10 @@ public sealed partial class PlayerViewTests
         public string DisplayedSegmentCounterText { get; } = "33 / 140";
 
         public string InlineLoadingText { get; }
+
+        public string ActiveCacheSelectionSummary { get; } = "已选择 2 章";
+
+        public string ActiveCacheStatusText { get; }
 
         public string SpeedEditorText { get; set; } = "10";
 
@@ -262,6 +254,10 @@ public sealed partial class PlayerViewTests
 
         public bool ShowInlineLoadingState { get; }
 
+        public bool IsActiveCacheSelectionMode { get; }
+
+        public bool CanStartActiveCache { get; }
+
         public bool HasRules { get; } = false;
 
         public bool HasAvailableRule { get; } = true;
@@ -271,6 +267,10 @@ public sealed partial class PlayerViewTests
         public bool CanDecreaseSpeakSpeed { get; } = true;
 
         public bool CanIncreaseSpeakSpeed { get; } = true;
+
+        public bool CanScheduleStopTimer { get; } = true;
+
+        public bool HasActiveStopTimer { get; } = false;
 
         public bool CanGoToPreviousChapter { get; } = true;
 
@@ -540,5 +540,50 @@ public sealed partial class PlayerViewTests
         public void ResetForPageLeave()
         {
         }
+    }
+
+    private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
+    {
+        public event EventHandler<CacheChangedEventArgs>? Changed;
+
+        public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(
+            string bookId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ChapterCacheStatus>>([]);
+
+        public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearChapterAsync(
+            string bookId,
+            int chapterIndex,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearChaptersAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public void Publish(CacheChangedEventArgs eventArgs) => Changed?.Invoke(this, eventArgs);
     }
 }

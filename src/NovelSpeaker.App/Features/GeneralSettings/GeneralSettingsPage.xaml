@@ -1,0 +1,78 @@
+<Page x:Class="NovelSpeaker.App.Features.GeneralSettings.GeneralSettingsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <Grid Margin="{StaticResource PagePadding}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Button Style="{StaticResource BackIconButtonStyle}"
+                Command="{Binding BackCommand}"
+                ToolTip="返回"
+                AutomationProperties.Name="返回">
+            <ui:SymbolIcon Symbol="ChevronLeft24" />
+        </Button>
+
+        <ScrollViewer Grid.Row="1"
+                      Margin="0,20,0,0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <TextBlock Style="{StaticResource PageTitleTextBlockStyle}"
+                           Text="常规" />
+
+                <Border Margin="{StaticResource SectionSpacing}"
+                        Style="{StaticResource SettingsRowsGroupBorderStyle}">
+                    <StackPanel>
+                        <Border x:Name="CloseBehaviorItemBorder"
+                                Style="{StaticResource SettingsRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                               Text="关闭主窗口时" />
+                                    <TextBlock Style="{StaticResource SettingsRowDescriptionTextBlockStyle}"
+                                               Text="选择隐藏到托盘、退出应用或每次询问。" />
+                                </StackPanel>
+                                <ComboBox Grid.Column="1"
+                                          Margin="{StaticResource SettingsRowControlMargin}"
+                                          Width="{StaticResource SettingsRowControlWidth}"
+                                          VerticalAlignment="Center"
+                                          ItemsSource="{Binding CloseBehaviorOptions}"
+                                          SelectedItem="{Binding SelectedCloseBehavior}"
+                                          DisplayMemberPath="DisplayName"
+                                          AutomationProperties.Name="关闭主窗口时" />
+                            </Grid>
+                        </Border>
+
+                        <Border x:Name="StartMinimizedItemBorder"
+                                Style="{StaticResource SettingsLastRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                               Text="启动后最小化到托盘" />
+                                    <TextBlock Style="{StaticResource SettingsRowDescriptionTextBlockStyle}"
+                                               Text="应用仍会完成初始化和后台任务启动。" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1"
+                                          Margin="{StaticResource SettingsRowControlMargin}"
+                                          VerticalAlignment="Center"
+                                          IsChecked="{Binding StartMinimizedToTray}"
+                                          AutomationProperties.Name="启动后最小化到托盘" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

@@ -3,10 +3,10 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Settings;
-using NovelSpeaker.UnitTests.Common;
+using NovelSpeaker.TestKit.Common;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Settings;
+namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed class JsonAppSettingsStoreTests
 {
@@ -80,6 +80,33 @@ public sealed class JsonAppSettingsStoreTests
         var reloaded = await store.LoadAsync(CancellationToken.None);
 
         Assert.Equal(512L * 1024 * 1024, reloaded.CacheLimitBytes);
+    }
+
+    [Fact]
+    public async Task SaveAsync_persists_desktop_lifecycle_preferences()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var directories = new LocalAppDataDirectoryProvider(temporaryDirectory.Path);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new JsonAppSettingsStore(directories);
+
+        await store.SaveAsync(
+            AppSettings.Default with
+            {
+                MainWindowCloseBehavior = MainWindowCloseBehavior.ExitApplication,
+                StartMinimizedToTray = true,
+                MiniPlayerLeft = 123.5,
+                MiniPlayerTop = 456.25,
+                MiniPlayerTopmost = true
+            },
+            CancellationToken.None);
+        var reloaded = await store.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(MainWindowCloseBehavior.ExitApplication, reloaded.MainWindowCloseBehavior);
+        Assert.True(reloaded.StartMinimizedToTray);
+        Assert.Equal(123.5, reloaded.MiniPlayerLeft);
+        Assert.Equal(456.25, reloaded.MiniPlayerTop);
+        Assert.True(reloaded.MiniPlayerTopmost);
     }
 
     [Fact]
@@ -355,11 +382,6 @@ public sealed class JsonAppSettingsStoreTests
         Write,
         Flush,
         Replace
-    }
-
-    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 
     private sealed class FailingSettingsFileOperations(SettingsFileFailure failure) : ISettingsFileOperations

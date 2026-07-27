@@ -1,14 +1,17 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Settings;
 using System.ComponentModel;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.Domain.Settings;
 using Wpf.Ui;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.ViewModels;
+namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class BookDetailsViewModelTests
 {
@@ -56,6 +59,78 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal("共 3 章", viewModel.TotalChapterCountText);
         Assert.Equal(3, viewModel.Chapters.Count);
         Assert.False(viewModel.IsBusy);
+    }
+
+    [Fact]
+    public async Task Chapter_cache_percentages_refresh_for_cache_and_configuration_changes_until_page_leave()
+    {
+        var cacheWorkspace = new FakeCacheWorkspaceService
+        {
+            Statuses =
+            [
+                new ChapterCacheStatus(0, 1, 4),
+                new ChapterCacheStatus(1, 0, 4),
+                new ChapterCacheStatus(2, 1, null)
+            ]
+        };
+        var settingsService = new FakeAppSettingsService();
+        var viewModel = CreateViewModel(
+            cacheWorkspaceService: cacheWorkspace,
+            settingsService: settingsService);
+
+        await LoadViewModelAsync(viewModel);
+
+        Assert.Equal("25%", viewModel.Chapters[0].CachePercentageText);
+        Assert.Equal(string.Empty, viewModel.Chapters[1].CachePercentageText);
+        Assert.Equal(string.Empty, viewModel.Chapters[2].CachePercentageText);
+        Assert.Equal(1, cacheWorkspace.StatusCallCount);
+        Assert.Equal(1, cacheWorkspace.SubscriberCount);
+
+        cacheWorkspace.Statuses = [new ChapterCacheStatus(1, 3, 4)];
+        cacheWorkspace.Publish(new CacheChangedEventArgs("book-1", 1));
+
+        Assert.Equal("75%", viewModel.Chapters[1].CachePercentageText);
+        Assert.Equal(2, cacheWorkspace.StatusCallCount);
+
+        cacheWorkspace.Statuses =
+        [
+            new ChapterCacheStatus(0, 4, 4),
+            new ChapterCacheStatus(1, 4, 4),
+            new ChapterCacheStatus(2, 0, 4)
+        ];
+        settingsService.Publish(settingsService.Current with { DefaultSpeakSpeed = 11 });
+
+        Assert.All(viewModel.Chapters.Take(2), chapter => Assert.Equal("100%", chapter.CachePercentageText));
+        Assert.Equal(string.Empty, viewModel.Chapters[2].CachePercentageText);
+        Assert.Equal(3, cacheWorkspace.StatusCallCount);
+
+        viewModel.HandleNavigatedFrom();
+        Assert.Equal(0, cacheWorkspace.SubscriberCount);
+
+        cacheWorkspace.Publish(new CacheChangedEventArgs("book-1", 0));
+        Assert.Equal(3, cacheWorkspace.StatusCallCount);
+    }
+
+    [Fact]
+    public async Task Page_leave_discards_cache_status_projection_that_reaches_the_ui_late()
+    {
+        var cacheWorkspace = new FakeCacheWorkspaceService
+        {
+            Statuses = [new ChapterCacheStatus(0, 1, 1)]
+        };
+        var uiScheduler = new QueuedUiScheduler();
+        var viewModel = CreateViewModel(
+            cacheWorkspaceService: cacheWorkspace,
+            uiScheduler: uiScheduler);
+
+        await LoadViewModelAsync(viewModel);
+        Assert.Equal(1, uiScheduler.PendingCount);
+        Assert.Equal(string.Empty, viewModel.Chapters[0].CachePercentageText);
+
+        viewModel.HandleNavigatedFrom();
+        uiScheduler.RunNext();
+
+        Assert.Equal(string.Empty, viewModel.Chapters[0].CachePercentageText);
     }
 
     [Fact]
@@ -180,6 +255,8 @@ public sealed class BookDetailsViewModelTests
 
         Assert.Equal("缓存已部分清理", feedbackService.LastTitle);
         Assert.Equal("512 B", viewModel.CacheSizeText);
+        Assert.Equal("清理", dialogService.LastPrimaryButtonText);
+        Assert.StartsWith("将清理这本书的音频缓存", dialogService.LastMessage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -304,12 +381,14 @@ public sealed class BookDetailsViewModelTests
     private static BookDetailsViewModel CreateViewModel(
         FakeBookManagementService? managementService = null,
         FakeCacheWorkspaceService? cacheWorkspaceService = null,
+        FakeAppSettingsService? settingsService = null,
         IAppFeedbackService? feedbackService = null,
         FakeAppDialogService? dialogService = null,
         FakeBookDeleteDialogService? deleteDialogService = null,
         FakePlaybackCoordinator? playbackCoordinator = null,
         FakeGuardedNavigationService? guardedNavigationService = null,
-        IBookCatalogInvalidationState? invalidationState = null)
+        IBookCatalogInvalidationState? invalidationState = null,
+        IUiScheduler? uiScheduler = null)
     {
         managementService ??= new FakeBookManagementService();
         return new BookDetailsViewModel(
@@ -317,13 +396,15 @@ public sealed class BookDetailsViewModelTests
             managementService,
             managementService,
             cacheWorkspaceService ?? new FakeCacheWorkspaceService(),
+            settingsService ?? new FakeAppSettingsService(),
             new BookCoverGenerator(),
             feedbackService ?? new FakeFeedbackService(),
             dialogService ?? new FakeAppDialogService(),
             deleteDialogService ?? new FakeBookDeleteDialogService(),
             invalidationState ?? new BookCatalogInvalidationState(),
             playbackCoordinator ?? new FakePlaybackCoordinator(),
-            guardedNavigationService ?? new FakeGuardedNavigationService());
+            guardedNavigationService ?? new FakeGuardedNavigationService(),
+            uiScheduler ?? new ImmediateUiScheduler());
     }
 
     private static BookDetails CreateDetails(
@@ -466,6 +547,20 @@ public sealed class BookDetailsViewModelTests
 
     private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
     {
+        private EventHandler<CacheChangedEventArgs>? _changed;
+
+        public IReadOnlyList<ChapterCacheStatus> Statuses { get; set; } = [];
+
+        public int StatusCallCount { get; private set; }
+
+        public int SubscriberCount => _changed?.GetInvocationList().Length ?? 0;
+
+        public event EventHandler<CacheChangedEventArgs>? Changed
+        {
+            add => _changed += value;
+            remove => _changed -= value;
+        }
+
         public CacheCleanupResult ClearBookResult { get; set; } = new(2048, 1, 0, 0);
 
         public int ClearBookCallCount { get; private set; }
@@ -485,6 +580,15 @@ public sealed class BookDetailsViewModelTests
             throw new NotSupportedException();
         }
 
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken)
+        {
+            StatusCallCount++;
+            return Task.FromResult(Statuses);
+        }
+
         public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
@@ -501,9 +605,80 @@ public sealed class BookDetailsViewModelTests
             throw new NotSupportedException();
         }
 
+        public Task<CacheCleanupResult> ClearChaptersAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
         public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
+        }
+
+        public void Publish(CacheChangedEventArgs eventArgs) => _changed?.Invoke(this, eventArgs);
+    }
+
+    private sealed class FakeAppSettingsService : IAppSettingsService
+    {
+        public AppSettings Current { get; private set; } = AppSettings.Default;
+
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed;
+
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) =>
+            Task.FromResult(Current);
+
+        public void Publish(AppSettings settings)
+        {
+            var previous = Current;
+            Current = settings;
+            Changed?.Invoke(this, new AppSettingsChangedEventArgs(previous, settings));
+        }
+    }
+
+    private sealed class ImmediateUiScheduler : IUiScheduler
+    {
+        public bool CheckAccess() => true;
+
+        public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            action();
+            return Task.CompletedTask;
+        }
+
+        public Task InvokeAsync(Func<Task> action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return action();
+        }
+    }
+
+    private sealed class QueuedUiScheduler : IUiScheduler
+    {
+        private readonly Queue<(Action Action, TaskCompletionSource Completion)> _pending = [];
+
+        public int PendingCount => _pending.Count;
+
+        public bool CheckAccess() => true;
+
+        public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _pending.Enqueue((action, completion));
+            return completion.Task;
+        }
+
+        public Task InvokeAsync(Func<Task> action, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public void RunNext()
+        {
+            var pending = _pending.Dequeue();
+            pending.Action();
+            pending.Completion.TrySetResult();
         }
     }
 
@@ -550,6 +725,10 @@ public sealed class BookDetailsViewModelTests
 
         public UnsavedChangesDecision NextUnsavedDecision { get; set; } = UnsavedChangesDecision.Cancel;
 
+        public string? LastMessage { get; private set; }
+
+        public string? LastPrimaryButtonText { get; private set; }
+
         public Task<AppConfirmationDecision> ShowConfirmationAsync(
             string title,
             string message,
@@ -557,6 +736,8 @@ public sealed class BookDetailsViewModelTests
             string closeButtonText,
             CancellationToken cancellationToken)
         {
+            LastMessage = message;
+            LastPrimaryButtonText = primaryButtonText;
             return Task.FromResult(NextConfirmationDecision);
         }
 

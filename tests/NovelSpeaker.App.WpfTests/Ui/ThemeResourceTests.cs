@@ -4,7 +4,7 @@ using System.Xml;
 using System.Xml.Linq;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 public sealed class ThemeResourceTests
 {
@@ -65,6 +65,89 @@ public sealed class ThemeResourceTests
         Assert.Contains("Property=\"IsKeyboardFocused\"", content);
         Assert.Contains("Property=\"IsEnabled\" Value=\"False\"", content);
         Assert.Contains("AccentFillColorDefaultBrush", content);
+        Assert.Contains("x:Key=\"IconButtonControlTemplate\"", content);
+        Assert.Contains("x:Key=\"MediaIconButtonControlTemplate\"", content);
+        Assert.Contains("TargetName=\"KeyboardFocusRing\"", content);
+        Assert.Contains("CornerRadius=\"{StaticResource IconButtonCornerRadius}\"", content);
+        Assert.Contains("CornerRadius=\"{StaticResource MediaControlCornerRadius}\"", content);
+        Assert.DoesNotContain(
+            "<Setter Property=\"BorderThickness\" Value=\"1\" />",
+            GetStyleElement(content, "BorderlessIconButtonStyle").ToString());
+    }
+
+    [Fact]
+    public void Settings_styles_share_row_tokens_and_borderless_interaction_template()
+    {
+        var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
+        var tokens = File.ReadAllText(Path.Combine(
+            appRoot,
+            "Shared",
+            "Theming",
+            "Resources",
+            "DesignTokens.xaml"));
+        var styles = File.ReadAllText(Path.Combine(
+            appRoot,
+            "Shared",
+            "Theming",
+            "Resources",
+            "SemanticStyles.xaml"));
+
+        Assert.Contains("x:Key=\"SettingsRowMinHeight\"", tokens);
+        Assert.Contains("x:Key=\"SettingsRowPadding\"", tokens);
+        Assert.Contains("x:Key=\"SettingsGroupPadding\"", tokens);
+        Assert.Contains("x:Key=\"SettingsRowControlMargin\"", tokens);
+        Assert.Contains("x:Key=\"SettingsRowControlWidth\"", tokens);
+
+        var rowsGroupStyle = GetStyleElement(styles, "SettingsRowsGroupBorderStyle");
+        var settingsRowStyle = GetStyleElement(styles, "SettingsRowBorderStyle");
+        var lastRowStyle = GetStyleElement(styles, "SettingsLastRowBorderStyle");
+        var rowTitleStyle = GetStyleElement(styles, "SettingsRowTitleTextBlockStyle");
+        var rowValueStyle = GetStyleElement(styles, "SettingsRowValueTextBlockStyle");
+        var navigationRowStyle = GetStyleElement(styles, "SettingsNavigationRowButtonStyle");
+
+        Assert.Contains("x:Key=\"SettingsNavigationRowContentTemplate\"", styles);
+        Assert.Contains("CardCornerRadius", rowsGroupStyle.ToString());
+        Assert.Contains("SettingsRowMinHeight", settingsRowStyle.ToString());
+        Assert.Contains("SettingsRowPadding", settingsRowStyle.ToString());
+        Assert.Contains("Property=\"VerticalAlignment\" Value=\"Center\"", rowTitleStyle.ToString());
+        Assert.Contains("Property=\"VerticalAlignment\" Value=\"Center\"", rowValueStyle.ToString());
+        Assert.Equal(
+            "{StaticResource SettingsRowBorderStyle}",
+            (string?)lastRowStyle.Attribute("BasedOn"));
+        Assert.Contains("Property=\"BorderThickness\" Value=\"0\"", lastRowStyle.ToString());
+        Assert.Equal(
+            "{StaticResource BorderlessListItemButtonStyle}",
+            (string?)navigationRowStyle.Attribute("BasedOn"));
+        Assert.Contains("SettingsRowMinHeight", navigationRowStyle.ToString());
+        Assert.Contains("SettingsRowPadding", navigationRowStyle.ToString());
+        Assert.Contains("SettingsNavigationRowContentTemplate", navigationRowStyle.ToString());
+    }
+
+    [Fact]
+    public void Selected_cards_use_one_theme_backed_full_card_visual_state()
+    {
+        var styles = File.ReadAllText(Path.Combine(
+            GetRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "SemanticStyles.xaml"));
+
+        var selectedCardStyle = GetStyleElement(styles, "SelectedCardContainerStyle");
+        var selectableListItemStyle = GetStyleElement(styles, "SelectableListItemContainerStyle");
+
+        Assert.Equal(
+            "{StaticResource CardBorderStyle}",
+            (string?)selectedCardStyle.Attribute("BasedOn"));
+        Assert.Contains("Binding=\"{Binding IsSelected}\"", selectedCardStyle.ToString());
+        Assert.Contains("ControlFillColorSecondaryBrush", selectedCardStyle.ToString());
+        Assert.Contains("AccentFillColorDefaultBrush", selectedCardStyle.ToString());
+        Assert.Contains("Property=\"BorderThickness\" Value=\"0,0,0,2\"", selectedCardStyle.ToString());
+        Assert.Equal(
+            "{StaticResource SelectedCardContainerStyle}",
+            (string?)selectableListItemStyle.Attribute("BasedOn"));
     }
 
     [Fact]
@@ -73,17 +156,68 @@ public sealed class ThemeResourceTests
         var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
         var playerView = File.ReadAllText(Path.Combine(appRoot, "Features", "Playback", "Components", "PlayerView.xaml"));
         var chapterRulesPage = File.ReadAllText(Path.Combine(appRoot, "Features", "ChapterRules", "ChapterRulesPage.xaml"));
+        var regexReplacementRulesPage = File.ReadAllText(Path.Combine(
+            appRoot,
+            "Features",
+            "RegexReplacementRules",
+            "RegexReplacementRulesPage.xaml"));
         var libraryPage = File.ReadAllText(Path.Combine(appRoot, "Features", "Library", "LibraryPage.xaml"));
         var bookCardView = File.ReadAllText(Path.Combine(appRoot, "Features", "Library", "BookCardView.xaml"));
 
         Assert.Contains("ToolbarValueButtonStyle", playerView);
         Assert.Contains("PrimaryPlaybackIconButtonStyle", playerView);
+        Assert.Contains("MediaIconButtonStyle", playerView);
         Assert.Contains("FloatingIconButtonStyle", playerView);
         Assert.Contains("BorderlessIconButtonStyle", libraryPage);
         Assert.Contains("BorderlessListItemButtonStyle", bookCardView);
         Assert.Contains("ReOrder24", chapterRulesPage);
-        Assert.Contains("AutomationProperties.Name=\"上移\"", chapterRulesPage);
-        Assert.Contains("AutomationProperties.Name=\"下移\"", chapterRulesPage);
+        Assert.Contains("MoreHorizontal24", chapterRulesPage);
+        Assert.Contains("Header=\"上移\"", chapterRulesPage);
+        Assert.Contains("Header=\"下移\"", chapterRulesPage);
+        Assert.Contains("ReOrder24", regexReplacementRulesPage);
+        Assert.Contains("MoreHorizontal24", regexReplacementRulesPage);
+        Assert.Contains("Header=\"上移\"", regexReplacementRulesPage);
+        Assert.Contains("Header=\"下移\"", regexReplacementRulesPage);
+    }
+
+    [Fact]
+    public void Icon_buttons_expose_tooltips_and_automation_names()
+    {
+        var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
+        var xamlFiles = Directory
+            .EnumerateFiles(appRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(static path => !path.Contains(
+                $"{Path.DirectorySeparatorChar}Shared{Path.DirectorySeparatorChar}Theming{Path.DirectorySeparatorChar}Resources{Path.DirectorySeparatorChar}",
+                StringComparison.Ordinal));
+        var violations = xamlFiles
+            .SelectMany(FindIconButtonsWithoutAccessibleMetadata)
+            .ToArray();
+
+        Assert.True(
+            violations.Length == 0,
+            $"Found icon buttons without Tooltip and AutomationProperties.Name:{Environment.NewLine}{string.Join(Environment.NewLine, violations)}");
+    }
+
+    [Fact]
+    public void Cache_cleanup_buttons_use_short_action_except_explicit_clear_all_danger_action()
+    {
+        var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
+        var cleanupLabels = Directory
+            .EnumerateFiles(appRoot, "*.xaml", SearchOption.AllDirectories)
+            .Select(XDocument.Load)
+            .SelectMany(static document => document
+                .Descendants()
+                .Where(static element => element.Name.LocalName == "Button")
+                .Select(static element => (string?)element.Attribute("Content")))
+            .Where(static content => content?.Contains("清理", StringComparison.Ordinal) == true)
+            .ToArray();
+
+        Assert.All(
+            cleanupLabels,
+            static label => Assert.True(
+                label is "清理" or "清理全部缓存",
+                $"Unexpected cache cleanup button label: {label}"));
+        Assert.Single(cleanupLabels, static label => label == "清理全部缓存");
     }
 
     [Fact]
@@ -125,6 +259,49 @@ public sealed class ThemeResourceTests
             var lineInfo = (IXmlLineInfo)textBlock;
             yield return $"{Path.GetRelativePath(GetRepositoryRoot(), xamlPath)}:{lineInfo.LineNumber}";
         }
+    }
+
+    private static IEnumerable<string> FindIconButtonsWithoutAccessibleMetadata(string xamlPath)
+    {
+        var document = XDocument.Load(xamlPath, LoadOptions.SetLineInfo);
+        var presentationNamespace = document.Root?.GetDefaultNamespace() ?? XNamespace.None;
+        var xamlNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+
+        foreach (var button in document.Descendants(presentationNamespace + "Button"))
+        {
+            var containsIcon = button
+                .Descendants()
+                .Any(static element => element.Name.LocalName == "SymbolIcon");
+            if (!containsIcon)
+            {
+                continue;
+            }
+
+            var hasToolTip = button.Attribute("ToolTip") is not null ||
+                             button.Elements().Any(static element => element.Name.LocalName == "Button.ToolTip");
+            var hasAutomationName = button
+                .Attributes()
+                .Any(attribute => attribute.Name.LocalName == "AutomationProperties.Name" &&
+                                  attribute.Name.Namespace != xamlNamespace);
+            if (hasToolTip && hasAutomationName)
+            {
+                continue;
+            }
+
+            var lineInfo = (IXmlLineInfo)button;
+            yield return $"{Path.GetRelativePath(GetRepositoryRoot(), xamlPath)}:{lineInfo.LineNumber}";
+        }
+    }
+
+    private static XElement GetStyleElement(string content, string key)
+    {
+        var document = XDocument.Parse(content);
+        var xamlNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+
+        return Assert.Single(
+            document.Descendants(),
+            element => element.Name.LocalName == "Style" &&
+                       (string?)element.Attribute(xamlNamespace + "Key") == key);
     }
 
     private static string GetRepositoryRoot()

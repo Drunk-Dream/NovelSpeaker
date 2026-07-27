@@ -2,7 +2,7 @@ using System.Text.Json;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 
-namespace NovelSpeaker.UnitTests.Speech;
+namespace NovelSpeaker.TestKit.Speech;
 
 internal static class TestHttpTtsRules
 {

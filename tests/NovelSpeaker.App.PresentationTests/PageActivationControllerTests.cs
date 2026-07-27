@@ -1,7 +1,7 @@
 using NovelSpeaker.App.Shell.Activation;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Navigation;
+namespace NovelSpeaker.App.PresentationTests;
 
 public sealed class PageActivationControllerTests
 {
@@ -62,8 +62,75 @@ public sealed class PageActivationControllerTests
         controller.Deactivate();
 
         Assert.Equal(2, cleanupCount);
-        Assert.False(controller.IsActive);
+        Assert.Null(controller.Current);
         Assert.False(activation.IsCurrent);
+    }
+
+    [Fact]
+    public async Task Registered_page_operation_forwards_failure_while_activation_is_current()
+    {
+        using var controller = new PageActivationController();
+        var activation = controller.Activate();
+        var failure = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        activation.Run(
+            _ => Task.FromException(new InvalidOperationException("page operation failed")),
+            exception => failure.TrySetResult(exception));
+
+        var exception = await failure.Task;
+
+        Assert.Equal("page operation failed", exception.Message);
+        Assert.Equal(0, activation.PendingOperationCount);
+    }
+
+    [Fact]
+    public async Task Registered_page_operation_observes_but_does_not_forward_late_failure()
+    {
+        using var controller = new PageActivationController();
+        var activation = controller.Activate();
+        var operation = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var failureCount = 0;
+
+        activation.Register(operation.Task, _ => Interlocked.Increment(ref failureCount));
+        controller.Deactivate();
+        operation.SetException(new InvalidOperationException("late page operation failed"));
+
+        await activation.WaitForPendingOperationsAsync();
+
+        Assert.Equal(0, failureCount);
+        Assert.Equal(0, activation.PendingOperationCount);
+    }
+
+    [Fact]
+    public async Task Registered_page_operation_treats_activation_cancellation_as_normal_control_flow()
+    {
+        using var controller = new PageActivationController();
+        var activation = controller.Activate();
+        var operationStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var operationFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var failureCount = 0;
+
+        activation.Run(
+            async cancellationToken =>
+            {
+                operationStarted.SetResult();
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                }
+                finally
+                {
+                    operationFinished.SetResult();
+                }
+            },
+            _ => Interlocked.Increment(ref failureCount));
+
+        await operationStarted.Task;
+        controller.Deactivate();
+        await operationFinished.Task;
+
+        Assert.Equal(0, failureCount);
+        Assert.Equal(0, activation.PendingOperationCount);
     }
 
     private static async Task CompleteAsync(

@@ -14,6 +14,7 @@ namespace NovelSpeaker.App.Features.Cache;
 
 public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 {
+    private const string CleanupImpactMessage = "此操作只会清理音频缓存，不会删除书籍、章节、阅读进度、TTS 规则或章节规则。";
     private const int DebounceDelayMilliseconds = 500;
     private const long Megabyte = 1024L * 1024;
     private const long Gigabyte = 1024L * 1024 * 1024;
@@ -82,9 +83,20 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     [ObservableProperty]
     private string selectedCacheLimitUnit = "GB";
 
+    [ObservableProperty]
+    private bool isClearingAll;
+
+    public bool CanClearAll =>
+        IsOverviewLoaded &&
+        !_isLoading &&
+        !IsClearingAll &&
+        _overview is { EntryCount: > 0 };
+
     public override async Task LoadAsync(CancellationToken cancellationToken)
     {
+        Activate(cancellationToken);
         _isLoading = true;
+        NotifyClearAllCommandState();
         HasLoadError = false;
         LoadErrorMessage = string.Empty;
 
@@ -108,8 +120,18 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         }
         finally
         {
-            _isLoading = false;
+            if (IsCurrentActivation(cancellationToken))
+            {
+                _isLoading = false;
+                NotifyClearAllCommandState();
+            }
         }
+    }
+
+    public override void Deactivate()
+    {
+        CancelPendingSave();
+        base.Deactivate();
     }
 
     [RelayCommand]
@@ -122,6 +144,46 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     private Task OpenCacheManagementAsync(CancellationToken cancellationToken)
     {
         return _navigator.NavigateAsync(AppRoutes.CacheManagement, cancellationToken);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanClearAll), AllowConcurrentExecutions = false)]
+    private async Task ClearAllAsync(CancellationToken cancellationToken)
+    {
+        if (!CanClearAll)
+        {
+            return;
+        }
+
+        var decision = await _dialogService.ShowConfirmationAsync(
+            "清理全部缓存",
+            $"将清理全部音频缓存。{CleanupImpactMessage}",
+            "清理",
+            "取消",
+            cancellationToken);
+        if (decision != AppConfirmationDecision.Confirm)
+        {
+            return;
+        }
+
+        IsClearingAll = true;
+        try
+        {
+            var result = await _cacheWorkspaceService.ClearAllAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            await RefreshOverviewAsync(cancellationToken);
+            ShowCleanupFeedback(result);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            _feedbackService.ShowProjectedNotification("清理失败", _feedbackService.Project(exception));
+        }
+        finally
+        {
+            IsClearingAll = false;
+        }
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -166,7 +228,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
     public async Task CommitCacheLimitAsync(CancellationToken cancellationToken)
     {
-        CancelPendingSave();
+        CompleteOrCancelPendingSave(cancellationToken);
         var version = Interlocked.Increment(ref _cacheLimitVersion);
 
         if (!TryParseCacheLimitBytes(CacheLimitValueText, SelectedCacheLimitUnit, out var cacheLimitBytes, out var errorMessage))
@@ -190,6 +252,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
                 "保存并清理",
                 "取消",
                 cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             if (decision != AppConfirmationDecision.Confirm)
             {
                 if (version == Volatile.Read(ref _cacheLimitVersion))
@@ -211,6 +274,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
                 },
                 cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             if (version != Volatile.Read(ref _cacheLimitVersion))
             {
                 return;
@@ -223,9 +287,11 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
             if (requiresTrim)
             {
                 await _cacheWorkspaceService.TrimToConfiguredLimitAsync(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
             }
 
             await RefreshOverviewAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             if (requiresTrim && _overview?.IsOverLimit == true)
             {
                 _feedbackService.ShowWarning("缓存仍高于上限", "仍有受保护的正在使用缓存，停止播放后可继续清理。");
@@ -236,7 +302,8 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         }
         catch (Exception exception)
         {
-            if (version == Volatile.Read(ref _cacheLimitVersion))
+            if (!cancellationToken.IsCancellationRequested &&
+                version == Volatile.Read(ref _cacheLimitVersion))
             {
                 ShowSaveFailure("保存缓存上限失败", exception);
             }
@@ -256,12 +323,14 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     private async Task RefreshOverviewAsync(CancellationToken cancellationToken)
     {
         _overview = await _cacheWorkspaceService.GetOverviewAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         TotalCacheSizeText = CacheCleanupFeedbackFormatter.FormatBytes(_overview.TotalSizeBytes);
         CacheEntryCountText = $"{_overview.EntryCount} 项缓存";
         UsageText = $"已用 {CacheCleanupFeedbackFormatter.FormatBytes(_overview.TotalSizeBytes)} / 上限 {CacheCleanupFeedbackFormatter.FormatBytes(_overview.LimitBytes)}";
         UsagePercentage = _overview.LimitBytes <= 0
             ? 0
             : Math.Clamp(_overview.TotalSizeBytes * 100d / _overview.LimitBytes, 0, 100);
+        NotifyClearAllCommandState();
     }
 
     private void ApplyCacheLimit(long cacheLimitBytes)
@@ -289,21 +358,41 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     private void ScheduleDebouncedCommit()
     {
         CancelPendingSave();
-        _cacheLimitDebounceCts = new CancellationTokenSource();
-        var token = _cacheLimitDebounceCts.Token;
 
-        _ = RunDebouncedCommitAsync(token);
+        RunPageOperation(
+            "保存缓存上限失败",
+            currentActivationToken =>
+            {
+                var operationCts = CancellationTokenSource.CreateLinkedTokenSource(currentActivationToken);
+                _cacheLimitDebounceCts = operationCts;
+                return RunDebouncedCommitAsync(
+                    operationCts,
+                    currentActivationToken);
+            });
     }
 
-    private async Task RunDebouncedCommitAsync(CancellationToken cancellationToken)
+    private async Task RunDebouncedCommitAsync(
+        CancellationTokenSource operationCts,
+        CancellationToken activationToken)
     {
+        var cancellationToken = operationCts.Token;
         try
         {
             await Task.Delay(TimeSpan.FromMilliseconds(DebounceDelayMilliseconds), _timeProvider, cancellationToken);
+            activationToken.ThrowIfCancellationRequested();
+            if (!IsCurrentActivation(activationToken))
+            {
+                return;
+            }
+
             await CommitCacheLimitAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+        }
+        finally
+        {
+            operationCts.Dispose();
         }
     }
 
@@ -312,6 +401,42 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         _cacheLimitDebounceCts?.Cancel();
         _cacheLimitDebounceCts?.Dispose();
         _cacheLimitDebounceCts = null;
+    }
+
+    partial void OnIsClearingAllChanged(bool value)
+    {
+        NotifyClearAllCommandState();
+    }
+
+    private void NotifyClearAllCommandState()
+    {
+        OnPropertyChanged(nameof(CanClearAll));
+        ClearAllCommand.NotifyCanExecuteChanged();
+    }
+
+    private void ShowCleanupFeedback(CacheCleanupResult result)
+    {
+        var feedback = CacheCleanupFeedbackFormatter.Format(result, "缓存已清理", "缓存已部分清理");
+        if (feedback.IsWarning)
+        {
+            _feedbackService.ShowWarning(feedback.Title, feedback.Message);
+        }
+        else
+        {
+            _feedbackService.ShowSuccess(feedback.Title, feedback.Message);
+        }
+    }
+
+    private void CompleteOrCancelPendingSave(CancellationToken commitToken)
+    {
+        if (_cacheLimitDebounceCts is not null &&
+            _cacheLimitDebounceCts.Token == commitToken)
+        {
+            _cacheLimitDebounceCts = null;
+            return;
+        }
+
+        CancelPendingSave();
     }
 
     private static bool TryParseCacheLimitBytes(

@@ -62,11 +62,9 @@ internal static class WpfTestHost
         services.AddNovelSpeakerApplication();
         services.AddNovelSpeakerInfrastructure();
         services.AddNovelSpeakerDesktop();
-        return services.BuildServiceProvider(new ServiceProviderOptions
-        {
-            ValidateOnBuild = validate,
-            ValidateScopes = validate
-        });
+        return validate
+            ? WpfStartupRuntime.BuildValidatedServiceProvider(services)
+            : services.BuildServiceProvider();
     }
 
     public static void EnsureApplicationResources()

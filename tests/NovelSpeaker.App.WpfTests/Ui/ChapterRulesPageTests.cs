@@ -5,13 +5,40 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
 using CommunityToolkit.Mvvm.ComponentModel;
+using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
 
-namespace NovelSpeaker.UnitTests.Ui;
+namespace NovelSpeaker.App.WpfTests.Ui;
 
 [Collection("WpfDispatcher")]
 public sealed partial class ChapterRulesPageTests
 {
+    [Fact]
+    public void ChapterRulesPage_uses_accessible_icon_for_new_rule_tool()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new ChapterRulesPage
+            {
+                DataContext = new ChapterRulesViewLayoutContext()
+            };
+
+            view.Measure(new Size(960, 680));
+            view.Arrange(new Rect(0, 0, 960, 680));
+            view.UpdateLayout();
+
+            var button = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => AutomationProperties.GetName(candidate) == "新建规则"));
+
+            Assert.Equal("新建规则", button.ToolTip);
+            Assert.Equal(
+                SymbolRegular.DocumentAdd24,
+                Assert.IsType<SymbolIcon>(button.Content).Symbol);
+        });
+    }
+
     [Fact]
     public void ChapterRulesPage_uses_split_scrollable_workspace_without_datagrid()
     {
@@ -67,14 +94,14 @@ public sealed partial class ChapterRulesPageTests
             view.Arrange(new Rect(0, 0, 960, 680));
             view.UpdateLayout();
 
-            var border = FindDescendant<Border>(
+            var border = VisualTreeTestHelper.FindDescendant<Border>(
                 view,
                 candidate => AutomationProperties.GetName(candidate) == item.AutomationName);
-            var button = Assert.IsType<Button>(FindDescendant<Button>(border!, candidate =>
+            var button = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(border!, candidate =>
                 AutomationProperties.GetName(candidate) == item.AutomationName));
 
             Assert.NotNull(border);
-            Assert.Equal("内置规则，已禁用，内置规则，不可删除，已选中", AutomationProperties.GetName(border!));
+            Assert.Equal("内置规则，已禁用，已选中", AutomationProperties.GetName(border!));
             Assert.InRange(Math.Abs(button.ActualWidth - border!.ActualWidth), 0d, 1d);
             Assert.True(
                 Math.Abs(button.ActualHeight - border.ActualHeight) <= 2d,
@@ -106,11 +133,11 @@ public sealed partial class ChapterRulesPageTests
             view.Arrange(new Rect(0, 0, 368, 640));
             view.UpdateLayout();
 
-            var border = Assert.IsType<Border>(FindDescendant<Border>(view, candidate =>
+            var border = Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(view, candidate =>
                 AutomationProperties.GetName(candidate) == item.AutomationName));
-            var pattern = Assert.IsType<TextBlock>(FindDescendant<TextBlock>(border, candidate =>
+            var pattern = Assert.IsType<TextBlock>(VisualTreeTestHelper.FindDescendant<TextBlock>(border, candidate =>
                 candidate.Text == item.PatternSummary));
-            var checkBox = Assert.IsType<CheckBox>(FindDescendant<CheckBox>(border, static _ => true));
+            var checkBox = Assert.IsType<CheckBox>(VisualTreeTestHelper.FindDescendant<CheckBox>(border));
             var patternBounds = GetBoundsRelativeTo(pattern, border);
             var checkBoxBounds = GetBoundsRelativeTo(checkBox, border);
 
@@ -141,10 +168,129 @@ public sealed partial class ChapterRulesPageTests
             view.Arrange(new Rect(0, 0, 960, 680));
             view.UpdateLayout();
 
-            var checkBoxes = FindDescendants<CheckBox>(view, _ => true).ToArray();
+            var checkBoxes = VisualTreeTestHelper.FindDescendants<CheckBox>(view).ToArray();
 
             Assert.Single(checkBoxes);
             Assert.Equal("启用", checkBoxes[0].Content);
+            Assert.Equal("切换规则启用状态：规则一", AutomationProperties.GetName(checkBoxes[0]));
+        });
+    }
+
+    [Fact]
+    public void ChapterRulesPage_card_contains_summary_enable_drag_handle_and_more_menu()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var customRule = new ChapterRuleListItemViewModel(
+                "custom:one",
+                "规则一",
+                @"^\s*第一章$",
+                true,
+                false,
+                true,
+                true)
+            {
+                CanMoveUp = false,
+                CanMoveDown = true
+            };
+            var builtInRule = new ChapterRuleListItemViewModel(
+                "builtin:two",
+                "规则二",
+                @"^\s*第二章$",
+                true,
+                true,
+                false,
+                false);
+            var view = new ChapterRulesPage
+            {
+                DataContext = new ChapterRulesViewLayoutContext
+                {
+                    Rules = [customRule, builtInRule]
+                }
+            };
+
+            view.Measure(new Size(960, 680));
+            view.Arrange(new Rect(0, 0, 960, 680));
+            view.UpdateLayout();
+
+            Assert.NotNull(VisualTreeTestHelper.FindDescendant<TextBlock>(
+                view,
+                candidate => candidate.Text == customRule.PatternSummary));
+            Assert.NotNull(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => AutomationProperties.GetName(candidate) == "拖动排序：规则一"));
+
+            var customMore = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => AutomationProperties.GetName(candidate) == "更多操作：规则一"));
+            var customItems = customMore.ContextMenu!.Items.OfType<MenuItem>().ToArray();
+            Assert.Equal(["上移", "下移", "删除"], customItems.Select(item => item.Header));
+            Assert.Equal(
+                ["CanMoveUp", "CanMoveDown", "CanDeleteAction"],
+                customItems
+                    .Select(item => System.Windows.Data.BindingOperations
+                        .GetBinding(item, MenuItem.IsEnabledProperty)!.Path.Path!)
+                    .ToArray());
+
+            var builtInMore = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => AutomationProperties.GetName(candidate) == "更多操作：规则二"));
+            var delete = builtInMore.ContextMenu!.Items.OfType<MenuItem>().Single(item => Equals(item.Header, "删除"));
+            Assert.Equal("CanDeleteAction", System.Windows.Data.BindingOperations
+                .GetBinding(delete, MenuItem.IsEnabledProperty)?.Path.Path);
+            Assert.False(builtInRule.CanDeleteAction);
+
+            Assert.DoesNotContain(
+                VisualTreeTestHelper.FindDescendants<TextBlock>(view),
+                textBlock => textBlock.Text is "内置" or "自定义");
+        });
+    }
+
+    [Fact]
+    public void ChapterRulesPage_right_editor_keeps_only_help_cancel_and_save_actions()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new ChapterRulesPage
+            {
+                DataContext = new ChapterRulesViewLayoutContext
+                {
+                    HasEditor = true,
+                    CanSaveDraft = false,
+                    CanCancelEditing = false,
+                    Rules =
+                    [
+                        new ChapterRuleListItemViewModel(
+                            "custom:one",
+                            "规则一",
+                            @"^\s*第一章$",
+                            true,
+                            false,
+                            true)
+                    ]
+                }
+            };
+
+            view.Measure(new Size(960, 680));
+            view.Arrange(new Rect(0, 0, 960, 680));
+            view.UpdateLayout();
+
+            var help = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
+                view,
+                candidate => AutomationProperties.GetName(candidate) == "章节规则帮助"));
+            var cancel = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
+                view,
+                candidate => Equals(candidate.Content, "取消")));
+            var save = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
+                view,
+                candidate => Equals(candidate.Content, "保存")));
+
+            Assert.Equal("章节规则帮助", help.ToolTip);
+            Assert.False(cancel.IsEnabled);
+            Assert.False(save.IsEnabled);
+            Assert.Null(VisualTreeTestHelper.FindDescendant<Button>(
+                view,
+                candidate => Equals(candidate.Content, "删除")));
         });
     }
 
@@ -198,7 +344,7 @@ public sealed partial class ChapterRulesPageTests
             view.Arrange(new Rect(0, 0, 1000, 700));
             view.UpdateLayout();
 
-            var helpTexts = FindDescendants<TextBlock>(view, _ => true)
+            var helpTexts = VisualTreeTestHelper.FindDescendants<TextBlock>(view)
                 .Select(textBlock => textBlock.Text)
                 .ToHashSet(StringComparer.Ordinal);
 
@@ -231,10 +377,10 @@ public sealed partial class ChapterRulesPageTests
             view.Arrange(new Rect(0, 0, 960, 680));
             view.UpdateLayout();
 
-            var firstBorder = Assert.Single(FindDescendants<Border>(
+            var firstBorder = Assert.Single(VisualTreeTestHelper.FindDescendants<Border>(
                 view,
                 candidate => ReferenceEquals(candidate.DataContext, first) && candidate.Child is Grid));
-            var secondBorder = Assert.Single(FindDescendants<Border>(
+            var secondBorder = Assert.Single(VisualTreeTestHelper.FindDescendants<Border>(
                 view,
                 candidate => ReferenceEquals(candidate.DataContext, second) && candidate.Child is Grid));
 
@@ -265,45 +411,6 @@ public sealed partial class ChapterRulesPageTests
         });
     }
 
-    private static T? FindDescendant<T>(DependencyObject root, Func<T, bool> predicate)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typed && predicate(typed))
-            {
-                return typed;
-            }
-
-            var descendant = FindDescendant(child, predicate);
-            if (descendant is not null)
-            {
-                return descendant;
-            }
-        }
-
-        return null;
-    }
-
-    private static IEnumerable<T> FindDescendants<T>(DependencyObject root, Func<T, bool> predicate)
-        where T : DependencyObject
-    {
-        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
-        {
-            var child = VisualTreeHelper.GetChild(root, childIndex);
-            if (child is T typed && predicate(typed))
-            {
-                yield return typed;
-            }
-
-            foreach (var descendant in FindDescendants(child, predicate))
-            {
-                yield return descendant;
-            }
-        }
-    }
-
     private static Rect GetBoundsRelativeTo(FrameworkElement element, FrameworkElement root)
     {
         var topLeft = element.TranslatePoint(new Point(0, 0), root);
@@ -324,18 +431,13 @@ public sealed partial class ChapterRulesPageTests
 
         public string DraftPattern { get; init; } = @"^\s*第一章$";
 
-        public bool CanSaveDraft => true;
+        public bool CanSaveDraft { get; init; } = true;
 
-        public bool CanCancelEditing => true;
-
-        public bool CanDeleteCurrentRule => true;
+        public bool CanCancelEditing { get; init; } = true;
 
         public string NameValidationMessage { get; init; } = string.Empty;
 
         public string PatternValidationMessage { get; init; } = string.Empty;
 
-        public string DeleteRestrictionMessage { get; init; } = string.Empty;
-
-        public bool ShowDeleteRestrictionMessage => !string.IsNullOrWhiteSpace(DeleteRestrictionMessage);
     }
 }

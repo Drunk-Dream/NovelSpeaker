@@ -3,27 +3,42 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.ActiveCache;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.App.Desktop.MiniPlayer;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation;
+using NovelSpeaker.App.Shared.Presentation.Cache;
 using NovelSpeaker.App.Shared.Presentation.Platform;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.App.Features.Playback.Components;
 using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.App.Features.Playback.Presentation;
 
-public sealed partial class PlayerViewModel : ObservableObject
+public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgressInteractionTarget
 {
     private readonly IPlaybackSession _playbackCoordinator;
+    private readonly IPlaybackStopTimer _stopTimer;
+    private readonly IActiveCacheCoordinator _activeCacheCoordinator;
+    private readonly ICacheWorkspaceService _cacheWorkspaceService;
+    private readonly IAppSettingsService _settingsService;
     private readonly IAppNavigator _navigator;
     private readonly IPlayerAutoScrollCoordinator _autoScrollCoordinator;
     private readonly IUiScheduler _uiScheduler;
     private readonly IAppFeedbackService _feedbackService;
+    private readonly IMiniPlayerLauncher _miniPlayerLauncher;
+    private readonly TimeProvider _timeProvider;
     private readonly PlayerContentProjection _contentProjection;
     private readonly PlayerSnapshotProjection _snapshotProjection;
     private readonly PlayerRulesAndSpeedController _rulesAndSpeedController;
+    private readonly PlayerActiveCacheSelectionController _activeCacheSelection;
+    private readonly ChapterCacheStatusRefreshController _cacheStatusRefresh;
+    private readonly OwnedTaskRegistry _pageTasks = new();
 
     private string? _requestedBookId;
     private int _segmentCenterRequestVersion;
@@ -31,22 +46,35 @@ public sealed partial class PlayerViewModel : ObservableObject
     private bool _suppressNextStateDrivenAutoCenterRequest;
     private PlayerAutoScrollState _lastAppliedAutoScrollState;
     private PlaybackSnapshot _lastAppliedSnapshot = PlaybackSnapshot.Idle;
+    private long _lastAppliedStopTimerVersion = -1;
+    private ITimer? _stopTimerDisplayTimer;
     private CancellationTokenSource _pageEventCancellation = new();
     private bool _isPageEventsRegistered;
+    private string? _cacheStatusInitializedBookId;
 
     public PlayerViewModel(
         IPlaybackSession playbackCoordinator,
+        IPlaybackStopTimer stopTimer,
+        IActiveCacheCoordinator activeCacheCoordinator,
         IBookPlaybackContentService bookPlaybackContentService,
         ITtsRuleQueries ruleQueries,
         IAppSettingsService settingsService,
         IAppFeedbackService feedbackService,
         IAppNavigator navigator,
         IPlayerAutoScrollCoordinator autoScrollCoordinator,
+        ICacheWorkspaceService cacheWorkspaceService,
+        IMiniPlayerLauncher miniPlayerLauncher,
         TimeProvider? timeProvider = null,
         IUiScheduler? uiScheduler = null)
     {
         _playbackCoordinator = playbackCoordinator;
+        _stopTimer = stopTimer ?? throw new ArgumentNullException(nameof(stopTimer));
+        _activeCacheCoordinator = activeCacheCoordinator;
+        _cacheWorkspaceService = cacheWorkspaceService;
+        _settingsService = settingsService;
         _feedbackService = feedbackService;
+        _miniPlayerLauncher = miniPlayerLauncher ?? throw new ArgumentNullException(nameof(miniPlayerLauncher));
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _navigator = navigator;
         _autoScrollCoordinator = autoScrollCoordinator;
         _uiScheduler = uiScheduler ?? new WpfUiScheduler();
@@ -57,11 +85,20 @@ public sealed partial class PlayerViewModel : ObservableObject
             ruleQueries,
             settingsService,
             feedbackService,
-            timeProvider ?? TimeProvider.System);
+            _timeProvider);
+        _activeCacheSelection = new PlayerActiveCacheSelectionController(_activeCacheCoordinator);
+        _activeCacheSelection.StateChanged += OnActiveCacheSelectionStateChanged;
+        _cacheStatusRefresh = new ChapterCacheStatusRefreshController(
+            _cacheWorkspaceService,
+            _uiScheduler,
+            ApplyChapterCacheStatuses,
+            exception => ReportViewOperationFailure("刷新章节缓存进度失败", exception));
+        _cacheStatusRefresh.Activate(_pageEventCancellation.Token);
         _lastAppliedAutoScrollState = _autoScrollCoordinator.State;
 
         ApplyAutoScrollState();
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
+        ApplyStopTimerSnapshot(_stopTimer.CurrentSnapshot);
 
         RegisterPageEvents();
     }
@@ -86,7 +123,27 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     public bool CanIncreaseSpeakSpeed => SpeakSpeed < AppSettings.MaxSpeakSpeed;
 
+    public bool IsActiveCacheSelectionMode => _activeCacheSelection.IsSelectionMode;
+
+    public int SelectedActiveCacheChapterCount => _activeCacheSelection.SelectedChapterCount;
+
+    public string ActiveCacheSelectionSummary => _activeCacheSelection.SelectionSummary;
+
+    public string ActiveCacheStatusText => _activeCacheSelection.StatusText;
+
+    public bool HasActiveCacheBatch => _activeCacheSelection.HasActiveBatch;
+
+    public bool CanStartActiveCache => _activeCacheSelection.CanStart;
+
+    public bool CanScheduleStopTimer =>
+        !string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId) &&
+        CurrentPlaybackState is PlaybackState.Playing or PlaybackState.Paused;
+
     public string SpeakSpeedButtonText => $"语速 {SpeakSpeed}";
+
+    public string StopTimerButtonAutomationName => HasActiveStopTimer
+        ? $"定时停止，剩余 {StopTimerRemainingText}"
+        : "定时停止";
 
     public PlaybackPrimaryAction PrimaryAction => CurrentPlaybackState == PlaybackState.Playing
         ? PlaybackPrimaryAction.Pause
@@ -171,6 +228,21 @@ public sealed partial class PlayerViewModel : ObservableObject
     private bool isSpeedMenuOpen;
 
     [ObservableProperty]
+    private bool isStopTimerMenuOpen;
+
+    [ObservableProperty]
+    private string customStopMinutesText = string.Empty;
+
+    [ObservableProperty]
+    private string customStopTimerErrorText = string.Empty;
+
+    [ObservableProperty]
+    private string stopTimerRemainingText = "—";
+
+    [ObservableProperty]
+    private bool hasActiveStopTimer;
+
+    [ObservableProperty]
     private string speedEditorText = AppSettings.DefaultSpeakSpeedValue.ToString(CultureInfo.InvariantCulture);
 
     [ObservableProperty]
@@ -206,6 +278,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         }
 
         await RefreshRulesAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
     }
 
@@ -214,6 +287,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(request);
 
         _requestedBookId = request.BookId;
+        _activeCacheSelection.ExitSelectionMode();
         CloseTransientPanels();
         ResumeAutoCenterForExplicitNavigation();
 
@@ -309,15 +383,22 @@ public sealed partial class PlayerViewModel : ObservableObject
     public void OnPageNavigatedFrom()
     {
         _pageEventCancellation.Cancel();
+        StopStopTimerDisplayTimer();
+        _cacheStatusRefresh.Deactivate();
         _rulesAndSpeedController.CancelPendingSpeakSpeedChange();
         CloseTransientPanels();
         _autoScrollCoordinator.ResetForPageLeave();
+        _activeCacheSelection.ExitSelectionMode();
         if (!_isPageEventsRegistered)
         {
             return;
         }
 
         _playbackCoordinator.SnapshotChanged -= OnSnapshotChanged;
+        _stopTimer.SnapshotChanged -= OnStopTimerSnapshotChanged;
+        _activeCacheCoordinator.SnapshotChanged -= OnActiveCacheSnapshotChanged;
+        _cacheWorkspaceService.Changed -= OnCacheChanged;
+        _settingsService.Changed -= OnSettingsChanged;
         _autoScrollCoordinator.StateChanged -= OnAutoScrollStateChanged;
         _isPageEventsRegistered = false;
     }
@@ -326,8 +407,15 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         _pageEventCancellation.Dispose();
         _pageEventCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _cacheStatusRefresh.Activate(_pageEventCancellation.Token);
         RegisterPageEvents();
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
+        var stopTimerSnapshot = _stopTimer.CurrentSnapshot;
+        ApplyStopTimerSnapshot(stopTimerSnapshot);
+        RefreshStopTimerDisplay();
+        UpdateStopTimerDisplayTimer(stopTimerSnapshot.IsActive);
+        _activeCacheSelection.ApplySnapshot(_activeCacheCoordinator.CurrentSnapshot);
+        QueueCacheStatusRefresh(chapterIndex: null);
     }
 
     private void RegisterPageEvents()
@@ -338,6 +426,10 @@ public sealed partial class PlayerViewModel : ObservableObject
         }
 
         _playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
+        _stopTimer.SnapshotChanged += OnStopTimerSnapshotChanged;
+        _activeCacheCoordinator.SnapshotChanged += OnActiveCacheSnapshotChanged;
+        _cacheWorkspaceService.Changed += OnCacheChanged;
+        _settingsService.Changed += OnSettingsChanged;
         _autoScrollCoordinator.StateChanged += OnAutoScrollStateChanged;
         _isPageEventsRegistered = true;
     }
@@ -450,6 +542,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private void ToggleRuleMenu()
     {
         IsSpeedMenuOpen = false;
+        IsStopTimerMenuOpen = false;
         IsRuleMenuOpen = !IsRuleMenuOpen;
     }
 
@@ -457,6 +550,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private void ToggleSpeedMenu()
     {
         IsRuleMenuOpen = false;
+        IsStopTimerMenuOpen = false;
         if (!IsSpeedMenuOpen)
         {
             SpeedEditorText = SpeakSpeed.ToString(CultureInfo.InvariantCulture);
@@ -470,7 +564,62 @@ public sealed partial class PlayerViewModel : ObservableObject
     private void OpenRuleMenu()
     {
         IsSpeedMenuOpen = false;
+        IsStopTimerMenuOpen = false;
         IsRuleMenuOpen = true;
+    }
+
+    [RelayCommand]
+    private void ToggleStopTimerMenu()
+    {
+        IsRuleMenuOpen = false;
+        IsSpeedMenuOpen = false;
+        CustomStopTimerErrorText = string.Empty;
+        IsStopTimerMenuOpen = !IsStopTimerMenuOpen;
+    }
+
+    [RelayCommand]
+    private void ScheduleStopAfter15Minutes() => ScheduleStopAfterMinutes(15);
+
+    [RelayCommand]
+    private void ScheduleStopAfter30Minutes() => ScheduleStopAfterMinutes(30);
+
+    [RelayCommand]
+    private void ScheduleStopAfter45Minutes() => ScheduleStopAfterMinutes(45);
+
+    [RelayCommand]
+    private void ScheduleStopAfter60Minutes() => ScheduleStopAfterMinutes(60);
+
+    [RelayCommand]
+    private void ScheduleStopAfter90Minutes() => ScheduleStopAfterMinutes(90);
+
+    [RelayCommand]
+    private void ScheduleCustomStopTimer()
+    {
+        if (!CanScheduleStopTimer)
+        {
+            return;
+        }
+
+        if (!int.TryParse(
+                CustomStopMinutesText,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var minutes) ||
+            minutes is < 1 or > 1440)
+        {
+            CustomStopTimerErrorText = "请输入 1 到 1440 分钟。";
+            return;
+        }
+
+        CustomStopTimerErrorText = string.Empty;
+        ScheduleStopAfterMinutes(minutes);
+    }
+
+    [RelayCommand]
+    private void CancelStopTimer()
+    {
+        _stopTimer.Cancel();
+        IsStopTimerMenuOpen = false;
     }
 
     [RelayCommand]
@@ -479,6 +628,10 @@ public sealed partial class PlayerViewModel : ObservableObject
         CloseTransientPanels();
         await _navigator.NavigateAsync(AppRoutes.TtsRules, cancellationToken).ConfigureAwait(true);
     }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private Task OpenMiniPlayerAsync(CancellationToken cancellationToken) =>
+        _miniPlayerLauncher.OpenMiniPlayerAsync(cancellationToken);
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task TogglePlayPauseAsync(CancellationToken cancellationToken)
@@ -616,7 +769,20 @@ public sealed partial class PlayerViewModel : ObservableObject
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task SelectChapterAsync(PlayerChapterItemViewModel? chapter, CancellationToken cancellationToken)
     {
+        await HandleChapterClickAsync(chapter, DesktopSelectionModifiers.None, cancellationToken);
+    }
+
+    public async Task HandleChapterClickAsync(
+        PlayerChapterItemViewModel? chapter,
+        DesktopSelectionModifiers modifiers,
+        CancellationToken cancellationToken)
+    {
         if (chapter is null)
+        {
+            return;
+        }
+
+        if (_activeCacheSelection.HandleChapterClick(chapter.ChapterIndex, modifiers))
         {
             return;
         }
@@ -629,6 +795,53 @@ public sealed partial class PlayerViewModel : ObservableObject
 
         ResumeAutoCenterForExplicitNavigation();
         await _playbackCoordinator.JumpToChapterAsync(chapter.ChapterIndex, cancellationToken);
+    }
+
+    [RelayCommand]
+    private void EnterActiveCacheSelection()
+    {
+        CloseTransientPanels();
+        _activeCacheSelection.ApplySnapshot(_activeCacheCoordinator.CurrentSnapshot);
+        _activeCacheSelection.EnterSelectionMode();
+    }
+
+    [RelayCommand]
+    private void CancelActiveCacheSelection()
+    {
+        _activeCacheSelection.ExitSelectionMode();
+    }
+
+    [RelayCommand]
+    private void SelectAllActiveCacheChapters()
+    {
+        _activeCacheSelection.SelectAll();
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task StartActiveCacheAsync(CancellationToken cancellationToken)
+    {
+        var bookId = _contentProjection.LoadedBook?.BookId ??
+                     _playbackCoordinator.CurrentSnapshot.BookId ??
+                     _requestedBookId;
+        if (string.IsNullOrWhiteSpace(bookId))
+        {
+            return;
+        }
+
+        await _activeCacheSelection.StartAsync(bookId, SpeakSpeed, cancellationToken);
+    }
+
+    public bool HandleActiveCacheEscape() => _activeCacheSelection.ExitSelectionMode();
+
+    public bool HandleActiveCacheSelectAll()
+    {
+        if (!IsActiveCacheSelectionMode)
+        {
+            return false;
+        }
+
+        _activeCacheSelection.SelectAll();
+        return true;
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -678,6 +891,16 @@ public sealed partial class PlayerViewModel : ObservableObject
         }
     }
 
+    partial void OnHasActiveStopTimerChanged(bool value)
+    {
+        OnPropertyChanged(nameof(StopTimerButtonAutomationName));
+    }
+
+    partial void OnStopTimerRemainingTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(StopTimerButtonAutomationName));
+    }
+
     partial void OnCurrentChapterSegmentCountChanged(int value)
     {
         OnPropertyChanged(nameof(DisplayedSegmentCounterText));
@@ -723,18 +946,91 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         if (!_uiScheduler.CheckAccess())
         {
-            _ = _uiScheduler.InvokeAsync(() => HandleSnapshotUpdateAsync(snapshot));
+            _pageTasks.Register(
+                _uiScheduler.InvokeAsync(() => HandleSnapshotUpdateAsync(snapshot)),
+                exception => ReportViewOperationFailure("更新播放页面失败", exception));
             return;
         }
 
-        _ = HandleSnapshotUpdateAsync(snapshot);
+        _pageTasks.Register(
+            HandleSnapshotUpdateAsync(snapshot),
+            exception => ReportViewOperationFailure("更新播放页面失败", exception));
+    }
+
+    private void OnStopTimerSnapshotChanged(object? sender, PlaybackStopTimerSnapshot snapshot)
+    {
+        if (!_uiScheduler.CheckAccess())
+        {
+            _pageTasks.Register(
+                _uiScheduler.InvokeAsync(() => ApplyStopTimerSnapshot(snapshot), _pageEventCancellation.Token),
+                exception => ReportViewOperationFailure("更新定时停止状态失败", exception));
+            return;
+        }
+
+        ApplyStopTimerSnapshot(snapshot);
+    }
+
+    private void OnActiveCacheSnapshotChanged(object? sender, ActiveCacheSnapshot snapshot)
+    {
+        if (!_uiScheduler.CheckAccess())
+        {
+            _pageTasks.Register(
+                _uiScheduler.InvokeAsync(() => _activeCacheSelection.ApplySnapshot(snapshot)),
+                exception => ReportViewOperationFailure("更新主动缓存状态失败", exception));
+            return;
+        }
+
+        _activeCacheSelection.ApplySnapshot(snapshot);
+    }
+
+    private void OnCacheChanged(object? sender, CacheChangedEventArgs eventArgs)
+    {
+        var loadedBookId = _contentProjection.LoadedBook?.BookId;
+        if (string.IsNullOrWhiteSpace(loadedBookId) ||
+            (!string.IsNullOrWhiteSpace(eventArgs.BookId) &&
+             !string.Equals(eventArgs.BookId, loadedBookId, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        ScheduleCacheStatusRefresh(eventArgs.ChapterIndex);
+    }
+
+    private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs eventArgs)
+    {
+        if (eventArgs.Previous.DefaultSpeakSpeed == eventArgs.Current.DefaultSpeakSpeed &&
+            eventArgs.Previous.SelectedTtsRuleId == eventArgs.Current.SelectedTtsRuleId &&
+            eventArgs.Previous.EnableLongParagraphSplitting == eventArgs.Current.EnableLongParagraphSplitting &&
+            eventArgs.Previous.LongParagraphThreshold == eventArgs.Current.LongParagraphThreshold)
+        {
+            return;
+        }
+
+        ScheduleCacheStatusRefresh(chapterIndex: null);
+    }
+
+    private void OnActiveCacheSelectionStateChanged(object? sender, EventArgs e)
+    {
+        foreach (var chapter in Chapters)
+        {
+            chapter.IsSelectedForActiveCache = _activeCacheSelection.IsSelected(chapter.ChapterIndex);
+        }
+
+        OnPropertyChanged(nameof(IsActiveCacheSelectionMode));
+        OnPropertyChanged(nameof(SelectedActiveCacheChapterCount));
+        OnPropertyChanged(nameof(ActiveCacheSelectionSummary));
+        OnPropertyChanged(nameof(ActiveCacheStatusText));
+        OnPropertyChanged(nameof(HasActiveCacheBatch));
+        OnPropertyChanged(nameof(CanStartActiveCache));
     }
 
     private void OnAutoScrollStateChanged(object? sender, EventArgs e)
     {
         if (!_uiScheduler.CheckAccess())
         {
-            _ = _uiScheduler.InvokeAsync(ApplyAutoScrollState);
+            _pageTasks.Register(
+                _uiScheduler.InvokeAsync(ApplyAutoScrollState),
+                exception => ReportViewOperationFailure("更新滚动状态失败", exception));
             return;
         }
 
@@ -754,6 +1050,13 @@ public sealed partial class PlayerViewModel : ObservableObject
         try
         {
             await EnsureContentLoadedForSnapshotAsync(snapshot, _pageEventCancellation.Token);
+            if (previousSnapshot.RuleId != snapshot.RuleId ||
+                previousSnapshot.SpeakSpeed != snapshot.SpeakSpeed ||
+                previousSnapshot.ContentRevision != snapshot.ContentRevision)
+            {
+                QueueCacheStatusRefresh(chapterIndex: null);
+            }
+
             if (_autoScrollCoordinator.ShouldAutoCenter &&
                 ShouldAnimateCenteringForSnapshotUpdate(previousSnapshot, snapshot))
             {
@@ -777,6 +1080,67 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         await _contentProjection.EnsureContentLoadedAsync(snapshot, cancellationToken);
         SynchronizeContentProjection(includeChapterTitle: true);
+        if (_contentProjection.LoadedBook is { BookId: { Length: > 0 } bookId } &&
+            !string.Equals(_cacheStatusInitializedBookId, bookId, StringComparison.Ordinal))
+        {
+            _cacheStatusInitializedBookId = bookId;
+            QueueCacheStatusRefresh(chapterIndex: null);
+        }
+    }
+
+    private void ScheduleCacheStatusRefresh(int? chapterIndex)
+    {
+        if (!_uiScheduler.CheckAccess())
+        {
+            _pageTasks.Register(
+                _uiScheduler.InvokeAsync(() => QueueCacheStatusRefresh(chapterIndex), _pageEventCancellation.Token),
+                exception => ReportViewOperationFailure("刷新章节缓存进度失败", exception));
+            return;
+        }
+
+        QueueCacheStatusRefresh(chapterIndex);
+    }
+
+    private void QueueCacheStatusRefresh(int? chapterIndex)
+    {
+        if (!_isPageEventsRegistered ||
+            _pageEventCancellation.IsCancellationRequested ||
+            _contentProjection.LoadedBook is not { BookId: { Length: > 0 } bookId })
+        {
+            return;
+        }
+
+        var chapterIndices = chapterIndex is null
+            ? Chapters.Select(static chapter => chapter.ChapterIndex)
+            : Chapters.Where(chapter => chapter.ChapterIndex == chapterIndex.Value)
+                .Select(static chapter => chapter.ChapterIndex);
+
+        _cacheStatusRefresh.Request(bookId, chapterIndices.ToArray());
+    }
+
+    private void ApplyChapterCacheStatuses(
+        string bookId,
+        IReadOnlyCollection<int> requestedChapterIndices,
+        IReadOnlyCollection<ChapterCacheStatus> statuses)
+    {
+        if (!_isPageEventsRegistered ||
+            !string.Equals(_contentProjection.LoadedBook?.BookId, bookId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var statusesByChapter = statuses.ToDictionary(static status => status.ChapterIndex);
+        foreach (var chapter in Chapters.Where(chapter => requestedChapterIndices.Contains(chapter.ChapterIndex)))
+        {
+            if (statusesByChapter.TryGetValue(chapter.ChapterIndex, out var status))
+            {
+                chapter.ApplyCacheStatus(status.CachedSegmentCount, status.TotalSegmentCount);
+            }
+            else
+            {
+                chapter.ApplyCacheStatus(0, totalSegmentCount: null);
+            }
+        }
     }
 
     private async Task<PlaybackBookContent?> EnsureBookLoadedAsync(string bookId, CancellationToken cancellationToken)
@@ -834,6 +1198,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         SynchronizeContentProjection(includeChapterTitle: false);
         ApplyRuleSelection(snapshot.RuleId);
         _lastAppliedSnapshot = snapshot;
+        OnPropertyChanged(nameof(CanScheduleStopTimer));
     }
 
     private void ApplyRuleSelection(long? selectedRuleId)
@@ -851,6 +1216,7 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     private void SynchronizeContentProjection(bool includeChapterTitle)
     {
+        _activeCacheSelection.SetChapters(Chapters.Select(chapter => chapter.ChapterIndex));
         CurrentChapterItem = _contentProjection.CurrentChapterItem;
         CurrentSegmentItem = _contentProjection.CurrentSegmentItem;
         CurrentChapterSegmentCount = _contentProjection.CurrentChapterSegmentCount;
@@ -932,7 +1298,94 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         IsRuleMenuOpen = false;
         IsSpeedMenuOpen = false;
+        IsStopTimerMenuOpen = false;
         SpeedEditorErrorText = string.Empty;
+    }
+
+    private void ScheduleStopAfterMinutes(int minutes)
+    {
+        if (!CanScheduleStopTimer)
+        {
+            return;
+        }
+
+        _stopTimer.ScheduleAfter(TimeSpan.FromMinutes(minutes));
+        IsStopTimerMenuOpen = false;
+    }
+
+    private void ApplyStopTimerSnapshot(PlaybackStopTimerSnapshot snapshot)
+    {
+        if (snapshot.Version <= _lastAppliedStopTimerVersion)
+        {
+            return;
+        }
+
+        _lastAppliedStopTimerVersion = snapshot.Version;
+        HasActiveStopTimer = snapshot.IsActive;
+        StopTimerRemainingText = FormatStopTimerRemaining(snapshot);
+        UpdateStopTimerDisplayTimer(snapshot.IsActive);
+    }
+
+    private void OnStopTimerDisplayTick(object? state)
+    {
+        if (!_isPageEventsRegistered)
+        {
+            return;
+        }
+
+        if (!_uiScheduler.CheckAccess())
+        {
+            _pageTasks.Register(
+                _uiScheduler.InvokeAsync(RefreshStopTimerDisplay, _pageEventCancellation.Token),
+                exception => ReportViewOperationFailure("更新定时停止倒计时失败", exception));
+            return;
+        }
+
+        RefreshStopTimerDisplay();
+    }
+
+    private void RefreshStopTimerDisplay()
+    {
+        var snapshot = _stopTimer.CurrentSnapshot;
+        StopTimerRemainingText = FormatStopTimerRemaining(snapshot);
+    }
+
+    private void UpdateStopTimerDisplayTimer(bool isActive)
+    {
+        if (!isActive || !_isPageEventsRegistered)
+        {
+            StopStopTimerDisplayTimer();
+            return;
+        }
+
+        _stopTimerDisplayTimer ??= _timeProvider.CreateTimer(
+            OnStopTimerDisplayTick,
+            state: null,
+            dueTime: TimeSpan.FromSeconds(1),
+            period: TimeSpan.FromSeconds(1));
+        _stopTimerDisplayTimer.Change(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    private void StopStopTimerDisplayTimer()
+    {
+        _stopTimerDisplayTimer?.Dispose();
+        _stopTimerDisplayTimer = null;
+    }
+
+    private DateTimeOffset GetCurrentUtcNow() => _timeProvider.GetUtcNow();
+
+    private string FormatStopTimerRemaining(PlaybackStopTimerSnapshot snapshot)
+    {
+        if (!snapshot.IsActive || snapshot.DueAt is not { } dueAt)
+        {
+            return "—";
+        }
+
+        var remaining = dueAt - GetCurrentUtcNow();
+        var minutes = remaining <= TimeSpan.Zero
+            ? 0
+            : Math.Max(1, (int)Math.Ceiling(remaining.TotalMinutes));
+        return minutes.ToString(CultureInfo.InvariantCulture);
     }
 
     private int ResolveSpeakSpeedForOpen()

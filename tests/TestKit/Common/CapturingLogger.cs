@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace NovelSpeaker.UnitTests.Common;
+namespace NovelSpeaker.TestKit.Common;
 
 internal sealed class CapturingLogger<T> : ILogger<T>
 {

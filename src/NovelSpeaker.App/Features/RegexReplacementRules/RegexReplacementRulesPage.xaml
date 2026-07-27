@@ -6,6 +6,10 @@
       MinHeight="0"
       navigation:NavigationViewportHeightBehavior.IsEnabled="True"
       ClipToBounds="True">
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Page.Resources>
+
     <Grid Margin="{StaticResource PagePadding}"
           MinHeight="0"
           ClipToBounds="True">
@@ -34,9 +38,12 @@
             </StackPanel>
 
             <Button Grid.Column="1"
-                    Padding="16,8"
+                    Style="{StaticResource SecondaryIconButtonStyle}"
                     Command="{Binding NewRuleCommand}"
-                    Content="新建规则" />
+                    ToolTip="新建规则"
+                    AutomationProperties.Name="新建规则">
+                <ui:SymbolIcon Symbol="DocumentAdd24" />
+            </Button>
         </Grid>
 
         <Grid Grid.Row="1"
@@ -61,7 +68,7 @@
                     </StackPanel>
 
                     <TextBlock Margin="16,0,16,16"
-                               Text="还没有替换规则，使用右上角按钮新建一条。">
+                               Text="还没有替换规则，请先新建一条。">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock"
                                    BasedOn="{StaticResource SecondaryTextBlockStyle}">
@@ -105,7 +112,7 @@
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Style="{StaticResource SelectableListItemContainerStyle}"
+                                    <Border Style="{StaticResource DropTargetListItemContainerStyle}"
                                             AllowDrop="True"
                                             DragEnter="RuleItem_OnDragEnter"
                                             DragLeave="RuleItem_OnDragLeave"
@@ -137,7 +144,6 @@
                                                   Margin="0,12,0,0">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="8" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="8" />
@@ -147,38 +153,45 @@
                                                 <CheckBox Grid.Column="0"
                                                           VerticalAlignment="Center"
                                                           IsChecked="{Binding IsEnabled, Mode=OneWay}"
+                                                          IsEnabled="{Binding CanQuickActions}"
                                                           Command="{Binding DataContext.ToggleEnabledCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                           CommandParameter="{Binding}"
-                                                          Content="{Binding EnabledStateText}"
+                                                          Content="启用"
                                                           ToolTip="切换规则启用状态"
-                                                          AutomationProperties.Name="{Binding EnabledStateText, StringFormat=规则状态：{0}}" />
+                                                          AutomationProperties.Name="{Binding Name, StringFormat=切换规则启用状态：{0}}" />
 
                                                 <Button Grid.Column="2"
-                                                        Style="{StaticResource SecondaryIconButtonStyle}"
+                                                        Style="{StaticResource BorderlessIconButtonStyle}"
                                                         Tag="{Binding}"
+                                                        IsEnabled="{Binding CanQuickActions}"
                                                         PreviewMouseLeftButtonDown="DragHandle_OnPreviewMouseLeftButtonDown"
                                                         PreviewMouseMove="DragHandle_OnPreviewMouseMove"
                                                         ToolTip="拖动排序"
-                                                        AutomationProperties.Name="拖动排序">
+                                                        AutomationProperties.Name="{Binding Name, StringFormat=拖动排序：{0}}">
                                                     <ui:SymbolIcon Symbol="ReOrder24" />
                                                 </Button>
 
-                                                <Button Grid.Column="3"
-                                                        Style="{StaticResource SecondaryIconButtonStyle}"
-                                                        Command="{Binding DataContext.MoveUpCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                        CommandParameter="{Binding}"
-                                                        ToolTip="上移"
-                                                        AutomationProperties.Name="上移">
-                                                    <ui:SymbolIcon Symbol="ArrowUp24" />
-                                                </Button>
-
-                                                <Button Grid.Column="5"
-                                                        Style="{StaticResource SecondaryIconButtonStyle}"
-                                                        Command="{Binding DataContext.MoveDownCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                        CommandParameter="{Binding}"
-                                                        ToolTip="下移"
-                                                        AutomationProperties.Name="下移">
-                                                    <ui:SymbolIcon Symbol="ArrowDown24" />
+                                                <Button Grid.Column="4"
+                                                        Style="{StaticResource BorderlessIconButtonStyle}"
+                                                        Click="RuleMoreButton_OnClick"
+                                                        IsEnabled="{Binding CanQuickActions}"
+                                                        ToolTip="更多操作"
+                                                        AutomationProperties.Name="{Binding Name, StringFormat=更多操作：{0}}">
+                                                    <ui:SymbolIcon Symbol="MoreHorizontal24" />
+                                                    <Button.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="上移"
+                                                                      IsEnabled="{Binding CanMoveUp}"
+                                                                      Click="MoveRuleUpMenuItem_OnClick" />
+                                                            <MenuItem Header="下移"
+                                                                      IsEnabled="{Binding CanMoveDown}"
+                                                                      Click="MoveRuleDownMenuItem_OnClick" />
+                                                            <Separator />
+                                                            <MenuItem Header="删除"
+                                                                      IsEnabled="{Binding CanDeleteAction}"
+                                                                      Click="DeleteRuleMenuItem_OnClick" />
+                                                        </ContextMenu>
+                                                    </Button.ContextMenu>
                                                 </Button>
                                             </Grid>
 
@@ -209,12 +222,66 @@
 
             <Border Grid.Column="2"
                     Style="{StaticResource CardBorderStyle}">
+                <Grid MinHeight="0">
+                    <Border Margin="20"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            MaxWidth="420">
+                        <Border.Style>
+                            <Style TargetType="Border"
+                                   BasedOn="{StaticResource CardBorderStyle}">
+                                <Setter Property="Padding" Value="20" />
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasEditor}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <TextBlock HorizontalAlignment="Center"
+                                       Style="{StaticResource SectionTitleTextBlockStyle}"
+                                       Text="选择一条规则" />
+                            <TextBlock Margin="0,10,0,0"
+                                       HorizontalAlignment="Center"
+                                       Style="{StaticResource SecondaryTextBlockStyle}"
+                                       Text="左侧选择已有规则，或使用顶部按钮新建规则。"
+                                       TextAlignment="Center"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
                 <ScrollViewer Margin="24"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer.Style>
+                        <Style TargetType="ScrollViewer">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasEditor}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ScrollViewer.Style>
                     <StackPanel>
-                        <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
-                                   Text="规则编辑" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center"
+                                       Style="{StaticResource SectionTitleTextBlockStyle}"
+                                       Text="规则编辑" />
+                            <Button Grid.Column="1"
+                                    Style="{StaticResource SecondaryIconButtonStyle}"
+                                    Command="{Binding OpenHelpCommand}"
+                                    ToolTip="正则替换帮助"
+                                    AutomationProperties.Name="正则替换帮助">
+                                <ui:SymbolIcon Symbol="QuestionCircle24" />
+                            </Button>
+                        </Grid>
 
                         <TextBlock Margin="0,20,0,0"
                                    Style="{StaticResource FormLabelTextBlockStyle}"
@@ -245,23 +312,108 @@
                                    Style="{StaticResource ErrorTextBlockStyle}"
                                    Text="{Binding ValidationMessage}" />
 
-                        <StackPanel Margin="0,24,0,0"
-                                    Orientation="Horizontal">
-                            <Button Margin="0,0,8,0"
-                                    Command="{Binding DeleteCommand}"
-                                    IsEnabled="{Binding CanDelete}"
-                                    Content="删除" />
-                            <Button Margin="0,0,8,0"
+                        <Grid Margin="0,24,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="1"
+                                    Padding="16,8"
                                     Command="{Binding CancelCommand}"
-                                    IsEnabled="{Binding HasEditor}"
+                                    IsEnabled="{Binding CanCancel}"
                                     Content="取消" />
-                            <Button Command="{Binding SaveCommand}"
+                            <Button Grid.Column="3"
+                                    Padding="16,8"
+                                    Command="{Binding SaveCommand}"
                                     IsEnabled="{Binding CanSave}"
                                     Content="保存" />
-                        </StackPanel>
+                        </Grid>
                     </StackPanel>
                 </ScrollViewer>
+                </Grid>
             </Border>
+
+            <Grid Grid.ColumnSpan="3"
+                  Panel.ZIndex="10"
+                  Visibility="{Binding IsHelpDrawerOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="380" />
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0"
+                        AutomationProperties.Name="关闭正则替换帮助"
+                        ToolTip="关闭正则替换帮助"
+                        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                        BorderThickness="0"
+                        Command="{Binding CloseHelpCommand}" />
+
+                <Border Grid.Column="1"
+                        Padding="20"
+                        Style="{StaticResource PopupSurfaceBorderStyle}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                                       Text="正则替换帮助" />
+                            <Button Grid.Column="1"
+                                    Style="{StaticResource SecondaryIconButtonStyle}"
+                                    Command="{Binding CloseHelpCommand}"
+                                    ToolTip="关闭帮助"
+                                    AutomationProperties.Name="关闭帮助">
+                                <ui:SymbolIcon Symbol="Dismiss24" />
+                            </Button>
+                        </Grid>
+
+                        <ScrollViewer Grid.Row="1"
+                                      Margin="0,16,0,0"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource StrongTextBlockStyle}"
+                                           Text="作用范围" />
+                                <TextBlock Margin="0,8,0,0"
+                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                           Text="“仅显示”只改变页面正文，“仅朗读”只改变送往 TTS 的文本，“显示与朗读”同时作用于两者。规则不会修改导入后的原始正文。"
+                                           TextWrapping="Wrap" />
+
+                                <TextBlock Margin="0,18,0,0"
+                                           Style="{StaticResource StrongTextBlockStyle}"
+                                           Text="执行顺序" />
+                                <TextBlock Margin="0,8,0,0"
+                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                           Text="只执行已启用的规则，并按左侧顺序从前到后替换。可拖动排序，也可在更多菜单中使用上移或下移。"
+                                           TextWrapping="Wrap" />
+
+                                <TextBlock Margin="0,18,0,0"
+                                           Style="{StaticResource StrongTextBlockStyle}"
+                                           Text="空输出" />
+                                <TextBlock Margin="0,8,0,0"
+                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                           Text="替换文本可以留空。显示结果为空时该段不显示；朗读结果为空时会安全跳过 TTS。"
+                                           TextWrapping="Wrap" />
+
+                                <TextBlock Margin="0,18,0,0"
+                                           Style="{StaticResource StrongTextBlockStyle}"
+                                           Text="正则小抄" />
+                                <TextBlock Margin="0,8,0,0"
+                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                           Text="^ 和 $ 限定开头与结尾；\s+ 匹配一个或多个空白；(甲|乙) 匹配其中之一；$1 在替换文本中引用第一个捕获组。保存前会检查表达式是否有效。"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
         </Grid>
     </Grid>
 </Page>
