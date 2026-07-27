@@ -367,7 +367,7 @@ Wave 内若任务不修改同一公共合同，可以并行；涉及共享 DI、
 - PlayerPage 与 Shell 订阅同一 Application snapshot，不复制状态。
 - 完成后入口消失，Snackbar 提示结果。
 
-## [ ] CACHE-405（P1）：重构缓存管理为文件管理器式章节操作
+## [x] CACHE-405（P1）：重构缓存管理为文件管理器式章节操作
 
 前置：UI-203。
 
