@@ -20,7 +20,7 @@ public sealed class RulePageNavigationGuardTests
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
-            await using var provider = WpfTestHost.BuildServiceProvider();
+            await using var provider = await WpfTestHost.BuildInitializedServiceProviderAsync();
             var guard = new RecordingNavigationGuardService();
             var (page, viewModel) = CreatePage(pageKind, provider, guard);
 
