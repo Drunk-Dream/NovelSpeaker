@@ -329,7 +329,7 @@ Wave 内若任务不修改同一公共合同，可以并行；涉及共享 DI、
 - 支持取消，已完成缓存保留。
 - 发布 `ActiveCacheSnapshot`：总进度、当前章节、章节状态和安全错误摘要。
 
-## [ ] CACHE-402（P0）：实现共享优先级 TTS admission
+## [x] CACHE-402（P0）：实现共享优先级 TTS admission
 
 前置：CACHE-401。
 
