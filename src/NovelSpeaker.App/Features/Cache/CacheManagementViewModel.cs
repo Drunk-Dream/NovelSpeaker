@@ -5,6 +5,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Dialogs;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;
 
 namespace NovelSpeaker.App.Features.Cache;
@@ -17,6 +18,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
     private readonly IAppFeedbackService _feedbackService;
     private readonly IAppDialogService _dialogService;
     private readonly IAppNavigator _navigator;
+    private readonly DesktopSelectionController<int> _chapterSelection = new();
     private CancellationTokenSource? _chapterLoadCts;
     private int _bookLoadVersion;
     private int _chapterLoadVersion;
@@ -32,6 +34,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         _feedbackService = feedbackService;
         _dialogService = dialogService;
         _navigator = navigator;
+        _chapterSelection.SelectionChanged += OnChapterSelectionChanged;
     }
 
     public ObservableCollection<CachedBookListItemViewModel> Books { get; } = [];
@@ -73,7 +76,17 @@ public sealed partial class CacheManagementViewModel : ObservableObject
 
     public bool ShowSelectedBookContent => HasSelection && SelectedBookHasCache;
 
-    public bool CanClearAll => !IsBusy && Books.Count > 0;
+    public IReadOnlyList<int> SelectedChapterIndices => _chapterSelection.SelectedItems;
+
+    public string ChapterSelectionSummary => $"已选择 {_chapterSelection.Count} 章";
+
+    public bool CanClearSelectedChapters =>
+        !IsBusy &&
+        HasSelection &&
+        !string.IsNullOrWhiteSpace(_selectedBookId) &&
+        _chapterSelection.Count > 0;
+
+    public bool CanExportSelectedChapters => false;
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -86,6 +99,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
     {
         Interlocked.Increment(ref _bookLoadVersion);
         CancelChapterLoad();
+        _chapterSelection.Clear();
     }
 
     [RelayCommand]
@@ -105,6 +119,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
             return;
         }
 
+        _chapterSelection.Clear();
         _selectedBookId = item.BookId;
         SelectedBookTitle = item.Title;
         SelectedBookAuthor = item.Author;
@@ -118,68 +133,55 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         await LoadChaptersAsync(item.BookId, cancellationToken);
     }
 
-    [RelayCommand]
-    private async Task ClearAllAsync(CancellationToken cancellationToken)
+    public void HandleChapterClick(
+        CachedChapterListItemViewModel? item,
+        DesktopSelectionModifiers modifiers)
     {
-        if (!CanClearAll)
+        if (item is null ||
+            IsBusy ||
+            !string.Equals(item.BookId, _selectedBookId, StringComparison.Ordinal))
         {
             return;
         }
 
-        var decision = await _dialogService.ShowConfirmationAsync(
-            "清理全部缓存",
-            $"将清理全部音频缓存。{CleanupImpactMessage}",
-            "清理",
-            "取消",
-            cancellationToken);
-        if (decision != AppConfirmationDecision.Confirm)
-        {
-            return;
-        }
-
-        await ExecuteCleanupAsync(
-            ct => _cacheWorkspaceService.ClearAllAsync(ct),
-            reloadSelectedBook: HasSelection,
-            cancellationToken);
+        _chapterSelection.Click(item.ChapterIndex, modifiers);
     }
 
-    [RelayCommand]
-    private async Task ClearBookAsync(CancellationToken cancellationToken)
+    public bool HandleSelectAllChapters()
     {
-        if (!HasSelection || string.IsNullOrWhiteSpace(_selectedBookId) || IsBusy)
+        if (!HasSelection || IsBusy || Chapters.Count == 0)
         {
-            return;
+            return false;
         }
 
-        var decision = await _dialogService.ShowConfirmationAsync(
-            "清理本书缓存",
-            $"将清理《{SelectedBookTitle}》的音频缓存。{CleanupImpactMessage}",
-            "清理",
-            "取消",
-            cancellationToken);
-        if (decision != AppConfirmationDecision.Confirm)
+        _chapterSelection.SelectAll();
+        return true;
+    }
+
+    public bool HandleClearChapterSelection()
+    {
+        if (_chapterSelection.Count == 0)
+        {
+            return false;
+        }
+
+        _chapterSelection.Clear();
+        return true;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanClearSelectedChapters), AllowConcurrentExecutions = false)]
+    private async Task ClearSelectedChaptersAsync(CancellationToken cancellationToken)
+    {
+        if (!CanClearSelectedChapters || string.IsNullOrWhiteSpace(_selectedBookId))
         {
             return;
         }
 
         var selectedBookId = _selectedBookId;
-        await ExecuteCleanupAsync(
-            ct => _cacheWorkspaceService.ClearBookAsync(selectedBookId!, ct),
-            reloadSelectedBook: true,
-            cancellationToken);
-    }
-
-    [RelayCommand]
-    private async Task ClearChapterAsync(CachedChapterListItemViewModel? item, CancellationToken cancellationToken)
-    {
-        if (item is null || string.IsNullOrWhiteSpace(_selectedBookId) || IsBusy)
-        {
-            return;
-        }
-
+        var selectedIndices = SelectedChapterIndices.ToArray();
         var decision = await _dialogService.ShowConfirmationAsync(
-            "清理本章缓存",
-            $"将清理“{item.Title}”的音频缓存。{CleanupImpactMessage}",
+            "清理所选章节缓存",
+            $"将清理《{SelectedBookTitle}》中选定的 {selectedIndices.Length} 章音频缓存。{CleanupImpactMessage}",
             "清理",
             "取消",
             cancellationToken);
@@ -189,7 +191,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         }
 
         await ExecuteCleanupAsync(
-            ct => _cacheWorkspaceService.ClearChapterAsync(item.BookId, item.ChapterIndex, ct),
+            ct => _cacheWorkspaceService.ClearChaptersAsync(selectedBookId, selectedIndices, ct),
             reloadSelectedBook: true,
             cancellationToken);
     }
@@ -302,6 +304,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
 
         IsLoadingChapters = true;
         Chapters.Clear();
+        _chapterSelection.SetItems([]);
         NotifyVisibilityStateChanged();
 
         try
@@ -326,6 +329,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
                     FormatCompleteness(chapter)));
             }
 
+            _chapterSelection.SetItems(Chapters.Select(chapter => chapter.ChapterIndex));
             SelectedBookHasCache = Chapters.Count > 0;
             NotifyVisibilityStateChanged();
         }
@@ -359,6 +363,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         SelectedBookCacheSizeText = "0 B";
         SelectedBookChapterCountText = string.Empty;
         Chapters.Clear();
+        _chapterSelection.SetItems([]);
         UpdateBookSelection(null);
         NotifyVisibilityStateChanged();
     }
@@ -389,7 +394,28 @@ public sealed partial class CacheManagementViewModel : ObservableObject
 
     private void NotifyCommandStateChanged()
     {
-        OnPropertyChanged(nameof(CanClearAll));
+        OnPropertyChanged(nameof(CanClearSelectedChapters));
+        OnPropertyChanged(nameof(CanExportSelectedChapters));
+        ClearSelectedChaptersCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsBusyChanged(bool value)
+    {
+        NotifyCommandStateChanged();
+    }
+
+    private void OnChapterSelectionChanged(
+        object? sender,
+        DesktopSelectionChangedEventArgs<int> e)
+    {
+        foreach (var chapter in Chapters)
+        {
+            chapter.IsSelected = _chapterSelection.IsSelected(chapter.ChapterIndex);
+        }
+
+        OnPropertyChanged(nameof(SelectedChapterIndices));
+        OnPropertyChanged(nameof(ChapterSelectionSummary));
+        NotifyCommandStateChanged();
     }
 
     private void ShowCleanupFeedback(CacheCleanupResult result)
@@ -407,12 +433,15 @@ public sealed partial class CacheManagementViewModel : ObservableObject
 
     private static string FormatCompleteness(CachedChapterCacheItem chapter)
     {
-        if (chapter.EstimatedTotalSegmentCount is null || chapter.EstimatedTotalSegmentCount <= 0)
+        if (chapter.CurrentConfigurationSegmentCount is null)
         {
-            return $"已缓存 {chapter.CachedSegmentCount} 段";
+            return "当前配置完整度：不可用";
         }
 
-        var ratio = Math.Clamp(chapter.CachedSegmentCount / (double)chapter.EstimatedTotalSegmentCount.Value, 0, 1);
-        return $"已缓存 {chapter.CachedSegmentCount}/{chapter.EstimatedTotalSegmentCount.Value} 段 · {ratio:P0}";
+        var totalSegmentCount = chapter.CurrentConfigurationSegmentCount.Value;
+        var ratio = totalSegmentCount == 0
+            ? 1
+            : Math.Clamp(chapter.CachedSegmentCount / (double)totalSegmentCount, 0, 1);
+        return $"当前配置完整度：{chapter.CachedSegmentCount}/{totalSegmentCount} 段 · {ratio:P0}";
     }
 }

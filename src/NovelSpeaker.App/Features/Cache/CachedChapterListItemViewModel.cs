@@ -1,6 +1,8 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace NovelSpeaker.App.Features.Cache;
 
-public sealed class CachedChapterListItemViewModel
+public sealed partial class CachedChapterListItemViewModel : ObservableObject
 {
     public CachedChapterListItemViewModel(
         string bookId,
@@ -18,8 +20,6 @@ public sealed class CachedChapterListItemViewModel
         CacheSizeText = cacheSizeText;
         EntryCountText = entryCountText;
         CompletenessText = completenessText;
-        AutomationName = $"{orderText}，{title}，{cacheSizeText}，{completenessText}";
-        CleanupAutomationName = $"清理{orderText}“{title}”的缓存";
     }
 
     public string BookId { get; }
@@ -36,7 +36,11 @@ public sealed class CachedChapterListItemViewModel
 
     public string CompletenessText { get; }
 
-    public string AutomationName { get; }
+    public string AutomationName =>
+        $"{OrderText}，{Title}，{CacheSizeText}，{CompletenessText}" +
+        (IsSelected ? "，已选择" : string.Empty);
 
-    public string CleanupAutomationName { get; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutomationName))]
+    private bool isSelected;
 }

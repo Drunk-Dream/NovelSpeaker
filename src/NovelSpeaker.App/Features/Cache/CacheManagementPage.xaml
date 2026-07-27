@@ -2,7 +2,8 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:navigation="clr-namespace:NovelSpeaker.App.Shell.Navigation"
-      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      PreviewKeyDown="Page_OnPreviewKeyDown">
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
 
@@ -20,36 +21,24 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid>
+        <Grid VerticalAlignment="Center">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Grid VerticalAlignment="Center">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
+            <Button Style="{StaticResource BackIconButtonStyle}"
+                    Command="{Binding BackCommand}"
+                    ToolTip="返回"
+                    AutomationProperties.Name="返回">
+                <ui:SymbolIcon Symbol="ChevronLeft24" />
+            </Button>
 
-                <Button Style="{StaticResource BackIconButtonStyle}"
-                        Command="{Binding BackCommand}"
-                        ToolTip="返回"
-                        AutomationProperties.Name="返回">
-                    <ui:SymbolIcon Symbol="ChevronLeft24" />
-                </Button>
-
-                <TextBlock Grid.Column="1"
-                           Margin="12,0,0,0"
-                           VerticalAlignment="Center"
-                           Style="{StaticResource PageTitleTextBlockStyle}"
-                           Text="缓存管理" />
-            </Grid>
-
-            <Button Grid.Column="1"
-                    Padding="16,8"
-                    Command="{Binding ClearAllCommand}"
-                    Content="清理全部缓存" />
+            <TextBlock Grid.Column="1"
+                       Margin="12,0,0,0"
+                       VerticalAlignment="Center"
+                       Style="{StaticResource PageTitleTextBlockStyle}"
+                       Text="缓存管理" />
         </Grid>
 
         <Grid Grid.Row="1"
@@ -152,7 +141,7 @@
                         <TextBlock Margin="0,10,0,0"
                                    HorizontalAlignment="Center"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
-                                   Text="选中后可查看章节缓存、完整度估算，并清理本章或本书缓存。"
+                                   Text="选中后可查看当前配置下的章节缓存完整度，并选择一个或多个章节清理。"
                                    TextAlignment="Center"
                                    TextWrapping="Wrap" />
                     </StackPanel>
@@ -194,11 +183,29 @@
                                            Text="{Binding SelectedBookCacheSizeText}" />
                             </StackPanel>
 
-                            <Button Grid.Column="1"
-                                    Padding="16,8"
-                                    VerticalAlignment="Top"
-                                    Command="{Binding ClearBookCommand}"
-                                    Content="清理" />
+                            <StackPanel Grid.Column="1"
+                                        Margin="16,0,0,0"
+                                        VerticalAlignment="Top">
+                                <TextBlock HorizontalAlignment="Right"
+                                           Margin="0,0,0,8"
+                                           Style="{StaticResource SecondaryTextBlockStyle}"
+                                           Text="{Binding ChapterSelectionSummary}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="ClearSelectedChaptersButton"
+                                            Padding="16,8"
+                                            Command="{Binding ClearSelectedChaptersCommand}"
+                                            Content="清理"
+                                            ToolTip="清理所选章节缓存"
+                                            AutomationProperties.Name="清理所选章节缓存" />
+                                    <Button x:Name="ExportSelectedChaptersButton"
+                                            Margin="8,0,0,0"
+                                            Padding="16,8"
+                                            Content="导出"
+                                            IsEnabled="{Binding CanExportSelectedChapters}"
+                                            ToolTip="章节导出尚未接入"
+                                            AutomationProperties.Name="导出所选章节" />
+                                </StackPanel>
+                            </StackPanel>
                         </Grid>
 
                         <StackPanel Grid.Row="1"
@@ -244,47 +251,68 @@
                                 </ItemsControl.Style>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Margin="0,0,0,12"
-                                                Padding="16"
-                                                Style="{StaticResource CardBorderStyle}"
+                                        <Button Margin="0,0,0,12"
+                                                Padding="0"
+                                                HorizontalContentAlignment="Stretch"
+                                                Style="{StaticResource BorderlessListItemButtonStyle}"
+                                                Click="ChapterCard_OnClick"
                                                 AutomationProperties.Name="{Binding AutomationName}">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
+                                            <Border Padding="16">
+                                                <Border.Style>
+                                                    <Style TargetType="Border"
+                                                           BasedOn="{StaticResource CardBorderStyle}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                <Setter Property="Background" Value="{DynamicResource AccentFillColorSecondaryBrush}" />
+                                                                <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
 
-                                                <StackPanel>
-                                                    <TextBlock Style="{StaticResource StrongTextBlockStyle}"
-                                                               Text="{Binding OrderText}" />
-                                                    <TextBlock Margin="0,6,0,0"
-                                                               Style="{StaticResource PrimaryTextBlockStyle}"
-                                                               Text="{Binding Title}"
-                                                               TextWrapping="Wrap" />
-                                                    <WrapPanel Margin="0,10,0,0">
-                                                        <TextBlock Margin="0,0,12,0"
-                                                                   Style="{StaticResource SecondaryTextBlockStyle}"
-                                                                   Text="{Binding CacheSizeText}" />
-                                                        <TextBlock Margin="0,0,12,0"
-                                                                   Style="{StaticResource SecondaryTextBlockStyle}"
-                                                                   Text="{Binding EntryCountText}" />
-                                                        <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
-                                                                   Text="{Binding CompletenessText}" />
-                                                    </WrapPanel>
-                                                </StackPanel>
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource StrongTextBlockStyle}"
+                                                                   Text="{Binding OrderText}" />
+                                                        <TextBlock Margin="0,6,0,0"
+                                                                   Style="{StaticResource PrimaryTextBlockStyle}"
+                                                                   Text="{Binding Title}"
+                                                                   TextWrapping="Wrap" />
+                                                        <WrapPanel Margin="0,10,0,0">
+                                                            <TextBlock Margin="0,0,12,0"
+                                                                       Style="{StaticResource SecondaryTextBlockStyle}"
+                                                                       Text="{Binding CacheSizeText}" />
+                                                            <TextBlock Margin="0,0,12,0"
+                                                                       Style="{StaticResource SecondaryTextBlockStyle}"
+                                                                       Text="{Binding EntryCountText}" />
+                                                            <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
+                                                                       Text="{Binding CompletenessText}" />
+                                                        </WrapPanel>
+                                                    </StackPanel>
 
-                                                <Button Grid.Column="1"
-                                                        Margin="16,0,0,0"
-                                                        Style="{StaticResource BorderlessIconButtonStyle}"
-                                                        VerticalAlignment="Top"
-                                                        Command="{Binding DataContext.ClearChapterCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                        CommandParameter="{Binding}"
-                                                        ToolTip="清理"
-                                                        AutomationProperties.Name="{Binding CleanupAutomationName}">
-                                                    <ui:SymbolIcon Symbol="Broom24" />
-                                                </Button>
-                                            </Grid>
-                                        </Border>
+                                                    <TextBlock Grid.Column="1"
+                                                               Margin="16,0,0,0"
+                                                               VerticalAlignment="Top"
+                                                               Text="已选择">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock"
+                                                                   BasedOn="{StaticResource StrongTextBlockStyle}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Grid>
+                                            </Border>
+                                        </Button>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>

@@ -3,8 +3,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
-using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
-using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
+using CommunityToolkit.Mvvm.Input;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -13,7 +12,35 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed class CachePagesViewTests
 {
     [Fact]
-    public void CacheAndDataPage_does_not_show_clear_all_button()
+    public void CacheManagementPage_disables_both_top_actions_with_no_chapter_selection()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var page = provider.GetRequiredService<CacheManagementPage>();
+                page.Measure(new Size(1200, 800));
+                page.Arrange(new Rect(0, 0, 1200, 800));
+                page.UpdateLayout();
+
+                var clearButton = Assert.IsType<Button>(page.FindName("ClearSelectedChaptersButton"));
+                var exportButton = Assert.IsType<Button>(page.FindName("ExportSelectedChaptersButton"));
+
+                Assert.False(clearButton.IsEnabled);
+                Assert.False(exportButton.IsEnabled);
+                Assert.Equal("清理所选章节缓存", AutomationProperties.GetName(clearButton));
+                Assert.Equal("导出所选章节", AutomationProperties.GetName(exportButton));
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
+    public void CacheAndDataPage_keeps_clear_all_as_the_parent_level_dangerous_action()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -28,7 +55,11 @@ public sealed class CachePagesViewTests
                 var buttons = VisualTreeTestHelper.FindDescendants<System.Windows.Controls.Button>(page).ToArray();
 
                 Assert.Contains(buttons, button => AutomationProperties.GetName(button) == "缓存管理");
-                Assert.DoesNotContain(buttons, button => button.Content?.ToString() == "清理全部缓存");
+                var clearAllButton = Assert.Single(
+                    buttons,
+                    button => AutomationProperties.GetName(button) == "清理全部缓存");
+                Assert.Equal("清理全部缓存", clearAllButton.Content);
+                Assert.Equal("清理全部缓存", clearAllButton.ToolTip);
             }
             finally
             {
@@ -65,6 +96,7 @@ public sealed class CachePagesViewTests
                         "1 个缓存条目",
                         "1/1 段（100%）"))
                     .ToArray();
+                chapters[0].IsSelected = true;
                 page.DataContext = new
                 {
                     Books = books,
@@ -75,7 +107,10 @@ public sealed class CachePagesViewTests
                     SelectedBookTitle = "第一本书",
                     SelectedBookAuthor = "测试作者",
                     SelectedBookChapterCountText = "已缓存 80 章",
-                    SelectedBookCacheSizeText = "80 MB"
+                    SelectedBookCacheSizeText = "80 MB",
+                    ChapterSelectionSummary = "已选择 1 章",
+                    ClearSelectedChaptersCommand = new RelayCommand(() => { }),
+                    CanExportSelectedChapters = false
                 };
 
                 var frame = new Frame
@@ -122,19 +157,30 @@ public sealed class CachePagesViewTests
                 var chapterCleanupButtons = VisualTreeTestHelper.FindDescendants<Button>(chaptersScrollViewer)
                     .Where(button => AutomationProperties.GetName(button).StartsWith("清理第 ", StringComparison.Ordinal))
                     .ToArray();
-                Assert.Equal(chapters.Length, chapterCleanupButtons.Length);
-                Assert.All(chapterCleanupButtons, button =>
-                {
-                    Assert.Equal("清理", button.ToolTip);
-                    Assert.Equal(
-                        SymbolRegular.Broom24,
-                        Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(button)).Symbol);
-                });
+                Assert.Empty(chapterCleanupButtons);
 
-                var clearBookButton = Assert.Single(
+                var clearButton = Assert.IsType<Button>(page.FindName("ClearSelectedChaptersButton"));
+                var exportButton = Assert.IsType<Button>(page.FindName("ExportSelectedChaptersButton"));
+                Assert.Equal("清理", clearButton.Content);
+                Assert.Equal("清理所选章节缓存", AutomationProperties.GetName(clearButton));
+                Assert.Equal("导出", exportButton.Content);
+                Assert.Equal("导出所选章节", AutomationProperties.GetName(exportButton));
+                Assert.Equal("章节导出尚未接入", exportButton.ToolTip);
+                Assert.False(exportButton.IsEnabled);
+                Assert.DoesNotContain(
                     VisualTreeTestHelper.FindDescendants<Button>(page),
-                    button => Equals(button.Content, "清理"));
-                Assert.Equal("清理", clearBookButton.Content);
+                    button => Equals(button.Content, "清理全部缓存"));
+
+                var firstChapterButton = Assert.Single(
+                    VisualTreeTestHelper.FindDescendants<Button>(chaptersScrollViewer),
+                    button => AutomationProperties.GetName(button) == chapters[0].AutomationName);
+                var selectedBorder = Assert.Single(
+                    VisualTreeTestHelper.FindDescendants<Border>(firstChapterButton),
+                    border => border.Padding == new Thickness(16));
+                Assert.NotEqual(System.Windows.Media.Brushes.Transparent, selectedBorder.Background);
+                Assert.Contains(
+                    VisualTreeTestHelper.FindDescendants<TextBlock>(firstChapterButton),
+                    text => text.Text == "已选择" && text.Visibility == Visibility.Visible);
             }
             finally
             {

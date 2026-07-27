@@ -1,6 +1,7 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
@@ -71,40 +72,132 @@ public sealed class CacheManagementViewModelTests
     }
 
     [Fact]
-    public async Task ClearBookAsync_when_selected_book_removed_keeps_empty_context_and_warns()
+    public async Task Chapter_selection_uses_desktop_modifiers_select_all_and_clear()
     {
         var workspaceService = new FakeCacheWorkspaceService
         {
-            BooksSequence =
+            BooksResult =
             [
-                [new CachedBookCacheItem("book-1", "第一本", "作者甲", 1, 2, 1024)],
-                []
-            ],
-            ClearBookResult = new CacheCleanupResult(1024, 2, 1, 0)
+                new CachedBookCacheItem("book-1", "第一本", "作者甲", 4, 4, 4096)
+            ]
         };
         workspaceService.ChaptersResult["book-1"] =
         [
-            new CachedChapterCacheItem("book-1", 0, "第一章", 1, 2, 1024, 2)
+            new CachedChapterCacheItem("book-1", 0, "第一章", 1, 1, 1024, 1),
+            new CachedChapterCacheItem("book-1", 1, "第二章", 1, 1, 1024, 1),
+            new CachedChapterCacheItem("book-1", 2, "第三章", 1, 1, 1024, 1),
+            new CachedChapterCacheItem("book-1", 3, "第四章", 1, 1, 1024, 1)
         ];
-        var feedbackService = new FakeFeedbackService();
-        var dialogService = new FakeAppDialogService
-        {
-            NextConfirmationDecision = AppConfirmationDecision.Confirm
-        };
-        var viewModel = CreateViewModel(
-            workspaceService,
-            feedbackService: feedbackService,
-            dialogService: dialogService);
+        var viewModel = CreateViewModel(workspaceService);
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
+        Assert.Equal("当前配置完整度：1/1 段 · 100%", viewModel.Chapters[0].CompletenessText);
 
-        await viewModel.ClearBookCommand.ExecuteAsync(null);
+        viewModel.HandleChapterClick(viewModel.Chapters[1], DesktopSelectionModifiers.None);
+        viewModel.HandleChapterClick(viewModel.Chapters[3], DesktopSelectionModifiers.Shift);
 
-        Assert.True(viewModel.HasSelection);
-        Assert.True(viewModel.ShowSelectedBookEmptyState);
-        Assert.Empty(viewModel.Books);
-        Assert.Equal("缓存已部分清理", feedbackService.LastTitle);
-        Assert.Equal("清理", dialogService.LastPrimaryButtonText);
+        Assert.Equal([1, 2, 3], viewModel.SelectedChapterIndices);
+        Assert.True(viewModel.CanClearSelectedChapters);
+        Assert.False(viewModel.CanExportSelectedChapters);
+        Assert.Equal("已选择 3 章", viewModel.ChapterSelectionSummary);
+        Assert.All(viewModel.Chapters.Skip(1), chapter => Assert.True(chapter.IsSelected));
+
+        Assert.True(viewModel.HandleSelectAllChapters());
+        Assert.Equal([0, 1, 2, 3], viewModel.SelectedChapterIndices);
+        Assert.True(viewModel.HandleClearChapterSelection());
+        Assert.Empty(viewModel.SelectedChapterIndices);
+        Assert.False(viewModel.CanClearSelectedChapters);
+        Assert.False(viewModel.ClearSelectedChaptersCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Chapter_card_marks_current_configuration_completeness_as_unavailable()
+    {
+        var workspaceService = new FakeCacheWorkspaceService
+        {
+            BooksResult = [new CachedBookCacheItem("book-1", "第一本", null, 1, 4, 4096)]
+        };
+        workspaceService.ChaptersResult["book-1"] =
+        [
+            new CachedChapterCacheItem("book-1", 0, "第一章", 0, 4, 4096, null)
+        ];
+        var viewModel = CreateViewModel(workspaceService);
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
+
+        Assert.Equal("当前配置完整度：不可用", Assert.Single(viewModel.Chapters).CompletenessText);
+    }
+
+    [Fact]
+    public async Task Switching_books_clears_chapter_selection_without_cross_book_carryover()
+    {
+        var workspaceService = CreateTwoBookWorkspace();
+        var viewModel = CreateViewModel(workspaceService);
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
+        viewModel.HandleChapterClick(viewModel.Chapters[0], DesktopSelectionModifiers.None);
+
+        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[1]);
+
+        Assert.Empty(viewModel.SelectedChapterIndices);
+        Assert.DoesNotContain(viewModel.Chapters, chapter => chapter.IsSelected);
+        Assert.Equal("第二本", viewModel.SelectedBookTitle);
+    }
+
+    [Fact]
+    public async Task Clear_selected_chapters_uses_one_application_batch_request()
+    {
+        var workspaceService = CreateTwoBookWorkspace();
+        workspaceService.ClearChaptersResult = new CacheCleanupResult(2048, 2, 0, 0);
+        var viewModel = CreateViewModel(workspaceService);
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
+        viewModel.HandleChapterClick(viewModel.Chapters[0], DesktopSelectionModifiers.None);
+        viewModel.HandleChapterClick(viewModel.Chapters[1], DesktopSelectionModifiers.Control);
+
+        await viewModel.ClearSelectedChaptersCommand.ExecuteAsync(null);
+
+        Assert.Equal(("book-1", new[] { 0, 1 }), workspaceService.LastClearChaptersRequest);
+        Assert.Equal(1, workspaceService.ClearChaptersCallCount);
+        Assert.Empty(viewModel.SelectedChapterIndices);
+    }
+
+    [Fact]
+    public async Task Selecting_all_chapters_cleans_the_whole_visible_book_through_batch_boundary()
+    {
+        var workspaceService = CreateTwoBookWorkspace();
+        var viewModel = CreateViewModel(workspaceService);
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
+        viewModel.HandleSelectAllChapters();
+
+        await viewModel.ClearSelectedChaptersCommand.ExecuteAsync(null);
+
+        Assert.Equal(("book-1", new[] { 0, 1 }), workspaceService.LastClearChaptersRequest);
+        Assert.Equal(0, workspaceService.ClearBookCallCount);
+    }
+
+    private static FakeCacheWorkspaceService CreateTwoBookWorkspace()
+    {
+        var workspace = new FakeCacheWorkspaceService
+        {
+            BooksResult =
+            [
+                new CachedBookCacheItem("book-1", "第一本", "作者甲", 2, 2, 2048),
+                new CachedBookCacheItem("book-2", "第二本", "作者乙", 1, 1, 1024)
+            ]
+        };
+        workspace.ChaptersResult["book-1"] =
+        [
+            new CachedChapterCacheItem("book-1", 0, "第一章", 1, 1, 1024, 1),
+            new CachedChapterCacheItem("book-1", 1, "第二章", 1, 1, 1024, 1)
+        ];
+        workspace.ChaptersResult["book-2"] =
+        [
+            new CachedChapterCacheItem("book-2", 0, "另一章", 1, 1, 1024, 1)
+        ];
+        return workspace;
     }
 
     [Fact]
@@ -183,6 +276,14 @@ public sealed class CacheManagementViewModelTests
 
         public CacheCleanupResult ClearBookResult { get; set; } = new(0, 0, 0, 0);
 
+        public CacheCleanupResult ClearChaptersResult { get; set; } = new(0, 0, 0, 0);
+
+        public (string BookId, int[] ChapterIndices)? LastClearChaptersRequest { get; private set; }
+
+        public int ClearChaptersCallCount { get; private set; }
+
+        public int ClearBookCallCount { get; private set; }
+
         public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken)
@@ -218,7 +319,21 @@ public sealed class CacheManagementViewModelTests
 
         public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken) => Task.FromResult(ClearBookResult);
+        public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken)
+        {
+            ClearBookCallCount++;
+            return Task.FromResult(ClearBookResult);
+        }
+
+        public Task<CacheCleanupResult> ClearChaptersAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken)
+        {
+            ClearChaptersCallCount++;
+            LastClearChaptersRequest = (bookId, chapterIndices.ToArray());
+            return Task.FromResult(ClearChaptersResult);
+        }
 
         public Task<CacheCleanupResult> ClearChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken) => throw new NotSupportedException();
 
