@@ -3,6 +3,7 @@ using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.ActiveCache;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Playback.Audio;
 using NovelSpeaker.Application.Settings;
@@ -133,6 +134,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<SelectedTtsRuleProvider>(provider.GetRequiredService<ISelectedTtsRuleProvider>());
                 Assert.IsAssignableFrom<IPlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
                 Assert.IsType<PlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
+                Assert.IsType<ActiveCacheCoordinator>(provider.GetRequiredService<IActiveCacheCoordinator>());
                 Assert.IsType<PlaybackSegmentRunner>(provider.GetRequiredService<PlaybackSegmentRunner>());
                 Assert.IsType<PlaybackRecoveryPolicy>(provider.GetRequiredService<PlaybackRecoveryPolicy>());
                 Assert.IsType<PlaybackAudioFailureReporter>(provider.GetRequiredService<IPlaybackAudioFailureReporter>());
@@ -176,6 +178,9 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.Same(
                     provider.GetRequiredService<IAudioCache>(),
                     provider.GetRequiredService<IAudioCacheStore>());
+                Assert.Same(
+                    provider.GetRequiredService<IActiveCacheCoordinator>(),
+                    provider.GetRequiredService<IActiveCacheCoordinator>());
                 Assert.Same(
                     provider.GetRequiredService<INavigationGuardService>(),
                     provider.GetRequiredService<INavigationGuardService>());
@@ -240,6 +245,7 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(IBookPlaybackContentService),
             typeof(ICacheWorkspaceService),
             typeof(IPlaybackAudioProvider),
+            typeof(IActiveCacheCoordinator),
             typeof(ILocalAudioPlaybackCoordinator),
             typeof(IPlaybackPrefetchController),
             typeof(IPlaybackSession),

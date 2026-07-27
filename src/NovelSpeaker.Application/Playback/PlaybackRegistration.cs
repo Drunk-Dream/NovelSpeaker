@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NovelSpeaker.Application.Playback.ActiveCache;
 using NovelSpeaker.Application.Playback.Audio;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
@@ -17,6 +18,7 @@ public static class PlaybackRegistration
         services.TryAddSingleton<IBookPlaybackContentService, BookPlaybackContentService>();
         services.TryAddSingleton<ICacheWorkspaceService, CacheWorkspaceService>();
         services.TryAddSingleton<IPlaybackAudioProvider, PlaybackAudioProvider>();
+        services.TryAddSingleton<IActiveCacheCoordinator, ActiveCacheCoordinator>();
         services.TryAddSingleton<ILocalAudioPlaybackCoordinator, LocalAudioPlaybackCoordinator>();
         services.TryAddSingleton<PlaybackSegmentRunner>();
         services.TryAddSingleton<PlaybackRecoveryPolicy>();
