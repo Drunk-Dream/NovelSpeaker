@@ -1,0 +1,38 @@
+using NovelSpeaker.App.Shell.Activation;
+using Wpf.Ui.Abstractions.Controls;
+
+namespace NovelSpeaker.App.Features.GeneralSettings;
+
+public partial class GeneralSettingsPage : System.Windows.Controls.Page, INavigationAware, INavigableView<GeneralSettingsViewModel>
+{
+    private readonly PageActivationController _activation = new();
+
+    public GeneralSettingsPage(GeneralSettingsViewModel viewModel)
+    {
+        ViewModel = viewModel;
+        DataContext = ViewModel;
+        InitializeComponent();
+    }
+
+    public GeneralSettingsViewModel ViewModel { get; }
+
+    public async Task OnNavigatedToAsync()
+    {
+        var activation = _activation.Activate();
+        ViewModel.Activate(activation);
+        activation.Register(ViewModel.Deactivate);
+        try
+        {
+            await ViewModel.LoadAsync(activation.CancellationToken);
+        }
+        catch (OperationCanceledException) when (!activation.IsCurrent)
+        {
+        }
+    }
+
+    public Task OnNavigatedFromAsync()
+    {
+        _activation.Deactivate();
+        return Task.CompletedTask;
+    }
+}

@@ -9,6 +9,7 @@ global using NovelSpeaker.App.Features.BookDetails;
 global using NovelSpeaker.App.Features.Cache;
 global using NovelSpeaker.App.Features.ChapterRules;
 global using NovelSpeaker.App.Features.Diagnostics;
+global using NovelSpeaker.App.Features.GeneralSettings;
 global using NovelSpeaker.App.Features.ImportTextSettings;
 global using NovelSpeaker.App.Features.Library;
 global using NovelSpeaker.App.Features.Playback;

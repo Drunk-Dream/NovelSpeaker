@@ -37,9 +37,9 @@ public sealed class SettingsPageViewTests
                 Assert.DoesNotContain(allButtons, button => string.Equals(button.Content?.ToString(), "保存设置", StringComparison.Ordinal));
                 Assert.Empty(VisualTreeTestHelper.FindDescendants<System.Windows.Controls.TextBox>(page));
                 Assert.Empty(VisualTreeTestHelper.FindDescendants<System.Windows.Controls.ComboBox>(page));
-                Assert.Equal(14, allIcons.Length);
-                Assert.Equal(7, allIcons.Count(icon => icon.Symbol == SymbolRegular.ChevronRight24));
-                Assert.Equal(7, allButtons.Count(button => ReferenceEquals(button.Style, navigationRowStyle)));
+                Assert.Equal(16, allIcons.Length);
+                Assert.Equal(8, allIcons.Count(icon => icon.Symbol == SymbolRegular.ChevronRight24));
+                Assert.Equal(8, allButtons.Count(button => ReferenceEquals(button.Style, navigationRowStyle)));
                 Assert.Equal(
                     3,
                     VisualTreeTestHelper.FindDescendants<System.Windows.Controls.Border>(page)

@@ -21,6 +21,7 @@ public sealed class AppRouteNavigationTests
         { AppRoutes.ChapterRules, typeof(ChapterRulesPage) },
         { AppRoutes.CacheAndData, typeof(CacheAndDataPage) },
         { AppRoutes.CacheManagement, typeof(CacheManagementPage) },
+        { AppRoutes.GeneralSettings, typeof(GeneralSettingsPage) },
         { AppRoutes.AppearanceSettings, typeof(AppearanceSettingsPage) },
         { AppRoutes.DiagnosticsAbout, typeof(DiagnosticsAboutPage) }
     };

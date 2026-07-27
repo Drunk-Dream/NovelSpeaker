@@ -7,6 +7,7 @@ public enum SettingsNavigationIcon
     ImportText,
     ChapterRules,
     CacheAndData,
+    General,
     Appearance,
     Diagnostics,
     RegexReplacement,

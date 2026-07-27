@@ -37,6 +37,10 @@ public sealed class SettingsSubpageViewTests
                     provider.GetRequiredService<AppearanceSettingsPage>(),
                     "ThemeItemBorder");
                 AssertRows(
+                    provider.GetRequiredService<GeneralSettingsPage>(),
+                    "CloseBehaviorItemBorder",
+                    "StartMinimizedItemBorder");
+                AssertRows(
                     provider.GetRequiredService<DiagnosticsAboutPage>(),
                     "AppNameItemBorder",
                     "AppVersionItemBorder",
@@ -82,6 +86,10 @@ public sealed class SettingsSubpageViewTests
                 AssertAutomationNames(
                     provider.GetRequiredService<AppearanceSettingsPage>(),
                     "应用主题");
+                AssertAutomationNames(
+                    provider.GetRequiredService<GeneralSettingsPage>(),
+                    "关闭主窗口时",
+                    "启动后最小化到托盘");
                 AssertAutomationNames(
                     provider.GetRequiredService<DiagnosticsAboutPage>(),
                     "日志级别",
@@ -133,6 +141,7 @@ public sealed class SettingsSubpageViewTests
             Path.Combine("Features", "ImportTextSettings", "ImportTextSettingsPage.xaml"),
             Path.Combine("Features", "Cache", "CacheAndDataPage.xaml"),
             Path.Combine("Features", "Appearance", "AppearanceSettingsPage.xaml"),
+            Path.Combine("Features", "GeneralSettings", "GeneralSettingsPage.xaml"),
             Path.Combine("Features", "Diagnostics", "DiagnosticsAboutPage.xaml")
         };
 

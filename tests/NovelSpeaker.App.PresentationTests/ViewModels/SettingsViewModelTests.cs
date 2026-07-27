@@ -30,9 +30,9 @@ public sealed class SettingsViewModelTests
             group =>
             {
                 Assert.Equal("应用", group.Title);
-                Assert.Equal(["缓存与数据", "外观", "诊断与关于"], group.Items.Select(item => item.Title));
+                Assert.Equal(["缓存与数据", "常规", "外观", "诊断与关于"], group.Items.Select(item => item.Title));
                 Assert.Equal(
-                    [SettingsNavigationIcon.CacheAndData, SettingsNavigationIcon.Appearance, SettingsNavigationIcon.Diagnostics],
+                    [SettingsNavigationIcon.CacheAndData, SettingsNavigationIcon.General, SettingsNavigationIcon.Appearance, SettingsNavigationIcon.Diagnostics],
                     group.Items.Select(item => item.Icon));
             });
     }

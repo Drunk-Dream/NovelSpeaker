@@ -13,6 +13,7 @@ public enum AppRouteId
     ChapterRules,
     CacheAndData,
     CacheManagement,
+    GeneralSettings,
     AppearanceSettings,
     DiagnosticsAbout
 }
@@ -66,6 +67,7 @@ public static class AppRoutes
     public static AppRoute ChapterRules { get; } = new ParameterlessAppRoute(AppRouteId.ChapterRules);
     public static AppRoute CacheAndData { get; } = new ParameterlessAppRoute(AppRouteId.CacheAndData);
     public static AppRoute CacheManagement { get; } = new ParameterlessAppRoute(AppRouteId.CacheManagement);
+    public static AppRoute GeneralSettings { get; } = new ParameterlessAppRoute(AppRouteId.GeneralSettings);
     public static AppRoute AppearanceSettings { get; } = new ParameterlessAppRoute(AppRouteId.AppearanceSettings);
     public static AppRoute DiagnosticsAbout { get; } = new ParameterlessAppRoute(AppRouteId.DiagnosticsAbout);
 }

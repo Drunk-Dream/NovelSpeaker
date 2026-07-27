@@ -73,6 +73,10 @@
                                 <Setter Property="Symbol" Value="Database24" />
                             </DataTrigger>
                             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}"
+                                         Value="{x:Static theming:SettingsNavigationIcon.General}">
+                                <Setter Property="Symbol" Value="Settings24" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}"
                                          Value="{x:Static theming:SettingsNavigationIcon.Appearance}">
                                 <Setter Property="Symbol" Value="DarkTheme24" />
                             </DataTrigger>
