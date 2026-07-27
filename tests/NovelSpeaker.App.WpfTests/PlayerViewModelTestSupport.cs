@@ -31,12 +31,14 @@ public sealed partial class PlayerViewModelTests
         FakeAppSettingsService? settingsService = null,
         FakeActiveCacheCoordinator? activeCacheCoordinator = null,
         ICacheWorkspaceService? cacheWorkspaceService = null,
+        FakePlaybackStopTimer? stopTimer = null,
         FakeMiniPlayerLauncher? miniPlayerLauncher = null,
         TimeProvider? timeProvider = null,
         IUiScheduler? uiScheduler = null)
     {
         return new PlayerViewModel(
             coordinator,
+            stopTimer ?? new FakePlaybackStopTimer(),
             activeCacheCoordinator ?? new FakeActiveCacheCoordinator(),
             contentService,
             ruleService ?? new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),

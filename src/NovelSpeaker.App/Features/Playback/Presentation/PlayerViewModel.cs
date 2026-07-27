@@ -22,6 +22,7 @@ namespace NovelSpeaker.App.Features.Playback.Presentation;
 public sealed partial class PlayerViewModel : ObservableObject
 {
     private readonly IPlaybackSession _playbackCoordinator;
+    private readonly IPlaybackStopTimer _stopTimer;
     private readonly IActiveCacheCoordinator _activeCacheCoordinator;
     private readonly ICacheWorkspaceService _cacheWorkspaceService;
     private readonly IAppSettingsService _settingsService;
@@ -43,12 +44,14 @@ public sealed partial class PlayerViewModel : ObservableObject
     private bool _suppressNextStateDrivenAutoCenterRequest;
     private PlayerAutoScrollState _lastAppliedAutoScrollState;
     private PlaybackSnapshot _lastAppliedSnapshot = PlaybackSnapshot.Idle;
+    private long _lastAppliedStopTimerVersion = -1;
     private CancellationTokenSource _pageEventCancellation = new();
     private bool _isPageEventsRegistered;
     private string? _cacheStatusInitializedBookId;
 
     public PlayerViewModel(
         IPlaybackSession playbackCoordinator,
+        IPlaybackStopTimer stopTimer,
         IActiveCacheCoordinator activeCacheCoordinator,
         IBookPlaybackContentService bookPlaybackContentService,
         ITtsRuleQueries ruleQueries,
@@ -62,6 +65,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         IUiScheduler? uiScheduler = null)
     {
         _playbackCoordinator = playbackCoordinator;
+        _stopTimer = stopTimer ?? throw new ArgumentNullException(nameof(stopTimer));
         _activeCacheCoordinator = activeCacheCoordinator;
         _cacheWorkspaceService = cacheWorkspaceService;
         _settingsService = settingsService;
@@ -90,6 +94,7 @@ public sealed partial class PlayerViewModel : ObservableObject
 
         ApplyAutoScrollState();
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
+        ApplyStopTimerSnapshot(_stopTimer.CurrentSnapshot);
 
         RegisterPageEvents();
     }
@@ -125,6 +130,10 @@ public sealed partial class PlayerViewModel : ObservableObject
     public bool HasActiveCacheBatch => _activeCacheSelection.HasActiveBatch;
 
     public bool CanStartActiveCache => _activeCacheSelection.CanStart;
+
+    public bool CanScheduleStopTimer =>
+        !string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId) &&
+        CurrentPlaybackState is PlaybackState.Playing or PlaybackState.Paused;
 
     public string SpeakSpeedButtonText => $"语速 {SpeakSpeed}";
 
@@ -209,6 +218,21 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     [ObservableProperty]
     private bool isSpeedMenuOpen;
+
+    [ObservableProperty]
+    private bool isStopTimerMenuOpen;
+
+    [ObservableProperty]
+    private string customStopMinutesText = string.Empty;
+
+    [ObservableProperty]
+    private string customStopTimerErrorText = string.Empty;
+
+    [ObservableProperty]
+    private string stopTimerStatusText = "未设置定时停止";
+
+    [ObservableProperty]
+    private bool hasActiveStopTimer;
 
     [ObservableProperty]
     private string speedEditorText = AppSettings.DefaultSpeakSpeedValue.ToString(CultureInfo.InvariantCulture);
@@ -362,6 +386,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         }
 
         _playbackCoordinator.SnapshotChanged -= OnSnapshotChanged;
+        _stopTimer.SnapshotChanged -= OnStopTimerSnapshotChanged;
         _activeCacheCoordinator.SnapshotChanged -= OnActiveCacheSnapshotChanged;
         _cacheWorkspaceService.Changed -= OnCacheChanged;
         _settingsService.Changed -= OnSettingsChanged;
@@ -376,6 +401,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         _cacheStatusRefresh.Activate(_pageEventCancellation.Token);
         RegisterPageEvents();
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
+        ApplyStopTimerSnapshot(_stopTimer.CurrentSnapshot);
         _activeCacheSelection.ApplySnapshot(_activeCacheCoordinator.CurrentSnapshot);
         QueueCacheStatusRefresh(chapterIndex: null);
     }
@@ -388,6 +414,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         }
 
         _playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
+        _stopTimer.SnapshotChanged += OnStopTimerSnapshotChanged;
         _activeCacheCoordinator.SnapshotChanged += OnActiveCacheSnapshotChanged;
         _cacheWorkspaceService.Changed += OnCacheChanged;
         _settingsService.Changed += OnSettingsChanged;
@@ -503,6 +530,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private void ToggleRuleMenu()
     {
         IsSpeedMenuOpen = false;
+        IsStopTimerMenuOpen = false;
         IsRuleMenuOpen = !IsRuleMenuOpen;
     }
 
@@ -510,6 +538,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private void ToggleSpeedMenu()
     {
         IsRuleMenuOpen = false;
+        IsStopTimerMenuOpen = false;
         if (!IsSpeedMenuOpen)
         {
             SpeedEditorText = SpeakSpeed.ToString(CultureInfo.InvariantCulture);
@@ -523,7 +552,86 @@ public sealed partial class PlayerViewModel : ObservableObject
     private void OpenRuleMenu()
     {
         IsSpeedMenuOpen = false;
+        IsStopTimerMenuOpen = false;
         IsRuleMenuOpen = true;
+    }
+
+    [RelayCommand]
+    private void ToggleStopTimerMenu()
+    {
+        IsRuleMenuOpen = false;
+        IsSpeedMenuOpen = false;
+        CustomStopTimerErrorText = string.Empty;
+        IsStopTimerMenuOpen = !IsStopTimerMenuOpen;
+    }
+
+    [RelayCommand]
+    private void ScheduleStopAfter15Minutes() => ScheduleStopAfterMinutes(15);
+
+    [RelayCommand]
+    private void ScheduleStopAfter30Minutes() => ScheduleStopAfterMinutes(30);
+
+    [RelayCommand]
+    private void ScheduleStopAfter45Minutes() => ScheduleStopAfterMinutes(45);
+
+    [RelayCommand]
+    private void ScheduleStopAfter60Minutes() => ScheduleStopAfterMinutes(60);
+
+    [RelayCommand]
+    private void ScheduleStopAfter90Minutes() => ScheduleStopAfterMinutes(90);
+
+    [RelayCommand]
+    private void ScheduleCustomStopTimer()
+    {
+        if (!CanScheduleStopTimer)
+        {
+            return;
+        }
+
+        if (!int.TryParse(
+                CustomStopMinutesText,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var minutes) ||
+            minutes is < 1 or > 1440)
+        {
+            CustomStopTimerErrorText = "请输入 1 到 1440 分钟。";
+            return;
+        }
+
+        CustomStopTimerErrorText = string.Empty;
+        ScheduleStopAfterMinutes(minutes);
+    }
+
+    [RelayCommand]
+    private void ScheduleStopAtEndOfSegment()
+    {
+        if (!CanScheduleStopTimer)
+        {
+            return;
+        }
+
+        _stopTimer.ScheduleAtEndOfSegment();
+        IsStopTimerMenuOpen = false;
+    }
+
+    [RelayCommand]
+    private void ScheduleStopAtEndOfChapter()
+    {
+        if (!CanScheduleStopTimer)
+        {
+            return;
+        }
+
+        _stopTimer.ScheduleAtEndOfChapter();
+        IsStopTimerMenuOpen = false;
+    }
+
+    [RelayCommand]
+    private void CancelStopTimer()
+    {
+        _stopTimer.Cancel();
+        IsStopTimerMenuOpen = false;
     }
 
     [RelayCommand]
@@ -851,6 +959,19 @@ public sealed partial class PlayerViewModel : ObservableObject
             exception => ReportViewOperationFailure("更新播放页面失败", exception));
     }
 
+    private void OnStopTimerSnapshotChanged(object? sender, PlaybackStopTimerSnapshot snapshot)
+    {
+        if (!_uiScheduler.CheckAccess())
+        {
+            _pageTasks.Register(
+                _uiScheduler.InvokeAsync(() => ApplyStopTimerSnapshot(snapshot), _pageEventCancellation.Token),
+                exception => ReportViewOperationFailure("更新定时停止状态失败", exception));
+            return;
+        }
+
+        ApplyStopTimerSnapshot(snapshot);
+    }
+
     private void OnActiveCacheSnapshotChanged(object? sender, ActiveCacheSnapshot snapshot)
     {
         if (!_uiScheduler.CheckAccess())
@@ -1079,6 +1200,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         SynchronizeContentProjection(includeChapterTitle: false);
         ApplyRuleSelection(snapshot.RuleId);
         _lastAppliedSnapshot = snapshot;
+        OnPropertyChanged(nameof(CanScheduleStopTimer));
     }
 
     private void ApplyRuleSelection(long? selectedRuleId)
@@ -1178,7 +1300,38 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         IsRuleMenuOpen = false;
         IsSpeedMenuOpen = false;
+        IsStopTimerMenuOpen = false;
         SpeedEditorErrorText = string.Empty;
+    }
+
+    private void ScheduleStopAfterMinutes(int minutes)
+    {
+        if (!CanScheduleStopTimer)
+        {
+            return;
+        }
+
+        _stopTimer.ScheduleAfter(TimeSpan.FromMinutes(minutes));
+        IsStopTimerMenuOpen = false;
+    }
+
+    private void ApplyStopTimerSnapshot(PlaybackStopTimerSnapshot snapshot)
+    {
+        if (snapshot.Version <= _lastAppliedStopTimerVersion)
+        {
+            return;
+        }
+
+        _lastAppliedStopTimerVersion = snapshot.Version;
+        HasActiveStopTimer = snapshot.IsActive;
+        StopTimerStatusText = snapshot.Mode switch
+        {
+            PlaybackStopTimerMode.Duration when snapshot.Duration is { } duration =>
+                $"将在 {duration.TotalMinutes:0} 分钟后暂停",
+            PlaybackStopTimerMode.EndOfSegment => "将在当前段结束后暂停",
+            PlaybackStopTimerMode.EndOfChapter => "将在当前章节结束后暂停",
+            _ => "未设置定时停止"
+        };
     }
 
     private int ResolveSpeakSpeedForOpen()

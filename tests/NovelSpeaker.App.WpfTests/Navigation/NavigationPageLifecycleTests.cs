@@ -63,6 +63,7 @@ public sealed class NavigationPageLifecycleTests
                     null,
                     false,
                     false)),
+                new NovelSpeaker.App.WpfTests.FakePlaybackStopTimer(),
                 new NovelSpeaker.App.WpfTests.FakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
@@ -107,6 +108,7 @@ public sealed class NavigationPageLifecycleTests
                 false));
             var viewModel = new PlayerViewModel(
                 playback,
+                new NovelSpeaker.App.WpfTests.FakePlaybackStopTimer(),
                 new NovelSpeaker.App.WpfTests.FakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),

@@ -59,6 +59,15 @@
                         AutomationProperties.Name="迷你播放器">
                     <ui:SymbolIcon Symbol="WindowNew24" />
                 </Button>
+                <Button x:Name="StopTimerToolButton"
+                        Margin="12,0,0,0"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
+                        Command="{Binding ToggleStopTimerMenuCommand}"
+                        IsEnabled="{Binding CanScheduleStopTimer}"
+                        ToolTip="定时停止"
+                        AutomationProperties.Name="定时停止">
+                    <ui:SymbolIcon Symbol="Clock24" />
+                </Button>
                 <Button x:Name="RuleMenuButton"
                         Margin="12,0,0,0"
                         Style="{StaticResource SecondaryIconButtonStyle}"
@@ -91,6 +100,98 @@
                     </Border>
                 </Button>
             </StackPanel>
+
+            <Popup x:Name="StopTimerPopup"
+                   PlacementTarget="{Binding ElementName=StopTimerToolButton}"
+                   Placement="Bottom"
+                   HorizontalOffset="0"
+                   VerticalOffset="8"
+                   AllowsTransparency="True"
+                   StaysOpen="False"
+                   IsOpen="{Binding IsStopTimerMenuOpen, Mode=TwoWay}">
+                <Border Width="320"
+                        Padding="{StaticResource CardPadding}"
+                        Style="{StaticResource PopupSurfaceBorderStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                                   Text="定时停止" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                   Text="{Binding StopTimerStatusText}" />
+                        <WrapPanel Margin="0,16,0,0">
+                            <Button Margin="0,0,8,8"
+                                    Padding="10,6"
+                                    Command="{Binding ScheduleStopAfter15MinutesCommand}"
+                                    Content="15 分钟" />
+                            <Button Margin="0,0,8,8"
+                                    Padding="10,6"
+                                    Command="{Binding ScheduleStopAfter30MinutesCommand}"
+                                    Content="30 分钟" />
+                            <Button Margin="0,0,8,8"
+                                    Padding="10,6"
+                                    Command="{Binding ScheduleStopAfter45MinutesCommand}"
+                                    Content="45 分钟" />
+                            <Button Margin="0,0,8,8"
+                                    Padding="10,6"
+                                    Command="{Binding ScheduleStopAfter60MinutesCommand}"
+                                    Content="60 分钟" />
+                            <Button Margin="0,0,8,8"
+                                    Padding="10,6"
+                                    Command="{Binding ScheduleStopAfter90MinutesCommand}"
+                                    Content="90 分钟" />
+                        </WrapPanel>
+                        <Grid Margin="0,4,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="CustomStopMinutesTextBox"
+                                     Height="36"
+                                     VerticalContentAlignment="Center"
+                                     Text="{Binding CustomStopMinutesText, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="自定义分钟数，范围 1 到 1440"
+                                     AutomationProperties.Name="自定义定时停止分钟数" />
+                            <Button Grid.Column="1"
+                                    Margin="8,0,0,0"
+                                    Padding="12,6"
+                                    Command="{Binding ScheduleCustomStopTimerCommand}"
+                                    Content="应用"
+                                    ToolTip="应用自定义定时停止"
+                                    AutomationProperties.Name="应用自定义定时停止" />
+                        </Grid>
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding CustomStopTimerErrorText}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock"
+                                       BasedOn="{StaticResource ErrorTextBlockStyle}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CustomStopTimerErrorText}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <Button Margin="0,12,0,0"
+                                Padding="10,7"
+                                HorizontalContentAlignment="Left"
+                                Command="{Binding ScheduleStopAtEndOfSegmentCommand}"
+                                Content="当前段结束后暂停" />
+                        <Button Margin="0,6,0,0"
+                                Padding="10,7"
+                                HorizontalContentAlignment="Left"
+                                Command="{Binding ScheduleStopAtEndOfChapterCommand}"
+                                Content="当前章节结束后暂停" />
+                        <Button Margin="0,12,0,0"
+                                Padding="10,7"
+                                HorizontalContentAlignment="Left"
+                                Command="{Binding CancelStopTimerCommand}"
+                                Content="取消定时停止"
+                                IsEnabled="{Binding HasActiveStopTimer}" />
+                    </StackPanel>
+                </Border>
+            </Popup>
 
             <Popup x:Name="RuleMenuPopup"
                    PlacementTarget="{Binding ElementName=RuleMenuButton}"

@@ -61,6 +61,7 @@ public sealed partial class PlayerViewTests
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
+                new FakePlaybackStopTimer(),
                 new FakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
@@ -163,6 +164,7 @@ public sealed partial class PlayerViewTests
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
+                new FakePlaybackStopTimer(),
                 new FakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
@@ -267,6 +269,7 @@ public sealed partial class PlayerViewTests
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
+                new FakePlaybackStopTimer(),
                 new FakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
@@ -388,6 +391,7 @@ public sealed partial class PlayerViewTests
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
+                new FakePlaybackStopTimer(),
                 new FakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
