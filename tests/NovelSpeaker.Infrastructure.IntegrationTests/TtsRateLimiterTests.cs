@@ -249,6 +249,7 @@ public sealed class TtsRateLimiterTests
                 CancellationToken.None))
             .ToArray();
 
+        await AssertPendingAsync(background);
         Assert.Equal(1, timeProvider.PendingTimerCount);
         timeProvider.Advance(TimeSpan.FromMilliseconds(100));
         await playback[0];
