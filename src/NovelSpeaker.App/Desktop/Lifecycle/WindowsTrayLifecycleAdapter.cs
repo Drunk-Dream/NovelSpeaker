@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using NovelSpeaker.App.Desktop.MiniPlayer;
 using NovelSpeaker.App.Shell;
 
 namespace NovelSpeaker.App.Desktop.Lifecycle;
@@ -20,32 +21,54 @@ internal sealed class WindowsTrayLifecycleAdapter : IDesktopLifecyclePlatform
     private const uint NifIcon = 0x00000002;
     private const uint NifTip = 0x00000004;
 
-    private readonly MainWindow _window;
+    private readonly MiniPlayerWindow _miniPlayerWindow;
+    private readonly IMiniPlayerPlacementPersistence _placementPersistence;
     private readonly IWindowsTrayNativeApi _nativeApi;
     private readonly ContextMenu _trayMenu;
     private HwndSource? _windowSource;
     private TrayIconResource? _iconResource;
     private IntPtr _windowHandle;
+    private MainWindow? _window;
     private bool _started;
 
-    public WindowsTrayLifecycleAdapter(MainWindow window)
-        : this(window, new WindowsTrayNativeApi())
+    public WindowsTrayLifecycleAdapter(
+        MiniPlayerWindow miniPlayerWindow,
+        IMiniPlayerPlacementPersistence placementPersistence)
+        : this(miniPlayerWindow, placementPersistence, new WindowsTrayNativeApi())
     {
     }
 
     internal WindowsTrayLifecycleAdapter(
-        MainWindow window,
+        MiniPlayerWindow miniPlayerWindow,
+        IMiniPlayerPlacementPersistence placementPersistence,
         IWindowsTrayNativeApi nativeApi)
     {
-        _window = window;
+        _miniPlayerWindow = miniPlayerWindow;
+        _placementPersistence = placementPersistence;
         _nativeApi = nativeApi;
         _trayMenu = CreateTrayMenu();
+        _miniPlayerWindow.RestoreRequested += OnMiniPlayerRestoreRequested;
     }
+
+    private MainWindow Window =>
+        _window ?? throw new InvalidOperationException("主窗口尚未连接到桌面生命周期平台。");
 
     public event EventHandler<DesktopLifecycleCommand>? CommandReceived;
 
+    public void AttachMainWindow(MainWindow window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        if (_window is not null && !ReferenceEquals(_window, window))
+        {
+            throw new InvalidOperationException("桌面生命周期平台不能替换已经连接的主窗口。");
+        }
+
+        _window = window;
+    }
+
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        _ = Window;
         return InvokeAsync(
             () =>
             {
@@ -54,7 +77,7 @@ internal sealed class WindowsTrayLifecycleAdapter : IDesktopLifecyclePlatform
                     return;
                 }
 
-                _windowHandle = new WindowInteropHelper(_window).EnsureHandle();
+                _windowHandle = new WindowInteropHelper(Window).EnsureHandle();
                 _windowSource = HwndSource.FromHwnd(_windowHandle)
                     ?? throw new InvalidOperationException("无法连接主窗口消息源。");
                 _windowSource.AddHook(WindowMessageHook);
@@ -86,9 +109,15 @@ internal sealed class WindowsTrayLifecycleAdapter : IDesktopLifecyclePlatform
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
-        return InvokeAsync(
+        cancellationToken.ThrowIfCancellationRequested();
+        var cleanupTask = InvokeAsync(
             () =>
             {
+                if (_miniPlayerWindow.IsLoaded)
+                {
+                    _miniPlayerWindow.CloseForShutdown();
+                }
+
                 if (!_started)
                 {
                     return;
@@ -106,6 +135,8 @@ internal sealed class WindowsTrayLifecycleAdapter : IDesktopLifecyclePlatform
                 }
             },
             cancellationToken);
+        var flushTask = _placementPersistence.FlushPlacementAsync(cancellationToken);
+        return AwaitStopAsync(cleanupTask, flushTask);
     }
 
     public Task ShowMainWindowAsync(CancellationToken cancellationToken)
@@ -113,40 +144,65 @@ internal sealed class WindowsTrayLifecycleAdapter : IDesktopLifecyclePlatform
         return InvokeAsync(
             () =>
             {
-                if (!_window.IsVisible)
+                if (!Window.IsVisible)
                 {
-                    _window.Show();
+                    Window.Show();
                 }
 
-                if (_window.WindowState == WindowState.Minimized)
+                if (Window.WindowState == WindowState.Minimized)
                 {
-                    _window.WindowState = WindowState.Normal;
+                    Window.WindowState = WindowState.Normal;
                 }
 
-                _window.Activate();
+                Window.Activate();
             },
             cancellationToken);
     }
 
     public Task HideMainWindowAsync(CancellationToken cancellationToken)
     {
-        return InvokeAsync(_window.Hide, cancellationToken);
+        return InvokeAsync(Window.Hide, cancellationToken);
+    }
+
+    public Task ShowMiniPlayerAsync(CancellationToken cancellationToken)
+    {
+        return InvokeAsync(
+            () =>
+            {
+                if (!_miniPlayerWindow.IsVisible)
+                {
+                    _miniPlayerWindow.Show();
+                }
+
+                if (_miniPlayerWindow.WindowState == WindowState.Minimized)
+                {
+                    _miniPlayerWindow.WindowState = WindowState.Normal;
+                }
+
+                _miniPlayerWindow.Activate();
+            },
+            cancellationToken);
+    }
+
+    public Task HideMiniPlayerAsync(CancellationToken cancellationToken)
+    {
+        return InvokeAsync(_miniPlayerWindow.Hide, cancellationToken);
     }
 
     public Task CloseMainWindowAsync(CancellationToken cancellationToken)
     {
-        return InvokeAsync(_window.Close, cancellationToken);
+        return InvokeAsync(Window.Close, cancellationToken);
     }
 
     public async Task<DesktopCloseChoice> PromptForCloseChoiceAsync(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var operation = _window.Dispatcher.InvokeAsync(
+        var operation = Window.Dispatcher.InvokeAsync(
             () =>
             {
                 var result = MessageBox.Show(
-                    _window,
+                    Window,
                     "选择“是”将最小化到托盘；选择“否”将退出应用。",
                     "关闭 NovelSpeaker",
                     MessageBoxButton.YesNoCancel,
@@ -168,12 +224,7 @@ internal sealed class WindowsTrayLifecycleAdapter : IDesktopLifecyclePlatform
         var menu = new ContextMenu();
         menu.Items.Add(CreateMenuItem("显示主窗口", DesktopLifecycleCommand.ShowMainWindow));
         menu.Items.Add(CreateMenuItem("播放/暂停", DesktopLifecycleCommand.TogglePlayback));
-        menu.Items.Add(new MenuItem
-        {
-            Header = "迷你播放器",
-            IsEnabled = false,
-            ToolTip = "将在迷你播放器功能完成后可用"
-        });
+        menu.Items.Add(CreateMenuItem("迷你播放器", DesktopLifecycleCommand.OpenMiniPlayer));
         menu.Items.Add(new Separator());
         menu.Items.Add(CreateMenuItem("退出", DesktopLifecycleCommand.ExitApplication));
         return menu;
@@ -185,6 +236,9 @@ internal sealed class WindowsTrayLifecycleAdapter : IDesktopLifecyclePlatform
         item.Click += (_, _) => CommandReceived?.Invoke(this, command);
         return item;
     }
+
+    private void OnMiniPlayerRestoreRequested(object? sender, EventArgs e) =>
+        CommandReceived?.Invoke(this, DesktopLifecycleCommand.ShowMainWindow);
 
     private IntPtr WindowMessageHook(
         IntPtr hwnd,
@@ -251,17 +305,23 @@ internal sealed class WindowsTrayLifecycleAdapter : IDesktopLifecyclePlatform
     private Task InvokeAsync(Action action, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (_window.Dispatcher.CheckAccess())
+        if (Window.Dispatcher.CheckAccess())
         {
             action();
             return Task.CompletedTask;
         }
 
-        var operation = _window.Dispatcher.InvokeAsync(
+        var operation = Window.Dispatcher.InvokeAsync(
             action,
             DispatcherPriority.Normal,
             cancellationToken);
         return operation.Task;
+    }
+
+    private static async Task AwaitStopAsync(Task cleanupTask, Task flushTask)
+    {
+        await cleanupTask.ConfigureAwait(false);
+        await flushTask.ConfigureAwait(false);
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

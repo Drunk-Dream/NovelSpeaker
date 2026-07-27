@@ -157,6 +157,9 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     {
         cancellationToken.ThrowIfCancellationRequested();
         var window = RequireServices().GetRequiredService<MainWindow>();
+        RequireServices()
+            .GetRequiredService<WindowsTrayLifecycleAdapter>()
+            .AttachMainWindow(window);
         var shutdownAsync = ShutdownRequestedAsync
             ?? throw new InvalidOperationException("应用关闭回调尚未配置。");
         RequireServices().GetRequiredService<IProcessShutdownRequest>().Configure(shutdownAsync);

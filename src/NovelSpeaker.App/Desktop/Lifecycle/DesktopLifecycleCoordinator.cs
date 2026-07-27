@@ -3,11 +3,15 @@ using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.App.Desktop.MiniPlayer;
 using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.App.Desktop.Lifecycle;
 
-internal sealed class DesktopLifecycleCoordinator : IDesktopLifecycleCoordinator, IAsyncDisposable
+internal sealed class DesktopLifecycleCoordinator :
+    IDesktopLifecycleCoordinator,
+    IMiniPlayerLauncher,
+    IAsyncDisposable
 {
     private readonly object _syncRoot = new();
     private readonly IAppSettingsService _settingsService;
@@ -16,6 +20,7 @@ internal sealed class DesktopLifecycleCoordinator : IDesktopLifecycleCoordinator
     private readonly IProcessShutdownRequest _shutdownRequest;
     private readonly IDesktopLifecyclePlatform _platform;
     private readonly ILogger<DesktopLifecycleCoordinator> _logger;
+    private readonly SemaphoreSlim _windowTransitionMutex = new(1, 1);
     private Channel<DesktopLifecycleCommand>? _commands;
     private CancellationTokenSource? _lifetimeCancellation;
     private Task? _commandProcessor;
@@ -23,6 +28,9 @@ internal sealed class DesktopLifecycleCoordinator : IDesktopLifecycleCoordinator
     private Task? _exitTask;
     private Task? _exitObservation;
     private bool _started;
+    private bool _disposed;
+    private bool _isMiniPlayerOpen;
+    private bool _isMainWindowVisible;
 
     public DesktopLifecycleCoordinator(
         IAppSettingsService settingsService,
@@ -75,10 +83,12 @@ internal sealed class DesktopLifecycleCoordinator : IDesktopLifecycleCoordinator
             if (_settingsService.Current.StartMinimizedToTray)
             {
                 await _platform.HideMainWindowAsync(cancellationToken).ConfigureAwait(false);
+                _isMainWindowVisible = false;
             }
             else
             {
                 await _platform.ShowMainWindowAsync(cancellationToken).ConfigureAwait(false);
+                _isMainWindowVisible = true;
             }
         }
         catch
@@ -135,6 +145,7 @@ internal sealed class DesktopLifecycleCoordinator : IDesktopLifecycleCoordinator
         {
             case MainWindowCloseBehavior.MinimizeToTray:
                 await _platform.HideMainWindowAsync(cancellationToken).ConfigureAwait(false);
+                _isMainWindowVisible = false;
                 break;
             case MainWindowCloseBehavior.ExitApplication:
                 await RequestExitAsync(cancellationToken).ConfigureAwait(false);
@@ -146,6 +157,7 @@ internal sealed class DesktopLifecycleCoordinator : IDesktopLifecycleCoordinator
                 if (choice == DesktopCloseChoice.HideToTray)
                 {
                     await _platform.HideMainWindowAsync(cancellationToken).ConfigureAwait(false);
+                    _isMainWindowVisible = false;
                 }
                 else if (choice == DesktopCloseChoice.ExitApplication)
                 {
@@ -167,9 +179,19 @@ internal sealed class DesktopLifecycleCoordinator : IDesktopLifecycleCoordinator
         }
     }
 
+    public Task OpenMiniPlayerAsync(CancellationToken cancellationToken) =>
+        SwitchToMiniPlayerAsync(cancellationToken);
+
     public async ValueTask DisposeAsync()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
         await StopAsync(CancellationToken.None).ConfigureAwait(false);
+        _windowTransitionMutex.Dispose();
     }
 
     private async Task ExitCoreAsync(CancellationToken cancellationToken)
@@ -244,7 +266,7 @@ internal sealed class DesktopLifecycleCoordinator : IDesktopLifecycleCoordinator
         switch (command)
         {
             case DesktopLifecycleCommand.ShowMainWindow:
-                await _platform.ShowMainWindowAsync(cancellationToken).ConfigureAwait(false);
+                await RestoreMainWindowAsync(cancellationToken).ConfigureAwait(false);
                 break;
             case DesktopLifecycleCommand.TogglePlayback:
                 if (_playbackSession.CurrentSnapshot.State == PlaybackState.Playing)
@@ -258,8 +280,7 @@ internal sealed class DesktopLifecycleCoordinator : IDesktopLifecycleCoordinator
 
                 break;
             case DesktopLifecycleCommand.OpenMiniPlayer:
-                // MINI-503 owns the mini-player window. The tray item remains disabled
-                // until that slice supplies the single command target.
+                await SwitchToMiniPlayerAsync(cancellationToken).ConfigureAwait(false);
                 break;
             case DesktopLifecycleCommand.ExitApplication:
                 var exitTask = RequestExitAsync(cancellationToken);
@@ -271,6 +292,56 @@ internal sealed class DesktopLifecycleCoordinator : IDesktopLifecycleCoordinator
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(command), command, null);
+        }
+    }
+
+    private async Task SwitchToMiniPlayerAsync(CancellationToken cancellationToken)
+    {
+        await _windowTransitionMutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_isMiniPlayerOpen)
+            {
+                return;
+            }
+
+            await _platform.HideMainWindowAsync(cancellationToken).ConfigureAwait(false);
+            _isMainWindowVisible = false;
+            await _platform.ShowMiniPlayerAsync(cancellationToken).ConfigureAwait(false);
+            _isMiniPlayerOpen = true;
+        }
+        catch
+        {
+            await _platform.ShowMainWindowAsync(CancellationToken.None).ConfigureAwait(false);
+            _isMainWindowVisible = true;
+            throw;
+        }
+        finally
+        {
+            _windowTransitionMutex.Release();
+        }
+    }
+
+    private async Task RestoreMainWindowAsync(CancellationToken cancellationToken)
+    {
+        await _windowTransitionMutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_isMiniPlayerOpen)
+            {
+                await _platform.HideMiniPlayerAsync(cancellationToken).ConfigureAwait(false);
+                _isMiniPlayerOpen = false;
+            }
+
+            if (!_isMainWindowVisible)
+            {
+                await _platform.ShowMainWindowAsync(cancellationToken).ConfigureAwait(false);
+                _isMainWindowVisible = true;
+            }
+        }
+        finally
+        {
+            _windowTransitionMutex.Release();
         }
     }
 

@@ -10,7 +10,29 @@ namespace NovelSpeaker.App.WpfTests.Desktop;
 public sealed class WindowsTrayLifecycleAdapterTests
 {
     [Fact]
-    public void Tray_menu_exposes_required_commands_and_keeps_mini_player_disabled_until_mini_slice()
+    public async Task Start_requires_main_window_attachment()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var adapter = new WindowsTrayLifecycleAdapter(
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.MiniPlayerWindow>(),
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.IMiniPlayerPlacementPersistence>());
+
+                await Assert.ThrowsAsync<InvalidOperationException>(
+                    () => adapter.StartAsync(CancellationToken.None));
+            }
+            finally
+            {
+                await provider.DisposeAsync();
+            }
+        });
+    }
+
+    [Fact]
+    public void Repeated_attachment_of_same_window_is_idempotent()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -18,7 +40,64 @@ public sealed class WindowsTrayLifecycleAdapterTests
             try
             {
                 var adapter = new WindowsTrayLifecycleAdapter(
-                    provider.GetRequiredService<MainWindow>());
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.MiniPlayerWindow>(),
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.IMiniPlayerPlacementPersistence>());
+                var window = provider.GetRequiredService<MainWindow>();
+
+                adapter.AttachMainWindow(window);
+                adapter.AttachMainWindow(window);
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
+    public void Stop_cleanup_completes_without_dispatcher_continuation()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var window = provider.GetRequiredService<MainWindow>();
+                var native = new FakeNativeApi { ExtractedIcon = new IntPtr(42) };
+                var persistence = new GatedPlacementPersistence();
+                var adapter = new WindowsTrayLifecycleAdapter(
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.MiniPlayerWindow>(),
+                    persistence,
+                    native);
+                adapter.AttachMainWindow(window);
+                adapter.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+                var stopTask = adapter.StopAsync(CancellationToken.None);
+
+                Assert.Equal(1, native.DeleteCount);
+                Assert.False(stopTask.IsCompleted);
+                Task.Run(persistence.Release).GetAwaiter().GetResult();
+                stopTask.GetAwaiter().GetResult();
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
+    public void Tray_menu_exposes_required_commands_and_enables_mini_player()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var adapter = new WindowsTrayLifecycleAdapter(
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.MiniPlayerWindow>(),
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.IMiniPlayerPlacementPersistence>());
+                adapter.AttachMainWindow(provider.GetRequiredService<MainWindow>());
                 var menu = Assert.IsType<ContextMenu>(
                     typeof(WindowsTrayLifecycleAdapter)
                         .GetField("_trayMenu", BindingFlags.Instance | BindingFlags.NonPublic)?
@@ -28,7 +107,7 @@ public sealed class WindowsTrayLifecycleAdapterTests
                 Assert.Equal(
                     ["显示主窗口", "播放/暂停", "迷你播放器", "退出"],
                     items.Select(item => item.Header));
-                Assert.False(items.Single(item => Equals(item.Header, "迷你播放器")).IsEnabled);
+                Assert.True(items.Single(item => Equals(item.Header, "迷你播放器")).IsEnabled);
             }
             finally
             {
@@ -46,7 +125,9 @@ public sealed class WindowsTrayLifecycleAdapterTests
             try
             {
                 var adapter = new WindowsTrayLifecycleAdapter(
-                    provider.GetRequiredService<MainWindow>());
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.MiniPlayerWindow>(),
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.IMiniPlayerPlacementPersistence>());
+                adapter.AttachMainWindow(provider.GetRequiredService<MainWindow>());
                 DesktopLifecycleCommand? received = null;
                 adapter.CommandReceived += (_, command) => received = command;
                 var menu = Assert.IsType<ContextMenu>(
@@ -78,7 +159,11 @@ public sealed class WindowsTrayLifecycleAdapterTests
             {
                 var window = provider.GetRequiredService<MainWindow>();
                 var native = new FakeNativeApi { ExtractedIcon = new IntPtr(42) };
-                var adapter = new WindowsTrayLifecycleAdapter(window, native);
+                var adapter = new WindowsTrayLifecycleAdapter(
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.MiniPlayerWindow>(),
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.IMiniPlayerPlacementPersistence>(),
+                    native);
+                adapter.AttachMainWindow(window);
 
                 await adapter.StartAsync(CancellationToken.None);
                 var firstStop = adapter.StopAsync(CancellationToken.None);
@@ -116,7 +201,11 @@ public sealed class WindowsTrayLifecycleAdapterTests
                     ExtractedIcon = IntPtr.Zero,
                     SharedIcon = new IntPtr(7)
                 };
-                var adapter = new WindowsTrayLifecycleAdapter(window, native);
+                var adapter = new WindowsTrayLifecycleAdapter(
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.MiniPlayerWindow>(),
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.IMiniPlayerPlacementPersistence>(),
+                    native);
+                adapter.AttachMainWindow(window);
 
                 await adapter.StartAsync(CancellationToken.None);
                 await adapter.StopAsync(CancellationToken.None);
@@ -146,7 +235,11 @@ public sealed class WindowsTrayLifecycleAdapterTests
                     ExtractedIcon = new IntPtr(99),
                     AddSucceeds = false
                 };
-                var adapter = new WindowsTrayLifecycleAdapter(window, native);
+                var adapter = new WindowsTrayLifecycleAdapter(
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.MiniPlayerWindow>(),
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.IMiniPlayerPlacementPersistence>(),
+                    native);
+                adapter.AttachMainWindow(window);
 
                 await Assert.ThrowsAsync<InvalidOperationException>(
                     () => adapter.StartAsync(CancellationToken.None));
@@ -202,5 +295,17 @@ public sealed class WindowsTrayLifecycleAdapterTests
         }
 
         public bool SetForegroundWindow(IntPtr windowHandle) => true;
+    }
+
+    private sealed class GatedPlacementPersistence :
+        NovelSpeaker.App.Desktop.MiniPlayer.IMiniPlayerPlacementPersistence
+    {
+        private readonly TaskCompletionSource _completion =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task FlushPlacementAsync(CancellationToken cancellationToken) =>
+            _completion.Task.WaitAsync(cancellationToken);
+
+        public void Release() => _completion.TrySetResult();
     }
 }

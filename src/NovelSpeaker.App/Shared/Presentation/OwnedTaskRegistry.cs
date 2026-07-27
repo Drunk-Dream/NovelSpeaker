@@ -39,6 +39,29 @@ internal sealed class OwnedTaskRegistry
         awaiter.UnsafeOnCompleted(() => Complete(task, reportFailure));
     }
 
+    public Task WaitForCompletionAsync()
+    {
+        lock (_syncRoot)
+        {
+            return _tasks.Count == 0
+                ? Task.CompletedTask
+                : WaitForCompletionCoreAsync(_tasks.ToArray());
+        }
+    }
+
+    private static async Task WaitForCompletionCoreAsync(Task[] tasks)
+    {
+        try
+        {
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Register observes and projects each owned failure. Draining only waits
+            // for ownership to end and must not report the same failure twice.
+        }
+    }
+
     private void Complete(Task task, Action<Exception>? reportFailure)
     {
         try

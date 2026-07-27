@@ -14,6 +14,8 @@ using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Speech.Testing;
 using NovelSpeaker.App;
+using NovelSpeaker.App.Desktop.Lifecycle;
+using NovelSpeaker.App.Desktop.MiniPlayer;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Library;
@@ -165,6 +167,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IReadingProgressStore>(provider.GetRequiredService<IReadingProgressStore>());
                 Assert.IsAssignableFrom<TimeProvider>(provider.GetRequiredService<TimeProvider>());
                 Assert.IsType<MainWindow>(provider.GetRequiredService<MainWindow>());
+                Assert.IsType<MiniPlayerWindow>(provider.GetRequiredService<MiniPlayerWindow>());
 
                 Assert.Same(
                     provider.GetRequiredService<PlaybackCoordinator>(),
@@ -193,6 +196,15 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.Same(
                     provider.GetRequiredService<IActiveCacheCoordinator>(),
                     provider.GetRequiredService<IActiveCacheCoordinator>());
+                Assert.Same(
+                    provider.GetRequiredService<DesktopLifecycleCoordinator>(),
+                    provider.GetRequiredService<IDesktopLifecycleCoordinator>());
+                Assert.Same(
+                    provider.GetRequiredService<DesktopLifecycleCoordinator>(),
+                    provider.GetRequiredService<IMiniPlayerLauncher>());
+                Assert.Same(
+                    provider.GetRequiredService<WindowsTrayLifecycleAdapter>(),
+                    provider.GetRequiredService<IDesktopLifecyclePlatform>());
                 Assert.Same(
                     provider.GetRequiredService<INavigationGuardService>(),
                     provider.GetRequiredService<INavigationGuardService>());

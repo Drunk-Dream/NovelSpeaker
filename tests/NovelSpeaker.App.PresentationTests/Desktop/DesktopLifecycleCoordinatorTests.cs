@@ -127,6 +127,28 @@ public sealed class DesktopLifecycleCoordinatorTests
     }
 
     [Fact]
+    public async Task Mini_player_open_restore_and_repeated_requests_are_idempotent()
+    {
+        var fixture = CreateFixture(AppSettings.Default);
+        await fixture.Coordinator.StartAsync(CancellationToken.None);
+
+        await fixture.Coordinator.OpenMiniPlayerAsync(CancellationToken.None);
+        await fixture.Coordinator.OpenMiniPlayerAsync(CancellationToken.None);
+
+        Assert.Equal(1, fixture.Platform.ShowMiniCount);
+        Assert.Equal(1, fixture.Platform.HideCount);
+
+        fixture.Platform.Raise(DesktopLifecycleCommand.ShowMainWindow);
+        await fixture.Platform.HideMiniObserved.Task;
+        fixture.Platform.Raise(DesktopLifecycleCommand.ShowMainWindow);
+        await fixture.Platform.ShowMainObserved.Task;
+
+        Assert.Equal(1, fixture.Platform.HideMiniCount);
+        Assert.Equal(2, fixture.Platform.ShowCount);
+        await fixture.Coordinator.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task Cancellation_callback_can_reenter_stop_and_platform_stops_once()
     {
         var fixture = CreateFixture(AppSettings.Default);
@@ -165,10 +187,24 @@ public sealed class DesktopLifecycleCoordinatorTests
     }
 
     [Fact]
+    public async Task Dispose_is_idempotent_and_stops_platform_once()
+    {
+        var fixture = CreateFixture(AppSettings.Default);
+        await fixture.Coordinator.StartAsync(CancellationToken.None);
+
+        await fixture.Coordinator.DisposeAsync();
+        await fixture.Coordinator.DisposeAsync();
+
+        Assert.Equal(1, fixture.Platform.StopCount);
+    }
+
+    [Fact]
     public async Task Command_failure_log_contains_only_command_and_failure_type()
     {
         var logger = new RecordingLogger<DesktopLifecycleCoordinator>();
-        var fixture = CreateFixture(AppSettings.Default, logger: logger);
+        var fixture = CreateFixture(
+            AppSettings.Default with { StartMinimizedToTray = true },
+            logger: logger);
         await fixture.Coordinator.StartAsync(CancellationToken.None);
         fixture.Platform.ShowException = new InvalidOperationException("secret-url-and-body");
 
@@ -215,10 +251,17 @@ public sealed class DesktopLifecycleCoordinatorTests
 
         public DesktopCloseChoice CloseChoice { get; set; } = DesktopCloseChoice.Cancel;
         public int HideCount { get; private set; }
+        public int ShowMiniCount { get; private set; }
+        public int HideMiniCount { get; private set; }
+        public int ShowCount { get; private set; }
         public int CloseCount { get; private set; }
         public int StopCount { get; private set; }
         public Exception? ShowException { get; set; }
         public Task? StopGate { get; set; }
+        public TaskCompletionSource HideMiniObserved { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ShowMainObserved { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
@@ -244,6 +287,8 @@ public sealed class DesktopLifecycleCoordinatorTests
             }
 
             calls.Add("show");
+            ShowCount++;
+            ShowMainObserved.TrySetResult();
             return Task.CompletedTask;
         }
 
@@ -260,6 +305,23 @@ public sealed class DesktopLifecycleCoordinatorTests
             cancellationToken.ThrowIfCancellationRequested();
             CloseCount++;
             calls.Add("close");
+            return Task.CompletedTask;
+        }
+
+        public Task ShowMiniPlayerAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ShowMiniCount++;
+            calls.Add("show-mini");
+            return Task.CompletedTask;
+        }
+
+        public Task HideMiniPlayerAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            HideMiniCount++;
+            calls.Add("hide-mini");
+            HideMiniObserved.TrySetResult();
             return Task.CompletedTask;
         }
 

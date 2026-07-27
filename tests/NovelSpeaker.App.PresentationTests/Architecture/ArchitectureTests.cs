@@ -316,6 +316,7 @@ public sealed class ArchitectureTests
         var allowedRelativePaths = new[]
         {
             "src/NovelSpeaker.App/Bootstrap/WpfStartupRuntime.cs",
+            "src/NovelSpeaker.App/Desktop/Lifecycle/DesktopLifecycleServiceCollectionExtensions.cs",
             "src/NovelSpeaker.App/Shell/Activation/WpfShellPlatformAdapter.cs",
             "src/NovelSpeaker.App/Shell/Navigation/AppNavigationPageProvider.cs",
             "src/NovelSpeaker.App/Shell/ShellServiceCollectionExtensions.cs",

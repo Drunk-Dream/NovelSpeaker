@@ -1,0 +1,123 @@
+<Window x:Class="NovelSpeaker.App.Desktop.MiniPlayer.MiniPlayerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="迷你播放器"
+        Width="420"
+        Height="210"
+        MinWidth="360"
+        MinHeight="190"
+        ResizeMode="CanResizeWithGrip"
+        ShowInTaskbar="True"
+        WindowStartupLocation="CenterScreen"
+        Topmost="{Binding IsTopmost, Mode=TwoWay}">
+    <Border Padding="16"
+            Background="{DynamicResource ApplicationBackgroundBrush}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock x:Name="MiniPlayerBookTitle"
+                               Style="{StaticResource SectionTitleTextBlockStyle}"
+                               Text="{Binding BookTitle}"
+                               TextTrimming="CharacterEllipsis"
+                               AutomationProperties.Name="{Binding BookTitle}" />
+                    <TextBlock x:Name="MiniPlayerChapterTitle"
+                               Margin="0,4,0,0"
+                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Text="{Binding ChapterTitle}"
+                               TextTrimming="CharacterEllipsis"
+                               AutomationProperties.Name="{Binding ChapterTitle}" />
+                </StackPanel>
+                <Button x:Name="MiniPlayerTopmostButton"
+                        Grid.Column="1"
+                        Margin="8,0,0,0"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
+                        Command="{Binding ToggleTopmostCommand}"
+                        ToolTip="置顶"
+                        AutomationProperties.Name="置顶">
+                    <ui:SymbolIcon Symbol="Pin24" />
+                </Button>
+                <Button x:Name="MiniPlayerRestoreButton"
+                        Grid.Column="2"
+                        Margin="8,0,0,0"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
+                        Command="{Binding RestoreMainWindowCommand}"
+                        ToolTip="恢复主窗口"
+                        AutomationProperties.Name="恢复主窗口">
+                    <ui:SymbolIcon Symbol="ArrowMaximize24" />
+                </Button>
+            </Grid>
+
+            <Slider x:Name="MiniPlayerProgressSlider"
+                    Grid.Row="1"
+                    Margin="0,16,0,0"
+                    Minimum="0"
+                    Maximum="{Binding ProgressMaximum}"
+                    Value="{Binding ProgressValue, Mode=OneWay}"
+                    IsHitTestVisible="False"
+                    AutomationProperties.Name="播放进度" />
+
+            <StackPanel Grid.Row="3"
+                        Margin="0,14,0,0"
+                        HorizontalAlignment="Center"
+                        Orientation="Horizontal">
+                <Button x:Name="MiniPlayerPreviousChapterButton"
+                        Margin="0,0,8,0"
+                        Style="{StaticResource MediaIconButtonStyle}"
+                        IsEnabled="{Binding HasPlaybackContext}"
+                        Command="{Binding PreviousChapterCommand}"
+                        ToolTip="上一章"
+                        AutomationProperties.Name="上一章">
+                    <ui:SymbolIcon Symbol="ChevronDoubleLeft20" />
+                </Button>
+                <Button x:Name="MiniPlayerPreviousSegmentButton"
+                        Margin="0,0,8,0"
+                        Style="{StaticResource MediaIconButtonStyle}"
+                        IsEnabled="{Binding CanGoToPreviousSegment}"
+                        Command="{Binding PreviousSegmentCommand}"
+                        ToolTip="上一段"
+                        AutomationProperties.Name="上一段">
+                    <ui:SymbolIcon Symbol="ArrowPrevious24" />
+                </Button>
+                <Button x:Name="MiniPlayerPlaybackButton"
+                        Margin="0,0,8,0"
+                        Style="{StaticResource PrimaryPlaybackIconButtonStyle}"
+                        IsEnabled="{Binding CanTogglePlayback}"
+                        Command="{Binding TogglePlaybackCommand}"
+                        ToolTip="{Binding PlaybackActionText}"
+                        AutomationProperties.Name="{Binding PlaybackActionText}">
+                    <ui:SymbolIcon Symbol="PlayCircle24" />
+                </Button>
+                <Button x:Name="MiniPlayerNextSegmentButton"
+                        Margin="0,0,8,0"
+                        Style="{StaticResource MediaIconButtonStyle}"
+                        IsEnabled="{Binding CanGoToNextSegment}"
+                        Command="{Binding NextSegmentCommand}"
+                        ToolTip="下一段"
+                        AutomationProperties.Name="下一段">
+                    <ui:SymbolIcon Symbol="ArrowNext24" />
+                </Button>
+                <Button x:Name="MiniPlayerNextChapterButton"
+                        Style="{StaticResource MediaIconButtonStyle}"
+                        IsEnabled="{Binding HasPlaybackContext}"
+                        Command="{Binding NextChapterCommand}"
+                        ToolTip="下一章"
+                        AutomationProperties.Name="下一章">
+                    <ui:SymbolIcon Symbol="ChevronDoubleRight20" />
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>
