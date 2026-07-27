@@ -138,10 +138,11 @@ public sealed class DesktopLifecycleCoordinatorTests
         Assert.Equal(1, fixture.Platform.ShowMiniCount);
         Assert.Equal(1, fixture.Platform.HideCount);
 
+        fixture.Platform.ExpectNextShowMain();
         fixture.Platform.Raise(DesktopLifecycleCommand.ShowMainWindow);
         await fixture.Platform.HideMiniObserved.Task;
-        fixture.Platform.Raise(DesktopLifecycleCommand.ShowMainWindow);
         await fixture.Platform.ShowMainObserved.Task;
+        fixture.Platform.Raise(DesktopLifecycleCommand.ShowMainWindow);
 
         Assert.Equal(1, fixture.Platform.HideMiniCount);
         Assert.Equal(2, fixture.Platform.ShowCount);
@@ -260,8 +261,13 @@ public sealed class DesktopLifecycleCoordinatorTests
         public Task? StopGate { get; set; }
         public TaskCompletionSource HideMiniObserved { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource ShowMainObserved { get; } =
+        public TaskCompletionSource ShowMainObserved { get; private set; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void ExpectNextShowMain()
+        {
+            ShowMainObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
