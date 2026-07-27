@@ -140,7 +140,10 @@ public sealed partial class PlayerViewTests
             bool showPlaybackErrorBar = false,
             string errorText = "",
             bool showInlineLoadingState = false,
-            string inlineLoadingText = "")
+            string inlineLoadingText = "",
+            bool isActiveCacheSelectionMode = false,
+            bool canStartActiveCache = false,
+            string activeCacheStatusText = "")
         {
             Chapters = chapters;
             Segments = segments;
@@ -153,6 +156,9 @@ public sealed partial class PlayerViewTests
             ErrorText = errorText;
             ShowInlineLoadingState = showInlineLoadingState;
             InlineLoadingText = inlineLoadingText;
+            IsActiveCacheSelectionMode = isActiveCacheSelectionMode;
+            CanStartActiveCache = canStartActiveCache;
+            ActiveCacheStatusText = activeCacheStatusText;
         }
 
         public IRelayCommand BackCommand { get; } = new RelayCommand(() => { });
@@ -160,6 +166,12 @@ public sealed partial class PlayerViewTests
         public IRelayCommand ToggleRuleMenuCommand { get; } = new RelayCommand(() => { });
 
         public IRelayCommand ToggleSpeedMenuCommand { get; } = new RelayCommand(() => { });
+
+        public IRelayCommand EnterActiveCacheSelectionCommand { get; } = new RelayCommand(() => { });
+
+        public IRelayCommand CancelActiveCacheSelectionCommand { get; } = new RelayCommand(() => { });
+
+        public IRelayCommand StartActiveCacheCommand { get; } = new RelayCommand(() => { });
 
         public IRelayCommand OpenRuleMenuCommand { get; } = new RelayCommand(() => { });
 
@@ -207,6 +219,10 @@ public sealed partial class PlayerViewTests
 
         public string InlineLoadingText { get; }
 
+        public string ActiveCacheSelectionSummary { get; } = "已选择 2 章";
+
+        public string ActiveCacheStatusText { get; }
+
         public string SpeedEditorText { get; set; } = "10";
 
         public string SpeedEditorErrorText { get; } = string.Empty;
@@ -226,6 +242,10 @@ public sealed partial class PlayerViewTests
         public bool ShowPlaybackErrorBar { get; }
 
         public bool ShowInlineLoadingState { get; }
+
+        public bool IsActiveCacheSelectionMode { get; }
+
+        public bool CanStartActiveCache { get; }
 
         public bool HasRules { get; } = false;
 

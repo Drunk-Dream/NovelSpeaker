@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using NovelSpeaker.App.Features.Playback.Presentation;
 using NovelSpeaker.App.Features.Playback.Scrolling;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 
 namespace NovelSpeaker.App.Features.Playback.Components;
 
@@ -76,6 +77,51 @@ public partial class PlayerView : UserControl
     private void SegmentListBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         _scrollController.NotifyKeyDown(e.Key);
+    }
+
+    private async void ChapterButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: PlayerChapterItemViewModel chapter } ||
+            _viewModel is null)
+        {
+            return;
+        }
+
+        var modifiers = DesktopSelectionModifiers.None;
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            modifiers |= DesktopSelectionModifiers.Control;
+        }
+
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+        {
+            modifiers |= DesktopSelectionModifiers.Shift;
+        }
+
+        await RunEventOperationAsync(
+            () => _viewModel.HandleChapterClickAsync(chapter, modifiers, ActivationToken),
+            "切换章节失败");
+    }
+
+    private void PlayerView_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Escape && _viewModel.HandleActiveCacheEscape())
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.A &&
+            Keyboard.Modifiers.HasFlag(ModifierKeys.Control) &&
+            _viewModel.HandleActiveCacheSelectAll())
+        {
+            e.Handled = true;
+        }
     }
 
     private void SegmentProgressSlider_OnValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

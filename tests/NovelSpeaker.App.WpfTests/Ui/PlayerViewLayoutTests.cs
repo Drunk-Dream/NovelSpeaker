@@ -32,6 +32,50 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed partial class PlayerViewTests
 {
     [Fact]
+    public void PlayerView_exposes_active_cache_tool_and_selection_actions_with_automation_names()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>
+            {
+                new(0, "第一章") { IsSelectedForActiveCache = true },
+                new(1, "第二章") { IsSelectedForActiveCache = true }
+            };
+            var segments = new ObservableCollection<PlayerSegmentItemViewModel>
+            {
+                new(0, 0, "第一段")
+            };
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(
+                    chapters,
+                    segments,
+                    isActiveCacheSelectionMode: true,
+                    canStartActiveCache: false,
+                    activeCacheStatusText: "已有主动缓存批次正在运行，完成或取消后可开始新批次。")
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var toolButton = Assert.IsType<Button>(view.FindName("ActiveCacheToolButton"));
+            var selectionToolbar = Assert.IsType<StackPanel>(view.FindName("ActiveCacheSelectionToolbar"));
+            var cancelButton = Assert.IsType<Button>(view.FindName("CancelActiveCacheSelectionButton"));
+            var startButton = Assert.IsType<Button>(view.FindName("StartActiveCacheButton"));
+
+            Assert.Equal("主动缓存章节", toolButton.ToolTip);
+            Assert.Equal("主动缓存章节", AutomationProperties.GetName(toolButton));
+            Assert.Equal(Visibility.Visible, selectionToolbar.Visibility);
+            Assert.NotNull(FindVisibleDescendantByText(selectionToolbar, "已选择 2 章"));
+            Assert.NotNull(FindVisibleDescendantByText(selectionToolbar, "已有主动缓存批次正在运行，完成或取消后可开始新批次。"));
+            Assert.Equal("取消选择", AutomationProperties.GetName(cancelButton));
+            Assert.Equal("开始缓存", AutomationProperties.GetName(startButton));
+            Assert.False(startButton.IsEnabled);
+        });
+    }
+
+    [Fact]
     public void PlayerView_keeps_catalog_and_segments_scrollable_inside_their_cards()
     {
         WpfTestHost.RunInSta(() =>
