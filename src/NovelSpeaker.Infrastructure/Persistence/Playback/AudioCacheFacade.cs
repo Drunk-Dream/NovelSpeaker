@@ -78,6 +78,16 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
             cancellationToken);
     }
 
+    internal Task<AudioCacheExportLeaseAcquisition> AcquireExportLeaseAsync(
+        IReadOnlyList<AudioCacheKey> orderedKeys,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(orderedKeys);
+        return RunExclusiveAsync(
+            ct => AcquireExportLeaseCoreAsync(orderedKeys, ct),
+            cancellationToken);
+    }
+
     public Task<AudioCacheStoreCleanupResult> ClearChapterAsync(
         string bookId,
         int chapterIndex,
@@ -167,30 +177,86 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         foreach (var key in keys)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var entry = await _index.FindAsync(key, cancellationToken).ConfigureAwait(false);
-            if (entry is null)
+            var filePath = await TryResolveValidFilePathAsync(key, cancellationToken).ConfigureAwait(false);
+            if (filePath is null)
             {
                 continue;
             }
 
-            try
-            {
-                var filePath = _fileStore.ResolveIndexedPath(entry.FilePath);
-                if (_fileStore.Exists(filePath) && _audioProbe.CanDecode(filePath))
-                {
-                    validKeys.Add(key);
-                }
-            }
-            catch (Exception exception) when (IsInvalidCacheEntry(exception))
-            {
-                // A malformed or inaccessible indexed path is an invalid cache entry for this read-only query.
-                continue;
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
+            validKeys.Add(key);
         }
 
         return validKeys;
+    }
+
+    private async Task<AudioCacheExportLeaseAcquisition> AcquireExportLeaseCoreAsync(
+        IReadOnlyList<AudioCacheKey> orderedKeys,
+        CancellationToken cancellationToken)
+    {
+        var pathsByKey = new Dictionary<AudioCacheKey, string>();
+        foreach (var key in orderedKeys.Distinct())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var filePath = await TryResolveValidFilePathAsync(key, cancellationToken).ConfigureAwait(false);
+            if (filePath is null)
+            {
+                return AudioCacheExportLeaseAcquisition.Incomplete(key);
+            }
+
+            pathsByKey.Add(key, filePath);
+        }
+
+        var protections = new List<IDisposable>(pathsByKey.Count);
+        try
+        {
+            foreach (var filePath in pathsByKey.Values)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                protections.Add(_protectionRegistry.Protect(filePath));
+            }
+
+            return AudioCacheExportLeaseAcquisition.Complete(
+                new AudioCacheExportLease(
+                    orderedKeys.Select(key => pathsByKey[key]).ToArray(),
+                    protections));
+        }
+        catch
+        {
+            foreach (var protection in protections)
+            {
+                protection.Dispose();
+            }
+
+            throw;
+        }
+    }
+
+    private async Task<string?> TryResolveValidFilePathAsync(
+        AudioCacheKey key,
+        CancellationToken cancellationToken)
+    {
+        var entry = await _index.FindAsync(key, cancellationToken).ConfigureAwait(false);
+        if (entry is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var filePath = _fileStore.ResolveIndexedPath(entry.FilePath);
+            if (!_fileStore.Exists(filePath) || !_audioProbe.CanDecode(filePath))
+            {
+                return null;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return filePath;
+        }
+        catch (Exception exception) when (IsInvalidCacheEntry(exception))
+        {
+            // Malformed or inaccessible indexed paths are invalid inputs for read-only cache queries.
+            return null;
+        }
     }
 
     private static bool IsInvalidCacheEntry(Exception exception) =>
@@ -360,5 +426,47 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         {
             _mutex.Release();
         }
+    }
+}
+
+internal sealed record AudioCacheExportLeaseAcquisition(
+    AudioCacheExportLease? Lease,
+    AudioCacheKey? MissingKey)
+{
+    public static AudioCacheExportLeaseAcquisition Complete(AudioCacheExportLease lease) =>
+        new(lease, null);
+
+    public static AudioCacheExportLeaseAcquisition Incomplete(AudioCacheKey missingKey) =>
+        new(null, missingKey);
+}
+
+internal sealed class AudioCacheExportLease : IDisposable
+{
+    private readonly IReadOnlyList<IDisposable> _protections;
+    private bool _disposed;
+
+    public AudioCacheExportLease(
+        IReadOnlyList<string> orderedFilePaths,
+        IReadOnlyList<IDisposable> protections)
+    {
+        OrderedFilePaths = orderedFilePaths;
+        _protections = protections;
+    }
+
+    public IReadOnlyList<string> OrderedFilePaths { get; }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        for (var index = _protections.Count - 1; index >= 0; index--)
+        {
+            _protections[index].Dispose();
+        }
+
+        _disposed = true;
     }
 }
