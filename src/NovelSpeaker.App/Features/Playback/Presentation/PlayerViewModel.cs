@@ -14,12 +14,13 @@ using NovelSpeaker.App.Shared.Presentation.Cache;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.App.Features.Playback.Components;
 using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.App.Features.Playback.Presentation;
 
-public sealed partial class PlayerViewModel : ObservableObject
+public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgressInteractionTarget
 {
     private readonly IPlaybackSession _playbackCoordinator;
     private readonly IPlaybackStopTimer _stopTimer;

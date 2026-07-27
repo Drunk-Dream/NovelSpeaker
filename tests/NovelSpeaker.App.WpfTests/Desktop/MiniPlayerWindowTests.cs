@@ -1,9 +1,12 @@
 using System.Windows.Automation;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Desktop.MiniPlayer;
 using Xunit;
+using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 
 namespace NovelSpeaker.App.WpfTests.Desktop;
 
@@ -20,6 +23,8 @@ public sealed class MiniPlayerWindowTests
             {
                 var window = provider.GetRequiredService<MiniPlayerWindow>();
                 Assert.Equal(WindowStyle.None, window.WindowStyle);
+                Assert.True(window.AllowsTransparency);
+                Assert.Equal(Brushes.Transparent, window.Background);
 
                 var bookTitle = Assert.IsType<TextBlock>(window.FindName("MiniPlayerBookTitle"));
                 Assert.NotNull(bookTitle.GetBindingExpression(TextBlock.TextProperty));
@@ -28,19 +33,50 @@ public sealed class MiniPlayerWindowTests
                 AssertControl<Button>(window, "MiniPlayerPreviousChapterButton", "上一章");
                 AssertControl<Button>(window, "MiniPlayerPreviousSegmentButton", "上一段");
                 AssertControl<Button>(window, "MiniPlayerPlaybackButton", "播放");
+                var playbackIcon = Assert.IsType<SymbolIcon>(
+                    Assert.IsType<Button>(window.FindName("MiniPlayerPlaybackButton")).Content);
+                var playbackTrigger = Assert.Single(playbackIcon.Style!.Triggers.OfType<DataTrigger>());
+                var playbackBinding = Assert.IsType<Binding>(playbackTrigger.Binding);
+                Assert.Equal("PlaybackActionText", playbackBinding.Path.Path);
                 AssertControl<Button>(window, "MiniPlayerNextSegmentButton", "下一段");
                 AssertControl<Button>(window, "MiniPlayerNextChapterButton", "下一章");
                 AssertControl<Button>(window, "MiniPlayerRestoreButton", "恢复主窗口");
                 AssertControl<Button>(window, "MiniPlayerTopmostButton", "置顶");
+                var topmostStateBorder = Assert.IsType<Border>(window.FindName("MiniPlayerTopmostStateBorder"));
+                Assert.Equal(Brushes.Transparent, topmostStateBorder.Background);
+                var topmostTrigger = Assert.Single(topmostStateBorder.Style!.Triggers.OfType<DataTrigger>());
+                var topmostBinding = Assert.IsType<Binding>(topmostTrigger.Binding);
+                Assert.Equal("IsTopmost", topmostBinding.Path.Path);
                 Assert.Equal(
                     "播放进度",
                     AutomationProperties.GetName(
                         Assert.IsType<Slider>(window.FindName("MiniPlayerProgressSlider"))));
+                var progressSlider = Assert.IsType<Slider>(window.FindName("MiniPlayerProgressSlider"));
+                Assert.True(progressSlider.IsHitTestVisible);
+                Assert.NotNull(progressSlider.GetBindingExpression(FrameworkElement.ToolTipProperty));
+                Assert.Same(window.FindResource("PlaybackProgressSliderStyle"), progressSlider.Style);
             }
             finally
             {
                 provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
+        });
+    }
+
+    [Fact]
+    public void Drag_policy_allows_blank_surface_but_excludes_interactive_controls()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var blankSurface = new Border();
+            var button = new Button();
+            var slider = new Slider();
+            var textBox = new TextBox();
+
+            Assert.True(MiniPlayerWindowDragPolicy.CanStartDrag(blankSurface));
+            Assert.False(MiniPlayerWindowDragPolicy.CanStartDrag(button));
+            Assert.False(MiniPlayerWindowDragPolicy.CanStartDrag(slider));
+            Assert.False(MiniPlayerWindowDragPolicy.CanStartDrag(textBox));
         });
     }
 

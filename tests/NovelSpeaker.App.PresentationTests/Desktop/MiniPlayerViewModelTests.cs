@@ -30,11 +30,14 @@ public sealed class MiniPlayerViewModelTests
 
         Assert.Equal("测试书", viewModel.BookTitle);
         Assert.Equal("第二章", viewModel.ChapterTitle);
-        Assert.Equal(250, viewModel.ProgressValue);
-        Assert.Equal(1000, viewModel.ProgressMaximum);
+        Assert.Equal(1, viewModel.SegmentProgressValue);
+        Assert.Equal(2, viewModel.SegmentProgressMaximum);
         Assert.True(viewModel.CanGoToPreviousSegment);
         Assert.True(viewModel.CanGoToNextSegment);
         Assert.Equal("暂停", viewModel.PlaybackActionText);
+        Assert.Equal("置顶", viewModel.TopmostActionText);
+        viewModel.IsTopmost = true;
+        Assert.Equal("取消置顶", viewModel.TopmostActionText);
 
         await viewModel.TogglePlaybackCommand.ExecuteAsync(null);
         await viewModel.PreviousChapterCommand.ExecuteAsync(null);
@@ -43,6 +46,31 @@ public sealed class MiniPlayerViewModelTests
         await viewModel.NextSegmentCommand.ExecuteAsync(null);
 
         Assert.Equal(["pause", "previous-chapter", "next-chapter", "previous-segment", "next-segment"], playback.Calls);
+        await viewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Segment_progress_commit_jumps_to_the_selected_segment_and_updates_tooltip_projection()
+    {
+        var playback = new FakePlaybackSession();
+        playback.Publish(PlaybackSnapshot.Idle with
+        {
+            State = PlaybackState.Paused,
+            BookId = "book-1",
+            ChapterIndex = 2,
+            SegmentIndex = 0,
+            SegmentCount = 3
+        });
+        var viewModel = CreateViewModel(playback);
+
+        viewModel.BeginSegmentProgressInteraction();
+        viewModel.PreviewSegmentProgress(2);
+
+        Assert.Equal("3 / 3", viewModel.DisplayedSegmentCounterText);
+        await viewModel.CommitSegmentProgressAsync(2, CancellationToken.None);
+
+        Assert.Equal((2, 2), playback.LastJumpedSegment);
+        Assert.False(viewModel.IsSegmentProgressDragging);
         await viewModel.DisposeAsync();
     }
 
@@ -193,6 +221,8 @@ public sealed class MiniPlayerViewModelTests
 
         public List<string> Calls { get; } = [];
 
+        public (int ChapterIndex, int SegmentIndex)? LastJumpedSegment { get; private set; }
+
         public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 
         public void Publish(PlaybackSnapshot snapshot)
@@ -213,7 +243,11 @@ public sealed class MiniPlayerViewModelTests
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken)
+        {
+            LastJumpedSegment = (chapterIndex, segmentIndex);
+            return Task.CompletedTask;
+        }
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;

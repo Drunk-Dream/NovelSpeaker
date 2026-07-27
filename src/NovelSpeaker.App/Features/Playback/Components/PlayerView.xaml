@@ -859,6 +859,8 @@
                                 Value="{Binding SegmentProgressValue, Mode=OneWay}"
                                 IsSnapToTickEnabled="True"
                                 TickFrequency="1"
+                                ToolTip="{Binding DisplayedSegmentCounterText, FallbackValue=尚未定位段落}"
+                                ToolTipService.InitialShowDelay="0"
                                 ValueChanged="SegmentProgressSlider_OnValueChanged"
                                 PreviewMouseLeftButtonDown="SegmentProgressSlider_OnPreviewMouseLeftButtonDown"
                                 PreviewMouseLeftButtonUp="SegmentProgressSlider_OnPreviewMouseLeftButtonUp"

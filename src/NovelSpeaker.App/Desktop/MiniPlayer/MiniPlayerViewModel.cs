@@ -5,11 +5,14 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Platform;
+using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Features.Playback.Components;
 
 namespace NovelSpeaker.App.Desktop.MiniPlayer;
 
 public sealed partial class MiniPlayerViewModel :
     ObservableObject,
+    ISegmentProgressInteractionTarget,
     IMiniPlayerPlacementPersistence,
     IAsyncDisposable
 {
@@ -19,6 +22,7 @@ public sealed partial class MiniPlayerViewModel :
     private readonly IPlaybackSession _playbackSession;
     private readonly IAppSettingsService _settingsService;
     private readonly IUiScheduler _uiScheduler;
+    private readonly IAppFeedbackService? _feedbackService;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<MiniPlayerViewModel> _logger;
     private readonly OwnedTaskRegistry _ownedTasks = new();
@@ -34,12 +38,14 @@ public sealed partial class MiniPlayerViewModel :
         IAppSettingsService settingsService,
         IUiScheduler uiScheduler,
         ILogger<MiniPlayerViewModel> logger,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IAppFeedbackService? feedbackService = null)
     {
         _playbackSession = playbackSession;
         _settingsService = settingsService;
         _uiScheduler = uiScheduler;
         _logger = logger;
+        _feedbackService = feedbackService;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _pendingLeft = settingsService.Current.MiniPlayerLeft;
         _pendingTop = settingsService.Current.MiniPlayerTop;
@@ -62,6 +68,25 @@ public sealed partial class MiniPlayerViewModel :
     public string PlaybackActionText =>
         CurrentPlaybackState == PlaybackState.Playing ? "暂停" : "播放";
 
+    public string TopmostActionText => IsTopmost ? "取消置顶" : "置顶";
+
+    public string DisplayedSegmentCounterText
+    {
+        get
+        {
+            var segmentIndex = IsSegmentProgressDragging
+                ? (int)Math.Round(SegmentProgressPreviewValue)
+                : CurrentSegmentIndex;
+            return SegmentCount > 0 && segmentIndex >= 0
+                ? $"{segmentIndex + 1} / {SegmentCount}"
+                : "尚未定位段落";
+        }
+    }
+
+    public double SegmentProgressMaximum => Math.Max(SegmentCount - 1, 0);
+
+    internal CancellationToken LifetimeCancellationToken => _lifetimeCancellation.Token;
+
     [ObservableProperty]
     private string bookTitle = "未打开书籍";
 
@@ -78,16 +103,29 @@ public sealed partial class MiniPlayerViewModel :
     private bool canGoToNextSegment;
 
     [ObservableProperty]
-    private double progressValue;
+    private double segmentProgressValue;
 
     [ObservableProperty]
-    private double progressMaximum = 1;
+    private double segmentProgressPreviewValue;
+
+    [ObservableProperty]
+    private bool isSegmentProgressDragging;
+
+    [ObservableProperty]
+    private int currentChapterIndex = -1;
+
+    [ObservableProperty]
+    private int currentSegmentIndex = -1;
+
+    [ObservableProperty]
+    private int segmentCount;
 
     [ObservableProperty]
     private bool isTopmost;
 
     partial void OnIsTopmostChanged(bool value)
     {
+        OnPropertyChanged(nameof(TopmostActionText));
         SchedulePlacementSave();
     }
 
@@ -127,6 +165,80 @@ public sealed partial class MiniPlayerViewModel :
     private void ToggleTopmost() => IsTopmost = !IsTopmost;
 
     public void RequestRestore() => RestoreRequested?.Invoke(this, EventArgs.Empty);
+
+    public void BeginSegmentProgressInteraction()
+    {
+        if (SegmentCount <= 0)
+        {
+            return;
+        }
+
+        IsSegmentProgressDragging = true;
+        SegmentProgressPreviewValue = SegmentProgressValue;
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+    }
+
+    public void PreviewSegmentProgress(double value)
+    {
+        if (!IsSegmentProgressDragging)
+        {
+            return;
+        }
+
+        SegmentProgressPreviewValue = NormalizeSegmentProgressValue(value);
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+    }
+
+    public async Task CommitSegmentProgressAsync(double value, CancellationToken cancellationToken)
+    {
+        if (SegmentCount <= 0 || CurrentChapterIndex < 0)
+        {
+            CancelSegmentProgressInteraction();
+            return;
+        }
+
+        var targetSegmentIndex = (int)Math.Round(NormalizeSegmentProgressValue(value));
+        IsSegmentProgressDragging = false;
+        SegmentProgressPreviewValue = targetSegmentIndex;
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+
+        if (targetSegmentIndex == CurrentSegmentIndex)
+        {
+            SegmentProgressValue = targetSegmentIndex;
+            return;
+        }
+
+        await _playbackSession.JumpToSegmentAsync(
+            CurrentChapterIndex,
+            targetSegmentIndex,
+            cancellationToken);
+    }
+
+    public void CancelSegmentProgressInteraction()
+    {
+        if (!IsSegmentProgressDragging)
+        {
+            return;
+        }
+
+        IsSegmentProgressDragging = false;
+        SegmentProgressPreviewValue = SegmentProgressValue;
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+    }
+
+    internal void ReportProgressOperationFailure(Exception exception)
+    {
+        if (_feedbackService is not null)
+        {
+            _feedbackService.ShowProjectedNotification("跳转段落失败", _feedbackService.Project(exception));
+            return;
+        }
+
+        _logger.LogError(
+            exception,
+            "Mini-player segment progress operation failed with {FailureType}.",
+            exception.GetType().Name);
+    }
 
     public void UpdateWindowPosition(double left, double top)
     {
@@ -194,14 +306,57 @@ public sealed partial class MiniPlayerViewModel :
         BookTitle = string.IsNullOrWhiteSpace(snapshot.BookTitle) ? "未打开书籍" : snapshot.BookTitle;
         ChapterTitle = string.IsNullOrWhiteSpace(snapshot.ChapterTitle) ? "尚未定位章节" : snapshot.ChapterTitle;
         CurrentPlaybackState = snapshot.State;
+        CurrentChapterIndex = snapshot.ChapterIndex;
+        CurrentSegmentIndex = snapshot.SegmentIndex;
+        SegmentCount = snapshot.SegmentCount;
         CanGoToPreviousSegment = !string.IsNullOrWhiteSpace(snapshot.BookId) && snapshot.SegmentIndex > 0;
         CanGoToNextSegment = !string.IsNullOrWhiteSpace(snapshot.BookId) &&
                              snapshot.SegmentIndex + 1 < snapshot.SegmentCount;
-        ProgressMaximum = Math.Max(snapshot.DurationMilliseconds, 1);
-        ProgressValue = Math.Clamp(snapshot.PositionMilliseconds, 0, (long)ProgressMaximum);
+        if (!IsSegmentProgressDragging)
+        {
+            SegmentProgressValue = NormalizeSegmentProgressValue(snapshot.SegmentIndex);
+            SegmentProgressPreviewValue = SegmentProgressValue;
+        }
         OnPropertyChanged(nameof(HasPlaybackContext));
         OnPropertyChanged(nameof(CanTogglePlayback));
         OnPropertyChanged(nameof(PlaybackActionText));
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+    }
+
+    partial void OnCurrentSegmentIndexChanged(int value)
+    {
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+        if (!IsSegmentProgressDragging)
+        {
+            SegmentProgressValue = NormalizeSegmentProgressValue(value);
+            SegmentProgressPreviewValue = SegmentProgressValue;
+        }
+    }
+
+    partial void OnSegmentCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(SegmentProgressMaximum));
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+        if (!IsSegmentProgressDragging)
+        {
+            SegmentProgressValue = NormalizeSegmentProgressValue(CurrentSegmentIndex);
+            SegmentProgressPreviewValue = SegmentProgressValue;
+        }
+    }
+
+    partial void OnIsSegmentProgressDraggingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+    }
+
+    private double NormalizeSegmentProgressValue(double value)
+    {
+        if (SegmentCount <= 0)
+        {
+            return 0d;
+        }
+
+        return Math.Clamp(Math.Round(value), 0d, SegmentProgressMaximum);
     }
 
     private void SchedulePlacementSave()

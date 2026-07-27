@@ -688,6 +688,8 @@ public sealed partial class PlayerViewTests
             Assert.Equal(slider.Value, fillBar.Value);
             Assert.True(fillBar.Value > 0);
             Assert.True(fillBar.Maximum > fillBar.Value);
+            Assert.Equal("33 / 140", slider.ToolTip);
+            Assert.NotNull(slider.GetBindingExpression(FrameworkElement.ToolTipProperty));
         });
     }
 

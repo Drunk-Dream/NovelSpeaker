@@ -8,10 +8,13 @@
         MinWidth="360"
         MinHeight="190"
         WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
         ResizeMode="CanResizeWithGrip"
         ShowInTaskbar="True"
         WindowStartupLocation="CenterScreen"
-        Topmost="{Binding IsTopmost, Mode=TwoWay}">
+        Topmost="{Binding IsTopmost, Mode=TwoWay}"
+        PreviewMouseLeftButtonDown="MiniPlayerWindow_OnPreviewMouseLeftButtonDown">
     <Border Padding="16"
             Background="{DynamicResource ApplicationBackgroundBrush}">
         <Grid>
@@ -46,9 +49,39 @@
                         Margin="8,0,0,0"
                         Style="{StaticResource SecondaryIconButtonStyle}"
                         Command="{Binding ToggleTopmostCommand}"
-                        ToolTip="置顶"
-                        AutomationProperties.Name="置顶">
-                    <ui:SymbolIcon Symbol="Pin24" />
+                        ToolTip="{Binding TopmostActionText, FallbackValue=置顶}"
+                        AutomationProperties.Name="{Binding TopmostActionText, FallbackValue=置顶}">
+                    <Border x:Name="MiniPlayerTopmostStateBorder"
+                            Width="44"
+                            Height="44"
+                            CornerRadius="{StaticResource IconButtonCornerRadius}">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsTopmost}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                        <Setter Property="BorderThickness" Value="1" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <ui:SymbolIcon Symbol="Pin24">
+                            <ui:SymbolIcon.Style>
+                                <Style TargetType="ui:SymbolIcon">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsTopmost}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:SymbolIcon.Style>
+                        </ui:SymbolIcon>
+                    </Border>
                 </Button>
                 <Button x:Name="MiniPlayerRestoreButton"
                         Grid.Column="2"
@@ -61,14 +94,32 @@
                 </Button>
             </Grid>
 
-            <Slider x:Name="MiniPlayerProgressSlider"
-                    Grid.Row="1"
-                    Margin="0,16,0,0"
-                    Minimum="0"
-                    Maximum="{Binding ProgressMaximum}"
-                    Value="{Binding ProgressValue, Mode=OneWay}"
-                    IsHitTestVisible="False"
-                    AutomationProperties.Name="播放进度" />
+            <Grid Grid.Row="1"
+                  Margin="0,16,0,0">
+                <ProgressBar x:Name="MiniPlayerProgressFillBar"
+                             VerticalAlignment="Center"
+                             IsHitTestVisible="False"
+                             Style="{StaticResource PlaybackProgressBarStyle}"
+                             Minimum="0"
+                             Maximum="{Binding SegmentProgressMaximum}"
+                             Value="{Binding SegmentProgressValue, Mode=OneWay}" />
+                <Slider x:Name="MiniPlayerProgressSlider"
+                        Style="{StaticResource PlaybackProgressSliderStyle}"
+                        Minimum="0"
+                        Maximum="{Binding SegmentProgressMaximum}"
+                        Value="{Binding SegmentProgressValue, Mode=OneWay}"
+                        IsSnapToTickEnabled="True"
+                        TickFrequency="1"
+                        ToolTip="{Binding DisplayedSegmentCounterText, FallbackValue=尚未定位段落}"
+                        ToolTipService.InitialShowDelay="0"
+                        PreviewMouseLeftButtonDown="MiniPlayerProgressSlider_OnPreviewMouseLeftButtonDown"
+                        PreviewMouseLeftButtonUp="MiniPlayerProgressSlider_OnPreviewMouseLeftButtonUp"
+                        PreviewKeyDown="MiniPlayerProgressSlider_OnPreviewKeyDown"
+                        PreviewKeyUp="MiniPlayerProgressSlider_OnPreviewKeyUp"
+                        LostMouseCapture="MiniPlayerProgressSlider_OnLostMouseCapture"
+                        ValueChanged="MiniPlayerProgressSlider_OnValueChanged"
+                        AutomationProperties.Name="播放进度" />
+            </Grid>
 
             <StackPanel Grid.Row="3"
                         Margin="0,14,0,0"
@@ -99,7 +150,18 @@
                         Command="{Binding TogglePlaybackCommand}"
                         ToolTip="{Binding PlaybackActionText}"
                         AutomationProperties.Name="{Binding PlaybackActionText}">
-                    <ui:SymbolIcon Symbol="PlayCircle24" />
+                    <ui:SymbolIcon>
+                        <ui:SymbolIcon.Style>
+                            <Style TargetType="ui:SymbolIcon">
+                                <Setter Property="Symbol" Value="PlayCircle24" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PlaybackActionText}" Value="暂停">
+                                        <Setter Property="Symbol" Value="PauseCircle24" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:SymbolIcon.Style>
+                    </ui:SymbolIcon>
                 </Button>
                 <Button x:Name="MiniPlayerNextSegmentButton"
                         Margin="0,0,8,0"
