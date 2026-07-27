@@ -78,6 +78,26 @@ public sealed class BehaviorDebtBaselineTests
     }
 
     [Fact]
+    public void Cache_export_uses_shared_folder_dialog_and_launcher_ports()
+    {
+        var viewModel = File.ReadAllText(
+            Absolute("src/NovelSpeaker.App/Features/Cache/CacheManagementViewModel.cs"));
+        var dialogPort = File.ReadAllText(
+            Absolute("src/NovelSpeaker.App/Shared/Presentation/Platform/IPresentationFileDialogService.cs"));
+        var dialogAdapter = File.ReadAllText(
+            Absolute("src/NovelSpeaker.App/Shared/Presentation/Platform/WpfPresentationFileDialogService.cs"));
+
+        Assert.Contains("IPresentationFileDialogService fileDialogs", viewModel, StringComparison.Ordinal);
+        Assert.Contains("IPresentationLauncher launcher", viewModel, StringComparison.Ordinal);
+        Assert.Contains("_fileDialogs.PickFolderAsync(", viewModel, StringComparison.Ordinal);
+        Assert.Contains("_launcher.OpenAsync(", viewModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("Microsoft.Win32", viewModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("Process.Start", viewModel, StringComparison.Ordinal);
+        Assert.Contains("PickFolderAsync(", dialogPort, StringComparison.Ordinal);
+        Assert.Contains("OpenFolderDialog", dialogAdapter, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Tts_admission_and_settings_storage_do_not_synchronously_wait_for_async_work()
     {
         var limiter = File.ReadAllText(
