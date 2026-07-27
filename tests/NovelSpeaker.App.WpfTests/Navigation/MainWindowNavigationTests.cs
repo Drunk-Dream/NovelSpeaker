@@ -1,10 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Shared.Feedback;
+using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.ActiveCache;
 using NovelSpeaker.App;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Shell.Input;
@@ -22,6 +25,63 @@ namespace NovelSpeaker.App.WpfTests.Navigation;
 [Collection("WpfDispatcher")]
 public sealed class MainWindowNavigationTests
 {
+    [Fact]
+    public async Task Active_cache_footer_entry_opens_progress_flyout_and_survives_primary_navigation()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            using var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
+            var activeCache = new NovelSpeaker.App.WpfTests.FakeActiveCacheCoordinator(CreateActiveCacheSnapshot());
+            var navigationService = new FakeNavigationService();
+            var window = CreateWindow(
+                navigationService,
+                new FakeNavigationGuardService { NextResult = true },
+                new FakeAppFeedbackService(),
+                new FakeContentDialogService(),
+                new FakeNavigationViewPageProvider(),
+                new FakeSnackbarService(),
+                serviceProvider,
+                new FakeMainWindowAppearanceConfigurator(),
+                activeCache);
+            window.Show();
+            try
+            {
+                window.UpdateLayout();
+
+                var entry = Assert.IsType<NavigationViewItem>(window.FindName("ActiveCacheNavigationItem"));
+                Assert.Equal(Visibility.Visible, entry.Visibility);
+                Assert.Equal("缓存中 · 1/3 章 · 40%", entry.Content);
+                Assert.Equal("查看主动缓存进度", entry.ToolTip);
+                Assert.Equal("缓存中 · 1/3 章 · 40%", AutomationProperties.GetName(entry));
+
+                InvokeClick(entry);
+                window.UpdateLayout();
+
+                var flyout = Assert.IsType<Popup>(window.FindName("ActiveCacheFlyout"));
+                var chapterList = Assert.IsType<ListBox>(window.FindName("ActiveCacheChapterList"));
+                var cancelButton = Assert.IsType<System.Windows.Controls.Button>(
+                    window.FindName("CancelActiveCacheButton"));
+                Assert.True(flyout.IsOpen);
+                Assert.Equal(3, chapterList.Items.Count);
+                Assert.Equal(
+                    ["已完成", "2 / 5", "等待中"],
+                    chapterList.Items.Cast<ShellActiveCacheChapterItem>().Select(item => item.StatusText));
+                Assert.Equal("取消主动缓存任务", AutomationProperties.GetName(cancelButton));
+
+                Assert.True(navigationService.Navigate(typeof(SettingsPage)));
+                await DrainDispatcherAsync(window.Dispatcher);
+
+                Assert.Equal(Visibility.Visible, entry.Visibility);
+                Assert.Equal("缓存中 · 1/3 章 · 40%", entry.Content);
+            }
+            finally
+            {
+                window.Close();
+                await DrainDispatcherAsync(window.Dispatcher);
+            }
+        });
+    }
+
     [Fact]
     public async Task Closing_window_uses_guard_and_keeps_window_open_when_navigation_is_cancelled()
     {
@@ -292,7 +352,8 @@ public sealed class MainWindowNavigationTests
         INavigationViewPageProvider pageProvider,
         ISnackbarService snackbarService,
         IServiceProvider serviceProvider,
-        IMainWindowAppearanceConfigurator appearanceConfigurator)
+        IMainWindowAppearanceConfigurator appearanceConfigurator,
+        IActiveCacheCoordinator? activeCacheCoordinator = null)
     {
         var layoutController = new ShellLayoutController();
         var platformAdapter = new WpfShellPlatformAdapter(
@@ -310,7 +371,12 @@ public sealed class MainWindowNavigationTests
             new ProcessShutdownGate());
 
         var window = new MainWindow(
-            new MainWindowViewModel(new FakePlaybackCoordinator(), navigationService),
+            new MainWindowViewModel(
+                new FakePlaybackCoordinator(),
+                new ShellActiveCacheController(
+                    activeCacheCoordinator ?? new NovelSpeaker.App.WpfTests.FakeActiveCacheCoordinator(),
+                    feedbackService),
+                navigationService),
             feedbackService,
             activationCoordinator,
             layoutController,
@@ -319,6 +385,25 @@ public sealed class MainWindowNavigationTests
         window.ConfigureShutdown(_ => Task.CompletedTask);
         return window;
     }
+
+    private static ActiveCacheSnapshot CreateActiveCacheSnapshot() =>
+        new(
+            Guid.NewGuid(),
+            "book-1",
+            "示例小说",
+            ActiveCacheBatchStatus.Running,
+            1,
+            3,
+            4,
+            10,
+            1,
+            "第二章",
+            [
+                new ActiveCacheChapterSnapshot(0, "第一章", 3, 3, ActiveCacheChapterStatus.Completed, null),
+                new ActiveCacheChapterSnapshot(1, "第二章", 2, 5, ActiveCacheChapterStatus.Running, null),
+                new ActiveCacheChapterSnapshot(2, "第三章", 0, 2, ActiveCacheChapterStatus.Pending, null)
+            ],
+            null);
 
     private static void InvokeClick(NavigationViewItem item)
     {

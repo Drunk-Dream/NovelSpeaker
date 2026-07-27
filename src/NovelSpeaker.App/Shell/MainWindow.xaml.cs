@@ -211,6 +211,19 @@ public partial class MainWindow : FluentWindow
         }
     }
 
+    private void ActiveCacheNavigationItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (_activationCoordinator.IsShutdownRequested)
+        {
+            return;
+        }
+
+        if (_viewModel.ActiveCache.ToggleFlyoutCommand.CanExecute(null))
+        {
+            _viewModel.ActiveCache.ToggleFlyoutCommand.Execute(null);
+        }
+    }
+
     private async void OnRootNavigationViewNavigating(object sender, Wpf.Ui.Controls.NavigatingCancelEventArgs e)
     {
         try
