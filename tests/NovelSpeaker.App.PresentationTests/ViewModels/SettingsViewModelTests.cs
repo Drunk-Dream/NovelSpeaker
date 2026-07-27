@@ -18,8 +18,10 @@ public sealed class SettingsViewModelTests
             group =>
             {
                 Assert.Equal("常用", group.Title);
-                Assert.Equal(["播放设置", "TTS 规则"], group.Items.Select(item => item.Title));
-                Assert.Equal([SettingsNavigationIcon.Playback, SettingsNavigationIcon.TtsRules], group.Items.Select(item => item.Icon));
+                Assert.Equal(["播放设置", "TTS 规则", "常规"], group.Items.Select(item => item.Title));
+                Assert.Equal(
+                    [SettingsNavigationIcon.Playback, SettingsNavigationIcon.TtsRules, SettingsNavigationIcon.General],
+                    group.Items.Select(item => item.Icon));
             },
             group =>
             {
@@ -30,9 +32,9 @@ public sealed class SettingsViewModelTests
             group =>
             {
                 Assert.Equal("应用", group.Title);
-                Assert.Equal(["缓存与数据", "常规", "外观", "诊断与关于"], group.Items.Select(item => item.Title));
+                Assert.Equal(["缓存与数据", "外观", "诊断与关于"], group.Items.Select(item => item.Title));
                 Assert.Equal(
-                    [SettingsNavigationIcon.CacheAndData, SettingsNavigationIcon.General, SettingsNavigationIcon.Appearance, SettingsNavigationIcon.Diagnostics],
+                    [SettingsNavigationIcon.CacheAndData, SettingsNavigationIcon.Appearance, SettingsNavigationIcon.Diagnostics],
                     group.Items.Select(item => item.Icon));
             });
     }

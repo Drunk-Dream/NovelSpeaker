@@ -18,7 +18,8 @@ public sealed partial class SettingsViewModel : ObservableObject
                 "常用",
                 [
                     new SettingsNavigationItemViewModel("播放设置", SettingsNavigationIcon.Playback, OpenPlaybackSettingsCommand),
-                    new SettingsNavigationItemViewModel("TTS 规则", SettingsNavigationIcon.TtsRules, OpenTtsRulesCommand)
+                    new SettingsNavigationItemViewModel("TTS 规则", SettingsNavigationIcon.TtsRules, OpenTtsRulesCommand),
+                    new SettingsNavigationItemViewModel("常规", SettingsNavigationIcon.General, OpenGeneralSettingsCommand)
                 ]),
             new SettingsNavigationGroupViewModel(
                 "文本处理",
@@ -30,7 +31,6 @@ public sealed partial class SettingsViewModel : ObservableObject
                 "应用",
                 [
                     new SettingsNavigationItemViewModel("缓存与数据", SettingsNavigationIcon.CacheAndData, OpenCacheAndDataCommand),
-                    new SettingsNavigationItemViewModel("常规", SettingsNavigationIcon.General, OpenGeneralSettingsCommand),
                     new SettingsNavigationItemViewModel("外观", SettingsNavigationIcon.Appearance, OpenAppearanceSettingsCommand),
                     new SettingsNavigationItemViewModel("诊断与关于", SettingsNavigationIcon.Diagnostics, OpenDiagnosticsAboutCommand)
                 ])
