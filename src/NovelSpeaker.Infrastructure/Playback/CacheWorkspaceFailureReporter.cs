@@ -4,7 +4,7 @@ using NovelSpeaker.Application.Playback.Cache;
 namespace NovelSpeaker.Infrastructure.Playback;
 
 /// <summary>
-/// Records cache estimation fallbacks using only a stable operation and exception type.
+/// Records unavailable cache-completeness results using only a stable operation and exception type.
 /// </summary>
 public sealed class CacheWorkspaceFailureReporter : ICacheWorkspaceFailureReporter
 {
@@ -15,11 +15,11 @@ public sealed class CacheWorkspaceFailureReporter : ICacheWorkspaceFailureReport
         _logger = logger;
     }
 
-    public void ReportEstimationFallback(Exception exception)
+    public void ReportCompletenessUnavailable(Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
         _logger.LogWarning(
-            "Cache chapter completeness estimate unavailable; falling back to unknown. ExceptionType={ExceptionType}",
+            "Cache chapter completeness unavailable for the current configuration. ExceptionType={ExceptionType}",
             exception.GetType().Name);
     }
 }
