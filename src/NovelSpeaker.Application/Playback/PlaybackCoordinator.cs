@@ -15,6 +15,7 @@ namespace NovelSpeaker.Application.Playback;
 public sealed class PlaybackCoordinator :
     IPlaybackSnapshotSource,
     IPlaybackSession,
+    IPlaybackStopTimer,
     IPlaybackBookCommands,
     IPlaybackRegexReplacementRefresher,
     IAsyncDisposable
@@ -28,6 +29,7 @@ public sealed class PlaybackCoordinator :
     private readonly PlaybackProgressService _progressService;
     private readonly IPlaybackPrefetchController _prefetchController;
     private readonly IAppSettingsService _appSettingsService;
+    private readonly PlaybackStopTimerController _stopTimer;
     private readonly SemaphoreSlim _mutex = new(1, 1);
     private readonly Channel<PlaybackEventCommand> _eventCommands = Channel.CreateUnbounded<PlaybackEventCommand>(
         new UnboundedChannelOptions
@@ -78,7 +80,8 @@ public sealed class PlaybackCoordinator :
         ILocalAudioPlaybackCoordinator localAudioPlaybackCoordinator,
         PlaybackProgressService progressService,
         IPlaybackPrefetchController prefetchController,
-        IAppSettingsService appSettingsService)
+        IAppSettingsService appSettingsService,
+        TimeProvider timeProvider)
     {
         _bookContentService = bookContentService;
         _selectedRuleProvider = selectedRuleProvider;
@@ -89,6 +92,10 @@ public sealed class PlaybackCoordinator :
         _progressService = progressService;
         _prefetchController = prefetchController;
         _appSettingsService = appSettingsService;
+        _stopTimer = new PlaybackStopTimerController(
+            timeProvider,
+            PauseAsync,
+            PublishStopTimerFailureSafely);
 
         _localAudioPlaybackCoordinator.SnapshotChanged += OnLocalSnapshotChanged;
         _localAudioPlaybackCoordinator.PlaybackCompleted += OnLocalPlaybackCompleted;
@@ -99,6 +106,22 @@ public sealed class PlaybackCoordinator :
     public PlaybackSnapshot CurrentSnapshot => _currentSnapshot;
 
     public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
+
+    PlaybackStopTimerSnapshot IPlaybackStopTimer.CurrentSnapshot => _stopTimer.CurrentSnapshot;
+
+    event EventHandler<PlaybackStopTimerSnapshot>? IPlaybackStopTimer.SnapshotChanged
+    {
+        add => _stopTimer.SnapshotChanged += value;
+        remove => _stopTimer.SnapshotChanged -= value;
+    }
+
+    void IPlaybackStopTimer.ScheduleAfter(TimeSpan duration) => _stopTimer.ScheduleAfter(duration);
+
+    void IPlaybackStopTimer.ScheduleAtEndOfSegment() => _stopTimer.ScheduleAtEndOfSegment();
+
+    void IPlaybackStopTimer.ScheduleAtEndOfChapter() => _stopTimer.ScheduleAtEndOfChapter();
+
+    void IPlaybackStopTimer.Cancel() => _stopTimer.Cancel();
 
     public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken)
     {
@@ -207,6 +230,7 @@ public sealed class PlaybackCoordinator :
     private async Task DisposeCoreAsync()
     {
         _disposed = true;
+        await _stopTimer.DisposeAsync().ConfigureAwait(false);
         _lifecycleCancellation.Cancel();
         _eventCommandCancellation.Cancel();
         _eventCommands.Writer.TryComplete();
@@ -501,6 +525,7 @@ public sealed class PlaybackCoordinator :
     private async Task StopCoreAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
+        _stopTimer.Cancel();
         if (_currentSession is null)
         {
             PublishSnapshot(PlaybackSnapshot.Idle);
@@ -667,6 +692,7 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
+        _stopTimer.Cancel();
         if (_currentSession is not null)
         {
             if (_currentSession.HasLoadedAudio)
@@ -951,6 +977,7 @@ public sealed class PlaybackCoordinator :
         CancellationToken cancellationToken,
         int initialConsecutiveFailureCount = 0)
     {
+        _stopTimer.Cancel();
         if (_currentSession is not null)
         {
             await SaveProgressAsync(
@@ -1454,8 +1481,33 @@ public sealed class PlaybackCoordinator :
             session.SegmentIndex,
             1,
             cancellationToken).ConfigureAwait(false);
+        var chapterEnded = next is null || next.Value.ChapterIndex != session.ChapterIndex;
+        if (next is not null && _stopTimer.TryConsumeBoundary(chapterEnded))
+        {
+            session.SetPositionForSave(snapshot.DurationMilliseconds);
+            await SaveProgressAsync(
+                session,
+                session.PositionForSave,
+                cancellationToken).ConfigureAwait(false);
+
+            await StartNewSessionAsync(
+                next.Value.Book,
+                next.Value.ChapterIndex,
+                next.Value.SegmentIndex,
+                0,
+                _currentRule,
+                session.SpeakSpeed,
+                forceInvalidate: false,
+                playImmediately: false,
+                pausedState: PlaybackState.Paused,
+                pausedMessage: "定时停止已触发。",
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         if (next is null)
         {
+            _stopTimer.TryConsumeBoundary(chapterEnded: true);
             session.SetPositionForSave(snapshot.DurationMilliseconds);
             await SaveProgressAsync(
                 session,
@@ -1585,6 +1637,26 @@ public sealed class PlaybackCoordinator :
         {
             // Snapshot subscribers are outside the event processor's ownership boundary.
             // Do not allow a subscriber failure to become an unobserved task exception.
+        }
+    }
+
+    private void PublishStopTimerFailureSafely()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            PublishSnapshot(_currentSnapshot with
+            {
+                Message = "定时停止执行失败，请重新设置。"
+            });
+        }
+        catch
+        {
+            // Snapshot subscribers are outside the timer task's ownership boundary.
         }
     }
 

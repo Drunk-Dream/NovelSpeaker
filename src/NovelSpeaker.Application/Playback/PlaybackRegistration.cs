@@ -37,10 +37,13 @@ public static class PlaybackRegistration
                 serviceProvider.GetRequiredService<ILocalAudioPlaybackCoordinator>(),
                 serviceProvider.GetRequiredService<PlaybackProgressService>(),
                 serviceProvider.GetRequiredService<IPlaybackPrefetchController>(),
-                serviceProvider.GetRequiredService<IAppSettingsService>()));
+                serviceProvider.GetRequiredService<IAppSettingsService>(),
+                serviceProvider.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton<IPlaybackSnapshotSource>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
         services.TryAddSingleton<IPlaybackSession>(serviceProvider =>
+            serviceProvider.GetRequiredService<PlaybackCoordinator>());
+        services.TryAddSingleton<IPlaybackStopTimer>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
         services.TryAddSingleton<IPlaybackBookCommands>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());

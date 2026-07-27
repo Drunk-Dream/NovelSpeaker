@@ -5,6 +5,7 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Playback;
+using NovelSpeaker.TestKit.Common;
 using NovelSpeaker.TestKit.Speech;
 using Xunit;
 
@@ -66,6 +67,191 @@ public sealed partial class PlaybackCoordinatorTests
 
         await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Stopped);
         Assert.Equal("全书播放完成。", coordinator.CurrentSnapshot.Message);
+    }
+
+    [Fact]
+    public async Task Segment_end_timer_pauses_on_the_next_segment_without_starting_it()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            book: CreateThreeSegmentBook());
+        var timer = (IPlaybackStopTimer)coordinator;
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        timer.ScheduleAtEndOfSegment();
+        localCoordinator.RaiseCompleted();
+
+        await WaitForAsync(coordinator, () =>
+            coordinator.CurrentSnapshot.SegmentIndex == 1 &&
+            coordinator.CurrentSnapshot.State == PlaybackState.Paused);
+
+        Assert.Equal("定时停止已触发。", coordinator.CurrentSnapshot.Message);
+        Assert.Equal(PlaybackStopTimerMode.None, timer.CurrentSnapshot.Mode);
+        Assert.Equal(1, localCoordinator.StartCallCount);
+    }
+
+    [Fact]
+    public async Task Chapter_end_timer_ignores_an_intermediate_segment_then_pauses_at_next_chapter()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            book: new PlaybackBookContent(
+                "book-1",
+                "示例小说",
+                [
+                    PlaybackChapterContent.FromLoaded(
+                        0,
+                        "第一章",
+                        [
+                            new SpeechSegment(0, 0, 2, "甲", "甲"),
+                            new SpeechSegment(1, 2, 2, "乙", "乙")
+                        ]),
+                    PlaybackChapterContent.FromLoaded(
+                        1,
+                        "第二章",
+                        [new SpeechSegment(0, 4, 2, "丙", "丙")])
+                ]));
+        var timer = (IPlaybackStopTimer)coordinator;
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        timer.ScheduleAtEndOfChapter();
+        localCoordinator.RaiseCompleted();
+        await WaitForAsync(coordinator, () =>
+            coordinator.CurrentSnapshot.ChapterIndex == 0 &&
+            coordinator.CurrentSnapshot.SegmentIndex == 1 &&
+            coordinator.CurrentSnapshot.State == PlaybackState.Playing);
+
+        Assert.Equal(PlaybackStopTimerMode.EndOfChapter, timer.CurrentSnapshot.Mode);
+
+        localCoordinator.RaiseCompleted();
+        await WaitForAsync(coordinator, () =>
+            coordinator.CurrentSnapshot.ChapterIndex == 1 &&
+            coordinator.CurrentSnapshot.State == PlaybackState.Paused);
+
+        Assert.Equal(PlaybackStopTimerMode.None, timer.CurrentSnapshot.Mode);
+        Assert.Equal(2, localCoordinator.StartCallCount);
+    }
+
+    [Fact]
+    public async Task Replacing_playback_session_cancels_the_timer()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        await using var coordinator = CreateCoordinator(localCoordinator);
+        var timer = (IPlaybackStopTimer)coordinator;
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        timer.ScheduleAtEndOfSegment();
+
+        await coordinator.JumpToSegmentAsync(0, 1, CancellationToken.None);
+
+        Assert.Equal(PlaybackStopTimerMode.None, timer.CurrentSnapshot.Mode);
+    }
+
+    [Fact]
+    public async Task Replacing_playback_session_prevents_old_duration_from_pausing_new_session()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            timeProvider: timeProvider);
+        var timer = (IPlaybackStopTimer)coordinator;
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        timer.ScheduleAfter(TimeSpan.FromMinutes(15));
+        await coordinator.JumpToSegmentAsync(0, 1, CancellationToken.None);
+
+        timeProvider.Advance(TimeSpan.FromHours(1));
+
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(PlaybackStopTimerMode.None, timer.CurrentSnapshot.Mode);
+    }
+
+    [Fact]
+    public async Task Duration_timer_uses_fake_time_and_only_pauses_the_current_session()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            timeProvider: timeProvider);
+        var timer = (IPlaybackStopTimer)coordinator;
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        timer.ScheduleAfter(TimeSpan.FromMinutes(30));
+
+        timeProvider.Advance(TimeSpan.FromMinutes(30));
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Paused);
+
+        Assert.Equal(1, localCoordinator.PauseCallCount);
+        Assert.Equal(0, localCoordinator.StopCallCount);
+        Assert.Equal(PlaybackStopTimerMode.None, timer.CurrentSnapshot.Mode);
+    }
+
+    [Theory]
+    [InlineData(PlaybackStopTimerMode.EndOfSegment)]
+    [InlineData(PlaybackStopTimerMode.EndOfChapter)]
+    public async Task Final_book_boundary_timer_uses_natural_completion_and_can_start_again(
+        PlaybackStopTimerMode mode)
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            book: CreateTwoChapterBook());
+        var timer = (IPlaybackStopTimer)coordinator;
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", 1, 0, null, 10), CancellationToken.None);
+        if (mode == PlaybackStopTimerMode.EndOfSegment)
+        {
+            timer.ScheduleAtEndOfSegment();
+        }
+        else
+        {
+            timer.ScheduleAtEndOfChapter();
+        }
+
+        localCoordinator.RaiseCompleted();
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Stopped);
+
+        Assert.Equal("全书播放完成。", coordinator.CurrentSnapshot.Message);
+        Assert.Equal(PlaybackStopTimerMode.None, timer.CurrentSnapshot.Mode);
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", 0, 0, null, 10), CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(2, localCoordinator.StartCallCount);
+    }
+
+    [Fact]
+    public async Task Duration_pause_failure_publishes_only_safe_timer_message()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var progressStore = new FakeReadingProgressStore
+        {
+            SaveFailure = new InvalidOperationException("private-progress-detail")
+        };
+        var coordinator = CreateCoordinator(
+            localCoordinator,
+            readingProgressStore: progressStore,
+            timeProvider: timeProvider);
+        var timer = (IPlaybackStopTimer)coordinator;
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        timer.ScheduleAfter(TimeSpan.FromMinutes(15));
+        timeProvider.Advance(TimeSpan.FromMinutes(15));
+
+        await WaitForAsync(
+            coordinator,
+            () => coordinator.CurrentSnapshot.Message == "定时停止执行失败，请重新设置。");
+
+        Assert.DoesNotContain("private-progress-detail", coordinator.CurrentSnapshot.Message, StringComparison.Ordinal);
+
+        progressStore.SaveFailure = null;
+        await coordinator.DisposeAsync();
     }
 
     [Theory]
