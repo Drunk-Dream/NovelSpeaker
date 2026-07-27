@@ -1,5 +1,6 @@
 using System.Collections.Specialized;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.ActiveCache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
@@ -26,10 +27,12 @@ public sealed partial class PlayerViewModelTests
         FakeAppFeedbackService? feedbackService = null,
         FakePlayerAutoScrollCoordinator? autoScrollCoordinator = null,
         FakeAppSettingsService? settingsService = null,
+        FakeActiveCacheCoordinator? activeCacheCoordinator = null,
         TimeProvider? timeProvider = null)
     {
         return new PlayerViewModel(
             coordinator,
+            activeCacheCoordinator ?? new FakeActiveCacheCoordinator(),
             contentService,
             ruleService ?? new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
             settingsService ?? new FakeAppSettingsService(AppSettings.Default),
@@ -37,6 +40,71 @@ public sealed partial class PlayerViewModelTests
             navigationService ?? new FakeNavigationService(),
             autoScrollCoordinator ?? new FakePlayerAutoScrollCoordinator(),
             timeProvider ?? TimeProvider.System);
+    }
+
+    private sealed class FakeActiveCacheCoordinator : IActiveCacheCoordinator
+    {
+        private EventHandler<ActiveCacheSnapshot>? _snapshotChanged;
+
+        public ActiveCacheSnapshot? CurrentSnapshot { get; private set; }
+
+        public StartActiveCacheRequest? LastRequest { get; private set; }
+
+        public int CancelCallCount { get; private set; }
+
+        public int SubscriberCount => _snapshotChanged?.GetInvocationList().Length ?? 0;
+
+        public event EventHandler<ActiveCacheSnapshot>? SnapshotChanged
+        {
+            add => _snapshotChanged += value;
+            remove => _snapshotChanged -= value;
+        }
+
+        public Task<ActiveCacheStartResult> StartAsync(
+            StartActiveCacheRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            LastRequest = request;
+            var snapshot = new ActiveCacheSnapshot(
+                Guid.NewGuid(),
+                request.BookId,
+                "示例小说",
+                ActiveCacheBatchStatus.Running,
+                0,
+                request.ChapterIndices.Count,
+                0,
+                request.ChapterIndices.Count,
+                request.ChapterIndices[0],
+                "章节",
+                request.ChapterIndices.Select(index => new ActiveCacheChapterSnapshot(
+                    index,
+                    $"第 {index + 1} 章",
+                    0,
+                    1,
+                    ActiveCacheChapterStatus.Pending,
+                    null)).ToArray(),
+                null);
+            Publish(snapshot);
+            return Task.FromResult(new ActiveCacheStartResult(
+                ActiveCacheStartStatus.Accepted,
+                snapshot.BatchId,
+                null));
+        }
+
+        public Task CancelAsync(CancellationToken cancellationToken)
+        {
+            CancelCallCount++;
+            return Task.CompletedTask;
+        }
+
+        public Task WaitForCurrentBatchAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public void Publish(ActiveCacheSnapshot snapshot)
+        {
+            CurrentSnapshot = snapshot;
+            _snapshotChanged?.Invoke(this, snapshot);
+        }
     }
 
     private sealed class FakePlaybackCoordinator : IPlaybackSession

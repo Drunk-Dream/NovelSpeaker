@@ -16,4 +16,7 @@ public sealed partial class PlayerChapterItemViewModel : ObservableObject
 
     [ObservableProperty]
     private bool isCurrent;
+
+    [ObservableProperty]
+    private bool isSelectedForActiveCache;
 }
