@@ -106,6 +106,25 @@ public sealed class AppSettingsServiceTests
     }
 
     [Fact]
+    public async Task UpdateAsync_persists_desktop_lifecycle_preferences()
+    {
+        var store = new FakeAppSettingsStore(AppSettings.Default);
+        var service = new AppSettingsService(store, store.CurrentSettings);
+
+        var settings = await service.UpdateAsync(
+            new AppSettingsUpdate
+            {
+                MainWindowCloseBehavior = MainWindowCloseBehavior.AskEveryTime,
+                StartMinimizedToTray = true
+            },
+            CancellationToken.None);
+
+        Assert.Equal(MainWindowCloseBehavior.AskEveryTime, settings.MainWindowCloseBehavior);
+        Assert.True(settings.StartMinimizedToTray);
+        Assert.Equal(settings, store.CurrentSettings);
+    }
+
+    [Fact]
     public async Task UpdateAsync_keeps_latest_value_for_same_field()
     {
         var firstSaveGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

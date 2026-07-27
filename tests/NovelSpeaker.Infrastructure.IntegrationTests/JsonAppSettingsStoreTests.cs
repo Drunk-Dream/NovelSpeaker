@@ -83,6 +83,27 @@ public sealed class JsonAppSettingsStoreTests
     }
 
     [Fact]
+    public async Task SaveAsync_persists_desktop_lifecycle_preferences()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var directories = new LocalAppDataDirectoryProvider(temporaryDirectory.Path);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new JsonAppSettingsStore(directories);
+
+        await store.SaveAsync(
+            AppSettings.Default with
+            {
+                MainWindowCloseBehavior = MainWindowCloseBehavior.ExitApplication,
+                StartMinimizedToTray = true
+            },
+            CancellationToken.None);
+        var reloaded = await store.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(MainWindowCloseBehavior.ExitApplication, reloaded.MainWindowCloseBehavior);
+        Assert.True(reloaded.StartMinimizedToTray);
+    }
+
+    [Fact]
     public async Task SaveAsync_persists_custom_file_name_template()
     {
         using var temporaryDirectory = new TemporaryDirectory();
