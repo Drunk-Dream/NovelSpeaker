@@ -262,8 +262,6 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
                 PlaybackAudioResult result;
                 do
                 {
-                    // CACHE-402 will add the dedicated ActiveCache admission mapping. Until then,
-                    // playback preemption is retried without changing the frozen batch inputs.
                     result = await _audioProvider.GetAudioAsync(
                         new PlaybackAudioRequest(
                             batch.BookId,
@@ -275,7 +273,7 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
                             batch.Rule.NormalizedRule,
                             batch.SpeakSpeed,
                             batch.BatchId),
-                        PlaybackAudioPriority.Prefetch,
+                        PlaybackAudioPriority.ActiveCache,
                         null,
                         cancellationToken).ConfigureAwait(false);
 
