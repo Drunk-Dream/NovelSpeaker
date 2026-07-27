@@ -166,6 +166,7 @@ public sealed class CachePagesViewTests
                     VirtualizationMode.Recycling,
                     VirtualizingPanel.GetVirtualizationMode(chaptersListBox));
                 Assert.True(ScrollViewer.GetCanContentScroll(chaptersListBox));
+                Assert.Equal(ScrollUnit.Pixel, VirtualizingPanel.GetScrollUnit(chaptersListBox));
                 Assert.True(
                     VisualTreeTestHelper.FindDescendants<ListBoxItem>(chaptersListBox).Count() < chapters.Length,
                     "章节列表应只创建可见项容器。");

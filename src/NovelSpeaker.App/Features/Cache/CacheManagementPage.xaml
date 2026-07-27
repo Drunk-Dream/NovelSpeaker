@@ -286,6 +286,7 @@
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  VirtualizingPanel.IsVirtualizing="True"
                                  VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                                 VirtualizingPanel.ScrollUnit="Pixel"
                                  VirtualizingPanel.VirtualizationMode="Recycling"
                                  ItemsSource="{Binding Chapters}"
                                  SelectionMode="Extended">
