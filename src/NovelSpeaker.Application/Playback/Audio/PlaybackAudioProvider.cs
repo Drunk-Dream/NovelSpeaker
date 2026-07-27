@@ -19,7 +19,7 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
     private readonly ITtsRateLimiter _rateLimiter;
     private readonly IPlaybackAudioFailureReporter? _failureReporter;
     private readonly ConcurrentDictionary<AudioCacheKey, InFlightOperation> _inFlight = new();
-    private readonly ConcurrentDictionary<long, RuleExecutionSlot> _ruleSlots = new();
+    private readonly ConcurrentDictionary<long, RuleExecutionState> _ruleExecutions = new();
 
     public PlaybackAudioProvider(
         ITtsRequestCompiler requestCompiler,
@@ -75,10 +75,7 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
                 return await existing.WaitAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            if (priority == PlaybackAudioPriority.Current)
-            {
-                TryPreemptPrefetch(request.RuleId, cacheKey);
-            }
+            TryPreemptLowerPriority(request.RuleId, cacheKey, priority);
 
             var operation = new InFlightOperation(request.RuleId, cacheKey, priority, cancellationToken);
             operation.RegisterListener(progressCallback);
@@ -100,18 +97,21 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
         return _audioCache.InvalidateAsync(request.ToCacheKey(), cancellationToken);
     }
 
-    private void TryPreemptPrefetch(long ruleId, AudioCacheKey requestedKey)
+    private void TryPreemptLowerPriority(
+        long ruleId,
+        AudioCacheKey requestedKey,
+        PlaybackAudioPriority requestedPriority)
     {
-        var slot = _ruleSlots.GetOrAdd(ruleId, static _ => new RuleExecutionSlot());
+        var executionState = _ruleExecutions.GetOrAdd(ruleId, static _ => new RuleExecutionState());
         InFlightOperation? operationToCancel = null;
 
-        lock (slot.SyncRoot)
+        lock (executionState.SyncRoot)
         {
-            if (slot.CurrentOperation is not null &&
-                slot.CurrentOperation.Priority == PlaybackAudioPriority.Prefetch &&
-                !Equals(slot.CurrentOperation.CacheKey, requestedKey))
+            if (executionState.CurrentOperation is not null &&
+                executionState.CurrentOperation.Priority < requestedPriority &&
+                !Equals(executionState.CurrentOperation.CacheKey, requestedKey))
             {
-                operationToCancel = slot.CurrentOperation;
+                operationToCancel = executionState.CurrentOperation;
             }
         }
 
@@ -123,21 +123,9 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
         AudioCacheKey cacheKey,
         InFlightOperation operation)
     {
-        var slot = _ruleSlots.GetOrAdd(request.RuleId, static _ => new RuleExecutionSlot());
-
-        try
-        {
-            await slot.Gate.WaitAsync(operation.ExecutionToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            return CreateCancelledResult();
-        }
-
-        lock (slot.SyncRoot)
-        {
-            slot.CurrentOperation = operation;
-        }
+        var executionState = _ruleExecutions.GetOrAdd(
+            request.RuleId,
+            static _ => new RuleExecutionState());
 
         try
         {
@@ -171,14 +159,13 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
 
             while (true)
             {
+                ITtsAdmissionLease admission;
                 try
                 {
-                    await _rateLimiter.WaitAsync(
+                    admission = await _rateLimiter.AcquireAsync(
                         request.RuleId,
                         request.NormalizedRule.ConcurrentRate,
-                        operation.Priority == PlaybackAudioPriority.Current
-                            ? TtsAdmissionPriority.CurrentPlayback
-                            : TtsAdmissionPriority.Prefetch,
+                        MapAdmissionPriority(operation.Priority),
                         operation.ExecutionToken).ConfigureAwait(false);
                 }
                 catch (FormatException exception)
@@ -191,49 +178,73 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
                     return CreateCancelledResult();
                 }
 
-                TtsHttpExecutionResult execution;
-                try
+                await using (admission.ConfigureAwait(false))
                 {
-                    execution = await _httpTtsClient.ExecuteAsync(compilation.Request!, operation.ExecutionToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    return CreateCancelledResult();
-                }
-
-                if (execution.IsSuccess)
-                {
-                    var audio = execution.Audio!;
-                    await using (audio.ConfigureAwait(false))
+                    lock (executionState.SyncRoot)
                     {
-                        var stored = await _audioCache.StoreAsync(
-                            new AudioCacheWriteRequest(
-                                cacheKey,
-                                request.BookId,
-                                request.ChapterIndex,
-                                request.SegmentIndex,
-                                request.RuleId,
-                                audio.FilePath,
-                                audio.ResponseContentType),
-                            operation.ExecutionToken).ConfigureAwait(false);
-                        return new PlaybackAudioResult(stored.FilePath, false, null);
+                        executionState.CurrentOperation = operation;
+                    }
+
+                    try
+                    {
+                        TtsHttpExecutionResult execution;
+                        try
+                        {
+                            execution = await _httpTtsClient
+                                .ExecuteAsync(compilation.Request!, operation.ExecutionToken)
+                                .ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            return CreateCancelledResult();
+                        }
+
+                        if (execution.IsSuccess)
+                        {
+                            var audio = execution.Audio!;
+                            await using (audio.ConfigureAwait(false))
+                            {
+                                var stored = await _audioCache.StoreAsync(
+                                    new AudioCacheWriteRequest(
+                                        cacheKey,
+                                        request.BookId,
+                                        request.ChapterIndex,
+                                        request.SegmentIndex,
+                                        request.RuleId,
+                                        audio.FilePath,
+                                        audio.ResponseContentType),
+                                    operation.ExecutionToken).ConfigureAwait(false);
+                                return new PlaybackAudioResult(stored.FilePath, false, null);
+                            }
+                        }
+
+                        var failure = execution.Failure!;
+                        if (failure.Kind == TtsErrorKind.RateLimited &&
+                            failure.RetryAfter is { } retryAfter)
+                        {
+                            _rateLimiter.ApplyRetryAfter(request.RuleId, retryAfter);
+                            if (operation.Priority == PlaybackAudioPriority.Current)
+                            {
+                                operation.ReportProgress(new PlaybackAudioProgress(
+                                    BuildRateLimitedMessage(retryAfter),
+                                    retryAfter));
+                                continue;
+                            }
+                        }
+
+                        return new PlaybackAudioResult(null, false, failure);
+                    }
+                    finally
+                    {
+                        lock (executionState.SyncRoot)
+                        {
+                            if (ReferenceEquals(executionState.CurrentOperation, operation))
+                            {
+                                executionState.CurrentOperation = null;
+                            }
+                        }
                     }
                 }
-
-                var failure = execution.Failure!;
-                if (failure.Kind == TtsErrorKind.RateLimited && failure.RetryAfter is { } retryAfter)
-                {
-                    _rateLimiter.ApplyRetryAfter(request.RuleId, retryAfter);
-                    if (operation.Priority == PlaybackAudioPriority.Current)
-                    {
-                        operation.ReportProgress(new PlaybackAudioProgress(
-                            BuildRateLimitedMessage(retryAfter),
-                            retryAfter));
-                        continue;
-                    }
-                }
-
-                return new PlaybackAudioResult(null, false, failure);
             }
         }
         catch (OperationCanceledException)
@@ -245,19 +256,16 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
             LogFailure(request, exception, "Playback audio generation");
             return CreateUnexpectedFailureResult();
         }
-        finally
-        {
-            lock (slot.SyncRoot)
-            {
-                if (ReferenceEquals(slot.CurrentOperation, operation))
-                {
-                    slot.CurrentOperation = null;
-                }
-            }
-
-            slot.Gate.Release();
-        }
     }
+
+    private static TtsAdmissionPriority MapAdmissionPriority(PlaybackAudioPriority priority) =>
+        priority switch
+        {
+            PlaybackAudioPriority.Current => TtsAdmissionPriority.CurrentPlayback,
+            PlaybackAudioPriority.Prefetch => TtsAdmissionPriority.Prefetch,
+            PlaybackAudioPriority.ActiveCache => TtsAdmissionPriority.ActiveCache,
+            _ => throw new ArgumentOutOfRangeException(nameof(priority), priority, null)
+        };
 
     private void LogFailure(PlaybackAudioRequest request, Exception exception, string operation)
     {
@@ -301,11 +309,9 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
                 null));
     }
 
-    private sealed class RuleExecutionSlot
+    private sealed class RuleExecutionState
     {
         public object SyncRoot { get; } = new();
-
-        public SemaphoreSlim Gate { get; } = new(1, 1);
 
         public InFlightOperation? CurrentOperation { get; set; }
     }
