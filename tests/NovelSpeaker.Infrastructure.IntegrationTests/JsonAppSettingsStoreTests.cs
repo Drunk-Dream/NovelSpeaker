@@ -94,13 +94,19 @@ public sealed class JsonAppSettingsStoreTests
             AppSettings.Default with
             {
                 MainWindowCloseBehavior = MainWindowCloseBehavior.ExitApplication,
-                StartMinimizedToTray = true
+                StartMinimizedToTray = true,
+                MiniPlayerLeft = 123.5,
+                MiniPlayerTop = 456.25,
+                MiniPlayerTopmost = true
             },
             CancellationToken.None);
         var reloaded = await store.LoadAsync(CancellationToken.None);
 
         Assert.Equal(MainWindowCloseBehavior.ExitApplication, reloaded.MainWindowCloseBehavior);
         Assert.True(reloaded.StartMinimizedToTray);
+        Assert.Equal(123.5, reloaded.MiniPlayerLeft);
+        Assert.Equal(456.25, reloaded.MiniPlayerTop);
+        Assert.True(reloaded.MiniPlayerTopmost);
     }
 
     [Fact]

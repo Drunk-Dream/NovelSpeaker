@@ -30,4 +30,14 @@ public sealed record AppSettingsUpdate
     public MainWindowCloseBehavior? MainWindowCloseBehavior { get; init; }
 
     public bool? StartMinimizedToTray { get; init; }
+
+    public double? MiniPlayerLeft { get; init; }
+
+    public bool ClearMiniPlayerLeft { get; init; }
+
+    public double? MiniPlayerTop { get; init; }
+
+    public bool ClearMiniPlayerTop { get; init; }
+
+    public bool? MiniPlayerTopmost { get; init; }
 }

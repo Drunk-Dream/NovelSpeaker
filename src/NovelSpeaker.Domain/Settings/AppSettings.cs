@@ -16,7 +16,10 @@ public sealed record AppSettings(
     long CacheLimitBytes = 2L * 1024 * 1024 * 1024,
     long? SelectedTtsRuleId = null,
     MainWindowCloseBehavior MainWindowCloseBehavior = MainWindowCloseBehavior.MinimizeToTray,
-    bool StartMinimizedToTray = false)
+    bool StartMinimizedToTray = false,
+    double? MiniPlayerLeft = null,
+    double? MiniPlayerTop = null,
+    bool MiniPlayerTopmost = false)
 {
     public const int MinSpeakSpeed = 1;
     public const int MaxSpeakSpeed = 20;
@@ -46,6 +49,9 @@ public sealed record AppSettings(
             DefaultCacheLimitBytes,
             null,
             MainWindowCloseBehavior.MinimizeToTray,
+            false,
+            null,
+            null,
             false);
 
     public TextSegmentationOptions ToTextSegmentationOptions()
@@ -87,7 +93,9 @@ public sealed record AppSettings(
             CacheLimitBytes = NormalizeCacheLimitBytes(CacheLimitBytes),
             MainWindowCloseBehavior = Enum.IsDefined(MainWindowCloseBehavior)
                 ? MainWindowCloseBehavior
-                : MainWindowCloseBehavior.MinimizeToTray
+                : MainWindowCloseBehavior.MinimizeToTray,
+            MiniPlayerLeft = NormalizeCoordinate(MiniPlayerLeft),
+            MiniPlayerTop = NormalizeCoordinate(MiniPlayerTop)
         };
     }
 
@@ -128,4 +136,9 @@ public sealed record AppSettings(
 
         return defaultValue;
     }
+
+    private static double? NormalizeCoordinate(double? value) =>
+        value is { } coordinate && double.IsFinite(coordinate)
+            ? coordinate
+            : null;
 }

@@ -115,12 +115,18 @@ public sealed class AppSettingsServiceTests
             new AppSettingsUpdate
             {
                 MainWindowCloseBehavior = MainWindowCloseBehavior.AskEveryTime,
-                StartMinimizedToTray = true
+                StartMinimizedToTray = true,
+                MiniPlayerLeft = 120,
+                MiniPlayerTop = 240,
+                MiniPlayerTopmost = true
             },
             CancellationToken.None);
 
         Assert.Equal(MainWindowCloseBehavior.AskEveryTime, settings.MainWindowCloseBehavior);
         Assert.True(settings.StartMinimizedToTray);
+        Assert.Equal(120, settings.MiniPlayerLeft);
+        Assert.Equal(240, settings.MiniPlayerTop);
+        Assert.True(settings.MiniPlayerTopmost);
         Assert.Equal(settings, store.CurrentSettings);
     }
 
