@@ -1,7 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.App;
 using NovelSpeaker.Infrastructure.DependencyInjection;
+using NovelSpeaker.Infrastructure.FileSystem;
 using System.Reflection;
 using System.Windows.Threading;
 using Xunit;
@@ -55,6 +58,46 @@ internal static class WpfTestHost
 
     public static ServiceProvider BuildServiceProvider(bool validate = false)
     {
+        var services = CreateServices();
+        return validate
+            ? WpfStartupRuntime.BuildValidatedServiceProvider(services)
+            : services.BuildServiceProvider();
+    }
+
+    public static async Task<ServiceProvider> BuildInitializedServiceProviderAsync(bool validate = false)
+    {
+        var isolatedDataDirectory = new IsolatedTestDataDirectory();
+        var services = CreateServices();
+        services.RemoveAll<IAppDataDirectoryProvider>();
+        services.AddSingleton(isolatedDataDirectory);
+        services.AddSingleton<IAppDataDirectoryProvider>(
+            new LocalAppDataDirectoryProvider(isolatedDataDirectory.Path));
+
+        var provider = validate
+            ? WpfStartupRuntime.BuildValidatedServiceProvider(services)
+            : services.BuildServiceProvider();
+
+        try
+        {
+            await provider
+                .GetRequiredService<IDatabaseInitializer>()
+                .InitializeAsync(CancellationToken.None);
+            return provider;
+        }
+        catch
+        {
+            await provider.DisposeAsync();
+            throw;
+        }
+    }
+
+    public static void EnsureApplicationResources()
+    {
+        _ = SharedDispatcher.Value;
+    }
+
+    private static ServiceCollection CreateServices()
+    {
         EnsureApplicationResources();
 
         var services = new ServiceCollection();
@@ -62,14 +105,7 @@ internal static class WpfTestHost
         services.AddNovelSpeakerApplication();
         services.AddNovelSpeakerInfrastructure();
         services.AddNovelSpeakerDesktop();
-        return validate
-            ? WpfStartupRuntime.BuildValidatedServiceProvider(services)
-            : services.BuildServiceProvider();
-    }
-
-    public static void EnsureApplicationResources()
-    {
-        _ = SharedDispatcher.Value;
+        return services;
     }
 
     private static Dispatcher CreateDispatcher()
@@ -120,5 +156,26 @@ internal static class WpfTestHost
         }
 
         return dispatcher!;
+    }
+
+    private sealed class IsolatedTestDataDirectory : IDisposable
+    {
+        public IsolatedTestDataDirectory()
+        {
+            Path = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(),
+                "NovelSpeakerWpfTests",
+                Guid.NewGuid().ToString("N"));
+        }
+
+        public string Path { get; }
+
+        public void Dispose()
+        {
+            if (System.IO.Directory.Exists(Path))
+            {
+                System.IO.Directory.Delete(Path, recursive: true);
+            }
+        }
     }
 }

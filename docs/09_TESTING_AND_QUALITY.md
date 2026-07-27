@@ -35,6 +35,7 @@
 ### `NovelSpeaker.App.WpfTests`
 
 - 必须依赖 WPF visual tree、STA、资源字典或窗口行为的少量测试。
+- 需要数据库的 WPF 测试使用隔离临时数据目录，并显式完成 schema 初始化，不依赖开发机本地数据或测试顺序。
 
 ## 3. 测试清理准则
 
