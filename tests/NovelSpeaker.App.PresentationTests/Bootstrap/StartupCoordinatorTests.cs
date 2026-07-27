@@ -183,7 +183,7 @@ public sealed class StartupCoordinatorTests
         await coordinator.ShutdownAsync();
 
         Assert.Equal(
-            ["gate", "media-controls", "playback", "background", "flush", "dispose"],
+            ["gate", "desktop", "media-controls", "playback", "background", "flush", "dispose"],
             runtime.ShutdownSteps);
         Assert.True(runtime.ProcessCancelledBeforeBackgroundWait);
     }
@@ -201,7 +201,7 @@ public sealed class StartupCoordinatorTests
         await coordinator.ShutdownAsync();
 
         Assert.Equal(
-            ["gate", "media-controls", "playback", "background", "flush", "dispose"],
+            ["gate", "desktop", "media-controls", "playback", "background", "flush", "dispose"],
             runtime.ShutdownSteps);
         Assert.Contains(
             runtime.RecordedFailures,
@@ -221,7 +221,7 @@ public sealed class StartupCoordinatorTests
         await coordinator.ShutdownAsync();
 
         Assert.Equal(
-            ["gate", "media-controls", "playback", "background", "flush", "dispose"],
+            ["gate", "desktop", "media-controls", "playback", "background", "flush", "dispose"],
             runtime.ShutdownSteps);
         Assert.Contains(
             runtime.RecordedFailures,
@@ -419,6 +419,13 @@ public sealed class StartupCoordinatorTests
                 throw MediaControlShutdownFailure;
             }
 
+            return Task.CompletedTask;
+        }
+
+        public Task StopDesktopLifecycleAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ShutdownSteps.Add("desktop");
             return Task.CompletedTask;
         }
 

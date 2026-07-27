@@ -83,23 +83,34 @@ public sealed class MainWindowNavigationTests
     }
 
     [Fact]
-    public async Task Closing_window_uses_guard_and_keeps_window_open_when_navigation_is_cancelled()
+    public async Task Closing_window_delegates_to_desktop_lifecycle_and_remains_open_when_exit_is_not_approved()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
             var guard = new FakeNavigationGuardService { NextResult = false };
             var feedback = new FakeAppFeedbackService();
-            var window = CreateWindow(guard, feedback);
+            var requestCount = 0;
+            var exitApproved = false;
+            var window = CreateWindow(
+                guard,
+                feedback,
+                _ =>
+                {
+                    requestCount++;
+                    return Task.CompletedTask;
+                },
+                () => exitApproved);
             window.Show();
 
             window.Close();
             await DrainDispatcherAsync(window.Dispatcher);
 
             Assert.True(window.IsVisible);
-            Assert.Equal(1, guard.ConfirmationCount);
+            Assert.Equal(1, requestCount);
+            Assert.Equal(0, guard.ConfirmationCount);
             Assert.Null(feedback.LastProjectedTitle);
 
-            guard.NextResult = true;
+            exitApproved = true;
             window.Close();
             await DrainDispatcherAsync(window.Dispatcher);
         });
@@ -111,40 +122,18 @@ public sealed class MainWindowNavigationTests
         await WpfTestHost.RunInStaAsync(async () =>
         {
             var guard = new FakeNavigationGuardService { NextResult = true };
-            var window = CreateWindow(guard, new FakeAppFeedbackService());
+            var window = CreateWindow(
+                guard,
+                new FakeAppFeedbackService(),
+                _ => throw new InvalidOperationException("Exit callback must not run after approval."),
+                () => true);
             window.Show();
 
             window.Close();
             await DrainDispatcherAsync(window.Dispatcher);
 
             Assert.False(window.IsVisible);
-            Assert.Equal(1, guard.ConfirmationCount);
-        });
-    }
-
-    [Fact]
-    public async Task Repeated_close_requests_share_one_pending_confirmation()
-    {
-        await WpfTestHost.RunInStaAsync(async () =>
-        {
-            var confirmation = new TaskCompletionSource<bool>();
-            var guard = new FakeNavigationGuardService { PendingConfirmation = confirmation.Task };
-            var window = CreateWindow(guard, new FakeAppFeedbackService());
-            window.Show();
-
-            window.Close();
-            window.Close();
-
-            Assert.True(window.IsVisible);
-            Assert.Equal(1, guard.ConfirmationCount);
-
-            confirmation.SetResult(false);
-            await DrainDispatcherAsync(window.Dispatcher);
-
-            guard.PendingConfirmation = null;
-            guard.NextResult = true;
-            window.Close();
-            await DrainDispatcherAsync(window.Dispatcher);
+            Assert.Equal(0, guard.ConfirmationCount);
         });
     }
 
@@ -153,9 +142,14 @@ public sealed class MainWindowNavigationTests
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
-            var guard = new FakeNavigationGuardService { Exception = new InvalidOperationException("sensitive detail") };
+            var guard = new FakeNavigationGuardService();
             var feedback = new FakeAppFeedbackService();
-            var window = CreateWindow(guard, feedback);
+            var exitApproved = false;
+            var window = CreateWindow(
+                guard,
+                feedback,
+                _ => throw new InvalidOperationException("sensitive detail"),
+                () => exitApproved);
             window.Show();
 
             window.Close();
@@ -164,8 +158,7 @@ public sealed class MainWindowNavigationTests
             Assert.True(window.IsVisible);
             Assert.Equal("关闭应用失败", feedback.LastProjectedTitle);
 
-            guard.Exception = null;
-            guard.NextResult = true;
+            exitApproved = true;
             window.Close();
             await DrainDispatcherAsync(window.Dispatcher);
         });
@@ -329,7 +322,9 @@ public sealed class MainWindowNavigationTests
 
     private static MainWindow CreateWindow(
         INavigationGuardService navigationGuardService,
-        IAppFeedbackService feedbackService)
+        IAppFeedbackService feedbackService,
+        Func<CancellationToken, Task>? requestCloseAsync = null,
+        Func<bool>? isExitApproved = null)
     {
         var navigationService = new FakeNavigationService();
         var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
@@ -341,7 +336,9 @@ public sealed class MainWindowNavigationTests
             new FakeNavigationViewPageProvider(),
             new FakeSnackbarService(),
             serviceProvider,
-            new FakeMainWindowAppearanceConfigurator());
+            new FakeMainWindowAppearanceConfigurator(),
+            requestCloseAsync: requestCloseAsync,
+            isExitApproved: isExitApproved);
     }
 
     private static MainWindow CreateWindow(
@@ -353,7 +350,9 @@ public sealed class MainWindowNavigationTests
         ISnackbarService snackbarService,
         IServiceProvider serviceProvider,
         IMainWindowAppearanceConfigurator appearanceConfigurator,
-        IActiveCacheCoordinator? activeCacheCoordinator = null)
+        IActiveCacheCoordinator? activeCacheCoordinator = null,
+        Func<CancellationToken, Task>? requestCloseAsync = null,
+        Func<bool>? isExitApproved = null)
     {
         var layoutController = new ShellLayoutController();
         var platformAdapter = new WpfShellPlatformAdapter(
@@ -364,7 +363,6 @@ public sealed class MainWindowNavigationTests
             serviceProvider,
             snackbarService);
         var activationCoordinator = new ShellActivationCoordinator(
-            navigationGuardService,
             layoutController,
             navigationService,
             platformAdapter,
@@ -382,7 +380,9 @@ public sealed class MainWindowNavigationTests
             layoutController,
             new FakeKeyboardShortcutCoordinator(),
             new WpfShortcutContextResolver());
-        window.ConfigureShutdown(_ => Task.CompletedTask);
+        window.ConfigureDesktopLifecycle(
+            requestCloseAsync ?? (_ => Task.CompletedTask),
+            isExitApproved ?? (() => false));
         return window;
     }
 

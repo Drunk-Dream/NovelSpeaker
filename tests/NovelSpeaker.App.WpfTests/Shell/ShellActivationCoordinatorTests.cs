@@ -19,10 +19,7 @@ public sealed class ShellActivationCoordinatorTests
         {
             var navigation = new RecordingNavigationAdapter();
             var platform = new RecordingPlatformAdapter();
-            using var coordinator = CreateCoordinator(
-                new RecordingGuardService(),
-                navigation,
-                platform);
+            using var coordinator = CreateCoordinator(navigation, platform);
             var host = CreateHost();
 
             coordinator.ActivateAsync(host, 1280).GetAwaiter().GetResult();
@@ -46,10 +43,7 @@ public sealed class ShellActivationCoordinatorTests
             {
                 RouteAfterSynchronization = AppRouteId.Player
             };
-            using var coordinator = CreateCoordinator(
-                new RecordingGuardService(),
-                navigation,
-                new RecordingPlatformAdapter());
+            using var coordinator = CreateCoordinator(navigation, new RecordingPlatformAdapter());
 
             coordinator.HandleNavigated(EventArgs.Empty);
 
@@ -62,10 +56,7 @@ public sealed class ShellActivationCoordinatorTests
     public async Task Shell_navigation_request_is_cancelled_and_forwarded_unless_adapter_is_bypassing()
     {
         var navigation = new RecordingNavigationAdapter();
-        using var coordinator = CreateCoordinator(
-            new RecordingGuardService(),
-            navigation,
-            new RecordingPlatformAdapter());
+        using var coordinator = CreateCoordinator(navigation, new RecordingPlatformAdapter());
         var eventArgs = CreateNavigatingEventArgs();
         using var cancellation = new CancellationTokenSource();
 
@@ -99,11 +90,7 @@ public sealed class ShellActivationCoordinatorTests
                 NavigationResult = navigationCompletion.Task
             };
             var layout = new RecordingLayoutController();
-            var coordinator = CreateCoordinator(
-                new RecordingGuardService(),
-                navigation,
-                new RecordingPlatformAdapter(),
-                layout);
+            var coordinator = CreateCoordinator(navigation, new RecordingPlatformAdapter(), layout);
 
             var activationTask = coordinator.ActivateAsync(CreateHost(), 1280);
             coordinator.Dispose();
@@ -115,103 +102,12 @@ public sealed class ShellActivationCoordinatorTests
         });
     }
 
-    [Fact]
-    public async Task Repeated_close_requests_share_confirmation_and_close_callback()
-    {
-        var confirmation = new TaskCompletionSource<bool>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var guard = new RecordingGuardService { Confirmation = confirmation.Task };
-        using var coordinator = CreateCoordinator(
-            guard,
-            new RecordingNavigationAdapter(),
-            new RecordingPlatformAdapter());
-        var closeCount = 0;
-
-        var first = coordinator.RequestCloseAsync(() =>
-        {
-            closeCount++;
-            return Task.CompletedTask;
-        });
-        var second = coordinator.RequestCloseAsync(() =>
-        {
-            closeCount++;
-            return Task.CompletedTask;
-        });
-
-        Assert.Same(first, second);
-        Assert.Equal(1, guard.ConfirmationCount);
-
-        confirmation.SetResult(true);
-        await Task.WhenAll(first, second);
-
-        Assert.True(coordinator.IsCloseApproved);
-        Assert.Equal(1, closeCount);
-    }
-
-    [Fact]
-    public async Task Rejected_close_can_be_retried()
-    {
-        var guard = new RecordingGuardService
-        {
-            Confirmation = Task.FromResult(false)
-        };
-        using var coordinator = CreateCoordinator(
-            guard,
-            new RecordingNavigationAdapter(),
-            new RecordingPlatformAdapter());
-        var closeCount = 0;
-
-        await coordinator.RequestCloseAsync(() =>
-        {
-            closeCount++;
-            return Task.CompletedTask;
-        });
-
-        guard.Confirmation = Task.FromResult(true);
-        await coordinator.RequestCloseAsync(() =>
-        {
-            closeCount++;
-            return Task.CompletedTask;
-        });
-
-        Assert.Equal(2, guard.ConfirmationCount);
-        Assert.Equal(1, closeCount);
-        Assert.True(coordinator.IsCloseApproved);
-    }
-
-    [Fact]
-    public async Task Closing_activation_ignores_guard_approval_that_arrives_after_disposal()
-    {
-        var confirmation = new TaskCompletionSource<bool>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var guard = new RecordingGuardService { Confirmation = confirmation.Task };
-        var coordinator = CreateCoordinator(
-            guard,
-            new RecordingNavigationAdapter(),
-            new RecordingPlatformAdapter());
-        var closeCount = 0;
-
-        var closeTask = coordinator.RequestCloseAsync(() =>
-        {
-            closeCount++;
-            return Task.CompletedTask;
-        });
-        coordinator.Dispose();
-        confirmation.SetResult(true);
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => closeTask);
-        Assert.False(coordinator.IsCloseApproved);
-        Assert.Equal(0, closeCount);
-    }
-
     private static ShellActivationCoordinator CreateCoordinator(
-        INavigationGuardService guard,
         IShellNavigationAdapter navigation,
         IShellPlatformAdapter platform,
         IShellLayoutController? layout = null)
     {
         return new ShellActivationCoordinator(
-            guard,
             layout ?? new ShellLayoutController(),
             navigation,
             platform,
@@ -262,22 +158,6 @@ public sealed class ShellActivationCoordinatorTests
             new NavigationViewItem(),
             new ContentDialogHost(),
             new SnackbarPresenter());
-    }
-
-    private sealed class RecordingGuardService : INavigationGuardService
-    {
-        public Task<bool> Confirmation { get; set; } = Task.FromResult(true);
-
-        public int ConfirmationCount { get; private set; }
-
-        public IDisposable Register(Func<CancellationToken, Task<bool>> guard) =>
-            throw new NotSupportedException();
-
-        public Task<bool> ConfirmNavigationAsync(CancellationToken cancellationToken)
-        {
-            ConfirmationCount++;
-            return Confirmation;
-        }
     }
 
     private sealed class RecordingPlatformAdapter : IShellPlatformAdapter

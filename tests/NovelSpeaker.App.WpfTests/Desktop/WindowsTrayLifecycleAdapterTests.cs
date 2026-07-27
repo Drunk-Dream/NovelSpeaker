@@ -1,0 +1,206 @@
+using System.Reflection;
+using System.Windows.Controls;
+using Microsoft.Extensions.DependencyInjection;
+using NovelSpeaker.App.Desktop.Lifecycle;
+using Xunit;
+
+namespace NovelSpeaker.App.WpfTests.Desktop;
+
+[Collection("WpfDispatcher")]
+public sealed class WindowsTrayLifecycleAdapterTests
+{
+    [Fact]
+    public void Tray_menu_exposes_required_commands_and_keeps_mini_player_disabled_until_mini_slice()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var adapter = new WindowsTrayLifecycleAdapter(
+                    provider.GetRequiredService<MainWindow>());
+                var menu = Assert.IsType<ContextMenu>(
+                    typeof(WindowsTrayLifecycleAdapter)
+                        .GetField("_trayMenu", BindingFlags.Instance | BindingFlags.NonPublic)?
+                        .GetValue(adapter));
+                var items = menu.Items.OfType<MenuItem>().ToArray();
+
+                Assert.Equal(
+                    ["显示主窗口", "播放/暂停", "迷你播放器", "退出"],
+                    items.Select(item => item.Header));
+                Assert.False(items.Single(item => Equals(item.Header, "迷你播放器")).IsEnabled);
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
+    public void Tray_menu_click_only_publishes_platform_command()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var adapter = new WindowsTrayLifecycleAdapter(
+                    provider.GetRequiredService<MainWindow>());
+                DesktopLifecycleCommand? received = null;
+                adapter.CommandReceived += (_, command) => received = command;
+                var menu = Assert.IsType<ContextMenu>(
+                    typeof(WindowsTrayLifecycleAdapter)
+                        .GetField("_trayMenu", BindingFlags.Instance | BindingFlags.NonPublic)?
+                        .GetValue(adapter));
+                var showItem = menu.Items
+                    .OfType<MenuItem>()
+                    .Single(item => Equals(item.Header, "显示主窗口"));
+
+                showItem.RaiseEvent(new System.Windows.RoutedEventArgs(MenuItem.ClickEvent));
+
+                Assert.Equal(DesktopLifecycleCommand.ShowMainWindow, received);
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Owned_extracted_icon_is_destroyed_once_after_repeated_stop()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var window = provider.GetRequiredService<MainWindow>();
+                var native = new FakeNativeApi { ExtractedIcon = new IntPtr(42) };
+                var adapter = new WindowsTrayLifecycleAdapter(window, native);
+
+                await adapter.StartAsync(CancellationToken.None);
+                var firstStop = adapter.StopAsync(CancellationToken.None);
+
+                Assert.True(firstStop.IsCompletedSuccessfully);
+                Assert.Equal(1, native.DeleteCount);
+                Assert.Equal([new IntPtr(42)], native.DestroyedIcons);
+                await firstStop;
+                await adapter.StopAsync(CancellationToken.None);
+
+                Assert.Equal(1, native.AddCount);
+                Assert.Equal(1, native.DeleteCount);
+                Assert.Equal([new IntPtr(42)], native.DestroyedIcons);
+                window.ConfigureDesktopLifecycle(_ => Task.CompletedTask, () => true);
+                window.Close();
+            }
+            finally
+            {
+                await provider.DisposeAsync();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Shared_fallback_icon_is_never_destroyed()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var window = provider.GetRequiredService<MainWindow>();
+                var native = new FakeNativeApi
+                {
+                    ExtractedIcon = IntPtr.Zero,
+                    SharedIcon = new IntPtr(7)
+                };
+                var adapter = new WindowsTrayLifecycleAdapter(window, native);
+
+                await adapter.StartAsync(CancellationToken.None);
+                await adapter.StopAsync(CancellationToken.None);
+
+                Assert.Empty(native.DestroyedIcons);
+                window.ConfigureDesktopLifecycle(_ => Task.CompletedTask, () => true);
+                window.Close();
+            }
+            finally
+            {
+                await provider.DisposeAsync();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Failed_tray_registration_releases_owned_icon_and_repeated_stop_is_safe()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var window = provider.GetRequiredService<MainWindow>();
+                var native = new FakeNativeApi
+                {
+                    ExtractedIcon = new IntPtr(99),
+                    AddSucceeds = false
+                };
+                var adapter = new WindowsTrayLifecycleAdapter(window, native);
+
+                await Assert.ThrowsAsync<InvalidOperationException>(
+                    () => adapter.StartAsync(CancellationToken.None));
+                await adapter.StopAsync(CancellationToken.None);
+
+                Assert.Equal([new IntPtr(99)], native.DestroyedIcons);
+                Assert.Equal(0, native.DeleteCount);
+                window.ConfigureDesktopLifecycle(_ => Task.CompletedTask, () => true);
+                window.Close();
+            }
+            finally
+            {
+                await provider.DisposeAsync();
+            }
+        });
+    }
+
+    private sealed class FakeNativeApi : IWindowsTrayNativeApi
+    {
+        public IntPtr ExtractedIcon { get; set; }
+        public IntPtr SharedIcon { get; set; } = new(1);
+        public bool AddSucceeds { get; set; } = true;
+        public int AddCount { get; private set; }
+        public int DeleteCount { get; private set; }
+        public List<IntPtr> DestroyedIcons { get; } = [];
+
+        public IntPtr ExtractLargeIcon(string executablePath) => ExtractedIcon;
+
+        public IntPtr LoadSharedApplicationIcon() => SharedIcon;
+
+        public bool NotifyIcon(
+            uint message,
+            ref WindowsTrayLifecycleAdapter.NotifyIconData data)
+        {
+            if (message == 0)
+            {
+                AddCount++;
+                return AddSucceeds;
+            }
+
+            if (message == 2)
+            {
+                DeleteCount++;
+            }
+
+            return true;
+        }
+
+        public bool DestroyIcon(IntPtr iconHandle)
+        {
+            DestroyedIcons.Add(iconHandle);
+            return true;
+        }
+
+        public bool SetForegroundWindow(IntPtr windowHandle) => true;
+    }
+}

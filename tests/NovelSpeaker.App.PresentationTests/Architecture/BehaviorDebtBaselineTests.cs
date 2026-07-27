@@ -199,7 +199,9 @@ public sealed class BehaviorDebtBaselineTests
             Absolute("src/NovelSpeaker.App/Shell/Activation/ShellActivationCoordinator.cs"));
         Assert.Contains("IShellNavigationAdapter navigationAdapter", shellCoordinator, StringComparison.Ordinal);
         Assert.Contains("_navigationAdapter.NavigateFromShellAsync", shellCoordinator, StringComparison.Ordinal);
-        Assert.Contains("ConfirmNavigationAsync", shellCoordinator, StringComparison.Ordinal);
+        var desktopExitGuard = File.ReadAllText(
+            Absolute("src/NovelSpeaker.App/Desktop/Lifecycle/NavigationDesktopExitGuard.cs"));
+        Assert.Contains("ConfirmNavigationAsync", desktopExitGuard, StringComparison.Ordinal);
 
         var shortcutContextResolver = File.ReadAllText(
             Absolute("src/NovelSpeaker.App/Shell/Input/WpfShortcutContextResolver.cs"));

@@ -1,11 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.App.Desktop.MediaControls;
+using NovelSpeaker.App.Desktop.Lifecycle;
 using NovelSpeaker.App.Features.Appearance;
 using NovelSpeaker.App.Features.BookDetails;
 using NovelSpeaker.App.Features.Cache;
 using NovelSpeaker.App.Features.ChapterRules;
 using NovelSpeaker.App.Features.Diagnostics;
+using NovelSpeaker.App.Features.GeneralSettings;
 using NovelSpeaker.App.Features.ImportTextSettings;
 using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Features.Playback;
@@ -30,6 +32,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddSingleton<IProcessShutdownGate, ProcessShutdownGate>();
         return services
+            .AddDesktopLifecycle()
             .AddMediaControls()
             .AddSharedServices()
             .AddShellServices()
@@ -38,6 +41,7 @@ public static class ServiceCollectionExtensions
             .AddCacheFeature()
             .AddChapterRulesFeature()
             .AddDiagnosticsFeature()
+            .AddGeneralSettingsFeature()
             .AddImportTextSettingsFeature()
             .AddLibraryFeature()
             .AddPlaybackFeature()

@@ -29,6 +29,8 @@ internal interface IStartupRuntime : IAsyncDisposable
 
     void BeginShutdown();
 
+    Task StopDesktopLifecycleAsync(CancellationToken cancellationToken);
+
     Task StopMediaControlsAsync(CancellationToken cancellationToken);
 
     Task StopPlaybackAsync(CancellationToken cancellationToken);
