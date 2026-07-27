@@ -1,10 +1,12 @@
 using System.Collections.Specialized;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.ActiveCache;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Books;
@@ -28,7 +30,9 @@ public sealed partial class PlayerViewModelTests
         FakePlayerAutoScrollCoordinator? autoScrollCoordinator = null,
         FakeAppSettingsService? settingsService = null,
         FakeActiveCacheCoordinator? activeCacheCoordinator = null,
-        TimeProvider? timeProvider = null)
+        ICacheWorkspaceService? cacheWorkspaceService = null,
+        TimeProvider? timeProvider = null,
+        IUiScheduler? uiScheduler = null)
     {
         return new PlayerViewModel(
             coordinator,
@@ -39,7 +43,9 @@ public sealed partial class PlayerViewModelTests
             feedbackService ?? new FakeAppFeedbackService(),
             navigationService ?? new FakeNavigationService(),
             autoScrollCoordinator ?? new FakePlayerAutoScrollCoordinator(),
-            timeProvider ?? TimeProvider.System);
+            cacheWorkspaceService ?? new FakeCacheWorkspaceService(),
+            timeProvider ?? TimeProvider.System,
+            uiScheduler ?? new ImmediateUiScheduler());
     }
 
     private sealed class FakeActiveCacheCoordinator : IActiveCacheCoordinator
@@ -104,6 +110,113 @@ public sealed partial class PlayerViewModelTests
         {
             CurrentSnapshot = snapshot;
             _snapshotChanged?.Invoke(this, snapshot);
+        }
+    }
+
+    private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
+    {
+        private EventHandler<CacheChangedEventArgs>? _changed;
+
+        public IReadOnlyList<ChapterCacheStatus> Statuses { get; set; } = [];
+
+        public Func<string, IReadOnlyCollection<int>, CancellationToken, Task<IReadOnlyList<ChapterCacheStatus>>>? StatusHandler { get; set; }
+
+        public int StatusCallCount { get; private set; }
+
+        public int SubscriberCount => _changed?.GetInvocationList().Length ?? 0;
+
+        public event EventHandler<CacheChangedEventArgs>? Changed
+        {
+            add => _changed += value;
+            remove => _changed -= value;
+        }
+
+        public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(
+            string bookId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken)
+        {
+            StatusCallCount++;
+            return StatusHandler?.Invoke(bookId, chapterIndices, cancellationToken) ??
+                   Task.FromResult(Statuses);
+        }
+
+        public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearChapterAsync(
+            string bookId,
+            int chapterIndex,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearChaptersAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public void Publish(CacheChangedEventArgs eventArgs) => _changed?.Invoke(this, eventArgs);
+    }
+
+    private sealed class ImmediateUiScheduler : IUiScheduler
+    {
+        public bool CheckAccess() => true;
+
+        public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            action();
+            return Task.CompletedTask;
+        }
+
+        public Task InvokeAsync(Func<Task> action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return action();
+        }
+    }
+
+    private sealed class QueuedUiScheduler : IUiScheduler
+    {
+        private readonly Queue<(Action Action, TaskCompletionSource Completion)> _pending = [];
+
+        public int PendingCount => _pending.Count;
+
+        public bool CheckAccess() => true;
+
+        public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _pending.Enqueue((action, completion));
+            return completion.Task;
+        }
+
+        public Task InvokeAsync(Func<Task> action, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public void RunNext()
+        {
+            var pending = _pending.Dequeue();
+            pending.Action();
+            pending.Completion.TrySetResult();
         }
     }
 
@@ -520,16 +633,25 @@ public sealed partial class PlayerViewModelTests
 
         public AppSettings Settings { get; private set; }
         public AppSettings Current => Settings;
-        public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed;
 
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {
             UpdateStarted.TrySetResult();
+            var previous = Settings;
             Settings = (Settings with
             {
                 DefaultSpeakSpeed = update.DefaultSpeakSpeed ?? Settings.DefaultSpeakSpeed
             }).Normalize();
+            Changed?.Invoke(this, new AppSettingsChangedEventArgs(previous, Settings));
             return Task.FromResult(Settings);
+        }
+
+        public void Publish(AppSettings settings)
+        {
+            var previous = Settings;
+            Settings = settings;
+            Changed?.Invoke(this, new AppSettingsChangedEventArgs(previous, settings));
         }
     }
 

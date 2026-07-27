@@ -2,9 +2,11 @@ using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Library;
+using NovelSpeaker.Domain.Settings;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
@@ -29,6 +31,7 @@ public sealed class AppNavigationPageProviderTests
             services.AddSingleton<IBookMetadataUpdateService>(provider => provider.GetRequiredService<FakeBookManagementService>());
             services.AddSingleton<IBookDeletionService>(provider => provider.GetRequiredService<FakeBookManagementService>());
             services.AddSingleton<ICacheWorkspaceService, FakeCacheWorkspaceService>();
+            services.AddSingleton<IAppSettingsService, FakeAppSettingsService>();
             services.AddSingleton<IBookCoverGenerator, BookCoverGenerator>();
             services.AddSingleton<IAppFeedbackService, FakeAppFeedbackService>();
             services.AddSingleton<IAppDialogService, FakeAppDialogService>();
@@ -171,14 +174,40 @@ public sealed class AppNavigationPageProviderTests
 
     private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
     {
+        public event EventHandler<CacheChangedEventArgs>? Changed
+        {
+            add { }
+            remove { }
+        }
+
         public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(string bookId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CacheCleanupResult> ClearChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CacheCleanupResult> ClearChaptersAsync(string bookId, IReadOnlyCollection<int> chapterIndices, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class FakeAppSettingsService : IAppSettingsService
+    {
+        public AppSettings Current => AppSettings.Default;
+
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<AppSettings> UpdateAsync(
+            AppSettingsUpdate update,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FakeAppDialogService : IAppDialogService

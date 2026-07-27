@@ -173,6 +173,12 @@ public sealed class CacheAndDataViewModelTests
     {
         private readonly Queue<CacheOverviewModel> _overviewQueue = new();
 
+        public event EventHandler<CacheChangedEventArgs>? Changed
+        {
+            add { }
+            remove { }
+        }
+
         public CacheOverviewModel Overview { get; set; } = new(0, 0, AppSettings.DefaultCacheLimitBytes, false);
 
         public IReadOnlyList<CacheOverviewModel>? Overviews
@@ -214,6 +220,14 @@ public sealed class CacheAndDataViewModelTests
         }
 
         public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(string bookId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }

@@ -6,9 +6,11 @@ using System.Windows.Threading;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.Domain.Settings;
 using Wpf.Ui;
 using Xunit;
 
@@ -111,11 +113,13 @@ public sealed class BookDetailsPageTests
                 "第 1 章",
                 "第一章 这是一个非常非常长的章节标题用于验证详情页目录的单行截断与 Tooltip 展示",
                 false));
-            viewModel.Chapters.Add(new BookDetailsChapterItemViewModel(
+            var currentChapter = new BookDetailsChapterItemViewModel(
                 1,
                 "第 2 章",
                 "第二章 当前章节标题",
-                true));
+                true);
+            currentChapter.ApplyCacheStatus(1, 4);
+            viewModel.Chapters.Add(currentChapter);
 
             var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService());
 
@@ -142,6 +146,18 @@ public sealed class BookDetailsPageTests
             Assert.InRange(Math.Abs(firstButton.ActualHeight - firstCard.ActualHeight), 0d, 1d);
             Assert.NotNull(secondButton);
             Assert.Contains("当前章节", AutomationProperties.GetName(secondButton!));
+            Assert.Contains("缓存进度 25%", AutomationProperties.GetName(secondButton), StringComparison.Ordinal);
+            Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
+                chaptersListBox,
+                static textBlock => string.Equals(textBlock.Text, "当前", StringComparison.Ordinal)));
+            Assert.NotNull(VisualTreeTestHelper.FindDescendant<TextBlock>(
+                secondItem,
+                static textBlock => string.Equals(textBlock.Text, "25%", StringComparison.Ordinal) &&
+                                    textBlock.Visibility == Visibility.Visible));
+            Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
+                firstItem,
+                static textBlock => textBlock.Text.EndsWith('%') &&
+                                    textBlock.Visibility == Visibility.Visible));
         });
     }
 
@@ -152,6 +168,7 @@ public sealed class BookDetailsPageTests
             new FakeBookManagementService(),
             new FakeBookManagementService(),
             new FakeCacheWorkspaceService(),
+            new FakeAppSettingsService(),
             new BookCoverGenerator(),
             new FakeFeedbackService(),
             new FakeAppDialogService(),
@@ -234,12 +251,24 @@ public sealed class BookDetailsPageTests
 
     private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
     {
+        public event EventHandler<CacheChangedEventArgs>? Changed
+        {
+            add { }
+            remove { }
+        }
+
         public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(string bookId, CancellationToken cancellationToken)
             => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ChapterCacheStatus>>([]);
 
         public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
@@ -256,6 +285,20 @@ public sealed class BookDetailsPageTests
             throw new NotSupportedException();
 
         public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class FakeAppSettingsService : IAppSettingsService
+    {
+        public AppSettings Current => AppSettings.Default;
+
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) =>
+            Task.FromResult(Current);
     }
 
     private sealed class FakeFeedbackService : IAppFeedbackService

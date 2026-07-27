@@ -11,6 +11,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
@@ -525,5 +526,50 @@ public sealed partial class PlayerViewTests
         public void ResetForPageLeave()
         {
         }
+    }
+
+    private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
+    {
+        public event EventHandler<CacheChangedEventArgs>? Changed;
+
+        public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(
+            string bookId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ChapterCacheStatus>>([]);
+
+        public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearChapterAsync(
+            string bookId,
+            int chapterIndex,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearChaptersAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public void Publish(CacheChangedEventArgs eventArgs) => Changed?.Invoke(this, eventArgs);
     }
 }

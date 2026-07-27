@@ -32,6 +32,73 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed partial class PlayerViewTests
 {
     [Fact]
+    public void PlayerView_highlights_every_active_cache_selection_and_replaces_current_badge_with_percentage()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var chapters = new ObservableCollection<PlayerChapterItemViewModel>
+            {
+                new(0, "第一章")
+                {
+                    IsCurrent = true,
+                    IsSelectedForActiveCache = true,
+                    CachePercentageText = "25%"
+                },
+                new(1, "第二章")
+                {
+                    IsSelectedForActiveCache = true,
+                    CachePercentageText = "50%"
+                },
+                new(2, "第三章")
+            };
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(
+                    chapters,
+                    new ObservableCollection<PlayerSegmentItemViewModel>
+                    {
+                        new(0, 0, "第一段")
+                    },
+                    isActiveCacheSelectionMode: true)
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var listBox = Assert.IsType<ListBox>(view.FindName("WideChaptersListBox"));
+            var firstItem = Assert.IsType<ListBoxItem>(listBox.ItemContainerGenerator.ContainerFromIndex(0));
+            var secondItem = Assert.IsType<ListBoxItem>(listBox.ItemContainerGenerator.ContainerFromIndex(1));
+            var thirdItem = Assert.IsType<ListBoxItem>(listBox.ItemContainerGenerator.ContainerFromIndex(2));
+            var firstCard = FindChapterCard(firstItem);
+            var secondCard = FindChapterCard(secondItem);
+            var thirdCard = FindChapterCard(thirdItem);
+            var firstButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(firstItem));
+            var secondButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(secondItem));
+            var currentAccent = VisualTreeTestHelper.FindDescendant<Border>(
+                firstItem,
+                static border => Grid.GetColumn(border) == 0 &&
+                                 border.Child is null &&
+                                 border.Opacity == 1);
+
+            Assert.NotEqual(Brushes.Transparent, firstCard.Background);
+            Assert.NotEqual(Brushes.Transparent, secondCard.Background);
+            Assert.NotEqual(Brushes.Transparent, firstCard.BorderBrush);
+            Assert.NotEqual(Brushes.Transparent, secondCard.BorderBrush);
+            Assert.Equal(Brushes.Transparent, thirdCard.Background);
+            Assert.Equal(Brushes.Transparent, thirdCard.BorderBrush);
+            Assert.NotNull(currentAccent);
+            Assert.Null(FindVisibleDescendantByText(listBox, "当前"));
+            Assert.NotNull(FindVisibleDescendantByText(firstItem, "25%"));
+            Assert.NotNull(FindVisibleDescendantByText(secondItem, "50%"));
+            Assert.Contains("当前章节", AutomationProperties.GetName(firstButton), StringComparison.Ordinal);
+            Assert.Contains("已选择缓存", AutomationProperties.GetName(firstButton), StringComparison.Ordinal);
+            Assert.Contains("缓存进度 25%", AutomationProperties.GetName(firstButton), StringComparison.Ordinal);
+            Assert.Contains("已选择缓存", AutomationProperties.GetName(secondButton), StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
     public void PlayerView_exposes_active_cache_tool_and_selection_actions_with_automation_names()
     {
         WpfTestHost.RunInSta(() =>
@@ -124,6 +191,17 @@ public sealed partial class PlayerViewTests
             Assert.True(chaptersScrollViewer!.ScrollableHeight > 0);
             Assert.True(segmentsScrollViewer!.ScrollableHeight > 0);
         });
+    }
+
+    private static Border FindChapterCard(DependencyObject item)
+    {
+        return Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(
+            item,
+            static border =>
+                Grid.GetColumn(border) == 1 &&
+                border.Child is Grid &&
+                border.Padding.Left == 12 &&
+                border.Padding.Top == 8));
     }
 
     [Fact]

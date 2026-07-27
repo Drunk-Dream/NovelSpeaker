@@ -1,5 +1,7 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.ActiveCache;
+using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.Domain.Books;
@@ -104,6 +106,87 @@ public sealed partial class PlayerViewModelTests
 
         Assert.Equal(1, activeCache.SubscriberCount);
         Assert.True(viewModel.HasActiveCacheBatch);
+    }
+
+    [Fact]
+    public async Task Chapter_cache_percentages_refresh_on_initial_load_and_matching_cache_changes()
+    {
+        var cacheWorkspace = new FakeCacheWorkspaceService
+        {
+            Statuses =
+            [
+                new ChapterCacheStatus(0, 1, 4),
+                new ChapterCacheStatus(1, 0, 4),
+                new ChapterCacheStatus(2, 1, null)
+            ]
+        };
+        var settingsService = new FakeAppSettingsService(AppSettings.Default);
+        var viewModel = CreateViewModel(
+            CreatePlaybackCoordinator(),
+            CreateContentService(),
+            settingsService: settingsService,
+            cacheWorkspaceService: cacheWorkspace);
+
+        await OpenBookAsync(viewModel);
+
+        Assert.Equal("25%", viewModel.Chapters[0].CachePercentageText);
+        Assert.Equal(string.Empty, viewModel.Chapters[1].CachePercentageText);
+        Assert.Equal(string.Empty, viewModel.Chapters[2].CachePercentageText);
+        Assert.Equal(1, cacheWorkspace.StatusCallCount);
+        Assert.Equal(1, cacheWorkspace.SubscriberCount);
+
+        cacheWorkspace.Statuses = [new ChapterCacheStatus(1, 3, 4)];
+        cacheWorkspace.Publish(new CacheChangedEventArgs("book-1", 1));
+
+        Assert.Equal("75%", viewModel.Chapters[1].CachePercentageText);
+        Assert.Equal(2, cacheWorkspace.StatusCallCount);
+
+        cacheWorkspace.Publish(new CacheChangedEventArgs("another-book", 1));
+        Assert.Equal(2, cacheWorkspace.StatusCallCount);
+
+        cacheWorkspace.Statuses =
+        [
+            new ChapterCacheStatus(0, 4, 4),
+            new ChapterCacheStatus(1, 4, 4),
+            new ChapterCacheStatus(2, 0, 4)
+        ];
+        settingsService.Publish(settingsService.Current with { DefaultSpeakSpeed = 11 });
+        Assert.Equal("100%", viewModel.Chapters[0].CachePercentageText);
+        Assert.Equal("100%", viewModel.Chapters[1].CachePercentageText);
+        Assert.Equal(string.Empty, viewModel.Chapters[2].CachePercentageText);
+        Assert.Equal(3, cacheWorkspace.StatusCallCount);
+
+        viewModel.OnPageNavigatedFrom();
+        Assert.Equal(0, cacheWorkspace.SubscriberCount);
+
+        cacheWorkspace.Statuses = [new ChapterCacheStatus(1, 4, 4)];
+        cacheWorkspace.Publish(new CacheChangedEventArgs("book-1", 1));
+        Assert.Equal("100%", viewModel.Chapters[1].CachePercentageText);
+        Assert.Equal(3, cacheWorkspace.StatusCallCount);
+    }
+
+    [Fact]
+    public async Task Page_leave_discards_cache_status_projection_that_reaches_the_ui_late()
+    {
+        var cacheWorkspace = new FakeCacheWorkspaceService
+        {
+            Statuses = [new ChapterCacheStatus(0, 1, 1)]
+        };
+        var uiScheduler = new QueuedUiScheduler();
+        var viewModel = CreateViewModel(
+            CreatePlaybackCoordinator(),
+            CreateContentService(),
+            cacheWorkspaceService: cacheWorkspace,
+            uiScheduler: uiScheduler);
+
+        await OpenBookAsync(viewModel);
+        Assert.Equal(1, uiScheduler.PendingCount);
+        Assert.Equal(string.Empty, viewModel.Chapters[0].CachePercentageText);
+
+        viewModel.OnPageNavigatedFrom();
+        uiScheduler.RunNext();
+
+        Assert.Equal(string.Empty, viewModel.Chapters[0].CachePercentageText);
     }
 
     private static FakePlaybackCoordinator CreatePlaybackCoordinator() =>

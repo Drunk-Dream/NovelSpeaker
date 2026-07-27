@@ -69,7 +69,8 @@ public sealed partial class PlayerViewTests
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
-                new PlayerAutoScrollCoordinator(TimeProvider.System));
+                new PlayerAutoScrollCoordinator(TimeProvider.System),
+                new FakeCacheWorkspaceService());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
@@ -169,7 +170,8 @@ public sealed partial class PlayerViewTests
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
-                new PlayerAutoScrollCoordinator(TimeProvider.System));
+                new PlayerAutoScrollCoordinator(TimeProvider.System),
+                new FakeCacheWorkspaceService());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
@@ -271,7 +273,8 @@ public sealed partial class PlayerViewTests
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
-                new PlayerAutoScrollCoordinator(TimeProvider.System));
+                new PlayerAutoScrollCoordinator(TimeProvider.System),
+                new FakeCacheWorkspaceService());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
@@ -390,7 +393,8 @@ public sealed partial class PlayerViewTests
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
-                new PlayerAutoScrollCoordinator(TimeProvider.System));
+                new PlayerAutoScrollCoordinator(TimeProvider.System),
+                new FakeCacheWorkspaceService());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(

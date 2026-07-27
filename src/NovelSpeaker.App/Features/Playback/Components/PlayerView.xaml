@@ -330,6 +330,7 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <Button Style="{StaticResource BorderlessListItemButtonStyle}"
+                                        AutomationProperties.Name="{Binding AutomationName}"
                                         Click="ChapterButton_OnClick">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -352,17 +353,19 @@
 
                                         <Border Grid.Column="1"
                                                 Padding="12,8"
-                                                CornerRadius="10"
-                                                Background="Transparent">
+                                                CornerRadius="10">
                                             <Border.Style>
                                                 <Style TargetType="Border">
                                                     <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                                    <Setter Property="BorderThickness" Value="1" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                                                             <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding IsSelectedForActiveCache}" Value="True">
                                                             <Setter Property="Background" Value="{DynamicResource AccentFillColorSecondaryBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -386,7 +389,7 @@
                                                         <Style TargetType="Border">
                                                             <Setter Property="Visibility" Value="Collapsed" />
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                                <DataTrigger Binding="{Binding IsCachePercentageVisible}" Value="True">
                                                                     <Setter Property="Visibility" Value="Visible" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
@@ -394,7 +397,7 @@
                                                     </Border.Style>
                                                     <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
                                                                FontWeight="SemiBold"
-                                                               Text="当前" />
+                                                               Text="{Binding CachePercentageText}" />
                                                 </Border>
                                             </Grid>
                                         </Border>
