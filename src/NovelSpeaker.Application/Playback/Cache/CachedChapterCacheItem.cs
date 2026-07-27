@@ -1,7 +1,7 @@
 namespace NovelSpeaker.Application.Playback.Cache;
 
 /// <summary>
-/// Represents one cached chapter row with completeness estimate data.
+/// Represents one cached chapter row with current-playback-configuration completeness data.
 /// </summary>
 public sealed record CachedChapterCacheItem(
     string BookId,
@@ -10,4 +10,4 @@ public sealed record CachedChapterCacheItem(
     int CachedSegmentCount,
     int EntryCount,
     long TotalSizeBytes,
-    int? EstimatedTotalSegmentCount);
+    int? CurrentConfigurationSegmentCount);

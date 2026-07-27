@@ -1,8 +1,7 @@
-using System.Text;
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.Application.Books.TextProcessing;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using Xunit;
@@ -18,7 +17,7 @@ public sealed class CacheWorkspaceServiceTests
         {
             SummaryResult = new AudioCacheStoreSummary(4096, 3, 2048, true)
         };
-        var service = CreateService(store, new FakeBookPlaybackMetadataQuery(), new FakeBookContentReader());
+        var service = CreateService(store, new FakeBookPlaybackMetadataQuery());
 
         var overview = await service.GetOverviewAsync(CancellationToken.None);
 
@@ -34,7 +33,7 @@ public sealed class CacheWorkspaceServiceTests
         };
         var metadata = new FakeBookPlaybackMetadataQuery();
         metadata.Books["book-1"] = new PlaybackBookMetadata("book-1", "示例书", "作者甲", []);
-        var service = CreateService(store, metadata, new FakeBookContentReader());
+        var service = CreateService(store, metadata);
 
         var books = await service.GetCachedBooksAsync(CancellationToken.None);
 
@@ -52,7 +51,7 @@ public sealed class CacheWorkspaceServiceTests
         {
             BooksResult = [new CachedBookStoreSummary("orphan", 1, 2, 1024)]
         };
-        var service = CreateService(store, new FakeBookPlaybackMetadataQuery(), new FakeBookContentReader());
+        var service = CreateService(store, new FakeBookPlaybackMetadataQuery());
 
         var book = Assert.Single(await service.GetCachedBooksAsync(CancellationToken.None));
 
@@ -61,54 +60,110 @@ public sealed class CacheWorkspaceServiceTests
     }
 
     [Fact]
-    public async Task GetCachedChaptersAsync_estimates_completeness_and_handles_expected_read_failures()
+    public async Task GetCachedChaptersAsync_counts_only_valid_entries_for_the_current_playback_configuration()
     {
         var store = new FakeAudioCacheStore
         {
             ChaptersResult =
             [
-                new CachedChapterStoreSummary("book-1", 0, 1, 1, 1024),
-                new CachedChapterStoreSummary("book-1", 1, 2, 2, 2048)
-            ]
+                new CachedChapterStoreSummary("book-1", 0, 9, 9, 4096)
+            ],
+            ValidKeys = new HashSet<AudioCacheKey>
+            {
+                AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "当前文本甲"),
+                AudioCacheKey.FromPlayback("book-1", 0, 1, 6, 12, "当前文本乙"),
+                AudioCacheKey.FromPlayback("book-1", 0, 1, 7, 11, "当前文本乙"),
+                AudioCacheKey.FromPlayback("book-1", 0, 1, 7, 12, "旧文本")
+            }
         };
         var metadata = new FakeBookPlaybackMetadataQuery();
         metadata.Chapters[("book-1", 0)] = new PlaybackChapterMetadata(0, "第一章", "content.txt", 0, 4);
-        metadata.Chapters[("book-1", 1)] = new PlaybackChapterMetadata(1, "第二章", "content.txt", 4, 4);
-        var reader = new FakeBookContentReader();
-        reader.TextByStartOffset[0] = "甲。\n乙。";
-        reader.ExceptionByStartOffset[4] = new FileNotFoundException("missing");
-        var service = CreateService(store, metadata, reader);
+        var content = new FakeBookPlaybackContentService();
+        content.Chapters[("book-1", 0)] = PlaybackChapterContent.FromLoaded(
+            0,
+            "第一章",
+            [
+                new SpeechSegment(0, 0, 1, "显示甲", "当前文本甲"),
+                new SpeechSegment(1, 1, 1, "显示乙", "当前文本乙")
+            ]);
+        var service = CreateService(store, metadata, content, ruleId: 7, defaultSpeakSpeed: 12);
 
         var chapters = await service.GetCachedChaptersAsync("book-1", CancellationToken.None);
 
-        Assert.Equal(2, chapters.Count);
-        var first = Assert.Single(chapters, item => item.ChapterIndex == 0);
-        Assert.Equal("第一章", first.Title);
-        Assert.Equal(2, first.EstimatedTotalSegmentCount);
-        var second = Assert.Single(chapters, item => item.ChapterIndex == 1);
-        Assert.Null(second.EstimatedTotalSegmentCount);
-        Assert.Equal(2, second.CachedSegmentCount);
+        var chapter = Assert.Single(chapters);
+        Assert.Equal("第一章", chapter.Title);
+        Assert.Equal(1, chapter.CachedSegmentCount);
+        Assert.Equal(2, chapter.CurrentConfigurationSegmentCount);
+        Assert.Equal(
+            [
+                AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "当前文本甲"),
+                AudioCacheKey.FromPlayback("book-1", 0, 1, 7, 12, "当前文本乙")
+            ],
+            store.LastValidityQuery);
     }
 
     [Fact]
-    public async Task GetCachedChaptersAsync_propagates_cancellation_from_content_read()
+    public async Task GetCachedChaptersAsync_reports_current_configuration_unavailable_for_expected_content_failures()
+    {
+        var service = CreateChapterService(new FakeBookPlaybackContentService
+        {
+            Exception = new FileNotFoundException("missing")
+        });
+
+        var chapter = Assert.Single(await service.GetCachedChaptersAsync("book-1", CancellationToken.None));
+
+        Assert.Equal(0, chapter.CachedSegmentCount);
+        Assert.Null(chapter.CurrentConfigurationSegmentCount);
+    }
+
+    [Fact]
+    public async Task GetCachedChaptersAsync_reports_unavailable_when_no_tts_rule_is_selected()
+    {
+        var store = new FakeAudioCacheStore
+        {
+            ChaptersResult = [new CachedChapterStoreSummary("book-1", 0, 4, 4, 2048)]
+        };
+        var metadata = new FakeBookPlaybackMetadataQuery();
+        metadata.Chapters[("book-1", 0)] = new PlaybackChapterMetadata(0, "第一章", "content.txt", 0, 4);
+        var service = CreateService(store, metadata, ruleId: null);
+
+        var chapter = Assert.Single(await service.GetCachedChaptersAsync("book-1", CancellationToken.None));
+
+        Assert.Equal(0, chapter.CachedSegmentCount);
+        Assert.Null(chapter.CurrentConfigurationSegmentCount);
+        Assert.Empty(store.LastValidityQuery);
+    }
+
+    [Fact]
+    public async Task GetCachedChaptersAsync_propagates_cancellation_without_finishing_validity_checks()
     {
         using var cancellation = new CancellationTokenSource();
-        var reader = new FakeBookContentReader();
-        reader.ExceptionByStartOffset[0] = new OperationCanceledException(cancellation.Token);
-        var service = CreateChapterService(reader);
+        var store = new FakeAudioCacheStore
+        {
+            ChaptersResult = [new CachedChapterStoreSummary("book-1", 0, 1, 1, 1024)],
+            BeforeValidityQuery = cancellation.Cancel
+        };
+        var metadata = new FakeBookPlaybackMetadataQuery();
+        metadata.Chapters[("book-1", 0)] = new PlaybackChapterMetadata(0, "第一章", "content.txt", 0, 4);
+        var content = new FakeBookPlaybackContentService();
+        content.Chapters[("book-1", 0)] = PlaybackChapterContent.FromLoaded(
+            0,
+            "第一章",
+            [new SpeechSegment(0, 0, 1, "显示", "当前文本")]);
+        var service = CreateService(store, metadata, content);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             service.GetCachedChaptersAsync("book-1", cancellation.Token));
-        Assert.Equal(1, reader.CallCount);
+        Assert.True(cancellation.IsCancellationRequested);
     }
 
     [Fact]
     public async Task GetCachedChaptersAsync_propagates_unexpected_content_failures()
     {
-        var reader = new FakeBookContentReader();
-        reader.ExceptionByStartOffset[0] = new ApplicationException("unexpected defect");
-        var service = CreateChapterService(reader);
+        var service = CreateChapterService(new FakeBookPlaybackContentService
+        {
+            Exception = new ApplicationException("unexpected defect")
+        });
 
         var exception = await Assert.ThrowsAsync<ApplicationException>(() =>
             service.GetCachedChaptersAsync("book-1", CancellationToken.None));
@@ -123,23 +178,26 @@ public sealed class CacheWorkspaceServiceTests
         {
             CleanupResult = new AudioCacheStoreCleanupResult(8192, 4, 2, 1)
         };
-        var service = CreateService(store, new FakeBookPlaybackMetadataQuery(), new FakeBookContentReader());
+        var service = CreateService(store, new FakeBookPlaybackMetadataQuery());
 
         await service.TrimToConfiguredLimitAsync(CancellationToken.None);
         var chapter = await service.ClearChapterAsync("book-1", 2, CancellationToken.None);
+        var chapters = await service.ClearChaptersAsync("book-1", [3, 1, 3], CancellationToken.None);
         var book = await service.ClearBookAsync("book-1", CancellationToken.None);
         var all = await service.ClearAllAsync(CancellationToken.None);
 
         Assert.True(store.MaintenanceRequested);
         Assert.Equal(("book-1", 2), store.ClearedChapter);
+        Assert.Equal(("book-1", new[] { 1, 3 }), store.ClearedChapters);
         Assert.Equal("book-1", store.ClearedBookId);
         Assert.True(store.ClearAllRequested);
         Assert.Equal(new CacheCleanupResult(8192, 4, 2, 1), chapter);
+        Assert.Equal(chapter, chapters);
         Assert.Equal(chapter, book);
         Assert.Equal(chapter, all);
     }
 
-    private static CacheWorkspaceService CreateChapterService(IBookContentReader reader)
+    private static CacheWorkspaceService CreateChapterService(IBookPlaybackContentService content)
     {
         var store = new FakeAudioCacheStore
         {
@@ -147,20 +205,22 @@ public sealed class CacheWorkspaceServiceTests
         };
         var metadata = new FakeBookPlaybackMetadataQuery();
         metadata.Chapters[("book-1", 0)] = new PlaybackChapterMetadata(0, "第一章", "content.txt", 0, 4);
-        return CreateService(store, metadata, reader);
+        return CreateService(store, metadata, content);
     }
 
     private static CacheWorkspaceService CreateService(
         IAudioCacheStore store,
         IBookPlaybackMetadataQuery metadataQuery,
-        IBookContentReader reader)
+        IBookPlaybackContentService? content = null,
+        long? ruleId = 7,
+        int defaultSpeakSpeed = 10)
     {
         return new CacheWorkspaceService(
             store,
             metadataQuery,
-            reader,
-            new TextSegmenter(),
-            new FixedSegmentationOptionsProvider());
+            content ?? new FakeBookPlaybackContentService(),
+            new FakeSelectedTtsRuleProvider(ruleId),
+            new FakeAppSettingsService(defaultSpeakSpeed));
     }
 
     private sealed class FakeAudioCacheStore : IAudioCacheStore
@@ -174,9 +234,17 @@ public sealed class CacheWorkspaceServiceTests
 
         public AudioCacheStoreCleanupResult CleanupResult { get; set; } = new(0, 0, 0, 0);
 
+        public IReadOnlySet<AudioCacheKey> ValidKeys { get; set; } = new HashSet<AudioCacheKey>();
+
+        public IReadOnlyList<AudioCacheKey> LastValidityQuery { get; private set; } = [];
+
+        public Action? BeforeValidityQuery { get; init; }
+
         public bool MaintenanceRequested { get; private set; }
 
         public (string BookId, int ChapterIndex)? ClearedChapter { get; private set; }
+
+        public (string BookId, int[] ChapterIndices)? ClearedChapters { get; private set; }
 
         public string? ClearedBookId { get; private set; }
 
@@ -188,9 +256,29 @@ public sealed class CacheWorkspaceServiceTests
 
         public Task<IReadOnlyList<CachedChapterStoreSummary>> GetChaptersAsync(string bookId, CancellationToken cancellationToken) => Task.FromResult(ChaptersResult);
 
+        public Task<IReadOnlySet<AudioCacheKey>> GetValidEntriesAsync(
+            IReadOnlyCollection<AudioCacheKey> keys,
+            CancellationToken cancellationToken)
+        {
+            BeforeValidityQuery?.Invoke();
+            cancellationToken.ThrowIfCancellationRequested();
+            LastValidityQuery = keys.ToArray();
+            return Task.FromResult<IReadOnlySet<AudioCacheKey>>(
+                keys.Where(ValidKeys.Contains).ToHashSet());
+        }
+
         public Task<AudioCacheStoreCleanupResult> ClearChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
         {
             ClearedChapter = (bookId, chapterIndex);
+            return Task.FromResult(CleanupResult);
+        }
+
+        public Task<AudioCacheStoreCleanupResult> ClearChaptersAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken)
+        {
+            ClearedChapters = (bookId, chapterIndices.ToArray());
             return Task.FromResult(CleanupResult);
         }
 
@@ -233,28 +321,59 @@ public sealed class CacheWorkspaceServiceTests
         }
     }
 
-    private sealed class FakeBookContentReader : IBookContentReader
+    private sealed class FakeBookPlaybackContentService : IBookPlaybackContentService
     {
-        public int CallCount { get; private set; }
+        public Dictionary<(string BookId, int ChapterIndex), PlaybackChapterContent> Chapters { get; } = [];
 
-        public Dictionary<int, string> TextByStartOffset { get; } = [];
+        public Exception? Exception { get; init; }
 
-        public Dictionary<int, Exception> ExceptionByStartOffset { get; } = [];
+        public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
-        public Task<string> ReadChapterTextAsync(string storedFilePath, int startOffset, int length, CancellationToken cancellationToken)
+        public Task<PlaybackChapterContent?> GetChapterAsync(
+            string bookId,
+            int chapterIndex,
+            CancellationToken cancellationToken)
         {
-            CallCount++;
-            if (ExceptionByStartOffset.TryGetValue(startOffset, out var exception))
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Exception is not null)
             {
-                throw exception;
+                throw Exception;
             }
 
-            return Task.FromResult(TextByStartOffset[startOffset]);
+            return Task.FromResult(Chapters.GetValueOrDefault((bookId, chapterIndex)));
         }
     }
 
-    private sealed class FixedSegmentationOptionsProvider : ITextSegmentationOptionsProvider
+    private sealed class FakeSelectedTtsRuleProvider(long? ruleId) : ISelectedTtsRuleProvider
     {
-        public TextSegmentationOptions GetCurrent() => TextSegmentationOptions.Default;
+        public Task<SelectedPlaybackRule?> GetSelectedRuleAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(
+                ruleId is null
+                    ? null
+                    : new SelectedPlaybackRule(ruleId.Value, "当前规则", null!, null!));
+        }
+
+        public Task<SelectedPlaybackRule?> SelectRuleAsync(long selectedRuleId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class FakeAppSettingsService(int defaultSpeakSpeed) : IAppSettingsService
+    {
+        public AppSettings Current { get; } = AppSettings.Default with
+        {
+            DefaultSpeakSpeed = defaultSpeakSpeed
+        };
+
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }

@@ -6,6 +6,7 @@ using NovelSpeaker.Infrastructure.FileSystem.Cache;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Playback;
 using NovelSpeaker.Infrastructure.Playback;
+using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.TestKit.Common;
 using Xunit;
 
@@ -13,6 +14,56 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed class SqliteAudioCacheTests
 {
+    [Fact]
+    public async Task GetValidEntriesAsync_counts_only_decodable_files_and_does_not_touch_lru()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var fixture = await CreateFixtureAsync(timeProvider: timeProvider);
+        var validKey = AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "当前文本甲");
+        var corruptKey = AudioCacheKey.FromPlayback("book-1", 0, 1, 7, 12, "当前文本乙");
+        var missingKey = AudioCacheKey.FromPlayback("book-1", 0, 2, 7, 12, "当前文本丙");
+        var invalidPathKey = AudioCacheKey.FromPlayback("book-1", 0, 3, 7, 12, "当前文本丁");
+        var valid = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                validKey,
+                "book-1",
+                0,
+                0,
+                7,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        var corrupt = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                corruptKey,
+                "book-1",
+                0,
+                1,
+                7,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        File.Copy(PlaybackTestAudio.CorruptMp3Path, corrupt.FilePath, overwrite: true);
+        await InsertIndexedEntryAsync(
+            fixture,
+            invalidPathKey,
+            Path.Combine(Path.GetDirectoryName(fixture.Directories.RootDirectoryPath)!, "outside.mp3"));
+        var lastAccessedBefore = await ReadLastAccessedAtAsync(fixture, validKey);
+        timeProvider.Advance(TimeSpan.FromHours(1));
+
+        var result = await fixture.Cache.GetValidEntriesAsync(
+            [validKey, corruptKey, missingKey, invalidPathKey],
+            CancellationToken.None);
+
+        Assert.Equal([validKey], result);
+        Assert.Equal(lastAccessedBefore, await ReadLastAccessedAtAsync(fixture, validKey));
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            fixture.Cache.GetValidEntriesAsync([validKey], cancellation.Token));
+    }
+
     [Fact]
     public async Task StoreAsync_persists_audio_under_sharded_path_and_try_get_hits()
     {
@@ -106,6 +157,45 @@ public sealed class SqliteAudioCacheTests
         var bookCleanup = await fixture.Cache.ClearBookAsync("book-2", CancellationToken.None);
         Assert.Null(await fixture.Cache.TryGetAsync(key3, CancellationToken.None));
         Assert.Equal(1, bookCleanup.DeletedEntryCount);
+    }
+
+    [Fact]
+    public async Task ClearChaptersAsync_aggregates_partial_results_and_honors_cancellation_before_mutation()
+    {
+        var registry = new AudioCacheProtectionRegistry();
+        var fixture = await CreateFixtureAsync(registry: registry);
+        var firstKey = AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段");
+        var protectedKey = AudioCacheKey.FromPlayback("book-1", 1, 0, 1, 10, "第二段");
+        var untouchedKey = AudioCacheKey.FromPlayback("book-1", 2, 0, 1, 10, "第三段");
+        var first = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(firstKey, "book-1", 0, 0, 1, CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"),
+            CancellationToken.None);
+        var protectedEntry = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(protectedKey, "book-1", 1, 0, 1, CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"),
+            CancellationToken.None);
+        await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(untouchedKey, "book-1", 2, 0, 1, CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"),
+            CancellationToken.None);
+
+        using (registry.Protect(protectedEntry.FilePath))
+        {
+            var result = await fixture.Cache.ClearChaptersAsync(
+                "book-1",
+                [0, 1],
+                CancellationToken.None);
+
+            Assert.Equal(1, result.DeletedEntryCount);
+            Assert.Equal(1, result.ProtectedEntryCount);
+            Assert.False(File.Exists(first.FilePath));
+            Assert.NotNull(await fixture.Cache.TryGetAsync(protectedKey, CancellationToken.None));
+            Assert.NotNull(await fixture.Cache.TryGetAsync(untouchedKey, CancellationToken.None));
+        }
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            fixture.Cache.ClearChaptersAsync("book-1", [2], cancellation.Token));
+        Assert.NotNull(await fixture.Cache.TryGetAsync(untouchedKey, CancellationToken.None));
     }
 
     [Fact]
@@ -360,8 +450,37 @@ public sealed class SqliteAudioCacheTests
         var index = new SqliteAudioCacheIndex(factory, timeProvider ?? TimeProvider.System);
         var fileStore = new AudioCacheFileStore(directories, pathResolver, registry);
         var maintenance = new AudioCacheMaintenance(index, fileStore, limitProvider, registry);
-        var cache = new AudioCacheFacade(index, fileStore, maintenance, registry);
+        var cache = new AudioCacheFacade(index, fileStore, maintenance, registry, new AudioProbe());
         return new CacheFixture(directories, factory, cache, limitProvider);
+    }
+
+    private static async Task<string> ReadLastAccessedAtAsync(CacheFixture fixture, AudioCacheKey key)
+    {
+        await using var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
+        var command = connection.CreateCommand();
+        command.CommandText = "SELECT LastAccessedAt FROM AudioCacheEntries WHERE CacheKey = $cacheKey;";
+        command.Parameters.AddWithValue("$cacheKey", key.Value);
+        return (string)(await command.ExecuteScalarAsync(CancellationToken.None))!;
+    }
+
+    private static async Task InsertIndexedEntryAsync(
+        CacheFixture fixture,
+        AudioCacheKey key,
+        string filePath)
+    {
+        await using var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO AudioCacheEntries (
+                CacheKey, BookId, ChapterIndex, SegmentIndex, RuleId, FilePath,
+                ContentType, FileSize, DurationMilliseconds, CreatedAt, LastAccessedAt, Status)
+            VALUES ($cacheKey, 'book-1', 0, 3, 7, $filePath, 'audio/mpeg', 1, NULL, $now, $now, 1);
+            """;
+        command.Parameters.AddWithValue("$cacheKey", key.Value);
+        command.Parameters.AddWithValue("$filePath", filePath);
+        command.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O"));
+        await command.ExecuteNonQueryAsync(CancellationToken.None);
     }
 
     private static string CopyAudioToTempFile(string sourcePath)

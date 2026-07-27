@@ -1,7 +1,7 @@
 using System.Text;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Application.Settings;
 
 namespace NovelSpeaker.Application.Playback.Cache;
 
@@ -12,24 +12,24 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
 {
     private readonly IAudioCacheStore _cacheStore;
     private readonly IBookPlaybackMetadataQuery _bookMetadataQuery;
-    private readonly IBookContentReader _bookContentReader;
-    private readonly ITextSegmenter _textSegmenter;
-    private readonly ITextSegmentationOptionsProvider _optionsProvider;
+    private readonly IBookPlaybackContentService _bookContentService;
+    private readonly ISelectedTtsRuleProvider _selectedRuleProvider;
+    private readonly IAppSettingsService _settingsService;
     private readonly ICacheWorkspaceFailureReporter? _failureReporter;
 
     public CacheWorkspaceService(
         IAudioCacheStore cacheStore,
         IBookPlaybackMetadataQuery bookMetadataQuery,
-        IBookContentReader bookContentReader,
-        ITextSegmenter textSegmenter,
-        ITextSegmentationOptionsProvider optionsProvider,
+        IBookPlaybackContentService bookContentService,
+        ISelectedTtsRuleProvider selectedRuleProvider,
+        IAppSettingsService settingsService,
         ICacheWorkspaceFailureReporter? failureReporter = null)
     {
         _cacheStore = cacheStore;
         _bookMetadataQuery = bookMetadataQuery;
-        _bookContentReader = bookContentReader;
-        _textSegmenter = textSegmenter;
-        _optionsProvider = optionsProvider;
+        _bookContentService = bookContentService;
+        _selectedRuleProvider = selectedRuleProvider;
+        _settingsService = settingsService;
         _failureReporter = failureReporter;
     }
 
@@ -82,25 +82,33 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
             return [];
         }
 
-        var options = _optionsProvider.GetCurrent();
+        var selectedRule = await _selectedRuleProvider
+            .GetSelectedRuleAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var defaultSpeakSpeed = _settingsService.Current.DefaultSpeakSpeed;
         var items = new List<CachedChapterCacheItem>(summaries.Count);
         foreach (var summary in summaries)
         {
             var metadata = await _bookMetadataQuery
                 .GetChapterAsync(bookId, summary.ChapterIndex, cancellationToken)
                 .ConfigureAwait(false);
-            var estimatedTotalSegmentCount = metadata is null
-                ? null
-                : await TryEstimateSegmentCountAsync(metadata, options, cancellationToken).ConfigureAwait(false);
+            var completeness = selectedRule is null || metadata is null
+                ? CurrentConfigurationCompleteness.Unavailable
+                : await TryGetCurrentConfigurationCompletenessAsync(
+                    summary.BookId,
+                    summary.ChapterIndex,
+                    selectedRule.RuleId,
+                    defaultSpeakSpeed,
+                    cancellationToken).ConfigureAwait(false);
 
             items.Add(new CachedChapterCacheItem(
                 summary.BookId,
                 summary.ChapterIndex,
                 metadata?.Title ?? $"第 {summary.ChapterIndex + 1} 章",
-                summary.DistinctSegmentCount,
+                completeness.CachedSegmentCount,
                 summary.EntryCount,
                 summary.TotalSizeBytes,
-                estimatedTotalSegmentCount));
+                completeness.TotalSegmentCount));
         }
 
         return items;
@@ -132,48 +140,91 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
         return MapCleanupResult(result);
     }
 
+    public async Task<CacheCleanupResult> ClearChaptersAsync(
+        string bookId,
+        IReadOnlyCollection<int> chapterIndices,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        ArgumentNullException.ThrowIfNull(chapterIndices);
+
+        var normalizedIndices = chapterIndices
+            .Distinct()
+            .Order()
+            .ToArray();
+        if (normalizedIndices.Length == 0)
+        {
+            throw new ArgumentException("At least one chapter must be selected.", nameof(chapterIndices));
+        }
+
+        if (normalizedIndices[0] < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(chapterIndices));
+        }
+
+        var result = await _cacheStore
+            .ClearChaptersAsync(bookId, normalizedIndices, cancellationToken)
+            .ConfigureAwait(false);
+        return MapCleanupResult(result);
+    }
+
     public async Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken)
     {
         var result = await _cacheStore.ClearAllAsync(cancellationToken).ConfigureAwait(false);
         return MapCleanupResult(result);
     }
 
-    private async Task<int?> TryEstimateSegmentCountAsync(
-        PlaybackChapterMetadata metadata,
-        TextSegmentationOptions options,
+    private async Task<CurrentConfigurationCompleteness> TryGetCurrentConfigurationCompletenessAsync(
+        string bookId,
+        int chapterIndex,
+        long ruleId,
+        int speakSpeed,
         CancellationToken cancellationToken)
     {
-        if (metadata.StartOffset < 0 || metadata.Length <= 0)
-        {
-            return null;
-        }
-
         try
         {
-            var text = await _bookContentReader.ReadChapterTextAsync(
-                metadata.StoredFilePath,
-                metadata.StartOffset,
-                metadata.Length,
-                cancellationToken).ConfigureAwait(false);
-
-            return await Task.Run(() =>
+            var chapter = await _bookContentService
+                .GetChapterAsync(bookId, chapterIndex, cancellationToken)
+                .ConfigureAwait(false);
+            if (chapter is null)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                return _textSegmenter.Segment(text, options).Count;
-            }, cancellationToken).ConfigureAwait(false);
+                return CurrentConfigurationCompleteness.Unavailable;
+            }
+
+            var keys = chapter.Segments
+                .Where(segment => !string.IsNullOrWhiteSpace(segment.SpeechText))
+                .Select(segment => AudioCacheKey.FromPlayback(
+                    bookId,
+                    chapterIndex,
+                    segment.SegmentIndex,
+                    ruleId,
+                    speakSpeed,
+                    segment.SpeechText))
+                .ToArray();
+            cancellationToken.ThrowIfCancellationRequested();
+            if (keys.Length == 0)
+            {
+                return new CurrentConfigurationCompleteness(0, 0);
+            }
+
+            var validEntries = await _cacheStore
+                .GetValidEntriesAsync(keys, cancellationToken)
+                .ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return new CurrentConfigurationCompleteness(validEntries.Count, keys.Length);
         }
         catch (OperationCanceledException)
         {
             throw;
         }
-        catch (Exception exception) when (IsExpectedEstimationFailure(exception))
+        catch (Exception exception) when (IsExpectedCompletenessFailure(exception))
         {
-            _failureReporter?.ReportEstimationFallback(exception);
-            return null;
+            _failureReporter?.ReportCompletenessUnavailable(exception);
+            return CurrentConfigurationCompleteness.Unavailable;
         }
     }
 
-    private static bool IsExpectedEstimationFailure(Exception exception)
+    private static bool IsExpectedCompletenessFailure(Exception exception)
     {
         return exception is FileNotFoundException or
             DirectoryNotFoundException or
@@ -181,6 +232,13 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
             IOException or
             DecoderFallbackException or
             InvalidDataException;
+    }
+
+    private readonly record struct CurrentConfigurationCompleteness(
+        int CachedSegmentCount,
+        int? TotalSegmentCount)
+    {
+        public static CurrentConfigurationCompleteness Unavailable { get; } = new(0, null);
     }
 
     private static CacheCleanupResult MapCleanupResult(AudioCacheStoreCleanupResult result)

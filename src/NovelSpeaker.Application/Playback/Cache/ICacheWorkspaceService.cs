@@ -17,5 +17,10 @@ public interface ICacheWorkspaceService
 
     Task<CacheCleanupResult> ClearChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken);
 
+    Task<CacheCleanupResult> ClearChaptersAsync(
+        string bookId,
+        IReadOnlyCollection<int> chapterIndices,
+        CancellationToken cancellationToken);
+
     Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken);
 }

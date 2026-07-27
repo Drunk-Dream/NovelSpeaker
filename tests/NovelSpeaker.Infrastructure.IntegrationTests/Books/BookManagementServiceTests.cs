@@ -9,6 +9,7 @@ using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
 using NovelSpeaker.Infrastructure.Persistence.Playback;
 using NovelSpeaker.Infrastructure.Playback;
+using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.Infrastructure.IntegrationTests;
 using Xunit;
 
@@ -251,7 +252,7 @@ public sealed class BookLibraryPersistenceTests
         var fileStore = new AudioCacheFileStore(directories, pathResolver, protectionRegistry);
         var limitProvider = new FixedAudioCacheLimitProvider(AppSettings.DefaultCacheLimitBytes);
         var maintenance = new AudioCacheMaintenance(index, fileStore, limitProvider, protectionRegistry);
-        var cache = new AudioCacheFacade(index, fileStore, maintenance, protectionRegistry);
+        var cache = new AudioCacheFacade(index, fileStore, maintenance, protectionRegistry, new AudioProbe());
         var progressStore = new SqliteReadingProgressStore(factory);
         var query = new BookLibraryQuery(factory);
         var metadata = new BookMetadataUpdateService(factory);

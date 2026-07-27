@@ -13,9 +13,21 @@ public interface IAudioCacheStore
         string bookId,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Returns the requested entries that still have decodable cache files without updating LRU metadata.
+    /// </summary>
+    Task<IReadOnlySet<AudioCacheKey>> GetValidEntriesAsync(
+        IReadOnlyCollection<AudioCacheKey> keys,
+        CancellationToken cancellationToken);
+
     Task<AudioCacheStoreCleanupResult> ClearChapterAsync(
         string bookId,
         int chapterIndex,
+        CancellationToken cancellationToken);
+
+    Task<AudioCacheStoreCleanupResult> ClearChaptersAsync(
+        string bookId,
+        IReadOnlyCollection<int> chapterIndices,
         CancellationToken cancellationToken);
 
     Task<AudioCacheStoreCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken);

@@ -1,6 +1,7 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Infrastructure.FileSystem.Cache;
+using NovelSpeaker.Infrastructure.Speech.Http;
 
 namespace NovelSpeaker.Infrastructure.Persistence.Playback;
 
@@ -13,18 +14,21 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
     private readonly AudioCacheFileStore _fileStore;
     private readonly AudioCacheMaintenance _maintenance;
     private readonly IAudioCacheProtectionRegistry _protectionRegistry;
+    private readonly AudioProbe _audioProbe;
     private readonly SemaphoreSlim _mutex = new(1, 1);
 
     public AudioCacheFacade(
         SqliteAudioCacheIndex index,
         AudioCacheFileStore fileStore,
         AudioCacheMaintenance maintenance,
-        IAudioCacheProtectionRegistry protectionRegistry)
+        IAudioCacheProtectionRegistry protectionRegistry,
+        AudioProbe audioProbe)
     {
         _index = index;
         _fileStore = fileStore;
         _maintenance = maintenance;
         _protectionRegistry = protectionRegistry;
+        _audioProbe = audioProbe;
     }
 
     public Task<AudioCacheEntry?> TryGetAsync(AudioCacheKey key, CancellationToken cancellationToken)
@@ -63,6 +67,17 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         return RunExclusiveAsync(ct => _index.GetChaptersAsync(bookId, ct), cancellationToken);
     }
 
+    public Task<IReadOnlySet<AudioCacheKey>> GetValidEntriesAsync(
+        IReadOnlyCollection<AudioCacheKey> keys,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        var frozenKeys = keys.Distinct().ToArray();
+        return RunExclusiveAsync(
+            ct => GetValidEntriesCoreAsync(frozenKeys, ct),
+            cancellationToken);
+    }
+
     public Task<AudioCacheStoreCleanupResult> ClearChapterAsync(
         string bookId,
         int chapterIndex,
@@ -71,6 +86,32 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
         return RunExclusiveAsync(
             ct => ClearEntriesCoreAsync(bookId, chapterIndex, ct),
+            cancellationToken);
+    }
+
+    public Task<AudioCacheStoreCleanupResult> ClearChaptersAsync(
+        string bookId,
+        IReadOnlyCollection<int> chapterIndices,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        ArgumentNullException.ThrowIfNull(chapterIndices);
+        var normalizedIndices = chapterIndices
+            .Distinct()
+            .Order()
+            .ToArray();
+        if (normalizedIndices.Length == 0)
+        {
+            throw new ArgumentException("At least one chapter must be selected.", nameof(chapterIndices));
+        }
+
+        if (normalizedIndices[0] < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(chapterIndices));
+        }
+
+        return RunExclusiveAsync(
+            ct => ClearChaptersCoreAsync(bookId, normalizedIndices, ct),
             cancellationToken);
     }
 
@@ -117,6 +158,46 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
             cancellationToken).ConfigureAwait(false);
         return new AudioCacheEntry(key, filePath);
     }
+
+    private async Task<IReadOnlySet<AudioCacheKey>> GetValidEntriesCoreAsync(
+        IReadOnlyCollection<AudioCacheKey> keys,
+        CancellationToken cancellationToken)
+    {
+        var validKeys = new HashSet<AudioCacheKey>();
+        foreach (var key in keys)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var entry = await _index.FindAsync(key, cancellationToken).ConfigureAwait(false);
+            if (entry is null)
+            {
+                continue;
+            }
+
+            try
+            {
+                var filePath = _fileStore.ResolveIndexedPath(entry.FilePath);
+                if (_fileStore.Exists(filePath) && _audioProbe.CanDecode(filePath))
+                {
+                    validKeys.Add(key);
+                }
+            }
+            catch (Exception exception) when (IsInvalidCacheEntry(exception))
+            {
+                // A malformed or inaccessible indexed path is an invalid cache entry for this read-only query.
+                continue;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        return validKeys;
+    }
+
+    private static bool IsInvalidCacheEntry(Exception exception) =>
+        exception is InvalidDataException or
+            IOException or
+            UnauthorizedAccessException or
+            NotSupportedException;
 
     private async Task<AudioCacheEntry> StoreCoreAsync(
         AudioCacheWriteRequest request,
@@ -202,6 +283,36 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
             {
                 failedEntryCount++;
             }
+        }
+
+        return new AudioCacheStoreCleanupResult(
+            deletedBytes,
+            deletedEntryCount,
+            protectedEntryCount,
+            failedEntryCount);
+    }
+
+    private async Task<AudioCacheStoreCleanupResult> ClearChaptersCoreAsync(
+        string bookId,
+        IReadOnlyCollection<int> chapterIndices,
+        CancellationToken cancellationToken)
+    {
+        var deletedBytes = 0L;
+        var deletedEntryCount = 0;
+        var protectedEntryCount = 0;
+        var failedEntryCount = 0;
+
+        foreach (var chapterIndex in chapterIndices)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await ClearEntriesCoreAsync(
+                bookId,
+                chapterIndex,
+                cancellationToken).ConfigureAwait(false);
+            deletedBytes += result.DeletedBytes;
+            deletedEntryCount += result.DeletedEntryCount;
+            protectedEntryCount += result.ProtectedEntryCount;
+            failedEntryCount += result.FailedEntryCount;
         }
 
         return new AudioCacheStoreCleanupResult(
