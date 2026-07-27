@@ -7,6 +7,7 @@ using NovelSpeaker.Application.Playback.ActiveCache;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.App.Desktop.MiniPlayer;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Cache;
@@ -28,6 +29,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     private readonly IPlayerAutoScrollCoordinator _autoScrollCoordinator;
     private readonly IUiScheduler _uiScheduler;
     private readonly IAppFeedbackService _feedbackService;
+    private readonly IMiniPlayerLauncher _miniPlayerLauncher;
     private readonly PlayerContentProjection _contentProjection;
     private readonly PlayerSnapshotProjection _snapshotProjection;
     private readonly PlayerRulesAndSpeedController _rulesAndSpeedController;
@@ -55,6 +57,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         IAppNavigator navigator,
         IPlayerAutoScrollCoordinator autoScrollCoordinator,
         ICacheWorkspaceService cacheWorkspaceService,
+        IMiniPlayerLauncher miniPlayerLauncher,
         TimeProvider? timeProvider = null,
         IUiScheduler? uiScheduler = null)
     {
@@ -63,6 +66,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         _cacheWorkspaceService = cacheWorkspaceService;
         _settingsService = settingsService;
         _feedbackService = feedbackService;
+        _miniPlayerLauncher = miniPlayerLauncher ?? throw new ArgumentNullException(nameof(miniPlayerLauncher));
         _navigator = navigator;
         _autoScrollCoordinator = autoScrollCoordinator;
         _uiScheduler = uiScheduler ?? new WpfUiScheduler();
@@ -528,6 +532,10 @@ public sealed partial class PlayerViewModel : ObservableObject
         CloseTransientPanels();
         await _navigator.NavigateAsync(AppRoutes.TtsRules, cancellationToken).ConfigureAwait(true);
     }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private Task OpenMiniPlayerAsync(CancellationToken cancellationToken) =>
+        _miniPlayerLauncher.OpenMiniPlayerAsync(cancellationToken);
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task TogglePlayPauseAsync(CancellationToken cancellationToken)

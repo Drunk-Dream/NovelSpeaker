@@ -72,7 +72,8 @@ public sealed class NavigationPageLifecycleTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator(),
-                new FakeCacheWorkspaceService());
+                new FakeCacheWorkspaceService(),
+                new NovelSpeaker.App.WpfTests.FakeMiniPlayerLauncher());
             var page = new PlayerPage(viewModel);
             page.DataContext = new PlayerNavigationRequest("book-7", PlayerNavigationMode.ReturnToCurrentSession);
 
@@ -115,7 +116,8 @@ public sealed class NavigationPageLifecycleTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator(),
-                new FakeCacheWorkspaceService());
+                new FakeCacheWorkspaceService(),
+                new NovelSpeaker.App.WpfTests.FakeMiniPlayerLauncher());
             var page = new PlayerPage(viewModel)
             {
                 DataContext = new PlayerNavigationRequest("book-7", PlayerNavigationMode.ReturnToCurrentSession)

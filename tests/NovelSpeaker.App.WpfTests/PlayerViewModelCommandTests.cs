@@ -19,6 +19,20 @@ namespace NovelSpeaker.App.WpfTests;
 public sealed partial class PlayerViewModelTests
 {
     [Fact]
+    public async Task OpenMiniPlayerCommand_uses_required_desktop_launcher()
+    {
+        var launcher = new FakeMiniPlayerLauncher();
+        var viewModel = CreateViewModel(
+            new FakePlaybackCoordinator(PlaybackSnapshot.Idle),
+            new FakeBookPlaybackContentService(null, null),
+            miniPlayerLauncher: launcher);
+
+        await viewModel.OpenMiniPlayerCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, launcher.OpenCount);
+    }
+
+    [Fact]
     public async Task SelectRuleCommand_changes_rule_without_losing_context()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(

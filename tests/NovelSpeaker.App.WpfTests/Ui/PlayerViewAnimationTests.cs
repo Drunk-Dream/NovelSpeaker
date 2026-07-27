@@ -70,7 +70,8 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new FakeCacheWorkspaceService());
+                new FakeCacheWorkspaceService(),
+                new FakeMiniPlayerLauncher());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
@@ -171,7 +172,8 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new FakeCacheWorkspaceService());
+                new FakeCacheWorkspaceService(),
+                new FakeMiniPlayerLauncher());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
@@ -274,7 +276,8 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new FakeCacheWorkspaceService());
+                new FakeCacheWorkspaceService(),
+                new FakeMiniPlayerLauncher());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
@@ -394,7 +397,8 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new FakeCacheWorkspaceService());
+                new FakeCacheWorkspaceService(),
+                new FakeMiniPlayerLauncher());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(

@@ -51,6 +51,14 @@
                         AutomationProperties.Name="主动缓存章节">
                     <ui:SymbolIcon Symbol="ArrowDownload24" />
                 </Button>
+                <Button x:Name="MiniPlayerToolButton"
+                        Margin="12,0,0,0"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
+                        Command="{Binding OpenMiniPlayerCommand}"
+                        ToolTip="迷你播放器"
+                        AutomationProperties.Name="迷你播放器">
+                    <ui:SymbolIcon Symbol="WindowNew24" />
+                </Button>
                 <Button x:Name="RuleMenuButton"
                         Margin="12,0,0,0"
                         Style="{StaticResource SecondaryIconButtonStyle}"

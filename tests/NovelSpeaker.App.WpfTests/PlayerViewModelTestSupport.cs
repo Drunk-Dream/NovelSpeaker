@@ -31,6 +31,7 @@ public sealed partial class PlayerViewModelTests
         FakeAppSettingsService? settingsService = null,
         FakeActiveCacheCoordinator? activeCacheCoordinator = null,
         ICacheWorkspaceService? cacheWorkspaceService = null,
+        FakeMiniPlayerLauncher? miniPlayerLauncher = null,
         TimeProvider? timeProvider = null,
         IUiScheduler? uiScheduler = null)
     {
@@ -44,6 +45,7 @@ public sealed partial class PlayerViewModelTests
             navigationService ?? new FakeNavigationService(),
             autoScrollCoordinator ?? new FakePlayerAutoScrollCoordinator(),
             cacheWorkspaceService ?? new FakeCacheWorkspaceService(),
+            miniPlayerLauncher ?? new FakeMiniPlayerLauncher(),
             timeProvider ?? TimeProvider.System,
             uiScheduler ?? new ImmediateUiScheduler());
     }
