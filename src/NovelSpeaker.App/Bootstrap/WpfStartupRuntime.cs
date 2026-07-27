@@ -6,6 +6,7 @@ using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Desktop.MediaControls;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.App.Shell;
@@ -151,7 +152,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         return Task.CompletedTask;
     }
 
-    public Task ShowShellAsync(CancellationToken cancellationToken)
+    public async Task ShowShellAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var window = RequireServices().GetRequiredService<MainWindow>();
@@ -161,14 +162,31 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         _setMainWindow(window);
         CloseStartupStatus();
         window.Show();
+        await RequireServices()
+            .GetRequiredService<IMediaControlCoordinator>()
+            .StartAsync(cancellationToken)
+            .ConfigureAwait(true);
         StartBackgroundCacheMaintenance(cancellationToken);
-        return Task.CompletedTask;
     }
 
     public void BeginShutdown()
     {
         _shutdownGate.TryBeginShutdown();
         _backgroundTasks.StopAccepting();
+    }
+
+    public async Task StopMediaControlsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_serviceProvider is null)
+        {
+            return;
+        }
+
+        await _serviceProvider
+            .GetRequiredService<IMediaControlCoordinator>()
+            .StopAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task StopPlaybackAsync(CancellationToken cancellationToken)

@@ -183,7 +183,7 @@ public sealed class StartupCoordinatorTests
         await coordinator.ShutdownAsync();
 
         Assert.Equal(
-            ["gate", "playback", "background", "flush", "dispose"],
+            ["gate", "media-controls", "playback", "background", "flush", "dispose"],
             runtime.ShutdownSteps);
         Assert.True(runtime.ProcessCancelledBeforeBackgroundWait);
     }
@@ -201,11 +201,31 @@ public sealed class StartupCoordinatorTests
         await coordinator.ShutdownAsync();
 
         Assert.Equal(
-            ["gate", "playback", "background", "flush", "dispose"],
+            ["gate", "media-controls", "playback", "background", "flush", "dispose"],
             runtime.ShutdownSteps);
         Assert.Contains(
             runtime.RecordedFailures,
             failure => failure.SafeMessage == "保存并结束播放失败，将继续关闭。");
+    }
+
+    [Fact]
+    public async Task ShutdownAsync_continues_after_media_control_unregistration_failure()
+    {
+        var runtime = new RecordingStartupRuntime
+        {
+            MediaControlShutdownFailure = new InvalidOperationException("media failure")
+        };
+        await using var coordinator = new StartupCoordinator(runtime);
+        await coordinator.StartAsync();
+
+        await coordinator.ShutdownAsync();
+
+        Assert.Equal(
+            ["gate", "media-controls", "playback", "background", "flush", "dispose"],
+            runtime.ShutdownSteps);
+        Assert.Contains(
+            runtime.RecordedFailures,
+            failure => failure.SafeMessage == "注销系统媒体控制失败，将继续关闭。");
     }
 
     [Fact]
@@ -283,6 +303,8 @@ public sealed class StartupCoordinatorTests
         public List<string> ShutdownSteps { get; } = [];
 
         public Exception? PlaybackShutdownFailure { get; init; }
+
+        public Exception? MediaControlShutdownFailure { get; init; }
 
         public TaskCompletionSource? PlaybackShutdownGate { get; init; }
 
@@ -386,6 +408,18 @@ public sealed class StartupCoordinatorTests
             {
                 throw PlaybackShutdownFailure;
             }
+        }
+
+        public Task StopMediaControlsAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ShutdownSteps.Add("media-controls");
+            if (MediaControlShutdownFailure is not null)
+            {
+                throw MediaControlShutdownFailure;
+            }
+
+            return Task.CompletedTask;
         }
 
         public Task WaitForBackgroundTasksAsync(CancellationToken cancellationToken)

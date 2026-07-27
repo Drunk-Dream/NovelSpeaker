@@ -7,6 +7,7 @@ using NovelSpeaker.Application.Playback.ActiveCache;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Playback.Export;
 using NovelSpeaker.Application.Playback.Audio;
+using NovelSpeaker.Application.Desktop.MediaControls;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
@@ -136,6 +137,10 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAudioPlayer>(provider.GetRequiredService<IAudioPlayer>());
                 Assert.IsType<LocalAudioPlaybackCoordinator>(provider.GetRequiredService<ILocalAudioPlaybackCoordinator>());
                 Assert.IsType<PlaybackCoordinator>(provider.GetRequiredService<PlaybackCoordinator>());
+                Assert.IsAssignableFrom<IMediaControlCoordinator>(
+                    provider.GetRequiredService<IMediaControlCoordinator>());
+                Assert.IsAssignableFrom<IMediaControlPlatform>(
+                    provider.GetRequiredService<IMediaControlPlatform>());
                 Assert.IsAssignableFrom<IBookPlaybackContentService>(provider.GetRequiredService<IBookPlaybackContentService>());
                 Assert.IsType<SelectedTtsRuleProvider>(provider.GetRequiredService<ISelectedTtsRuleProvider>());
                 Assert.IsAssignableFrom<IPlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());

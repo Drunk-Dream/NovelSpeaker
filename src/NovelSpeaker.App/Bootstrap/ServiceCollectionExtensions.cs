@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NovelSpeaker.App.Desktop.MediaControls;
 using NovelSpeaker.App.Features.Appearance;
 using NovelSpeaker.App.Features.BookDetails;
 using NovelSpeaker.App.Features.Cache;
@@ -29,6 +30,7 @@ public static class ServiceCollectionExtensions
 
         services.TryAddSingleton<IProcessShutdownGate, ProcessShutdownGate>();
         return services
+            .AddMediaControls()
             .AddSharedServices()
             .AddShellServices()
             .AddAppearanceFeature()

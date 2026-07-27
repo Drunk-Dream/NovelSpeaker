@@ -68,12 +68,12 @@ public sealed class ArchitectureTests
             new TestProjectBoundary(
                 "tests/NovelSpeaker.App.PresentationTests/NovelSpeaker.App.PresentationTests.csproj",
                 "src/NovelSpeaker.App/NovelSpeaker.App.csproj",
-                "net10.0-windows",
+                "net10.0-windows10.0.19041.0",
                 UsesWpf: false),
             new TestProjectBoundary(
                 "tests/NovelSpeaker.App.WpfTests/NovelSpeaker.App.WpfTests.csproj",
                 "src/NovelSpeaker.App/NovelSpeaker.App.csproj",
-                "net10.0-windows",
+                "net10.0-windows10.0.19041.0",
                 UsesWpf: true)
         };
 
