@@ -455,7 +455,7 @@ Wave 内若任务不修改同一公共合同，可以并行；涉及共享 DI、
 - Close、Hide、显式 Exit 使用单一 desktop lifecycle coordinator。
 - 未保存导航 guard 只在真正退出时阻止进程关闭；隐藏到托盘不误触发完整 shutdown。
 
-## [ ] MINI-503（P1）：迷你播放器
+## [x] MINI-503（P1）：迷你播放器
 
 前置：TRAY-502。
 
