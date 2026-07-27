@@ -68,6 +68,10 @@ configure logging
 - 调用方取消直接结束，不转成失败。
 - 需要临时文件/数据库事务时，finally 完成确定性释放和补偿。
 
+缓存管理页的 MP3 导出从目录选择开始占用一个页面 Operation slot，重复启动直接拒绝。
+取消按钮和页面离开取消该 Operation CTS；导出不会转交为 Process 级后台批次，也不会影响已移交给
+主动缓存协调器的后台缓存任务。
+
 ## 7. Playback session
 
 - 新书籍/章节/规则/语速/关键文本配置产生新 session generation。
