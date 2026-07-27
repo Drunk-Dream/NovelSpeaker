@@ -5,6 +5,7 @@ using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.ActiveCache;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Playback.Export;
 using NovelSpeaker.Application.Playback.Audio;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
@@ -21,6 +22,7 @@ using NovelSpeaker.App.Shell.Input;
 using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shared.Theming;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using NovelSpeaker.Infrastructure.Diagnostics;
 using NovelSpeaker.Infrastructure.Playback;
@@ -79,6 +81,10 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAppNotificationService>(provider.GetRequiredService<IAppNotificationService>());
                 Assert.IsAssignableFrom<IExceptionProjector>(provider.GetRequiredService<IExceptionProjector>());
                 Assert.IsAssignableFrom<IAppFeedbackService>(provider.GetRequiredService<IAppFeedbackService>());
+                Assert.IsAssignableFrom<IPresentationFileDialogService>(
+                    provider.GetRequiredService<IPresentationFileDialogService>());
+                Assert.IsAssignableFrom<IPresentationLauncher>(
+                    provider.GetRequiredService<IPresentationLauncher>());
                 Assert.IsAssignableFrom<IAppDiagnosticsService>(provider.GetRequiredService<IAppDiagnosticsService>());
                 Assert.IsAssignableFrom<IEncodingSelectionDialogService>(provider.GetRequiredService<IEncodingSelectionDialogService>());
                 Assert.IsAssignableFrom<IImportProgressDialogService>(provider.GetRequiredService<IImportProgressDialogService>());
@@ -148,6 +154,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAudioCache>(provider.GetRequiredService<IAudioCache>());
                 Assert.IsAssignableFrom<IAudioCacheStore>(provider.GetRequiredService<IAudioCacheStore>());
                 Assert.IsAssignableFrom<ICacheWorkspaceService>(provider.GetRequiredService<ICacheWorkspaceService>());
+                Assert.IsAssignableFrom<IExportChaptersService>(provider.GetRequiredService<IExportChaptersService>());
                 Assert.IsAssignableFrom<IAudioCacheProtectionRegistry>(provider.GetRequiredService<IAudioCacheProtectionRegistry>());
                 Assert.IsType<PlaybackPrefetchController>(provider.GetRequiredService<IPlaybackPrefetchController>());
                 Assert.IsAssignableFrom<IReadingProgressStore>(provider.GetRequiredService<IReadingProgressStore>());

@@ -3,8 +3,10 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Playback.Export;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Dialogs;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;
 
@@ -18,8 +20,12 @@ public sealed partial class CacheManagementViewModel : ObservableObject
     private readonly IAppFeedbackService _feedbackService;
     private readonly IAppDialogService _dialogService;
     private readonly IAppNavigator _navigator;
+    private readonly IExportChaptersService _exportChaptersService;
+    private readonly IPresentationFileDialogService _fileDialogs;
+    private readonly IPresentationLauncher _launcher;
     private readonly DesktopSelectionController<int> _chapterSelection = new();
     private CancellationTokenSource? _chapterLoadCts;
+    private CancellationTokenSource? _exportCts;
     private int _bookLoadVersion;
     private int _chapterLoadVersion;
     private string? _selectedBookId;
@@ -28,12 +34,18 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         ICacheWorkspaceService cacheWorkspaceService,
         IAppFeedbackService feedbackService,
         IAppDialogService dialogService,
-        IAppNavigator navigator)
+        IAppNavigator navigator,
+        IExportChaptersService exportChaptersService,
+        IPresentationFileDialogService fileDialogs,
+        IPresentationLauncher launcher)
     {
         _cacheWorkspaceService = cacheWorkspaceService;
         _feedbackService = feedbackService;
         _dialogService = dialogService;
         _navigator = navigator;
+        _exportChaptersService = exportChaptersService;
+        _fileDialogs = fileDialogs;
+        _launcher = launcher;
         _chapterSelection.SelectionChanged += OnChapterSelectionChanged;
     }
 
@@ -49,6 +61,15 @@ public sealed partial class CacheManagementViewModel : ObservableObject
 
     [ObservableProperty]
     private bool isBusy;
+
+    [ObservableProperty]
+    private bool isExporting;
+
+    [ObservableProperty]
+    private string exportStatusText = string.Empty;
+
+    [ObservableProperty]
+    private string? lastExportDirectoryPath;
 
     [ObservableProperty]
     private bool hasSelection;
@@ -86,7 +107,39 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         !string.IsNullOrWhiteSpace(_selectedBookId) &&
         _chapterSelection.Count > 0;
 
-    public bool CanExportSelectedChapters => false;
+    public bool CanExportSelectedChapters =>
+        !IsBusy &&
+        !IsExporting &&
+        HasSelection &&
+        !string.IsNullOrWhiteSpace(_selectedBookId) &&
+        _chapterSelection.Count > 0 &&
+        SelectedChaptersAreExportable();
+
+    public bool CanCancelExport => IsExporting;
+
+    public bool CanOpenExportDirectory =>
+        !IsExporting &&
+        !string.IsNullOrWhiteSpace(LastExportDirectoryPath);
+
+    public string ExportCommandToolTip
+    {
+        get
+        {
+            if (IsExporting)
+            {
+                return "章节正在导出";
+            }
+
+            if (_chapterSelection.Count == 0)
+            {
+                return "请先选择要导出的章节";
+            }
+
+            return SelectedChaptersAreExportable()
+                ? "将所选章节导出为 MP3"
+                : "所选章节缓存不完整，无法导出";
+        }
+    }
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -99,6 +152,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
     {
         Interlocked.Increment(ref _bookLoadVersion);
         CancelChapterLoad();
+        CancelExportOperation();
         _chapterSelection.Clear();
     }
 
@@ -194,6 +248,105 @@ public sealed partial class CacheManagementViewModel : ObservableObject
             ct => _cacheWorkspaceService.ClearChaptersAsync(selectedBookId, selectedIndices, ct),
             reloadSelectedBook: true,
             cancellationToken);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanExportSelectedChapters), AllowConcurrentExecutions = false)]
+    private async Task ExportSelectedChaptersAsync(CancellationToken cancellationToken)
+    {
+        if (!CanExportSelectedChapters || string.IsNullOrWhiteSpace(_selectedBookId))
+        {
+            return;
+        }
+
+        var operationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (Interlocked.CompareExchange(ref _exportCts, operationCts, null) is not null)
+        {
+            operationCts.Dispose();
+            return;
+        }
+
+        var selectedBookId = _selectedBookId;
+        var selectedChapterIndices = SelectedChapterIndices.Order().ToArray();
+        IsExporting = true;
+        IsBusy = true;
+        LastExportDirectoryPath = null;
+        ExportStatusText = "请选择导出位置…";
+        NotifyCommandStateChanged();
+
+        try
+        {
+            var destinationRoot = await _fileDialogs.PickFolderAsync(
+                new PresentationFolderDialogOptions("选择章节 MP3 导出位置"),
+                operationCts.Token);
+            operationCts.Token.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(destinationRoot))
+            {
+                return;
+            }
+
+            ExportStatusText = $"正在导出 {selectedChapterIndices.Length} 章…";
+            var result = await _exportChaptersService.ExportAsync(
+                new ExportChaptersRequest(
+                    selectedBookId,
+                    selectedChapterIndices,
+                    destinationRoot),
+                operationCts.Token);
+            operationCts.Token.ThrowIfCancellationRequested();
+            ShowExportResult(result);
+        }
+        catch (OperationCanceledException) when (operationCts.IsCancellationRequested)
+        {
+            ExportStatusText = "导出已取消";
+        }
+        catch (Exception exception)
+        {
+            _feedbackService.ShowProjectedNotification("导出失败", _feedbackService.Project(exception));
+            ExportStatusText = "导出失败";
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _exportCts, null, operationCts);
+            operationCts.Dispose();
+            IsBusy = false;
+            IsExporting = false;
+            NotifyCommandStateChanged();
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCancelExport))]
+    private void CancelExport()
+    {
+        if (_exportCts is null)
+        {
+            return;
+        }
+
+        ExportStatusText = "正在取消导出…";
+        _exportCts.Cancel();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenExportDirectory), AllowConcurrentExecutions = false)]
+    private async Task OpenExportDirectoryAsync(CancellationToken cancellationToken)
+    {
+        if (!CanOpenExportDirectory || string.IsNullOrWhiteSpace(LastExportDirectoryPath))
+        {
+            return;
+        }
+
+        try
+        {
+            await _launcher.OpenAsync(LastExportDirectoryPath, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception exception)
+        {
+            _feedbackService.ShowProjectedNotification(
+                "打开导出目录失败",
+                _feedbackService.Project(exception));
+        }
     }
 
     private async Task ExecuteCleanupAsync(
@@ -319,6 +472,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
             Chapters.Clear();
             foreach (var chapter in chapters)
             {
+                var exportAvailability = GetExportAvailability(chapter);
                 Chapters.Add(new CachedChapterListItemViewModel(
                     chapter.BookId,
                     chapter.ChapterIndex,
@@ -326,7 +480,10 @@ public sealed partial class CacheManagementViewModel : ObservableObject
                     chapter.Title,
                     CacheCleanupFeedbackFormatter.FormatBytes(chapter.TotalSizeBytes),
                     $"{chapter.EntryCount} 条缓存",
-                    FormatCompleteness(chapter)));
+                    FormatCompleteness(chapter),
+                    exportAvailability.IsExportable,
+                    exportAvailability.StatusText,
+                    exportAvailability.ToolTip));
             }
 
             _chapterSelection.SetItems(Chapters.Select(chapter => chapter.ChapterIndex));
@@ -396,10 +553,26 @@ public sealed partial class CacheManagementViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanClearSelectedChapters));
         OnPropertyChanged(nameof(CanExportSelectedChapters));
+        OnPropertyChanged(nameof(CanCancelExport));
+        OnPropertyChanged(nameof(CanOpenExportDirectory));
+        OnPropertyChanged(nameof(ExportCommandToolTip));
         ClearSelectedChaptersCommand.NotifyCanExecuteChanged();
+        ExportSelectedChaptersCommand.NotifyCanExecuteChanged();
+        CancelExportCommand.NotifyCanExecuteChanged();
+        OpenExportDirectoryCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnIsBusyChanged(bool value)
+    {
+        NotifyCommandStateChanged();
+    }
+
+    partial void OnIsExportingChanged(bool value)
+    {
+        NotifyCommandStateChanged();
+    }
+
+    partial void OnLastExportDirectoryPathChanged(string? value)
     {
         NotifyCommandStateChanged();
     }
@@ -444,4 +617,109 @@ public sealed partial class CacheManagementViewModel : ObservableObject
             : Math.Clamp(chapter.CachedSegmentCount / (double)totalSegmentCount, 0, 1);
         return $"当前配置完整度：{chapter.CachedSegmentCount}/{totalSegmentCount} 段 · {ratio:P0}";
     }
+
+    private bool SelectedChaptersAreExportable()
+    {
+        var selectedIndices = _chapterSelection.SelectedItems;
+        if (selectedIndices.Count == 0)
+        {
+            return false;
+        }
+
+        var chaptersByIndex = Chapters.ToDictionary(chapter => chapter.ChapterIndex);
+        return selectedIndices.All(
+            index => chaptersByIndex.TryGetValue(index, out var chapter) && chapter.IsExportable);
+    }
+
+    private void CancelExportOperation()
+    {
+        _exportCts?.Cancel();
+    }
+
+    private void ShowExportResult(ExportChaptersResult result)
+    {
+        switch (result.Status)
+        {
+            case ExportChaptersStatus.Succeeded
+                when !string.IsNullOrWhiteSpace(result.ExportDirectoryPath):
+                LastExportDirectoryPath = result.ExportDirectoryPath;
+                ExportStatusText = $"已导出 {result.Files.Count} 章";
+                _feedbackService.ShowSuccess(
+                    "导出完成",
+                    $"已将 {result.Files.Count} 章导出为 MP3。可在缓存管理页打开导出目录。");
+                break;
+            case ExportChaptersStatus.IncompleteCache:
+                ExportStatusText = "所选章节缓存不完整";
+                _feedbackService.ShowWarning(
+                    "无法导出",
+                    "所选章节缓存已发生变化，请刷新后确认缓存完整度。");
+                break;
+            case ExportChaptersStatus.SelectedRuleUnavailable:
+                ExportStatusText = "当前 TTS 配置不可用";
+                _feedbackService.ShowWarning(
+                    "无法导出",
+                    "当前 TTS 规则不可用，请检查规则选择后重试。");
+                break;
+            case ExportChaptersStatus.ChapterHasNoPlayableSegments:
+                ExportStatusText = "章节没有可播放段落";
+                _feedbackService.ShowWarning(
+                    "无法导出",
+                    FormatChapterFailure(result.FailedChapterIndex, "没有可播放段落"));
+                break;
+            case ExportChaptersStatus.BookNotFound:
+            case ExportChaptersStatus.ChapterNotFound:
+                ExportStatusText = "书籍或章节已发生变化";
+                _feedbackService.ShowWarning(
+                    "无法导出",
+                    "书籍或章节已发生变化，请重新打开缓存管理页。");
+                break;
+            default:
+                throw new InvalidOperationException("The export service returned an invalid result.");
+        }
+    }
+
+    private static string FormatChapterFailure(int? chapterIndex, string reason)
+    {
+        return chapterIndex is null
+            ? $"所选章节{reason}。"
+            : $"第 {chapterIndex.Value + 1} 章{reason}。";
+    }
+
+    private static ChapterExportAvailability GetExportAvailability(CachedChapterCacheItem chapter)
+    {
+        if (chapter.CurrentConfigurationSegmentCount is null)
+        {
+            return new ChapterExportAvailability(
+                false,
+                "当前配置不可用，无法导出",
+                "无法读取当前 TTS 与文本配置对应的章节缓存。");
+        }
+
+        var total = chapter.CurrentConfigurationSegmentCount.Value;
+        if (total == 0)
+        {
+            return new ChapterExportAvailability(
+                false,
+                "没有可播放段落，无法导出",
+                "当前文本配置下没有可播放段落。");
+        }
+
+        if (chapter.CachedSegmentCount != total)
+        {
+            return new ChapterExportAvailability(
+                false,
+                "缓存不完整，无法导出",
+                $"当前配置缓存为 {chapter.CachedSegmentCount}/{total} 段，请先完成缓存。");
+        }
+
+        return new ChapterExportAvailability(
+            true,
+            "可导出",
+            $"当前配置缓存完整（{total}/{total} 段），可导出为 MP3。");
+    }
+
+    private sealed record ChapterExportAvailability(
+        bool IsExportable,
+        string StatusText,
+        string ToolTip);
 }
