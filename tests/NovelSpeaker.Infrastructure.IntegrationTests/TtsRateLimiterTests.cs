@@ -127,6 +127,92 @@ public sealed class TtsRateLimiterTests
     }
 
     [Fact]
+    public async Task WaitAsync_admits_current_then_prefetch_then_active_cache()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var limiter = new TtsRateLimiter(timeProvider);
+
+        await limiter.WaitAsync(1, "100", TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
+        var activeCache = limiter.WaitAsync(
+            1,
+            "100",
+            TtsAdmissionPriority.ActiveCache,
+            CancellationToken.None);
+        var prefetch = limiter.WaitAsync(
+            1,
+            "100",
+            TtsAdmissionPriority.Prefetch,
+            CancellationToken.None);
+        var current = limiter.WaitAsync(
+            1,
+            "100",
+            TtsAdmissionPriority.CurrentPlayback,
+            CancellationToken.None);
+
+        Assert.Equal(1, timeProvider.PendingTimerCount);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(100));
+        await current;
+        Assert.False(prefetch.IsCompleted);
+        Assert.False(activeCache.IsCompleted);
+
+        Assert.Equal(1, timeProvider.PendingTimerCount);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(100));
+        await prefetch;
+        Assert.False(activeCache.IsCompleted);
+
+        Assert.Equal(1, timeProvider.PendingTimerCount);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(100));
+        await activeCache;
+    }
+
+    [Fact]
+    public async Task AcquireAsync_holds_one_shared_execution_lease_per_rule()
+    {
+        var limiter = new TtsRateLimiter(new ManualTimeProvider());
+        await using var first = await limiter.AcquireAsync(
+            1,
+            concurrentRate: null,
+            TtsAdmissionPriority.ActiveCache,
+            CancellationToken.None);
+        var second = limiter.AcquireAsync(
+            1,
+            concurrentRate: null,
+            TtsAdmissionPriority.CurrentPlayback,
+            CancellationToken.None);
+
+        await AssertPendingAsync(second);
+        await first.DisposeAsync();
+        await using var admittedSecond = await second;
+    }
+
+    [Fact]
+    public async Task Cancelling_a_queued_lease_does_not_take_the_shared_execution_permit()
+    {
+        var limiter = new TtsRateLimiter(new ManualTimeProvider());
+        await using var blocker = await limiter.AcquireAsync(
+            1,
+            concurrentRate: null,
+            TtsAdmissionPriority.CurrentPlayback,
+            CancellationToken.None);
+        using var cancellation = new CancellationTokenSource();
+        var cancelled = limiter.AcquireAsync(
+            1,
+            concurrentRate: null,
+            TtsAdmissionPriority.CurrentPlayback,
+            cancellation.Token);
+        var next = limiter.AcquireAsync(
+            1,
+            concurrentRate: null,
+            TtsAdmissionPriority.CurrentPlayback,
+            CancellationToken.None);
+
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await cancelled);
+        await blocker.DisposeAsync();
+        await using var admittedNext = await next;
+    }
+
+    [Fact]
     public async Task Cancelling_a_waiter_does_not_consume_rate_quota()
     {
         var timeProvider = new ManualTimeProvider();
@@ -163,14 +249,22 @@ public sealed class TtsRateLimiterTests
                 CancellationToken.None))
             .ToArray();
 
+        Assert.Equal(1, timeProvider.PendingTimerCount);
         timeProvider.Advance(TimeSpan.FromMilliseconds(100));
         await playback[0];
         Assert.False(background.IsCompleted);
 
         for (var admission = 1; admission <= 8 && !background.IsCompleted; admission++)
         {
+            Assert.Equal(1, timeProvider.PendingTimerCount);
             timeProvider.Advance(TimeSpan.FromMilliseconds(100));
-            await Task.Yield();
+            var admitted = await Task.WhenAny(background, playback[admission]);
+            if (ReferenceEquals(admitted, background))
+            {
+                break;
+            }
+
+            await playback[admission];
         }
 
         await background;
@@ -204,6 +298,7 @@ public sealed class TtsRateLimiterTests
         await newWaiter.WaitAsync(TimeSpan.FromSeconds(1));
         Assert.False(oldWaiter.IsCompleted);
         Assert.Equal(1, timeProvider.PendingTimerCount);
+        Assert.Equal(1, timeProvider.PendingTimerCount);
 
         timeProvider.Advance(TimeSpan.FromSeconds(1));
         await oldWaiter;
@@ -214,5 +309,20 @@ public sealed class TtsRateLimiterTests
     {
         await Task.Yield();
         Assert.False(task.IsCompleted);
+    }
+
+}
+
+internal static class TtsRateLimiterTestExtensions
+{
+    public static async Task WaitAsync(
+        this TtsRateLimiter limiter,
+        long ruleId,
+        string? concurrentRate,
+        TtsAdmissionPriority priority,
+        CancellationToken cancellationToken)
+    {
+        await using var lease = await limiter
+            .AcquireAsync(ruleId, concurrentRate, priority, cancellationToken);
     }
 }

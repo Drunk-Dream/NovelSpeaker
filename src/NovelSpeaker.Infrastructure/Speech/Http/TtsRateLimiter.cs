@@ -4,7 +4,7 @@ using NovelSpeaker.Application.Speech;
 namespace NovelSpeaker.Infrastructure.Speech.Http;
 
 /// <summary>
-/// Enforces proactive request pacing and shared server backoff per TTS rule.
+/// Owns the priority queue, single execution lease, request pacing, and server backoff per TTS rule.
 /// </summary>
 public sealed class TtsRateLimiter : ITtsRateLimiter
 {
@@ -18,7 +18,7 @@ public sealed class TtsRateLimiter : ITtsRateLimiter
         _timeProvider = timeProvider;
     }
 
-    public async Task WaitAsync(
+    public async Task<ITtsAdmissionLease> AcquireAsync(
         long ruleId,
         string? concurrentRate,
         TtsAdmissionPriority priority,
@@ -37,7 +37,7 @@ public sealed class TtsRateLimiter : ITtsRateLimiter
         lock (state.SyncRoot)
         {
             waiter.Node = state.Waiters.AddLast(waiter);
-            if (!state.PumpRunning)
+            if (!state.PumpRunning && !state.LeaseActive)
             {
                 state.PumpRunning = true;
                 state.PumpTask = PumpAsync(state);
@@ -58,7 +58,7 @@ public sealed class TtsRateLimiter : ITtsRateLimiter
 
         try
         {
-            await waiter.Completion.Task.ConfigureAwait(false);
+            return await waiter.Completion.Task.ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -80,13 +80,13 @@ public sealed class TtsRateLimiter : ITtsRateLimiter
             if (blockedUntil > state.BlockedUntilUtc)
             {
                 state.BlockedUntilUtc = blockedUntil;
+                state.QueueChanged.TrySetResult();
             }
         }
     }
 
     private async Task PumpAsync(RuleState state)
     {
-        await Task.Yield();
         try
         {
             while (true)
@@ -116,6 +116,8 @@ public sealed class TtsRateLimiter : ITtsRateLimiter
                         state.Waiters.Remove(waiter.Node!);
                         waiter.Node = null;
                         RecordAdmission(state, waiter, now);
+                        state.PumpRunning = false;
+                        state.PumpTask = null;
                         admitted = waiter;
                     }
                     else
@@ -133,8 +135,8 @@ public sealed class TtsRateLimiter : ITtsRateLimiter
 
                 if (admitted is not null)
                 {
-                    admitted.Completion.TrySetResult();
-                    continue;
+                    admitted.Completion.TrySetResult(new AdmissionLease(this, state));
+                    return;
                 }
 
                 await waitTask!.ConfigureAwait(false);
@@ -225,6 +227,26 @@ public sealed class TtsRateLimiter : ITtsRateLimiter
         {
             state.BlockedUntilUtc = DateTimeOffset.MinValue;
         }
+
+        state.LeaseActive = true;
+    }
+
+    private void ReleaseLease(RuleState state)
+    {
+        lock (state.SyncRoot)
+        {
+            if (!state.LeaseActive)
+            {
+                return;
+            }
+
+            state.LeaseActive = false;
+            if (state.Waiters.Count > 0 && !state.PumpRunning)
+            {
+                state.PumpRunning = true;
+                state.PumpTask = PumpAsync(state);
+            }
+        }
     }
 
     private static void CancelWaiter(RuleState state, AdmissionWaiter waiter)
@@ -294,6 +316,8 @@ public sealed class TtsRateLimiter : ITtsRateLimiter
 
         public Task? PumpTask { get; set; }
 
+        public bool LeaseActive { get; set; }
+
         public TaskCompletionSource QueueChanged { get; set; } = CreateSignal();
     }
 
@@ -311,12 +335,28 @@ public sealed class TtsRateLimiter : ITtsRateLimiter
 
         public CancellationToken CancellationToken { get; } = cancellationToken;
 
-        public TaskCompletionSource Completion { get; } =
+        public TaskCompletionSource<ITtsAdmissionLease> Completion { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public LinkedListNode<AdmissionWaiter>? Node { get; set; }
 
         public int PriorityBypasses { get; set; }
+    }
+
+    private sealed class AdmissionLease(TtsRateLimiter owner, RuleState state) : ITtsAdmissionLease
+    {
+        private RuleState? _state = state;
+
+        public ValueTask DisposeAsync()
+        {
+            var stateToRelease = Interlocked.Exchange(ref _state, null);
+            if (stateToRelease is not null)
+            {
+                owner.ReleaseLease(stateToRelease);
+            }
+
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed record RateLimitPolicy(int MaxRequests, TimeSpan Window)
