@@ -180,6 +180,30 @@
                                 Tag="{x:Static theming:SettingsNavigationIcon.CacheManagement}"
                                 ToolTip="缓存管理"
                                 AutomationProperties.Name="缓存管理" />
+
+                        <Border x:Name="ClearAllCacheItemBorder"
+                                Style="{StaticResource SettingsRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                               Text="清理全部缓存" />
+                                    <TextBlock Style="{StaticResource SettingsRowDescriptionTextBlockStyle}"
+                                               Text="清理所有可清理的音频缓存；正在使用或受保护的条目会保留。" />
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        Margin="{StaticResource SettingsRowControlMargin}"
+                                        VerticalAlignment="Center"
+                                        Padding="16,8"
+                                        Command="{Binding ClearAllCommand}"
+                                        Content="清理全部缓存"
+                                        ToolTip="清理全部缓存"
+                                        AutomationProperties.Name="清理全部缓存" />
+                            </Grid>
+                        </Border>
                     </StackPanel>
                 </Border>
             </StackPanel>

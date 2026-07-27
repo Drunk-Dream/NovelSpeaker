@@ -14,6 +14,7 @@ namespace NovelSpeaker.App.Features.Cache;
 
 public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 {
+    private const string CleanupImpactMessage = "此操作只会清理音频缓存，不会删除书籍、章节、阅读进度、TTS 规则或章节规则。";
     private const int DebounceDelayMilliseconds = 500;
     private const long Megabyte = 1024L * 1024;
     private const long Gigabyte = 1024L * 1024 * 1024;
@@ -82,10 +83,20 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     [ObservableProperty]
     private string selectedCacheLimitUnit = "GB";
 
+    [ObservableProperty]
+    private bool isClearingAll;
+
+    public bool CanClearAll =>
+        IsOverviewLoaded &&
+        !_isLoading &&
+        !IsClearingAll &&
+        _overview is { EntryCount: > 0 };
+
     public override async Task LoadAsync(CancellationToken cancellationToken)
     {
         Activate(cancellationToken);
         _isLoading = true;
+        NotifyClearAllCommandState();
         HasLoadError = false;
         LoadErrorMessage = string.Empty;
 
@@ -112,6 +123,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
             if (IsCurrentActivation(cancellationToken))
             {
                 _isLoading = false;
+                NotifyClearAllCommandState();
             }
         }
     }
@@ -132,6 +144,46 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     private Task OpenCacheManagementAsync(CancellationToken cancellationToken)
     {
         return _navigator.NavigateAsync(AppRoutes.CacheManagement, cancellationToken);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanClearAll), AllowConcurrentExecutions = false)]
+    private async Task ClearAllAsync(CancellationToken cancellationToken)
+    {
+        if (!CanClearAll)
+        {
+            return;
+        }
+
+        var decision = await _dialogService.ShowConfirmationAsync(
+            "清理全部缓存",
+            $"将清理全部音频缓存。{CleanupImpactMessage}",
+            "清理",
+            "取消",
+            cancellationToken);
+        if (decision != AppConfirmationDecision.Confirm)
+        {
+            return;
+        }
+
+        IsClearingAll = true;
+        try
+        {
+            var result = await _cacheWorkspaceService.ClearAllAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            await RefreshOverviewAsync(cancellationToken);
+            ShowCleanupFeedback(result);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            _feedbackService.ShowProjectedNotification("清理失败", _feedbackService.Project(exception));
+        }
+        finally
+        {
+            IsClearingAll = false;
+        }
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -278,6 +330,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         UsagePercentage = _overview.LimitBytes <= 0
             ? 0
             : Math.Clamp(_overview.TotalSizeBytes * 100d / _overview.LimitBytes, 0, 100);
+        NotifyClearAllCommandState();
     }
 
     private void ApplyCacheLimit(long cacheLimitBytes)
@@ -348,6 +401,30 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         _cacheLimitDebounceCts?.Cancel();
         _cacheLimitDebounceCts?.Dispose();
         _cacheLimitDebounceCts = null;
+    }
+
+    partial void OnIsClearingAllChanged(bool value)
+    {
+        NotifyClearAllCommandState();
+    }
+
+    private void NotifyClearAllCommandState()
+    {
+        OnPropertyChanged(nameof(CanClearAll));
+        ClearAllCommand.NotifyCanExecuteChanged();
+    }
+
+    private void ShowCleanupFeedback(CacheCleanupResult result)
+    {
+        var feedback = CacheCleanupFeedbackFormatter.Format(result, "缓存已清理", "缓存已部分清理");
+        if (feedback.IsWarning)
+        {
+            _feedbackService.ShowWarning(feedback.Title, feedback.Message);
+        }
+        else
+        {
+            _feedbackService.ShowSuccess(feedback.Title, feedback.Message);
+        }
     }
 
     private void CompleteOrCancelPendingSave(CancellationToken commitToken)
