@@ -134,11 +134,14 @@ public sealed class BehaviorDebtBaselineTests
             "dotnet publish src/NovelSpeaker.App/NovelSpeaker.App.csproj -c Release -r win-x64 --self-contained true --no-restore",
             "NovelSpeaker.App.exe",
             "THIRD-PARTY-NOTICES.txt",
+            "NAudio.dll",
+            "NAudio.Wasapi.dll",
             "TestAssets",
             "demo-tone.wav",
             "demo-tone.mp3",
             "corrupt-tone.mp3",
-            "Package contains test audio fixture"
+            "Package contains test audio fixture",
+            "Package contains test assembly"
         };
         var qualityFragments = new[]
         {
