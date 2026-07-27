@@ -117,6 +117,7 @@ dotnet test -c Release --no-build
 涉及发布内容时额外执行 self-contained `win-x64` publish 和自动包内容检查，确保：
 
 - 主程序、许可证和第三方声明存在。
+- Windows Media Foundation MP3 编码所需的 NAudio runtime assemblies 存在。
 - 不包含测试程序集、TestAssets、损坏音频 fixture 或临时文件。
 
 ## 7. 任务验收

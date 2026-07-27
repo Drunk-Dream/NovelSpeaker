@@ -20,6 +20,8 @@
 - 只导出当前配置下完整缓存的章节，不自动补全。
 - 每章一个 MP3，同章多段合并，不生成整书单文件。
 - 自动创建书名目录，安全清理文件名，同名使用编号后缀且不覆盖。
+- MP3 统一使用现有 NAudio 2.2.1 的 Windows Media Foundation 编码适配器：输入规范化为
+  44.1 kHz 双声道 PCM，输出 128 kbps MP3，不新增或随包携带第三方 native encoder。
 
 ### 桌面体验
 
@@ -70,7 +72,6 @@ HTTP response、NAudio、缓存 staging 和导出临时文件存在长期运行�
 
 以下问题不改变产品行为，可在对应 Backlog 任务内通过代码审计和自动验证决定：
 
-- MP3 编码采用现有可部署组件还是增加轻量编码依赖。
 - Windows 系统媒体控制使用的具体平台 API/adapter。
 - 托盘能力使用框架内置能力还是小型 Windows/WPF adapter。
 
