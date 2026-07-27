@@ -141,7 +141,7 @@
                         <TextBlock Margin="0,10,0,0"
                                    HorizontalAlignment="Center"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
-                                   Text="选中后可查看当前配置下的章节缓存完整度，并选择一个或多个章节清理。"
+                                   Text="选中后可查看当前配置下的章节缓存完整度，并选择一个或多个章节清理或导出。"
                                    TextAlignment="Center"
                                    TextWrapping="Wrap" />
                     </StackPanel>
@@ -200,11 +200,53 @@
                                     <Button x:Name="ExportSelectedChaptersButton"
                                             Margin="8,0,0,0"
                                             Padding="16,8"
+                                            Command="{Binding ExportSelectedChaptersCommand}"
                                             Content="导出"
-                                            IsEnabled="{Binding CanExportSelectedChapters}"
-                                            ToolTip="章节导出尚未接入"
+                                            ToolTip="{Binding ExportCommandToolTip}"
                                             AutomationProperties.Name="导出所选章节" />
                                 </StackPanel>
+
+                                <StackPanel x:Name="ExportProgressPanel"
+                                            Margin="0,12,0,0">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsExporting}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <ProgressBar Height="4"
+                                                 IsIndeterminate="True"
+                                                 AutomationProperties.Name="章节导出进度" />
+                                    <DockPanel Margin="0,8,0,0"
+                                               LastChildFill="True">
+                                        <Button x:Name="CancelExportButton"
+                                                DockPanel.Dock="Right"
+                                                Margin="12,0,0,0"
+                                                Padding="10,4"
+                                                Command="{Binding CancelExportCommand}"
+                                                Content="取消"
+                                                ToolTip="取消导出"
+                                                AutomationProperties.Name="取消章节导出" />
+                                        <TextBlock VerticalAlignment="Center"
+                                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                                   Text="{Binding ExportStatusText}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DockPanel>
+                                </StackPanel>
+
+                                <Button x:Name="OpenExportDirectoryButton"
+                                        Margin="0,12,0,0"
+                                        HorizontalAlignment="Right"
+                                        Padding="10,4"
+                                        Command="{Binding OpenExportDirectoryCommand}"
+                                        Content="打开目录"
+                                        ToolTip="打开目录"
+                                        AutomationProperties.Name="打开导出目录"
+                                        Visibility="{Binding CanOpenExportDirectory, Converter={StaticResource BooleanToVisibilityConverter}}" />
                             </StackPanel>
                         </Grid>
 
@@ -256,6 +298,7 @@
                                                 HorizontalContentAlignment="Stretch"
                                                 Style="{StaticResource BorderlessListItemButtonStyle}"
                                                 Click="ChapterCard_OnClick"
+                                                ToolTip="{Binding ExportToolTip}"
                                                 AutomationProperties.Name="{Binding AutomationName}">
                                             <Border Padding="16">
                                                 <Border.Style>
@@ -292,6 +335,10 @@
                                                             <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
                                                                        Text="{Binding CompletenessText}" />
                                                         </WrapPanel>
+                                                        <TextBlock Margin="0,6,0,0"
+                                                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                                                   Text="{Binding ExportStatusText}"
+                                                                   ToolTip="{Binding ExportToolTip}" />
                                                     </StackPanel>
 
                                                     <TextBlock Grid.Column="1"
