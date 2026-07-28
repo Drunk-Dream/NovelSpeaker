@@ -25,7 +25,7 @@
 
 ```text
 Resolve current chapter/segment
-  → build DisplayText/SpeechText
+  → build optional chapter-title segment, then DisplayText/SpeechText
   → empty SpeechText? skip audio
   → build AudioCacheKey
   → cache hit? validate/open
@@ -48,6 +48,7 @@ Resolve current chapter/segment
 - 切换 TTS 规则。
 - 修改语速。
 - 影响 SpeechText 的文本处理配置变化。
+- 朗读标题设置变化。
 
 旧 HTTP/缓存/音频结果可以完成清理或形成合法缓存，但不能重新改变当前播放位置或 UI 状态。
 

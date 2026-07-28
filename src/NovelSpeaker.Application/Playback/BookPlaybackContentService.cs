@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Settings;
 
 namespace NovelSpeaker.Application.Playback;
 
@@ -12,19 +13,22 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
     private readonly ITextSegmenter _textSegmenter;
     private readonly ITextSegmentationOptionsProvider _optionsProvider;
     private readonly IRegexReplacementPipeline _regexReplacementPipeline;
+    private readonly IAppSettingsService? _settingsService;
 
     public BookPlaybackContentService(
         IBookPlaybackMetadataQuery metadataQuery,
         IBookContentReader bookContentReader,
         ITextSegmenter textSegmenter,
         ITextSegmentationOptionsProvider optionsProvider,
-        IRegexReplacementPipeline regexReplacementPipeline)
+        IRegexReplacementPipeline regexReplacementPipeline,
+        IAppSettingsService? settingsService = null)
     {
         _metadataQuery = metadataQuery;
         _bookContentReader = bookContentReader;
         _textSegmenter = textSegmenter;
         _optionsProvider = optionsProvider;
         _regexReplacementPipeline = regexReplacementPipeline;
+        _settingsService = settingsService;
     }
 
     public async Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
@@ -111,9 +115,14 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
             .ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
 
+        var playbackSegments = PlaybackSpeechSegmentComposer.Compose(
+            metadata.Title,
+            replaced.Segments,
+            _settingsService?.Current.ReadChapterTitle == true);
+
         return PlaybackChapterContent.FromLoaded(
             metadata.ChapterIndex,
             metadata.Title,
-            replaced.Segments);
+            playbackSegments);
     }
 }

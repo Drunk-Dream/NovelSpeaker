@@ -76,6 +76,7 @@ public sealed class AppSettingsService :
             SelectedTtsRuleId = update.ClearSelectedTtsRuleId ? null : update.SelectedTtsRuleId ?? current.SelectedTtsRuleId,
             MainWindowCloseBehavior = update.MainWindowCloseBehavior ?? current.MainWindowCloseBehavior,
             StartMinimizedToTray = update.StartMinimizedToTray ?? current.StartMinimizedToTray,
+            ReadChapterTitle = update.ReadChapterTitle ?? current.ReadChapterTitle,
             MiniPlayerLeft = update.ClearMiniPlayerLeft ? null : update.MiniPlayerLeft ?? current.MiniPlayerLeft,
             MiniPlayerTop = update.ClearMiniPlayerTop ? null : update.MiniPlayerTop ?? current.MiniPlayerTop,
             MiniPlayerTopmost = update.MiniPlayerTopmost ?? current.MiniPlayerTopmost

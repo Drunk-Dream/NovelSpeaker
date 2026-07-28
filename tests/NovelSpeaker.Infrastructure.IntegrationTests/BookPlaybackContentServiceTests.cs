@@ -3,7 +3,9 @@ using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.TextProcessing;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.Books.FileStorage;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
@@ -74,6 +76,31 @@ public sealed class BookPlaybackContentServiceTests
         Assert.Equal(0, chapter.Segments[0].StartOffset);
         Assert.Equal("第二段。", chapter.Segments[1].SpeechText);
         Assert.Equal(5, chapter.Segments[1].StartOffset);
+    }
+
+    [Fact]
+    public async Task GetChapterAsync_prepends_title_when_reading_titles_is_enabled()
+    {
+        var service = new BookPlaybackContentService(
+            new FixedMetadataQuery(),
+            new FixedBookContentReader("第一段。"),
+            new TextSegmenter(),
+            new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
+            new PassthroughRegexReplacementPipeline(),
+            new StaticAppSettingsService(AppSettings.Default with { ReadChapterTitle = true }));
+
+        var chapter = await service.GetChapterAsync("book-1", 0, CancellationToken.None);
+
+        Assert.NotNull(chapter);
+        Assert.Equal(2, chapter!.Segments.Count);
+        Assert.Equal("第一章", chapter.Segments[0].SpeechText);
+        Assert.True(chapter.Segments[0].IsChapterTitle);
+        Assert.Equal(0, chapter.Segments[0].SegmentIndex);
+        Assert.Equal(0, chapter.Segments[0].StartOffset);
+        Assert.Equal("第一段。", chapter.Segments[1].SpeechText);
+        Assert.False(chapter.Segments[1].IsChapterTitle);
+        Assert.Equal(1, chapter.Segments[1].SegmentIndex);
+        Assert.Equal(0, chapter.Segments[1].StartOffset);
     }
 
     [Fact]
@@ -257,6 +284,20 @@ public sealed class BookPlaybackContentServiceTests
         }
 
         public TextSegmentationOptions GetCurrent() => _options;
+    }
+
+    private sealed class StaticAppSettingsService(AppSettings settings) : IAppSettingsService
+    {
+        public AppSettings Current { get; } = settings.Normalize();
+
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) =>
+            Task.FromResult(Current);
     }
 
     private sealed class PassthroughRegexReplacementPipeline : IRegexReplacementPipeline

@@ -8,4 +8,5 @@ public sealed record SpeechSegment(
     int StartOffset,
     int Length,
     string DisplayText,
-    string SpeechText);
+    string SpeechText,
+    bool IsChapterTitle = false);

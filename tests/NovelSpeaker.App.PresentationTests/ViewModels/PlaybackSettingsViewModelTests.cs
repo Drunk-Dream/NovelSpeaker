@@ -15,13 +15,32 @@ public sealed class PlaybackSettingsViewModelTests
     [Fact]
     public async Task LoadAsync_reads_saved_values()
     {
-        var service = new FakeAppSettingsService(AppSettings.Default with { DefaultSpeakSpeed = 14, PrefetchCount = 1 });
+        var service = new FakeAppSettingsService(AppSettings.Default with
+        {
+            DefaultSpeakSpeed = 14,
+            PrefetchCount = 1,
+            ReadChapterTitle = true
+        });
         var viewModel = CreateViewModel(service);
 
         await viewModel.LoadAsync(CancellationToken.None);
 
         Assert.Equal("14", viewModel.DefaultSpeakSpeedText);
         Assert.Equal("1", viewModel.PrefetchCountText);
+        Assert.True(viewModel.ReadChapterTitle);
+    }
+
+    [Fact]
+    public async Task ReadChapterTitle_change_saves_immediately()
+    {
+        var service = new FakeAppSettingsService(AppSettings.Default);
+        var viewModel = CreateViewModel(service);
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        viewModel.ReadChapterTitle = true;
+        await service.UpdateCompleted.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(service.CurrentSettings.ReadChapterTitle);
     }
 
     [Fact]
@@ -234,11 +253,14 @@ public sealed class PlaybackSettingsViewModelTests
         public AppSettings Current => CurrentSettings;
         public bool DelayUpdates { get; init; }
         public Task UpdateStarted => _updateStarted.Task;
+        public Task UpdateCompleted => _updateCompleted.Task;
         public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
 
         private readonly TaskCompletionSource _updateStarted = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _updateCompletion = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _updateCompleted = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
         public async Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
@@ -252,9 +274,11 @@ public sealed class PlaybackSettingsViewModelTests
             CurrentSettings = CurrentSettings with
             {
                 DefaultSpeakSpeed = update.DefaultSpeakSpeed ?? CurrentSettings.DefaultSpeakSpeed,
-                PrefetchCount = update.PrefetchCount ?? CurrentSettings.PrefetchCount
+                PrefetchCount = update.PrefetchCount ?? CurrentSettings.PrefetchCount,
+                ReadChapterTitle = update.ReadChapterTitle ?? CurrentSettings.ReadChapterTitle
             };
             CurrentSettings = CurrentSettings.Normalize();
+            _updateCompleted.TrySetResult();
             return CurrentSettings;
         }
 

@@ -22,6 +22,7 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
     private CancellationTokenSource? _prefetchCountDebounceCts;
     private int _defaultSpeakSpeedVersion;
     private int _prefetchCountVersion;
+    private int _readChapterTitleVersion;
 
     public PlaybackSettingsViewModel(
         IAppSettingsService settingsService,
@@ -49,6 +50,9 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
     [ObservableProperty]
     private string prefetchCountErrorText = string.Empty;
 
+    [ObservableProperty]
+    private bool readChapterTitle;
+
     public override async Task LoadAsync(CancellationToken cancellationToken)
     {
         Activate(cancellationToken);
@@ -61,6 +65,7 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
             DefaultSpeakSpeedErrorText = string.Empty;
             PrefetchCountText = settings.PrefetchCount.ToString();
             PrefetchCountErrorText = string.Empty;
+            ReadChapterTitle = settings.ReadChapterTitle;
         }
         finally
         {
@@ -190,6 +195,50 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
         }
 
         ScheduleDebouncedCommit(ref _prefetchCountDebounceCts, ct => CommitPrefetchCountAsync(ct));
+    }
+
+    partial void OnReadChapterTitleChanged(bool value)
+    {
+        if (_isLoading)
+        {
+            return;
+        }
+
+        var version = Interlocked.Increment(ref _readChapterTitleVersion);
+        RunPageOperation(
+            "保存朗读标题设置失败",
+            cancellationToken => SaveReadChapterTitleAsync(value, version, cancellationToken));
+    }
+
+    private async Task SaveReadChapterTitleAsync(
+        bool value,
+        int version,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _settingsService.UpdateAsync(
+                new AppSettingsUpdate { ReadChapterTitle = value },
+                cancellationToken);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsCurrentActivation(cancellationToken) ||
+                version != Volatile.Read(ref _readChapterTitleVersion))
+            {
+                return;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (IsCurrentActivation(cancellationToken) &&
+                version == Volatile.Read(ref _readChapterTitleVersion))
+            {
+                ShowSaveFailure("保存朗读标题设置失败", exception);
+            }
+        }
     }
 
     private void ScheduleDebouncedCommit(

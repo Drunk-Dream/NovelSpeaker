@@ -19,7 +19,8 @@ public sealed record AppSettings(
     bool StartMinimizedToTray = false,
     double? MiniPlayerLeft = null,
     double? MiniPlayerTop = null,
-    bool MiniPlayerTopmost = false)
+    bool MiniPlayerTopmost = false,
+    bool ReadChapterTitle = false)
 {
     public const int MinSpeakSpeed = 1;
     public const int MaxSpeakSpeed = 20;
@@ -52,6 +53,7 @@ public sealed record AppSettings(
             false,
             null,
             null,
+            false,
             false);
 
     public TextSegmentationOptions ToTextSegmentationOptions()

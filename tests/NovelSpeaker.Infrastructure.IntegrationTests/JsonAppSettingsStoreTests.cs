@@ -24,6 +24,7 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal(300, settings.LongParagraphThreshold);
         Assert.Equal(10, settings.DefaultSpeakSpeed);
         Assert.Equal(2, settings.PrefetchCount);
+        Assert.False(settings.ReadChapterTitle);
         Assert.Equal("Information", settings.LogLevel);
         Assert.Equal("System", settings.Theme);
         Assert.Equal(AppSettings.DefaultBookFileNameTemplate, settings.BookFileNameTemplate);
@@ -65,6 +66,22 @@ public sealed class JsonAppSettingsStoreTests
         var reloaded = await store.LoadAsync(CancellationToken.None);
 
         Assert.Equal(42, reloaded.SelectedTtsRuleId);
+    }
+
+    [Fact]
+    public async Task SaveAsync_persists_read_chapter_title()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var directories = new LocalAppDataDirectoryProvider(temporaryDirectory.Path);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new JsonAppSettingsStore(directories);
+
+        await store.SaveAsync(
+            AppSettings.Default with { ReadChapterTitle = true },
+            CancellationToken.None);
+        var reloaded = await store.LoadAsync(CancellationToken.None);
+
+        Assert.True(reloaded.ReadChapterTitle);
     }
 
     [Fact]

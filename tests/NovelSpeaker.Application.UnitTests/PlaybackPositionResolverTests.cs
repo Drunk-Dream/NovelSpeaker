@@ -176,6 +176,54 @@ public sealed class PlaybackPositionResolverTests
             0));
     }
 
+    [Fact]
+    public void ResolveRestoredPosition_does_not_map_content_progress_back_to_title_segment()
+    {
+        var chapter = PlaybackChapterContent.FromLoaded(
+            0,
+            "第一章",
+            [
+                new SpeechSegment(0, 0, 0, "第一章", "第一章", true),
+                Speech(1, 0, "正文")
+            ]);
+        var book = new PlaybackBookContent("book-1", "示例小说", [chapter]);
+        var progress = new ReadingProgressEntry(
+            "book-1",
+            0,
+            1,
+            0,
+            0,
+            DateTimeOffset.UnixEpoch);
+
+        var result = PlaybackPositionResolver.ResolveRestoredPosition(book, progress);
+
+        Assert.Equal(new PlaybackRestoredPosition(0, 1, 0), result);
+    }
+
+    [Fact]
+    public void ResolveRestoredPosition_does_not_treat_old_content_progress_as_title_progress()
+    {
+        var chapter = PlaybackChapterContent.FromLoaded(
+            0,
+            "第一章",
+            [
+                new SpeechSegment(0, 0, 0, "第一章", "第一章", true),
+                Speech(1, 10, "正文")
+            ]);
+        var book = new PlaybackBookContent("book-1", "示例小说", [chapter]);
+        var progress = new ReadingProgressEntry(
+            "book-1",
+            0,
+            0,
+            10,
+            0,
+            DateTimeOffset.UnixEpoch);
+
+        var result = PlaybackPositionResolver.ResolveRestoredPosition(book, progress);
+
+        Assert.Equal(new PlaybackRestoredPosition(0, 1, 0), result);
+    }
+
     private static SpeechSegment Speech(
         int segmentIndex,
         int startOffset,

@@ -31,6 +31,8 @@ public sealed record AppSettingsUpdate
 
     public bool? StartMinimizedToTray { get; init; }
 
+    public bool? ReadChapterTitle { get; init; }
+
     public double? MiniPlayerLeft { get; init; }
 
     public bool ClearMiniPlayerLeft { get; init; }

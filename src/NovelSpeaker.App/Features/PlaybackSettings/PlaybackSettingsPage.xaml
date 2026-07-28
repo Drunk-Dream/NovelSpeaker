@@ -105,6 +105,29 @@
                             </Grid>
                         </Border>
 
+                        <Border x:Name="ReadChapterTitleItemBorder"
+                                Style="{StaticResource SettingsRowBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
+                                               Text="朗读标题" />
+                                    <TextBlock Style="{StaticResource SettingsRowDescriptionTextBlockStyle}"
+                                               Text="播放每章正文前先朗读章节标题。" />
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="1"
+                                                 Margin="{StaticResource SettingsRowControlMargin}"
+                                                 VerticalAlignment="Center"
+                                                 OffContent="关闭"
+                                                 OnContent="开启"
+                                                 IsChecked="{Binding ReadChapterTitle}"
+                                                 AutomationProperties.Name="朗读标题" />
+                            </Grid>
+                        </Border>
+
                         <Button x:Name="OpenTtsRulesButton"
                                 Style="{StaticResource SettingsNavigationRowButtonStyle}"
                                 Command="{Binding OpenTtsRulesCommand}"

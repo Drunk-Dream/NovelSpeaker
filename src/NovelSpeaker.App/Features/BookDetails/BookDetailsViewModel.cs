@@ -626,7 +626,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         if (eventArgs.Previous.DefaultSpeakSpeed == eventArgs.Current.DefaultSpeakSpeed &&
             eventArgs.Previous.SelectedTtsRuleId == eventArgs.Current.SelectedTtsRuleId &&
             eventArgs.Previous.EnableLongParagraphSplitting == eventArgs.Current.EnableLongParagraphSplitting &&
-            eventArgs.Previous.LongParagraphThreshold == eventArgs.Current.LongParagraphThreshold)
+            eventArgs.Previous.LongParagraphThreshold == eventArgs.Current.LongParagraphThreshold &&
+            eventArgs.Previous.ReadChapterTitle == eventArgs.Current.ReadChapterTitle)
         {
             return;
         }

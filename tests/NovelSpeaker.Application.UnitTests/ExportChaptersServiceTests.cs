@@ -77,6 +77,42 @@ public sealed class ExportChaptersServiceTests
     }
 
     [Fact]
+    public async Task ExportAsync_includes_chapter_title_when_reading_titles_is_enabled()
+    {
+        var writer = new FakeChapterMp3ExportWriter();
+        var settings = AppSettings.Default with
+        {
+            DefaultSpeakSpeed = 12,
+            SelectedTtsRuleId = 7,
+            ReadChapterTitle = true
+        };
+        var service = CreateService(
+            CreateMetadata(),
+            new FakeBookContentReader
+            {
+                TextByStartOffset =
+                {
+                    [0] = "正文。"
+                }
+            },
+            new FakeRegexReplacementRuleRepository(),
+            writer,
+            settings);
+
+        var result = await service.ExportAsync(
+            new ExportChaptersRequest("book-1", [0], @"D:\exports"),
+            CancellationToken.None);
+
+        Assert.Equal(ExportChaptersStatus.Succeeded, result.Status);
+        Assert.Equal(
+            [
+                AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "第一章"),
+                AudioCacheKey.FromPlayback("book-1", 0, 1, 7, 12, "正文。")
+            ],
+            Assert.Single(writer.LastBatch!.Chapters).OrderedSegmentKeys);
+    }
+
+    [Fact]
     public async Task ExportAsync_rejects_incomplete_cache_without_generating_audio()
     {
         var writer = new FakeChapterMp3ExportWriter

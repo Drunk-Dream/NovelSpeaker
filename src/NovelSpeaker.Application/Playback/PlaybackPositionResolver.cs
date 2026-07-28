@@ -145,7 +145,8 @@ internal static class PlaybackPositionResolver
 
         for (var index = 0; index < chapter.Segments.Count; index++)
         {
-            if (chapter.Segments[index].StartOffset >= characterOffset &&
+            if (!chapter.Segments[index].IsChapterTitle &&
+                chapter.Segments[index].StartOffset >= characterOffset &&
                 !string.IsNullOrWhiteSpace(chapter.Segments[index].SpeechText))
             {
                 return index;
@@ -179,6 +180,17 @@ internal static class PlaybackPositionResolver
         if (chapter is null || chapter.LoadState != PlaybackChapterLoadState.Loaded)
         {
             return null;
+        }
+
+        if (progress.SegmentIndex >= 0 &&
+            progress.SegmentIndex < chapter.Segments.Count &&
+            chapter.Segments[progress.SegmentIndex].IsChapterTitle &&
+            progress.CharacterOffset == 0)
+        {
+            return new PlaybackRestoredPosition(
+                chapter.ChapterIndex,
+                progress.SegmentIndex,
+                progress.AudioPositionMilliseconds);
         }
 
         var mappedSegmentIndex = FindMappedSegmentIndex(chapter, progress.CharacterOffset);

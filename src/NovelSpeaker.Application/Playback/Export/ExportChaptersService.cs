@@ -122,7 +122,11 @@ public sealed class ExportChaptersService : IExportChaptersService
                 },
                 cancellationToken).ConfigureAwait(false);
             var processed = RegexReplacementProcessor.Apply(sourceSegments, regexRules, cancellationToken);
-            var keys = processed.Segments
+            var playbackSegments = PlaybackSpeechSegmentComposer.Compose(
+                metadata.Title,
+                processed.Segments,
+                settings.ReadChapterTitle);
+            var keys = playbackSegments
                 .Where(segment => !string.IsNullOrWhiteSpace(segment.SpeechText))
                 .Select(segment => AudioCacheKey.FromPlayback(
                     request.BookId,

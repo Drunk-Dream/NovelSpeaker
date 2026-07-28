@@ -24,7 +24,8 @@ public sealed class SettingsSubpageViewTests
                 AssertRows(
                     provider.GetRequiredService<PlaybackSettingsPage>(),
                     "DefaultSpeakSpeedItemBorder",
-                    "PrefetchCountItemBorder");
+                    "PrefetchCountItemBorder",
+                    "ReadChapterTitleItemBorder");
                 AssertRows(
                     provider.GetRequiredService<ImportTextSettingsPage>(),
                     "BookFileNameTemplateItemBorder",
@@ -72,7 +73,9 @@ public sealed class SettingsSubpageViewTests
                 AssertAutomationNames(
                     provider.GetRequiredService<PlaybackSettingsPage>(),
                     "默认语速",
-                    "播放预取数量");
+                    "播放预取数量",
+                    "朗读标题",
+                    "TTS 规则");
                 AssertAutomationNames(
                     provider.GetRequiredService<ImportTextSettingsPage>(),
                     "文件名模板",
