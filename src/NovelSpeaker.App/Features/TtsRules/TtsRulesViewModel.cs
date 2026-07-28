@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
@@ -31,6 +31,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
     private readonly IAppDialogService _dialogService;
     private readonly IAppSettingsService _settingsService;
     private readonly IAppNavigator _navigator;
+    private readonly IUserDocumentFileOperations _fileOperations;
     private CancellationTokenSource? _testOperationCts;
     private readonly EditorSession<long?, TtsRuleEditorModel> _editorSession = new(EditorsEqual);
     private int _defaultSpeakSpeed = 10;
@@ -44,7 +45,8 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         IAppFeedbackService feedbackService,
         IAppDialogService dialogService,
         IAppSettingsService settingsService,
-        IAppNavigator navigator)
+        IAppNavigator navigator,
+        IUserDocumentFileOperations fileOperations)
     {
         _ruleImport = ruleImport;
         _ruleEditor = ruleEditor;
@@ -55,6 +57,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         _dialogService = dialogService;
         _settingsService = settingsService;
         _navigator = navigator;
+        _fileOperations = fileOperations;
     }
 
     public ObservableCollection<TtsRuleListItemViewModel> Rules { get; } = [];
@@ -137,8 +140,12 @@ public sealed partial class TtsRulesViewModel : ObservableObject
 
         try
         {
-            var jsonText = await File.ReadAllTextAsync(filePath, cancellationToken);
-            await ImportJsonTextAsyncCore(jsonText, Path.GetFileName(filePath), cancellationToken);
+            var metadata = await _fileOperations.GetMetadataAsync(filePath, cancellationToken);
+            var jsonText = await _fileOperations.ReadTextAsync(filePath, cancellationToken);
+            await ImportJsonTextAsyncCore(
+                jsonText,
+                metadata?.FileName ?? "所选规则文件",
+                cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -170,7 +177,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
             return;
         }
 
-        await File.WriteAllTextAsync(filePath, json, cancellationToken);
+        await _fileOperations.WriteTextAsync(filePath, json, cancellationToken);
         _feedbackService.ShowSuccess("规则已导出", $"已导出规则：{rule.Name}。");
     }
 

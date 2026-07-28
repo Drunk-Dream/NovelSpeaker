@@ -1,3 +1,4 @@
+using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
@@ -217,6 +218,41 @@ public sealed class TtsRulesViewModelTests
         Assert.Equal("新导入规则", viewModel.DraftName);
         Assert.Equal("规则导入完成", feedback.LastTitle);
         Assert.Contains("新增 1 条", feedback.LastMessage);
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_reads_through_cancellable_document_port()
+    {
+        var useCases = new TtsRuleUseCaseStub([], null)
+        {
+            RulesAfterImport = [new TtsRuleSummary(2, "文件规则", true, false, null)],
+            ImportResult = new TtsRuleImportResult(1, 0, 0)
+        };
+        var fileOperations = new FakeUserDocumentFileOperations
+        {
+            Metadata = new UserDocumentFileMetadata("rules.json", "rules.json", ".json", 42),
+            ReadText = """{"name":"文件规则"}"""
+        };
+        using var cancellation = new CancellationTokenSource();
+        var viewModel = CreateViewModel(useCases: useCases, fileOperations: fileOperations);
+
+        await viewModel.ImportFromFileAsync("rules.json", cancellation.Token);
+
+        Assert.Equal("rules.json", fileOperations.LastReadPath);
+        Assert.Equal(cancellation.Token, fileOperations.LastCancellationToken);
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_propagates_document_read_cancellation()
+    {
+        var fileOperations = new FakeUserDocumentFileOperations
+        {
+            ReadException = new OperationCanceledException()
+        };
+        var viewModel = CreateViewModel(fileOperations: fileOperations);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => viewModel.ImportFromFileAsync("rules.json", CancellationToken.None));
     }
 
     [Fact]
@@ -553,25 +589,24 @@ public sealed class TtsRulesViewModelTests
             ExportedRuleJson = """{"name":"导出规则"}"""
         };
         var feedback = new FakeFeedbackService();
-        var viewModel = CreateViewModel(useCases: useCases, feedbackService: feedback);
+        var fileOperations = new FakeUserDocumentFileOperations();
+        var viewModel = CreateViewModel(
+            useCases: useCases,
+            feedbackService: feedback,
+            fileOperations: fileOperations);
         await viewModel.LoadAsync(CancellationToken.None);
-        var filePath = Path.Combine(Path.GetTempPath(), $"novelspeaker-rule-{Guid.NewGuid():N}.json");
+        using var cancellation = new CancellationTokenSource();
 
-        try
-        {
-            await viewModel.ExportRuleToFileAsync(
-                viewModel.Rules.Single(),
-                filePath,
-                CancellationToken.None);
+        await viewModel.ExportRuleToFileAsync(
+            viewModel.Rules.Single(),
+            "export.json",
+            cancellation.Token);
 
-            Assert.Equal("""{"name":"导出规则"}""", await File.ReadAllTextAsync(filePath));
-            Assert.Equal(3, useCases.LastExportedRuleId);
-            Assert.Equal("规则已导出", feedback.LastTitle);
-        }
-        finally
-        {
-            File.Delete(filePath);
-        }
+        Assert.Equal("export.json", fileOperations.LastWritePath);
+        Assert.Equal("""{"name":"导出规则"}""", fileOperations.LastWrittenText);
+        Assert.Equal(cancellation.Token, fileOperations.LastCancellationToken);
+        Assert.Equal(3, useCases.LastExportedRuleId);
+        Assert.Equal("规则已导出", feedback.LastTitle);
     }
 
     [Fact]
@@ -621,7 +656,8 @@ public sealed class TtsRulesViewModelTests
         TtsRuleUseCaseStub? useCases = null,
         FakeTtsRuleTestService? ruleTestService = null,
         FakeFeedbackService? feedbackService = null,
-        FakeAppDialogService? dialogService = null)
+        FakeAppDialogService? dialogService = null,
+        IUserDocumentFileOperations? fileOperations = null)
     {
         return new TtsRulesViewModel(
             useCases ??= new TtsRuleUseCaseStub([], null),
@@ -632,7 +668,8 @@ public sealed class TtsRulesViewModelTests
             feedbackService ?? new FakeFeedbackService(),
             dialogService ?? new FakeAppDialogService(),
             new FakeAppSettingsService(),
-            new FakeNavigationService());
+            new FakeNavigationService(),
+            fileOperations ?? new FakeUserDocumentFileOperations());
     }
 
     private static TtsRuleImportItem CreateImportItem(int index, bool canImport, string statusMessage)
@@ -821,6 +858,55 @@ public sealed class TtsRulesViewModelTests
             return Task.CompletedTask;
         }
 
+    }
+
+    private sealed class FakeUserDocumentFileOperations : IUserDocumentFileOperations
+    {
+        public UserDocumentFileMetadata? Metadata { get; set; }
+
+        public string ReadText { get; set; } = string.Empty;
+
+        public Exception? ReadException { get; set; }
+
+        public string? LastReadPath { get; private set; }
+
+        public string? LastWritePath { get; private set; }
+
+        public string? LastWrittenText { get; private set; }
+
+        public CancellationToken LastCancellationToken { get; private set; }
+
+        public Task<UserDocumentFileMetadata?> GetMetadataAsync(
+            string filePath,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(Metadata);
+        }
+
+        public Task<string> ReadTextAsync(string filePath, CancellationToken cancellationToken)
+        {
+            LastReadPath = filePath;
+            LastCancellationToken = cancellationToken;
+            if (ReadException is not null)
+            {
+                throw ReadException;
+            }
+
+            return Task.FromResult(ReadText);
+        }
+
+        public Task WriteTextAsync(
+            string filePath,
+            string content,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            LastWritePath = filePath;
+            LastWrittenText = content;
+            LastCancellationToken = cancellationToken;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeTtsRuleTestService : ITtsRuleTestService
