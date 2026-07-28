@@ -136,6 +136,10 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
     public bool CanCancelEdit => _loadedHeader is not null && !IsBusy && HasUnsavedChanges;
 
+    public bool CanClearCache => _loadedHeader is not null &&
+        !string.IsNullOrWhiteSpace(_bookId) &&
+        !IsBusy;
+
     public async Task LoadAsync(string bookId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
@@ -233,7 +237,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         EditAuthor = _loadedHeader.Author ?? string.Empty;
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanClearCache), AllowConcurrentExecutions = false)]
     private async Task ClearCacheAsync(CancellationToken cancellationToken)
     {
         if (_loadedHeader is null || string.IsNullOrWhiteSpace(_bookId) || IsBusy)
@@ -247,7 +251,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         }
 
         var decision = await _dialogService.ShowConfirmationAsync(
-            "清理本书缓存",
+            "清理缓存",
             "将清理这本书的音频缓存，不会删除书籍、阅读进度或内部 TXT。",
             "清理",
             "取消",
@@ -727,8 +731,10 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         OnPropertyChanged(nameof(HasUnsavedChanges));
         OnPropertyChanged(nameof(CanSave));
         OnPropertyChanged(nameof(CanCancelEdit));
+        OnPropertyChanged(nameof(CanClearCache));
         SaveCommand.NotifyCanExecuteChanged();
         CancelEditCommand.NotifyCanExecuteChanged();
+        ClearCacheCommand.NotifyCanExecuteChanged();
     }
 
     private static string NormalizeTitle(string? value)

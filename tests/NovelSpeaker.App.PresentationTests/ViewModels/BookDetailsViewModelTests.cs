@@ -159,6 +159,18 @@ public sealed class BookDetailsViewModelTests
     }
 
     [Fact]
+    public async Task ClearCacheCommand_is_disabled_until_a_book_is_loaded()
+    {
+        var viewModel = CreateViewModel();
+
+        Assert.False(viewModel.ClearCacheCommand.CanExecute(null));
+
+        await LoadViewModelAsync(viewModel);
+
+        Assert.True(viewModel.ClearCacheCommand.CanExecute(null));
+    }
+
+    [Fact]
     public async Task BackCommand_with_unsaved_changes_can_save_then_navigate_back()
     {
         var dialogService = new FakeAppDialogService
@@ -253,6 +265,7 @@ public sealed class BookDetailsViewModelTests
         await LoadViewModelAsync(viewModel);
         await viewModel.ClearCacheCommand.ExecuteAsync(null);
 
+        Assert.Equal("清理缓存", dialogService.LastTitle);
         Assert.Equal("缓存已部分清理", feedbackService.LastTitle);
         Assert.Equal("512 B", viewModel.CacheSizeText);
         Assert.Equal("清理", dialogService.LastPrimaryButtonText);
@@ -729,6 +742,8 @@ public sealed class BookDetailsViewModelTests
 
         public string? LastPrimaryButtonText { get; private set; }
 
+        public string? LastTitle { get; private set; }
+
         public Task<AppConfirmationDecision> ShowConfirmationAsync(
             string title,
             string message,
@@ -736,6 +751,7 @@ public sealed class BookDetailsViewModelTests
             string closeButtonText,
             CancellationToken cancellationToken)
         {
+            LastTitle = title;
             LastMessage = message;
             LastPrimaryButtonText = primaryButtonText;
             return Task.FromResult(NextConfirmationDecision);
