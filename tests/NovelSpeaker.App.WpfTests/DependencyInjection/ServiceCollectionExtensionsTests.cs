@@ -117,6 +117,8 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<BookDetailsPage>(provider.GetRequiredService<BookDetailsPage>());
                 Assert.IsType<CacheManagementPage>(provider.GetRequiredService<CacheManagementPage>());
                 Assert.IsAssignableFrom<IAppDataDirectoryProvider>(provider.GetRequiredService<IAppDataDirectoryProvider>());
+                Assert.IsAssignableFrom<IUserDocumentFileOperations>(
+                    provider.GetRequiredService<IUserDocumentFileOperations>());
                 Assert.IsAssignableFrom<IDatabaseInitializer>(provider.GetRequiredService<IDatabaseInitializer>());
                 Assert.IsAssignableFrom<IChapterRuleRepository>(provider.GetRequiredService<IChapterRuleRepository>());
                 Assert.IsAssignableFrom<IChapterRuleWorkspaceService>(provider.GetRequiredService<IChapterRuleWorkspaceService>());

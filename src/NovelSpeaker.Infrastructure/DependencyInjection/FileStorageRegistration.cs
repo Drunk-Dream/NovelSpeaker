@@ -16,6 +16,7 @@ public static class FileStorageRegistration
 
         services.TryAddSingleton<IAppDataDirectoryProvider, LocalAppDataDirectoryProvider>();
         services.TryAddSingleton<IAppStoragePathResolver, AppStoragePathResolver>();
+        services.TryAddSingleton<IUserDocumentFileOperations, LocalUserDocumentFileOperations>();
         services.TryAddSingleton<ITextFileAnalyzer, TextFileAnalyzer>();
         services.TryAddSingleton<IContentHasher, Sha256ContentHasher>();
         services.TryAddSingleton<IBookContentReader, BookContentReader>();
