@@ -51,7 +51,7 @@ public sealed class AppStoragePathMigrationService
         var select = connection.CreateCommand();
         select.Transaction = transaction;
         select.CommandText = $"SELECT {keyColumn}, {pathColumn} FROM {tableName};";
-        var updates = new List<(string Id, string StorageKey)>();
+        var updates = new List<(object Id, string StorageKey)>();
         await using (var reader = await select.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
         {
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -64,7 +64,7 @@ public sealed class AppStoragePathMigrationService
 
                 try
                 {
-                    updates.Add((reader.GetString(0), _pathResolver.GetStorageKey(persistedPath)));
+                    updates.Add((reader.GetValue(0), _pathResolver.GetStorageKey(persistedPath)));
                 }
                 catch (Exception exception) when (IsInvalidPersistedPath(exception))
                 {

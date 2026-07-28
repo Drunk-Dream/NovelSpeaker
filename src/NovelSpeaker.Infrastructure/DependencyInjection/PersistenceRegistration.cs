@@ -26,6 +26,7 @@ public static class PersistenceRegistration
         services.TryAddSingleton<IBookOperationJournal, SqliteBookOperationJournal>();
         services.TryAddSingleton<BookOperationRecoveryService>();
         services.TryAddSingleton<AppStoragePathMigrationService>();
+        services.TryAddSingleton<AudioCacheFormatResetService>();
         services.TryAddSingleton<IBookLibraryQuery, BookLibraryQuery>();
         services.TryAddSingleton<IBookMetadataUpdateService, BookMetadataUpdateService>();
         services.TryAddSingleton<IBookDeletionOperationStore, BookDeletionOperationStore>();

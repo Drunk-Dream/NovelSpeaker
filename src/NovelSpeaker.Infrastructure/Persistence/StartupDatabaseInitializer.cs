@@ -13,19 +13,22 @@ public sealed class StartupDatabaseInitializer : IDatabaseInitializer
     private readonly DefaultChapterRuleSeeder _chapterRuleSeeder;
     private readonly BookOperationRecoveryService? _operationRecovery;
     private readonly AppStoragePathMigrationService? _pathMigration;
+    private readonly AudioCacheFormatResetService? _audioCacheFormatReset;
 
     public StartupDatabaseInitializer(
         IAppDataDirectoryProvider directories,
         SqliteMigrationRunner migrationRunner,
         DefaultChapterRuleSeeder chapterRuleSeeder,
         BookOperationRecoveryService? operationRecovery = null,
-        AppStoragePathMigrationService? pathMigration = null)
+        AppStoragePathMigrationService? pathMigration = null,
+        AudioCacheFormatResetService? audioCacheFormatReset = null)
     {
         _directories = directories;
         _migrationRunner = migrationRunner;
         _chapterRuleSeeder = chapterRuleSeeder;
         _operationRecovery = operationRecovery;
         _pathMigration = pathMigration;
+        _audioCacheFormatReset = audioCacheFormatReset;
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
@@ -35,6 +38,11 @@ public sealed class StartupDatabaseInitializer : IDatabaseInitializer
         if (_pathMigration is not null)
         {
             await _pathMigration.MigrateAsync(cancellationToken);
+        }
+
+        if (_audioCacheFormatReset is not null)
+        {
+            await _audioCacheFormatReset.ResetIfPendingAsync(cancellationToken);
         }
 
         if (_operationRecovery is not null)

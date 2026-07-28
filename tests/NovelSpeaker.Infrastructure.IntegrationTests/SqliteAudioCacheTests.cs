@@ -543,6 +543,26 @@ public sealed class SqliteAudioCacheTests
         var initializer = new StartupDatabaseInitializer(directories, runner, seeder);
         await initializer.InitializeAsync(CancellationToken.None);
 
+        await using (var seedConnection = await factory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var seedCommand = seedConnection.CreateCommand();
+            seedCommand.CommandText =
+                """
+                INSERT INTO Books
+                    (Id, Title, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, UpdatedAt)
+                VALUES
+                    ('book-1', '书一', 'book-1.txt', 'Books/book-1/content.txt', 'cache-fixture-book-1', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00'),
+                    ('book-2', '书二', 'book-2.txt', 'Books/book-2/content.txt', 'cache-fixture-book-2', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
+                VALUES
+                    ('cache-chapter-1-0', 'book-1', 0, 0, '第一章', 0, 1),
+                    ('cache-chapter-1-1', 'book-1', 1, 1, '第二章', 0, 1),
+                    ('cache-chapter-1-2', 'book-1', 2, 2, '第三章', 0, 1),
+                    ('cache-chapter-2-0', 'book-2', 0, 0, '第一章', 0, 1);
+                """;
+            await seedCommand.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
         registry ??= new AudioCacheProtectionRegistry();
         var limitProvider = new MutableAudioCacheLimitProvider
         {

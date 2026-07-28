@@ -167,7 +167,10 @@ public sealed class SqliteMigrationRunnerTests
             Assert.Equal(3, Convert.ToInt32(await count.ExecuteScalarAsync(CancellationToken.None)));
         }
 
-        var reset = new AudioCacheFormatResetService(factory, directories);
+        var reset = new AudioCacheFormatResetService(
+            factory,
+            directories,
+            new AppStoragePathResolver(directories));
         await reset.ResetIfPendingAsync(CancellationToken.None);
         Assert.False(File.Exists(legacyCachePath));
     }
