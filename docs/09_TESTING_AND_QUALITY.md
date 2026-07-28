@@ -86,7 +86,7 @@
 
 ### SQLite 与性能
 
-- version 6 到新版 schema 的追加 migration、重复启动和高版本拒绝。
+- version 6 到新版 schema 7 的追加 migration、重复启动和高版本拒绝。
 - 旧缓存索引和内部缓存文件按明确重置边界清理，不建立兼容读取路径。
 - 哈希 BLOB、`WITHOUT ROWID` 和单计划策略的数据库体积测试。
 - 2,000 和 10,000 段完整度批量查询不得调用文件探测或音频解码。

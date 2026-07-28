@@ -137,7 +137,7 @@ Application 不引用 Windows/WPF 类型；App adapter 负责平台事件与 App
 
 ## 10. 数据兼容边界
 
-- SQLite 已发布 schema 为 6；已发布 migration 只能追加。
+- SQLite 已发布 schema 为 7；已发布 migration 只能追加。
 - 内部正文、书籍元数据、规则和阅读进度不得因缓存重构失效。
 - 音频缓存是可丢弃数据；缓存键格式重构可以通过追加 migration 明确重置旧索引和应用内部缓存文件，不建立长期兼容读取器。
 - 数据格式变化必须有独立迁移和升级测试，不用兼容 wrapper 永久掩盖旧模型。

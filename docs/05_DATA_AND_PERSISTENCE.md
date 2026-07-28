@@ -4,7 +4,7 @@
 
 | 数据 | 位置 | 说明 |
 |---|---|---|
-| 书籍、章节、规则、进度、当前章节朗读清单、缓存索引、操作 journal | SQLite | 已发布 schema version 6；缓存重构通过后续追加 migration 落地 |
+| 书籍、章节、规则、进度、当前章节朗读清单、缓存索引、操作 journal | SQLite | 已发布 schema version 7；缓存重构通过追加 migration 落地 |
 | 规范化正文 | `Books/<book-id>/content.txt` | 应用内部副本 |
 | TTS 音频 | `Cache/Tts/...` | 数据库保存索引/统计 |
 | 非敏感设置 | `settings.json` | 原子保存 |
@@ -29,7 +29,7 @@
 
 ## 3. SQLite 兼容
 
-当前已发布数据库版本为 6。缓存重构落地时只能追加新 migration，不能修改 version 4–6。目标核心表包括：
+当前已发布数据库版本为 7。缓存重构只能通过追加 migration 落地，不能修改 version 4–6。目标核心表包括：
 
 - `SchemaVersion` / `AppMetadata`
 - `Books`
