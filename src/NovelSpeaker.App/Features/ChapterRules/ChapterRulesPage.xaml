@@ -56,13 +56,19 @@
                     <ui:SymbolIcon Symbol="DocumentAdd24" />
                 </Button>
                 <Button Margin="0,0,12,0"
-                        Padding="16,8"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
                         Command="{Binding ImportDefaultsCommand}"
-                        Content="导入默认" />
+                        ToolTip="导入默认规则"
+                        AutomationProperties.Name="导入默认规则">
+                    <ui:SymbolIcon Symbol="ArrowDownload24" />
+                </Button>
                 <Button Margin="0,0,12,0"
-                        Padding="16,8"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
                         Command="{Binding RestoreDefaultsCommand}"
-                        Content="恢复默认" />
+                        ToolTip="恢复默认规则"
+                        AutomationProperties.Name="恢复默认规则">
+                    <ui:SymbolIcon Symbol="ArrowReset24" />
+                </Button>
             </WrapPanel>
         </Grid>
 

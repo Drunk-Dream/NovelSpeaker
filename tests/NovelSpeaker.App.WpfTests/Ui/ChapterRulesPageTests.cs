@@ -15,7 +15,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed partial class ChapterRulesPageTests
 {
     [Fact]
-    public void ChapterRulesPage_uses_accessible_icon_for_new_rule_tool()
+    public void ChapterRulesPage_uses_accessible_icons_for_low_frequency_toolbar_tools()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -28,15 +28,24 @@ public sealed partial class ChapterRulesPageTests
             view.Arrange(new Rect(0, 0, 960, 680));
             view.UpdateLayout();
 
-            var button = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(
-                view,
-                candidate => AutomationProperties.GetName(candidate) == "新建规则"));
-
-            Assert.Equal("新建规则", button.ToolTip);
-            Assert.Equal(
-                SymbolRegular.DocumentAdd24,
-                Assert.IsType<SymbolIcon>(button.Content).Symbol);
+            AssertToolbarIcon(view, "新建规则", SymbolRegular.DocumentAdd24);
+            AssertToolbarIcon(view, "导入默认规则", SymbolRegular.ArrowDownload24);
+            AssertToolbarIcon(view, "恢复默认规则", SymbolRegular.ArrowReset24);
         });
+    }
+
+    private static void AssertToolbarIcon(
+        FrameworkElement view,
+        string accessibleName,
+        SymbolRegular expectedSymbol)
+    {
+        var button = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(
+            view,
+            candidate => AutomationProperties.GetName(candidate) == accessibleName));
+
+        Assert.Equal(accessibleName, button.ToolTip);
+        Assert.Equal(expectedSymbol, Assert.IsType<SymbolIcon>(button.Content).Symbol);
+        Assert.Same(view.FindResource("SecondaryIconButtonStyle"), button.Style);
     }
 
     [Fact]
