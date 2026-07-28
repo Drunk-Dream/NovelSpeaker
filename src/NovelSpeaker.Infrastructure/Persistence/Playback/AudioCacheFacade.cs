@@ -270,9 +270,10 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         }
 
         var filePath = _fileStore.ResolveIndexedPath(entry.FilePath);
-        if (!_fileStore.Exists(filePath))
+        if (!_fileStore.Exists(filePath) || !_audioProbe.CanDecode(filePath))
         {
             await _index.RemoveAsync(entry.CacheKey, cancellationToken).ConfigureAwait(false);
+            _fileStore.TryDeleteFile(filePath);
             return new CacheLookupResult(null, true);
         }
 

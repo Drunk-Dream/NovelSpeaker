@@ -437,6 +437,34 @@ public sealed class SqliteAudioCacheTests
     }
 
     [Fact]
+    public async Task TryGetAsync_removes_stale_database_entry_when_file_is_not_decodable()
+    {
+        var fixture = await CreateFixtureAsync();
+        var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段");
+        var changes = new List<CacheChangedEventArgs>();
+        fixture.Cache.Changed += (_, eventArgs) => changes.Add(eventArgs);
+        var stored = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                key,
+                "book-1",
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+
+        await File.WriteAllTextAsync(stored.FilePath, "not audio", CancellationToken.None);
+
+        var hit = await fixture.Cache.TryGetAsync(key, CancellationToken.None);
+        var summary = await fixture.Cache.GetSummaryAsync(CancellationToken.None);
+
+        Assert.Null(hit);
+        Assert.Equal(0, summary.EntryCount);
+        Assert.False(File.Exists(stored.FilePath));
+        Assert.Equal([new CacheChangedEventArgs(null, null)], changes.Skip(1).ToArray());
+    }
+
+    [Fact]
     public async Task InvalidateAsync_removes_file_and_index()
     {
         var fixture = await CreateFixtureAsync();
