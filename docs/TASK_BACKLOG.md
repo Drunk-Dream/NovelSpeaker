@@ -519,7 +519,7 @@ Wave 内若任务不修改同一公共合同，可以并行；涉及共享 DI、
 - “清理本书缓存”等与最终文案不一致的残留。
 - Tooltip、AutomationName、键盘 focus 和 disabled 视觉。
 
-## [ ] CLEAN-603（P2）：最终全仓 cleanup/refactor 复审
+## [x] CLEAN-603（P2）：最终全仓 cleanup/refactor 复审
 
 在所有新功能稳定后再次审计：
 
