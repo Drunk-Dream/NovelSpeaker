@@ -8,6 +8,39 @@ namespace NovelSpeaker.App.PresentationTests.Player;
 public sealed class PlayerContentProjectionTests
 {
     [Fact]
+    public async Task EnsureContentLoadedAsync_excludes_chapter_title_from_body_preview()
+    {
+        var chapter = PlaybackChapterContent.FromLoaded(
+            0,
+            "第一章 标题",
+            [
+                new SpeechSegment(0, 0, 0, "第一章 标题", "第一章 标题", IsChapterTitle: true),
+                new SpeechSegment(1, 0, 3, "第一段", "第一段")
+            ]);
+        var projection = new PlayerContentProjection(
+            new StubContentService(
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.Unloaded(0, "第一章 标题")]),
+                chapter));
+        var snapshot = PlaybackSnapshot.Idle with
+        {
+            State = PlaybackState.Paused,
+            BookId = "book-1",
+            ChapterIndex = 0,
+            SegmentIndex = 1,
+            SegmentCount = 2
+        };
+
+        await projection.EnsureContentLoadedAsync(snapshot, CancellationToken.None);
+
+        var previewItems = projection.Segments.ToArray();
+        Assert.Single(previewItems);
+        Assert.Equal(1, previewItems[0].SegmentIndex);
+        Assert.Equal("第一段", previewItems[0].Text);
+        Assert.Equal(2, projection.CurrentChapterSegmentCount);
+        Assert.Same(previewItems[0], projection.CurrentSegmentItem);
+    }
+
+    [Fact]
     public async Task EnsureContentLoadedAsync_projects_content_and_preserves_items_for_same_chapter()
     {
         var chapter = PlaybackChapterContent.FromLoaded(

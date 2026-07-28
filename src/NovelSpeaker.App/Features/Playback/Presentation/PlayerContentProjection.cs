@@ -200,7 +200,9 @@ internal sealed class PlayerContentProjection
             CurrentChapterSegmentCount = chapter.Segments.Count;
             CurrentChapterTitle = chapter.Title;
             Segments.ReplaceWith(
-                chapter.Segments.Where(segment => !string.IsNullOrEmpty(segment.DisplayText)),
+                chapter.Segments.Where(segment =>
+                    !segment.IsChapterTitle &&
+                    !string.IsNullOrEmpty(segment.DisplayText)),
                 segment => new PlayerSegmentItemViewModel(
                     chapter.ChapterIndex,
                     segment.SegmentIndex,
