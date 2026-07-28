@@ -240,9 +240,24 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
 
     private static void CancelPendingSave(ref CancellationTokenSource? cancellationTokenSource)
     {
-        cancellationTokenSource?.Cancel();
-        cancellationTokenSource?.Dispose();
-        cancellationTokenSource = null;
+        var pendingSave = Interlocked.Exchange(ref cancellationTokenSource, null);
+        if (pendingSave is null)
+        {
+            return;
+        }
+
+        try
+        {
+            pendingSave.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The debounce operation completed and disposed this CTS concurrently.
+        }
+        finally
+        {
+            pendingSave.Dispose();
+        }
     }
 
     private static void CompleteOrCancelPendingSave(
