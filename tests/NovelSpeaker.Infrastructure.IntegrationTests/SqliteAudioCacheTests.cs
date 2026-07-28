@@ -1,3 +1,4 @@
+using System.Text;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Domain.Settings;
@@ -422,7 +423,7 @@ public sealed class SqliteAudioCacheTests
         var command = connection.CreateCommand();
         command.CommandText =
             "SELECT CreatedAt, LastAccessedAt FROM AudioCacheEntries WHERE CacheKey = $cacheKey;";
-        command.Parameters.AddWithValue("$cacheKey", key.Value);
+        command.Parameters.AddWithValue("$cacheKey", Encoding.UTF8.GetBytes(key.Value));
         await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
 
         Assert.True(await reader.ReadAsync(CancellationToken.None));
@@ -513,12 +514,17 @@ public sealed class SqliteAudioCacheTests
             var command = connection.CreateCommand();
             command.CommandText =
                 """
+                INSERT OR IGNORE INTO SynthesisProfiles
+                    (Fingerprint, SchemaVersion, RuleId, RuleFingerprint, SpeakSpeed, CreatedAt)
+                VALUES (zeroblob(32), 1, 1, zeroblob(32), 10, $now);
                 INSERT INTO AudioCacheEntries (
-                    CacheKey, BookId, ChapterIndex, SegmentIndex, RuleId, FilePath,
-                    ContentType, FileSize, DurationMilliseconds, CreatedAt, LastAccessedAt, Status)
-                VALUES ($cacheKey, $bookId, 0, 0, 1, $filePath, 'audio/mpeg', 1, NULL, $now, $now, 1);
+                    CacheKey, KeyVersion, BookId, ChapterId, SegmentKind, SourceStartOffset, SourceLength,
+                    SpeechTextHash, SynthesisProfileFingerprint, FilePath, ContentType, FileSize,
+                    DurationMilliseconds, HealthState, ValidatedAt, CreatedAt, LastAccessedAt)
+                VALUES ($cacheKey, 1, $bookId, 'cache-chapter-1-0', 0, 0, 1,
+                    zeroblob(32), zeroblob(32), $filePath, 'audio/mpeg', 1, NULL, 1, $now, $now, $now);
                 """;
-            command.Parameters.AddWithValue("$cacheKey", key.Value);
+            command.Parameters.AddWithValue("$cacheKey", Encoding.UTF8.GetBytes(key.Value));
             command.Parameters.AddWithValue("$bookId", "book-1");
             command.Parameters.AddWithValue("$filePath", outsidePath);
             command.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O"));
@@ -582,7 +588,7 @@ public sealed class SqliteAudioCacheTests
         await using var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
         var command = connection.CreateCommand();
         command.CommandText = "SELECT LastAccessedAt FROM AudioCacheEntries WHERE CacheKey = $cacheKey;";
-        command.Parameters.AddWithValue("$cacheKey", key.Value);
+        command.Parameters.AddWithValue("$cacheKey", Encoding.UTF8.GetBytes(key.Value));
         return (string)(await command.ExecuteScalarAsync(CancellationToken.None))!;
     }
 
@@ -595,12 +601,17 @@ public sealed class SqliteAudioCacheTests
         var command = connection.CreateCommand();
         command.CommandText =
             """
-            INSERT INTO AudioCacheEntries (
-                CacheKey, BookId, ChapterIndex, SegmentIndex, RuleId, FilePath,
-                ContentType, FileSize, DurationMilliseconds, CreatedAt, LastAccessedAt, Status)
-            VALUES ($cacheKey, 'book-1', 0, 3, 7, $filePath, 'audio/mpeg', 1, NULL, $now, $now, 1);
-            """;
-        command.Parameters.AddWithValue("$cacheKey", key.Value);
+                INSERT OR IGNORE INTO SynthesisProfiles
+                    (Fingerprint, SchemaVersion, RuleId, RuleFingerprint, SpeakSpeed, CreatedAt)
+                VALUES (zeroblob(32), 1, 7, zeroblob(32), 10, $now);
+                INSERT INTO AudioCacheEntries (
+                    CacheKey, KeyVersion, BookId, ChapterId, SegmentKind, SourceStartOffset, SourceLength,
+                    SpeechTextHash, SynthesisProfileFingerprint, FilePath, ContentType, FileSize,
+                    DurationMilliseconds, HealthState, ValidatedAt, CreatedAt, LastAccessedAt)
+                VALUES ($cacheKey, 1, 'book-1', 'cache-chapter-1-0', 0, 3, 1,
+                    zeroblob(32), zeroblob(32), $filePath, 'audio/mpeg', 1, NULL, 1, $now, $now, $now);
+                """;
+        command.Parameters.AddWithValue("$cacheKey", Encoding.UTF8.GetBytes(key.Value));
         command.Parameters.AddWithValue("$filePath", filePath);
         command.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O"));
         await command.ExecuteNonQueryAsync(CancellationToken.None);

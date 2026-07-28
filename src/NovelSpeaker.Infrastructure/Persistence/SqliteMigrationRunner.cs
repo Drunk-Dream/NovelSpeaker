@@ -186,12 +186,12 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
                 CacheKey BLOB NOT NULL PRIMARY KEY,
                 KeyVersion INTEGER NOT NULL DEFAULT 1,
                 BookId TEXT NOT NULL,
-                ChapterId TEXT NULL,
+                ChapterId TEXT NOT NULL,
                 SegmentKind INTEGER NOT NULL DEFAULT 0,
                 SourceStartOffset INTEGER NOT NULL DEFAULT 0,
                 SourceLength INTEGER NOT NULL DEFAULT 1 CHECK(SourceLength > 0),
-                SpeechTextHash BLOB NULL,
-                SynthesisProfileFingerprint BLOB NULL,
+                SpeechTextHash BLOB NOT NULL,
+                SynthesisProfileFingerprint BLOB NOT NULL,
                 FilePath TEXT NOT NULL,
                 ContentType TEXT NULL,
                 FileSize INTEGER NOT NULL CHECK(FileSize >= 0),
@@ -200,10 +200,6 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
                 ValidatedAt TEXT NOT NULL DEFAULT '',
                 CreatedAt TEXT NOT NULL,
                 LastAccessedAt TEXT NOT NULL,
-                Status INTEGER NOT NULL DEFAULT 1,
-                ChapterIndex INTEGER NOT NULL DEFAULT 0,
-                SegmentIndex INTEGER NOT NULL DEFAULT 0,
-                RuleId INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY(BookId) REFERENCES Books(Id) ON DELETE CASCADE,
                 FOREIGN KEY(ChapterId) REFERENCES Chapters(Id) ON DELETE CASCADE,
                 FOREIGN KEY(SynthesisProfileFingerprint) REFERENCES SynthesisProfiles(Fingerprint)
@@ -224,9 +220,6 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
 
             CREATE INDEX IX_AudioCacheEntries_LastAccessedAt
                 ON AudioCacheEntries(LastAccessedAt);
-
-            CREATE INDEX IX_AudioCacheEntries_BookId_ChapterIndex
-                ON AudioCacheEntries(BookId, ChapterIndex);
 
             DROP TABLE AudioCacheEntries_V6_Discarded;
             INSERT OR IGNORE INTO AppMetadata (Key, Value)

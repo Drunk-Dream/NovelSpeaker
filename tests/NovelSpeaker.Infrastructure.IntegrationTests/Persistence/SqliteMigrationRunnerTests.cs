@@ -82,11 +82,11 @@ public sealed class SqliteMigrationRunnerTests
             SELECT COUNT(*)
             FROM sqlite_master
             WHERE type = 'index'
-              AND name IN ('IX_AudioCacheEntries_BookId_ChapterIndex', 'IX_AudioCacheEntries_LastAccessedAt');
+              AND name IN ('IX_AudioCacheEntries_BookId_ChapterId', 'IX_AudioCacheEntries_CurrentConfiguration', 'IX_AudioCacheEntries_LastAccessedAt');
             """;
 
         var indexCount = Convert.ToInt32(await indexCommand.ExecuteScalarAsync(CancellationToken.None));
-        Assert.Equal(2, indexCount);
+        Assert.Equal(3, indexCount);
 
         var regexIndexCommand = connection.CreateCommand();
         regexIndexCommand.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'IX_RegexReplacementRules_SortOrder';";
@@ -117,8 +117,15 @@ public sealed class SqliteMigrationRunnerTests
         Assert.Equal("BLOB", cacheColumns["CacheKey"].Type);
         Assert.Equal("BLOB", cacheColumns["SpeechTextHash"].Type);
         Assert.Equal("BLOB", cacheColumns["SynthesisProfileFingerprint"].Type);
+        Assert.True(cacheColumns["ChapterId"].NotNull);
+        Assert.True(cacheColumns["SpeechTextHash"].NotNull);
+        Assert.True(cacheColumns["SynthesisProfileFingerprint"].NotNull);
         Assert.Contains("ChapterId", cacheColumns.Keys);
         Assert.Contains("HealthState", cacheColumns.Keys);
+        Assert.DoesNotContain("Status", cacheColumns.Keys);
+        Assert.DoesNotContain("ChapterIndex", cacheColumns.Keys);
+        Assert.DoesNotContain("SegmentIndex", cacheColumns.Keys);
+        Assert.DoesNotContain("RuleId", cacheColumns.Keys);
     }
 
     [Fact]
