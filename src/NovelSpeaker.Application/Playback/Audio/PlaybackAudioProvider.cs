@@ -209,7 +209,6 @@ public sealed class PlaybackAudioProvider : IPlaybackAudioProvider
                                         cacheKey,
                                         request.BookId,
                                         request.ChapterIndex,
-                                        request.SegmentIndex,
                                         request.RuleId,
                                         audio.FilePath,
                                         audio.ResponseContentType),

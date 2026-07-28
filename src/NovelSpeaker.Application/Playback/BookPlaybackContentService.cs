@@ -140,6 +140,7 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
         return PlaybackChapterContent.FromLoaded(
             metadata.ChapterIndex,
             metadata.Title,
-            playbackSegments);
+            playbackSegments,
+            metadata.ChapterId);
     }
 }

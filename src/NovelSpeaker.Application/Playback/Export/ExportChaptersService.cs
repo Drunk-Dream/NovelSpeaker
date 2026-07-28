@@ -2,6 +2,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.TextProcessing;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Speech.Compilation;
 
 namespace NovelSpeaker.Application.Playback.Export;
 
@@ -126,15 +127,16 @@ public sealed class ExportChaptersService : IExportChaptersService
                 metadata.Title,
                 processed.Segments,
                 settings.ReadChapterTitle);
+            var synthesisProfile = SynthesisProfileFingerprint.Create(
+                TtsRuleFingerprint.Create(selectedRule.NormalizedRule),
+                settings.DefaultSpeakSpeed);
             var keys = playbackSegments
                 .Where(segment => !string.IsNullOrWhiteSpace(segment.SpeechText))
-                .Select(segment => AudioCacheKey.FromPlayback(
-                    request.BookId,
-                    chapterIndex,
-                    segment.SegmentIndex,
-                    selectedRule.RuleId,
-                    settings.DefaultSpeakSpeed,
-                    segment.SpeechText))
+                .Select(segment => AudioCacheKey.FromIdentity(AudioCacheIdentity.Create(
+                    metadata.ChapterId ?? $"{request.BookId}/chapter/{chapterIndex}",
+                    segment.StableIdentity,
+                    segment.SpeechText,
+                    synthesisProfile)))
                 .ToArray();
             if (keys.Length == 0)
             {

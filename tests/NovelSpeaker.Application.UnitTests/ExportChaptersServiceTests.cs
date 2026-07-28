@@ -4,6 +4,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Playback.Export;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using Xunit;
@@ -68,10 +69,10 @@ public sealed class ExportChaptersServiceTests
         Assert.Equal([0, 1], batch.Chapters.Select(chapter => chapter.ChapterIndex));
         Assert.Equal(["001_第一章", "002_第二章"], batch.Chapters.Select(chapter => chapter.FileNameBase));
         Assert.Equal(
-            AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "当前文本甲。"),
+            ExpectedKey(0, 0, 4, "当前文本甲。"),
             Assert.Single(batch.Chapters[0].OrderedSegmentKeys));
         Assert.Equal(
-            AudioCacheKey.FromPlayback("book-1", 1, 0, 7, 12, "当前文本乙。"),
+            ExpectedKey(1, 0, 4, "当前文本乙。"),
             Assert.Single(batch.Chapters[1].OrderedSegmentKeys));
         Assert.Equal(1, rules.GetAllCallCount);
     }
@@ -106,8 +107,8 @@ public sealed class ExportChaptersServiceTests
         Assert.Equal(ExportChaptersStatus.Succeeded, result.Status);
         Assert.Equal(
             [
-                AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "第一章"),
-                AudioCacheKey.FromPlayback("book-1", 0, 1, 7, 12, "正文。")
+                ExpectedKey(0, StableSpeechSegmentIdentity.ChapterTitle(), "第一章"),
+                ExpectedKey(0, 0, 3, "正文。")
             ],
             Assert.Single(writer.LastBatch!.Chapters).OrderedSegmentKeys);
     }
@@ -206,8 +207,43 @@ public sealed class ExportChaptersServiceTests
             CancellationToken.None);
 
         Assert.Equal(
-            AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "第一章。"),
+            ExpectedKey(0, 0, 4, "第一章。"),
             Assert.Single(Assert.Single(writer.LastBatch!.Chapters).OrderedSegmentKeys));
+    }
+
+    private static AudioCacheKey ExpectedKey(
+        int chapterIndex,
+        int sourceStartOffset,
+        int sourceLength,
+        string speechText) =>
+        ExpectedKey(
+            chapterIndex,
+            StableSpeechSegmentIdentity.Body(sourceStartOffset, sourceLength),
+            speechText);
+
+    private static AudioCacheKey ExpectedKey(
+        int chapterIndex,
+        StableSpeechSegmentIdentity segment,
+        string speechText)
+    {
+        var normalizedRule = new NormalizedHttpTtsRule(
+            7,
+            "当前规则",
+            NormalizedTemplate.Parse("https://cache-key.invalid/7"),
+            new Dictionary<string, NormalizedTemplate>(),
+            "GET",
+            null,
+            false,
+            "audio/mpeg",
+            null);
+        var profile = SynthesisProfileFingerprint.Create(
+            TtsRuleFingerprint.Create(normalizedRule),
+            12);
+        return AudioCacheKey.FromIdentity(AudioCacheIdentity.Create(
+            $"book-1/chapter/{chapterIndex}",
+            segment,
+            speechText,
+            profile));
     }
 
     private static ExportChaptersService CreateService(
@@ -322,7 +358,20 @@ public sealed class ExportChaptersServiceTests
             return Task.FromResult(
                 ruleId is null
                     ? null
-                    : new SelectedPlaybackRule(ruleId.Value, "当前规则", null!, null!));
+                    : new SelectedPlaybackRule(
+                        ruleId.Value,
+                        "当前规则",
+                        null!,
+                        new NormalizedHttpTtsRule(
+                            ruleId.Value,
+                            "当前规则",
+                            NormalizedTemplate.Parse($"https://cache-key.invalid/{ruleId.Value}"),
+                            new Dictionary<string, NormalizedTemplate>(),
+                            "GET",
+                            null,
+                            false,
+                            "audio/mpeg",
+                            null)));
         }
 
         public Task<SelectedPlaybackRule?> SelectRuleAsync(long selectedRuleId, CancellationToken cancellationToken) =>

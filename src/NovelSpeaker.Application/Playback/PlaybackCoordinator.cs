@@ -1120,7 +1120,11 @@ public sealed class PlaybackCoordinator :
             _currentRule.SourceRule,
             _currentRule.NormalizedRule,
             session.SpeakSpeed,
-            session.SessionId);
+            session.SessionId)
+        {
+            ChapterId = chapter.ChapterId,
+            StableSegmentIdentity = segment.StableIdentity
+        };
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.CancellationToken);
 
@@ -1336,7 +1340,11 @@ public sealed class PlaybackCoordinator :
             _currentRule.SourceRule,
             _currentRule.NormalizedRule,
             session.SpeakSpeed,
-            session.SessionId));
+            session.SessionId)
+        {
+            ChapterId = chapter.ChapterId,
+            StableSegmentIdentity = chapter.Segments[segmentIndex].StableIdentity
+        });
     }
 
     private void OnLocalPlaybackCompleted(object? sender, EventArgs e)

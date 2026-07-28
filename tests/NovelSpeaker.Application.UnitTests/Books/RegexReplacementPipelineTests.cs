@@ -121,9 +121,9 @@ public sealed class RegexReplacementPipelineTests
 
         var displaySegment = Assert.Single(displayResult.Segments);
         var speechSegment = Assert.Single(speechResult.Segments);
-        var baselineKey = AudioCacheKey.FromPlayback("book", 0, 0, 1, 10, "a");
-        var displayKey = AudioCacheKey.FromPlayback("book", 0, 0, 1, 10, displaySegment.SpeechText);
-        var speechKey = AudioCacheKey.FromPlayback("book", 0, 0, 1, 10, speechSegment.SpeechText);
+        var baselineKey = TestAudioCacheKey.Create("book", 0, 0, 1, 10, "a");
+        var displayKey = TestAudioCacheKey.Create("book", 0, 0, 1, 10, displaySegment.SpeechText);
+        var speechKey = TestAudioCacheKey.Create("book", 0, 0, 1, 10, speechSegment.SpeechText);
 
         Assert.Equal("display-only", displaySegment.DisplayText);
         Assert.Equal(baselineKey, displayKey);

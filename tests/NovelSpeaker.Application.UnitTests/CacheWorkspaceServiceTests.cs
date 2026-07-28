@@ -2,6 +2,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using Xunit;
@@ -70,10 +71,10 @@ public sealed class CacheWorkspaceServiceTests
             ],
             ValidKeys = new HashSet<AudioCacheKey>
             {
-                AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "当前文本甲"),
-                AudioCacheKey.FromPlayback("book-1", 0, 1, 6, 12, "当前文本乙"),
-                AudioCacheKey.FromPlayback("book-1", 0, 1, 7, 11, "当前文本乙"),
-                AudioCacheKey.FromPlayback("book-1", 0, 1, 7, 12, "旧文本")
+                TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "当前文本甲"),
+                TestAudioCacheKey.Create("book-1", 0, 1, 6, 12, "当前文本乙"),
+                TestAudioCacheKey.Create("book-1", 0, 1, 7, 11, "当前文本乙"),
+                TestAudioCacheKey.Create("book-1", 0, 1, 7, 12, "旧文本")
             }
         };
         var metadata = new FakeBookPlaybackMetadataQuery();
@@ -96,8 +97,8 @@ public sealed class CacheWorkspaceServiceTests
         Assert.Equal(2, chapter.CurrentConfigurationSegmentCount);
         Assert.Equal(
             [
-                AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "当前文本甲"),
-                AudioCacheKey.FromPlayback("book-1", 0, 1, 7, 12, "当前文本乙")
+                TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "当前文本甲"),
+                TestAudioCacheKey.Create("book-1", 0, 1, 7, 12, "当前文本乙")
             ],
             store.LastValidityQuery);
     }
@@ -136,7 +137,7 @@ public sealed class CacheWorkspaceServiceTests
     [Fact]
     public async Task GetChapterCacheStatusesAsync_returns_all_requested_chapters_in_order()
     {
-        var firstKey = AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 10, "甲");
+        var firstKey = TestAudioCacheKey.Create("book-1", 0, 0, 7, 10, "甲");
         var store = new FakeAudioCacheStore
         {
             ValidKeys = new HashSet<AudioCacheKey> { firstKey }
@@ -473,7 +474,20 @@ public sealed class CacheWorkspaceServiceTests
             return Task.FromResult(
                 ruleId is null
                     ? null
-                    : new SelectedPlaybackRule(ruleId.Value, "当前规则", null!, null!));
+                    : new SelectedPlaybackRule(
+                        ruleId.Value,
+                        "当前规则",
+                        null!,
+                        new NormalizedHttpTtsRule(
+                            ruleId.Value,
+                            "当前规则",
+                            NormalizedTemplate.Parse($"https://cache-key.invalid/{ruleId.Value}"),
+                            new Dictionary<string, NormalizedTemplate>(),
+                            "GET",
+                            null,
+                            false,
+                            "audio/mpeg",
+                            null)));
         }
 
         public Task<SelectedPlaybackRule?> SelectRuleAsync(long selectedRuleId, CancellationToken cancellationToken) =>

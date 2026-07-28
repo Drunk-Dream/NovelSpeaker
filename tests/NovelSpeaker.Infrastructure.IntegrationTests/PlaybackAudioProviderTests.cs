@@ -5,6 +5,7 @@ using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Infrastructure.Playback;
 using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.TestKit.Common;
@@ -22,7 +23,7 @@ public sealed class PlaybackAudioProviderTests
         var request = CreatePlaybackRequest();
         var cache = new FakeAudioCache
         {
-            EntryToReturn = new AudioCacheEntry(AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段"), "cached.mp3")
+            EntryToReturn = new AudioCacheEntry(request.ToCacheKey(), "cached.mp3")
         };
         var compiler = new FakeTtsRequestCompiler();
         var httpClient = new FakeHttpTtsClient();
@@ -200,7 +201,11 @@ public sealed class PlaybackAudioProviderTests
             rule,
             rule.Normalize(),
             10,
-            Guid.NewGuid());
+            Guid.NewGuid())
+        {
+            ChapterId = "book-1/chapter/0",
+            StableSegmentIdentity = StableSpeechSegmentIdentity.Body(0, 1)
+        };
         var httpClient = new FakeHttpTtsClient();
         var provider = new PlaybackAudioProvider(
             new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
@@ -232,7 +237,7 @@ public sealed class PlaybackAudioProviderTests
 
         await provider.InvalidateAsync(request, CancellationToken.None);
 
-        Assert.Equal(AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段"), cache.InvalidatedKey);
+        Assert.Equal(request.ToCacheKey(), cache.InvalidatedKey);
     }
 
     [Fact]
@@ -248,7 +253,11 @@ public sealed class PlaybackAudioProviderTests
             rule,
             rule.Normalize(),
             10,
-            Guid.NewGuid());
+            Guid.NewGuid())
+        {
+            ChapterId = "book-1/chapter/0",
+            StableSegmentIdentity = StableSpeechSegmentIdentity.Body(0, 1)
+        };
         var compiler = new FakeTtsRequestCompiler
         {
             CompilationResult = CreateSuccessfulCompilationResult()
@@ -427,7 +436,11 @@ public sealed class PlaybackAudioProviderTests
             rule,
             rule.Normalize(),
             10,
-            Guid.NewGuid());
+            Guid.NewGuid())
+        {
+            ChapterId = "book-1/chapter/0",
+            StableSegmentIdentity = StableSpeechSegmentIdentity.Body(0, 1)
+        };
         var logger = new CapturingLogger<PlaybackAudioFailureReporter>();
         var provider = new PlaybackAudioProvider(
             new FakeTtsRequestCompiler
@@ -531,7 +544,11 @@ public sealed class PlaybackAudioProviderTests
             rule,
             rule.Normalize(),
             10,
-            Guid.NewGuid());
+            Guid.NewGuid())
+        {
+            ChapterId = "book-1/chapter/0",
+            StableSegmentIdentity = StableSpeechSegmentIdentity.Body(segmentIndex, 1)
+        };
     }
 
     private static HttpTtsRule CreateRule(string? concurrentRate = null)

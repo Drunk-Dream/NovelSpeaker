@@ -1,5 +1,6 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Speech.Execution;
+using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.TestKit.Speech;
 using Xunit;
@@ -111,7 +112,11 @@ public sealed class PlaybackSegmentRunnerTests
             rule,
             rule.Normalize(),
             10,
-            Guid.NewGuid());
+            Guid.NewGuid())
+        {
+            ChapterId = "book-1/chapter/0",
+            StableSegmentIdentity = StableSpeechSegmentIdentity.Body(0, 1)
+        };
     }
 
     private sealed class RecordingAudioProvider : IPlaybackAudioProvider

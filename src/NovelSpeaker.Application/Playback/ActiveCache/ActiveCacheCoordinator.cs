@@ -1,6 +1,7 @@
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Domain.Books;
 
 namespace NovelSpeaker.Application.Playback.ActiveCache;
 
@@ -105,10 +106,14 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
 
                 frozenChapters.Add(new FrozenChapter(
                     loaded.ChapterIndex,
+                    loaded.ChapterId,
                     loaded.Title,
                     loaded.Segments
                         .Where(segment => !string.IsNullOrWhiteSpace(segment.SpeechText))
-                        .Select(segment => new FrozenSegment(segment.SegmentIndex, segment.SpeechText))
+                        .Select(segment => new FrozenSegment(
+                            segment.SegmentIndex,
+                            segment.StableIdentity,
+                            segment.SpeechText))
                         .ToArray()));
             }
 
@@ -272,7 +277,11 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
                             batch.Rule.SourceRule,
                             batch.Rule.NormalizedRule,
                             batch.SpeakSpeed,
-                            batch.BatchId),
+                            batch.BatchId)
+                        {
+                            ChapterId = chapter.ChapterId,
+                            StableSegmentIdentity = segment.StableIdentity
+                        },
                         PlaybackAudioPriority.ActiveCache,
                         null,
                         cancellationToken).ConfigureAwait(false);
@@ -477,10 +486,14 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
 
     private sealed record FrozenChapter(
         int ChapterIndex,
+        string? ChapterId,
         string Title,
         IReadOnlyList<FrozenSegment> Segments);
 
-    private sealed record FrozenSegment(int SegmentIndex, string SpeechText);
+    private sealed record FrozenSegment(
+        int SegmentIndex,
+        StableSpeechSegmentIdentity StableIdentity,
+        string SpeechText);
 
     private sealed record FrozenRule(
         long RuleId,

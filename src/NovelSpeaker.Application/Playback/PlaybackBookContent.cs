@@ -31,12 +31,14 @@ public sealed record PlaybackChapterContent
         int chapterIndex,
         string title,
         IReadOnlyList<SpeechSegment> segments,
-        PlaybackChapterLoadState loadState)
+        PlaybackChapterLoadState loadState,
+        string? chapterId)
     {
         ChapterIndex = chapterIndex;
         Title = title;
         Segments = segments;
         LoadState = loadState;
+        ChapterId = chapterId;
     }
 
     public int ChapterIndex { get; }
@@ -47,22 +49,26 @@ public sealed record PlaybackChapterContent
 
     public PlaybackChapterLoadState LoadState { get; }
 
-    public static PlaybackChapterContent Unloaded(int chapterIndex, string title) =>
-        new(chapterIndex, title, [], PlaybackChapterLoadState.Unloaded);
+    public string? ChapterId { get; }
+
+    public static PlaybackChapterContent Unloaded(int chapterIndex, string title, string? chapterId = null) =>
+        new(chapterIndex, title, [], PlaybackChapterLoadState.Unloaded, chapterId);
 
     public static PlaybackChapterContent FromLoaded(
         int chapterIndex,
         string title,
-        IReadOnlyList<SpeechSegment> segments)
+        IReadOnlyList<SpeechSegment> segments,
+        string? chapterId = null)
     {
         ArgumentNullException.ThrowIfNull(segments);
         return new PlaybackChapterContent(
             chapterIndex,
             title,
             segments,
-            segments.Count == 0 ? PlaybackChapterLoadState.LoadedEmpty : PlaybackChapterLoadState.Loaded);
+            segments.Count == 0 ? PlaybackChapterLoadState.LoadedEmpty : PlaybackChapterLoadState.Loaded,
+            chapterId);
     }
 
-    public static PlaybackChapterContent Failed(int chapterIndex, string title) =>
-        new(chapterIndex, title, [], PlaybackChapterLoadState.Failed);
+    public static PlaybackChapterContent Failed(int chapterIndex, string title, string? chapterId = null) =>
+        new(chapterIndex, title, [], PlaybackChapterLoadState.Failed, chapterId);
 }

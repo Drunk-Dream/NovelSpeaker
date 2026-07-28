@@ -1,6 +1,7 @@
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Domain.Books;
 
 namespace NovelSpeaker.Application.Playback;
 
@@ -18,15 +19,30 @@ public sealed record PlaybackAudioRequest(
     int SpeakSpeed,
     Guid SessionId)
 {
-    /// <summary>Creates the single cache identity shared by current playback and prefetch.</summary>
+    /// <summary>Stable persisted chapter identity supplied by the content loader.</summary>
+    public string? ChapterId { get; init; }
+
+    /// <summary>Source identity independent from the runtime playback order.</summary>
+    public StableSpeechSegmentIdentity? StableSegmentIdentity { get; init; }
+
+    /// <summary>Creates the single v2 cache identity shared by playback and prefetch.</summary>
+    public AudioCacheIdentity ToCacheIdentity()
+    {
+        var chapterId = ChapterId ?? $"{BookId}/chapter/{ChapterIndex}";
+        var segmentIdentity = StableSegmentIdentity ??
+            throw new InvalidOperationException("播放音频请求缺少稳定段身份。");
+        var synthesisProfile = SynthesisProfileFingerprint.Create(
+            TtsRuleFingerprint.Create(NormalizedRule),
+            SpeakSpeed);
+        return AudioCacheIdentity.Create(
+            chapterId,
+            segmentIdentity,
+            SpeechText,
+            synthesisProfile);
+    }
+
     public AudioCacheKey ToCacheKey()
     {
-        return AudioCacheKey.FromPlayback(
-            BookId,
-            ChapterIndex,
-            SegmentIndex,
-            RuleId,
-            SpeakSpeed,
-            SpeechText);
+        return AudioCacheKey.FromIdentity(ToCacheIdentity());
     }
 }

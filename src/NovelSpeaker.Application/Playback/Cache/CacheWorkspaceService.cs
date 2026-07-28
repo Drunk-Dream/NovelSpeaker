@@ -2,6 +2,7 @@ using System.Text;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Speech.Compilation;
 
 namespace NovelSpeaker.Application.Playback.Cache;
 
@@ -103,7 +104,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
             configurationData = await TryGetCurrentConfigurationDataAsync(
                 bookId,
                 chapterIndices,
-                selectedRule.RuleId,
+                selectedRule.NormalizedRule,
                 defaultSpeakSpeed,
                 cancellationToken).ConfigureAwait(false);
         }
@@ -155,7 +156,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
         var data = await TryGetCurrentConfigurationDataAsync(
             bookId,
             normalizedIndices,
-            selectedRule.RuleId,
+            selectedRule.NormalizedRule,
             _settingsService.Current.DefaultSpeakSpeed,
             cancellationToken).ConfigureAwait(false);
         return normalizedIndices.Select(index => data.Statuses[index]).ToArray();
@@ -224,7 +225,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
     private async Task<CurrentConfigurationData> TryGetCurrentConfigurationDataAsync(
         string bookId,
         IReadOnlyCollection<int> chapterIndices,
-        long ruleId,
+        NormalizedHttpTtsRule normalizedRule,
         int speakSpeed,
         CancellationToken cancellationToken)
     {
@@ -234,6 +235,9 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
                 .GetChaptersAsync(bookId, chapterIndices, cancellationToken)
                 .ConfigureAwait(false);
             var chaptersByIndex = chapters.ToDictionary(chapter => chapter.ChapterIndex);
+            var synthesisProfile = SynthesisProfileFingerprint.Create(
+                TtsRuleFingerprint.Create(normalizedRule),
+                speakSpeed);
             var keysByChapter = new Dictionary<int, AudioCacheKey[]>(chapterIndices.Count);
             foreach (var chapterIndex in chapterIndices)
             {
@@ -247,13 +251,11 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
                     chapterIndex,
                     chapter.Segments
                         .Where(segment => !string.IsNullOrWhiteSpace(segment.SpeechText))
-                        .Select(segment => AudioCacheKey.FromPlayback(
-                            bookId,
-                            chapterIndex,
-                            segment.SegmentIndex,
-                            ruleId,
-                            speakSpeed,
-                            segment.SpeechText))
+                        .Select(segment => AudioCacheKey.FromIdentity(AudioCacheIdentity.Create(
+                            chapter.ChapterId ?? $"{bookId}/chapter/{chapterIndex}",
+                            segment.StableIdentity,
+                            segment.SpeechText,
+                            synthesisProfile)))
                         .ToArray());
             }
 
