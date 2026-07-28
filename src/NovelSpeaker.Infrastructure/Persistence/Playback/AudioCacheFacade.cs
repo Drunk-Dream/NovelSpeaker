@@ -243,18 +243,27 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
 
     public async Task RunMaintenanceAsync(CancellationToken cancellationToken)
     {
-        var changed = false;
+        var changes = new List<CacheChangedEventArgs>();
+        var seenChanges = new HashSet<CacheChangedEventArgs>();
         try
         {
             await RunExclusiveAsync(
-                ct => _maintenance.RunAsync(ct, () => changed = true),
+                ct => _maintenance.RunAsync(
+                    ct,
+                    change =>
+                    {
+                        if (seenChanges.Add(change))
+                        {
+                            changes.Add(change);
+                        }
+                    }),
                 cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            if (changed)
+            foreach (var change in changes)
             {
-                OnChanged(null, null);
+                OnChanged(change.BookId, change.ChapterIndex);
             }
         }
     }

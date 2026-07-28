@@ -145,7 +145,15 @@ internal sealed class AudioCacheFileStore
         foreach (var candidate in Directory.EnumerateFiles(ttsRootPath, "*.tmp", SearchOption.AllDirectories))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var filePath = ResolveCachePath(candidate);
+            string filePath;
+            try
+            {
+                filePath = ResolveCachePath(candidate);
+            }
+            catch (InvalidDataException)
+            {
+                continue;
+            }
             if (_protectionRegistry.IsProtected(filePath))
             {
                 continue;
@@ -155,15 +163,16 @@ internal sealed class AudioCacheFileStore
         }
     }
 
-    public void DeleteOrphanCacheFiles(
+    public bool DeleteOrphanCacheFiles(
         IReadOnlySet<string> knownPaths,
         CancellationToken cancellationToken)
     {
         if (!Directory.Exists(_versionRootPath))
         {
-            return;
+            return false;
         }
 
+        var changed = false;
         foreach (var candidate in Directory.EnumerateFiles(_versionRootPath, "*", SearchOption.AllDirectories))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -172,14 +181,24 @@ internal sealed class AudioCacheFileStore
                 continue;
             }
 
-            var filePath = ResolveCachePath(candidate);
+            string filePath;
+            try
+            {
+                filePath = ResolveCachePath(candidate);
+            }
+            catch (InvalidDataException)
+            {
+                continue;
+            }
             if (knownPaths.Contains(filePath) || _protectionRegistry.IsProtected(filePath))
             {
                 continue;
             }
 
-            TryDeleteFile(filePath);
+            changed |= TryDeleteFile(filePath);
         }
+
+        return changed;
     }
 
     private string ResolveCachePath(string storageKeyOrLegacyPath)

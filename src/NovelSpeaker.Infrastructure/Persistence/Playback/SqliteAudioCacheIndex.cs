@@ -475,6 +475,65 @@ internal sealed class SqliteAudioCacheIndex
             includeStatusFilter: false,
             cancellationToken);
 
+    public async Task<IReadOnlyList<AudioCacheMaintenanceEntry>> GetMaintenanceEntriesAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT e.CacheKey,
+                   e.FilePath,
+                   e.FileSize,
+                   e.BookId,
+                   c.ChapterIndex,
+                   e.LastAccessedAt,
+                   e.ValidatedAt
+            FROM AudioCacheEntries e
+            LEFT JOIN Chapters c ON c.Id = e.ChapterId
+            WHERE e.KeyVersion = 2
+            ORDER BY e.LastAccessedAt, e.CacheKey;
+            """;
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var entries = new List<AudioCacheMaintenanceEntry>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            entries.Add(new AudioCacheMaintenanceEntry(
+                Encoding.UTF8.GetString(reader.GetFieldValue<byte[]>(0)),
+                reader.GetString(1),
+                reader.GetInt64(2),
+                reader.GetString(3),
+                reader.IsDBNull(4) ? null : reader.GetInt32(4),
+                SqliteDateTimeMapper.Parse(reader.GetString(5)),
+                SqliteDateTimeMapper.TryParse(reader.GetString(6), out var validatedAt)
+                    ? validatedAt
+                    : null));
+        }
+
+        return entries;
+    }
+
+    public async Task MarkValidatedAsync(
+        string cacheKey,
+        DateTimeOffset validatedAt,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE AudioCacheEntries
+            SET HealthState = $healthState,
+                ValidatedAt = $validatedAt
+            WHERE CacheKey = $cacheKey AND KeyVersion = 2;
+            """;
+        command.Parameters.AddWithValue("$healthState", ReadyHealthState);
+        command.Parameters.AddWithValue("$validatedAt", SqliteDateTimeMapper.Format(validatedAt));
+        command.Parameters.AddWithValue("$cacheKey", ToCacheKeyBlob(cacheKey));
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     public Task<IReadOnlyList<AudioCacheIndexEntry>> GetLruEntriesAsync(CancellationToken cancellationToken) =>
         ReadEntriesAsync(
             bookId: null,
@@ -628,6 +687,15 @@ internal sealed record AudioCacheIndexEntry(
     string CacheKey,
     string FilePath,
     long FileSize);
+
+internal sealed record AudioCacheMaintenanceEntry(
+    string CacheKey,
+    string FilePath,
+    long FileSize,
+    string BookId,
+    int? ChapterIndex,
+    DateTimeOffset LastAccessedAt,
+    DateTimeOffset? ValidatedAt);
 
 internal sealed record AudioCacheIndexSummary(
     long TotalSizeBytes,

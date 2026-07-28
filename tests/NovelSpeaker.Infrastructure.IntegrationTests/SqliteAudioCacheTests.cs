@@ -580,6 +580,69 @@ public sealed class SqliteAudioCacheTests
     }
 
     [Fact]
+    public async Task RunMaintenanceAsync_removes_missing_and_long_unused_corrupt_entries_with_chapter_notifications()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var fixture = await CreateFixtureAsync(timeProvider: timeProvider);
+        var missingKey = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "缺失文件");
+        var corruptKey = TestAudioCacheKey.Create("book-1", 1, 0, 1, 10, "损坏文件");
+        var missing = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                missingKey,
+                "book-1",
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        var corrupt = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                corruptKey,
+                "book-1",
+                1,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        File.Delete(missing.FilePath);
+        File.Copy(PlaybackTestAudio.CorruptMp3Path, corrupt.FilePath, overwrite: true);
+        timeProvider.Advance(TimeSpan.FromDays(31));
+
+        var changes = new List<CacheChangedEventArgs>();
+        fixture.Cache.Changed += (_, args) => changes.Add(args);
+
+        await fixture.Cache.RunMaintenanceAsync(CancellationToken.None);
+
+        Assert.Null(await fixture.Cache.TryGetAsync(missingKey, CancellationToken.None));
+        Assert.Null(await fixture.Cache.TryGetAsync(corruptKey, CancellationToken.None));
+        Assert.Contains(new CacheChangedEventArgs("book-1", 0), changes);
+        Assert.Contains(new CacheChangedEventArgs("book-1", 1), changes);
+    }
+
+    [Fact]
+    public async Task RunMaintenanceAsync_does_not_probe_recently_used_corrupt_entry()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var fixture = await CreateFixtureAsync(timeProvider: timeProvider);
+        var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "近期损坏");
+        var stored = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                key,
+                "book-1",
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        File.Copy(PlaybackTestAudio.CorruptMp3Path, stored.FilePath, overwrite: true);
+
+        await fixture.Cache.RunMaintenanceAsync(CancellationToken.None);
+
+        Assert.True(File.Exists(stored.FilePath));
+        Assert.Equal(1, (await fixture.Cache.GetSummaryAsync(CancellationToken.None)).EntryCount);
+    }
+
+    [Fact]
     public async Task RunMaintenanceAsync_applies_lru_and_skips_protected_files()
     {
         var registry = new AudioCacheProtectionRegistry();
@@ -635,6 +698,55 @@ public sealed class SqliteAudioCacheTests
         Assert.Equal(0, summary.EntryCount);
         Assert.False(File.Exists(orphanFile));
         Assert.True(cleanup.DeletedEntryCount > 0);
+    }
+
+    [Fact]
+    public async Task ClearAllAsync_preserves_books_progress_and_current_speech_plans()
+    {
+        var fixture = await CreateFixtureAsync();
+        var progressStore = new SqliteReadingProgressStore(fixture.ConnectionFactory);
+        await progressStore.SaveAsync(
+            new PlaybackProgressUpdate("book-1", 0, 0, 0, 100),
+            CancellationToken.None);
+        var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
+        await planStore.SaveAsync(
+            CreatePlan(
+                "cache-chapter-1-0",
+                ChapterSpeechPlanState.Ready,
+                [CreatePlanSegment(0, 0, "当前朗读计划")]),
+            CancellationToken.None);
+        await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "当前朗读计划"),
+                "book-1",
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+
+        await fixture.Cache.ClearAllAsync(CancellationToken.None);
+
+        await using var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT
+                (SELECT COUNT(*) FROM Books),
+                (SELECT COUNT(*) FROM Chapters),
+                (SELECT COUNT(*) FROM ReadingProgress WHERE BookId = 'book-1'),
+                (SELECT COUNT(*) FROM ChapterSpeechPlans WHERE ChapterId = 'cache-chapter-1-0'),
+                (SELECT COUNT(*) FROM ChapterSpeechPlanSegments WHERE ChapterId = 'cache-chapter-1-0'),
+                (SELECT COUNT(*) FROM AudioCacheEntries);
+            """;
+        await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
+        Assert.True(await reader.ReadAsync(CancellationToken.None));
+        Assert.Equal(2, reader.GetInt32(0));
+        Assert.Equal(5, reader.GetInt32(1));
+        Assert.Equal(1, reader.GetInt32(2));
+        Assert.Equal(1, reader.GetInt32(3));
+        Assert.Equal(1, reader.GetInt32(4));
+        Assert.Equal(0, reader.GetInt32(5));
     }
 
     [Fact]
@@ -906,7 +1018,7 @@ public sealed class SqliteAudioCacheTests
         var cacheConnectionFactory = new CountingSqliteConnectionFactory(factory);
         var index = new SqliteAudioCacheIndex(cacheConnectionFactory, timeProvider ?? TimeProvider.System);
         var fileStore = new AudioCacheFileStore(directories, pathResolver, registry);
-        var maintenance = new AudioCacheMaintenance(index, fileStore, limitProvider, registry);
+        var maintenance = new AudioCacheMaintenance(index, fileStore, limitProvider, registry, timeProvider);
         var cache = new AudioCacheFacade(index, fileStore, maintenance, registry, new AudioProbe());
         return new CacheFixture(directories, factory, cacheConnectionFactory, cache, limitProvider);
     }
