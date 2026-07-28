@@ -135,6 +135,22 @@ public partial class PlayerView : UserControl
         _progressController.Preview(e.NewValue);
     }
 
+    private void SegmentProgressSlider_OnMouseEnter(object sender, MouseEventArgs e)
+    {
+        if (sender is Slider slider)
+        {
+            _progressController.OnMouseEnter(slider);
+        }
+    }
+
+    private void SegmentProgressSlider_OnMouseLeave(object sender, MouseEventArgs e)
+    {
+        if (sender is Slider slider)
+        {
+            _progressController.OnMouseLeave(slider);
+        }
+    }
+
     private void SegmentProgressSlider_OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is Slider slider)
@@ -157,7 +173,7 @@ public partial class PlayerView : UserControl
 
     private void SegmentProgressSlider_OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
-        _progressController.BeginKeyboard(e.Key);
+        _progressController.BeginKeyboard((Slider)sender, e.Key);
     }
 
     private async void SegmentProgressSlider_OnPreviewKeyUp(object sender, KeyEventArgs e)

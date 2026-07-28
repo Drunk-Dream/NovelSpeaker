@@ -53,7 +53,9 @@ public sealed class MiniPlayerWindowTests
                         Assert.IsType<Slider>(window.FindName("MiniPlayerProgressSlider"))));
                 var progressSlider = Assert.IsType<Slider>(window.FindName("MiniPlayerProgressSlider"));
                 Assert.True(progressSlider.IsHitTestVisible);
-                Assert.NotNull(progressSlider.GetBindingExpression(FrameworkElement.ToolTipProperty));
+                var progressToolTip = Assert.IsType<ToolTip>(progressSlider.ToolTip);
+                Assert.True(progressToolTip.StaysOpen);
+                Assert.False(ToolTipService.GetIsEnabled(progressSlider));
                 Assert.Same(window.FindResource("PlaybackProgressSliderStyle"), progressSlider.Style);
             }
             finally

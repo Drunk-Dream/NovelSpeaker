@@ -67,6 +67,22 @@ public partial class MiniPlayerWindow : Window
         _progressController.Preview(e.NewValue);
     }
 
+    private void MiniPlayerProgressSlider_OnMouseEnter(object sender, MouseEventArgs e)
+    {
+        if (sender is Slider slider)
+        {
+            _progressController.OnMouseEnter(slider);
+        }
+    }
+
+    private void MiniPlayerProgressSlider_OnMouseLeave(object sender, MouseEventArgs e)
+    {
+        if (sender is Slider slider)
+        {
+            _progressController.OnMouseLeave(slider);
+        }
+    }
+
     private void MiniPlayerProgressSlider_OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is Slider slider)
@@ -86,7 +102,7 @@ public partial class MiniPlayerWindow : Window
 
     private void MiniPlayerProgressSlider_OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
-        _progressController.BeginKeyboard(e.Key);
+        _progressController.BeginKeyboard((Slider)sender, e.Key);
     }
 
     private async void MiniPlayerProgressSlider_OnPreviewKeyUp(object sender, KeyEventArgs e)

@@ -883,14 +883,21 @@
                                 Value="{Binding SegmentProgressValue, Mode=OneWay}"
                                 IsSnapToTickEnabled="True"
                                 TickFrequency="1"
-                                ToolTip="{Binding DisplayedSegmentCounterText, FallbackValue=尚未定位段落}"
+                                ToolTipService.IsEnabled="False"
                                 ToolTipService.InitialShowDelay="0"
+                                MouseEnter="SegmentProgressSlider_OnMouseEnter"
+                                MouseLeave="SegmentProgressSlider_OnMouseLeave"
                                 ValueChanged="SegmentProgressSlider_OnValueChanged"
                                 PreviewMouseLeftButtonDown="SegmentProgressSlider_OnPreviewMouseLeftButtonDown"
                                 PreviewMouseLeftButtonUp="SegmentProgressSlider_OnPreviewMouseLeftButtonUp"
                                 PreviewKeyDown="SegmentProgressSlider_OnPreviewKeyDown"
                                 PreviewKeyUp="SegmentProgressSlider_OnPreviewKeyUp"
-                                LostMouseCapture="SegmentProgressSlider_OnLostMouseCapture" />
+                                LostMouseCapture="SegmentProgressSlider_OnLostMouseCapture">
+                            <Slider.ToolTip>
+                                <ToolTip Content="{Binding PlacementTarget.DataContext.DisplayedSegmentCounterText, RelativeSource={RelativeSource Self}, FallbackValue=尚未定位段落}"
+                                         StaysOpen="True" />
+                            </Slider.ToolTip>
+                        </Slider>
                     </Grid>
                 </StackPanel>
             </Border>

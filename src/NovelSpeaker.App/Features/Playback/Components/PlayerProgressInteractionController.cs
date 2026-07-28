@@ -31,17 +31,35 @@ internal sealed class PlayerProgressInteractionController
         var target = _getTarget();
         target?.BeginSegmentProgressInteraction();
         target?.PreviewSegmentProgress(slider.Value);
+        if (target?.IsSegmentProgressDragging == true)
+        {
+            OpenTooltip(slider);
+        }
+    }
+
+    public void OnMouseEnter(Slider slider)
+    {
+        OpenTooltip(slider);
+    }
+
+    public void OnMouseLeave(Slider slider)
+    {
+        if (_getTarget()?.IsSegmentProgressDragging != true)
+        {
+            CloseTooltip(slider);
+        }
     }
 
     public Task CommitMouseAsync(Slider slider)
     {
+        CloseTooltip(slider);
         var target = _getTarget();
         return target?.IsSegmentProgressDragging == true
             ? target.CommitSegmentProgressAsync(slider.Value, _getActivationToken())
             : Task.CompletedTask;
     }
 
-    public void BeginKeyboard(Key key)
+    public void BeginKeyboard(Slider slider, Key key)
     {
         var target = _getTarget();
         if (target is null || !IsProgressKey(key) || _isKeyboardAdjusting)
@@ -51,10 +69,15 @@ internal sealed class PlayerProgressInteractionController
 
         _isKeyboardAdjusting = true;
         target.BeginSegmentProgressInteraction();
+        if (target.IsSegmentProgressDragging)
+        {
+            OpenTooltip(slider);
+        }
     }
 
     public Task CommitKeyboardAsync(Slider slider, Key key)
     {
+        CloseTooltip(slider);
         var target = _getTarget();
         if (target is null || !_isKeyboardAdjusting || !IsProgressKey(key))
         {
@@ -69,5 +92,25 @@ internal sealed class PlayerProgressInteractionController
     {
         return key is Key.Left or Key.Right or Key.Up or Key.Down or
             Key.PageUp or Key.PageDown or Key.Home or Key.End;
+    }
+
+    private static void OpenTooltip(Slider slider)
+    {
+        if (slider.ToolTip is not ToolTip toolTip)
+        {
+            return;
+        }
+
+        toolTip.PlacementTarget = slider;
+        toolTip.StaysOpen = true;
+        toolTip.IsOpen = true;
+    }
+
+    private static void CloseTooltip(Slider slider)
+    {
+        if (slider.ToolTip is ToolTip toolTip)
+        {
+            toolTip.IsOpen = false;
+        }
     }
 }
