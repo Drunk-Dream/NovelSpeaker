@@ -53,7 +53,9 @@ public sealed class ChapterSpeechPlanService : IChapterSpeechPlanService
             await _ruleRepository.GetAllAsync(cancellationToken).ConfigureAwait(false);
         var textProfile = TextProfileFingerprint.Create(normalizedOptions, rules);
         var bodySegments = replaced.Segments
-            .Where(segment => !segment.IsChapterTitle)
+            .Where(segment =>
+                !segment.IsChapterTitle &&
+                !string.IsNullOrWhiteSpace(segment.SpeechText))
             .ToArray();
         var planSegments = bodySegments
             .Select((segment, orderIndex) => new ChapterSpeechPlanSegment(

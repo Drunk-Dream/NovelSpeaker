@@ -1,19 +1,20 @@
 using System.Text;
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.Application.Playback.Cache;
 
 /// <summary>
-/// Composes cache storage totals with Books/Text queries for cache management callers.
+/// Composes physical cache totals with metadata and persisted current-plan coverage queries.
 /// </summary>
 public sealed class CacheWorkspaceService : ICacheWorkspaceService
 {
     private readonly IAudioCacheStore _cacheStore;
     private readonly IBookPlaybackMetadataQuery _bookMetadataQuery;
-    private readonly IBookPlaybackContentService _bookContentService;
     private readonly ISelectedTtsRuleProvider _selectedRuleProvider;
     private readonly IAppSettingsService _settingsService;
     private readonly ICacheWorkspaceFailureReporter? _failureReporter;
@@ -21,14 +22,12 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
     public CacheWorkspaceService(
         IAudioCacheStore cacheStore,
         IBookPlaybackMetadataQuery bookMetadataQuery,
-        IBookPlaybackContentService bookContentService,
         ISelectedTtsRuleProvider selectedRuleProvider,
         IAppSettingsService settingsService,
         ICacheWorkspaceFailureReporter? failureReporter = null)
     {
         _cacheStore = cacheStore;
         _bookMetadataQuery = bookMetadataQuery;
-        _bookContentService = bookContentService;
         _selectedRuleProvider = selectedRuleProvider;
         _settingsService = settingsService;
         _failureReporter = failureReporter;
@@ -89,7 +88,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
         var selectedRule = await _selectedRuleProvider
             .GetSelectedRuleAsync(cancellationToken)
             .ConfigureAwait(false);
-        var defaultSpeakSpeed = _settingsService.Current.DefaultSpeakSpeed;
+        var settings = _settingsService.Current;
         var chapterIndices = summaries.Select(summary => summary.ChapterIndex).ToArray();
         CurrentConfigurationData configurationData;
         if (selectedRule is null)
@@ -105,7 +104,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
                 bookId,
                 chapterIndices,
                 selectedRule.NormalizedRule,
-                defaultSpeakSpeed,
+                settings,
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -123,7 +122,10 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
                 status.CachedSegmentCount,
                 summary.EntryCount,
                 summary.TotalSizeBytes,
-                status.TotalSegmentCount));
+                status.TotalSegmentCount)
+            {
+                CurrentConfigurationStatus = status.Kind
+            });
         }
 
         return items;
@@ -149,7 +151,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
         if (selectedRule is null)
         {
             return normalizedIndices
-                .Select(ChapterCacheStatusUnavailable)
+                .Select(ChapterCacheStatusConfigurationUnavailable)
                 .ToArray();
         }
 
@@ -157,7 +159,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
             bookId,
             normalizedIndices,
             selectedRule.NormalizedRule,
-            _settingsService.Current.DefaultSpeakSpeed,
+            _settingsService.Current,
             cancellationToken).ConfigureAwait(false);
         return normalizedIndices.Select(index => data.Statuses[index]).ToArray();
     }
@@ -226,65 +228,44 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
         string bookId,
         IReadOnlyCollection<int> chapterIndices,
         NormalizedHttpTtsRule normalizedRule,
-        int speakSpeed,
+        AppSettings settings,
         CancellationToken cancellationToken)
     {
         try
         {
-            var chapters = await _bookContentService
+            var chapters = await _bookMetadataQuery
                 .GetChaptersAsync(bookId, chapterIndices, cancellationToken)
                 .ConfigureAwait(false);
-            var chaptersByIndex = chapters.ToDictionary(chapter => chapter.ChapterIndex);
             var synthesisProfile = SynthesisProfileFingerprint.Create(
                 TtsRuleFingerprint.Create(normalizedRule),
-                speakSpeed);
-            var keysByChapter = new Dictionary<int, AudioCacheKey[]>(chapterIndices.Count);
-            foreach (var chapterIndex in chapterIndices)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (!chaptersByIndex.TryGetValue(chapterIndex, out var chapter))
-                {
-                    continue;
-                }
-
-                keysByChapter.Add(
-                    chapterIndex,
-                    chapter.Segments
-                        .Where(segment => !string.IsNullOrWhiteSpace(segment.SpeechText))
-                        .Select(segment => AudioCacheKey.FromIdentity(AudioCacheIdentity.Create(
-                            chapter.ChapterId ?? $"{bookId}/chapter/{chapterIndex}",
-                            segment.StableIdentity,
-                            segment.SpeechText,
-                            synthesisProfile)))
-                        .ToArray());
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            var allKeys = keysByChapter.Values.SelectMany(keys => keys).ToArray();
-            IReadOnlySet<AudioCacheKey> validEntries = new HashSet<AudioCacheKey>();
-            if (allKeys.Length > 0)
-            {
-                validEntries = await _cacheStore
-                    .GetValidEntriesAsync(allKeys, cancellationToken)
+                settings.DefaultSpeakSpeed);
+            var coverageQueries = chapters
+                .Where(chapter => !string.IsNullOrWhiteSpace(chapter.ChapterId))
+                .Select(chapter => new CurrentCacheChapterQuery(
+                    chapter.ChapterId!,
+                    chapter.ChapterIndex,
+                    settings.ReadChapterTitle,
+                    settings.ReadChapterTitle && !string.IsNullOrWhiteSpace(chapter.Title)
+                        ? Fingerprint.Sha256(chapter.Title)
+                        : null))
+                .ToArray();
+            var queriedStatuses = coverageQueries.Length == 0
+                ? []
+                : await _cacheStore
+                    .GetCurrentConfigurationStatusesAsync(
+                        coverageQueries,
+                        synthesisProfile,
+                        cancellationToken)
                     .ConfigureAwait(false);
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
+            var statusesByIndex = queriedStatuses.ToDictionary(status => status.ChapterIndex);
             var statuses = new Dictionary<int, ChapterCacheStatus>(chapterIndices.Count);
             foreach (var chapterIndex in chapterIndices)
             {
-                if (!keysByChapter.TryGetValue(chapterIndex, out var keys))
-                {
-                    statuses.Add(chapterIndex, ChapterCacheStatusUnavailable(chapterIndex));
-                    continue;
-                }
-
                 statuses.Add(
                     chapterIndex,
-                    new ChapterCacheStatus(
+                    statusesByIndex.GetValueOrDefault(
                         chapterIndex,
-                        keys.Count(validEntries.Contains),
-                        keys.Length));
+                        ChapterCacheStatusConfigurationUnavailable(chapterIndex)));
             }
 
             return new CurrentConfigurationData(
@@ -309,7 +290,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
     {
         var metadata = await _bookMetadataQuery.GetBookAsync(bookId, cancellationToken).ConfigureAwait(false);
         return new CurrentConfigurationData(
-            chapterIndices.ToDictionary(index => index, ChapterCacheStatusUnavailable),
+            chapterIndices.ToDictionary(index => index, ChapterCacheStatusConfigurationUnavailable),
             metadata?.Chapters.ToDictionary(chapter => chapter.ChapterIndex, chapter => chapter.Title) ??
                 new Dictionary<int, string>());
     }
@@ -335,8 +316,11 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
         return normalizedIndices;
     }
 
-    private static ChapterCacheStatus ChapterCacheStatusUnavailable(int chapterIndex) =>
-        new(chapterIndex, 0, null);
+    private static ChapterCacheStatus ChapterCacheStatusConfigurationUnavailable(int chapterIndex) =>
+        new(chapterIndex, 0, null)
+        {
+            Kind = ChapterCacheStatusKind.ConfigurationUnavailable
+        };
 
     private void OnCacheStoreChanged(object? sender, CacheChangedEventArgs eventArgs)
     {
@@ -349,7 +333,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
     {
         public static CurrentConfigurationData Unavailable(IReadOnlyCollection<int> chapterIndices) =>
             new(
-                chapterIndices.ToDictionary(index => index, ChapterCacheStatusUnavailable),
+                chapterIndices.ToDictionary(index => index, ChapterCacheStatusConfigurationUnavailable),
                 new Dictionary<int, string>());
     }
 

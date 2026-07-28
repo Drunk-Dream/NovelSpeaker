@@ -1,5 +1,6 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.TextProcessing;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Domain.Books;
 using Xunit;
@@ -66,6 +67,29 @@ public sealed class ChapterSpeechPlanServiceTests
         Assert.Equal(first.Plan.Segments[0].SpeechTextHash, second.Plan.Segments[0].SpeechTextHash);
         Assert.NotEqual(first.Plan.Segments[1].SpeechTextHash, second.Plan.Segments[1].SpeechTextHash);
         Assert.NotEqual(first.Plan.PlanOutputHash, second.Plan.PlanOutputHash);
+    }
+
+    [Fact]
+    public async Task BuildAsync_excludes_body_segments_without_playable_speech_text_from_current_plan()
+    {
+        var pipeline = new FixedPipeline(
+            [
+                new SpeechSegment(0, 0, 1, "显示但被清空", "   "),
+                new SpeechSegment(1, 1, 1, "可播放", "可播放")
+            ]);
+        var store = new RecordingStore();
+        var service = CreateService(pipeline, store);
+
+        var result = await service.BuildAsync(
+            "chapter-1",
+            "原文",
+            TextSegmentationOptions.Default,
+            CancellationToken.None);
+
+        Assert.Equal(1, result.Plan.BodySegmentCount);
+        var segment = Assert.Single(result.Plan.Segments);
+        Assert.Equal(1, segment.SourceStartOffset);
+        Assert.Equal(Fingerprint.Sha256("可播放"), segment.SpeechTextHash);
     }
 
     private static ChapterSpeechPlanService CreateService(

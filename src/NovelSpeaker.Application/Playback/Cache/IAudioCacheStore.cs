@@ -16,6 +16,15 @@ public interface IAudioCacheStore
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Aggregates current plan coverage from persisted plan metadata and Ready cache index rows.
+    /// This query must not inspect cache files, decode audio, or update LRU metadata.
+    /// </summary>
+    Task<IReadOnlyList<ChapterCacheStatus>> GetCurrentConfigurationStatusesAsync(
+        IReadOnlyCollection<CurrentCacheChapterQuery> chapters,
+        SynthesisProfileFingerprint synthesisProfile,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Returns the requested entries that have indexed, decodable cache files during this read-only
     /// snapshot evaluation, without updating LRU metadata. Concurrent mutations may make the returned
     /// snapshot immediately stale; callers use <see cref="Changed"/> to schedule a refresh.

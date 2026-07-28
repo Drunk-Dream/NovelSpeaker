@@ -1,10 +1,18 @@
 namespace NovelSpeaker.Application.Playback.Cache;
 
 /// <summary>
-/// Describes valid audio coverage for one chapter under the current playback configuration.
-/// A null total means that the current configuration or chapter content is unavailable.
+/// Describes audio coverage for one chapter under the current playback configuration.
+/// <see cref="Kind"/> explains why a null total is unavailable or why a zero total is valid.
 /// </summary>
 public sealed record ChapterCacheStatus(
     int ChapterIndex,
     int CachedSegmentCount,
-    int? TotalSegmentCount);
+    int? TotalSegmentCount)
+{
+    /// <summary>
+    /// Distinguishes an unavailable calculation from a valid zero-percent result.
+    /// </summary>
+    public ChapterCacheStatusKind Kind { get; init; } = TotalSegmentCount is null
+        ? ChapterCacheStatusKind.ConfigurationUnavailable
+        : ChapterCacheStatusKind.Available;
+}
