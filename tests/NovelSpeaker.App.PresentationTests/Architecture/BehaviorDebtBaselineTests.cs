@@ -78,6 +78,41 @@ public sealed class BehaviorDebtBaselineTests
     }
 
     [Fact]
+    public void User_selected_document_io_uses_the_application_operation_port()
+    {
+        var libraryViewModel = File.ReadAllText(
+            Absolute("src/NovelSpeaker.App/Features/Library/LibraryViewModel.cs"));
+        var libraryImportCoordinator = File.ReadAllText(
+            Absolute("src/NovelSpeaker.App/Features/Library/LibraryImportCoordinator.cs"));
+        var ttsRulesViewModel = File.ReadAllText(
+            Absolute("src/NovelSpeaker.App/Features/TtsRules/TtsRulesViewModel.cs"));
+        var port = File.ReadAllText(
+            Absolute("src/NovelSpeaker.Application/Abstractions/IUserDocumentFileOperations.cs"));
+        var adapter = File.ReadAllText(
+            Absolute("src/NovelSpeaker.Infrastructure/FileSystem/LocalUserDocumentFileOperations.cs"));
+
+        foreach (var presentationSource in new[]
+                 {
+                     libraryViewModel,
+                     libraryImportCoordinator,
+                     ttsRulesViewModel
+                 })
+        {
+            Assert.DoesNotContain("File.Exists(", presentationSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("Directory.Exists(", presentationSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("new FileInfo(", presentationSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("File.ReadAllTextAsync(", presentationSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("File.WriteAllTextAsync(", presentationSource, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("CancellationToken cancellationToken", port, StringComparison.Ordinal);
+        Assert.Contains("IUserDocumentFileOperations", libraryImportCoordinator, StringComparison.Ordinal);
+        Assert.Contains("IUserDocumentFileOperations", ttsRulesViewModel, StringComparison.Ordinal);
+        Assert.Contains("File.ReadAllTextAsync(", adapter, StringComparison.Ordinal);
+        Assert.Contains("File.WriteAllTextAsync(", adapter, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Cache_export_uses_shared_folder_dialog_and_launcher_ports()
     {
         var viewModel = File.ReadAllText(

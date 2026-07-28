@@ -111,6 +111,7 @@ Current playback > Playback prefetch > Active cache
 以下能力必须通过可测试端口进入平台实现：
 
 - 文件/目录选择。
+- 用户显式选择文件后的元数据与文本读写；合同位于 Application，技术适配位于 Infrastructure。
 - 剪贴板和打开目录。
 - Windows 系统媒体传输控制。
 - 耳机/键盘媒体按键。
