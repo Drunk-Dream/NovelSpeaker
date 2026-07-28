@@ -6,6 +6,7 @@ using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Playback.Export;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Dialogs;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;
@@ -23,11 +24,21 @@ public sealed partial class CacheManagementViewModel : ObservableObject
     private readonly IExportChaptersService _exportChaptersService;
     private readonly IPresentationFileDialogService _fileDialogs;
     private readonly IPresentationLauncher _launcher;
+    private readonly IUiScheduler _uiScheduler;
     private readonly DesktopSelectionController<int> _chapterSelection = new();
+    private readonly OwnedTaskRegistry _pageTasks = new();
+    private readonly object _cacheRefreshSync = new();
     private CancellationTokenSource? _chapterLoadCts;
     private CancellationTokenSource? _exportCts;
+    private CancellationTokenSource? _pageCancellation;
     private int _bookLoadVersion;
     private int _chapterLoadVersion;
+    private int _cacheRefreshGeneration;
+    private bool _isPageActive;
+    private bool _isCacheEventsRegistered;
+    private bool _isCacheRefreshRunning;
+    private bool _cacheRefreshPending;
+    private string? _cacheRefreshBookId;
     private string? _selectedBookId;
 
     public CacheManagementViewModel(
@@ -37,7 +48,8 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         IAppNavigator navigator,
         IExportChaptersService exportChaptersService,
         IPresentationFileDialogService fileDialogs,
-        IPresentationLauncher launcher)
+        IPresentationLauncher launcher,
+        IUiScheduler? uiScheduler = null)
     {
         _cacheWorkspaceService = cacheWorkspaceService;
         _feedbackService = feedbackService;
@@ -46,6 +58,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         _exportChaptersService = exportChaptersService;
         _fileDialogs = fileDialogs;
         _launcher = launcher;
+        _uiScheduler = uiScheduler ?? new WpfUiScheduler();
         _chapterSelection.SelectionChanged += OnChapterSelectionChanged;
     }
 
@@ -142,6 +155,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
+        ActivatePage(cancellationToken);
         await LoadBooksAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         ClearSelection();
@@ -150,8 +164,10 @@ public sealed partial class CacheManagementViewModel : ObservableObject
     public void HandleNavigatedFrom()
     {
         Interlocked.Increment(ref _bookLoadVersion);
+        Interlocked.Increment(ref _chapterLoadVersion);
         CancelChapterLoad();
         CancelExportOperation();
+        DeactivatePage();
         _chapterSelection.Clear();
     }
 
@@ -575,6 +591,160 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         _chapterLoadCts?.Cancel();
         _chapterLoadCts?.Dispose();
         _chapterLoadCts = null;
+    }
+
+    private void ActivatePage(CancellationToken cancellationToken)
+    {
+        DeactivatePage();
+        _pageCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        lock (_cacheRefreshSync)
+        {
+            _isPageActive = true;
+            _cacheRefreshGeneration++;
+            _cacheRefreshPending = false;
+            _cacheRefreshBookId = null;
+            _isCacheRefreshRunning = false;
+        }
+
+        _cacheWorkspaceService.Changed += OnCacheChanged;
+        _isCacheEventsRegistered = true;
+    }
+
+    private void DeactivatePage()
+    {
+        if (_isCacheEventsRegistered)
+        {
+            _cacheWorkspaceService.Changed -= OnCacheChanged;
+            _isCacheEventsRegistered = false;
+        }
+
+        CancellationTokenSource? pageCancellation;
+        lock (_cacheRefreshSync)
+        {
+            pageCancellation = _pageCancellation;
+            _pageCancellation = null;
+            _isPageActive = false;
+            _cacheRefreshGeneration++;
+            _cacheRefreshPending = false;
+            _cacheRefreshBookId = null;
+            _isCacheRefreshRunning = false;
+        }
+
+        pageCancellation?.Cancel();
+        pageCancellation?.Dispose();
+    }
+
+    private void OnCacheChanged(object? sender, CacheChangedEventArgs eventArgs)
+    {
+        var selectedBookId = _selectedBookId;
+        if (!_isCacheEventsRegistered ||
+            string.IsNullOrWhiteSpace(selectedBookId) ||
+            (!string.IsNullOrWhiteSpace(eventArgs.BookId) &&
+             !string.Equals(eventArgs.BookId, selectedBookId, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        var cancellationToken = _pageCancellation?.Token ?? new CancellationToken(canceled: true);
+        if (!_uiScheduler.CheckAccess())
+        {
+            _pageTasks.Register(
+                _uiScheduler.InvokeAsync(
+                    () => QueueCacheRefresh(selectedBookId),
+                    cancellationToken),
+                ReportCacheRefreshFailure);
+            return;
+        }
+
+        QueueCacheRefresh(selectedBookId);
+    }
+
+    private void QueueCacheRefresh(string bookId)
+    {
+        int generation;
+        CancellationToken cancellationToken;
+        lock (_cacheRefreshSync)
+        {
+            if (!_isPageActive ||
+                _pageCancellation is not { IsCancellationRequested: false } pageCancellation ||
+                !string.Equals(bookId, _selectedBookId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _cacheRefreshPending = true;
+            _cacheRefreshBookId = bookId;
+            if (_isCacheRefreshRunning)
+            {
+                return;
+            }
+
+            _isCacheRefreshRunning = true;
+            generation = _cacheRefreshGeneration;
+            cancellationToken = pageCancellation.Token;
+        }
+
+        _pageTasks.Register(
+            RefreshChangedChaptersAsync(generation, cancellationToken),
+            ReportCacheRefreshFailure);
+    }
+
+    private async Task RefreshChangedChaptersAsync(int generation, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (true)
+            {
+                string bookId;
+                lock (_cacheRefreshSync)
+                {
+                    if (generation != _cacheRefreshGeneration || !_isPageActive)
+                    {
+                        return;
+                    }
+
+                    if (!_cacheRefreshPending || string.IsNullOrWhiteSpace(_cacheRefreshBookId))
+                    {
+                        _isCacheRefreshRunning = false;
+                        return;
+                    }
+
+                    _cacheRefreshPending = false;
+                    bookId = _cacheRefreshBookId;
+                }
+
+                await LoadChaptersAsync(bookId, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            lock (_cacheRefreshSync)
+            {
+                if (generation == _cacheRefreshGeneration)
+                {
+                    _isCacheRefreshRunning = false;
+                }
+            }
+        }
+    }
+
+    private void ReportCacheRefreshFailure(Exception exception)
+    {
+        lock (_cacheRefreshSync)
+        {
+            if (!_isPageActive)
+            {
+                return;
+            }
+        }
+
+        _feedbackService.ShowProjectedNotification(
+            "刷新缓存管理列表失败",
+            _feedbackService.Project(exception));
     }
 
     private void NotifyVisibilityStateChanged()

@@ -129,7 +129,162 @@ public sealed class CacheManagementViewModelTests
 
         await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
 
-        Assert.Equal("完整度：不可用", Assert.Single(viewModel.Chapters).CompletenessText);
+        Assert.Equal("完整度：配置不可用", Assert.Single(viewModel.Chapters).CompletenessText);
+    }
+
+    [Fact]
+    public async Task Chapter_cards_project_current_configuration_statuses_without_turning_zero_zero_into_full()
+    {
+        var workspaceService = new FakeCacheWorkspaceService
+        {
+            BooksResult = [new CachedBookCacheItem("book-1", "第一本", null, 5, 5, 4096)]
+        };
+        workspaceService.ChaptersResult["book-1"] =
+        [
+            new CachedChapterCacheItem("book-1", 0, "计划缺失", 0, 0, 0, null)
+            {
+                CurrentConfigurationStatus = ChapterCacheStatusKind.PlanMissing
+            },
+            new CachedChapterCacheItem("book-1", 1, "计划计算中", 0, 0, 0, null)
+            {
+                CurrentConfigurationStatus = ChapterCacheStatusKind.PlanUnavailable
+            },
+            new CachedChapterCacheItem("book-1", 2, "配置不可用", 0, 0, 0, null)
+            {
+                CurrentConfigurationStatus = ChapterCacheStatusKind.ConfigurationUnavailable
+            },
+            new CachedChapterCacheItem("book-1", 3, "无可播放内容", 0, 0, 0, 0)
+            {
+                CurrentConfigurationStatus = ChapterCacheStatusKind.NoPlayableContent
+            },
+            new CachedChapterCacheItem("book-1", 4, "尚未缓存", 0, 0, 0, 2)
+        ];
+        var viewModel = CreateViewModel(workspaceService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
+
+        Assert.Equal("完整度：计划缺失", viewModel.Chapters[0].CompletenessText);
+        Assert.Equal("完整度：计划计算中", viewModel.Chapters[1].CompletenessText);
+        Assert.Equal("完整度：配置不可用", viewModel.Chapters[2].CompletenessText);
+        Assert.Equal("完整度：无可播放内容", viewModel.Chapters[3].CompletenessText);
+        Assert.Equal("完整度：0/2 段 · 0%", viewModel.Chapters[4].CompletenessText);
+        Assert.DoesNotContain("100%", viewModel.Chapters[3].CompletenessText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Matching_cache_changes_are_coalesced_and_refresh_only_during_page_activation()
+    {
+        var workspaceService = new FakeCacheWorkspaceService
+        {
+            BooksResult = [new CachedBookCacheItem("book-1", "第一本", null, 1, 1, 1024)]
+        };
+        workspaceService.ChaptersResult["book-1"] =
+        [new CachedChapterCacheItem("book-1", 0, "第一章", 1, 1, 1024, 1)];
+        var viewModel = CreateViewModel(workspaceService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
+        Assert.Equal(1, workspaceService.ChangedSubscriberCount);
+
+        var firstRefresh = new TaskCompletionSource<IReadOnlyList<CachedChapterCacheItem>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        workspaceService.PendingChapterSequences.Enqueue(firstRefresh);
+        var completed = workspaceService.WhenChapterLoadCountReached(3);
+
+        workspaceService.Publish(new CacheChangedEventArgs("book-2", 0));
+        workspaceService.Publish(new CacheChangedEventArgs("book-1", 0));
+        workspaceService.Publish(new CacheChangedEventArgs("book-1", 1));
+        workspaceService.Publish(new CacheChangedEventArgs("book-1", 2));
+
+        await workspaceService.FirstPendingChapterLoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var refreshedChapters =
+            new[] { new CachedChapterCacheItem("book-1", 0, "刷新后的第一章", 2, 2, 2048, 2) };
+        workspaceService.ChaptersResult["book-1"] = refreshedChapters;
+        firstRefresh.SetResult(refreshedChapters);
+        await completed.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(3, workspaceService.GetCachedChaptersCallCount);
+        Assert.Single(viewModel.Chapters);
+        Assert.Equal("刷新后的第一章", viewModel.Chapters[0].Title);
+
+        viewModel.HandleNavigatedFrom();
+        Assert.Equal(0, workspaceService.ChangedSubscriberCount);
+        var callsAfterLeave = workspaceService.GetCachedChaptersCallCount;
+        workspaceService.Publish(new CacheChangedEventArgs("book-1", 0));
+        Assert.Equal(callsAfterLeave, workspaceService.GetCachedChaptersCallCount);
+    }
+
+    [Fact]
+    public async Task Reentering_cache_management_does_not_duplicate_cache_change_subscription()
+    {
+        var workspaceService = new FakeCacheWorkspaceService
+        {
+            BooksResult = [new CachedBookCacheItem("book-1", "第一本", null, 1, 1, 1024)]
+        };
+        workspaceService.ChaptersResult["book-1"] =
+        [new CachedChapterCacheItem("book-1", 0, "第一章", 1, 1, 1024, 1)];
+        var viewModel = CreateViewModel(workspaceService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.HandleNavigatedFrom();
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
+
+        Assert.Equal(1, workspaceService.ChangedSubscriberCount);
+        var callsBeforeChange = workspaceService.GetCachedChaptersCallCount;
+        var refreshCompleted = workspaceService.WhenChapterLoadCountReached(callsBeforeChange + 1);
+        workspaceService.Publish(new CacheChangedEventArgs("book-1", 0));
+
+        await refreshCompleted.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(callsBeforeChange + 1, workspaceService.GetCachedChaptersCallCount);
+    }
+
+    [Fact]
+    public async Task Cache_management_page_lifecycle_owns_cache_change_subscription()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var workspaceService = new FakeCacheWorkspaceService
+            {
+                BooksResult = [new CachedBookCacheItem("book-1", "第一本", null, 1, 1, 1024)]
+            };
+            var viewModel = CreateViewModel(workspaceService);
+            var page = new CacheManagementPage(viewModel);
+
+            await page.OnNavigatedToAsync();
+            Assert.Equal(1, workspaceService.ChangedSubscriberCount);
+
+            await page.OnNavigatedFromAsync();
+            Assert.Equal(0, workspaceService.ChangedSubscriberCount);
+        });
+    }
+
+    [Fact]
+    public async Task Page_leave_cancels_pending_cache_refresh_and_discards_late_results()
+    {
+        var workspaceService = new FakeCacheWorkspaceService
+        {
+            BooksResult = [new CachedBookCacheItem("book-1", "第一本", null, 1, 1, 1024)]
+        };
+        workspaceService.ChaptersResult["book-1"] =
+        [new CachedChapterCacheItem("book-1", 0, "原始章节", 1, 1, 1024, 1)];
+        var viewModel = CreateViewModel(workspaceService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
+        var pendingRefresh = new TaskCompletionSource<IReadOnlyList<CachedChapterCacheItem>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        workspaceService.PendingChapterSequences.Enqueue(pendingRefresh);
+        workspaceService.Publish(new CacheChangedEventArgs("book-1", 0));
+        await workspaceService.FirstPendingChapterLoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        viewModel.HandleNavigatedFrom();
+        await workspaceService.CancellationObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        pendingRefresh.SetResult(
+        [new CachedChapterCacheItem("book-1", 0, "迟到章节", 2, 2, 2048, 2)]);
+
+        Assert.DoesNotContain(viewModel.Chapters, chapter => chapter.Title == "迟到章节");
     }
 
     [Fact]
@@ -581,11 +736,22 @@ public sealed class CacheManagementViewModelTests
     private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
     {
         private readonly Queue<IReadOnlyList<CachedBookCacheItem>> _booksQueue = new();
+        private EventHandler<CacheChangedEventArgs>? _changed;
+        private TaskCompletionSource? _chapterLoadCompleted;
+        private int _chapterLoadCompletionTarget;
 
         public event EventHandler<CacheChangedEventArgs>? Changed
         {
-            add { }
-            remove { }
+            add
+            {
+                _changed += value;
+                ChangedSubscriberCount++;
+            }
+            remove
+            {
+                _changed -= value;
+                ChangedSubscriberCount--;
+            }
         }
 
         public IReadOnlyList<CachedBookCacheItem> BooksResult { get; set; } = [];
@@ -610,6 +776,18 @@ public sealed class CacheManagementViewModelTests
         public Dictionary<string, CachedChapterCacheItem[]> ChaptersResult { get; } = [];
 
         public Dictionary<string, TaskCompletionSource<IReadOnlyList<CachedChapterCacheItem>>> PendingChapterTasks { get; } = [];
+
+        public Queue<TaskCompletionSource<IReadOnlyList<CachedChapterCacheItem>>> PendingChapterSequences { get; } = [];
+
+        public TaskCompletionSource FirstPendingChapterLoadStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource CancellationObserved { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int ChangedSubscriberCount { get; private set; }
+
+        public int GetCachedChaptersCallCount { get; private set; }
 
         public bool LoadChaptersOnBackgroundThread { get; set; }
 
@@ -637,23 +815,71 @@ public sealed class CacheManagementViewModelTests
 
         public async Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(string bookId, CancellationToken cancellationToken)
         {
+            GetCachedChaptersCallCount++;
+            if (PendingChapterSequences.Count > 0)
+            {
+                var pendingSequence = PendingChapterSequences.Dequeue();
+                FirstPendingChapterLoadStarted.TrySetResult();
+                IReadOnlyList<CachedChapterCacheItem> chapterItems;
+                try
+                {
+                    chapterItems = await pendingSequence.Task.WaitAsync(cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    CancellationObserved.TrySetResult();
+                    throw;
+                }
+                SignalChapterLoadCompleted();
+                return chapterItems;
+            }
+
             if (PendingChapterTasks.TryGetValue(bookId, out var pendingTask))
             {
-                return await pendingTask.Task.WaitAsync(cancellationToken);
+                var chapterItems = await pendingTask.Task.WaitAsync(cancellationToken);
+                SignalChapterLoadCompleted();
+                return chapterItems;
             }
 
             if (LoadChaptersOnBackgroundThread)
             {
-                return await Task.Run<IReadOnlyList<CachedChapterCacheItem>>(
+                var chapterItems = await Task.Run<IReadOnlyList<CachedChapterCacheItem>>(
                     () => ChaptersResult.TryGetValue(bookId, out var backgroundChapters)
                         ? backgroundChapters
                         : [],
                     cancellationToken);
+                SignalChapterLoadCompleted();
+                return chapterItems;
             }
 
-            return ChaptersResult.TryGetValue(bookId, out var chapters)
+            var result = ChaptersResult.TryGetValue(bookId, out var chapters)
                 ? chapters
                 : [];
+            SignalChapterLoadCompleted();
+            return result;
+        }
+
+        public Task WhenChapterLoadCountReached(int count)
+        {
+            if (GetCachedChaptersCallCount >= count)
+            {
+                return Task.CompletedTask;
+            }
+
+            _chapterLoadCompleted = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            _chapterLoadCompletionTarget = count;
+            return _chapterLoadCompleted.Task;
+        }
+
+        public void Publish(CacheChangedEventArgs eventArgs) => _changed?.Invoke(this, eventArgs);
+
+        private void SignalChapterLoadCompleted()
+        {
+            if (GetCachedChaptersCallCount >= _chapterLoadCompletionTarget)
+            {
+                _chapterLoadCompleted?.TrySetResult();
+            }
         }
 
         public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
