@@ -35,10 +35,9 @@ public sealed class BookLibraryPersistenceTests
         await fixture.ProgressStore.SaveAsync(new PlaybackProgressUpdate("book-1", 1, 0, 8, 240), CancellationToken.None);
         await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(
-                AudioCacheKey.FromPlayback("book-1", 1, 0, 1, 10, "第二章 第一段"),
+                TestAudioCacheKey.Create("book-1", 1, 0, 1, 10, "第二章 第一段"),
                 "book-1",
                 1,
-                0,
                 1,
                 CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
                 "audio/mpeg"),
@@ -155,9 +154,8 @@ public sealed class BookLibraryPersistenceTests
         var storedFilePath = await SeedBookAsync(fixture, "book-1", title: "受保护缓存", author: null);
         var cacheEntry = await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(
-                AudioCacheKey.FromPlayback("book-1", 0, 0, 1, 10, "第一段"),
+                TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段"),
                 "book-1",
-                0,
                 0,
                 1,
                 CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
@@ -185,10 +183,9 @@ public sealed class BookLibraryPersistenceTests
         {
             entries.Add(await fixture.Cache.StoreAsync(
                 new AudioCacheWriteRequest(
-                    AudioCacheKey.FromPlayback("book-1", 0, segment.Index, 1, 10, segment.Text),
+                    TestAudioCacheKey.Create("book-1", 0, segment.Index, 1, 10, segment.Text),
                     "book-1",
                     0,
-                    segment.Index,
                     1,
                     CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
                     "audio/mpeg"),

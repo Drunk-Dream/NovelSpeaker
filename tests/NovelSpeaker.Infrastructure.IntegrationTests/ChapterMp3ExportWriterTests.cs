@@ -19,8 +19,8 @@ public sealed class ChapterMp3ExportWriterTests
     public async Task WriteAsync_preserves_segment_order_and_produces_one_decodable_mp3()
     {
         var fixture = await CreateFixtureAsync();
-        var firstKey = AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "第一段");
-        var secondKey = AudioCacheKey.FromPlayback("book-1", 0, 1, 7, 12, "第二段");
+        var firstKey = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "第一段");
+        var secondKey = TestAudioCacheKey.Create("book-1", 0, 1, 7, 12, "第二段");
         await StoreAsync(fixture, firstKey, 0, CreateWaveFile(silence: true));
         await StoreAsync(fixture, secondKey, 1, CreateWaveFile(silence: false));
         var exportRoot = CreateExportRoot();
@@ -49,8 +49,8 @@ public sealed class ChapterMp3ExportWriterTests
     public async Task WriteAsync_normalizes_mixed_mp3_and_wav_segments_into_one_mp3()
     {
         var fixture = await CreateFixtureAsync();
-        var firstKey = AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "第一段");
-        var secondKey = AudioCacheKey.FromPlayback("book-1", 0, 1, 7, 12, "第二段");
+        var firstKey = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "第一段");
+        var secondKey = TestAudioCacheKey.Create("book-1", 0, 1, 7, 12, "第二段");
         await StoreAsync(fixture, firstKey, 0, CopyToTemporaryFile(PlaybackTestAudio.DemoMp3Path));
         await StoreAsync(fixture, secondKey, 1, CreateWaveFile(silence: false));
 
@@ -69,8 +69,8 @@ public sealed class ChapterMp3ExportWriterTests
     public async Task WriteAsync_exports_different_chapters_as_separate_mp3_files()
     {
         var fixture = await CreateFixtureAsync();
-        var firstKey = AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "第一章");
-        var secondKey = AudioCacheKey.FromPlayback("book-1", 1, 0, 7, 12, "第二章");
+        var firstKey = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "第一章");
+        var secondKey = TestAudioCacheKey.Create("book-1", 1, 0, 7, 12, "第二章");
         await StoreAsync(fixture, firstKey, 0, CreateWaveFile(silence: false));
         await StoreAsync(fixture, secondKey, 0, CreateWaveFile(silence: false), chapterIndex: 1);
         var exportRoot = CreateExportRoot();
@@ -102,8 +102,8 @@ public sealed class ChapterMp3ExportWriterTests
     public async Task WriteAsync_rejects_incomplete_cache_before_creating_outputs()
     {
         var fixture = await CreateFixtureAsync();
-        var validKey = AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "有效段");
-        var missingKey = AudioCacheKey.FromPlayback("book-1", 1, 0, 7, 12, "缺失段");
+        var validKey = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "有效段");
+        var missingKey = TestAudioCacheKey.Create("book-1", 1, 0, 7, 12, "缺失段");
         await StoreAsync(fixture, validKey, 0, CreateWaveFile(silence: false));
         var exportRoot = CreateExportRoot();
 
@@ -126,7 +126,7 @@ public sealed class ChapterMp3ExportWriterTests
     public async Task WriteAsync_rejects_corrupt_cached_audio_as_incomplete()
     {
         var fixture = await CreateFixtureAsync();
-        var key = AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "损坏段");
+        var key = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "损坏段");
         var stored = await StoreAsync(fixture, key, 0, CreateWaveFile(silence: false));
         File.Copy(PlaybackTestAudio.CorruptMp3Path, stored.FilePath, overwrite: true);
         var exportRoot = CreateExportRoot();
@@ -146,7 +146,7 @@ public sealed class ChapterMp3ExportWriterTests
     public async Task WriteAsync_uses_numbered_suffix_without_overwriting_existing_file()
     {
         var fixture = await CreateFixtureAsync();
-        var key = AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "第一段");
+        var key = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "第一段");
         await StoreAsync(fixture, key, 0, CreateWaveFile(silence: false));
         var exportRoot = CreateExportRoot();
         var bookDirectory = Path.Combine(exportRoot, "示例书");
@@ -175,7 +175,7 @@ public sealed class ChapterMp3ExportWriterTests
         bool cancel)
     {
         var fixture = await CreateFixtureAsync();
-        var key = AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "第一段");
+        var key = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "第一段");
         await StoreAsync(fixture, key, 0, CreateWaveFile(silence: false));
         var exportRoot = CreateExportRoot();
         using var cancellation = new CancellationTokenSource();
@@ -210,7 +210,7 @@ public sealed class ChapterMp3ExportWriterTests
     public async Task WriteAsync_keeps_sanitized_output_inside_the_selected_root()
     {
         var fixture = await CreateFixtureAsync();
-        var key = AudioCacheKey.FromPlayback("book-1", 0, 0, 7, 12, "第一段");
+        var key = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "第一段");
         await StoreAsync(fixture, key, 0, CreateWaveFile(silence: false));
         var exportRoot = CreateExportRoot();
 
@@ -252,7 +252,6 @@ public sealed class ChapterMp3ExportWriterTests
                 key,
                 "book-1",
                 chapterIndex,
-                segmentIndex,
                 7,
                 sourcePath,
                 "audio/wav"),

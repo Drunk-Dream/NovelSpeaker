@@ -401,11 +401,23 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         Action maintenanceChanged,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_audioProbe.CanDecode(request.SourceFilePath))
+        {
+            throw new InvalidDataException("源音频无法通过可播放性校验。");
+        }
+
         var destinationPath = _fileStore.GetDestinationPath(request);
         using var finalProtection = _protectionRegistry.Protect(destinationPath);
         var file = await _fileStore.StoreAsync(request, cancellationToken).ConfigureAwait(false);
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!_audioProbe.CanDecode(file.FilePath))
+            {
+                throw new InvalidDataException("缓存音频无法通过可播放性校验。");
+            }
+
             await _index.UpsertAsync(
                 request,
                 file.StorageKey,

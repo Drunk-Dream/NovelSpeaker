@@ -1,7 +1,6 @@
 using System.Text;
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Abstractions;
-using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Infrastructure.Persistence;
@@ -36,10 +35,12 @@ internal sealed class SqliteAudioCacheIndex
             """
             SELECT CacheKey, FilePath, FileSize
             FROM AudioCacheEntries
-            WHERE CacheKey = $cacheKey
+            WHERE CacheKey = $cacheKey AND KeyVersion = $keyVersion AND HealthState = $status
             LIMIT 1;
             """;
         command.Parameters.AddWithValue("$cacheKey", ToCacheKeyBlob(key.Value));
+        command.Parameters.AddWithValue("$keyVersion", 2);
+        command.Parameters.AddWithValue("$status", ReadyHealthState);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
@@ -84,7 +85,8 @@ internal sealed class SqliteAudioCacheIndex
                 $"""
                 SELECT CacheKey, FilePath, FileSize
                 FROM AudioCacheEntries
-                WHERE CacheKey IN ({string.Join(", ", parameterNames)});
+                WHERE KeyVersion = 2 AND HealthState = {ReadyHealthState}
+                  AND CacheKey IN ({string.Join(", ", parameterNames)});
                 """;
 
             await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -110,9 +112,10 @@ internal sealed class SqliteAudioCacheIndex
             UPDATE AudioCacheEntries
             SET LastAccessedAt = $lastAccessedAt,
                 FilePath = $filePath
-            WHERE CacheKey = $cacheKey;
+            WHERE CacheKey = $cacheKey AND KeyVersion = $keyVersion;
             """;
         command.Parameters.AddWithValue("$cacheKey", ToCacheKeyBlob(cacheKey));
+        command.Parameters.AddWithValue("$keyVersion", 2);
         command.Parameters.AddWithValue(
             "$lastAccessedAt",
             SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow()));
@@ -129,10 +132,9 @@ internal sealed class SqliteAudioCacheIndex
         var now = SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow());
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         var chapterId = await ResolveChapterIdAsync(connection, request, cancellationToken).ConfigureAwait(false);
-        var synthesisProfileFingerprint = Fingerprint.Sha256($"legacy-synthesis-v1:{request.RuleId}");
         await EnsureSynthesisProfileAsync(
             connection,
-            synthesisProfileFingerprint,
+            request.Key.Identity.SynthesisProfile,
             request.RuleId,
             now,
             cancellationToken).ConfigureAwait(false);
@@ -195,14 +197,16 @@ internal sealed class SqliteAudioCacheIndex
                 LastAccessedAt = excluded.LastAccessedAt;
             """;
         command.Parameters.AddWithValue("$cacheKey", ToCacheKeyBlob(request.Key.Value));
-        command.Parameters.AddWithValue("$keyVersion", 1);
+        command.Parameters.AddWithValue("$keyVersion", 2);
         command.Parameters.AddWithValue("$bookId", request.BookId);
         command.Parameters.AddWithValue("$chapterId", chapterId);
-        command.Parameters.AddWithValue("$segmentKind", 0);
-        command.Parameters.AddWithValue("$sourceStartOffset", request.SegmentIndex);
-        command.Parameters.AddWithValue("$sourceLength", 1);
-        command.Parameters.AddWithValue("$speechTextHash", Fingerprint.Sha256(request.Key.Value).ToArray());
-        command.Parameters.AddWithValue("$synthesisProfileFingerprint", synthesisProfileFingerprint.ToArray());
+        command.Parameters.AddWithValue("$segmentKind", (int)request.Key.Identity.Segment.Kind);
+        command.Parameters.AddWithValue("$sourceStartOffset", request.Key.Identity.Segment.SourceStartOffset);
+        command.Parameters.AddWithValue("$sourceLength", Math.Max(1, request.Key.Identity.Segment.SourceLength));
+        command.Parameters.AddWithValue("$speechTextHash", request.Key.Identity.SpeechTextHash.ToArray());
+        command.Parameters.AddWithValue(
+            "$synthesisProfileFingerprint",
+            request.Key.Identity.SynthesisProfile.Value.ToArray());
         command.Parameters.AddWithValue("$filePath", storageKey);
         command.Parameters.AddWithValue("$contentType", (object?)request.ContentType ?? DBNull.Value);
         command.Parameters.AddWithValue("$fileSize", fileSize);
@@ -221,7 +225,7 @@ internal sealed class SqliteAudioCacheIndex
         command.CommandText =
             """
             DELETE FROM AudioCacheEntries
-            WHERE CacheKey = $cacheKey;
+            WHERE CacheKey = $cacheKey AND KeyVersion = 2;
             """;
         command.Parameters.AddWithValue("$cacheKey", ToCacheKeyBlob(cacheKey));
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -235,7 +239,7 @@ internal sealed class SqliteAudioCacheIndex
             """
             SELECT COALESCE(SUM(FileSize), 0), COUNT(*)
             FROM AudioCacheEntries
-            WHERE HealthState = $status;
+            WHERE KeyVersion = 2 AND HealthState = $status;
             """;
         command.Parameters.AddWithValue("$status", ReadyHealthState);
 
@@ -253,7 +257,7 @@ internal sealed class SqliteAudioCacheIndex
             """
             SELECT BookId, COUNT(DISTINCT ChapterId), COUNT(*), COALESCE(SUM(FileSize), 0)
             FROM AudioCacheEntries
-            WHERE HealthState = $status
+            WHERE KeyVersion = 2 AND HealthState = $status
             GROUP BY BookId
             ORDER BY COALESCE(SUM(FileSize), 0) DESC, BookId;
             """;
@@ -288,7 +292,7 @@ internal sealed class SqliteAudioCacheIndex
                    COALESCE(SUM(e.FileSize), 0)
             FROM AudioCacheEntries e
             INNER JOIN Chapters c ON c.Id = e.ChapterId
-            WHERE e.HealthState = $status AND e.BookId = $bookId
+            WHERE e.KeyVersion = 2 AND e.HealthState = $status AND e.BookId = $bookId
             GROUP BY e.BookId, c.ChapterIndex
             ORDER BY c.ChapterIndex;
             """;
@@ -347,6 +351,7 @@ internal sealed class SqliteAudioCacheIndex
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         var command = connection.CreateCommand();
         var predicates = new List<string>();
+        predicates.Add("e.KeyVersion = 2");
         if (includeStatusFilter)
         {
             predicates.Add("e.HealthState = $status");
@@ -416,7 +421,7 @@ internal sealed class SqliteAudioCacheIndex
 
     private static async Task EnsureSynthesisProfileAsync(
         SqliteConnection connection,
-        Fingerprint fingerprint,
+        SynthesisProfileFingerprint profile,
         long ruleId,
         string now,
         CancellationToken cancellationToken)
@@ -425,12 +430,15 @@ internal sealed class SqliteAudioCacheIndex
         command.CommandText =
             """
             INSERT OR IGNORE INTO SynthesisProfiles
-                (Fingerprint, SchemaVersion, RuleId, RuleFingerprint, SpeakSpeed, CreatedAt)
-            VALUES ($fingerprint, 1, $ruleId, $ruleFingerprint, 0, $createdAt);
+                (Fingerprint, SchemaVersion, RuleId, RuleFingerprint, SpeakSpeed, OptionsJson, CreatedAt)
+            VALUES ($fingerprint, $schemaVersion, $ruleId, $ruleFingerprint, $speakSpeed, $optionsJson, $createdAt);
             """;
-        command.Parameters.AddWithValue("$fingerprint", fingerprint.ToArray());
+        command.Parameters.AddWithValue("$fingerprint", profile.Value.ToArray());
+        command.Parameters.AddWithValue("$schemaVersion", profile.SchemaVersion);
         command.Parameters.AddWithValue("$ruleId", ruleId);
-        command.Parameters.AddWithValue("$ruleFingerprint", fingerprint.ToArray());
+        command.Parameters.AddWithValue("$ruleFingerprint", profile.TtsRule.Value.ToArray());
+        command.Parameters.AddWithValue("$speakSpeed", profile.SpeakSpeed);
+        command.Parameters.AddWithValue("$optionsJson", (object?)profile.OptionsJson ?? DBNull.Value);
         command.Parameters.AddWithValue("$createdAt", now);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
