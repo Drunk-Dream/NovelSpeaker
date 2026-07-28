@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Automation;
@@ -165,12 +166,77 @@ public sealed class BookDetailsPageTests
         });
     }
 
-    private static BookDetailsViewModel CreateViewModel()
+    [Fact]
+    public void BookDetailsPage_scrolls_to_current_chapter_when_async_catalog_load_finishes()
     {
+        WpfTestHost.RunInSta(() =>
+        {
+            const int chapterCount = 180;
+            const int currentChapterIndex = 90;
+            var managementService = new FakeBookManagementService
+            {
+                Header = new BookDetailsHeader("book-1", "示例小说", "作者甲"),
+                Details = CreateDetails(chapterCount, currentChapterIndex)
+            };
+            var viewModel = CreateViewModel(managementService);
+            var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService())
+            {
+                DataContext = new BookDetailsRoute("book-1")
+            };
+            var frame = new Frame
+            {
+                NavigationUIVisibility = System.Windows.Navigation.NavigationUIVisibility.Hidden
+            };
+            var window = new Window
+            {
+                Width = 1280,
+                Height = 760,
+                Content = frame
+            };
+
+            try
+            {
+                window.Show();
+                frame.Navigate(page);
+                page.OnNavigatedToAsync().GetAwaiter().GetResult();
+
+                var chaptersListBox = Assert.IsType<ListBox>(page.FindName("ChaptersListBox"));
+                page.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                window.UpdateLayout();
+                chaptersListBox.ApplyTemplate();
+                chaptersListBox.UpdateLayout();
+                var chaptersScrollViewer = Assert.IsAssignableFrom<ScrollViewer>(
+                    VisualTreeTestHelper.FindDescendant<ScrollViewer>(chaptersListBox));
+
+                WaitUntil(
+                    () => chaptersScrollViewer.VerticalOffset > 0 &&
+                          viewModel.CurrentChapterItem is { } currentItem &&
+                          chaptersListBox.ItemContainerGenerator.ContainerFromItem(currentItem) is FrameworkElement,
+                    TimeSpan.FromSeconds(2));
+
+                var currentItem = viewModel.CurrentChapterItem;
+                Assert.NotNull(currentItem);
+                var currentContainer = chaptersListBox.ItemContainerGenerator.ContainerFromItem(currentItem!) as FrameworkElement;
+                Assert.NotNull(currentContainer);
+                var currentTop = currentContainer!.TranslatePoint(new Point(0, 0), chaptersScrollViewer).Y;
+
+                Assert.InRange(currentTop, 0d, chaptersScrollViewer.ViewportHeight - currentContainer.ActualHeight);
+            }
+            finally
+            {
+                page.OnNavigatedFromAsync().GetAwaiter().GetResult();
+                window.Close();
+            }
+        });
+    }
+
+    private static BookDetailsViewModel CreateViewModel(FakeBookManagementService? managementService = null)
+    {
+        managementService ??= new FakeBookManagementService();
         return new BookDetailsViewModel(
-            new FakeBookManagementService(),
-            new FakeBookManagementService(),
-            new FakeBookManagementService(),
+            managementService,
+            managementService,
+            managementService,
             new FakeCacheWorkspaceService(),
             new FakeAppSettingsService(),
             new BookCoverGenerator(),
@@ -180,6 +246,28 @@ public sealed class BookDetailsPageTests
             new BookCatalogInvalidationState(),
             new FakePlaybackCoordinator(),
             new FakeGuardedNavigationService());
+    }
+
+    private static BookDetails CreateDetails(int chapterCount, int currentChapterIndex)
+    {
+        return new BookDetails(
+            "book-1",
+            "示例小说",
+            "作者甲",
+            chapterCount,
+            currentChapterIndex,
+            chapterCount - currentChapterIndex - 1,
+            0.5,
+            true,
+            0,
+            Enumerable.Range(0, chapterCount)
+                .Select(index => new BookChapterSummary(
+                    index,
+                    $"第 {index + 1} 章 标题",
+                    index * 100,
+                    100,
+                    index == currentChapterIndex))
+                .ToArray());
     }
 
     private static void PopulateLayoutState(BookDetailsViewModel viewModel, int chapterCount)
@@ -214,6 +302,26 @@ public sealed class BookDetailsPageTests
         return new Rect(topLeft.X, topLeft.Y, element.ActualWidth, element.ActualHeight);
     }
 
+    private static void WaitUntil(Func<bool> predicate, TimeSpan timeout)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        while (stopwatch.Elapsed < timeout)
+        {
+            if (predicate())
+            {
+                return;
+            }
+
+            var frame = new DispatcherFrame();
+            Dispatcher.CurrentDispatcher.BeginInvoke(
+                DispatcherPriority.ApplicationIdle,
+                new Action(() => frame.Continue = false));
+            Dispatcher.PushFrame(frame);
+        }
+
+        Assert.True(predicate());
+    }
+
     private sealed class FakeNavigationGuardService : INavigationGuardService
     {
         public IDisposable Register(Func<CancellationToken, Task<bool>> guard) => new Registration();
@@ -238,13 +346,17 @@ public sealed class BookDetailsPageTests
 
     private sealed class FakeBookManagementService : IBookLibraryQuery, IBookMetadataUpdateService, IBookDeletionService
     {
+        public BookDetailsHeader? Header { get; init; }
+
+        public BookDetails? Details { get; init; }
+
         public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<BookSummary>>([]);
 
         public Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken)
-            => Task.FromResult<BookDetailsHeader?>(null);
+            => Task.FromResult(Header);
 
-        public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken) => Task.FromResult<BookDetails?>(null);
+        public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken) => Task.FromResult(Details);
 
         public Task<BookDetailsHeader> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
             => throw new NotSupportedException();

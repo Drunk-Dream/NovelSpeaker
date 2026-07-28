@@ -1,7 +1,9 @@
+using System.ComponentModel;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Shared.Presentation.Scrolling;
 using System.Windows;
+using System.Windows.Threading;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Features.BookDetails;
@@ -69,16 +71,36 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         _chapterLocator.OnLoaded();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _chapterLocator.OnUnloaded();
     }
 
     private void LocateCurrentChapterButton_OnClick(object sender, RoutedEventArgs e)
     {
         _chapterLocator.LocateCurrentItem();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(BookDetailsViewModel.CurrentChapterItem))
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.Background,
+            new Action(() =>
+            {
+                if (IsLoaded)
+                {
+                    _chapterLocator.NotifyCurrentItemChanged(animate: false);
+                }
+            }));
     }
 }
