@@ -132,9 +132,12 @@
                                 <Button Grid.Column="1"
                                         Margin="{StaticResource SettingsRowControlMargin}"
                                         VerticalAlignment="Center"
+                                        Style="{StaticResource SecondaryIconButtonStyle}"
                                         Command="{Binding OpenLogsDirectoryCommand}"
-                                        Content="打开日志目录"
-                                        AutomationProperties.Name="打开日志目录" />
+                                        ToolTip="打开日志目录"
+                                        AutomationProperties.Name="打开日志目录">
+                                    <ui:SymbolIcon Symbol="FolderOpen24" />
+                                </Button>
                             </Grid>
                         </Border>
 
@@ -177,9 +180,12 @@
                                 <Button Grid.Column="1"
                                         Margin="{StaticResource SettingsRowControlMargin}"
                                         VerticalAlignment="Center"
+                                        Style="{StaticResource SecondaryIconButtonStyle}"
                                         Command="{Binding CopyRedactedSummaryCommand}"
-                                        Content="复制摘要"
-                                        AutomationProperties.Name="复制脱敏诊断摘要" />
+                                        ToolTip="复制脱敏诊断摘要"
+                                        AutomationProperties.Name="复制脱敏诊断摘要">
+                                    <ui:SymbolIcon Symbol="DocumentCopy24" />
+                                </Button>
                             </Grid>
                         </Border>
 
@@ -195,9 +201,12 @@
                                 <Button Grid.Column="1"
                                         Margin="{StaticResource SettingsRowControlMargin}"
                                         VerticalAlignment="Center"
+                                        Style="{StaticResource SecondaryIconButtonStyle}"
                                         Command="{Binding OpenThirdPartyNoticesCommand}"
-                                        Content="打开许可证"
-                                        AutomationProperties.Name="打开第三方许可证" />
+                                        ToolTip="打开第三方许可证"
+                                        AutomationProperties.Name="打开第三方许可证">
+                                    <ui:SymbolIcon Symbol="DocumentText24" />
+                                </Button>
                             </Grid>
                         </Border>
                     </StackPanel>

@@ -4,6 +4,8 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Xml.Linq;
 using Microsoft.Extensions.DependencyInjection;
+using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -96,6 +98,30 @@ public sealed class SettingsSubpageViewTests
                     "打开日志目录",
                     "复制脱敏诊断摘要",
                     "打开第三方许可证");
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
+    public void Low_frequency_settings_tools_use_accessible_icon_buttons()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                AssertIconTool(
+                    provider.GetRequiredService<CacheAndDataPage>(),
+                    "打开应用数据目录",
+                    SymbolRegular.FolderOpen24);
+                var diagnosticsPage = provider.GetRequiredService<DiagnosticsAboutPage>();
+                AssertIconTool(diagnosticsPage, "打开日志目录", SymbolRegular.FolderOpen24);
+                AssertIconTool(diagnosticsPage, "复制脱敏诊断摘要", SymbolRegular.DocumentCopy24);
+                AssertIconTool(diagnosticsPage, "打开第三方许可证", SymbolRegular.DocumentText24);
             }
             finally
             {
@@ -201,6 +227,24 @@ public sealed class SettingsSubpageViewTests
             .ToHashSet(StringComparer.Ordinal);
 
         Assert.All(expectedNames, name => Assert.Contains(name, names));
+    }
+
+    private static void AssertIconTool(
+        FrameworkElement page,
+        string accessibleName,
+        SymbolRegular expectedSymbol)
+    {
+        page.Measure(new Size(1200, 900));
+        page.Arrange(new Rect(0, 0, 1200, 900));
+        page.UpdateLayout();
+
+        var button = Assert.Single(
+            VisualTreeTestHelper.FindDescendants<Button>(page),
+            candidate => AutomationProperties.GetName(candidate) == accessibleName);
+
+        Assert.Equal(accessibleName, button.ToolTip);
+        Assert.Equal(expectedSymbol, Assert.IsType<SymbolIcon>(button.Content).Symbol);
+        Assert.Same(page.FindResource("SecondaryIconButtonStyle"), button.Style);
     }
 
     private static string GetRepositoryRoot()

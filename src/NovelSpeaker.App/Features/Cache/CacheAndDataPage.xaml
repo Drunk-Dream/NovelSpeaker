@@ -167,9 +167,12 @@
                                 <Button Grid.Column="1"
                                         Margin="{StaticResource SettingsRowControlMargin}"
                                         VerticalAlignment="Center"
+                                        Style="{StaticResource SecondaryIconButtonStyle}"
                                         Command="{Binding OpenAppDataDirectoryCommand}"
-                                        Content="打开应用数据目录"
-                                        AutomationProperties.Name="打开应用数据目录" />
+                                        ToolTip="打开应用数据目录"
+                                        AutomationProperties.Name="打开应用数据目录">
+                                    <ui:SymbolIcon Symbol="FolderOpen24" />
+                                </Button>
                             </Grid>
                         </Border>
 
