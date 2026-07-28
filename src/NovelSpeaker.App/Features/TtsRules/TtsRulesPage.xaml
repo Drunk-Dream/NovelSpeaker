@@ -123,21 +123,29 @@
                         <ItemsControl ItemsSource="{Binding Rules}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Margin="0,0,0,10"
-                                            Padding="0"
-                                            Style="{StaticResource CardBorderStyle}">
+                                    <Border Padding="0"
+                                            Style="{StaticResource SelectableCardListItemContainerStyle}"
+                                            AutomationProperties.Name="{Binding AutomationName}">
                                         <Grid>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto" />
                                                 <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
 
-                                            <Button Padding="12,10"
-                                                    Style="{StaticResource SelectableListItemButtonStyle}"
+                                            <Button Grid.RowSpan="2"
+                                                    Padding="0"
+                                                    Style="{StaticResource BorderlessListItemButtonStyle}"
                                                     Command="{Binding DataContext.SelectRuleCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                     CommandParameter="{Binding}"
-                                                    AutomationProperties.Name="{Binding AutomationName}">
-                                                <StackPanel>
+                                                    AutomationProperties.Name="{Binding AutomationName}"
+                                                    HorizontalAlignment="Stretch"
+                                                    VerticalAlignment="Stretch"
+                                                    Panel.ZIndex="0" />
+
+                                            <StackPanel Grid.Row="0"
+                                                        Margin="14,12,14,0"
+                                                        IsHitTestVisible="False"
+                                                        Panel.ZIndex="1">
                                                     <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                                                Text="{Binding Name}"
                                                                TextTrimming="CharacterEllipsis" />
@@ -145,11 +153,11 @@
                                                                Style="{StaticResource SecondaryTextBlockStyle}"
                                                                Text="{Binding RequestSummary}"
                                                                TextTrimming="CharacterEllipsis" />
-                                                </StackPanel>
-                                            </Button>
+                                            </StackPanel>
 
                                             <Grid Grid.Row="1"
-                                                  Margin="12,2,8,10">
+                                                  Margin="14,12,14,12"
+                                                  Panel.ZIndex="1">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />

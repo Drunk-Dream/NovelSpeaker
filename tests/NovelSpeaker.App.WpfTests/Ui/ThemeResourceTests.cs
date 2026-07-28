@@ -137,6 +137,7 @@ public sealed class ThemeResourceTests
 
         var selectedCardStyle = GetStyleElement(styles, "SelectedCardContainerStyle");
         var selectableListItemStyle = GetStyleElement(styles, "SelectableListItemContainerStyle");
+        var selectableCardListItemStyle = GetStyleElement(styles, "SelectableCardListItemContainerStyle");
 
         Assert.Equal(
             "{StaticResource CardBorderStyle}",
@@ -148,6 +149,11 @@ public sealed class ThemeResourceTests
         Assert.Equal(
             "{StaticResource SelectedCardContainerStyle}",
             (string?)selectableListItemStyle.Attribute("BasedOn"));
+        Assert.Equal(
+            "{StaticResource SelectableListItemContainerStyle}",
+            (string?)selectableCardListItemStyle.Attribute("BasedOn"));
+        Assert.Contains("CardStrokeColorDefaultBrush", selectableCardListItemStyle.ToString());
+        Assert.Contains("Property=\"BorderThickness\" Value=\"1\"", selectableCardListItemStyle.ToString());
     }
 
     [Fact]

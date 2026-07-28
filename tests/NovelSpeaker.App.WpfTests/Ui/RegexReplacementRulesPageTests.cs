@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Media;
 using NovelSpeaker.Domain.Books;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
@@ -82,6 +83,47 @@ public sealed class RegexReplacementRulesPageTests
             Assert.Contains("规则执行失败", VisualTreeTestHelper.FindDescendants<TextBlock>(view).Select(block => block.Text));
             Assert.NotNull(VisualTreeTestHelper.FindDescendants<Border>(view).SingleOrDefault(border =>
                 AutomationProperties.GetName(border) == enabledRule.AutomationName));
+        });
+    }
+
+    [Fact]
+    public void RegexReplacementRulesPage_uses_the_shared_container_for_a_full_card_selection_surface()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var rule = new RegexReplacementRuleListItemViewModel(
+                Guid.NewGuid(),
+                "整卡点击",
+                "\\s+",
+                true,
+                RegexReplacementScope.Both,
+                false,
+                null);
+            var view = new RegexReplacementRulesPage
+            {
+                DataContext = new RegexReplacementRulesViewLayoutContext
+                {
+                    Rules = [rule]
+                }
+            };
+
+            view.Measure(new Size(960, 680));
+            view.Arrange(new Rect(0, 0, 960, 680));
+            view.UpdateLayout();
+
+            var card = Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(
+                view,
+                candidate => ReferenceEquals(candidate.DataContext, rule) &&
+                             AutomationProperties.GetName(candidate) == rule.AutomationName));
+            var selectionButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(
+                card,
+                candidate => AutomationProperties.GetName(candidate) == rule.AutomationName));
+
+            Assert.Same(view.FindResource("DropTargetListItemContainerStyle"), card.Style);
+            Assert.Equal(new Thickness(1), card.BorderThickness);
+            Assert.NotEqual(Brushes.Transparent, card.BorderBrush);
+            Assert.InRange(Math.Abs(selectionButton.ActualWidth - card.ActualWidth), 0d, 2d);
+            Assert.InRange(Math.Abs(selectionButton.ActualHeight - card.ActualHeight), 0d, 2d);
         });
     }
 

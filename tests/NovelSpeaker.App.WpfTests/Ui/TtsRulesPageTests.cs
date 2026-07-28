@@ -131,6 +131,46 @@ public sealed partial class TtsRulesPageTests
     }
 
     [Fact]
+    public void TtsRulesPage_uses_the_shared_container_for_a_full_card_selection_surface()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var rule = new TtsRuleListItemViewModel(
+                2,
+                "整卡点击",
+                "POST · https://speech.example.com",
+                true,
+                false,
+                false);
+            var view = new TtsRulesPage
+            {
+                DataContext = new TtsRulesViewLayoutContext
+                {
+                    Rules = [rule]
+                }
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var card = Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(
+                view,
+                candidate => ReferenceEquals(candidate.DataContext, rule) &&
+                             AutomationProperties.GetName(candidate) == rule.AutomationName));
+            var selectionButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(
+                card,
+                candidate => AutomationProperties.GetName(candidate) == rule.AutomationName));
+
+            Assert.Same(view.FindResource("SelectableCardListItemContainerStyle"), card.Style);
+            Assert.Equal(new Thickness(1), card.BorderThickness);
+            Assert.NotEqual(Brushes.Transparent, card.BorderBrush);
+            Assert.InRange(Math.Abs(selectionButton.ActualWidth - card.ActualWidth), 0d, 2d);
+            Assert.InRange(Math.Abs(selectionButton.ActualHeight - card.ActualHeight), 0d, 2d);
+        });
+    }
+
+    [Fact]
     public void TtsRulesPage_right_editor_keeps_only_audition_cancel_and_save_actions()
     {
         WpfTestHost.RunInSta(() =>
