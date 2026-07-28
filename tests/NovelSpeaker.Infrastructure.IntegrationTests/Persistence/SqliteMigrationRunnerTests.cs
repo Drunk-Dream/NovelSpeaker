@@ -8,7 +8,7 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Persistence;
 public sealed class SqliteMigrationRunnerTests
 {
     [Fact]
-    public async Task InitializeAsync_creates_current_schema_as_version_6()
+    public async Task InitializeAsync_creates_current_schema_as_version_7()
     {
         var factory = await CreateInitializedFactoryAsync();
 
@@ -19,7 +19,7 @@ public sealed class SqliteMigrationRunnerTests
             SELECT COUNT(*)
             FROM sqlite_master
             WHERE type = 'table'
-              AND name IN ('SchemaVersion', 'AppMetadata', 'Books', 'Chapters', 'ChapterRules', 'HttpTtsRules', 'ReadingProgress', 'AudioCacheEntries', 'RegexReplacementRules', 'BookOperations');
+              AND name IN ('SchemaVersion', 'AppMetadata', 'Books', 'Chapters', 'ChapterRules', 'HttpTtsRules', 'ReadingProgress', 'AudioCacheEntries', 'RegexReplacementRules', 'BookOperations', 'ChapterSpeechPlans', 'ChapterSpeechPlanSegments', 'SynthesisProfiles');
             """;
 
         var tableCount = Convert.ToInt32(await tableCommand.ExecuteScalarAsync(CancellationToken.None));
@@ -28,8 +28,8 @@ public sealed class SqliteMigrationRunnerTests
         versionCommand.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
         var version = Convert.ToInt32(await versionCommand.ExecuteScalarAsync(CancellationToken.None));
 
-        Assert.Equal(10, tableCount);
-        Assert.Equal(6, version);
+        Assert.Equal(13, tableCount);
+        Assert.Equal(7, version);
     }
 
     [Fact]
@@ -94,6 +94,85 @@ public sealed class SqliteMigrationRunnerTests
     }
 
     [Fact]
+    public async Task InitializeAsync_creates_compact_speech_plan_and_cache_tables()
+    {
+        var factory = await CreateInitializedFactoryAsync();
+
+        await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
+        var tableCommand = connection.CreateCommand();
+        tableCommand.CommandText =
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'ChapterSpeechPlanSegments';";
+        var segmentTableSql = Convert.ToString(await tableCommand.ExecuteScalarAsync(CancellationToken.None));
+        Assert.Contains("WITHOUT ROWID", segmentTableSql, StringComparison.OrdinalIgnoreCase);
+
+        var cacheCommand = connection.CreateCommand();
+        cacheCommand.CommandText = "PRAGMA table_info(AudioCacheEntries);";
+        await using var cacheReader = await cacheCommand.ExecuteReaderAsync(CancellationToken.None);
+        var cacheColumns = new Dictionary<string, (string Type, bool NotNull)>(StringComparer.Ordinal);
+        while (await cacheReader.ReadAsync(CancellationToken.None))
+        {
+            cacheColumns.Add(cacheReader.GetString(1), (cacheReader.GetString(2), cacheReader.GetInt32(3) == 1));
+        }
+
+        Assert.Equal("BLOB", cacheColumns["CacheKey"].Type);
+        Assert.Equal("BLOB", cacheColumns["SpeechTextHash"].Type);
+        Assert.Equal("BLOB", cacheColumns["SynthesisProfileFingerprint"].Type);
+        Assert.Contains("ChapterId", cacheColumns.Keys);
+        Assert.Contains("HealthState", cacheColumns.Keys);
+    }
+
+    [Fact]
+    public async Task Version_6_upgrade_discards_old_cache_index_but_preserves_book_and_progress()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new LocalAppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var factory = new SqliteConnectionFactory(directories);
+        var version6Runner = new SqliteMigrationRunner(
+            factory,
+            SqliteMigrationRunner.AllMigrations.Where(migration => migration.Version <= 6).ToArray());
+        await version6Runner.InitializeAsync(CancellationToken.None);
+
+        var legacyCachePath = Path.Combine(directories.CacheDirectoryPath, "Tts", "v1", "aa", "old.mp3");
+        Directory.CreateDirectory(Path.GetDirectoryName(legacyCachePath)!);
+        await File.WriteAllTextAsync(legacyCachePath, "old", CancellationToken.None);
+        await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                INSERT INTO Books
+                    (Id, Title, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, UpdatedAt)
+                VALUES
+                    ('book-1', '书', 'book.txt', 'Books/book-1/content.txt', 'hash', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
+                VALUES ('chapter-1', 'book-1', 0, 0, '第一章', 0, 1);
+                INSERT INTO ReadingProgress
+                    (BookId, ChapterIndex, SegmentIndex, CharacterOffset, AudioPositionMilliseconds, UpdatedAt)
+                VALUES ('book-1', 0, 2, 0, 100, '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO AudioCacheEntries
+                    (CacheKey, BookId, ChapterIndex, SegmentIndex, RuleId, FilePath, FileSize, CreatedAt, LastAccessedAt, Status)
+                VALUES ('v1:old', 'book-1', 0, 0, 7, 'Cache/Tts/v1/aa/old.mp3', 3, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00', 1);
+                """;
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);
+
+        await using (var verification = await factory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var count = verification.CreateCommand();
+            count.CommandText =
+                "SELECT (SELECT COUNT(*) FROM Books) + (SELECT COUNT(*) FROM Chapters) + (SELECT COUNT(*) FROM ReadingProgress) + (SELECT COUNT(*) FROM AudioCacheEntries);";
+            Assert.Equal(3, Convert.ToInt32(await count.ExecuteScalarAsync(CancellationToken.None)));
+        }
+
+        var reset = new AudioCacheFormatResetService(factory, directories);
+        await reset.ResetIfPendingAsync(CancellationToken.None);
+        Assert.False(File.Exists(legacyCachePath));
+    }
+
+    [Fact]
     public async Task InitializeAsync_is_idempotent()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -112,7 +191,7 @@ public sealed class SqliteMigrationRunnerTests
         command.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
 
         var version = Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
-        Assert.Equal(6, version);
+        Assert.Equal(7, version);
     }
 
     [Fact]
@@ -185,32 +264,32 @@ public sealed class SqliteMigrationRunnerTests
             () => runner.InitializeAsync(CancellationToken.None));
         Assert.Equal(3, exception.DetectedVersion);
         Assert.Equal(4, exception.MinimumSupportedVersion);
-        Assert.Equal(6, exception.CurrentVersion);
-        Assert.Equal(6, exception.RequiredVersion);
-        Assert.Contains("支持版本 4 到 6", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(7, exception.CurrentVersion);
+        Assert.Equal(7, exception.RequiredVersion);
+        Assert.Contains("支持版本 4 到 7", exception.Message, StringComparison.Ordinal);
         Assert.Contains("数据库未被修改", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task InitializeAsync_rejects_newer_version_7_database_without_changing_it()
+    public async Task InitializeAsync_rejects_newer_version_8_database_without_changing_it()
     {
-        var (factory, _) = await CreateDatabaseAtVersionAsync(7);
+        var (factory, _) = await CreateDatabaseAtVersionAsync(8);
         var runner = new SqliteMigrationRunner(factory);
 
         var exception = await Assert.ThrowsAsync<IncompatibleDatabaseSchemaException>(
             () => runner.InitializeAsync(CancellationToken.None));
 
-        Assert.Equal(7, exception.DetectedVersion);
+        Assert.Equal(8, exception.DetectedVersion);
         Assert.Equal(4, exception.MinimumSupportedVersion);
-        Assert.Equal(6, exception.CurrentVersion);
-        Assert.Equal(6, exception.RequiredVersion);
-        Assert.Contains("支持版本 4 到 6", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(7, exception.CurrentVersion);
+        Assert.Equal(7, exception.RequiredVersion);
+        Assert.Contains("支持版本 4 到 7", exception.Message, StringComparison.Ordinal);
         Assert.Contains("数据库未被修改", exception.Message, StringComparison.Ordinal);
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
         var command = connection.CreateCommand();
         command.CommandText = "SELECT MAX(Version) FROM SchemaVersion;";
-        Assert.Equal(7, Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None)));
+        Assert.Equal(8, Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None)));
     }
 
     [Fact]
@@ -283,6 +362,25 @@ public sealed class SqliteMigrationRunnerTests
                 (BookId, ChapterIndex, SegmentIndex, CharacterOffset, AudioPositionMilliseconds, UpdatedAt)
             VALUES
                 ('book', 0, 0, 0, 0, '2026-01-01T00:00:00.0000000+00:00');
+            INSERT INTO ChapterSpeechPlans
+                (ChapterId, ChapterRevisionHash, TextProfileFingerprint, PlanOutputHash, State, BodySegmentCount, UpdatedAt)
+            VALUES
+                ('chapter', zeroblob(32), zeroblob(32), zeroblob(32), 1, 1, '2026-01-01T00:00:00.0000000+00:00');
+            INSERT INTO ChapterSpeechPlanSegments
+                (ChapterId, OrderIndex, SegmentKind, SourceStartOffset, SourceLength, SpeechTextHash)
+            VALUES ('chapter', 0, 0, 0, 1, zeroblob(32));
+            INSERT INTO SynthesisProfiles
+                (Fingerprint, SchemaVersion, RuleId, RuleFingerprint, SpeakSpeed, CreatedAt)
+            VALUES (zeroblob(32), 1, 7, zeroblob(32), 10, '2026-01-01T00:00:00.0000000+00:00');
+            INSERT INTO AudioCacheEntries
+                (CacheKey, BookId, ChapterId, SegmentKind, SourceStartOffset, SourceLength,
+                 SpeechTextHash, SynthesisProfileFingerprint, FilePath, FileSize, HealthState,
+                 ValidatedAt, CreatedAt, LastAccessedAt)
+            VALUES (zeroblob(32), 'book', 'chapter', 0, 0, 1, zeroblob(32), zeroblob(32),
+                    'Cache/Tts/v2/aa/cache.mp3', 1, 1,
+                    '2026-01-01T00:00:00.0000000+00:00',
+                    '2026-01-01T00:00:00.0000000+00:00',
+                    '2026-01-01T00:00:00.0000000+00:00');
             DELETE FROM Books WHERE Id = 'book';
             """;
         await seed.ExecuteNonQueryAsync(CancellationToken.None);
@@ -292,7 +390,10 @@ public sealed class SqliteMigrationRunnerTests
             """
             SELECT
                 (SELECT COUNT(*) FROM Chapters WHERE BookId = 'book') +
-                (SELECT COUNT(*) FROM ReadingProgress WHERE BookId = 'book');
+                (SELECT COUNT(*) FROM ReadingProgress WHERE BookId = 'book') +
+                (SELECT COUNT(*) FROM ChapterSpeechPlans WHERE ChapterId = 'chapter') +
+                (SELECT COUNT(*) FROM ChapterSpeechPlanSegments WHERE ChapterId = 'chapter') +
+                (SELECT COUNT(*) FROM AudioCacheEntries WHERE BookId = 'book');
             """;
         Assert.Equal(0, Convert.ToInt32(await count.ExecuteScalarAsync(CancellationToken.None)));
     }

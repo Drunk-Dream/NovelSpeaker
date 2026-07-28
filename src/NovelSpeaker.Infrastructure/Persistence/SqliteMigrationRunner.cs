@@ -9,7 +9,7 @@ namespace NovelSpeaker.Infrastructure.Persistence;
 public sealed class SqliteMigrationRunner : IDatabaseInitializer
 {
     private const int MinimumSupportedVersion = 4;
-    private const int CurrentSchemaVersion = 6;
+    private const int CurrentSchemaVersion = 7;
     private static readonly SqliteMigration[] Migrations =
     [
         new(
@@ -141,8 +141,100 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
 
             CREATE INDEX IX_BookOperations_Phase_CreatedAt
                 ON BookOperations(Phase, CreatedAt);
+            """),
+        new(
+            7,
+            """
+            DROP INDEX IF EXISTS IX_AudioCacheEntries_BookId_ChapterIndex;
+            DROP INDEX IF EXISTS IX_AudioCacheEntries_LastAccessedAt;
+            ALTER TABLE AudioCacheEntries RENAME TO AudioCacheEntries_V6_Discarded;
+
+            CREATE TABLE ChapterSpeechPlans (
+                ChapterId TEXT NOT NULL PRIMARY KEY,
+                ChapterRevisionHash BLOB NOT NULL,
+                TextProfileFingerprint BLOB NOT NULL,
+                PlanOutputHash BLOB NOT NULL,
+                State INTEGER NOT NULL,
+                BodySegmentCount INTEGER NOT NULL CHECK(BodySegmentCount >= 0),
+                UpdatedAt TEXT NOT NULL,
+                FOREIGN KEY(ChapterId) REFERENCES Chapters(Id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE ChapterSpeechPlanSegments (
+                ChapterId TEXT NOT NULL,
+                OrderIndex INTEGER NOT NULL,
+                SegmentKind INTEGER NOT NULL,
+                SourceStartOffset INTEGER NOT NULL CHECK(SourceStartOffset >= 0),
+                SourceLength INTEGER NOT NULL CHECK(SourceLength > 0),
+                SpeechTextHash BLOB NOT NULL,
+                PRIMARY KEY(ChapterId, OrderIndex),
+                UNIQUE(ChapterId, SegmentKind, SourceStartOffset, SourceLength),
+                FOREIGN KEY(ChapterId) REFERENCES ChapterSpeechPlans(ChapterId) ON DELETE CASCADE
+            ) WITHOUT ROWID;
+
+            CREATE TABLE SynthesisProfiles (
+                Fingerprint BLOB NOT NULL PRIMARY KEY,
+                SchemaVersion INTEGER NOT NULL,
+                RuleId INTEGER NOT NULL,
+                RuleFingerprint BLOB NOT NULL,
+                SpeakSpeed INTEGER NOT NULL,
+                OptionsJson TEXT NULL,
+                CreatedAt TEXT NOT NULL
+            );
+
+            CREATE TABLE AudioCacheEntries (
+                CacheKey BLOB NOT NULL PRIMARY KEY,
+                KeyVersion INTEGER NOT NULL DEFAULT 1,
+                BookId TEXT NOT NULL,
+                ChapterId TEXT NULL,
+                SegmentKind INTEGER NOT NULL DEFAULT 0,
+                SourceStartOffset INTEGER NOT NULL DEFAULT 0,
+                SourceLength INTEGER NOT NULL DEFAULT 1 CHECK(SourceLength > 0),
+                SpeechTextHash BLOB NULL,
+                SynthesisProfileFingerprint BLOB NULL,
+                FilePath TEXT NOT NULL,
+                ContentType TEXT NULL,
+                FileSize INTEGER NOT NULL CHECK(FileSize >= 0),
+                DurationMilliseconds INTEGER NULL,
+                HealthState INTEGER NOT NULL DEFAULT 1,
+                ValidatedAt TEXT NOT NULL DEFAULT '',
+                CreatedAt TEXT NOT NULL,
+                LastAccessedAt TEXT NOT NULL,
+                Status INTEGER NOT NULL DEFAULT 1,
+                ChapterIndex INTEGER NOT NULL DEFAULT 0,
+                SegmentIndex INTEGER NOT NULL DEFAULT 0,
+                RuleId INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY(BookId) REFERENCES Books(Id) ON DELETE CASCADE,
+                FOREIGN KEY(ChapterId) REFERENCES Chapters(Id) ON DELETE CASCADE,
+                FOREIGN KEY(SynthesisProfileFingerprint) REFERENCES SynthesisProfiles(Fingerprint)
+            );
+
+            CREATE INDEX IX_AudioCacheEntries_BookId_ChapterId
+                ON AudioCacheEntries(BookId, ChapterId);
+
+            CREATE INDEX IX_AudioCacheEntries_CurrentConfiguration
+                ON AudioCacheEntries(
+                    ChapterId,
+                    SynthesisProfileFingerprint,
+                    SegmentKind,
+                    SourceStartOffset,
+                    SourceLength,
+                    SpeechTextHash,
+                    HealthState);
+
+            CREATE INDEX IX_AudioCacheEntries_LastAccessedAt
+                ON AudioCacheEntries(LastAccessedAt);
+
+            CREATE INDEX IX_AudioCacheEntries_BookId_ChapterIndex
+                ON AudioCacheEntries(BookId, ChapterIndex);
+
+            DROP TABLE AudioCacheEntries_V6_Discarded;
+            INSERT OR IGNORE INTO AppMetadata (Key, Value)
+            VALUES ('AudioCacheV7ResetPending', '1');
             """)
     ];
+
+    internal static IReadOnlyList<SqliteMigration> AllMigrations => Migrations;
 
     private readonly ISqliteConnectionFactory _connectionFactory;
     private readonly IReadOnlyList<SqliteMigration> _migrations;
