@@ -28,6 +28,8 @@
 ### 桌面体验
 
 - 系统 Previous/Next 映射上一/下一段。
+- Windows 系统媒体控制使用 `SystemMediaTransportControls`，由 App 中的 Windows adapter 接入 Application port。
+- 托盘使用 App 中基于 `Shell_NotifyIconW` 的小型 Windows adapter，不新增托盘框架依赖。
 - 迷你播放器隐藏主窗口，关闭迷你窗口恢复主窗口。
 - 记忆迷你窗口位置和置顶，不记忆迷你模式。
 - 定时停止支持固定/自定义时长，触发后只暂停播放。
@@ -70,11 +72,6 @@ Ctrl/Shift 选择、anchor、滚动定位和虚拟化容器可能产生边界问
 
 HTTP response、NAudio、缓存 staging 和导出临时文件存在长期运行泄漏风险，需要在新增后台任务前完成 owner/cleanup 收口。
 
-## 3. 尚待实现阶段确认的技术选择
+## 3. 开放问题
 
-以下问题不改变产品行为，可在对应 Backlog 任务内通过代码审计和自动验证决定：
-
-- Windows 系统媒体控制使用的具体平台 API/adapter。
-- 托盘能力使用框架内置能力还是小型 Windows/WPF adapter。
-
-选择标准依次为：发布可靠性、资源所有权清晰、可自动测试、依赖体积、实现复杂度。
+当前没有尚待确认且会影响既定产品行为的技术选择。后续新增平台能力仍按发布可靠性、资源所有权清晰、可自动测试、依赖体积和实现复杂度依次评估。

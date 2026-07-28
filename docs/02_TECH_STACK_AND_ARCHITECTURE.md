@@ -45,7 +45,7 @@ App 的业务页面不得直接依赖 Infrastructure；所有业务动作通过 
 | Playback | 会话状态机、当前段调度、预取、进度 | NAudio 播放、进度 repository |
 | Cache | 缓存键、查询、保护、LRU、主动缓存、导出编排 | 缓存文件、索引、MP3 编码/合并 |
 | Settings | 设置更新、规范化、业务约束 | `settings.json` 原子存取 |
-| Desktop | 媒体控制、托盘、迷你窗口的 Application port | Windows/WPF 平台 adapter |
+| Desktop | 媒体控制、托盘、迷你窗口的 Application port | —（Windows/WPF 平台 adapter 位于 App） |
 
 不得为了“未来可能复用”建立通用事件总线、万能 Manager 或新的 Service Locator。
 
