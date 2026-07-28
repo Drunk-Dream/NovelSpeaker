@@ -87,7 +87,7 @@ public sealed class BookOperationRecoveryService
 
     private async Task RecoverDeleteAsync(BookOperationRecord operation, CancellationToken cancellationToken)
     {
-        ValidateDeletePaths(operation);
+        var operationDirectory = ValidateDeletePaths(operation);
         if (await BookExistsAsync(operation.BookId, cancellationToken).ConfigureAwait(false))
         {
             foreach (var path in operation.Paths.Reverse())
@@ -97,13 +97,14 @@ public sealed class BookOperationRecoveryService
         }
         else
         {
+            await DeleteBookRowsAsync(operation.BookId, cancellationToken).ConfigureAwait(false);
             foreach (var path in operation.Paths)
             {
+                DeleteOriginal(path);
                 DeleteStaged(path);
             }
         }
 
-        var operationDirectory = Path.Combine(_directories.OperationsDirectoryPath, operation.OperationId);
         if (Directory.Exists(operationDirectory))
         {
             Directory.Delete(operationDirectory, recursive: true);
@@ -136,6 +137,38 @@ public sealed class BookOperationRecoveryService
         cache.Parameters.AddWithValue("$bookId", bookId);
         await cache.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
+        var segments = connection.CreateCommand();
+        segments.Transaction = transaction;
+        segments.CommandText =
+            """
+            DELETE FROM ChapterSpeechPlanSegments
+            WHERE ChapterId IN (SELECT Id FROM Chapters WHERE BookId = $bookId);
+            """;
+        segments.Parameters.AddWithValue("$bookId", bookId);
+        await segments.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        var plans = connection.CreateCommand();
+        plans.Transaction = transaction;
+        plans.CommandText =
+            """
+            DELETE FROM ChapterSpeechPlans
+            WHERE ChapterId IN (SELECT Id FROM Chapters WHERE BookId = $bookId);
+            """;
+        plans.Parameters.AddWithValue("$bookId", bookId);
+        await plans.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        var progress = connection.CreateCommand();
+        progress.Transaction = transaction;
+        progress.CommandText = "DELETE FROM ReadingProgress WHERE BookId = $bookId;";
+        progress.Parameters.AddWithValue("$bookId", bookId);
+        await progress.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        var chapters = connection.CreateCommand();
+        chapters.Transaction = transaction;
+        chapters.CommandText = "DELETE FROM Chapters WHERE BookId = $bookId;";
+        chapters.Parameters.AddWithValue("$bookId", bookId);
+        await chapters.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
         var book = connection.CreateCommand();
         book.Transaction = transaction;
         book.CommandText = "DELETE FROM Books WHERE Id = $bookId;";
@@ -157,6 +190,19 @@ public sealed class BookOperationRecoveryService
         {
             Directory.CreateDirectory(Path.GetDirectoryName(originalPath)!);
             File.Move(stagedPath, originalPath);
+        }
+    }
+
+    private void DeleteOriginal(BookOperationPath path)
+    {
+        var originalPath = _pathResolver.ResolvePath(path.OriginalStorageKey);
+        if (path.IsDirectory && Directory.Exists(originalPath))
+        {
+            Directory.Delete(originalPath, recursive: true);
+        }
+        else if (!path.IsDirectory)
+        {
+            DeleteFile(originalPath);
         }
     }
 
@@ -192,10 +238,16 @@ public sealed class BookOperationRecoveryService
         }
     }
 
-    private void ValidateDeletePaths(BookOperationRecord operation)
+    private string ValidateDeletePaths(BookOperationRecord operation)
     {
         var expectedBookDirectory = Path.Combine(_directories.BooksDirectoryPath, operation.BookId);
         var operationStageRoot = Path.Combine(_directories.OperationsDirectoryPath, operation.OperationId);
+        var resolvedOperationDirectory = _pathResolver.ResolvePath(operationStageRoot);
+        if (!IsDescendant(resolvedOperationDirectory, _directories.OperationsDirectoryPath))
+        {
+            throw new InvalidDataException("删除恢复记录的操作目录不属于应用操作目录。");
+        }
+
         foreach (var path in operation.Paths)
         {
             var originalPath = _pathResolver.ResolvePath(path.OriginalStorageKey);
@@ -213,6 +265,8 @@ public sealed class BookOperationRecoveryService
                 throw new InvalidDataException("删除恢复记录包含不属于目标书籍或缓存目录的路径。");
             }
         }
+
+        return resolvedOperationDirectory;
     }
 
     private static bool IsDescendant(string path, string root)

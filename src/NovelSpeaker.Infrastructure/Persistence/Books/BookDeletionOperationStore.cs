@@ -150,15 +150,33 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (request.DeleteAudioCache)
-            {
-                await ExecuteDeleteAsync(
-                    connection,
-                    transaction,
-                    "DELETE FROM AudioCacheEntries WHERE BookId = $bookId;",
-                    request.BookId,
-                    cancellationToken).ConfigureAwait(false);
-            }
+            // The database rows are book-owned even when the user chose to retain the
+            // physical cache files for later orphan maintenance.
+            await ExecuteDeleteAsync(
+                connection,
+                transaction,
+                "DELETE FROM AudioCacheEntries WHERE BookId = $bookId;",
+                request.BookId,
+                cancellationToken).ConfigureAwait(false);
+
+            await ExecuteDeleteAsync(
+                connection,
+                transaction,
+                """
+                DELETE FROM ChapterSpeechPlanSegments
+                WHERE ChapterId IN (SELECT Id FROM Chapters WHERE BookId = $bookId);
+                """,
+                request.BookId,
+                cancellationToken).ConfigureAwait(false);
+            await ExecuteDeleteAsync(
+                connection,
+                transaction,
+                """
+                DELETE FROM ChapterSpeechPlans
+                WHERE ChapterId IN (SELECT Id FROM Chapters WHERE BookId = $bookId);
+                """,
+                request.BookId,
+                cancellationToken).ConfigureAwait(false);
 
             await ExecuteDeleteAsync(
                 connection,

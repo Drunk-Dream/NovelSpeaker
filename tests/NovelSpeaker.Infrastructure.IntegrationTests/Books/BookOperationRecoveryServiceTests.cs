@@ -135,6 +135,34 @@ public sealed class BookOperationRecoveryServiceTests
         Assert.Equal("external", await File.ReadAllTextAsync(externalPath, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task RecoverAsync_rejects_tampered_delete_path_without_touching_external_file()
+    {
+        var fixture = await CreateFixtureAsync();
+        var externalPath = Path.Combine(Path.GetTempPath(), $"{Path.GetRandomFileName()}.txt");
+        await File.WriteAllTextAsync(externalPath, "external", CancellationToken.None);
+        await fixture.Journal.CreateAsync(
+            new BookOperationRecord(
+                "operation-1",
+                BookOperationKind.Delete,
+                BookOperationPhase.DatabaseCommitted,
+                "book-1",
+                [new(externalPath, "Operations/operation-1/cache/item.txt", false)],
+                DateTimeOffset.UtcNow),
+            CancellationToken.None);
+
+        try
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() => fixture.Recovery.RecoverAsync(CancellationToken.None));
+            Assert.True(File.Exists(externalPath));
+            Assert.NotEmpty(await fixture.Journal.GetIncompleteAsync(CancellationToken.None));
+        }
+        finally
+        {
+            File.Delete(externalPath);
+        }
+    }
+
     private static BookOperationRecord CreateImport(string operationId, string bookId, BookOperationPhase phase) =>
         new(
             operationId,

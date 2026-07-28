@@ -121,6 +121,66 @@ public sealed class BookLibraryPersistenceTests
     }
 
     [Fact]
+    public async Task DeleteAsync_removes_all_book_owned_plan_and_cache_rows_before_completion()
+    {
+        var fixture = await CreateFixtureAsync();
+        await SeedBookAsync(fixture, "book-1", title: "大量朗读计划", author: null);
+        await fixture.ProgressStore.SaveAsync(
+            new PlaybackProgressUpdate("book-1", 1, 0, 0, 120),
+            CancellationToken.None);
+
+        await using (var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                INSERT INTO ChapterSpeechPlans
+                    (ChapterId, ChapterRevisionHash, TextProfileFingerprint, PlanOutputHash, State, BodySegmentCount, UpdatedAt)
+                VALUES
+                    ('book-1-chapter-1', zeroblob(32), zeroblob(32), zeroblob(32), 1, 1, $now),
+                    ('book-1-chapter-2', zeroblob(32), zeroblob(32), zeroblob(32), 1, 1, $now);
+                INSERT INTO ChapterSpeechPlanSegments
+                    (ChapterId, OrderIndex, SegmentKind, SourceStartOffset, SourceLength, SpeechTextHash)
+                VALUES
+                    ('book-1-chapter-1', 0, 0, 0, 1, zeroblob(32)),
+                    ('book-1-chapter-2', 0, 0, 0, 1, zeroblob(32));
+                """;
+            command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O"));
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段"),
+                "book-1",
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+
+        await fixture.Deletion.DeleteAsync(
+            new BookDeleteRequest("book-1", true),
+            CancellationToken.None);
+
+        await using var verifyConnection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None);
+        foreach (var table in new[]
+                 {
+                     "Books",
+                     "Chapters",
+                     "ReadingProgress",
+                     "ChapterSpeechPlans",
+                     "ChapterSpeechPlanSegments",
+                     "AudioCacheEntries"
+                 })
+        {
+            var command = verifyConnection.CreateCommand();
+            command.CommandText = $"SELECT COUNT(*) FROM {table} WHERE {(table is "Books" or "Chapters" ? "Id" : table is "ChapterSpeechPlans" or "ChapterSpeechPlanSegments" ? "ChapterId" : "BookId")} LIKE 'book-1%';";
+            Assert.Equal(0L, (long)(await command.ExecuteScalarAsync(CancellationToken.None))!);
+        }
+    }
+
+    [Fact]
     public async Task DeleteAsync_restores_staged_files_when_database_delete_fails()
     {
         var fixture = await CreateFixtureAsync();
@@ -230,6 +290,48 @@ public sealed class BookLibraryPersistenceTests
         Assert.True(File.Exists(externalPath));
         Assert.Equal("external source", await File.ReadAllTextAsync(externalPath, CancellationToken.None));
         Assert.NotNull(await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_rejects_tampered_cache_path_and_never_touches_external_file()
+    {
+        var fixture = await CreateFixtureAsync();
+        await SeedBookAsync(fixture, "book-1", title: "恶意缓存路径", author: null);
+        var cacheEntry = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段"),
+                "book-1",
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        var externalPath = Path.Combine(Path.GetTempPath(), $"{Path.GetRandomFileName()}.mp3");
+        File.Copy(cacheEntry.FilePath, externalPath, overwrite: true);
+
+        await using (var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var command = connection.CreateCommand();
+            command.CommandText =
+                "UPDATE AudioCacheEntries SET FilePath = $path WHERE CacheKey = $cacheKey;";
+            command.Parameters.AddWithValue("$path", externalPath);
+            command.Parameters.AddWithValue("$cacheKey", System.Text.Encoding.UTF8.GetBytes(cacheEntry.Key.Value));
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        try
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() => fixture.Deletion.DeleteAsync(
+                new BookDeleteRequest("book-1", true),
+                CancellationToken.None));
+
+            Assert.True(File.Exists(externalPath));
+            Assert.NotNull(await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None));
+        }
+        finally
+        {
+            File.Delete(externalPath);
+        }
     }
 
     private static async Task<TestFixture> CreateFixtureAsync()
