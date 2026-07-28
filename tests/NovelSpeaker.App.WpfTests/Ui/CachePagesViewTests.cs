@@ -178,8 +178,10 @@ public sealed class CachePagesViewTests
                     VisualTreeTestHelper.FindDescendants<Border>(booksScrollViewer),
                     border => AutomationProperties.GetName(border) == books[0].AutomationName);
                 var firstBookButton = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(firstBookCard));
-                Assert.InRange(Math.Abs(firstBookButton.ActualWidth - firstBookCard.ActualWidth), 0d, 1d);
-                Assert.InRange(Math.Abs(firstBookButton.ActualHeight - firstBookCard.ActualHeight), 0d, 1d);
+                Assert.Same(page.FindResource("SelectableCardListItemContainerStyle"), firstBookCard.Style);
+                Assert.Equal(new Thickness(1), firstBookCard.BorderThickness);
+                Assert.InRange(Math.Abs(firstBookButton.ActualWidth - firstBookCard.ActualWidth), 0d, 2d);
+                Assert.InRange(Math.Abs(firstBookButton.ActualHeight - firstBookCard.ActualHeight), 0d, 2d);
 
                 var chapterCleanupButtons = VisualTreeTestHelper.FindDescendants<Button>(chaptersListBox)
                     .Where(button => AutomationProperties.GetName(button).StartsWith("清理第 ", StringComparison.Ordinal))

@@ -85,7 +85,7 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Padding="0"
-                                            Style="{StaticResource SelectableListItemContainerStyle}"
+                                            Style="{StaticResource SelectableCardListItemContainerStyle}"
                                             AutomationProperties.Name="{Binding AutomationName}">
                                         <Button Style="{StaticResource BorderlessListItemButtonStyle}"
                                                 Padding="14,12"
