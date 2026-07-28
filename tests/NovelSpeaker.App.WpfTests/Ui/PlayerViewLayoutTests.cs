@@ -127,6 +127,7 @@ public sealed partial class PlayerViewTests
             view.UpdateLayout();
 
             var toolButton = Assert.IsType<Button>(view.FindName("ActiveCacheToolButton"));
+            var locateButton = Assert.IsType<Button>(view.FindName("LocateCurrentChapterButton"));
             var selectionToolbar = Assert.IsType<StackPanel>(view.FindName("ActiveCacheSelectionToolbar"));
             var cancelButton = Assert.IsType<Button>(view.FindName("CancelActiveCacheSelectionButton"));
             var startButton = Assert.IsType<Button>(view.FindName("StartActiveCacheButton"));
@@ -139,6 +140,9 @@ public sealed partial class PlayerViewTests
             Assert.Equal("取消选择", AutomationProperties.GetName(cancelButton));
             Assert.Equal("开始缓存", AutomationProperties.GetName(startButton));
             Assert.False(startButton.IsEnabled);
+            Assert.Equal("定位到当前章节", locateButton.ToolTip);
+            Assert.Equal("定位到当前章节", AutomationProperties.GetName(locateButton));
+            Assert.Equal(Visibility.Collapsed, locateButton.Visibility);
         });
     }
 

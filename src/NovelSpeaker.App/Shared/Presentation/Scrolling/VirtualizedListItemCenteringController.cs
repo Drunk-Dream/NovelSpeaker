@@ -3,14 +3,14 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 
-namespace NovelSpeaker.App.Features.Playback.Scrolling;
+namespace NovelSpeaker.App.Shared.Presentation.Scrolling;
 
 /// <summary>
 /// Owns the preview list's visual centering lifecycle. It retains the latest target until the
 /// view, scroll host, and virtualized item container are all ready for a reliable calculation.
 /// Playback state and user-browsing state remain outside this class.
 /// </summary>
-internal sealed class SegmentAutoCenterController
+internal sealed class VirtualizedListItemCenteringController
 {
     private readonly ListBox _segmentListBox;
     private readonly Dispatcher _dispatcher;
@@ -29,7 +29,7 @@ internal sealed class SegmentAutoCenterController
     private int _requestVersion;
     private int _programmaticScrollDepth;
 
-    public SegmentAutoCenterController(
+    public VirtualizedListItemCenteringController(
         ListBox segmentListBox,
         Dispatcher dispatcher,
         Func<ScrollViewer?> getScrollViewer,

@@ -27,7 +27,8 @@ public partial class PlayerView : UserControl
             () => _viewModel,
             () => IsLoaded && ActualHeight > 0 && SegmentListBox.ActualHeight > 0,
             IsReducedMotionEnabled,
-            () => SegmentAutoCenterAnimationDuration);
+            () => SegmentAutoCenterAnimationDuration,
+            isVisible => LocateCurrentChapterButton.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed);
         _progressController = new PlayerProgressInteractionController(
             () => _viewModel,
             () => ActivationToken);
@@ -101,6 +102,11 @@ public partial class PlayerView : UserControl
         await RunEventOperationAsync(
             () => _viewModel.HandleChapterClickAsync(chapter, modifiers, ActivationToken),
             "切换章节失败");
+    }
+
+    private void LocateCurrentChapterButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        _scrollController.LocateCurrentChapter();
     }
 
     private void PlayerView_OnPreviewKeyDown(object sender, KeyEventArgs e)

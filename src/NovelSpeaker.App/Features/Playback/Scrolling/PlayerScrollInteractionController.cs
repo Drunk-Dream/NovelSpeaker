@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using NovelSpeaker.App.Features.Playback.Presentation;
+using NovelSpeaker.App.Shared.Presentation.Scrolling;
 
 namespace NovelSpeaker.App.Features.Playback.Scrolling;
 
@@ -14,11 +15,11 @@ namespace NovelSpeaker.App.Features.Playback.Scrolling;
 /// </summary>
 internal sealed class PlayerScrollInteractionController
 {
-    private readonly ListBox _chapterListBox;
     private readonly ListBox _segmentListBox;
     private readonly Dispatcher _dispatcher;
     private readonly Func<PlayerViewModel?> _getViewModel;
-    private readonly SegmentAutoCenterController _autoCenterController;
+    private readonly VirtualizedListItemCenteringController _autoCenterController;
+    private readonly CurrentItemLocatorInteraction _chapterLocator;
     private ScrollViewer? _segmentScrollViewer;
 
     public PlayerScrollInteractionController(
@@ -28,13 +29,21 @@ internal sealed class PlayerScrollInteractionController
         Func<PlayerViewModel?> getViewModel,
         Func<bool> isViewReady,
         Func<bool> isReducedMotionEnabled,
-        Func<TimeSpan> getAnimationDuration)
+        Func<TimeSpan> getAnimationDuration,
+        Action<bool> setChapterLocatorVisible)
     {
-        _chapterListBox = chapterListBox;
         _segmentListBox = segmentListBox;
         _dispatcher = dispatcher;
         _getViewModel = getViewModel;
-        _autoCenterController = new SegmentAutoCenterController(
+        _chapterLocator = new CurrentItemLocatorInteraction(
+            chapterListBox,
+            dispatcher,
+            () => _getViewModel()?.CurrentChapterItem,
+            () => chapterListBox.IsLoaded && chapterListBox.ActualHeight > 0,
+            isReducedMotionEnabled,
+            getAnimationDuration,
+            setChapterLocatorVisible);
+        _autoCenterController = new VirtualizedListItemCenteringController(
             segmentListBox,
             dispatcher,
             GetScrollViewer,
@@ -49,7 +58,7 @@ internal sealed class PlayerScrollInteractionController
 
     public void OnLoaded()
     {
-        EnsureCurrentChapterVisible();
+        _chapterLocator.OnLoaded();
         InitializeScrollViewer();
         RequestCurrentSegmentCentering(animate: false);
     }
@@ -57,12 +66,19 @@ internal sealed class PlayerScrollInteractionController
     public void OnUnloaded()
     {
         _autoCenterController.Cancel();
+        _chapterLocator.OnUnloaded();
         DetachScrollViewer();
     }
 
     public void CancelCentering()
     {
         _autoCenterController.Cancel();
+        _chapterLocator.OnUnloaded();
+    }
+
+    public void LocateCurrentChapter()
+    {
+        _chapterLocator.LocateCurrentItem();
     }
 
     public void NotifyMouseWheel()
@@ -86,7 +102,9 @@ internal sealed class PlayerScrollInteractionController
     {
         if (eventArgs.PropertyName == nameof(PlayerViewModel.CurrentChapterItem))
         {
-            _dispatcher.BeginInvoke(EnsureCurrentChapterVisible, DispatcherPriority.Background);
+            _dispatcher.BeginInvoke(
+                () => _chapterLocator.NotifyCurrentItemChanged(animate: false),
+                DispatcherPriority.Background);
             return;
         }
 
@@ -111,14 +129,6 @@ internal sealed class PlayerScrollInteractionController
     {
         InitializeScrollViewer();
         return _segmentScrollViewer;
-    }
-
-    private void EnsureCurrentChapterVisible()
-    {
-        if (_getViewModel()?.CurrentChapterItem is { } currentChapter)
-        {
-            _chapterListBox.ScrollIntoView(currentChapter);
-        }
     }
 
     private void RequestCurrentSegmentCentering(bool animate)
