@@ -9,7 +9,7 @@ NovelSpeaker 只使用下列明确生命周期：
 | Process | Shell、设置快照、托盘、媒体控制、后台任务注册 | App lifecycle coordinator |
 | Playback session | 当前书籍/章节/段落、音频、预取 | Playback coordinator |
 | Page activation | 页面加载、编辑副本、页面导航守卫 | Page/ViewModel activation scope |
-| Background job | 主动缓存批次 | Active cache coordinator |
+| Background job | 主动缓存批次、章节朗读清单补建、缓存健康维护 | 对应 Application coordinator |
 | Operation | 导入、试听、清理、导出、保存 | 发起用例/控制器 |
 
 状态不能跨层级复制所有权。
@@ -50,7 +50,7 @@ configure logging
 - 快速离开再进入时，旧结果通过版本检查丢弃。
 - activation 取消不得传播为用户错误 Snackbar。
 
-播放会话、主动缓存、托盘和媒体控制不属于页面 scope。
+播放会话、主动缓存、章节朗读清单补建、缓存健康维护、托盘和媒体控制不属于页面 scope。
 
 ## 5. 页面事件入口
 
@@ -105,6 +105,20 @@ Playback current > Prefetch > Active cache
 
 等待必须可取消；不使用同步 Mutex 等待。优先级调度要避免主动缓存永久占用许可，也要避免在长时间播放时形成无法取消的积压。
 
+## 9.1 章节朗读清单补建
+
+当前文本配置对应的章节计划缺失时，由 Process 下的专用协调器补建：
+
+- 优先当前播放章节和当前可视章节，再处理其余章节。
+- 有限并发、可取消并登记到后台任务 registry。
+- 计划在内存中完整构建后以短事务提交，取消或失败不留下部分段记录。
+- 页面离开只取消该页面的等待/订阅，不强制取消已经登记的共享补建任务。
+- 补建完成后发布按书籍/章节定位的计划变化通知。
+
+## 9.2 缓存健康维护
+
+缓存健康维护是低优先级后台任务，负责渐进检查缺失或损坏文件并修正索引。它不得在目录或缓存管理页查询期间同步运行，也不得与当前播放争用长时间解码资源。
+
 ## 10. 托盘与主窗口
 
 关闭主窗口时按设置：
@@ -149,7 +163,7 @@ Playback current > Prefetch > Active cache
 ```text
 block new UI operations
   → resolve navigation/edit guards
-  → cancel active cache/background jobs
+  → cancel active cache/speech-plan/maintenance background jobs
   → stop media/tray callbacks
   → persist playback/settings state
   → stop/release NAudio
@@ -164,5 +178,6 @@ block new UI operations
 - Page lifecycle：进入、离开、快速重入、旧结果晚到。
 - Playback：session 替换、暂停、媒体命令、定时停止。
 - Background cache：跨页面持续、优先级、取消、完成、失败。
+- Speech plan/maintenance：优先级、有限并发、取消、幂等提交和页面退订。
 - Tray/mini：隐藏/恢复/退出状态转换。
 - 所有异步测试基于事件、状态版本或可控 `TimeProvider`，不用固定延时猜测。

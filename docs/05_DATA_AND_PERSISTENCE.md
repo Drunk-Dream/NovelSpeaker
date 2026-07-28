@@ -4,7 +4,7 @@
 
 | 数据 | 位置 | 说明 |
 |---|---|---|
-| 书籍、章节、规则、进度、缓存索引、操作 journal | SQLite | 当前 schema version 6 |
+| 书籍、章节、规则、进度、当前章节朗读清单、缓存索引、操作 journal | SQLite | 已发布 schema version 6；缓存重构通过后续追加 migration 落地 |
 | 规范化正文 | `Books/<book-id>/content.txt` | 应用内部副本 |
 | TTS 音频 | `Cache/Tts/...` | 数据库保存索引/统计 |
 | 非敏感设置 | `settings.json` | 原子保存 |
@@ -29,7 +29,7 @@
 
 ## 3. SQLite 兼容
 
-当前数据库版本为 6。核心表包括：
+当前已发布数据库版本为 6。缓存重构落地时只能追加新 migration，不能修改 version 4–6。目标核心表包括：
 
 - `SchemaVersion` / `AppMetadata`
 - `Books`
@@ -38,6 +38,9 @@
 - `RegexReplacementRules`
 - `HttpTtsRules`
 - `ReadingProgress`
+- `ChapterSpeechPlans`
+- `ChapterSpeechPlanSegments`
+- `SynthesisProfiles`
 - `AudioCacheEntries`
 - `BookOperations`
 
@@ -47,6 +50,7 @@
 - 新库和受支持旧版本升级都必须走同一 migration runner。
 - 高于当前版本的数据库安全拒绝。
 - SQLite row/connection/transaction 类型不得泄露到 Application API。
+- 音频缓存是可丢弃数据。新版缓存 schema 不迁移旧缓存键，不保留双读/双写或懒迁移；升级时重置旧缓存索引并通过受根目录约束的维护流程清理旧内部音频文件。
 
 ## 4. 书籍导入
 
@@ -63,24 +67,136 @@ analyze source
 
 失败或中断后只清理应用自己创建的暂存/内部文件，不能修改外部源文件。重复检测基于规范化输入所定义的稳定哈希策略。
 
-## 5. 正文与动态分段
+## 5. 正文、动态分段与当前朗读清单
 
 - SQLite 保存章节范围/元数据，规范化正文保存在内部文件。
-- 播放时读取章节文本，再按当前文本设置动态分段。
+- 播放或清单缺失时读取章节文本，再按当前文本设置动态分段。
 - 正则替换只改变 DisplayText/SpeechText，不重写原始章节范围。
 - “未加载”“已加载但无可播放段落”必须是不同状态。
+- 每章只持久化一份当前有效的正文朗读清单，不保存 `TextProfile` 历史版本。
+- `ChapterSpeechPlans` 保存章节正文版本、当前文本配置指纹、计划输出指纹、状态和正文段数。
+- `ChapterSpeechPlanSegments` 只保存播放顺序、稳定来源身份、段类型和最终 `SpeechText` 哈希，不保存完整小说文本。
+- 章节标题属于可选合成段，不写入正文朗读清单；开启或关闭“朗读标题”不得改变正文段身份。
 
-## 6. AudioCacheKey
+文本配置变化时，先在内存中生成新计划：
 
-缓存键继续使用现有版本化结构，并包含能唯一确定播放结果的关键输入，例如：
+- `PlanOutputHash` 未变化：只更新计划头中的当前文本配置指纹，不重写段表。
+- `PlanOutputHash` 变化：在短事务中替换该章当前段记录。
+- 任何情况下都不保留旧配置对应的整套段记录，数据库占用只随书库当前正文段总数线性增长。
 
-- 书籍/章节/段落位置。
-- TTS 规则身份。
+## 6. 缓存身份与配置指纹
+
+缓存身份分为三个独立层次。
+
+### 6.1 稳定段身份
+
+- 正文段身份至少由段类型、章节内来源起点和来源长度组成，不使用运行时 `SegmentIndex`。
+- `OrderIndex` 只表示当前播放顺序，不参与正文音频复用身份。
+- 章节标题使用固定的合成段类型，并以当前标题 `SpeechText` 哈希区分内容。
+
+因此，在正文前插入或移除章节标题只改变运行时顺序，不改变任何正文段缓存身份。
+
+### 6.2 文本配置指纹
+
+`TextProfileFingerprint` 使用版本化规范序列化，包含：
+
+- 分段算法合同版本。
+- 长段落切分开关和阈值等会影响正文段落的设置。
+- 按稳定顺序排列、会影响 `SpeechText` 的正则规则有效字段。
+
+它只用于判断章节朗读清单是否需要重算，不进入音频缓存键。修改正则但最终段身份和 `SpeechText` 均未变化时，已有音频继续复用。
+
+### 6.3 音频生成配置指纹
+
+`TtsRuleFingerprint` 由规范化后的实际请求语义计算，包括 URL、请求方法、按名称稳定排序的 Header、Body、JSON 结构标记、声明 Content-Type 和 TTS 执行合同版本。规则名称、启用状态、并发限制和时间戳不影响生成结果，不进入指纹。
+
+`SynthesisProfileFingerprint` 包含：
+
+- 指纹 schema version。
+- `TtsRuleFingerprint`。
 - 语速。
-- 最终 SpeechText。
-- `AudioCacheKey.CurrentVersion` 命名空间。
+- 未来会改变音频结果的音色、音调、语言、格式等扩展配置。
 
-架构清理不得顺手改为另一种内容寻址策略。确需改变时必须新增版本和兼容/迁移测试。
+最终 `AudioCacheKey` 使用版本化结构，并至少包含：
+
+- ChapterId。
+- 稳定段身份。
+- 最终 `SpeechText` 哈希。
+- `SynthesisProfileFingerprint`。
+
+缓存键不包含 `SegmentIndex`、`TextProfileFingerprint` 或“朗读标题”开关。规则请求语义变化后指纹变化，旧音频不会被错误复用。
+
+### 6.4 目标 SQLite 表形状
+
+以下结构描述缓存重构后的稳定数据职责；实际 migration 只能通过追加版本实现：
+
+```sql
+CREATE TABLE ChapterSpeechPlans (
+    ChapterId TEXT NOT NULL PRIMARY KEY,
+    ChapterRevisionHash BLOB NOT NULL,
+    TextProfileFingerprint BLOB NOT NULL,
+    PlanOutputHash BLOB NOT NULL,
+    State INTEGER NOT NULL,
+    BodySegmentCount INTEGER NOT NULL CHECK(BodySegmentCount >= 0),
+    UpdatedAt INTEGER NOT NULL,
+    FOREIGN KEY(ChapterId) REFERENCES Chapters(Id) ON DELETE CASCADE
+);
+
+CREATE TABLE ChapterSpeechPlanSegments (
+    ChapterId TEXT NOT NULL,
+    OrderIndex INTEGER NOT NULL,
+    SegmentKind INTEGER NOT NULL,
+    SourceStartOffset INTEGER NOT NULL,
+    SourceLength INTEGER NOT NULL CHECK(SourceLength > 0),
+    SpeechTextHash BLOB NOT NULL,
+    PRIMARY KEY(ChapterId, OrderIndex),
+    UNIQUE(ChapterId, SegmentKind, SourceStartOffset, SourceLength),
+    FOREIGN KEY(ChapterId) REFERENCES ChapterSpeechPlans(ChapterId) ON DELETE CASCADE
+) WITHOUT ROWID;
+
+CREATE TABLE SynthesisProfiles (
+    Fingerprint BLOB NOT NULL PRIMARY KEY,
+    SchemaVersion INTEGER NOT NULL,
+    RuleId INTEGER NOT NULL,
+    RuleFingerprint BLOB NOT NULL,
+    SpeakSpeed INTEGER NOT NULL,
+    OptionsJson TEXT NULL,
+    CreatedAt INTEGER NOT NULL
+);
+
+CREATE TABLE AudioCacheEntries (
+    CacheKey BLOB NOT NULL PRIMARY KEY,
+    KeyVersion INTEGER NOT NULL,
+    BookId TEXT NOT NULL,
+    ChapterId TEXT NOT NULL,
+    SegmentKind INTEGER NOT NULL,
+    SourceStartOffset INTEGER NOT NULL,
+    SourceLength INTEGER NOT NULL,
+    SpeechTextHash BLOB NOT NULL,
+    SynthesisProfileFingerprint BLOB NOT NULL,
+    FilePath TEXT NOT NULL,
+    ContentType TEXT NULL,
+    FileSize INTEGER NOT NULL CHECK(FileSize >= 0),
+    DurationMilliseconds INTEGER NULL,
+    HealthState INTEGER NOT NULL,
+    ValidatedAt INTEGER NOT NULL,
+    CreatedAt INTEGER NOT NULL,
+    LastAccessedAt INTEGER NOT NULL,
+    FOREIGN KEY(BookId) REFERENCES Books(Id) ON DELETE CASCADE,
+    FOREIGN KEY(ChapterId) REFERENCES Chapters(Id) ON DELETE CASCADE,
+    FOREIGN KEY(SynthesisProfileFingerprint) REFERENCES SynthesisProfiles(Fingerprint)
+);
+```
+
+章节标题不进入 `ChapterSpeechPlanSegments`。标题缓存条目使用 `SegmentKind = ChapterTitle`、固定来源占位值和当前标题 `SpeechTextHash`；正文使用实际来源范围。新增其它合成段时分配新的 `SegmentKind`，不改变现有正文身份。
+
+至少建立以下查询索引：
+
+- `AudioCacheEntries(BookId, ChapterId)`：按书/章统计、清理和删除。
+- `AudioCacheEntries(ChapterId, SynthesisProfileFingerprint, SegmentKind, SourceStartOffset, SourceLength, SpeechTextHash, HealthState)`：当前配置完整度聚合。
+- `AudioCacheEntries(LastAccessedAt)`：LRU。
+
+外键必须在每个 SQLite connection 上启用。`SynthesisProfiles` 只保存配置身份元数据；没有任何缓存条目引用的 profile 可由维护任务删除。缓存文件仍按书籍/章节独立保存，不做全局内容去重或引用计数。
 
 ## 7. 缓存写入与保护
 
@@ -98,12 +214,15 @@ generate validated audio
 - 正在播放、生成、预取、主动缓存写入或导出的缓存条目受保护。
 - LRU 和用户清理都必须经过同一保护 registry。
 - 缓存文件丢失/损坏时索引可修复，不能导致播放状态机永久失效。
+- 音频在写入 `Ready` 索引前必须完成格式与可解码验证。
+- 普通完整度查询信任数据库健康状态，不逐个检查文件或解码；播放命中和导出开始时执行严格验证。
+- 渐进式缓存健康维护负责发现外部删除、长期未验证或损坏条目，修正索引后发布章节变化通知。
 
 ## 8. 主动缓存状态
 
 主动缓存批次是运行时任务，不要求持久化历史任务中心。
 
-批次的规则、语速和文本配置在创建时冻结；生成出来的音频按正常 `AudioCacheKey` 落盘，因此即使批次完成后用户更改设置，旧缓存仍是合法的独立缓存版本，由 LRU 决定是否回收。
+批次的规则、语速、文本配置和稳定段清单在创建时冻结；生成出来的音频按正常新版 `AudioCacheKey` 落盘，因此即使批次完成后用户更改设置，旧缓存仍是合法的独立缓存版本，由 LRU 决定是否回收。
 
 ## 9. 缓存管理查询
 
@@ -115,16 +234,15 @@ Application 提供：
 - 按指定章节集合批量查询当前配置下的完整度，供播放页和详情页目录使用。
 - 受保护条目和不可清理原因。
 
-章节完整度必须按当前选中的 TTS 规则、默认语速、朗读标题设置以及当前分段和正则替换后的 `SpeechText`
-生成实际 `AudioCacheKey`，只统计索引、缓存文件和音频解码均有效的当前键。旧规则、旧语速、
-旧文本键及缺失或损坏文件不计入完整度。该查询使用不更新 `LastAccessedAt` 的只读缓存端口，
-避免管理页检查改变 LRU 顺序；当前规则或章节内容不可用时，完整度明确返回不可用。
+章节完整度基于当前章节朗读清单、当前 `SynthesisProfileFingerprint` 和 `Ready` 缓存索引计算。正文段通过稳定来源身份和最终 `SpeechText` 哈希匹配；开启朗读标题时再单独叠加标题合成段。
+
+完整度查询不读取章节正文、不重新切段、不执行正则、不逐个检查文件存在性、不调用音频解码器，也不更新 `LastAccessedAt`。旧规则、旧语速和旧文本缓存仍计入物理占用，但不计入当前配置完整度。
+
+当前文本配置对应的朗读清单缺失时返回“计算中”，由有所有者、可取消、有限并发的计划构建协调器补建；当前规则不可用或章节无可播放内容时返回明确状态。
 
 UI 不直接查询 SQLite 或扫描文件系统。
 
-章节完整度查询一次冻结当前规则、语速和文本处理配置，批量读取书籍元数据、生成目标章节缓存键并
-批量查询缓存索引；不得按章节或段落重复打开 SQLite 连接。文件存在性和音频有效性检查不更新 LRU，
-也不得在持有会阻塞正常播放缓存读写的全局互斥锁时执行长时间解码探测。
+章节完整度查询一次冻结当前规则和语速对应的合成配置，使用少量批量 SQL 将当前计划段与 `Ready` 缓存索引关联并按章节聚合；不得按章节或段落重复打开 SQLite 连接。正常查询路径不得触发任何文件或解码 I/O。
 
 缓存文件和索引成功写入、失效、清理或维护淘汰后发布按书籍/章节定位的缓存变化通知。播放页和详情页
 以该通知刷新当前配置完整度；通知只能在写入或清理已经提交后发布。页面对连续通知合并刷新，离开时
@@ -132,7 +250,7 @@ UI 不直接查询 SQLite 或扫描文件系统。
 
 ## 10. MP3 导出
 
-导出只读取当前规则 + 当前语速 + 当前文本处理结果对应的完整章节缓存。
+导出只读取当前 `SynthesisProfileFingerprint` + 当前章节朗读清单对应的完整章节缓存。
 
 每章输出一个 MP3：
 
@@ -156,8 +274,7 @@ UI 不直接查询 SQLite 或扫描文件系统。
 - 文件名清理 `<>:"/\\|?*`、控制字符、Windows 保留设备名、尾部空格/点，并保证最终路径长度可用。
 - 已存在同名文件时生成 `name (2).mp3`、`name (3).mp3`，绝不静默覆盖。
 - 导出临时文件在取消/失败时清理；用户已存在文件不纳入回滚。
-- 导出开始时一次性冻结所选 TTS 规则、默认语速、分段设置和启用的正则规则；导出期间的
-  设置变化不改变当前操作。
+- 导出开始时一次性冻结所选 TTS 规则、默认语速、当前正文朗读清单和朗读标题设置；导出期间的设置变化不改变当前操作。
 - 编码前一次性验证并保护本批次全部缓存输入；经 UI 过滤后提交的任一章节条目缺失或损坏时仍不创建
   部分输出，不能把管理页先前计算的完整度当作导出时的有效性证明。
 
@@ -181,6 +298,9 @@ UI 不直接查询 SQLite 或扫描文件系统。
 
 - 删除书籍不影响应用数据根目录外文件。
 - 缓存清理不删除书籍、章节、阅读进度或规则。
+- 普通音频缓存清理不删除当前章节朗读清单，避免下次目录查询重新处理整本书。
+- 删除书籍前，operation journal 保存需要删除的内部正文和音频路径；数据库删除通过外键级联移除章节、阅读进度、当前朗读清单、清单段和音频缓存索引。
+- 删除操作完成后，不得存在该书对应的数据库记录或内部音频文件；中断时由启动恢复继续执行，孤立文件由安全维护流程清理。
 - 进程启动只恢复未完成记录；已完成记录不重复执行。
 - 恢复失败输出脱敏诊断并保持可重试状态。
 

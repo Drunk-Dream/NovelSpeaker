@@ -43,7 +43,7 @@ App 的业务页面不得直接依赖 Infrastructure；所有业务动作通过 
 | Books | 导入、删除、元数据、章节规则、文本处理 | 正文文件、编码分析、SQLite repository |
 | Speech | 规则导入/编辑、请求编译、试听、错误分类 | JSON parser、Jint、HTTP transport、音频探测 |
 | Playback | 会话状态机、当前段调度、预取、进度 | NAudio 播放、进度 repository |
-| Cache | 缓存键、查询、保护、LRU、主动缓存、导出编排 | 缓存文件、索引、MP3 编码/合并 |
+| Cache | 稳定段身份、文本/合成配置指纹、当前章节朗读清单、完整度查询、保护、LRU、主动缓存、导出编排 | 朗读清单与缓存 SQLite 适配、缓存文件、MP3 编码/合并 |
 | Settings | 设置更新、规范化、业务约束 | `settings.json` 原子存取 |
 | Desktop | 媒体控制、托盘、迷你窗口的 Application port | —（Windows/WPF 平台 adapter 位于 App） |
 
@@ -76,6 +76,7 @@ App 的业务页面不得直接依赖 Infrastructure；所有业务动作通过 
 | 当前音频输出 | Local audio coordinator | Playback session |
 | 页面加载/编辑副本 | 对应 Page/ViewModel | Page activation |
 | 主动缓存批次 | Application background cache coordinator | Process/background job |
+| 当前章节朗读清单补建 | Application speech-plan build coordinator | Process/background job |
 | 托盘/迷你窗口 | Desktop shell coordinator | Process |
 | 当前设置快照 | Settings service | Process |
 | 短操作 | 发起用例/控制器 | Operation |
@@ -87,7 +88,10 @@ App 的业务页面不得直接依赖 Infrastructure；所有业务动作通过 
 播放、预取和主动缓存共用一条音频获取能力：
 
 ```text
-Text snapshot
+Chapter text + TextProfileFingerprint
+  → current ChapterSpeechPlan
+  → stable segment identity + SpeechTextHash
+  → SynthesisProfileFingerprint
   → AudioCacheKey
   → cache lookup
   → rule-level admission / rate limit
@@ -105,6 +109,8 @@ Current playback > Playback prefetch > Active cache
 同一规则的所有请求必须经过同一异步并发/速率限制器，不能为主动缓存另建绕过限制的客户端或 semaphore。
 
 主动缓存协调器负责批次快照、章节队列、进度、取消和状态发布；播放器只提交缓存请求，不拥有后台批次。
+
+章节朗读清单协调器只持久化每章当前有效结果。文本配置指纹变化时按需重算；输出未变化时更新计划头而不复制段记录。缓存完整度查询只聚合 SQLite 计划和 `Ready` 索引，不重新处理正文或逐文件解码。
 
 ## 8. 桌面平台边界
 
@@ -131,8 +137,9 @@ Application 不引用 Windows/WPF 类型；App adapter 负责平台事件与 App
 
 ## 10. 数据兼容边界
 
-- SQLite 当前 schema 为 6；已发布 migration 只能追加。
-- 现有内部正文、阅读进度、缓存键和合法历史记录不得因重构失效。
+- SQLite 已发布 schema 为 6；已发布 migration 只能追加。
+- 内部正文、书籍元数据、规则和阅读进度不得因缓存重构失效。
+- 音频缓存是可丢弃数据；缓存键格式重构可以通过追加 migration 明确重置旧索引和应用内部缓存文件，不建立长期兼容读取器。
 - 数据格式变化必须有独立迁移和升级测试，不用兼容 wrapper 永久掩盖旧模型。
 - 所有持久化路径必须通过应用数据根目录约束的 resolver。
 

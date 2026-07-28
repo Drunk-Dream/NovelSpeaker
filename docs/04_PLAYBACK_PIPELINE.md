@@ -25,9 +25,11 @@
 
 ```text
 Resolve current chapter/segment
-  → build optional chapter-title segment, then DisplayText/SpeechText
+  → load/build current chapter speech plan
+  → compose optional chapter-title segment without renumbering body identity
+  → resolve DisplayText/SpeechText and stable segment identity
   → empty SpeechText? skip audio
-  → build AudioCacheKey
+  → build SynthesisProfileFingerprint and AudioCacheKey
   → cache hit? validate/open
   → otherwise acquire playback-priority rule permit
   → execute TTS
@@ -38,6 +40,8 @@ Resolve current chapter/segment
 ```
 
 缓存损坏时删除该条目并允许一次正常重新生成；不能把损坏文件反复重试为成功。
+
+正文段缓存身份不使用运行时 `SegmentIndex`。章节标题是独立合成段，因此开启或关闭“朗读标题”只改变播放序列和标题缓存需求，不使正文缓存失效。
 
 ## 4. 会话替换
 
@@ -83,13 +87,13 @@ Resolve current chapter/segment
 - BookId 与章节集合。
 - TTS 规则快照。
 - 语速。
-- 章节/正则/文本分段配置所需版本或快照。
+- 当前正文朗读清单、章节标题开关和稳定段身份。
 
 行为：
 
 - 全应用同一时间只有一个批次。
 - 章节按书中顺序处理；每章内部按播放段顺序处理。
-- 已有当前快照对应的有效缓存直接跳过。
+- 已有当前合成配置、稳定段身份和 `SpeechText` 对应的有效缓存直接跳过。
 - 切换播放章节、离开播放页或打开迷你播放器不影响批次。
 - 用户可以取消尚未完成的工作；已完成缓存保留。
 - 当前播放和预取通过共享 rule limiter 获得更高 admission priority。
