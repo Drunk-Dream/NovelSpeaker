@@ -6,6 +6,7 @@ internal sealed class ManualTimeProvider : TimeProvider
 {
     private readonly object _syncRoot = new();
     private readonly HashSet<ManualTimer> _timers = [];
+    private TaskCompletionSource _timerStateChanged = CreateSignal();
     private DateTimeOffset _utcNow;
 
     public ManualTimeProvider(DateTimeOffset? initialUtcNow = null)
@@ -29,8 +30,29 @@ internal sealed class ManualTimeProvider : TimeProvider
         {
             lock (_syncRoot)
             {
-                return _timers.Count(static timer => timer.TryGetNextDue(out _));
+                return GetPendingTimerCountUnsafe();
             }
+        }
+    }
+
+    public async Task WaitForPendingTimerCountAsync(int expectedCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedCount);
+
+        while (true)
+        {
+            Task signalTask;
+            lock (_syncRoot)
+            {
+                if (GetPendingTimerCountUnsafe() == expectedCount)
+                {
+                    return;
+                }
+
+                signalTask = _timerStateChanged.Task;
+            }
+
+            await signalTask.ConfigureAwait(false);
         }
     }
 
@@ -42,7 +64,27 @@ internal sealed class ManualTimeProvider : TimeProvider
             _timers.Add(timer);
         }
 
+        SignalTimerStateChanged();
+
         return timer;
+    }
+
+    private static TaskCompletionSource CreateSignal() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private int GetPendingTimerCountUnsafe() =>
+        _timers.Count(static timer => timer.TryGetNextDue(out _));
+
+    private void SignalTimerStateChanged()
+    {
+        TaskCompletionSource signal;
+        lock (_syncRoot)
+        {
+            signal = _timerStateChanged;
+            _timerStateChanged = CreateSignal();
+        }
+
+        signal.TrySetResult();
     }
 
     public void Advance(TimeSpan delta)
@@ -108,6 +150,7 @@ internal sealed class ManualTimeProvider : TimeProvider
 
         public bool Change(TimeSpan dueTime, TimeSpan period)
         {
+            bool changed;
             lock (_provider._syncRoot)
             {
                 if (_disposed)
@@ -119,12 +162,20 @@ internal sealed class ManualTimeProvider : TimeProvider
                 _nextDue = dueTime == Timeout.InfiniteTimeSpan
                     ? null
                     : _provider._utcNow + dueTime;
-                return true;
+                changed = true;
             }
+
+            if (changed)
+            {
+                _provider.SignalTimerStateChanged();
+            }
+
+            return true;
         }
 
         public void Dispose()
         {
+            bool changed;
             lock (_provider._syncRoot)
             {
                 if (_disposed)
@@ -135,6 +186,12 @@ internal sealed class ManualTimeProvider : TimeProvider
                 _disposed = true;
                 _nextDue = null;
                 _provider._timers.Remove(this);
+                changed = true;
+            }
+
+            if (changed)
+            {
+                _provider.SignalTimerStateChanged();
             }
         }
 
@@ -163,6 +220,7 @@ internal sealed class ManualTimeProvider : TimeProvider
 
         public void Fire()
         {
+            bool changed;
             lock (_provider._syncRoot)
             {
                 if (_disposed || _nextDue is null)
@@ -179,6 +237,13 @@ internal sealed class ManualTimeProvider : TimeProvider
                 {
                     _nextDue = _provider._utcNow + _period;
                 }
+
+                changed = true;
+            }
+
+            if (changed)
+            {
+                _provider.SignalTimerStateChanged();
             }
 
             _callback(_state);

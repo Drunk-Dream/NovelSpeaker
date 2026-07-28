@@ -250,14 +250,14 @@ public sealed class TtsRateLimiterTests
             .ToArray();
 
         await AssertPendingAsync(background);
-        Assert.Equal(1, timeProvider.PendingTimerCount);
+        await timeProvider.WaitForPendingTimerCountAsync(1);
         timeProvider.Advance(TimeSpan.FromMilliseconds(100));
         await playback[0];
         Assert.False(background.IsCompleted);
 
         for (var admission = 1; admission <= 8 && !background.IsCompleted; admission++)
         {
-            Assert.Equal(1, timeProvider.PendingTimerCount);
+            await timeProvider.WaitForPendingTimerCountAsync(1);
             timeProvider.Advance(TimeSpan.FromMilliseconds(100));
             var admitted = await Task.WhenAny(background, playback[admission]);
             if (ReferenceEquals(admitted, background))
