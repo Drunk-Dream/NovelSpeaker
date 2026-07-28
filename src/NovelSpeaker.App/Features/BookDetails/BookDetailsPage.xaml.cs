@@ -1,6 +1,7 @@
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
-using System.Collections.Specialized;
+using NovelSpeaker.App.Shared.Presentation.Scrolling;
+using System.Windows;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Features.BookDetails;
@@ -9,7 +10,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
 {
     private readonly PageActivationController _activation = new();
     private readonly INavigationGuardService _navigationGuardService;
-    private bool _pendingCurrentChapterScroll;
+    private readonly CurrentItemLocatorInteraction _chapterLocator;
 
     public BookDetailsPage(
         BookDetailsViewModel viewModel,
@@ -19,6 +20,16 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
         _navigationGuardService = navigationGuardService;
         InitializeComponent();
         RootViewport.DataContext = ViewModel;
+        _chapterLocator = new CurrentItemLocatorInteraction(
+            ChaptersListBox,
+            Dispatcher,
+            () => ViewModel.CurrentChapterItem,
+            () => IsLoaded && ChaptersListBox.ActualHeight > 0,
+            () => !SystemParameters.ClientAreaAnimation,
+            () => TimeSpan.FromMilliseconds(220),
+            isVisible => LocateCurrentChapterButton.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed);
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
     public BookDetailsViewModel ViewModel { get; }
@@ -29,8 +40,6 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
     {
         var activation = _activation.Activate();
         activation.Register(ViewModel.HandleNavigatedFrom);
-        activation.Register(() => ViewModel.Chapters.CollectionChanged -= OnChaptersCollectionChanged);
-        ViewModel.Chapters.CollectionChanged += OnChaptersCollectionChanged;
         activation.Register(_navigationGuardService.Register(ViewModel.ConfirmLeaveAsync));
 
         LastRequest = DataContext as BookDetailsRoute;
@@ -39,13 +48,12 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
             return;
         }
 
-        _pendingCurrentChapterScroll = true;
         try
         {
             await ViewModel.LoadAsync(LastRequest.BookId, activation.CancellationToken);
             if (activation.IsCurrent)
             {
-                await ScrollCurrentChapterIntoViewAsync(activation);
+                _chapterLocator.NotifyCurrentItemChanged(animate: false);
             }
         }
         catch (OperationCanceledException) when (!activation.IsCurrent)
@@ -55,37 +63,22 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
 
     public Task OnNavigatedFromAsync()
     {
-        _pendingCurrentChapterScroll = false;
         _activation.Deactivate();
         return Task.CompletedTask;
     }
 
-    private async Task ScrollCurrentChapterIntoViewAsync(PageActivationScope activation)
+    private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (!_pendingCurrentChapterScroll || ViewModel.CurrentChapterItem is null)
-        {
-            return;
-        }
-
-        await Dispatcher.InvokeAsync(() =>
-        {
-            ChaptersListBox.UpdateLayout();
-            ChaptersListBox.ScrollIntoView(ViewModel.CurrentChapterItem);
-        }, System.Windows.Threading.DispatcherPriority.Loaded);
-        activation.TryCommit(() => _pendingCurrentChapterScroll = false);
+        _chapterLocator.OnLoaded();
     }
 
-    private void OnChaptersCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        if (!_pendingCurrentChapterScroll || !IsLoaded)
-        {
-            return;
-        }
-
-        if (_activation.Current is { } activation)
-        {
-            activation.Register(ScrollCurrentChapterIntoViewAsync(activation));
-        }
+        _chapterLocator.OnUnloaded();
     }
 
+    private void LocateCurrentChapterButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        _chapterLocator.LocateCurrentItem();
+    }
 }

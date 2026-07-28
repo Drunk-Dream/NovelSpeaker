@@ -70,6 +70,7 @@ public sealed class BookDetailsPageTests
                 window.UpdateLayout();
 
                 var chaptersListBox = Assert.IsType<ListBox>(page.FindName("ChaptersListBox"));
+                var locateButton = Assert.IsType<Button>(page.FindName("LocateCurrentChapterButton"));
                 var rootViewport = Assert.IsType<Border>(page.FindName("RootViewport"));
                 chaptersListBox.ApplyTemplate();
                 chaptersListBox.UpdateLayout();
@@ -92,6 +93,9 @@ public sealed class BookDetailsPageTests
                 Assert.Equal(frame.ActualHeight, rootViewport.Height, 3);
                 Assert.True(GetBoundsRelativeToRoot(chaptersListBox, page).Bottom <= rootViewport.ActualHeight, layoutSnapshot);
                 Assert.Null(retiredHelperCopy);
+                Assert.Equal("定位到当前章节", locateButton.ToolTip);
+                Assert.Equal("定位到当前章节", AutomationProperties.GetName(locateButton));
+                Assert.Equal(Visibility.Collapsed, locateButton.Visibility);
             }
             finally
             {

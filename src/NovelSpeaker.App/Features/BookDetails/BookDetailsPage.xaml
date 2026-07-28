@@ -210,7 +210,8 @@
                                        Text="{Binding ChapterCatalogSummaryText}" />
                         </StackPanel>
 
-                        <ListBox x:Name="ChaptersListBox"
+                        <Grid>
+                            <ListBox x:Name="ChaptersListBox"
                                  MinHeight="0"
                                  ItemsSource="{Binding Chapters}"
                                  Background="Transparent"
@@ -289,7 +290,30 @@
                                     </Border>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
-                        </ListBox>
+                            </ListBox>
+
+                            <Button x:Name="LocateCurrentChapterButton"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Bottom"
+                                    Margin="0,0,12,12"
+                                    Panel.ZIndex="2"
+                                    Visibility="Collapsed"
+                                    Click="LocateCurrentChapterButton_OnClick"
+                                    Style="{StaticResource FloatingIconButtonStyle}"
+                                    ToolTip="定位到当前章节"
+                                    AutomationProperties.Name="定位到当前章节">
+                                <Border Width="40"
+                                        Height="40"
+                                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="999">
+                                    <ui:SymbolIcon HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Symbol="TargetArrow24" />
+                                </Border>
+                            </Button>
+                        </Grid>
                     </DockPanel>
                 </Border>
             </Grid>
