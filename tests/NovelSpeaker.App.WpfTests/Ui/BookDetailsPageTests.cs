@@ -3,6 +3,8 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
 using System.Windows.Threading;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
@@ -163,6 +165,55 @@ public sealed class BookDetailsPageTests
                 firstItem,
                 static textBlock => textBlock.Text.EndsWith('%') &&
                                     textBlock.Visibility == Visibility.Visible));
+        });
+    }
+
+    [Fact]
+    public void BookDetailsPage_removes_outer_current_highlight_while_chapter_is_hovered()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var page = new BookDetailsPage(CreateViewModel(), new FakeNavigationGuardService());
+            var style = Assert.IsType<Style>(page.FindResource("CurrentListItemContainerStyle"));
+            var hoverTrigger = style.Triggers
+                .OfType<MultiDataTrigger>()
+                .Single(trigger => trigger.Setters.OfType<Setter>().Any(setter => setter.Property == Border.BackgroundProperty));
+
+            Assert.Equal(2, hoverTrigger.Conditions.Count);
+            Assert.All(hoverTrigger.Conditions, condition =>
+                Assert.IsType<Binding>(condition.Binding));
+            Assert.Contains(
+                hoverTrigger.Setters.OfType<Setter>(),
+                setter => setter.Property == Border.BackgroundProperty &&
+                          setter.Value is SolidColorBrush brush &&
+                          brush.Color == Colors.Transparent);
+        });
+    }
+
+    [Fact]
+    public void BookDetailsPage_uses_content_only_list_box_item_template()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var viewModel = CreateViewModel();
+            PopulateLayoutState(viewModel, chapterCount: 1);
+            var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService());
+            var chaptersListBox = Assert.IsType<ListBox>(page.FindName("ChaptersListBox"));
+            var templateSetter = chaptersListBox.ItemContainerStyle
+                .Setters
+                .OfType<Setter>()
+                .Single(setter => setter.Property == Control.TemplateProperty);
+            var template = Assert.IsType<ControlTemplate>(templateSetter.Value);
+
+            Assert.Empty(template.Triggers);
+
+            page.Measure(new Size(900, 640));
+            page.Arrange(new Rect(0, 0, 900, 640));
+            page.UpdateLayout();
+
+            var item = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(0));
+            item.ApplyTemplate();
+            Assert.IsType<ContentPresenter>(VisualTreeHelper.GetChild(item, 0));
         });
     }
 
