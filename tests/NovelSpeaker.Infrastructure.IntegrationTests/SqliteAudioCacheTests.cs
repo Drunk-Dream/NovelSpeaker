@@ -141,21 +141,30 @@ public sealed class SqliteAudioCacheTests
         Assert.Equal(ChapterCacheStatusKind.NoPlayableContent, withoutTitle[0].Kind);
     }
 
-    [Fact]
-    public async Task Current_configuration_query_aggregates_two_thousand_plan_segments_with_one_connection()
+    [Theory]
+    [InlineData(2_000)]
+    [InlineData(10_000)]
+    public async Task Current_configuration_query_aggregates_large_plan_without_file_or_decode_probe(
+        int segmentCount)
     {
         var fixture = await CreateFixtureAsync();
         var profile = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "段落 0").Identity.SynthesisProfile;
         var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
         var segments = Enumerable
-            .Range(0, 2_000)
+            .Range(0, segmentCount)
             .Select(index => CreatePlanSegment(index, index, $"段落 {index}"))
             .ToArray();
         await planStore.SaveAsync(
             CreatePlan("cache-chapter-1-0", ChapterSpeechPlanState.Ready, segments),
             CancellationToken.None);
 
-        var cachedKey = TestAudioCacheKey.Create("book-1", 0, 1_999, 7, 12, "段落 1999");
+        var cachedKey = TestAudioCacheKey.Create(
+            "book-1",
+            0,
+            segmentCount - 1,
+            7,
+            12,
+            $"段落 {segmentCount - 1}");
         await InsertIndexedCoverageEntryAsync(
             fixture,
             cachedKey,
@@ -171,7 +180,7 @@ public sealed class SqliteAudioCacheTests
             CancellationToken.None);
 
         var status = Assert.Single(statuses);
-        Assert.Equal(new ChapterCacheStatus(0, 1, 2_000), status);
+        Assert.Equal(new ChapterCacheStatus(0, 1, segmentCount), status);
         Assert.Equal(1, fixture.CacheConnectionFactory.OpenCount);
     }
 
