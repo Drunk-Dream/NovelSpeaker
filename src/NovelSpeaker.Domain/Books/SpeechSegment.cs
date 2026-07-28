@@ -9,4 +9,19 @@ public sealed record SpeechSegment(
     int Length,
     string DisplayText,
     string SpeechText,
-    bool IsChapterTitle = false);
+    bool IsChapterTitle = false)
+{
+    /// <summary>
+    /// Returns the stable kind used by cache and plan identities.
+    /// </summary>
+    public SpeechSegmentKind SegmentKind =>
+        IsChapterTitle ? SpeechSegmentKind.ChapterTitle : SpeechSegmentKind.Body;
+
+    /// <summary>
+    /// Returns the source identity without the runtime playback index.
+    /// </summary>
+    public StableSpeechSegmentIdentity StableIdentity =>
+        IsChapterTitle
+            ? StableSpeechSegmentIdentity.ChapterTitle()
+            : StableSpeechSegmentIdentity.Body(StartOffset, Length);
+}
