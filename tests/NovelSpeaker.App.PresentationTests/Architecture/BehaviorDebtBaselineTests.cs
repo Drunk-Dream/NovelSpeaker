@@ -191,12 +191,22 @@ public sealed class BehaviorDebtBaselineTests
             "THIRD-PARTY-NOTICES.txt",
             "NAudio.dll",
             "NAudio.Wasapi.dll",
+            "coreclr.dll",
+            "hostfxr.dll",
+            "hostpolicy.dll",
+            "Microsoft.Data.Sqlite.dll",
+            "SQLitePCLRaw.provider.winsqlite3.dll",
             "TestAssets",
             "demo-tone.wav",
             "demo-tone.mp3",
             "corrupt-tone.mp3",
             "Package contains test audio fixture",
-            "Package contains test assembly"
+            "Package contains test assembly",
+            "Package contains temporary file",
+            "ZIP contains temporary file",
+            ".partial",
+            "$_.Name -in $temporaryExtensions",
+            "$name -in $temporaryExtensions"
         };
         var qualityFragments = new[]
         {

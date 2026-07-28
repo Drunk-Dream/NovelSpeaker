@@ -60,16 +60,38 @@ jobs:
         shell: pwsh
         run: |
           $forbiddenFixtures = @('demo-tone.wav', 'demo-tone.mp3', 'corrupt-tone.mp3')
+          $temporaryExtensions = @('.tmp', '.temp', '.partial', '.bak', '.orig', '.rej')
+          $requiredRootFiles = @(
+            'NovelSpeaker.App.exe',
+            'LICENSE',
+            'THIRD-PARTY-NOTICES.txt',
+            'NAudio.dll',
+            'NAudio.Wasapi.dll',
+            'coreclr.dll',
+            'hostfxr.dll',
+            'hostpolicy.dll',
+            'Microsoft.Data.Sqlite.dll',
+            'SQLitePCLRaw.provider.winsqlite3.dll'
+          )
+          foreach ($required in $requiredRootFiles) {
+            if (-not (Test-Path (Join-Path artifacts/publish $required) -PathType Leaf)) { throw "Package is missing $required" }
+          }
           $publishedTestAssets = Get-ChildItem artifacts/publish -Recurse -Force | Where-Object { $_.FullName -match '[\\/]TestAssets([\\/]|$)' }
           if ($publishedTestAssets) { throw "Package contains TestAssets: $($publishedTestAssets.FullName -join ', ')" }
           $publishedFixtures = Get-ChildItem artifacts/publish -Recurse -File | Where-Object { $_.Name -in $forbiddenFixtures }
           if ($publishedFixtures) { throw "Package contains test audio fixture: $($publishedFixtures.FullName -join ', ')" }
           $publishedTestAssemblies = Get-ChildItem artifacts/publish -Recurse -File | Where-Object { $_.Name -match 'Tests\.dll$' }
           if ($publishedTestAssemblies) { throw "Package contains test assembly: $($publishedTestAssemblies.FullName -join ', ')" }
+          $publishedTemporaryFiles = Get-ChildItem artifacts/publish -Recurse -File | Where-Object {
+            $_.Name -in $temporaryExtensions -or
+              $_.Extension -in $temporaryExtensions -or
+              $_.Name.EndsWith('~', [StringComparison]::Ordinal)
+          }
+          if ($publishedTemporaryFiles) { throw "Package contains temporary file: $($publishedTemporaryFiles.FullName -join ', ')" }
           $zip = "artifacts/NovelSpeaker-v${{ needs.validate.outputs.release_version }}-win-x64.zip"
           Compress-Archive -Path artifacts/publish/* -DestinationPath $zip -Force
           $entries = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip)).Entries.FullName
-          foreach ($required in @('NovelSpeaker.App.exe', 'LICENSE', 'THIRD-PARTY-NOTICES.txt', 'NAudio.dll', 'NAudio.Wasapi.dll')) {
+          foreach ($required in $requiredRootFiles) {
             if ($entries -notcontains $required) { throw "Package is missing $required" }
           }
           $packagedTestAssets = $entries | Where-Object { $_ -match '(^|/)TestAssets(/|$)' }
@@ -78,6 +100,15 @@ jobs:
           if ($packagedFixtures) { throw "Package contains test audio fixture: $($packagedFixtures -join ', ')" }
           $packagedTestAssemblies = $entries | Where-Object { [System.IO.Path]::GetFileName($_) -match 'Tests\.dll$' }
           if ($packagedTestAssemblies) { throw "Package contains test assembly: $($packagedTestAssemblies -join ', ')" }
+          $packagedTemporaryFiles = $entries | Where-Object {
+            $name = [System.IO.Path]::GetFileName($_)
+            $extension = [System.IO.Path]::GetExtension($name)
+            $name -and (
+              $name -in $temporaryExtensions -or
+              $extension -in $temporaryExtensions -or
+              $name.EndsWith('~', [StringComparison]::Ordinal))
+          }
+          if ($packagedTemporaryFiles) { throw "ZIP contains temporary file: $($packagedTemporaryFiles -join ', ')" }
           (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() + "  " + [System.IO.Path]::GetFileName($zip) | Out-File "$zip.sha256" -Encoding ascii
 
       - name: Create GitHub release
