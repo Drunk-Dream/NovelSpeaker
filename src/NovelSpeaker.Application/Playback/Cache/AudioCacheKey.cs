@@ -50,4 +50,18 @@ public sealed record AudioCacheKey
         return new AudioCacheKey($"{CurrentVersion}:{hash}", hash, identity);
     }
 
+    /// <summary>
+    /// Builds the v2 key from the hash persisted by the current chapter speech plan.
+    /// </summary>
+    public static AudioCacheKey FromSpeechTextHash(
+        string chapterId,
+        StableSpeechSegmentIdentity segment,
+        Fingerprint speechTextHash,
+        SynthesisProfileFingerprint synthesisProfile) =>
+        FromIdentity(AudioCacheIdentity.CreateFromSpeechTextHash(
+            chapterId,
+            segment,
+            speechTextHash,
+            synthesisProfile));
+
 }

@@ -23,10 +23,31 @@ public sealed record AudioCacheIdentity(
         ArgumentNullException.ThrowIfNull(speechText);
         ArgumentNullException.ThrowIfNull(synthesisProfile);
 
-        return new AudioCacheIdentity(
+        return CreateFromSpeechTextHash(
             chapterId,
             segment,
             Fingerprint.Sha256(Encoding.UTF8.GetBytes(speechText)),
+            synthesisProfile);
+    }
+
+    /// <summary>
+    /// Rehydrates the same identity when a persisted speech plan already contains
+    /// the final speech-text hash and the source text is intentionally unavailable.
+    /// </summary>
+    public static AudioCacheIdentity CreateFromSpeechTextHash(
+        string chapterId,
+        StableSpeechSegmentIdentity segment,
+        Fingerprint speechTextHash,
+        SynthesisProfileFingerprint synthesisProfile)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chapterId);
+        ArgumentNullException.ThrowIfNull(speechTextHash);
+        ArgumentNullException.ThrowIfNull(synthesisProfile);
+
+        return new AudioCacheIdentity(
+            chapterId,
+            segment,
+            speechTextHash,
             synthesisProfile);
     }
 }

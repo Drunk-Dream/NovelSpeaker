@@ -46,6 +46,13 @@ public sealed class ActiveCacheCoordinatorTests
         Assert.All(audio.Calls, call => Assert.Equal(7, call.Request.RuleId));
         Assert.All(audio.Calls, call => Assert.Equal(12, call.Request.SpeakSpeed));
         Assert.All(audio.Calls, call => Assert.Equal(PlaybackAudioPriority.ActiveCache, call.Priority));
+        var activeIdentity = audio.Calls[0].Request;
+        var playbackIdentity = activeIdentity with
+        {
+            SegmentIndex = 99,
+            SessionId = Guid.NewGuid()
+        };
+        Assert.Equal(activeIdentity.ToCacheKey(), playbackIdentity.ToCacheKey());
         Assert.Equal(ActiveCacheBatchStatus.Completed, coordinator.CurrentSnapshot!.Status);
         Assert.Equal(2, coordinator.CurrentSnapshot.CompletedChapterCount);
         Assert.Equal(3, coordinator.CurrentSnapshot.CompletedSegmentCount);

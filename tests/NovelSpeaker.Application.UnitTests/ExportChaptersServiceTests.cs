@@ -1,5 +1,5 @@
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.Application.Books.TextProcessing;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Playback.Export;
@@ -7,6 +7,7 @@ using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.TestKit.Speech;
 using Xunit;
 
 namespace NovelSpeaker.Application.UnitTests;
@@ -14,189 +15,260 @@ namespace NovelSpeaker.Application.UnitTests;
 public sealed class ExportChaptersServiceTests
 {
     [Fact]
-    public async Task ExportAsync_freezes_current_configuration_and_builds_ordered_chapter_plans()
+    public async Task ExportAsync_uses_persisted_plan_order_and_hashes_without_reading_content_or_executing_regex()
     {
         var metadata = CreateMetadata();
-        var reader = new FakeBookContentReader
-        {
-            TextByStartOffset =
-            {
-                [0] = "原文甲。",
-                [10] = "原文乙。"
-            }
-        };
-        var rules = new FakeRegexReplacementRuleRepository
-        {
-            Rules =
+        var planStore = new FakeChapterSpeechPlanStore();
+        planStore.Plans["chapter-0"] = CreatePlan(
+            "chapter-0",
             [
-                new RegexReplacementRule(
-                    Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                    "语音替换",
-                    true,
-                    0,
-                    "原文",
-                    "当前文本",
-                    RegexReplacementScope.Speech,
-                    DateTimeOffset.UnixEpoch,
-                    DateTimeOffset.UnixEpoch)
-            ]
-        };
-        var writer = new FakeChapterMp3ExportWriter
-        {
-            Result = ChapterMp3ExportWriteResult.Succeeded(
-                @"D:\exports\_CON",
-                [
-                    new ExportedChapterMp3(0, @"D:\exports\_CON\001_第一章.mp3"),
-                    new ExportedChapterMp3(1, @"D:\exports\_CON\002_第二章.mp3")
-                ])
-        };
-        var settings = AppSettings.Default with
+                CreatePlanSegment(1, 10, "正文乙。"),
+                CreatePlanSegment(0, 0, "正文甲。")
+            ]);
+        var writer = new FakeChapterMp3ExportWriter();
+        var service = CreateService(metadata, planStore, writer, AppSettings.Default with
         {
             DefaultSpeakSpeed = 12,
             SelectedTtsRuleId = 7
-        };
-        var service = CreateService(metadata, reader, rules, writer, settings);
-
-        var result = await service.ExportAsync(
-            new ExportChaptersRequest("book-1", [1, 0, 1], @"D:\exports"),
-            CancellationToken.None);
-
-        Assert.Equal(ExportChaptersStatus.Succeeded, result.Status);
-        Assert.Equal(2, result.Files.Count);
-        var batch = Assert.IsType<ChapterMp3ExportBatch>(writer.LastBatch);
-        Assert.Equal(@"D:\exports", batch.DestinationRootDirectory);
-        Assert.Equal("_CON", batch.BookDirectoryName);
-        Assert.Equal([0, 1], batch.Chapters.Select(chapter => chapter.ChapterIndex));
-        Assert.Equal(["001_第一章", "002_第二章"], batch.Chapters.Select(chapter => chapter.FileNameBase));
-        Assert.Equal(
-            ExpectedKey(0, 0, 4, "当前文本甲。"),
-            Assert.Single(batch.Chapters[0].OrderedSegmentKeys));
-        Assert.Equal(
-            ExpectedKey(1, 0, 4, "当前文本乙。"),
-            Assert.Single(batch.Chapters[1].OrderedSegmentKeys));
-        Assert.Equal(1, rules.GetAllCallCount);
-    }
-
-    [Fact]
-    public async Task ExportAsync_includes_chapter_title_when_reading_titles_is_enabled()
-    {
-        var writer = new FakeChapterMp3ExportWriter();
-        var settings = AppSettings.Default with
-        {
-            DefaultSpeakSpeed = 12,
-            SelectedTtsRuleId = 7,
-            ReadChapterTitle = true
-        };
-        var service = CreateService(
-            CreateMetadata(),
-            new FakeBookContentReader
-            {
-                TextByStartOffset =
-                {
-                    [0] = "正文。"
-                }
-            },
-            new FakeRegexReplacementRuleRepository(),
-            writer,
-            settings);
+        });
 
         var result = await service.ExportAsync(
             new ExportChaptersRequest("book-1", [0], @"D:\exports"),
             CancellationToken.None);
 
         Assert.Equal(ExportChaptersStatus.Succeeded, result.Status);
+        Assert.NotNull(writer.LastBatch);
+        var plan = Assert.Single(writer.LastBatch!.Chapters);
         Assert.Equal(
             [
-                ExpectedKey(0, StableSpeechSegmentIdentity.ChapterTitle(), "第一章"),
-                ExpectedKey(0, 0, 3, "正文。")
+                AudioCacheKey.FromSpeechTextHash(
+                    "chapter-0",
+                    StableSpeechSegmentIdentity.Body(0, 4),
+                    Fingerprint.Sha256("正文甲。"),
+                    ExpectedProfile(12)),
+                AudioCacheKey.FromSpeechTextHash(
+                    "chapter-0",
+                    StableSpeechSegmentIdentity.Body(10, 4),
+                    Fingerprint.Sha256("正文乙。"),
+                    ExpectedProfile(12))
             ],
-            Assert.Single(writer.LastBatch!.Chapters).OrderedSegmentKeys);
+            plan.OrderedSegmentKeys);
     }
 
     [Fact]
-    public async Task ExportAsync_rejects_incomplete_cache_without_generating_audio()
-    {
-        var writer = new FakeChapterMp3ExportWriter
-        {
-            Result = ChapterMp3ExportWriteResult.IncompleteCache(1)
-        };
-        var service = CreateService(
-            CreateMetadata(),
-            new FakeBookContentReader
-            {
-                TextByStartOffset =
-                {
-                    [0] = "第一章。",
-                    [10] = "第二章。"
-                }
-            },
-            new FakeRegexReplacementRuleRepository(),
-            writer,
-            AppSettings.Default with { SelectedTtsRuleId = 7 });
-
-        var result = await service.ExportAsync(
-            new ExportChaptersRequest("book-1", [0, 1], @"D:\exports"),
-            CancellationToken.None);
-
-        Assert.Equal(ExportChaptersStatus.IncompleteCache, result.Status);
-        Assert.Equal(1, result.FailedChapterIndex);
-        Assert.Empty(result.Files);
-    }
-
-    [Fact]
-    public async Task ExportAsync_propagates_cancellation_from_the_writer()
-    {
-        using var cancellation = new CancellationTokenSource();
-        var writer = new FakeChapterMp3ExportWriter
-        {
-            BeforeWrite = cancellation.Cancel
-        };
-        var service = CreateService(
-            CreateMetadata(),
-            new FakeBookContentReader
-            {
-                TextByStartOffset =
-                {
-                    [0] = "第一章。"
-                }
-            },
-            new FakeRegexReplacementRuleRepository(),
-            writer,
-            AppSettings.Default with { SelectedTtsRuleId = 7 });
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            service.ExportAsync(
-                new ExportChaptersRequest("book-1", [0], @"D:\exports"),
-                cancellation.Token));
-    }
-
-    [Fact]
-    public async Task ExportAsync_keeps_the_starting_settings_snapshot_when_settings_change_mid_operation()
+    public async Task ExportAsync_inserts_title_key_without_changing_body_order_or_identity()
     {
         var metadata = CreateMetadata();
+        var planStore = new FakeChapterSpeechPlanStore();
+        planStore.Plans["chapter-0"] = CreatePlan(
+            "chapter-0",
+            [CreatePlanSegment(0, 0, "正文。")]);
+
+        var withoutTitleWriter = new FakeChapterMp3ExportWriter();
+        var withoutTitle = CreateService(
+            metadata,
+            planStore,
+            withoutTitleWriter,
+            AppSettings.Default with { SelectedTtsRuleId = 7, DefaultSpeakSpeed = 10 });
+        await withoutTitle.ExportAsync(
+            new ExportChaptersRequest("book-1", [0], @"D:\exports"),
+            CancellationToken.None);
+
+        var withTitleWriter = new FakeChapterMp3ExportWriter();
+        var withTitle = CreateService(
+            metadata,
+            planStore,
+            withTitleWriter,
+            AppSettings.Default with
+            {
+                SelectedTtsRuleId = 7,
+                DefaultSpeakSpeed = 10,
+                ReadChapterTitle = true
+            });
+        await withTitle.ExportAsync(
+            new ExportChaptersRequest("book-1", [0], @"D:\exports"),
+            CancellationToken.None);
+
+        var bodyKey = Assert.Single(Assert.Single(withoutTitleWriter.LastBatch!.Chapters).OrderedSegmentKeys);
+        Assert.NotNull(withTitleWriter.LastBatch);
+        var withTitleKeys = Assert.Single(withTitleWriter.LastBatch!.Chapters).OrderedSegmentKeys;
+        Assert.Equal(2, withTitleKeys.Count);
+        Assert.Equal(
+            AudioCacheKey.FromSpeechTextHash(
+                "chapter-0",
+                StableSpeechSegmentIdentity.ChapterTitle(),
+                Fingerprint.Sha256("第一章"),
+                ExpectedProfile(10)),
+            withTitleKeys[0]);
+        Assert.Equal(bodyKey, withTitleKeys[1]);
+    }
+
+    [Fact]
+    public async Task ExportAsync_returns_stable_status_when_plan_is_missing_or_not_ready()
+    {
+        var metadata = CreateMetadata();
+        var missingPlanStore = new FakeChapterSpeechPlanStore();
+        var missingWriter = new FakeChapterMp3ExportWriter();
+        var missingResult = await CreateService(
+                metadata,
+                missingPlanStore,
+                missingWriter,
+                AppSettings.Default with { SelectedTtsRuleId = 7 })
+            .ExportAsync(
+                new ExportChaptersRequest("book-1", [0], @"D:\exports"),
+                CancellationToken.None);
+
+        Assert.Equal(ExportChaptersStatus.ChapterSpeechPlanUnavailable, missingResult.Status);
+        Assert.Null(missingWriter.LastBatch);
+
+        var notReadyPlanStore = new FakeChapterSpeechPlanStore
+        {
+            Plans =
+            {
+                ["chapter-0"] = CreatePlan(
+                    "chapter-0",
+                    [],
+                    ChapterSpeechPlanState.Computing)
+            }
+        };
+        var notReadyWriter = new FakeChapterMp3ExportWriter();
+        var notReadyResult = await CreateService(
+                metadata,
+                notReadyPlanStore,
+                notReadyWriter,
+                AppSettings.Default with { SelectedTtsRuleId = 7 })
+            .ExportAsync(
+                new ExportChaptersRequest("book-1", [0], @"D:\exports"),
+                CancellationToken.None);
+
+        Assert.Equal(ExportChaptersStatus.ChapterSpeechPlanUnavailable, notReadyResult.Status);
+        Assert.Null(notReadyWriter.LastBatch);
+    }
+
+    [Fact]
+    public async Task ExportAsync_returns_no_playable_content_when_ready_plan_has_no_segments()
+    {
+        var writer = new FakeChapterMp3ExportWriter();
+        var planStore = new FakeChapterSpeechPlanStore
+        {
+            Plans =
+            {
+                ["chapter-0"] = CreatePlan("chapter-0", [])
+            }
+        };
+
+        var result = await CreateService(
+                CreateMetadata(),
+                planStore,
+                writer,
+                AppSettings.Default with { SelectedTtsRuleId = 7 })
+            .ExportAsync(
+                new ExportChaptersRequest("book-1", [0], @"D:\exports"),
+                CancellationToken.None);
+
+        Assert.Equal(ExportChaptersStatus.ChapterHasNoPlayableSegments, result.Status);
+        Assert.Null(writer.LastBatch);
+    }
+
+    [Fact]
+    public async Task ExportAsync_rejects_a_plan_when_current_text_profile_differs()
+    {
+        var currentRule = new RegexReplacementRule(
+            Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            "当前规则",
+            true,
+            0,
+            "原文",
+            "语音",
+            RegexReplacementScope.Speech,
+            DateTimeOffset.UnixEpoch,
+            DateTimeOffset.UnixEpoch);
+        var writer = new FakeChapterMp3ExportWriter();
+        var planStore = new FakeChapterSpeechPlanStore
+        {
+            Plans =
+            {
+                ["chapter-0"] = CreatePlan("chapter-0", [CreatePlanSegment(0, 0, "正文。")])
+            }
+        };
+
+        var result = await CreateService(
+                CreateMetadata(),
+                planStore,
+                writer,
+                AppSettings.Default with { SelectedTtsRuleId = 7 },
+                [currentRule])
+            .ExportAsync(
+                new ExportChaptersRequest("book-1", [0], @"D:\exports"),
+                CancellationToken.None);
+
+        Assert.Equal(ExportChaptersStatus.ChapterSpeechPlanUnavailable, result.Status);
+        Assert.Null(writer.LastBatch);
+    }
+
+    [Fact]
+    public async Task ExportAsync_exports_title_when_ready_plan_has_no_body_segments()
+    {
+        var writer = new FakeChapterMp3ExportWriter();
+        var planStore = new FakeChapterSpeechPlanStore
+        {
+            Plans =
+            {
+                ["chapter-0"] = CreatePlan("chapter-0", [])
+            }
+        };
+
+        var result = await CreateService(
+                CreateMetadata(),
+                planStore,
+                writer,
+                AppSettings.Default with
+                {
+                    SelectedTtsRuleId = 7,
+                    ReadChapterTitle = true
+                })
+            .ExportAsync(
+                new ExportChaptersRequest("book-1", [0], @"D:\exports"),
+                CancellationToken.None);
+
+        Assert.Equal(ExportChaptersStatus.Succeeded, result.Status);
+        Assert.NotNull(writer.LastBatch);
+        var keys = Assert.Single(writer.LastBatch!.Chapters).OrderedSegmentKeys;
+        Assert.Equal(
+            AudioCacheKey.FromSpeechTextHash(
+                "chapter-0",
+                StableSpeechSegmentIdentity.ChapterTitle(),
+                Fingerprint.Sha256("第一章"),
+                ExpectedProfile(10)),
+            Assert.Single(keys));
+    }
+
+    [Fact]
+    public async Task ExportAsync_keeps_the_starting_synthesis_profile_when_settings_change_during_plan_reads()
+    {
         var settings = new FakeAppSettingsService(AppSettings.Default with
         {
-            DefaultSpeakSpeed = 12,
-            SelectedTtsRuleId = 7
+            SelectedTtsRuleId = 7,
+            DefaultSpeakSpeed = 12
         });
-        var reader = new FakeBookContentReader
+        var planStore = new FakeChapterSpeechPlanStore
         {
-            TextByStartOffset =
+            BeforeGet = () => settings.CurrentValue = settings.CurrentValue with
             {
-                [0] = "第一章。"
-            },
-            BeforeRead = () => settings.CurrentValue = settings.CurrentValue with
-            {
+                SelectedTtsRuleId = 8,
                 DefaultSpeakSpeed = 5,
-                SelectedTtsRuleId = 8
+                ReadChapterTitle = true
+            },
+            Plans =
+            {
+                ["chapter-0"] = CreatePlan("chapter-0", [CreatePlanSegment(0, 0, "正文。")])
             }
         };
         var writer = new FakeChapterMp3ExportWriter();
         var service = new ExportChaptersService(
-            metadata,
-            reader,
-            new TextSegmenter(),
-            new FakeRegexReplacementRuleRepository(),
+            CreateMetadata(),
+            planStore,
+            new FakeRegexReplacementRuleRepository([]),
             new FakeSelectedTtsRuleProvider(7),
             settings,
             new ExportFileNameSanitizer(),
@@ -206,58 +278,78 @@ public sealed class ExportChaptersServiceTests
             new ExportChaptersRequest("book-1", [0], @"D:\exports"),
             CancellationToken.None);
 
-        Assert.Equal(
-            ExpectedKey(0, 0, 4, "第一章。"),
-            Assert.Single(Assert.Single(writer.LastBatch!.Chapters).OrderedSegmentKeys));
+        Assert.NotNull(writer.LastBatch);
+        var key = Assert.Single(Assert.Single(writer.LastBatch!.Chapters).OrderedSegmentKeys);
+        Assert.Equal(ExpectedProfile(12), key.Identity.SynthesisProfile);
     }
 
-    private static AudioCacheKey ExpectedKey(
-        int chapterIndex,
-        int sourceStartOffset,
-        int sourceLength,
-        string speechText) =>
-        ExpectedKey(
-            chapterIndex,
-            StableSpeechSegmentIdentity.Body(sourceStartOffset, sourceLength),
-            speechText);
-
-    private static AudioCacheKey ExpectedKey(
-        int chapterIndex,
-        StableSpeechSegmentIdentity segment,
-        string speechText)
+    [Fact]
+    public async Task ExportAsync_maps_strict_writer_validation_failure_without_creating_output()
     {
-        var normalizedRule = new NormalizedHttpTtsRule(
-            7,
-            "当前规则",
-            NormalizedTemplate.Parse("https://cache-key.invalid/7"),
-            new Dictionary<string, NormalizedTemplate>(),
-            "GET",
-            null,
-            false,
-            "audio/mpeg",
-            null);
-        var profile = SynthesisProfileFingerprint.Create(
-            TtsRuleFingerprint.Create(normalizedRule),
-            12);
-        return AudioCacheKey.FromIdentity(AudioCacheIdentity.Create(
-            $"book-1/chapter/{chapterIndex}",
-            segment,
-            speechText,
-            profile));
+        var writer = new FakeChapterMp3ExportWriter
+        {
+            Result = ChapterMp3ExportWriteResult.IncompleteCache(0)
+        };
+        var planStore = new FakeChapterSpeechPlanStore
+        {
+            Plans =
+            {
+                ["chapter-0"] = CreatePlan("chapter-0", [CreatePlanSegment(0, 0, "正文。")])
+            }
+        };
+
+        var result = await CreateService(
+                CreateMetadata(),
+                planStore,
+                writer,
+                AppSettings.Default with { SelectedTtsRuleId = 7 })
+            .ExportAsync(
+                new ExportChaptersRequest("book-1", [0], @"D:\exports"),
+                CancellationToken.None);
+
+        Assert.Equal(ExportChaptersStatus.IncompleteCache, result.Status);
+        Assert.Empty(result.Files);
+        Assert.Equal(0, result.FailedChapterIndex);
+    }
+
+    [Fact]
+    public async Task ExportAsync_propagates_cancellation_from_strict_writer_validation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var writer = new FakeChapterMp3ExportWriter
+        {
+            BeforeWrite = cancellation.Cancel
+        };
+        var planStore = new FakeChapterSpeechPlanStore
+        {
+            Plans =
+            {
+                ["chapter-0"] = CreatePlan("chapter-0", [CreatePlanSegment(0, 0, "正文。")])
+            }
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            CreateService(
+                    CreateMetadata(),
+                    planStore,
+                    writer,
+                    AppSettings.Default with { SelectedTtsRuleId = 7 })
+                .ExportAsync(
+                    new ExportChaptersRequest("book-1", [0], @"D:\exports"),
+                    cancellation.Token));
     }
 
     private static ExportChaptersService CreateService(
         FakeBookPlaybackMetadataQuery metadata,
-        FakeBookContentReader reader,
-        FakeRegexReplacementRuleRepository rules,
+        FakeChapterSpeechPlanStore planStore,
         FakeChapterMp3ExportWriter writer,
-        AppSettings settings)
+        AppSettings settings,
+        IReadOnlyList<RegexReplacementRule>? regexRules = null)
     {
         return new ExportChaptersService(
             metadata,
-            reader,
-            new TextSegmenter(),
-            rules,
+            planStore,
+            new FakeRegexReplacementRuleRepository(regexRules ?? []),
             new FakeSelectedTtsRuleProvider(settings.SelectedTtsRuleId),
             new FakeAppSettingsService(settings),
             new ExportFileNameSanitizer(),
@@ -270,16 +362,60 @@ public sealed class ExportChaptersServiceTests
         {
             Book = new PlaybackBookMetadata(
                 "book-1",
-                "CON",
+                "示例书",
                 null,
-                [
-                    new PlaybackChapterSummaryMetadata(0, "第一章"),
-                    new PlaybackChapterSummaryMetadata(1, "第二章")
-                ])
+                [new PlaybackChapterSummaryMetadata(0, "第一章")])
         };
-        query.Chapters[0] = new PlaybackChapterMetadata(0, "第一章", "content.txt", 0, 5);
-        query.Chapters[1] = new PlaybackChapterMetadata(1, "第二章", "content.txt", 10, 5);
+        query.Chapters[0] = new PlaybackChapterMetadata(
+            0,
+            "第一章",
+            "content.txt",
+            0,
+            20,
+            "chapter-0");
         return query;
+    }
+
+    private static ChapterSpeechPlan CreatePlan(
+        string chapterId,
+        IReadOnlyList<ChapterSpeechPlanSegment> segments,
+        ChapterSpeechPlanState state = ChapterSpeechPlanState.Ready) =>
+        new(
+            chapterId,
+            Fingerprint.Sha256($"{chapterId}-revision"),
+            TextProfileFingerprint.Create(TextSegmentationOptions.Default, []),
+            Fingerprint.Sha256($"{chapterId}-plan-{segments.Count}"),
+            state,
+            segments.Count,
+            DateTimeOffset.UnixEpoch,
+            segments);
+
+    private static ChapterSpeechPlanSegment CreatePlanSegment(
+        int orderIndex,
+        int sourceStartOffset,
+        string speechText) =>
+        new(
+            orderIndex,
+            SpeechSegmentKind.Body,
+            sourceStartOffset,
+            speechText.Length,
+            Fingerprint.Sha256(speechText));
+
+    private static SynthesisProfileFingerprint ExpectedProfile(int speakSpeed)
+    {
+        var rule = new NormalizedHttpTtsRule(
+            7,
+            "当前规则",
+            NormalizedTemplate.Parse("https://cache-key.invalid/7"),
+            new Dictionary<string, NormalizedTemplate>(),
+            "GET",
+            null,
+            false,
+            "audio/mpeg",
+            null);
+        return SynthesisProfileFingerprint.Create(
+            TtsRuleFingerprint.Create(rule),
+            speakSpeed);
     }
 
     private sealed class FakeBookPlaybackMetadataQuery : IBookPlaybackMetadataQuery
@@ -288,7 +424,9 @@ public sealed class ExportChaptersServiceTests
 
         public Dictionary<int, PlaybackChapterMetadata> Chapters { get; } = [];
 
-        public Task<PlaybackBookMetadata?> GetBookAsync(string bookId, CancellationToken cancellationToken)
+        public Task<PlaybackBookMetadata?> GetBookAsync(
+            string bookId,
+            CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(Book);
@@ -304,35 +442,33 @@ public sealed class ExportChaptersServiceTests
         }
     }
 
-    private sealed class FakeBookContentReader : IBookContentReader
+    private sealed class FakeChapterSpeechPlanStore : IChapterSpeechPlanStore
     {
-        public Dictionary<int, string> TextByStartOffset { get; } = [];
+        public Dictionary<string, ChapterSpeechPlan> Plans { get; init; } = [];
 
-        public Action? BeforeRead { get; init; }
+        public Action? BeforeGet { get; init; }
 
-        public Task<string> ReadChapterTextAsync(
-            string storedFilePath,
-            int startOffset,
-            int length,
+        public Task<ChapterSpeechPlan?> GetAsync(
+            string chapterId,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            BeforeRead?.Invoke();
-            return Task.FromResult(TextByStartOffset[startOffset]);
+            BeforeGet?.Invoke();
+            return Task.FromResult(Plans.GetValueOrDefault(chapterId));
         }
+
+        public Task SaveAsync(ChapterSpeechPlan plan, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
-    private sealed class FakeRegexReplacementRuleRepository : IRegexReplacementRuleRepository
+    private sealed class FakeRegexReplacementRuleRepository(
+        IReadOnlyList<RegexReplacementRule> rules) : IRegexReplacementRuleRepository
     {
-        public IReadOnlyList<RegexReplacementRule> Rules { get; init; } = [];
-
-        public int GetAllCallCount { get; private set; }
-
-        public Task<IReadOnlyList<RegexReplacementRule>> GetAllAsync(CancellationToken cancellationToken)
+        public Task<IReadOnlyList<RegexReplacementRule>> GetAllAsync(
+            CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            GetAllCallCount++;
-            return Task.FromResult(Rules);
+            return Task.FromResult(rules);
         }
 
         public Task SaveAsync(RegexReplacementRule rule, CancellationToken cancellationToken) =>
@@ -361,11 +497,23 @@ public sealed class ExportChaptersServiceTests
                     : new SelectedPlaybackRule(
                         ruleId.Value,
                         "当前规则",
-                        null!,
+                        TestHttpTtsRules.Create(
+                            ruleId.Value,
+                            "当前规则",
+                            "https://cache-key.invalid/7",
+                            "audio/mpeg",
+                            null,
+                            null,
+                            null,
+                            null,
+                            true,
+                            null,
+                            "2026-07-20T00:00:00.0000000Z",
+                            "2026-07-20T00:00:00.0000000Z"),
                         new NormalizedHttpTtsRule(
                             ruleId.Value,
                             "当前规则",
-                            NormalizedTemplate.Parse($"https://cache-key.invalid/{ruleId.Value}"),
+                            NormalizedTemplate.Parse("https://cache-key.invalid/7"),
                             new Dictionary<string, NormalizedTemplate>(),
                             "GET",
                             null,

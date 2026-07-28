@@ -6,6 +6,7 @@ public enum ExportChaptersStatus
     BookNotFound,
     SelectedRuleUnavailable,
     ChapterNotFound,
+    ChapterSpeechPlanUnavailable,
     ChapterHasNoPlayableSegments,
     IncompleteCache
 }

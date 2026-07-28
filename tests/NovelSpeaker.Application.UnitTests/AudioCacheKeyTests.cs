@@ -1,3 +1,4 @@
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Books;
@@ -73,6 +74,23 @@ public sealed class AudioCacheKeyTests
             "chapter-1", body, "正文", profile));
 
         Assert.Equal(withoutTitle, withTitle);
+    }
+
+    [Fact]
+    public void FromSpeechTextHash_matches_the_key_built_from_the_original_speech_text()
+    {
+        var profile = CreateProfile();
+        var segment = StableSpeechSegmentIdentity.Body(17, 8);
+        var fromText = AudioCacheKey.FromIdentity(
+            AudioCacheIdentity.Create("chapter-1", segment, "持久化文本", profile));
+
+        var fromPersistedHash = AudioCacheKey.FromSpeechTextHash(
+            "chapter-1",
+            segment,
+            Fingerprint.Sha256("持久化文本"),
+            profile);
+
+        Assert.Equal(fromText, fromPersistedHash);
     }
 
     private static SynthesisProfileFingerprint CreateProfile(int speakSpeed = 10)

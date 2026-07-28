@@ -1,13 +1,15 @@
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.Application.Books.TextProcessing;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.Application.Playback.Export;
 
 /// <summary>
-/// Freezes the current playback identity and text configuration, then delegates technical MP3 publication.
+/// Exports complete current-configuration chapter plans without rebuilding chapter text.
 /// </summary>
 public sealed class ExportChaptersService : IExportChaptersService
 {
@@ -15,8 +17,7 @@ public sealed class ExportChaptersService : IExportChaptersService
     private const int MaximumChapterTitleLength = 100;
     private const int MaximumFileNameBaseLength = 120;
     private readonly IBookPlaybackMetadataQuery _metadataQuery;
-    private readonly IBookContentReader _contentReader;
-    private readonly ITextSegmenter _textSegmenter;
+    private readonly IChapterSpeechPlanStore _speechPlanStore;
     private readonly IRegexReplacementRuleRepository _regexRuleRepository;
     private readonly ISelectedTtsRuleProvider _selectedRuleProvider;
     private readonly IAppSettingsService _settingsService;
@@ -25,8 +26,7 @@ public sealed class ExportChaptersService : IExportChaptersService
 
     public ExportChaptersService(
         IBookPlaybackMetadataQuery metadataQuery,
-        IBookContentReader contentReader,
-        ITextSegmenter textSegmenter,
+        IChapterSpeechPlanStore speechPlanStore,
         IRegexReplacementRuleRepository regexRuleRepository,
         ISelectedTtsRuleProvider selectedRuleProvider,
         IAppSettingsService settingsService,
@@ -34,8 +34,7 @@ public sealed class ExportChaptersService : IExportChaptersService
         IChapterMp3ExportWriter writer)
     {
         _metadataQuery = metadataQuery;
-        _contentReader = contentReader;
-        _textSegmenter = textSegmenter;
+        _speechPlanStore = speechPlanStore;
         _regexRuleRepository = regexRuleRepository;
         _selectedRuleProvider = selectedRuleProvider;
         _settingsService = settingsService;
@@ -86,14 +85,30 @@ public sealed class ExportChaptersService : IExportChaptersService
             return ExportChaptersResult.Failed(ExportChaptersStatus.BookNotFound);
         }
 
-        var regexRules = (await _regexRuleRepository
+        TextProfileFingerprint currentTextProfile;
+        try
+        {
+            var currentRules = await _regexRuleRepository
                 .GetAllAsync(cancellationToken)
-                .ConfigureAwait(false))
-            .Where(rule => rule.IsEnabled)
-            .OrderBy(rule => rule.SortOrder)
-            .ThenBy(rule => rule.Id)
-            .ToArray();
-        var segmentationOptions = settings.ToTextSegmentationOptions();
+                .ConfigureAwait(false);
+            currentTextProfile = TextProfileFingerprint.Create(
+                settings.ToTextSegmentationOptions(),
+                currentRules);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // Without a complete current text-profile snapshot we cannot safely
+            // claim that a persisted plan represents the current configuration.
+            return ExportChaptersResult.Failed(ExportChaptersStatus.ChapterSpeechPlanUnavailable);
+        }
+
+        var synthesisProfile = SynthesisProfileFingerprint.Create(
+            TtsRuleFingerprint.Create(selectedRule.NormalizedRule),
+            AppSettings.NormalizeSpeakSpeed(settings.DefaultSpeakSpeed));
         var plans = new List<ChapterMp3ExportPlan>(chapterIndices.Length);
         foreach (var chapterIndex in chapterIndices)
         {
@@ -108,37 +123,62 @@ public sealed class ExportChaptersService : IExportChaptersService
                     chapterIndex);
             }
 
-            var chapterText = await _contentReader
-                .ReadChapterTextAsync(
-                    metadata.StoredFilePath,
-                    metadata.StartOffset,
-                    metadata.Length,
-                    cancellationToken)
+            if (string.IsNullOrWhiteSpace(metadata.ChapterId))
+            {
+                return ExportChaptersResult.Failed(
+                    ExportChaptersStatus.ChapterSpeechPlanUnavailable,
+                    chapterIndex);
+            }
+
+            var plan = await _speechPlanStore
+                .GetAsync(metadata.ChapterId, cancellationToken)
                 .ConfigureAwait(false);
-            var sourceSegments = await Task.Run(
-                () =>
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    return _textSegmenter.Segment(chapterText, segmentationOptions);
-                },
-                cancellationToken).ConfigureAwait(false);
-            var processed = RegexReplacementProcessor.Apply(sourceSegments, regexRules, cancellationToken);
-            var playbackSegments = PlaybackSpeechSegmentComposer.Compose(
-                metadata.Title,
-                processed.Segments,
-                settings.ReadChapterTitle);
-            var synthesisProfile = SynthesisProfileFingerprint.Create(
-                TtsRuleFingerprint.Create(selectedRule.NormalizedRule),
-                settings.DefaultSpeakSpeed);
-            var keys = playbackSegments
-                .Where(segment => !string.IsNullOrWhiteSpace(segment.SpeechText))
-                .Select(segment => AudioCacheKey.FromIdentity(AudioCacheIdentity.Create(
-                    metadata.ChapterId ?? $"{request.BookId}/chapter/{chapterIndex}",
-                    segment.StableIdentity,
-                    segment.SpeechText,
-                    synthesisProfile)))
+            if (plan is null ||
+                plan.State != ChapterSpeechPlanState.Ready ||
+                !plan.TextProfileFingerprint.Equals(currentTextProfile))
+            {
+                return ExportChaptersResult.Failed(
+                    ExportChaptersStatus.ChapterSpeechPlanUnavailable,
+                    chapterIndex);
+            }
+
+            var orderedSegments = plan.Segments
+                .OrderBy(segment => segment.OrderIndex)
                 .ToArray();
-            if (keys.Length == 0)
+            if (plan.BodySegmentCount != orderedSegments.Length ||
+                orderedSegments.Select(segment => segment.OrderIndex).Distinct().Count() != orderedSegments.Length ||
+                orderedSegments.Any(segment =>
+                    segment.SegmentKind != SpeechSegmentKind.Body ||
+                    segment.SourceStartOffset < 0 ||
+                    segment.SourceLength <= 0))
+            {
+                return ExportChaptersResult.Failed(
+                    ExportChaptersStatus.ChapterSpeechPlanUnavailable,
+                    chapterIndex);
+            }
+
+            var keys = orderedSegments
+                .Select(segment => AudioCacheKey.FromSpeechTextHash(
+                    metadata.ChapterId,
+                    StableSpeechSegmentIdentity.Body(
+                        segment.SourceStartOffset,
+                        segment.SourceLength),
+                    segment.SpeechTextHash,
+                    synthesisProfile))
+                .ToList();
+
+            if (settings.ReadChapterTitle && !string.IsNullOrWhiteSpace(metadata.Title))
+            {
+                keys.Insert(
+                    0,
+                    AudioCacheKey.FromSpeechTextHash(
+                        metadata.ChapterId,
+                        StableSpeechSegmentIdentity.ChapterTitle(),
+                        Fingerprint.Sha256(metadata.Title),
+                        synthesisProfile));
+            }
+
+            if (keys.Count == 0)
             {
                 return ExportChaptersResult.Failed(
                     ExportChaptersStatus.ChapterHasNoPlayableSegments,

@@ -709,6 +709,12 @@ public sealed partial class CacheManagementViewModel : ObservableObject
                     "无法导出",
                     "书籍或章节已发生变化，请重新打开缓存管理页。");
                 break;
+            case ExportChaptersStatus.ChapterSpeechPlanUnavailable:
+                ExportStatusText = "章节朗读清单不可用";
+                _feedbackService.ShowWarning(
+                    "无法导出",
+                    FormatChapterFailure(result.FailedChapterIndex, "章节朗读清单尚未就绪"));
+                break;
             default:
                 throw new InvalidOperationException("The export service returned an invalid result.");
         }
