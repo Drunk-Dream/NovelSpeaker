@@ -104,6 +104,18 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         return RunExclusiveAsync(ct => _index.GetChaptersAsync(bookId, ct), cancellationToken);
     }
 
+    public Task<IReadOnlyList<ChapterCacheStatus>> GetCurrentConfigurationStatusesAsync(
+        IReadOnlyCollection<CurrentCacheChapterQuery> chapters,
+        SynthesisProfileFingerprint synthesisProfile,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(chapters);
+        ArgumentNullException.ThrowIfNull(synthesisProfile);
+        return RunExclusiveAsync(
+            ct => _index.GetCurrentConfigurationStatusesAsync(chapters, synthesisProfile, ct),
+            cancellationToken);
+    }
+
     public Task<IReadOnlySet<AudioCacheKey>> GetValidEntriesAsync(
         IReadOnlyCollection<AudioCacheKey> keys,
         CancellationToken cancellationToken)

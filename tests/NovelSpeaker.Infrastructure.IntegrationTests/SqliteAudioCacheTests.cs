@@ -1,6 +1,8 @@
 using System.Text;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.FileSystem.Cache;
@@ -15,6 +17,164 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed class SqliteAudioCacheTests
 {
+    [Fact]
+    public async Task Current_configuration_query_distinguishes_plan_states_empty_content_and_title_coverage()
+    {
+        var fixture = await CreateFixtureAsync();
+        var profile = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "正文一").Identity.SynthesisProfile;
+        var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
+        await planStore.SaveAsync(
+            CreatePlan(
+                "cache-chapter-1-0",
+                ChapterSpeechPlanState.Ready,
+                [
+                    CreatePlanSegment(0, 0, "正文一"),
+                    CreatePlanSegment(1, 1, "正文二")
+                ]),
+            CancellationToken.None);
+        await planStore.SaveAsync(
+            CreatePlan("cache-chapter-1-1", ChapterSpeechPlanState.Computing, []),
+            CancellationToken.None);
+        await planStore.SaveAsync(
+            CreatePlan("cache-chapter-1-2", ChapterSpeechPlanState.Failed, []),
+            CancellationToken.None);
+        await planStore.SaveAsync(
+            CreatePlan(
+                "cache-chapter-1-3",
+                ChapterSpeechPlanState.Ready,
+                [CreatePlanSegment(0, 0, "尚未缓存")]),
+            CancellationToken.None);
+
+        var firstBodyKey = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "正文一");
+        var secondBodyKey = TestAudioCacheKey.Create("book-1", 0, 1, 7, 12, "正文二");
+        var staleProfileKey = TestAudioCacheKey.Create("book-1", 0, 1, 7, 13, "正文二");
+        var titleKey = TestAudioCacheKey.CreateTitle("book-1", 0, 7, 12, "第一章");
+        await InsertIndexedCoverageEntryAsync(
+            fixture,
+            firstBodyKey,
+            "cache-chapter-1-0",
+            profile,
+            healthState: 1);
+        await InsertIndexedCoverageEntryAsync(
+            fixture,
+            secondBodyKey,
+            "cache-chapter-1-0",
+            profile,
+            healthState: 2);
+        await InsertIndexedCoverageEntryAsync(
+            fixture,
+            staleProfileKey,
+            "cache-chapter-1-0",
+            staleProfileKey.Identity.SynthesisProfile,
+            healthState: 1);
+        await InsertIndexedCoverageEntryAsync(
+            fixture,
+            titleKey,
+            "cache-chapter-1-0",
+            profile,
+            healthState: 1);
+
+        fixture.CacheConnectionFactory.Reset();
+        var lastAccessedBefore = await ReadLastAccessedAtAsync(fixture, firstBodyKey);
+        fixture.CacheConnectionFactory.Reset();
+        var statuses = await fixture.Cache.GetCurrentConfigurationStatusesAsync(
+            [
+                new CurrentCacheChapterQuery(
+                    "cache-chapter-1-0",
+                    0,
+                    true,
+                    Fingerprint.Sha256("第一章")),
+                new CurrentCacheChapterQuery("cache-chapter-1-1", 1, false, null),
+                new CurrentCacheChapterQuery("cache-chapter-1-2", 2, false, null),
+                new CurrentCacheChapterQuery("cache-chapter-1-3", 3, false, null),
+                new CurrentCacheChapterQuery("missing-plan", 4, false, null)
+            ],
+            profile,
+            CancellationToken.None);
+
+        Assert.Equal(1, fixture.CacheConnectionFactory.OpenCount);
+        Assert.Equal(new ChapterCacheStatus(0, 2, 3), statuses[0]);
+        Assert.Equal(ChapterCacheStatusKind.Available, statuses[0].Kind);
+        Assert.Equal(ChapterCacheStatusKind.PlanUnavailable, statuses[1].Kind);
+        Assert.Equal(ChapterCacheStatusKind.PlanUnavailable, statuses[2].Kind);
+        Assert.Equal(new ChapterCacheStatus(3, 0, 1), statuses[3]);
+        Assert.Equal(ChapterCacheStatusKind.Available, statuses[3].Kind);
+        Assert.Equal(ChapterCacheStatusKind.PlanMissing, statuses[4].Kind);
+        Assert.Equal(lastAccessedBefore, await ReadLastAccessedAtAsync(fixture, firstBodyKey));
+    }
+
+    [Fact]
+    public async Task Current_configuration_query_treats_ready_empty_plan_as_no_playable_content_and_honors_title_switch()
+    {
+        var fixture = await CreateFixtureAsync();
+        var profile = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "正文").Identity.SynthesisProfile;
+        var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
+        await planStore.SaveAsync(
+            CreatePlan("cache-chapter-1-0", ChapterSpeechPlanState.Ready, []),
+            CancellationToken.None);
+
+        var titleKey = TestAudioCacheKey.CreateTitle("book-1", 0, 7, 12, "第一章");
+        await InsertIndexedCoverageEntryAsync(
+            fixture,
+            titleKey,
+            "cache-chapter-1-0",
+            profile,
+            healthState: 1);
+
+        var withTitle = await fixture.Cache.GetCurrentConfigurationStatusesAsync(
+            [new CurrentCacheChapterQuery("cache-chapter-1-0", 0, true, Fingerprint.Sha256("第一章"))],
+            profile,
+            CancellationToken.None);
+        var withoutTitle = await fixture.Cache.GetCurrentConfigurationStatusesAsync(
+            [new CurrentCacheChapterQuery("cache-chapter-1-0", 0, false, null)],
+            profile,
+            CancellationToken.None);
+
+        Assert.Equal(new ChapterCacheStatus(0, 1, 1), Assert.Single(withTitle));
+        Assert.Equal(ChapterCacheStatusKind.Available, withTitle[0].Kind);
+        Assert.Equal(
+            new ChapterCacheStatus(0, 0, 0)
+            {
+                Kind = ChapterCacheStatusKind.NoPlayableContent
+            },
+            Assert.Single(withoutTitle));
+        Assert.Equal(ChapterCacheStatusKind.NoPlayableContent, withoutTitle[0].Kind);
+    }
+
+    [Fact]
+    public async Task Current_configuration_query_aggregates_two_thousand_plan_segments_with_one_connection()
+    {
+        var fixture = await CreateFixtureAsync();
+        var profile = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "段落 0").Identity.SynthesisProfile;
+        var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
+        var segments = Enumerable
+            .Range(0, 2_000)
+            .Select(index => CreatePlanSegment(index, index, $"段落 {index}"))
+            .ToArray();
+        await planStore.SaveAsync(
+            CreatePlan("cache-chapter-1-0", ChapterSpeechPlanState.Ready, segments),
+            CancellationToken.None);
+
+        var cachedKey = TestAudioCacheKey.Create("book-1", 0, 1_999, 7, 12, "段落 1999");
+        await InsertIndexedCoverageEntryAsync(
+            fixture,
+            cachedKey,
+            "cache-chapter-1-0",
+            profile,
+            healthState: 1,
+            filePath: "Cache/Tts/v2/missing-1999.mp3");
+
+        fixture.CacheConnectionFactory.Reset();
+        var statuses = await fixture.Cache.GetCurrentConfigurationStatusesAsync(
+            [new CurrentCacheChapterQuery("cache-chapter-1-0", 0, false, null)],
+            profile,
+            CancellationToken.None);
+
+        var status = Assert.Single(statuses);
+        Assert.Equal(new ChapterCacheStatus(0, 1, 2_000), status);
+        Assert.Equal(1, fixture.CacheConnectionFactory.OpenCount);
+    }
+
     [Fact]
     public async Task GetValidEntriesAsync_counts_only_decodable_files_and_does_not_touch_lru()
     {
@@ -603,6 +763,77 @@ public sealed class SqliteAudioCacheTests
             fixture.Cache.TryGetAsync(key, CancellationToken.None));
     }
 
+    private static ChapterSpeechPlan CreatePlan(
+        string chapterId,
+        ChapterSpeechPlanState state,
+        IReadOnlyList<ChapterSpeechPlanSegment> segments) =>
+        new(
+            chapterId,
+            Fingerprint.Sha256($"{chapterId}-revision"),
+            TextProfileFingerprint.Create(TextSegmentationOptions.Default, []),
+            Fingerprint.Sha256($"{chapterId}-plan-{segments.Count}"),
+            state,
+            segments.Count,
+            DateTimeOffset.UtcNow,
+            segments);
+
+    private static ChapterSpeechPlanSegment CreatePlanSegment(
+        int orderIndex,
+        int sourceStartOffset,
+        string speechText) =>
+        new(
+            orderIndex,
+            SpeechSegmentKind.Body,
+            sourceStartOffset,
+            1,
+            Fingerprint.Sha256(speechText));
+
+    private static async Task InsertIndexedCoverageEntryAsync(
+        CacheFixture fixture,
+        AudioCacheKey key,
+        string chapterId,
+        SynthesisProfileFingerprint profile,
+        int healthState,
+        string? filePath = null)
+    {
+        await using var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT OR IGNORE INTO SynthesisProfiles
+                (Fingerprint, SchemaVersion, RuleId, RuleFingerprint, SpeakSpeed, OptionsJson, CreatedAt)
+            VALUES
+                ($profile, $schemaVersion, $ruleId, $ruleFingerprint, $speakSpeed, $optionsJson, $now);
+            INSERT INTO AudioCacheEntries (
+                CacheKey, KeyVersion, BookId, ChapterId, SegmentKind, SourceStartOffset, SourceLength,
+                SpeechTextHash, SynthesisProfileFingerprint, FilePath, ContentType, FileSize,
+                DurationMilliseconds, HealthState, ValidatedAt, CreatedAt, LastAccessedAt)
+            VALUES (
+                $cacheKey, 2, 'book-1', $chapterId, $segmentKind, $sourceStartOffset, $sourceLength,
+                $speechTextHash, $profile, $filePath, 'audio/mpeg', 1,
+                NULL, $healthState, $now, $now, $now);
+            """;
+        var now = DateTime.UtcNow.ToString("O");
+        command.Parameters.AddWithValue("$profile", profile.Value.ToArray());
+        command.Parameters.AddWithValue("$schemaVersion", profile.SchemaVersion);
+        command.Parameters.AddWithValue("$ruleId", 7);
+        command.Parameters.AddWithValue("$ruleFingerprint", profile.TtsRule.Value.ToArray());
+        command.Parameters.AddWithValue("$speakSpeed", profile.SpeakSpeed);
+        command.Parameters.AddWithValue("$optionsJson", (object?)profile.OptionsJson ?? DBNull.Value);
+        command.Parameters.AddWithValue("$now", now);
+        command.Parameters.AddWithValue("$cacheKey", Encoding.UTF8.GetBytes(key.Value));
+        command.Parameters.AddWithValue("$chapterId", chapterId);
+        command.Parameters.AddWithValue("$segmentKind", (int)key.Identity.Segment.Kind);
+        command.Parameters.AddWithValue("$sourceStartOffset", key.Identity.Segment.SourceStartOffset);
+        command.Parameters.AddWithValue(
+            "$sourceLength",
+            Math.Max(1, key.Identity.Segment.SourceLength));
+        command.Parameters.AddWithValue("$speechTextHash", key.Identity.SpeechTextHash.ToArray());
+        command.Parameters.AddWithValue("$filePath", filePath ?? "Cache/Tts/v2/missing.mp3");
+        command.Parameters.AddWithValue("$healthState", healthState);
+        await command.ExecuteNonQueryAsync(CancellationToken.None);
+    }
+
     private static async Task<CacheFixture> CreateFixtureAsync(
         long? cacheLimitBytes = null,
         AudioCacheProtectionRegistry? registry = null,
@@ -632,6 +863,7 @@ public sealed class SqliteAudioCacheTests
                     ('cache-chapter-1-0', 'book-1', 0, 0, '第一章', 0, 1),
                     ('cache-chapter-1-1', 'book-1', 1, 1, '第二章', 0, 1),
                     ('cache-chapter-1-2', 'book-1', 2, 2, '第三章', 0, 1),
+                    ('cache-chapter-1-3', 'book-1', 3, 3, '第四章', 0, 1),
                     ('cache-chapter-2-0', 'book-2', 0, 0, '第一章', 0, 1);
                 """;
             await seedCommand.ExecuteNonQueryAsync(CancellationToken.None);

@@ -3,6 +3,7 @@ using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Infrastructure.Persistence;
 
 namespace NovelSpeaker.Infrastructure.Persistence.Playback;
@@ -314,6 +315,147 @@ internal sealed class SqliteAudioCacheIndex
         return items;
     }
 
+    public async Task<IReadOnlyList<ChapterCacheStatus>> GetCurrentConfigurationStatusesAsync(
+        IReadOnlyCollection<CurrentCacheChapterQuery> chapters,
+        SynthesisProfileFingerprint synthesisProfile,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(chapters);
+        ArgumentNullException.ThrowIfNull(synthesisProfile);
+
+        var requested = chapters
+            .Where(chapter => !string.IsNullOrWhiteSpace(chapter.ChapterId))
+            .GroupBy(chapter => chapter.ChapterId, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToArray();
+        if (requested.Length == 0)
+        {
+            return [];
+        }
+
+        await using var connection = await _connectionFactory
+            .OpenConnectionAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var statusesByChapterId = new Dictionary<string, ChapterCacheStatus>(
+            requested.Length,
+            StringComparer.Ordinal);
+
+        // Four request parameters per chapter keep each command below SQLite's default
+        // parameter limit while retaining one connection for the whole refresh.
+        const int batchSize = 200;
+        for (var offset = 0; offset < requested.Length; offset += batchSize)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var batchCount = Math.Min(batchSize, requested.Length - offset);
+            var values = new string[batchCount];
+            using var command = connection.CreateCommand();
+            command.Parameters.AddWithValue("$synthesisProfile", synthesisProfile.Value.ToArray());
+
+            for (var index = 0; index < batchCount; index++)
+            {
+                var chapter = requested[offset + index];
+                var chapterIdParameter = $"$chapterId{index}";
+                var chapterIndexParameter = $"$chapterIndex{index}";
+                var readTitleParameter = $"$readTitle{index}";
+                var titleHashParameter = $"$titleHash{index}";
+                values[index] =
+                    $"({chapterIdParameter}, {chapterIndexParameter}, {readTitleParameter}, {titleHashParameter})";
+                command.Parameters.AddWithValue(chapterIdParameter, chapter.ChapterId);
+                command.Parameters.AddWithValue(chapterIndexParameter, chapter.ChapterIndex);
+                command.Parameters.AddWithValue(readTitleParameter, chapter.ReadChapterTitle ? 1 : 0);
+                command.Parameters.AddWithValue(
+                    titleHashParameter,
+                    (object?)chapter.ChapterTitleSpeechTextHash?.ToArray() ?? DBNull.Value);
+            }
+
+            command.CommandText =
+                $"""
+                WITH requested(ChapterId, ChapterIndex, ReadChapterTitle, ChapterTitleSpeechTextHash) AS (
+                    VALUES {string.Join(", ", values)}
+                )
+                SELECT r.ChapterId,
+                       r.ChapterIndex,
+                       p.State,
+                       p.BodySegmentCount,
+                       COALESCE(SUM(CASE WHEN e.CacheKey IS NOT NULL THEN 1 ELSE 0 END), 0),
+                       CASE
+                           WHEN r.ReadChapterTitle = 1 AND r.ChapterTitleSpeechTextHash IS NOT NULL
+                           THEN 1
+                           ELSE 0
+                       END,
+                       CASE
+                           WHEN r.ReadChapterTitle = 1
+                                AND r.ChapterTitleSpeechTextHash IS NOT NULL
+                                AND EXISTS (
+                                    SELECT 1
+                                    FROM AudioCacheEntries titleEntry
+                                    WHERE titleEntry.ChapterId = r.ChapterId
+                                      AND titleEntry.KeyVersion = 2
+                                      AND titleEntry.HealthState = {ReadyHealthState}
+                                      AND titleEntry.SynthesisProfileFingerprint = $synthesisProfile
+                                      AND titleEntry.SegmentKind = {(int)SpeechSegmentKind.ChapterTitle}
+                                      AND titleEntry.SourceStartOffset = 0
+                                      AND titleEntry.SourceLength = 1
+                                      AND titleEntry.SpeechTextHash = r.ChapterTitleSpeechTextHash
+                                    LIMIT 1)
+                           THEN 1
+                           ELSE 0
+                       END
+                FROM requested r
+                LEFT JOIN ChapterSpeechPlans p
+                       ON p.ChapterId = r.ChapterId
+                LEFT JOIN ChapterSpeechPlanSegments s
+                       ON s.ChapterId = p.ChapterId
+                      AND p.State = {(int)ChapterSpeechPlanState.Ready}
+                      AND s.SegmentKind = {(int)SpeechSegmentKind.Body}
+                LEFT JOIN AudioCacheEntries e
+                       ON e.ChapterId = s.ChapterId
+                      AND e.KeyVersion = 2
+                      AND e.HealthState = {ReadyHealthState}
+                      AND e.SynthesisProfileFingerprint = $synthesisProfile
+                      AND e.SegmentKind = s.SegmentKind
+                      AND e.SourceStartOffset = s.SourceStartOffset
+                      AND e.SourceLength = s.SourceLength
+                      AND e.SpeechTextHash = s.SpeechTextHash
+                GROUP BY r.ChapterId,
+                         r.ChapterIndex,
+                         r.ReadChapterTitle,
+                         r.ChapterTitleSpeechTextHash,
+                         p.State,
+                         p.BodySegmentCount;
+                """;
+
+            await using var reader = await command
+                .ExecuteReaderAsync(cancellationToken)
+                .ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                var chapterId = reader.GetString(0);
+                var chapterIndex = reader.GetInt32(1);
+                int? planState = reader.IsDBNull(2) ? null : reader.GetInt32(2);
+                var bodySegmentCount = reader.IsDBNull(3) ? 0 : reader.GetInt32(3);
+                var cachedBodySegmentCount = reader.GetInt32(4);
+                var titleSegmentCount = reader.GetInt32(5);
+                var cachedTitleSegmentCount = reader.GetInt32(6);
+                statusesByChapterId[chapterId] = CreateCurrentConfigurationStatus(
+                    chapterIndex,
+                    planState,
+                    bodySegmentCount,
+                    cachedBodySegmentCount + cachedTitleSegmentCount,
+                    titleSegmentCount);
+            }
+        }
+
+        return requested
+            .Select(chapter => statusesByChapterId.GetValueOrDefault(
+                chapter.ChapterId,
+                new ChapterCacheStatus(chapter.ChapterIndex, 0, null)
+                {
+                    Kind = ChapterCacheStatusKind.PlanMissing
+                }))
+            .ToArray();
+    }
+
     public Task<IReadOnlyList<AudioCacheIndexEntry>> GetEntriesAsync(
         string? bookId,
         int? chapterIndex,
@@ -399,6 +541,44 @@ internal sealed class SqliteAudioCacheIndex
     }
 
     private static byte[] ToCacheKeyBlob(string value) => Encoding.UTF8.GetBytes(value);
+
+    private static ChapterCacheStatus CreateCurrentConfigurationStatus(
+        int chapterIndex,
+        int? planState,
+        int bodySegmentCount,
+        int cachedSegmentCount,
+        int titleSegmentCount)
+    {
+        if (planState is null)
+        {
+            return new ChapterCacheStatus(chapterIndex, 0, null)
+            {
+                Kind = ChapterCacheStatusKind.PlanMissing
+            };
+        }
+
+        if (planState.Value != (int)ChapterSpeechPlanState.Ready)
+        {
+            return new ChapterCacheStatus(chapterIndex, 0, null)
+            {
+                Kind = ChapterCacheStatusKind.PlanUnavailable
+            };
+        }
+
+        var totalSegmentCount = Math.Max(0, bodySegmentCount) + titleSegmentCount;
+        if (totalSegmentCount == 0)
+        {
+            return new ChapterCacheStatus(chapterIndex, 0, 0)
+            {
+                Kind = ChapterCacheStatusKind.NoPlayableContent
+            };
+        }
+
+        return new ChapterCacheStatus(
+            chapterIndex,
+            Math.Clamp(cachedSegmentCount, 0, totalSegmentCount),
+            totalSegmentCount);
+    }
 
     private static async Task<string> ResolveChapterIdAsync(
         SqliteConnection connection,
