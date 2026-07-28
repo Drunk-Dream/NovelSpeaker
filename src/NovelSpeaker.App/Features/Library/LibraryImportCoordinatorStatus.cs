@@ -4,5 +4,6 @@ public enum LibraryImportCoordinatorStatus
 {
     Imported,
     Cancelled,
+    InvalidSource,
     Failed
 }

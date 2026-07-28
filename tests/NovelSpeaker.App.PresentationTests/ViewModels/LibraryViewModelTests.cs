@@ -311,7 +311,6 @@ public sealed class LibraryViewModelTests
     {
         yield return [Array.Empty<string>(), "未检测到可导入的 TXT 文件。"];
         yield return [new[] { "one.txt", "two.txt" }, "一次只能导入一个 TXT 文件。"];
-        yield return [new[] { "novel.epub" }, "只支持导入单个 .txt 文件。"];
     }
 
     [Theory]
@@ -327,6 +326,23 @@ public sealed class LibraryViewModelTests
         Assert.Equal("无法导入", feedback.LastTitle);
         Assert.Equal(expectedMessage, feedback.LastMessage);
         Assert.Empty(importCoordinator.Requests);
+    }
+
+    [Fact]
+    public async Task ImportFilesAsync_projects_invalid_source_reported_by_coordinator()
+    {
+        var feedback = new FakeFeedbackService();
+        var importCoordinator = new FakeLibraryImportCoordinator
+        {
+            NextResult = new LibraryImportCoordinatorResult(LibraryImportCoordinatorStatus.InvalidSource)
+        };
+        var viewModel = CreateViewModel(feedback: feedback, importCoordinator: importCoordinator);
+
+        await viewModel.ImportFilesAsync(["novel.epub"], CancellationToken.None);
+
+        Assert.Equal("无法导入", feedback.LastTitle);
+        Assert.Equal("只支持导入单个 .txt 文件。", feedback.LastMessage);
+        Assert.Equal(["novel.epub"], importCoordinator.Requests);
     }
 
     private static LibraryViewModel CreateViewModel(

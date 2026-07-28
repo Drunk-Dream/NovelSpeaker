@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Books;
@@ -122,8 +121,8 @@ public sealed partial class LibraryViewModel : ObservableObject
 
     public async Task ImportFilesAsync(IReadOnlyList<string>? filePaths, CancellationToken cancellationToken)
     {
-        var validatedPath = ValidateSingleImportFile(filePaths);
-        if (validatedPath is null)
+        var selectedPath = GetSingleImportPath(filePaths);
+        if (selectedPath is null)
         {
             return;
         }
@@ -137,7 +136,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
-            var outcome = await _libraryImportCoordinator.ImportAsync(validatedPath, progress, activeCancellationTokenSource.Token);
+            var outcome = await _libraryImportCoordinator.ImportAsync(selectedPath, progress, activeCancellationTokenSource.Token);
             if (!IsCurrentImport(version, activeCancellationTokenSource))
             {
                 return;
@@ -151,6 +150,10 @@ public sealed partial class LibraryViewModel : ObservableObject
             else if (outcome.Status == LibraryImportCoordinatorStatus.Failed)
             {
                 ShowImportFailure(outcome.FailureReason);
+            }
+            else if (outcome.Status == LibraryImportCoordinatorStatus.InvalidSource)
+            {
+                _feedbackService.ShowWarning("无法导入", "只支持导入单个 .txt 文件。");
             }
         }
         catch (OperationCanceledException) when (activeCancellationTokenSource.IsCancellationRequested || cancellationToken.IsCancellationRequested)
@@ -391,7 +394,7 @@ public sealed partial class LibraryViewModel : ObservableObject
             : $"剩余 {Math.Max(0, remainingChapterCount)} 章";
     }
 
-    private string? ValidateSingleImportFile(IReadOnlyList<string>? filePaths)
+    private string? GetSingleImportPath(IReadOnlyList<string>? filePaths)
     {
         if (filePaths is null || filePaths.Count == 0)
         {
@@ -405,17 +408,13 @@ public sealed partial class LibraryViewModel : ObservableObject
             return null;
         }
 
-        var filePath = filePaths[0];
-        if (string.IsNullOrWhiteSpace(filePath) ||
-            Directory.Exists(filePath) ||
-            !File.Exists(filePath) ||
-            !string.Equals(Path.GetExtension(filePath), ".txt", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(filePaths[0]))
         {
             _feedbackService.ShowWarning("无法导入", "只支持导入单个 .txt 文件。");
             return null;
         }
 
-        return filePath;
+        return filePaths[0];
     }
 
     private void OnPlaybackSnapshotChanged(object? sender, PlaybackSnapshot snapshot)

@@ -1,4 +1,4 @@
-using System.IO;
+using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
 
 namespace NovelSpeaker.App.Features.Library;
@@ -10,33 +10,51 @@ public sealed class LibraryImportCoordinator : ILibraryImportCoordinator
     private readonly IDirectBookImportService _directBookImportService;
     private readonly IEncodingSelectionDialogService _encodingSelectionDialogService;
     private readonly IImportProgressDialogService _importProgressDialogService;
+    private readonly IUserDocumentFileOperations _fileOperations;
 
     public LibraryImportCoordinator(
         IDirectBookImportService directBookImportService,
         IEncodingSelectionDialogService encodingSelectionDialogService,
-        IImportProgressDialogService importProgressDialogService)
+        IImportProgressDialogService importProgressDialogService,
+        IUserDocumentFileOperations fileOperations)
     {
         _directBookImportService = directBookImportService;
         _encodingSelectionDialogService = encodingSelectionDialogService;
         _importProgressDialogService = importProgressDialogService;
+        _fileOperations = fileOperations;
     }
 
-    public Task<LibraryImportCoordinatorResult> ImportAsync(
+    public async Task<LibraryImportCoordinatorResult> ImportAsync(
         string filePath,
         IProgress<BookImportProgress>? inlineProgress,
         CancellationToken cancellationToken)
     {
-        var fileInfo = new FileInfo(filePath);
-        return fileInfo.Exists && fileInfo.Length >= LargeFileThresholdBytes
-            ? _importProgressDialogService.RunAsync(
-                fileInfo.Name,
-                (progress, token) => ImportWithEncodingLoopAsync(filePath, progress, token),
+        var metadata = await _fileOperations.GetMetadataAsync(filePath, cancellationToken);
+        if (metadata is null ||
+            !string.Equals(metadata.Extension, ".txt", StringComparison.OrdinalIgnoreCase))
+        {
+            return new LibraryImportCoordinatorResult(LibraryImportCoordinatorStatus.InvalidSource);
+        }
+
+        return metadata.Length >= LargeFileThresholdBytes
+            ? await _importProgressDialogService.RunAsync(
+                metadata.FileName,
+                (progress, token) => ImportWithEncodingLoopAsync(
+                    metadata.FilePath,
+                    metadata.FileName,
+                    progress,
+                    token),
                 cancellationToken)
-            : ImportWithEncodingLoopAsync(filePath, inlineProgress, cancellationToken);
+            : await ImportWithEncodingLoopAsync(
+                metadata.FilePath,
+                metadata.FileName,
+                inlineProgress,
+                cancellationToken);
     }
 
     private async Task<LibraryImportCoordinatorResult> ImportWithEncodingLoopAsync(
         string filePath,
+        string fileName,
         IProgress<BookImportProgress>? progress,
         CancellationToken cancellationToken)
     {
@@ -47,7 +65,7 @@ public sealed class LibraryImportCoordinator : ILibraryImportCoordinator
             cancellationToken.ThrowIfCancellationRequested();
 
             var result = await _directBookImportService.ImportAsync(
-                new DirectBookImportRequest(filePath, selectedEncoding, Path.GetFileName(filePath)),
+                new DirectBookImportRequest(filePath, selectedEncoding, fileName),
                 progress,
                 cancellationToken);
 
@@ -63,7 +81,7 @@ public sealed class LibraryImportCoordinator : ILibraryImportCoordinator
                     selectedEncoding = await _encodingSelectionDialogService.ShowAsync(
                         new EncodingSelectionPrompt(
                             filePath,
-                            Path.GetFileName(filePath),
+                            fileName,
                             "所选编码无法读取该文件，请重新选择后继续导入。",
                             selectedEncoding,
                             ["utf-8", "utf-16le", "utf-16be", "gb18030"]),
