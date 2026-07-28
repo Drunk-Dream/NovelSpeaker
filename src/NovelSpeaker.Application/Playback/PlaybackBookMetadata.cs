@@ -24,4 +24,5 @@ public sealed record PlaybackChapterMetadata(
     string Title,
     string StoredFilePath,
     int StartOffset,
-    int Length);
+    int Length,
+    string? ChapterId = null);

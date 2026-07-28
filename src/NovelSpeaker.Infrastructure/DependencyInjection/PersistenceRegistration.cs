@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Infrastructure.Persistence.Playback;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
@@ -31,6 +33,7 @@ public static class PersistenceRegistration
         services.TryAddSingleton<IBookMetadataUpdateService, BookMetadataUpdateService>();
         services.TryAddSingleton<IBookDeletionOperationStore, BookDeletionOperationStore>();
         services.TryAddSingleton<IReadingProgressStore, SqliteReadingProgressStore>();
+        services.TryAddSingleton<IChapterSpeechPlanStore, SqliteChapterSpeechPlanStore>();
         services.TryAddSingleton<DefaultChapterRuleSeeder>();
         services.TryAddSingleton<IDatabaseInitializer, StartupDatabaseInitializer>();
 

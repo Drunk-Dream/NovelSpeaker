@@ -4,6 +4,7 @@ using NovelSpeaker.Application.Books.ChapterRules;
 using NovelSpeaker.Application.Books.Import;
 using NovelSpeaker.Application.Books.Library;
 using NovelSpeaker.Application.Books.TextProcessing;
+using NovelSpeaker.Application.Playback.Cache;
 
 namespace NovelSpeaker.Application.Books;
 
@@ -28,6 +29,7 @@ public static class BooksRegistration
         services.TryAddSingleton<IRegexReplacementRuleWorkspaceService, RegexReplacementRuleWorkspaceService>();
         services.TryAddSingleton<IRegexReplacementPipeline, RegexReplacementPipeline>();
         services.TryAddSingleton<ITextSegmenter, TextSegmenter>();
+        services.TryAddSingleton<IChapterSpeechPlanService, ChapterSpeechPlanService>();
 
         return services;
     }

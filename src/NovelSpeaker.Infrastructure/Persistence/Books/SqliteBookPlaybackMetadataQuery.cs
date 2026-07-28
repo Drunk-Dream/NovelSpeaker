@@ -76,7 +76,7 @@ public sealed class SqliteBookPlaybackMetadataQuery : IBookPlaybackMetadataQuery
         var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT c.ChapterIndex, c.Title, b.StoredFilePath, c.StartOffset, c.Length
+            SELECT c.Id, c.ChapterIndex, c.Title, b.StoredFilePath, c.StartOffset, c.Length
             FROM Chapters c
             INNER JOIN Books b ON b.Id = c.BookId
             WHERE c.BookId = $bookId AND c.ChapterIndex = $chapterIndex
@@ -88,11 +88,12 @@ public sealed class SqliteBookPlaybackMetadataQuery : IBookPlaybackMetadataQuery
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
             ? new PlaybackChapterMetadata(
-                reader.GetInt32(0),
-                reader.GetString(1),
+                reader.GetInt32(1),
                 reader.GetString(2),
-                reader.GetInt32(3),
-                reader.GetInt32(4))
+                reader.GetString(3),
+                reader.GetInt32(4),
+                reader.GetInt32(5),
+                reader.GetString(0))
             : null;
     }
 
@@ -114,7 +115,7 @@ public sealed class SqliteBookPlaybackMetadataQuery : IBookPlaybackMetadataQuery
         var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT c.ChapterIndex, c.Title, b.StoredFilePath, c.StartOffset, c.Length
+            SELECT c.Id, c.ChapterIndex, c.Title, b.StoredFilePath, c.StartOffset, c.Length
             FROM Chapters c
             INNER JOIN Books b ON b.Id = c.BookId
             WHERE c.BookId = $bookId
@@ -126,7 +127,7 @@ public sealed class SqliteBookPlaybackMetadataQuery : IBookPlaybackMetadataQuery
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            var chapterIndex = reader.GetInt32(0);
+            var chapterIndex = reader.GetInt32(1);
             if (!requestedIndices.Contains(chapterIndex))
             {
                 continue;
@@ -134,10 +135,11 @@ public sealed class SqliteBookPlaybackMetadataQuery : IBookPlaybackMetadataQuery
 
             chapters.Add(new PlaybackChapterMetadata(
                 chapterIndex,
-                reader.GetString(1),
                 reader.GetString(2),
-                reader.GetInt32(3),
-                reader.GetInt32(4)));
+                reader.GetString(3),
+                reader.GetInt32(4),
+                reader.GetInt32(5),
+                reader.GetString(0)));
         }
 
         return chapters;

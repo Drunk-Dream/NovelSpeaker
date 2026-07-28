@@ -28,6 +28,6 @@ public sealed class RegexReplacementPipeline : IRegexReplacementPipeline
             .ToArray();
         var result = RegexReplacementProcessor.Apply(sourceSegments, rules, cancellationToken);
         _errorStore.Replace(result.RuleErrors);
-        return result;
+        return result with { AppliedRules = rules };
     }
 }

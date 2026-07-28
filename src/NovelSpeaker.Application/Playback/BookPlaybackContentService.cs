@@ -1,5 +1,7 @@
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Domain.Books;
 
 namespace NovelSpeaker.Application.Playback;
 
@@ -14,6 +16,7 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
     private readonly ITextSegmentationOptionsProvider _optionsProvider;
     private readonly IRegexReplacementPipeline _regexReplacementPipeline;
     private readonly IAppSettingsService? _settingsService;
+    private readonly IChapterSpeechPlanService? _speechPlanService;
 
     public BookPlaybackContentService(
         IBookPlaybackMetadataQuery metadataQuery,
@@ -21,7 +24,8 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
         ITextSegmenter textSegmenter,
         ITextSegmentationOptionsProvider optionsProvider,
         IRegexReplacementPipeline regexReplacementPipeline,
-        IAppSettingsService? settingsService = null)
+        IAppSettingsService? settingsService = null,
+        IChapterSpeechPlanService? speechPlanService = null)
     {
         _metadataQuery = metadataQuery;
         _bookContentReader = bookContentReader;
@@ -29,6 +33,7 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
         _optionsProvider = optionsProvider;
         _regexReplacementPipeline = regexReplacementPipeline;
         _settingsService = settingsService;
+        _speechPlanService = speechPlanService;
     }
 
     public async Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
@@ -105,19 +110,31 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
             metadata.Length,
             cancellationToken).ConfigureAwait(false);
         var options = _optionsProvider.GetCurrent();
-        var segments = await Task.Run(() =>
+        IReadOnlyList<SpeechSegment> replacedSegments;
+        if (_speechPlanService is not null && metadata.ChapterId is not null)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            return _textSegmenter.Segment(chapterText, options);
-        }, cancellationToken).ConfigureAwait(false);
-        var replaced = await _regexReplacementPipeline
-            .ApplyAsync(segments, cancellationToken)
-            .ConfigureAwait(false);
+            var planResult = await _speechPlanService
+                .BuildAsync(metadata.ChapterId, chapterText, options, cancellationToken)
+                .ConfigureAwait(false);
+            replacedSegments = planResult.Segments;
+        }
+        else
+        {
+            var segments = await Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return _textSegmenter.Segment(chapterText, options);
+            }, cancellationToken).ConfigureAwait(false);
+            var replaced = await _regexReplacementPipeline
+                .ApplyAsync(segments, cancellationToken)
+                .ConfigureAwait(false);
+            replacedSegments = replaced.Segments;
+        }
         cancellationToken.ThrowIfCancellationRequested();
 
         var playbackSegments = PlaybackSpeechSegmentComposer.Compose(
             metadata.Title,
-            replaced.Segments,
+            replacedSegments,
             _settingsService?.Current.ReadChapterTitle == true);
 
         return PlaybackChapterContent.FromLoaded(
