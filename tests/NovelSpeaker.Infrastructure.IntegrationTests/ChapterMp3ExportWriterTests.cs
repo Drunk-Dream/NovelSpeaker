@@ -316,6 +316,24 @@ public sealed class ChapterMp3ExportWriterTests
             new DefaultChapterRuleSeeder(new ChapterRuleRepository(connectionFactory)));
         await initializer.InitializeAsync(CancellationToken.None);
 
+        await using (var connection = await connectionFactory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                INSERT INTO Books
+                    (Id, Title, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, UpdatedAt)
+                VALUES
+                    ('book-1', '示例书', 'book.txt', 'Books/book-1/content.txt', 'export-fixture', 'utf-8',
+                     '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
+                VALUES
+                    ('chapter-1', 'book-1', 0, 0, '第一章', 0, 1),
+                    ('chapter-2', 'book-1', 1, 1, '第二章', 0, 1);
+                """;
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
         var protection = new AudioCacheProtectionRegistry();
         var pathResolver = new AppStoragePathResolver(directories);
         var index = new SqliteAudioCacheIndex(connectionFactory, TimeProvider.System);
