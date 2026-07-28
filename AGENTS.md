@@ -138,6 +138,8 @@ dotnet restore -r win-x64 --force-evaluate
 - 纯重命名/移动尽量与行为变化分开提交，避免 diff 中同时混入大规模搬运和逻辑修改。
 - 文档只有在与对应行为不可分割时跟随实现提交；独立的文档整理、归档和规划使用独立 commit。
 - commit message 简洁准确，描述该提交的实际目的，不使用“update/fix stuff”等模糊描述。
+- Commit messages use English Conventional Commits, such as `type(scope): describe the change`.
+- Unless the user explicitly requests otherwise, use fast-forward merge mode when merging branches.
 - 禁止在任务结束时把该任务产生的全部文件修改一次性打包成一个大提交。
 - 用户明确要求发布时，先完成版本更新、完整门禁和发布工作流要求，再提交、打标签、推送并等待远端工作流与资产验证成功。
 - 发布工作流成功创建 GitHub Release 并确认发布资产可用后，必须使用 `gh release edit <tag>` 更新最终 Release Note；Release Note 更新成功前不得宣告发布完成。
