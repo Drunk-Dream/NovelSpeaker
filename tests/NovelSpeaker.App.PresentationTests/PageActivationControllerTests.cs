@@ -128,6 +128,7 @@ public sealed class PageActivationControllerTests
         await operationStarted.Task;
         controller.Deactivate();
         await operationFinished.Task;
+        await activation.WaitForPendingOperationsAsync();
 
         Assert.Equal(0, failureCount);
         Assert.Equal(0, activation.PendingOperationCount);
