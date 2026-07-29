@@ -134,7 +134,11 @@ internal sealed class PlayerScrollInteractionController
     private void RequestCurrentSegmentCentering(bool animate)
     {
         InitializeScrollViewer();
-        _autoCenterController.Request(_getViewModel()?.CurrentSegmentItem, animate);
+        var viewModel = _getViewModel();
+        // Chapter-title speech segments are intentionally omitted from the preview list. The
+        // first body segment is therefore the visual anchor while a title is being read.
+        var targetItem = viewModel?.CurrentSegmentItem ?? viewModel?.Segments.FirstOrDefault();
+        _autoCenterController.Request(targetItem, animate);
     }
 
     private void InitializeScrollViewer()
