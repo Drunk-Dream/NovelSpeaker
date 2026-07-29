@@ -104,6 +104,39 @@ public sealed class SqliteAudioCacheTests
     }
 
     [Fact]
+    public async Task Current_configuration_query_marks_plan_stale_when_text_profile_changed()
+    {
+        var fixture = await CreateFixtureAsync();
+        var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
+        var plan = CreatePlan(
+            "cache-chapter-1-0",
+            ChapterSpeechPlanState.Ready,
+            [CreatePlanSegment(0, 0, "正文")]);
+        await planStore.SaveAsync(plan, CancellationToken.None);
+        var profile = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "正文").Identity.SynthesisProfile;
+        var changedTextProfile = TextProfileFingerprint.Create(
+            TextSegmentationOptions.Default with { LongParagraphThreshold = 801 },
+            []);
+
+        var statuses = await fixture.Cache.GetCurrentConfigurationStatusesAsync(
+            [
+                new CurrentCacheChapterQuery(
+                    "cache-chapter-1-0",
+                    0,
+                    false,
+                    null,
+                    changedTextProfile)
+            ],
+            profile,
+            CancellationToken.None);
+
+        var status = Assert.Single(statuses);
+        Assert.Equal(ChapterCacheStatusKind.PlanStale, status.Kind);
+        Assert.Null(status.TotalSegmentCount);
+        Assert.Equal(0, status.CachedSegmentCount);
+    }
+
+    [Fact]
     public async Task Current_configuration_query_treats_ready_empty_plan_as_no_playable_content_and_honors_title_switch()
     {
         var fixture = await CreateFixtureAsync();
@@ -710,7 +743,7 @@ public sealed class SqliteAudioCacheTests
     }
 
     [Fact]
-    public async Task ClearAllAsync_preserves_books_progress_and_current_speech_plans()
+    public async Task ClearAllAsync_preserves_books_and_progress_but_removes_orphaned_speech_plans()
     {
         var fixture = await CreateFixtureAsync();
         var progressStore = new SqliteReadingProgressStore(fixture.ConnectionFactory);
@@ -753,9 +786,133 @@ public sealed class SqliteAudioCacheTests
         Assert.Equal(2, reader.GetInt32(0));
         Assert.Equal(5, reader.GetInt32(1));
         Assert.Equal(1, reader.GetInt32(2));
-        Assert.Equal(1, reader.GetInt32(3));
-        Assert.Equal(1, reader.GetInt32(4));
+        Assert.Equal(0, reader.GetInt32(3));
+        Assert.Equal(0, reader.GetInt32(4));
         Assert.Equal(0, reader.GetInt32(5));
+    }
+
+    [Fact]
+    public async Task Removing_last_chapter_cache_entry_removes_plan_but_keeps_it_while_other_entries_remain()
+    {
+        var fixture = await CreateFixtureAsync();
+        var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
+        await planStore.SaveAsync(
+            CreatePlan(
+                "cache-chapter-1-0",
+                ChapterSpeechPlanState.Ready,
+                [
+                    CreatePlanSegment(0, 0, "第一段"),
+                    CreatePlanSegment(1, 1, "第二段")
+                ]),
+            CancellationToken.None);
+        var firstKey = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段");
+        var secondKey = TestAudioCacheKey.Create("book-1", 0, 1, 1, 10, "第二段");
+        await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                firstKey,
+                "book-1",
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                secondKey,
+                "book-1",
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+
+        await fixture.Cache.InvalidateAsync(firstKey, CancellationToken.None);
+
+        Assert.NotNull(await planStore.GetAsync("cache-chapter-1-0", CancellationToken.None));
+
+        await fixture.Cache.InvalidateAsync(secondKey, CancellationToken.None);
+
+        Assert.Null(await planStore.GetAsync("cache-chapter-1-0", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Protected_last_chapter_cache_entry_keeps_plan_until_protection_is_released()
+    {
+        var registry = new AudioCacheProtectionRegistry();
+        var fixture = await CreateFixtureAsync(registry: registry);
+        var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
+        await planStore.SaveAsync(
+            CreatePlan(
+                "cache-chapter-1-0",
+                ChapterSpeechPlanState.Ready,
+                [CreatePlanSegment(0, 0, "受保护段")]),
+            CancellationToken.None);
+        var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "受保护段");
+        var stored = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                key,
+                "book-1",
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+
+        using (registry.Protect(stored.FilePath))
+        {
+            var cleanup = await fixture.Cache.ClearChapterAsync("book-1", 0, CancellationToken.None);
+
+            Assert.Equal(0, cleanup.DeletedEntryCount);
+            Assert.Equal(1, cleanup.ProtectedEntryCount);
+            Assert.NotNull(await planStore.GetAsync("cache-chapter-1-0", CancellationToken.None));
+        }
+
+        await fixture.Cache.ClearChapterAsync("book-1", 0, CancellationToken.None);
+
+        Assert.Null(await planStore.GetAsync("cache-chapter-1-0", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Failed_last_entry_delete_keeps_cache_index_and_speech_plan()
+    {
+        var fixture = await CreateFixtureAsync();
+        var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
+        await planStore.SaveAsync(
+            CreatePlan(
+                "cache-chapter-1-0",
+                ChapterSpeechPlanState.Ready,
+                [CreatePlanSegment(0, 0, "事务失败")]),
+            CancellationToken.None);
+        var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "事务失败");
+        var stored = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                key,
+                "book-1",
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+
+        await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                CREATE TRIGGER RejectAudioCacheDelete
+                BEFORE DELETE ON AudioCacheEntries
+                BEGIN
+                    SELECT RAISE(ABORT, 'fixture delete failure');
+                END;
+                """;
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        await Assert.ThrowsAnyAsync<Exception>(() => fixture.Cache.InvalidateAsync(key, CancellationToken.None));
+
+        Assert.True(File.Exists(stored.FilePath));
+        Assert.Equal(1, (await fixture.Cache.GetSummaryAsync(CancellationToken.None)).EntryCount);
+        Assert.NotNull(await planStore.GetAsync("cache-chapter-1-0", CancellationToken.None));
     }
 
     [Fact]

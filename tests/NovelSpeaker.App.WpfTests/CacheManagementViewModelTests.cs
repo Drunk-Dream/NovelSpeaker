@@ -164,7 +164,7 @@ public sealed class CacheManagementViewModelTests
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
 
-        Assert.Equal("完整度：计划缺失", viewModel.Chapters[0].CompletenessText);
+        Assert.Equal("完整度：计划计算中", viewModel.Chapters[0].CompletenessText);
         Assert.Equal("完整度：计划计算中", viewModel.Chapters[1].CompletenessText);
         Assert.Equal("完整度：配置不可用", viewModel.Chapters[2].CompletenessText);
         Assert.Equal("完整度：无可播放内容", viewModel.Chapters[3].CompletenessText);

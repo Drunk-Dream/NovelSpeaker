@@ -532,7 +532,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
                     chapter.Title,
                     CacheCleanupFeedbackFormatter.FormatBytes(chapter.TotalSizeBytes),
                     $"{chapter.EntryCount} 条缓存",
-                    FormatCompleteness(chapter),
+                    CacheManagementCompletenessFormatter.Format(chapter),
                     exportAvailability.IsExportable,
                     exportAvailability.StatusText,
                     exportAvailability.ToolTip));
@@ -808,35 +808,6 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         {
             _feedbackService.ShowSuccess(feedback.Title, feedback.Message);
         }
-    }
-
-    private static string FormatCompleteness(CachedChapterCacheItem chapter)
-    {
-        switch (chapter.CurrentConfigurationStatus)
-        {
-            case ChapterCacheStatusKind.PlanMissing:
-                return "完整度：计划缺失";
-            case ChapterCacheStatusKind.PlanUnavailable:
-                return "完整度：计划计算中";
-            case ChapterCacheStatusKind.NoPlayableContent:
-                return "完整度：无可播放内容";
-            case ChapterCacheStatusKind.ConfigurationUnavailable:
-                return "完整度：配置不可用";
-        }
-
-        if (chapter.CurrentConfigurationSegmentCount is null)
-        {
-            return "完整度：配置不可用";
-        }
-
-        var totalSegmentCount = chapter.CurrentConfigurationSegmentCount.Value;
-        if (totalSegmentCount <= 0)
-        {
-            return "完整度：无可播放内容";
-        }
-
-        var ratio = Math.Clamp(chapter.CachedSegmentCount / (double)totalSegmentCount, 0, 1);
-        return $"完整度：{chapter.CachedSegmentCount}/{totalSegmentCount} 段 · {ratio:P0}";
     }
 
     private bool SelectedChaptersAreExportable()

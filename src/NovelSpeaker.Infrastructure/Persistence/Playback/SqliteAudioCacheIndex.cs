@@ -222,14 +222,61 @@ internal sealed class SqliteAudioCacheIndex
     public async Task RemoveAsync(string cacheKey, CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
-        command.CommandText =
-            """
-            DELETE FROM AudioCacheEntries
-            WHERE CacheKey = $cacheKey AND KeyVersion = 2;
-            """;
-        command.Parameters.AddWithValue("$cacheKey", ToCacheKeyBlob(cacheKey));
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = (SqliteTransaction)await connection
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
+        try
+        {
+            var chapterCommand = connection.CreateCommand();
+            chapterCommand.Transaction = transaction;
+            chapterCommand.CommandText =
+                """
+                SELECT ChapterId
+                FROM AudioCacheEntries
+                WHERE CacheKey = $cacheKey AND KeyVersion = 2
+                LIMIT 1;
+                """;
+            chapterCommand.Parameters.AddWithValue("$cacheKey", ToCacheKeyBlob(cacheKey));
+            var chapterId = Convert.ToString(
+                await chapterCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
+
+            var deleteEntry = connection.CreateCommand();
+            deleteEntry.Transaction = transaction;
+            deleteEntry.CommandText =
+                """
+                DELETE FROM AudioCacheEntries
+                WHERE CacheKey = $cacheKey AND KeyVersion = 2;
+                """;
+            deleteEntry.Parameters.AddWithValue("$cacheKey", ToCacheKeyBlob(cacheKey));
+            var deletedEntryCount = await deleteEntry
+                .ExecuteNonQueryAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (deletedEntryCount > 0 && !string.IsNullOrWhiteSpace(chapterId))
+            {
+                var deletePlan = connection.CreateCommand();
+                deletePlan.Transaction = transaction;
+                deletePlan.CommandText =
+                    """
+                    DELETE FROM ChapterSpeechPlans
+                    WHERE ChapterId = $chapterId
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM AudioCacheEntries
+                          WHERE ChapterId = $chapterId
+                          LIMIT 1);
+                    """;
+                deletePlan.Parameters.AddWithValue("$chapterId", chapterId);
+                await deletePlan.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
     }
 
     public async Task<AudioCacheIndexSummary> GetSummaryAsync(CancellationToken cancellationToken)
@@ -340,9 +387,9 @@ internal sealed class SqliteAudioCacheIndex
             requested.Length,
             StringComparer.Ordinal);
 
-        // Four request parameters per chapter keep each command below SQLite's default
+        // Five request parameters per chapter keep each command below SQLite's default
         // parameter limit while retaining one connection for the whole refresh.
-        const int batchSize = 200;
+        const int batchSize = 160;
         for (var offset = 0; offset < requested.Length; offset += batchSize)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -358,24 +405,40 @@ internal sealed class SqliteAudioCacheIndex
                 var chapterIndexParameter = $"$chapterIndex{index}";
                 var readTitleParameter = $"$readTitle{index}";
                 var titleHashParameter = $"$titleHash{index}";
+                var textProfileParameter = $"$textProfile{index}";
                 values[index] =
-                    $"({chapterIdParameter}, {chapterIndexParameter}, {readTitleParameter}, {titleHashParameter})";
+                    $"({chapterIdParameter}, {chapterIndexParameter}, {readTitleParameter}, {titleHashParameter}, {textProfileParameter})";
                 command.Parameters.AddWithValue(chapterIdParameter, chapter.ChapterId);
                 command.Parameters.AddWithValue(chapterIndexParameter, chapter.ChapterIndex);
                 command.Parameters.AddWithValue(readTitleParameter, chapter.ReadChapterTitle ? 1 : 0);
                 command.Parameters.AddWithValue(
                     titleHashParameter,
                     (object?)chapter.ChapterTitleSpeechTextHash?.ToArray() ?? DBNull.Value);
+                command.Parameters.AddWithValue(
+                    textProfileParameter,
+                    (object?)chapter.TextProfileFingerprint?.Value.ToArray() ?? DBNull.Value);
             }
 
             command.CommandText =
                 $"""
-                WITH requested(ChapterId, ChapterIndex, ReadChapterTitle, ChapterTitleSpeechTextHash) AS (
+                WITH requested(
+                    ChapterId,
+                    ChapterIndex,
+                    ReadChapterTitle,
+                    ChapterTitleSpeechTextHash,
+                    TextProfileFingerprint) AS (
                     VALUES {string.Join(", ", values)}
                 )
                 SELECT r.ChapterId,
                        r.ChapterIndex,
                        p.State,
+                       CASE
+                           WHEN p.ChapterId IS NOT NULL
+                                AND r.TextProfileFingerprint IS NOT NULL
+                                AND p.TextProfileFingerprint <> r.TextProfileFingerprint
+                           THEN 1
+                           ELSE 0
+                       END,
                        p.BodySegmentCount,
                        COALESCE(SUM(CASE WHEN e.CacheKey IS NOT NULL THEN 1 ELSE 0 END), 0),
                        CASE
@@ -421,6 +484,8 @@ internal sealed class SqliteAudioCacheIndex
                          r.ChapterIndex,
                          r.ReadChapterTitle,
                          r.ChapterTitleSpeechTextHash,
+                         r.TextProfileFingerprint,
+                         p.TextProfileFingerprint,
                          p.State,
                          p.BodySegmentCount;
                 """;
@@ -433,13 +498,15 @@ internal sealed class SqliteAudioCacheIndex
                 var chapterId = reader.GetString(0);
                 var chapterIndex = reader.GetInt32(1);
                 int? planState = reader.IsDBNull(2) ? null : reader.GetInt32(2);
-                var bodySegmentCount = reader.IsDBNull(3) ? 0 : reader.GetInt32(3);
-                var cachedBodySegmentCount = reader.GetInt32(4);
-                var titleSegmentCount = reader.GetInt32(5);
-                var cachedTitleSegmentCount = reader.GetInt32(6);
+                var planIsStale = reader.GetInt32(3) != 0;
+                var bodySegmentCount = reader.IsDBNull(4) ? 0 : reader.GetInt32(4);
+                var cachedBodySegmentCount = reader.GetInt32(5);
+                var titleSegmentCount = reader.GetInt32(6);
+                var cachedTitleSegmentCount = reader.GetInt32(7);
                 statusesByChapterId[chapterId] = CreateCurrentConfigurationStatus(
                     chapterIndex,
                     planState,
+                    planIsStale,
                     bodySegmentCount,
                     cachedBodySegmentCount + cachedTitleSegmentCount,
                     titleSegmentCount);
@@ -604,6 +671,7 @@ internal sealed class SqliteAudioCacheIndex
     private static ChapterCacheStatus CreateCurrentConfigurationStatus(
         int chapterIndex,
         int? planState,
+        bool planIsStale,
         int bodySegmentCount,
         int cachedSegmentCount,
         int titleSegmentCount)
@@ -613,6 +681,14 @@ internal sealed class SqliteAudioCacheIndex
             return new ChapterCacheStatus(chapterIndex, 0, null)
             {
                 Kind = ChapterCacheStatusKind.PlanMissing
+            };
+        }
+
+        if (planIsStale)
+        {
+            return new ChapterCacheStatus(chapterIndex, 0, null)
+            {
+                Kind = ChapterCacheStatusKind.PlanStale
             };
         }
 

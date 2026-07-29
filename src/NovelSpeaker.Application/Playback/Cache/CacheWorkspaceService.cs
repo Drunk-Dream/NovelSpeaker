@@ -1,9 +1,11 @@
+using System.Collections.Concurrent;
 using System.Text;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.Application.Playback.Cache;
@@ -11,26 +13,36 @@ namespace NovelSpeaker.Application.Playback.Cache;
 /// <summary>
 /// Composes physical cache totals with metadata and persisted current-plan coverage queries.
 /// </summary>
-public sealed class CacheWorkspaceService : ICacheWorkspaceService
+public sealed class CacheWorkspaceService : ICacheWorkspaceService, IDisposable
 {
     private readonly IAudioCacheStore _cacheStore;
     private readonly IBookPlaybackMetadataQuery _bookMetadataQuery;
     private readonly ISelectedTtsRuleProvider _selectedRuleProvider;
     private readonly IAppSettingsService _settingsService;
     private readonly ICacheWorkspaceFailureReporter? _failureReporter;
+    private readonly IBookPlaybackContentService? _bookContentService;
+    private readonly IRegexReplacementRuleRepository? _regexRuleRepository;
+    private readonly ConcurrentDictionary<PlanRefreshKey, Lazy<Task>> _planRefreshes = new();
+    private readonly CancellationTokenSource _disposeCancellation = new();
+    private readonly SemaphoreSlim _planRefreshConcurrency = new(2, 2);
+    private int _disposed;
 
     public CacheWorkspaceService(
         IAudioCacheStore cacheStore,
         IBookPlaybackMetadataQuery bookMetadataQuery,
         ISelectedTtsRuleProvider selectedRuleProvider,
         IAppSettingsService settingsService,
-        ICacheWorkspaceFailureReporter? failureReporter = null)
+        ICacheWorkspaceFailureReporter? failureReporter = null,
+        IBookPlaybackContentService? bookContentService = null,
+        IRegexReplacementRuleRepository? regexRuleRepository = null)
     {
         _cacheStore = cacheStore;
         _bookMetadataQuery = bookMetadataQuery;
         _selectedRuleProvider = selectedRuleProvider;
         _settingsService = settingsService;
         _failureReporter = failureReporter;
+        _bookContentService = bookContentService;
+        _regexRuleRepository = regexRuleRepository;
         _cacheStore.Changed += OnCacheStoreChanged;
     }
 
@@ -105,6 +117,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
                 chapterIndices,
                 selectedRule.NormalizedRule,
                 settings,
+                refreshMissingPlans: true,
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -160,6 +173,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
             normalizedIndices,
             selectedRule.NormalizedRule,
             _settingsService.Current,
+            refreshMissingPlans: false,
             cancellationToken).ConfigureAwait(false);
         return normalizedIndices.Select(index => data.Statuses[index]).ToArray();
     }
@@ -229,10 +243,17 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
         IReadOnlyCollection<int> chapterIndices,
         NormalizedHttpTtsRule normalizedRule,
         AppSettings settings,
+        bool refreshMissingPlans,
         CancellationToken cancellationToken)
     {
         try
         {
+            IReadOnlyList<RegexReplacementRule> rules = _regexRuleRepository is null
+                ? Array.Empty<RegexReplacementRule>()
+                : await _regexRuleRepository.GetAllAsync(cancellationToken).ConfigureAwait(false);
+            var textProfile = TextProfileFingerprint.Create(
+                settings.ToTextSegmentationOptions(),
+                rules);
             var chapters = await _bookMetadataQuery
                 .GetChaptersAsync(bookId, chapterIndices, cancellationToken)
                 .ConfigureAwait(false);
@@ -247,7 +268,8 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
                     settings.ReadChapterTitle,
                     settings.ReadChapterTitle && !string.IsNullOrWhiteSpace(chapter.Title)
                         ? Fingerprint.Sha256(chapter.Title)
-                        : null))
+                        : null,
+                    textProfile))
                 .ToArray();
             var queriedStatuses = coverageQueries.Length == 0
                 ? []
@@ -267,6 +289,12 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
                         chapterIndex,
                         ChapterCacheStatusConfigurationUnavailable(chapterIndex)));
             }
+
+            QueuePlanRefreshes(
+                bookId,
+                chapters,
+                statusesByIndex,
+                refreshMissingPlans);
 
             return new CurrentConfigurationData(
                 statuses,
@@ -327,6 +355,94 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
         Changed?.Invoke(this, eventArgs);
     }
 
+    private void QueuePlanRefreshes(
+        string bookId,
+        IReadOnlyCollection<PlaybackChapterMetadata> chapters,
+        IReadOnlyDictionary<int, ChapterCacheStatus> statusesByIndex,
+        bool refreshMissingPlans)
+    {
+        if (_bookContentService is null || Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
+        foreach (var chapter in chapters)
+        {
+            if (!statusesByIndex.TryGetValue(chapter.ChapterIndex, out var status) ||
+                (status.Kind != ChapterCacheStatusKind.PlanStale &&
+                 !(refreshMissingPlans && status.Kind == ChapterCacheStatusKind.PlanMissing)))
+            {
+                continue;
+            }
+
+            var key = new PlanRefreshKey(bookId, chapter.ChapterIndex);
+            var refresh = _planRefreshes.GetOrAdd(
+                key,
+                static (refreshKey, owner) => new Lazy<Task>(
+                    () => owner.RefreshPlanAsync(refreshKey),
+                    LazyThreadSafetyMode.ExecutionAndPublication),
+                this);
+            _ = refresh.Value;
+        }
+    }
+
+    private async Task RefreshPlanAsync(PlanRefreshKey key)
+    {
+        var entered = false;
+        try
+        {
+            await _planRefreshConcurrency
+                .WaitAsync(_disposeCancellation.Token)
+                .ConfigureAwait(false);
+            entered = true;
+            var chapter = await _bookContentService!
+                .GetChapterAsync(key.BookId, key.ChapterIndex, _disposeCancellation.Token)
+                .ConfigureAwait(false);
+            if (chapter is not null)
+            {
+                Changed?.Invoke(this, new CacheChangedEventArgs(key.BookId, key.ChapterIndex));
+            }
+        }
+        catch (OperationCanceledException) when (Volatile.Read(ref _disposed) != 0)
+        {
+        }
+        catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
+        {
+        }
+        catch (Exception exception)
+        {
+            _failureReporter?.ReportCompletenessUnavailable(exception);
+        }
+        finally
+        {
+            if (entered)
+            {
+                try
+                {
+                    _planRefreshConcurrency.Release();
+                }
+                catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
+                {
+                }
+            }
+
+            _planRefreshes.TryRemove(key, out _);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        _cacheStore.Changed -= OnCacheStoreChanged;
+        _disposeCancellation.Cancel();
+        _planRefreshConcurrency.Dispose();
+        _disposeCancellation.Dispose();
+    }
+
     private sealed record CurrentConfigurationData(
         IReadOnlyDictionary<int, ChapterCacheStatus> Statuses,
         IReadOnlyDictionary<int, string> Titles)
@@ -345,4 +461,6 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService
             result.ProtectedEntryCount,
             result.FailedEntryCount);
     }
+
+    private sealed record PlanRefreshKey(string BookId, int ChapterIndex);
 }

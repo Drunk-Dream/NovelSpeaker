@@ -7,6 +7,7 @@ public enum ChapterCacheStatusKind
 {
     Available,
     PlanMissing,
+    PlanStale,
     PlanUnavailable,
     NoPlayableContent,
     ConfigurationUnavailable

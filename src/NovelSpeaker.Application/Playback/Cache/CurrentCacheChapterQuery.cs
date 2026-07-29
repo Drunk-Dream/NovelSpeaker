@@ -9,7 +9,8 @@ public sealed record CurrentCacheChapterQuery(
     string ChapterId,
     int ChapterIndex,
     bool ReadChapterTitle,
-    Fingerprint? ChapterTitleSpeechTextHash)
+    Fingerprint? ChapterTitleSpeechTextHash,
+    TextProfileFingerprint? TextProfileFingerprint = null)
 {
     public bool HasChapterTitle => ReadChapterTitle && ChapterTitleSpeechTextHash is not null;
 }
