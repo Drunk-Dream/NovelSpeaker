@@ -25,7 +25,7 @@
 
 ```text
 Resolve current chapter/segment
-  → load/build current chapter speech plan
+  → load/build and commit current chapter speech plan
   → compose optional chapter-title segment without renumbering body identity
   → resolve DisplayText/SpeechText and stable segment identity
   → empty SpeechText? skip audio
@@ -93,7 +93,7 @@ Resolve current chapter/segment
 
 - 全应用同一时间只有一个批次。
 - 章节按书中顺序处理；每章内部按播放段顺序处理。
-- 已有当前合成配置、稳定段身份和 `SpeechText` 对应的有效缓存直接跳过。
+- 每章开始前按冻结文本配置确保当前朗读清单已经提交；已有当前合成配置、稳定段身份和 `SpeechText` 对应的有效缓存直接跳过。
 - 切换播放章节、离开播放页或打开迷你播放器不影响批次。
 - 用户可以取消尚未完成的工作；已完成缓存保留。
 - 当前播放和预取通过共享 rule limiter 获得更高 admission priority。

@@ -76,7 +76,7 @@ App 的业务页面不得直接依赖 Infrastructure；所有业务动作通过 
 | 当前音频输出 | Local audio coordinator | Playback session |
 | 页面加载/编辑副本 | 对应 Page/ViewModel | Page activation |
 | 主动缓存批次 | Application background cache coordinator | Process/background job |
-| 当前章节朗读清单补建 | Application speech-plan build coordinator | Process/background job |
+| 章节朗读清单构建与完整度补建 | 播放、预取、主动缓存、导出用例及缓存工作区的进程级后台 owner；同章 in-flight 任务负责并发合并 | Process/background job or operation |
 | 托盘/迷你窗口 | Desktop shell coordinator | Process |
 | 当前设置快照 | Settings service | Process |
 | 短操作 | 发起用例/控制器 | Operation |
@@ -110,7 +110,7 @@ Current playback > Playback prefetch > Active cache
 
 主动缓存协调器负责批次快照、章节队列、进度、取消和状态发布；播放器只提交缓存请求，不拥有后台批次。
 
-章节朗读清单协调器只持久化每章当前有效结果。文本配置指纹变化时按需重算；输出未变化时更新计划头而不复制段记录。缓存完整度查询只聚合 SQLite 计划和 `Ready` 索引，不重新处理正文或逐文件解码。
+章节朗读清单由播放、预取、主动缓存和导出等真正消费章节内容的用例按需建立或更新；完整度读取发现过期计划时由进程级缓存工作区 owner 异步补建，缓存管理页对有缓存但缺失计划的章节同样补建，同章请求合并为一个后台任务。普通目录遇到缺失计划不建立清单；所有页面首轮查询只聚合 SQLite 计划和 `Ready` 索引，不重新处理正文、不逐文件解码。正式缓存写入前必须先提交对应计划。删除某章最后一条缓存索引时同步回收其朗读清单。
 
 ## 8. 桌面平台边界
 

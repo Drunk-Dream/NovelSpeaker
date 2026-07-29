@@ -15,3 +15,4 @@
 - `2026-07-10_UV_IMPLEMENTED_FOUNDATIONS_ARCHIVE.md`：Epic U、Epic V 在重新拆分前已经实现的基础能力。
 - `2026-07-26_ARCHITECTURE_REFACTOR_COMPLETED.md`：上一阶段架构重构、自动质量门禁与最终验证完成摘要。
 - `2026-07-28_COMPLETED_PRODUCT_EXPANSION_BACKLOG.md`：已完成 Wave 1–6 的完整任务记录，涵盖架构清理、UI、主动缓存、导出和桌面媒体能力。
+- `2026-07-29_COMPLETED_CACHE_SYSTEM_REFACTOR_BACKLOG.md`：已完成的稳定缓存身份、朗读清单持久化和快速完整度聚合阶段记录。
