@@ -7,6 +7,8 @@ public interface ILocalAudioPlaybackCoordinator : IAsyncDisposable
 {
     LocalAudioPlaybackSnapshot CurrentSnapshot { get; }
 
+    double Volume { get; }
+
     event EventHandler<LocalAudioPlaybackSnapshot>? SnapshotChanged;
 
     event EventHandler? PlaybackCompleted;
@@ -18,4 +20,5 @@ public interface ILocalAudioPlaybackCoordinator : IAsyncDisposable
     Task PauseAsync(CancellationToken cancellationToken);
     Task StopAsync(CancellationToken cancellationToken);
     Task SeekAsync(long positionMilliseconds, CancellationToken cancellationToken);
+    void SetVolume(double volume);
 }

@@ -12,7 +12,8 @@ public sealed record LocalAudioPlaybackSnapshot(
     long PositionMilliseconds,
     long DurationMilliseconds,
     string? Message,
-    bool IsUsingCache)
+    bool IsUsingCache,
+    double Volume = PlaybackVolume.Default)
 {
     public static LocalAudioPlaybackSnapshot Idle { get; } = new(
         PlaybackState.Idle,
@@ -23,5 +24,6 @@ public sealed record LocalAudioPlaybackSnapshot(
         0,
         0,
         "准备播放本地音频。",
-        false);
+        false,
+        PlaybackVolume.Default);
 }

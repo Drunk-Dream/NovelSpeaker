@@ -1,6 +1,7 @@
 using System.Windows.Automation;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,6 +41,9 @@ public sealed class MiniPlayerWindowTests
                 Assert.Equal("PlaybackActionText", playbackBinding.Path.Path);
                 AssertControl<Button>(window, "MiniPlayerNextSegmentButton", "下一段");
                 AssertControl<Button>(window, "MiniPlayerNextChapterButton", "下一章");
+                var volumeButton = Assert.IsType<Button>(window.FindName("MiniPlayerVolumeMenuButton"));
+                Assert.Equal("播放音量", volumeButton.ToolTip);
+                Assert.Equal("播放音量 100%", AutomationProperties.GetName(volumeButton));
                 AssertControl<Button>(window, "MiniPlayerRestoreButton", "恢复主窗口");
                 AssertControl<Button>(window, "MiniPlayerTopmostButton", "置顶");
                 var topmostStateBorder = Assert.IsType<Border>(window.FindName("MiniPlayerTopmostStateBorder"));
@@ -57,6 +61,24 @@ public sealed class MiniPlayerWindowTests
                 Assert.True(progressToolTip.StaysOpen);
                 Assert.False(ToolTipService.GetIsEnabled(progressSlider));
                 Assert.Same(window.FindResource("PlaybackProgressSliderStyle"), progressSlider.Style);
+
+                var volumePopup = Assert.IsType<Popup>(window.FindName("MiniPlayerVolumeMenuPopup"));
+                var volumeSlider = Assert.IsType<Slider>(window.FindName("MiniPlayerVolumeSlider"));
+                Assert.False(volumePopup.IsOpen);
+                Assert.Equal(0d, volumeSlider.Minimum);
+                Assert.Equal(1d, volumeSlider.Maximum);
+                Assert.Equal("播放音量", AutomationProperties.GetName(volumeSlider));
+                Assert.Same(window.FindResource("PlaybackProgressSliderStyle"), volumeSlider.Style);
+
+                Assert.IsType<Grid>(window.FindName("MiniPlayerControlBar"));
+                var mediaControls = Assert.IsType<StackPanel>(window.FindName("MiniPlayerMediaControls"));
+                Assert.Equal(1, Grid.GetColumn(mediaControls));
+                Assert.Equal(HorizontalAlignment.Center, mediaControls.HorizontalAlignment);
+                Assert.Equal(2, Grid.GetColumn(volumeButton));
+                Assert.Equal(HorizontalAlignment.Right, volumeButton.HorizontalAlignment);
+                Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
+                    volumePopup,
+                    textBlock => textBlock.Text == "仅调整应用内播放音量，不改变系统音量。"));
             }
             finally
             {

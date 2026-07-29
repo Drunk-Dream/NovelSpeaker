@@ -292,6 +292,7 @@ public sealed class TtsRuleTestServiceTests
         public PlaybackState State => PlaybackState.Stopped;
         public TimeSpan Position => TimeSpan.Zero;
         public TimeSpan Duration => TimeSpan.Zero;
+        public double Volume { get; set; } = PlaybackVolume.Default;
         public event EventHandler? PlaybackCompleted { add { } remove { } }
         public event EventHandler<PlaybackErrorEventArgs>? PlaybackFailed { add { } remove { } }
 

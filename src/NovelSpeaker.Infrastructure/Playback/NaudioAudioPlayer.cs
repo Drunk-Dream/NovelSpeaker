@@ -20,6 +20,7 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
     private AudioFileReader? _audioFileReader;
     private IWavePlayer? _wavePlayer;
     private EventHandler<StoppedEventArgs>? _playbackStoppedHandler;
+    private double _volume = PlaybackVolume.Default;
     private bool _suppressNextPlaybackStopped;
     private bool _disposed;
 
@@ -38,6 +39,19 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
     public TimeSpan Position => GetNormalizedPosition();
 
     public TimeSpan Duration => _audioFileReader?.TotalTime ?? TimeSpan.Zero;
+
+    public double Volume
+    {
+        get => _volume;
+        set
+        {
+            _volume = PlaybackVolume.Normalize(value);
+            if (_wavePlayer is not null)
+            {
+                _wavePlayer.Volume = (float)_volume;
+            }
+        }
+    }
 
     public event EventHandler? PlaybackCompleted;
     public event EventHandler<PlaybackErrorEventArgs>? PlaybackFailed;
@@ -189,6 +203,7 @@ public sealed class NaudioAudioPlayer : IAudioPlayer
         try
         {
             wavePlayer.Init(_switchingWaveProvider);
+            wavePlayer.Volume = (float)_volume;
             wavePlayer.PlaybackStopped += playbackStoppedHandler;
         }
         catch

@@ -20,7 +20,8 @@ public sealed record AppSettings(
     double? MiniPlayerLeft = null,
     double? MiniPlayerTop = null,
     bool MiniPlayerTopmost = false,
-    bool ReadChapterTitle = false)
+    bool ReadChapterTitle = false,
+    double PlaybackVolume = 1d)
 {
     public const int MinSpeakSpeed = 1;
     public const int MaxSpeakSpeed = 20;
@@ -31,6 +32,7 @@ public sealed record AppSettings(
     public const string DefaultBookFileNameTemplate = "{{name}} 作者：{{author}}";
     public const long DefaultCacheLimitBytes = 2L * 1024 * 1024 * 1024;
     public const long MinCacheLimitBytes = 256L * 1024 * 1024;
+    public const double DefaultPlaybackVolumeValue = 1d;
 
     public static IReadOnlyList<string> SupportedLogLevels { get; } =
         ["Trace", "Debug", "Information", "Warning", "Error", "Critical"];
@@ -54,7 +56,8 @@ public sealed record AppSettings(
             null,
             null,
             false,
-            false);
+            false,
+            DefaultPlaybackVolumeValue);
 
     public TextSegmentationOptions ToTextSegmentationOptions()
     {
@@ -93,6 +96,7 @@ public sealed record AppSettings(
             Theme = NormalizeOption(Theme, SupportedThemes, DefaultTheme),
             BookFileNameTemplate = NormalizeFileNameTemplate(BookFileNameTemplate),
             CacheLimitBytes = NormalizeCacheLimitBytes(CacheLimitBytes),
+            PlaybackVolume = NormalizePlaybackVolume(PlaybackVolume),
             MainWindowCloseBehavior = Enum.IsDefined(MainWindowCloseBehavior)
                 ? MainWindowCloseBehavior
                 : MainWindowCloseBehavior.MinimizeToTray,
@@ -109,6 +113,13 @@ public sealed record AppSettings(
         }
 
         return Math.Max(MinCacheLimitBytes, cacheLimitBytes);
+    }
+
+    public static double NormalizePlaybackVolume(double playbackVolume)
+    {
+        return double.IsFinite(playbackVolume)
+            ? Math.Clamp(playbackVolume, 0d, 1d)
+            : DefaultPlaybackVolumeValue;
     }
 
     private static string NormalizeFileNameTemplate(string? value)

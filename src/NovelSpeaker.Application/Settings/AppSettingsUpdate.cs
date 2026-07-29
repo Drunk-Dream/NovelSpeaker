@@ -33,6 +33,8 @@ public sealed record AppSettingsUpdate
 
     public bool? ReadChapterTitle { get; init; }
 
+    public double? PlaybackVolume { get; init; }
+
     public double? MiniPlayerLeft { get; init; }
 
     public bool ClearMiniPlayerLeft { get; init; }

@@ -36,6 +36,7 @@ public sealed class PlaybackInterfaceContractTests
                 "PreviousSegmentAsync",
                 "ResumeAsync",
                 "RetryCurrentSegmentAsync",
+                "SetVolume",
                 "SnapshotChanged",
                 "StartAsync",
                 "StopAsync"

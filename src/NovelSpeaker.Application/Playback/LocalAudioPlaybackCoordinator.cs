@@ -23,6 +23,7 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
     private LocalAudioPlaybackRequest? _currentRequest;
     private LocalAudioPlaybackSnapshot _currentSnapshot = LocalAudioPlaybackSnapshot.Idle;
     private long _sessionVersion;
+    private double _volume = PlaybackVolume.Default;
     private bool _disposed;
     private EventHandler? _playbackCompletedHandler;
     private EventHandler<PlaybackErrorEventArgs>? _playbackFailedHandler;
@@ -36,11 +37,28 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
 
     public LocalAudioPlaybackSnapshot CurrentSnapshot => _currentSnapshot;
 
+    public double Volume => _volume;
+
     public event EventHandler<LocalAudioPlaybackSnapshot>? SnapshotChanged;
 
     public event EventHandler? PlaybackCompleted;
 
     public event EventHandler<PlaybackErrorEventArgs>? PlaybackFailed;
+
+    public void SetVolume(double volume)
+    {
+        ThrowIfDisposed();
+
+        var normalized = PlaybackVolume.Normalize(volume);
+        if (normalized == _volume)
+        {
+            return;
+        }
+
+        _volume = normalized;
+        _audioPlayer.Volume = normalized;
+        PublishSnapshot(_currentSnapshot with { Volume = normalized });
+    }
 
     public async Task StartAsync(LocalAudioPlaybackRequest request, CancellationToken cancellationToken)
     {
@@ -379,7 +397,7 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
         SnapshotChanged?.Invoke(this, snapshot);
     }
 
-    private static LocalAudioPlaybackSnapshot CreateSnapshot(
+    private LocalAudioPlaybackSnapshot CreateSnapshot(
         PlaybackState state,
         string? displayTitle,
         string? bookId,
@@ -399,7 +417,8 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
             positionMilliseconds,
             durationMilliseconds,
             message,
-            isUsingCache);
+            isUsingCache,
+            _volume);
     }
 
     private static long ToMilliseconds(TimeSpan timeSpan)

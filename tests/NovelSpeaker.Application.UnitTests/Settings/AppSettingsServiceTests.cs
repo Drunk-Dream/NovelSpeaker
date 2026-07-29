@@ -79,13 +79,33 @@ public sealed class AppSettingsServiceTests
             {
                 DefaultSpeakSpeed = 99,
                 PrefetchCount = 8,
-                BookFileNameTemplate = "  {{name}}  "
+                BookFileNameTemplate = "  {{name}}  ",
+                PlaybackVolume = 2
             },
             CancellationToken.None);
 
         Assert.Equal(AppSettings.MaxSpeakSpeed, settings.DefaultSpeakSpeed);
         Assert.Equal(AppSettings.DefaultPrefetchCountValue, settings.PrefetchCount);
         Assert.Equal("{{name}}", settings.BookFileNameTemplate);
+        Assert.Equal(AppSettings.DefaultPlaybackVolumeValue, settings.PlaybackVolume);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_normalizes_playback_volume_to_supported_range()
+    {
+        var store = new FakeAppSettingsStore(AppSettings.Default);
+        using var service = new AppSettingsService(store, store.CurrentSettings);
+
+        var muted = await service.UpdateAsync(
+            new AppSettingsUpdate { PlaybackVolume = -0.25 },
+            CancellationToken.None);
+        var maximum = await service.UpdateAsync(
+            new AppSettingsUpdate { PlaybackVolume = 1.25 },
+            CancellationToken.None);
+
+        Assert.Equal(0, muted.PlaybackVolume);
+        Assert.Equal(1, maximum.PlaybackVolume);
+        Assert.Equal(maximum, store.CurrentSettings);
     }
 
     [Fact]

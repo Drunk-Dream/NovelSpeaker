@@ -322,6 +322,7 @@ public sealed class MediaControlCoordinatorTests
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public void SetVolume(double volume) => throw new NotSupportedException();
 
         public async Task WaitForCallsAsync(int count)
         {

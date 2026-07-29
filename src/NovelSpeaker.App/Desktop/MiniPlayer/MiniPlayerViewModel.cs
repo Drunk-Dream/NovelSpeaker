@@ -68,6 +68,10 @@ public sealed partial class MiniPlayerViewModel :
     public string PlaybackActionText =>
         CurrentPlaybackState == PlaybackState.Playing ? "暂停" : "播放";
 
+    public string VolumePercentText => $"{Math.Round(Volume * 100d):0}%";
+
+    public string VolumeButtonAutomationName => $"播放音量 {VolumePercentText}";
+
     public string TopmostActionText => IsTopmost ? "取消置顶" : "置顶";
 
     public string DisplayedSegmentCounterText
@@ -123,6 +127,12 @@ public sealed partial class MiniPlayerViewModel :
     [ObservableProperty]
     private bool isTopmost;
 
+    [ObservableProperty]
+    private bool isVolumeMenuOpen;
+
+    [ObservableProperty]
+    private double volume = PlaybackVolume.Default;
+
     partial void OnIsTopmostChanged(bool value)
     {
         OnPropertyChanged(nameof(TopmostActionText));
@@ -163,6 +173,9 @@ public sealed partial class MiniPlayerViewModel :
 
     [RelayCommand]
     private void ToggleTopmost() => IsTopmost = !IsTopmost;
+
+    [RelayCommand]
+    private void ToggleVolumeMenu() => IsVolumeMenuOpen = !IsVolumeMenuOpen;
 
     public void RequestRestore() => RestoreRequested?.Invoke(this, EventArgs.Empty);
 
@@ -306,6 +319,7 @@ public sealed partial class MiniPlayerViewModel :
         BookTitle = string.IsNullOrWhiteSpace(snapshot.BookTitle) ? "未打开书籍" : snapshot.BookTitle;
         ChapterTitle = string.IsNullOrWhiteSpace(snapshot.ChapterTitle) ? "尚未定位章节" : snapshot.ChapterTitle;
         CurrentPlaybackState = snapshot.State;
+        Volume = PlaybackVolume.Normalize(snapshot.Volume);
         CurrentChapterIndex = snapshot.ChapterIndex;
         CurrentSegmentIndex = snapshot.SegmentIndex;
         SegmentCount = snapshot.SegmentCount;
@@ -321,6 +335,20 @@ public sealed partial class MiniPlayerViewModel :
         OnPropertyChanged(nameof(CanTogglePlayback));
         OnPropertyChanged(nameof(PlaybackActionText));
         OnPropertyChanged(nameof(DisplayedSegmentCounterText));
+    }
+
+    partial void OnVolumeChanged(double value)
+    {
+        var normalized = PlaybackVolume.Normalize(value);
+        if (normalized != value)
+        {
+            Volume = normalized;
+            return;
+        }
+
+        OnPropertyChanged(nameof(VolumePercentText));
+        OnPropertyChanged(nameof(VolumeButtonAutomationName));
+        _playbackSession.SetVolume(normalized);
     }
 
     partial void OnCurrentSegmentIndexChanged(int value)

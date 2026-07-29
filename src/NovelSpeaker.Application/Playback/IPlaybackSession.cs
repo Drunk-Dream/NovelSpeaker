@@ -20,4 +20,5 @@ public interface IPlaybackSession : IPlaybackSnapshotSource
     Task RetryCurrentSegmentAsync(CancellationToken cancellationToken);
     Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken);
     Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken);
+    void SetVolume(double volume);
 }

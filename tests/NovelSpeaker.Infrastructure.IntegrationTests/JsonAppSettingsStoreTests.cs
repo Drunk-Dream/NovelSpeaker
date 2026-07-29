@@ -29,6 +29,7 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal("System", settings.Theme);
         Assert.Equal(AppSettings.DefaultBookFileNameTemplate, settings.BookFileNameTemplate);
         Assert.Equal(AppSettings.DefaultCacheLimitBytes, settings.CacheLimitBytes);
+        Assert.Equal(AppSettings.DefaultPlaybackVolumeValue, settings.PlaybackVolume);
     }
 
     [Fact]
@@ -97,6 +98,22 @@ public sealed class JsonAppSettingsStoreTests
         var reloaded = await store.LoadAsync(CancellationToken.None);
 
         Assert.Equal(512L * 1024 * 1024, reloaded.CacheLimitBytes);
+    }
+
+    [Fact]
+    public async Task SaveAsync_persists_playback_volume()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var directories = new LocalAppDataDirectoryProvider(temporaryDirectory.Path);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new JsonAppSettingsStore(directories);
+
+        await store.SaveAsync(
+            AppSettings.Default with { PlaybackVolume = 0.35 },
+            CancellationToken.None);
+        var reloaded = await store.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(0.35, reloaded.PlaybackVolume);
     }
 
     [Fact]
@@ -178,7 +195,8 @@ public sealed class JsonAppSettingsStoreTests
               "LogLevel": "Verbose",
               "Theme": "Blue",
               "BookFileNameTemplate": null,
-              "CacheLimitBytes": 1024
+              "CacheLimitBytes": 1024,
+              "PlaybackVolume": 2
             }
             """,
             CancellationToken.None);
@@ -193,6 +211,7 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal("System", settings.Theme);
         Assert.Equal(AppSettings.DefaultBookFileNameTemplate, settings.BookFileNameTemplate);
         Assert.Equal(AppSettings.MinCacheLimitBytes, settings.CacheLimitBytes);
+        Assert.Equal(AppSettings.DefaultPlaybackVolumeValue, settings.PlaybackVolume);
     }
 
     [Fact]

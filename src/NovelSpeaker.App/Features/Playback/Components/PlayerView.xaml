@@ -801,72 +801,102 @@
                     </Style>
                 </Border.Style>
                 <StackPanel>
-                    <WrapPanel HorizontalAlignment="Center">
-                        <Button x:Name="PreviousChapterButton"
-                                Margin="0,0,12,0"
+                    <Grid x:Name="PlaybackControlBar">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <WrapPanel x:Name="PlaybackMediaControls"
+                                   Grid.Column="1"
+                                   HorizontalAlignment="Center">
+                            <Button x:Name="PreviousChapterButton"
+                                    Margin="0,0,12,0"
+                                    Style="{StaticResource MediaIconButtonStyle}"
+                                    IsEnabled="{Binding CanGoToPreviousChapter}"
+                                    Command="{Binding PreviousChapterCommand}"
+                                    ToolTip="上一章"
+                                    AutomationProperties.Name="上一章">
+                                <ui:SymbolIcon Symbol="ChevronDoubleLeft20" />
+                            </Button>
+                            <Button x:Name="PreviousSegmentButton"
+                                    Margin="0,0,12,0"
+                                    Style="{StaticResource MediaIconButtonStyle}"
+                                    IsEnabled="{Binding CanGoToPreviousSegment}"
+                                    Command="{Binding PreviousSegmentCommand}"
+                                    ToolTip="上一段"
+                                    AutomationProperties.Name="上一段">
+                                <ui:SymbolIcon Symbol="ArrowPrevious24" />
+                            </Button>
+                            <Button x:Name="PrimaryPlaybackButton"
+                                    Margin="0,0,12,0"
+                                    Style="{StaticResource PrimaryPlaybackIconButtonStyle}"
+                                    IsEnabled="{Binding CanTogglePlayPause}"
+                                    Command="{Binding TogglePlayPauseCommand}"
+                                    ToolTip="{Binding PrimaryActionText}"
+                                    AutomationProperties.Name="{Binding PrimaryActionText}">
+                                <Border Width="48"
+                                        Height="48"
+                                        Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                        CornerRadius="999">
+                                    <ui:SymbolIcon HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="24"
+                                                   Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}">
+                                        <ui:SymbolIcon.Style>
+                                            <Style TargetType="ui:SymbolIcon">
+                                                <Setter Property="Symbol" Value="PlayCircle24" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DataContext.PrimaryAction, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                 Value="{x:Static presentation:PlaybackPrimaryAction.Pause}">
+                                                        <Setter Property="Symbol" Value="PauseCircle24" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ui:SymbolIcon.Style>
+                                    </ui:SymbolIcon>
+                                </Border>
+                            </Button>
+                            <Button x:Name="NextSegmentButton"
+                                    Margin="0,0,12,0"
+                                    Style="{StaticResource MediaIconButtonStyle}"
+                                    IsEnabled="{Binding CanGoToNextSegment}"
+                                    Command="{Binding NextSegmentCommand}"
+                                    ToolTip="下一段"
+                                    AutomationProperties.Name="下一段">
+                                <ui:SymbolIcon Symbol="ArrowNext24" />
+                            </Button>
+                            <Button x:Name="NextChapterButton"
+                                    Style="{StaticResource MediaIconButtonStyle}"
+                                    IsEnabled="{Binding CanGoToNextChapter}"
+                                    Command="{Binding NextChapterCommand}"
+                                    ToolTip="下一章"
+                                    AutomationProperties.Name="下一章">
+                                <ui:SymbolIcon Symbol="ChevronDoubleRight20" />
+                            </Button>
+                        </WrapPanel>
+                        <Button x:Name="VolumeMenuButton"
+                                Grid.Column="2"
+                                Margin="12,0,0,0"
+                                HorizontalAlignment="Right"
                                 Style="{StaticResource MediaIconButtonStyle}"
-                                IsEnabled="{Binding CanGoToPreviousChapter}"
-                                Command="{Binding PreviousChapterCommand}"
-                                ToolTip="上一章"
-                                AutomationProperties.Name="上一章">
-                            <ui:SymbolIcon Symbol="ChevronDoubleLeft20" />
+                                Command="{Binding ToggleVolumeMenuCommand}"
+                                ToolTip="播放音量"
+                                AutomationProperties.Name="{Binding VolumeButtonAutomationName, FallbackValue=播放音量}">
+                            <ui:SymbolIcon>
+                                <ui:SymbolIcon.Style>
+                                    <Style TargetType="ui:SymbolIcon">
+                                        <Setter Property="Symbol" Value="Speaker224" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Volume}" Value="0">
+                                                <Setter Property="Symbol" Value="SpeakerMute24" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:SymbolIcon.Style>
+                            </ui:SymbolIcon>
                         </Button>
-                        <Button x:Name="PreviousSegmentButton"
-                                Margin="0,0,12,0"
-                                Style="{StaticResource MediaIconButtonStyle}"
-                                IsEnabled="{Binding CanGoToPreviousSegment}"
-                                Command="{Binding PreviousSegmentCommand}"
-                                ToolTip="上一段"
-                                AutomationProperties.Name="上一段">
-                            <ui:SymbolIcon Symbol="ArrowPrevious24" />
-                        </Button>
-                        <Button x:Name="PrimaryPlaybackButton"
-                                Margin="0,0,12,0"
-                                Style="{StaticResource PrimaryPlaybackIconButtonStyle}"
-                                IsEnabled="{Binding CanTogglePlayPause}"
-                                Command="{Binding TogglePlayPauseCommand}"
-                                ToolTip="{Binding PrimaryActionText}"
-                                AutomationProperties.Name="{Binding PrimaryActionText}">
-                            <Border Width="48"
-                                    Height="48"
-                                    Background="{DynamicResource AccentFillColorDefaultBrush}"
-                                    CornerRadius="999">
-                                <ui:SymbolIcon HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               FontSize="24"
-                                               Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}">
-                                    <ui:SymbolIcon.Style>
-                                        <Style TargetType="ui:SymbolIcon">
-                                            <Setter Property="Symbol" Value="PlayCircle24" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding DataContext.PrimaryAction, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                             Value="{x:Static presentation:PlaybackPrimaryAction.Pause}">
-                                                    <Setter Property="Symbol" Value="PauseCircle24" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </ui:SymbolIcon.Style>
-                                </ui:SymbolIcon>
-                            </Border>
-                        </Button>
-                        <Button x:Name="NextSegmentButton"
-                                Margin="0,0,12,0"
-                                Style="{StaticResource MediaIconButtonStyle}"
-                                IsEnabled="{Binding CanGoToNextSegment}"
-                                Command="{Binding NextSegmentCommand}"
-                                ToolTip="下一段"
-                                AutomationProperties.Name="下一段">
-                            <ui:SymbolIcon Symbol="ArrowNext24" />
-                        </Button>
-                        <Button x:Name="NextChapterButton"
-                                Style="{StaticResource MediaIconButtonStyle}"
-                                IsEnabled="{Binding CanGoToNextChapter}"
-                                Command="{Binding NextChapterCommand}"
-                                ToolTip="下一章"
-                                AutomationProperties.Name="下一章">
-                            <ui:SymbolIcon Symbol="ChevronDoubleRight20" />
-                        </Button>
-                    </WrapPanel>
+                    </Grid>
 
                     <Grid Margin="0,16,0,0">
                         <ProgressBar x:Name="SegmentProgressFillBar"
@@ -901,6 +931,39 @@
                     </Grid>
                 </StackPanel>
             </Border>
+
+            <Popup x:Name="VolumeMenuPopup"
+                   PlacementTarget="{Binding ElementName=VolumeMenuButton}"
+                   Placement="Top"
+                   HorizontalOffset="0"
+                   VerticalOffset="-8"
+                   AllowsTransparency="True"
+                   StaysOpen="False"
+                   IsOpen="{Binding IsVolumeMenuOpen, Mode=TwoWay}">
+                <Border Width="280"
+                        Padding="{StaticResource CardPadding}"
+                        Style="{StaticResource PopupSurfaceBorderStyle}">
+                    <StackPanel>
+                        <Grid>
+                            <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                                       Text="播放音量" />
+                            <TextBlock HorizontalAlignment="Right"
+                                       Style="{StaticResource StrongTextBlockStyle}"
+                                       Text="{Binding VolumePercentText}" />
+                        </Grid>
+                        <Slider x:Name="VolumeSlider"
+                                Width="232"
+                                Margin="0,16,0,0"
+                                HorizontalAlignment="Left"
+                                Style="{StaticResource PlaybackProgressSliderStyle}"
+                                Minimum="0"
+                                Maximum="1"
+                                Value="{Binding Volume, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="播放音量"
+                                AutomationProperties.Name="播放音量" />
+                    </StackPanel>
+                </Border>
+            </Popup>
 
             <Border x:Name="NoRuleFooterBorder"
                     Padding="{StaticResource CardPaddingLarge}">

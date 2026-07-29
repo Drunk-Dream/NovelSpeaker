@@ -31,7 +31,8 @@ public sealed class PlaybackSnapshotProjectorTests
             "正在加载",
             true,
             true,
-            ContentRevision: 12));
+            ContentRevision: 12,
+            Volume: 0.4));
 
         Assert.Equal(PlaybackState.Buffering, snapshot.State);
         Assert.Equal("book-1", snapshot.BookId);
@@ -50,6 +51,7 @@ public sealed class PlaybackSnapshotProjectorTests
         Assert.True(snapshot.CanRetry);
         Assert.True(snapshot.HasAvailableRule);
         Assert.Equal(12, snapshot.ContentRevision);
+        Assert.Equal(0.4, snapshot.Volume);
     }
 
     [Fact]

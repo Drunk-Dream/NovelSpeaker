@@ -343,6 +343,8 @@ public sealed partial class PlaybackCoordinatorTests
     {
         public LocalAudioPlaybackSnapshot CurrentSnapshot { get; private set; } = LocalAudioPlaybackSnapshot.Idle;
 
+        public double Volume { get; private set; } = PlaybackVolume.Default;
+
         public LocalAudioPlaybackRequest? LastStartedRequest { get; private set; }
 
         public int StartCallCount { get; private set; }
@@ -409,6 +411,13 @@ public sealed partial class PlaybackCoordinatorTests
             CurrentSnapshot = CurrentSnapshot with { PositionMilliseconds = positionMilliseconds };
             SnapshotChanged?.Invoke(this, CurrentSnapshot);
             return Task.CompletedTask;
+        }
+
+        public void SetVolume(double volume)
+        {
+            Volume = PlaybackVolume.Normalize(volume);
+            CurrentSnapshot = CurrentSnapshot with { Volume = this.Volume };
+            SnapshotChanged?.Invoke(this, CurrentSnapshot);
         }
 
         public ValueTask DisposeAsync()
@@ -531,9 +540,24 @@ public sealed partial class PlaybackCoordinatorTests
         }
 
         public AppSettings Settings { get; private set; }
+
+        public List<AppSettingsUpdate> Updates { get; } = [];
+
+        public TaskCompletionSource<AppSettingsUpdate> UpdateCompleted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public AppSettings Current => Settings;
         public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
-        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) =>
-            Task.FromResult(Settings);
+
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
+        {
+            Updates.Add(update);
+            Settings = (Settings with
+            {
+                PlaybackVolume = update.PlaybackVolume ?? Settings.PlaybackVolume
+            }).Normalize();
+            UpdateCompleted.TrySetResult(update);
+            return Task.FromResult(Settings);
+        }
     }
 }

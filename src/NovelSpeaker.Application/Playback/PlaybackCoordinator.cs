@@ -20,6 +20,8 @@ public sealed class PlaybackCoordinator :
     IPlaybackRegexReplacementRefresher,
     IAsyncDisposable
 {
+    internal static readonly TimeSpan VolumePersistenceDelay = TimeSpan.FromMilliseconds(300);
+
     private readonly IBookPlaybackContentService _bookContentService;
     private readonly ISelectedTtsRuleProvider _selectedRuleProvider;
     private readonly PlaybackSegmentRunner _segmentRunner;
@@ -29,6 +31,7 @@ public sealed class PlaybackCoordinator :
     private readonly PlaybackProgressService _progressService;
     private readonly IPlaybackPrefetchController _prefetchController;
     private readonly IAppSettingsService _appSettingsService;
+    private readonly TimeProvider _timeProvider;
     private readonly PlaybackStopTimerController _stopTimer;
     private readonly SemaphoreSlim _mutex = new(1, 1);
     private readonly Channel<PlaybackEventCommand> _eventCommands = Channel.CreateUnbounded<PlaybackEventCommand>(
@@ -42,6 +45,7 @@ public sealed class PlaybackCoordinator :
     private readonly CancellationTokenSource _eventCommandCancellation = new();
     private readonly Task _eventCommandProcessor;
     private readonly object _disposeGate = new();
+    private readonly object _volumePersistenceGate = new();
 
     private PlaybackSnapshot _currentSnapshot = PlaybackSnapshot.Idle;
     private PlaybackSessionState? _currentSession;
@@ -50,6 +54,10 @@ public sealed class PlaybackCoordinator :
     private long _contentRevision;
     private bool _disposed;
     private Task? _disposeTask;
+    private CancellationTokenSource? _volumePersistenceCancellation;
+    private Task? _volumePersistenceTask;
+    private double _pendingVolume;
+    private bool _hasPendingVolumePersistence;
 
     // These accessors are aliases into the session owner. They intentionally do not
     // cache a second book, rule, or protection handle in the coordinator.
@@ -92,8 +100,12 @@ public sealed class PlaybackCoordinator :
         _progressService = progressService;
         _prefetchController = prefetchController;
         _appSettingsService = appSettingsService;
+        _timeProvider = timeProvider;
+        var startupVolume = PlaybackVolume.Normalize(_appSettingsService.Current.PlaybackVolume);
+        _localAudioPlaybackCoordinator.SetVolume(startupVolume);
+        _currentSnapshot = PlaybackSnapshot.Idle with { Volume = startupVolume };
         _stopTimer = new PlaybackStopTimerController(
-            timeProvider,
+            _timeProvider,
             PauseAsync,
             PublishStopTimerFailureSafely);
 
@@ -197,6 +209,22 @@ public sealed class PlaybackCoordinator :
         return RunSerializedAsync(ct => ChangeSpeedCoreAsync(speakSpeed, ct), cancellationToken);
     }
 
+    public void SetVolume(double volume)
+    {
+        ThrowIfDisposed();
+        var previousVolume = _localAudioPlaybackCoordinator.Volume;
+        _localAudioPlaybackCoordinator.SetVolume(volume);
+        var normalizedVolume = _localAudioPlaybackCoordinator.Volume;
+        PublishSnapshot(_currentSnapshot with
+        {
+            Volume = normalizedVolume
+        });
+        if (normalizedVolume != previousVolume)
+        {
+            ScheduleVolumePersistence(normalizedVolume);
+        }
+    }
+
     public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
@@ -236,6 +264,15 @@ public sealed class PlaybackCoordinator :
         _localAudioPlaybackCoordinator.PlaybackFailed -= OnLocalPlaybackFailed;
 
         Exception? disposeFailure = null;
+        try
+        {
+            await FlushVolumePersistenceAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            disposeFailure ??= exception;
+        }
+
         var entered = false;
         try
         {
@@ -1675,7 +1712,7 @@ public sealed class PlaybackCoordinator :
         long DurationMilliseconds,
         PlaybackErrorKind ErrorKind);
 
-    private static PlaybackSnapshot CreateRuleMissingSnapshot(
+    private PlaybackSnapshot CreateRuleMissingSnapshot(
         PlaybackBookContent book,
         int chapterIndex,
         int segmentIndex,
@@ -1693,7 +1730,8 @@ public sealed class PlaybackCoordinator :
             "当前没有可用的 TTS 规则，请先前往规则页选择或导入规则。",
             false,
             false,
-            SegmentCountOverride: 0));
+            SegmentCountOverride: 0,
+            Volume: _localAudioPlaybackCoordinator.Volume));
     }
 
     private PlaybackSnapshot BuildSnapshot(
@@ -1721,7 +1759,8 @@ public sealed class PlaybackCoordinator :
             message,
             isUsingCache,
             canRetry,
-            _contentRevision));
+            _contentRevision,
+            Volume: _localAudioPlaybackCoordinator.Volume));
     }
 
     private (int ChapterIndex, int SegmentIndex) GetCurrentPosition()
@@ -2213,6 +2252,104 @@ public sealed class PlaybackCoordinator :
         finally
         {
             _mutex.Release();
+        }
+    }
+
+    private void ScheduleVolumePersistence(double volume)
+    {
+        CancellationTokenSource persistenceCancellation;
+        Task persistenceTask;
+        lock (_volumePersistenceGate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _pendingVolume = volume;
+            _hasPendingVolumePersistence = true;
+            _volumePersistenceCancellation?.Cancel();
+            persistenceCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifecycleCancellation.Token);
+            _volumePersistenceCancellation = persistenceCancellation;
+            persistenceTask = PersistVolumeAfterDelayAsync(persistenceCancellation);
+            _volumePersistenceTask = persistenceTask;
+        }
+    }
+
+    private async Task PersistVolumeAfterDelayAsync(CancellationTokenSource persistenceCancellation)
+    {
+        try
+        {
+            await Task.Delay(
+                VolumePersistenceDelay,
+                _timeProvider,
+                persistenceCancellation.Token).ConfigureAwait(false);
+            await PersistPendingVolumeAsync(persistenceCancellation.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (persistenceCancellation.IsCancellationRequested)
+        {
+            // Replacing a newer slider value or closing the application cancels the debounce task.
+        }
+        catch (Exception)
+        {
+            // Settings persistence is best effort while playback remains usable. The pending value is
+            // retained and a later slider change or shutdown flush retries it.
+        }
+        finally
+        {
+            lock (_volumePersistenceGate)
+            {
+                if (ReferenceEquals(_volumePersistenceCancellation, persistenceCancellation))
+                {
+                    _volumePersistenceCancellation = null;
+                    _volumePersistenceTask = null;
+                }
+            }
+
+            persistenceCancellation.Dispose();
+        }
+    }
+
+    private async Task FlushVolumePersistenceAsync()
+    {
+        Task? persistenceTask;
+        lock (_volumePersistenceGate)
+        {
+            _volumePersistenceCancellation?.Cancel();
+            persistenceTask = _volumePersistenceTask;
+        }
+
+        if (persistenceTask is not null)
+        {
+            await persistenceTask.ConfigureAwait(false);
+        }
+
+        await PersistPendingVolumeAsync(CancellationToken.None).ConfigureAwait(false);
+    }
+
+    private async Task PersistPendingVolumeAsync(CancellationToken cancellationToken)
+    {
+        double volume;
+        lock (_volumePersistenceGate)
+        {
+            if (!_hasPendingVolumePersistence)
+            {
+                return;
+            }
+
+            volume = _pendingVolume;
+        }
+
+        await _appSettingsService.UpdateAsync(
+            new AppSettingsUpdate { PlaybackVolume = volume },
+            cancellationToken).ConfigureAwait(false);
+
+        lock (_volumePersistenceGate)
+        {
+            if (_hasPendingVolumePersistence && _pendingVolume == volume)
+            {
+                _hasPendingVolumePersistence = false;
+            }
         }
     }
 

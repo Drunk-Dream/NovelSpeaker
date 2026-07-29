@@ -737,6 +737,9 @@ public sealed partial class PlayerViewTests
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("PrimaryPlaybackButton")), "播放");
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("NextSegmentButton")), "下一段");
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("NextChapterButton")), "下一章");
+            var volumeButton = Assert.IsType<Button>(view.FindName("VolumeMenuButton"));
+            Assert.Equal("播放音量", volumeButton.ToolTip);
+            Assert.Equal("播放音量 100%", AutomationProperties.GetName(volumeButton));
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("ReturnToCurrentSegmentButton")), "返回当前段落");
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("BackButton")), "返回");
             Assert.Null(view.FindName("SkipCurrentSegmentButton"));
@@ -754,6 +757,24 @@ public sealed partial class PlayerViewTests
             Assert.Equal(SymbolRegular.PlayCircle24, primaryIcon.Symbol);
             Assert.Equal(SymbolRegular.ChevronDoubleLeft20, previousChapterIcon.Symbol);
             Assert.Equal(SymbolRegular.ChevronDoubleRight20, nextChapterIcon.Symbol);
+
+            Assert.IsType<Grid>(view.FindName("PlaybackControlBar"));
+            var mediaControls = Assert.IsType<WrapPanel>(view.FindName("PlaybackMediaControls"));
+            Assert.Equal(1, Grid.GetColumn(mediaControls));
+            Assert.Equal(HorizontalAlignment.Center, mediaControls.HorizontalAlignment);
+            Assert.Equal(2, Grid.GetColumn(volumeButton));
+            Assert.Equal(HorizontalAlignment.Right, volumeButton.HorizontalAlignment);
+
+            var volumePopup = Assert.IsType<Popup>(view.FindName("VolumeMenuPopup"));
+            var volumeSlider = Assert.IsType<Slider>(view.FindName("VolumeSlider"));
+            Assert.False(volumePopup.IsOpen);
+            Assert.Equal(0d, volumeSlider.Minimum);
+            Assert.Equal(1d, volumeSlider.Maximum);
+            Assert.Equal("播放音量", AutomationProperties.GetName(volumeSlider));
+            Assert.Same(view.FindResource("PlaybackProgressSliderStyle"), volumeSlider.Style);
+            Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
+                volumePopup,
+                textBlock => textBlock.Text == "仅调整应用内播放音量，不改变系统音量。"));
         });
     }
 

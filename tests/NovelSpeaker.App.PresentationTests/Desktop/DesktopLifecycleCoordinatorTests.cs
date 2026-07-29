@@ -447,6 +447,7 @@ public sealed class DesktopLifecycleCoordinatorTests
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
+        public void SetVolume(double volume) { }
     }
 
     private sealed class RecordingLogger<T> : Microsoft.Extensions.Logging.ILogger<T>

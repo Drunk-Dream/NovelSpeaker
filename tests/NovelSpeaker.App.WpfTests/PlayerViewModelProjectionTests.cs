@@ -19,6 +19,37 @@ namespace NovelSpeaker.App.WpfTests;
 public sealed partial class PlayerViewModelTests
 {
     [Fact]
+    public async Task Volume_projection_and_changes_use_the_shared_playback_session()
+    {
+        var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle with
+        {
+            State = PlaybackState.Paused,
+            BookId = "book-1",
+            BookTitle = "示例小说",
+            ChapterTitle = "第一章",
+            SegmentCount = 1,
+            Volume = 0.4
+        });
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(null, null));
+
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(0.4, viewModel.Volume);
+        Assert.Equal("40%", viewModel.VolumePercentText);
+
+        viewModel.Volume = 0.2;
+
+        Assert.Equal(0.2, coordinator.LastVolume);
+
+        viewModel.ToggleVolumeMenuCommand.Execute(null);
+        Assert.True(viewModel.IsVolumeMenuOpen);
+        viewModel.ToggleVolumeMenuCommand.Execute(null);
+        Assert.False(viewModel.IsVolumeMenuOpen);
+    }
+
+    [Fact]
     public async Task Faulted_snapshot_shows_error_bar_and_retry_flow()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(

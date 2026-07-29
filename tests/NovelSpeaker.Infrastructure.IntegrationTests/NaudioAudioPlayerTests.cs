@@ -48,6 +48,23 @@ public sealed class NaudioAudioPlayerTests
     }
 
     [Fact]
+    public async Task Volume_is_applied_to_wave_output_without_changing_system_volume()
+    {
+        var wavePlayer = new FakeWavePlayer();
+        await using var player = new NaudioAudioPlayer(() => wavePlayer);
+
+        player.Volume = 0.4;
+        await player.LoadAsync(PlaybackTestAudio.DemoWavPath, CancellationToken.None);
+
+        Assert.Equal(0.4, player.Volume);
+        Assert.Equal(0.4f, wavePlayer.Volume);
+
+        player.Volume = 2;
+        Assert.Equal(1, player.Volume);
+        Assert.Equal(1f, wavePlayer.Volume);
+    }
+
+    [Fact]
     public async Task PlaybackStopped_at_end_raises_completion_event()
     {
         var wavePlayer = new FakeWavePlayer();

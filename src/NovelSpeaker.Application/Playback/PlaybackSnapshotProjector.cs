@@ -18,7 +18,8 @@ internal sealed record PlaybackSnapshotProjectionInput(
     bool IsUsingCache,
     bool CanRetry,
     long ContentRevision = 0,
-    int? SegmentCountOverride = null);
+    int? SegmentCountOverride = null,
+    double Volume = PlaybackVolume.Default);
 
 /// <summary>
 /// Pure projection from explicit playback data to an immutable UI snapshot.
@@ -50,6 +51,7 @@ internal static class PlaybackSnapshotProjector
             input.CanRetry,
             input.Book.BookAuthor,
             input.SelectedRule is not null,
-            input.ContentRevision);
+            input.ContentRevision,
+            PlaybackVolume.Normalize(input.Volume));
     }
 }

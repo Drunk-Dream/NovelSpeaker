@@ -170,6 +170,8 @@ public sealed partial class PlayerViewTests
 
         public IRelayCommand ToggleSpeedMenuCommand { get; } = new RelayCommand(() => { });
 
+        public IRelayCommand ToggleVolumeMenuCommand { get; } = new RelayCommand(() => { });
+
         public IRelayCommand ScheduleCustomStopTimerCommand { get; } = new RelayCommand(() => { });
 
         public IRelayCommand CancelStopTimerCommand { get; } = new RelayCommand(() => { });
@@ -216,11 +218,17 @@ public sealed partial class PlayerViewTests
 
         public string SpeakSpeedButtonText { get; } = "语速 10";
 
+        public string VolumePercentText { get; } = "100%";
+
+        public string VolumeButtonAutomationName { get; } = "播放音量 100%";
+
         public string StopTimerButtonAutomationName { get; } = "定时停止";
 
         public string StopTimerRemainingText { get; } = "—";
 
         public int SpeakSpeed { get; } = 10;
+
+        public double Volume { get; set; } = 1d;
 
         public SymbolRegular PrimaryActionSymbol { get; } = SymbolRegular.PlayCircle24;
 
@@ -241,6 +249,8 @@ public sealed partial class PlayerViewTests
         public bool IsRuleMenuOpen { get; set; }
 
         public bool IsSpeedMenuOpen { get; set; }
+
+        public bool IsVolumeMenuOpen { get; set; }
 
         public bool ShouldAutoCenterCurrentSegment { get; } = true;
 
@@ -387,6 +397,7 @@ public sealed partial class PlayerViewTests
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
+        public void SetVolume(double volume) { }
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;

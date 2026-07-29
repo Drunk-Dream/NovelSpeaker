@@ -242,6 +242,8 @@ public sealed partial class PlayerViewModelTests
 
         public int? LastChangedSpeakSpeed { get; private set; }
 
+        public double? LastVolume { get; private set; }
+
         private readonly TaskCompletionSource _speedChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public int OpenPausedCallCount { get; private set; }
@@ -439,6 +441,12 @@ public sealed partial class PlayerViewModelTests
         public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public void SetVolume(double volume)
+        {
+            LastVolume = volume;
+            Publish(CurrentSnapshot with { Volume = volume });
+        }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 

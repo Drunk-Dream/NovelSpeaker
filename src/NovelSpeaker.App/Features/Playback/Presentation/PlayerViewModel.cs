@@ -141,6 +141,10 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     public string SpeakSpeedButtonText => $"语速 {SpeakSpeed}";
 
+    public string VolumePercentText => $"{Math.Round(Volume * 100d):0}%";
+
+    public string VolumeButtonAutomationName => $"播放音量 {VolumePercentText}";
+
     public string StopTimerButtonAutomationName => HasActiveStopTimer
         ? $"定时停止，剩余 {StopTimerRemainingText}"
         : "定时停止";
@@ -231,6 +235,9 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     private bool isStopTimerMenuOpen;
 
     [ObservableProperty]
+    private bool isVolumeMenuOpen;
+
+    [ObservableProperty]
     private string customStopMinutesText = string.Empty;
 
     [ObservableProperty]
@@ -265,6 +272,9 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     [ObservableProperty]
     private bool isSegmentProgressDragging;
+
+    [ObservableProperty]
+    private double volume = PlaybackVolume.Default;
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -543,6 +553,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     {
         IsSpeedMenuOpen = false;
         IsStopTimerMenuOpen = false;
+        IsVolumeMenuOpen = false;
         IsRuleMenuOpen = !IsRuleMenuOpen;
     }
 
@@ -551,6 +562,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     {
         IsRuleMenuOpen = false;
         IsStopTimerMenuOpen = false;
+        IsVolumeMenuOpen = false;
         if (!IsSpeedMenuOpen)
         {
             SpeedEditorText = SpeakSpeed.ToString(CultureInfo.InvariantCulture);
@@ -565,6 +577,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     {
         IsSpeedMenuOpen = false;
         IsStopTimerMenuOpen = false;
+        IsVolumeMenuOpen = false;
         IsRuleMenuOpen = true;
     }
 
@@ -573,8 +586,18 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     {
         IsRuleMenuOpen = false;
         IsSpeedMenuOpen = false;
+        IsVolumeMenuOpen = false;
         CustomStopTimerErrorText = string.Empty;
         IsStopTimerMenuOpen = !IsStopTimerMenuOpen;
+    }
+
+    [RelayCommand]
+    private void ToggleVolumeMenu()
+    {
+        IsRuleMenuOpen = false;
+        IsSpeedMenuOpen = false;
+        IsStopTimerMenuOpen = false;
+        IsVolumeMenuOpen = !IsVolumeMenuOpen;
     }
 
     [RelayCommand]
@@ -879,6 +902,20 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         OnPropertyChanged(nameof(SpeakSpeedButtonText));
         OnPropertyChanged(nameof(CanDecreaseSpeakSpeed));
         OnPropertyChanged(nameof(CanIncreaseSpeakSpeed));
+    }
+
+    partial void OnVolumeChanged(double value)
+    {
+        var normalized = PlaybackVolume.Normalize(value);
+        if (normalized != value)
+        {
+            Volume = normalized;
+            return;
+        }
+
+        OnPropertyChanged(nameof(VolumePercentText));
+        OnPropertyChanged(nameof(VolumeButtonAutomationName));
+        _playbackCoordinator.SetVolume(normalized);
     }
 
     partial void OnCurrentSegmentIndexChanged(int value)
@@ -1194,6 +1231,8 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             }
         }
 
+        Volume = PlaybackVolume.Normalize(snapshot.Volume);
+
         CurrentChapterIndex = projected.ChapterIndex;
         CurrentSegmentIndex = projected.SegmentIndex;
         SynchronizeContentProjection(includeChapterTitle: false);
@@ -1300,6 +1339,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         IsRuleMenuOpen = false;
         IsSpeedMenuOpen = false;
         IsStopTimerMenuOpen = false;
+        IsVolumeMenuOpen = false;
         SpeedEditorErrorText = string.Empty;
     }
 

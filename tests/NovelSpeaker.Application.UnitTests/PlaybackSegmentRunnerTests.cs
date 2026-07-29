@@ -163,6 +163,8 @@ public sealed class PlaybackSegmentRunnerTests
     {
         public LocalAudioPlaybackSnapshot CurrentSnapshot { get; private set; } = LocalAudioPlaybackSnapshot.Idle;
 
+        public double Volume { get; private set; } = PlaybackVolume.Default;
+
         public LocalAudioPlaybackRequest? LastRequest { get; private set; }
 
         public event EventHandler<LocalAudioPlaybackSnapshot>? SnapshotChanged;
@@ -195,6 +197,12 @@ public sealed class PlaybackSegmentRunnerTests
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task SeekAsync(long positionMilliseconds, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public void SetVolume(double volume)
+        {
+            Volume = PlaybackVolume.Normalize(volume);
+            CurrentSnapshot = CurrentSnapshot with { Volume = this.Volume };
+        }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

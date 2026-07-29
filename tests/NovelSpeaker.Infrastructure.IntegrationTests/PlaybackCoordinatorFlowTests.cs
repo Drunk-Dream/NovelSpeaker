@@ -14,6 +14,55 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 public sealed partial class PlaybackCoordinatorTests
 {
     [Fact]
+    public async Task Constructor_restores_persisted_playback_volume()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            appSettingsStore: new FakeAppSettingsStore(
+                AppSettings.Default with { PlaybackVolume = 0.35 }));
+
+        Assert.Equal(0.35, localCoordinator.Volume);
+        Assert.Equal(0.35, coordinator.CurrentSnapshot.Volume);
+    }
+
+    [Fact]
+    public async Task SetVolume_persists_only_the_latest_value_after_debounce()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var settingsStore = new FakeAppSettingsStore(AppSettings.Default);
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            appSettingsStore: settingsStore,
+            timeProvider: timeProvider);
+
+        coordinator.SetVolume(0.25);
+        coordinator.SetVolume(0.5);
+        timeProvider.Advance(PlaybackCoordinator.VolumePersistenceDelay);
+
+        var update = await settingsStore.UpdateCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(0.5, update.PlaybackVolume);
+        Assert.Single(settingsStore.Updates);
+        Assert.Equal(0.5, settingsStore.Current.PlaybackVolume);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_flushes_pending_playback_volume_persistence()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var settingsStore = new FakeAppSettingsStore(AppSettings.Default);
+        var coordinator = CreateCoordinator(localCoordinator, appSettingsStore: settingsStore);
+
+        coordinator.SetVolume(0.4);
+        await coordinator.DisposeAsync();
+
+        Assert.Equal(0.4, settingsStore.Current.PlaybackVolume);
+        Assert.Single(settingsStore.Updates);
+    }
+
+    [Fact]
     public async Task StartAsync_with_selected_rule_and_audio_result_enters_playing_state()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();

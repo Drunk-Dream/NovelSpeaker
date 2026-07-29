@@ -68,6 +68,27 @@ public sealed class LocalAudioPlaybackCoordinatorTests
     }
 
     [Fact]
+    public async Task SetVolume_clamps_and_applies_application_volume_to_audio_player()
+    {
+        var player = new FakeAudioPlayer();
+        await using var coordinator = new LocalAudioPlaybackCoordinator(player);
+
+        coordinator.SetVolume(0.35);
+
+        Assert.Equal(0.35, coordinator.Volume);
+        Assert.Equal(0.35, player.Volume);
+        Assert.Equal(0.35, coordinator.CurrentSnapshot.Volume);
+
+        coordinator.SetVolume(2);
+        Assert.Equal(1, coordinator.Volume);
+        Assert.Equal(1, player.Volume);
+
+        coordinator.SetVolume(-1);
+        Assert.Equal(0, coordinator.Volume);
+        Assert.Equal(0, player.Volume);
+    }
+
+    [Fact]
     public async Task StartAsync_ignores_stale_completion_from_previous_subscription()
     {
         var player = new FakeAudioPlayer();

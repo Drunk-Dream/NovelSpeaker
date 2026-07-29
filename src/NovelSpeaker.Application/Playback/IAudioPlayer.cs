@@ -8,6 +8,7 @@ public interface IAudioPlayer : IAsyncDisposable
     PlaybackState State { get; }
     TimeSpan Position { get; }
     TimeSpan Duration { get; }
+    double Volume { get; set; }
 
     event EventHandler? PlaybackCompleted;
     event EventHandler<PlaybackErrorEventArgs>? PlaybackFailed;

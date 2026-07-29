@@ -17,6 +17,8 @@ internal sealed class FakeAudioPlayer : IAudioPlayer
 
     public TimeSpan Duration { get; private set; } = TimeSpan.FromSeconds(2);
 
+    public double Volume { get; set; } = PlaybackVolume.Default;
+
     public string? LoadedFilePath { get; private set; }
 
     public int CompletedSubscriptionCount => _completedHistory.Count;

@@ -25,7 +25,8 @@ public sealed class MiniPlayerViewModelTests
             SegmentIndex = 1,
             SegmentCount = 3,
             PositionMilliseconds = 250,
-            DurationMilliseconds = 1000
+            DurationMilliseconds = 1000,
+            Volume = 0.4
         });
 
         Assert.Equal("测试书", viewModel.BookTitle);
@@ -35,9 +36,19 @@ public sealed class MiniPlayerViewModelTests
         Assert.True(viewModel.CanGoToPreviousSegment);
         Assert.True(viewModel.CanGoToNextSegment);
         Assert.Equal("暂停", viewModel.PlaybackActionText);
+        Assert.Equal(0.4, viewModel.Volume);
+        Assert.Equal("40%", viewModel.VolumePercentText);
         Assert.Equal("置顶", viewModel.TopmostActionText);
         viewModel.IsTopmost = true;
         Assert.Equal("取消置顶", viewModel.TopmostActionText);
+
+        viewModel.Volume = 0.25;
+        Assert.Equal(0.25, playback.LastVolume);
+
+        viewModel.ToggleVolumeMenuCommand.Execute(null);
+        Assert.True(viewModel.IsVolumeMenuOpen);
+        viewModel.ToggleVolumeMenuCommand.Execute(null);
+        Assert.False(viewModel.IsVolumeMenuOpen);
 
         await viewModel.TogglePlaybackCommand.ExecuteAsync(null);
         await viewModel.PreviousChapterCommand.ExecuteAsync(null);
@@ -223,6 +234,8 @@ public sealed class MiniPlayerViewModelTests
 
         public (int ChapterIndex, int SegmentIndex)? LastJumpedSegment { get; private set; }
 
+        public double? LastVolume { get; private set; }
+
         public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 
         public void Publish(PlaybackSnapshot snapshot)
@@ -251,6 +264,7 @@ public sealed class MiniPlayerViewModelTests
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
+        public void SetVolume(double volume) => LastVolume = volume;
 
         private Task Record(string call, CancellationToken cancellationToken)
         {

@@ -128,66 +128,129 @@
                 </Slider>
             </Grid>
 
-            <StackPanel Grid.Row="3"
-                        Margin="0,14,0,0"
-                        HorizontalAlignment="Center"
-                        Orientation="Horizontal">
-                <Button x:Name="MiniPlayerPreviousChapterButton"
-                        Margin="0,0,8,0"
+            <Grid x:Name="MiniPlayerControlBar"
+                  Grid.Row="3"
+                  Margin="0,14,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel x:Name="MiniPlayerMediaControls"
+                            Grid.Column="1"
+                            HorizontalAlignment="Center"
+                            Orientation="Horizontal">
+                    <Button x:Name="MiniPlayerPreviousChapterButton"
+                            Margin="0,0,8,0"
+                            Style="{StaticResource MediaIconButtonStyle}"
+                            IsEnabled="{Binding HasPlaybackContext}"
+                            Command="{Binding PreviousChapterCommand}"
+                            ToolTip="上一章"
+                            AutomationProperties.Name="上一章">
+                        <ui:SymbolIcon Symbol="ChevronDoubleLeft20" />
+                    </Button>
+                    <Button x:Name="MiniPlayerPreviousSegmentButton"
+                            Margin="0,0,8,0"
+                            Style="{StaticResource MediaIconButtonStyle}"
+                            IsEnabled="{Binding CanGoToPreviousSegment}"
+                            Command="{Binding PreviousSegmentCommand}"
+                            ToolTip="上一段"
+                            AutomationProperties.Name="上一段">
+                        <ui:SymbolIcon Symbol="ArrowPrevious24" />
+                    </Button>
+                    <Button x:Name="MiniPlayerPlaybackButton"
+                            Margin="0,0,8,0"
+                            Style="{StaticResource PrimaryPlaybackIconButtonStyle}"
+                            IsEnabled="{Binding CanTogglePlayback}"
+                            Command="{Binding TogglePlaybackCommand}"
+                            ToolTip="{Binding PlaybackActionText}"
+                            AutomationProperties.Name="{Binding PlaybackActionText}">
+                        <ui:SymbolIcon>
+                            <ui:SymbolIcon.Style>
+                                <Style TargetType="ui:SymbolIcon">
+                                    <Setter Property="Symbol" Value="PlayCircle24" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding PlaybackActionText}" Value="暂停">
+                                            <Setter Property="Symbol" Value="PauseCircle24" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:SymbolIcon.Style>
+                        </ui:SymbolIcon>
+                    </Button>
+                    <Button x:Name="MiniPlayerNextSegmentButton"
+                            Margin="0,0,8,0"
+                            Style="{StaticResource MediaIconButtonStyle}"
+                            IsEnabled="{Binding CanGoToNextSegment}"
+                            Command="{Binding NextSegmentCommand}"
+                            ToolTip="下一段"
+                            AutomationProperties.Name="下一段">
+                        <ui:SymbolIcon Symbol="ArrowNext24" />
+                    </Button>
+                    <Button x:Name="MiniPlayerNextChapterButton"
+                            Style="{StaticResource MediaIconButtonStyle}"
+                            IsEnabled="{Binding HasPlaybackContext}"
+                            Command="{Binding NextChapterCommand}"
+                            ToolTip="下一章"
+                            AutomationProperties.Name="下一章">
+                        <ui:SymbolIcon Symbol="ChevronDoubleRight20" />
+                    </Button>
+                </StackPanel>
+                <Button x:Name="MiniPlayerVolumeMenuButton"
+                        Grid.Column="2"
+                        Margin="8,0,0,0"
+                        HorizontalAlignment="Right"
                         Style="{StaticResource MediaIconButtonStyle}"
-                        IsEnabled="{Binding HasPlaybackContext}"
-                        Command="{Binding PreviousChapterCommand}"
-                        ToolTip="上一章"
-                        AutomationProperties.Name="上一章">
-                    <ui:SymbolIcon Symbol="ChevronDoubleLeft20" />
-                </Button>
-                <Button x:Name="MiniPlayerPreviousSegmentButton"
-                        Margin="0,0,8,0"
-                        Style="{StaticResource MediaIconButtonStyle}"
-                        IsEnabled="{Binding CanGoToPreviousSegment}"
-                        Command="{Binding PreviousSegmentCommand}"
-                        ToolTip="上一段"
-                        AutomationProperties.Name="上一段">
-                    <ui:SymbolIcon Symbol="ArrowPrevious24" />
-                </Button>
-                <Button x:Name="MiniPlayerPlaybackButton"
-                        Margin="0,0,8,0"
-                        Style="{StaticResource PrimaryPlaybackIconButtonStyle}"
-                        IsEnabled="{Binding CanTogglePlayback}"
-                        Command="{Binding TogglePlaybackCommand}"
-                        ToolTip="{Binding PlaybackActionText}"
-                        AutomationProperties.Name="{Binding PlaybackActionText}">
+                        Command="{Binding ToggleVolumeMenuCommand}"
+                        ToolTip="播放音量"
+                        AutomationProperties.Name="{Binding VolumeButtonAutomationName, FallbackValue=播放音量}">
                     <ui:SymbolIcon>
                         <ui:SymbolIcon.Style>
                             <Style TargetType="ui:SymbolIcon">
-                                <Setter Property="Symbol" Value="PlayCircle24" />
+                                <Setter Property="Symbol" Value="Speaker224" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding PlaybackActionText}" Value="暂停">
-                                        <Setter Property="Symbol" Value="PauseCircle24" />
+                                    <DataTrigger Binding="{Binding Volume}" Value="0">
+                                        <Setter Property="Symbol" Value="SpeakerMute24" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </ui:SymbolIcon.Style>
                     </ui:SymbolIcon>
                 </Button>
-                <Button x:Name="MiniPlayerNextSegmentButton"
-                        Margin="0,0,8,0"
-                        Style="{StaticResource MediaIconButtonStyle}"
-                        IsEnabled="{Binding CanGoToNextSegment}"
-                        Command="{Binding NextSegmentCommand}"
-                        ToolTip="下一段"
-                        AutomationProperties.Name="下一段">
-                    <ui:SymbolIcon Symbol="ArrowNext24" />
-                </Button>
-                <Button x:Name="MiniPlayerNextChapterButton"
-                        Style="{StaticResource MediaIconButtonStyle}"
-                        IsEnabled="{Binding HasPlaybackContext}"
-                        Command="{Binding NextChapterCommand}"
-                        ToolTip="下一章"
-                        AutomationProperties.Name="下一章">
-                    <ui:SymbolIcon Symbol="ChevronDoubleRight20" />
-                </Button>
-            </StackPanel>
+            </Grid>
+
+            <Popup x:Name="MiniPlayerVolumeMenuPopup"
+                   PlacementTarget="{Binding ElementName=MiniPlayerVolumeMenuButton}"
+                   Placement="Top"
+                   HorizontalOffset="0"
+                   VerticalOffset="-8"
+                   AllowsTransparency="True"
+                   StaysOpen="False"
+                   IsOpen="{Binding IsVolumeMenuOpen, Mode=TwoWay}">
+                <Border Width="280"
+                        Padding="{StaticResource CardPadding}"
+                        Style="{StaticResource PopupSurfaceBorderStyle}">
+                    <StackPanel>
+                        <Grid>
+                            <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                                       Text="播放音量" />
+                            <TextBlock HorizontalAlignment="Right"
+                                       Style="{StaticResource StrongTextBlockStyle}"
+                                       Text="{Binding VolumePercentText}" />
+                        </Grid>
+                        <Slider x:Name="MiniPlayerVolumeSlider"
+                                Width="232"
+                                Margin="0,16,0,0"
+                                HorizontalAlignment="Left"
+                                Style="{StaticResource PlaybackProgressSliderStyle}"
+                                Minimum="0"
+                                Maximum="1"
+                                Value="{Binding Volume, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="播放音量"
+                                AutomationProperties.Name="播放音量" />
+                    </StackPanel>
+                </Border>
+            </Popup>
         </Grid>
     </Border>
 </Window>
