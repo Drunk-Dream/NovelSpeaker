@@ -17,7 +17,11 @@ public static class PlaybackRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<IBookPlaybackContentService, BookPlaybackContentService>();
-        services.TryAddSingleton<ICacheWorkspaceService, CacheWorkspaceService>();
+        services.TryAddSingleton<CacheWorkspaceService>();
+        services.TryAddSingleton<ICacheWorkspaceService>(
+            serviceProvider => serviceProvider.GetRequiredService<CacheWorkspaceService>());
+        services.TryAddSingleton<ICacheWorkspaceBackgroundTaskOwner>(
+            serviceProvider => serviceProvider.GetRequiredService<CacheWorkspaceService>());
         services.TryAddSingleton<ExportFileNameSanitizer>();
         services.TryAddSingleton<IExportChaptersService, ExportChaptersService>();
         services.TryAddSingleton<IPlaybackAudioProvider, PlaybackAudioProvider>();

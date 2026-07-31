@@ -92,6 +92,31 @@ public sealed class ChapterSpeechPlanServiceTests
         Assert.Equal(Fingerprint.Sha256("可播放"), segment.SpeechTextHash);
     }
 
+    [Fact]
+    public async Task BuildAsync_preserves_cancellation_and_does_not_save_a_late_plan()
+    {
+        var pipeline = new BlockingPipeline();
+        var store = new RecordingStore();
+        var service = CreateService(pipeline, store);
+        using var cancellation = new CancellationTokenSource();
+
+        var build = service.BuildAsync(
+            "chapter-1",
+            "原文",
+            TextSegmentationOptions.Default,
+            cancellation.Token);
+        await pipeline.Started.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        cancellation.Cancel();
+        pipeline.Release.TrySetResult(new RegexReplacementPipelineResult(
+            [new SpeechSegment(0, 0, 2, "迟到结果", "迟到结果")],
+            new Dictionary<Guid, string>(),
+            []));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => build);
+        Assert.Empty(store.SavedPlans);
+    }
+
     private static ChapterSpeechPlanService CreateService(
         IRegexReplacementPipeline pipeline,
         IChapterSpeechPlanStore store) =>
@@ -147,6 +172,23 @@ public sealed class ChapterSpeechPlanServiceTests
                 segments,
                 new Dictionary<Guid, string>(),
                 []));
+        }
+    }
+
+    private sealed class BlockingPipeline : IRegexReplacementPipeline
+    {
+        public TaskCompletionSource Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<RegexReplacementPipelineResult> Release { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<RegexReplacementPipelineResult> ApplyAsync(
+            IReadOnlyList<SpeechSegment> sourceSegments,
+            CancellationToken cancellationToken)
+        {
+            Started.TrySetResult();
+            return Release.Task;
         }
     }
 

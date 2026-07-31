@@ -13,7 +13,10 @@ namespace NovelSpeaker.Application.Playback.Cache;
 /// <summary>
 /// Composes physical cache totals with metadata and persisted current-plan coverage queries.
 /// </summary>
-public sealed class CacheWorkspaceService : ICacheWorkspaceService, IDisposable
+public sealed class CacheWorkspaceService :
+    ICacheWorkspaceService,
+    ICacheWorkspaceBackgroundTaskOwner,
+    IDisposable
 {
     private readonly IAudioCacheStore _cacheStore;
     private readonly IBookPlaybackMetadataQuery _bookMetadataQuery;
@@ -22,10 +25,14 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService, IDisposable
     private readonly ICacheWorkspaceFailureReporter? _failureReporter;
     private readonly IBookPlaybackContentService? _bookContentService;
     private readonly IRegexReplacementRuleRepository? _regexRuleRepository;
+    private readonly IChapterSpeechPlanStore? _speechPlanStore;
     private readonly ConcurrentDictionary<PlanRefreshKey, Lazy<Task>> _planRefreshes = new();
     private readonly CancellationTokenSource _disposeCancellation = new();
     private readonly SemaphoreSlim _planRefreshConcurrency = new(2, 2);
+    private readonly object _planRefreshGate = new();
+    private Task? _backgroundStopTask;
     private int _disposed;
+    private bool _backgroundStopping;
 
     public CacheWorkspaceService(
         IAudioCacheStore cacheStore,
@@ -34,7 +41,8 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService, IDisposable
         IAppSettingsService settingsService,
         ICacheWorkspaceFailureReporter? failureReporter = null,
         IBookPlaybackContentService? bookContentService = null,
-        IRegexReplacementRuleRepository? regexRuleRepository = null)
+        IRegexReplacementRuleRepository? regexRuleRepository = null,
+        IChapterSpeechPlanStore? speechPlanStore = null)
     {
         _cacheStore = cacheStore;
         _bookMetadataQuery = bookMetadataQuery;
@@ -43,6 +51,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService, IDisposable
         _failureReporter = failureReporter;
         _bookContentService = bookContentService;
         _regexRuleRepository = regexRuleRepository;
+        _speechPlanStore = speechPlanStore;
         _cacheStore.Changed += OnCacheStoreChanged;
     }
 
@@ -248,12 +257,9 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService, IDisposable
     {
         try
         {
-            IReadOnlyList<RegexReplacementRule> rules = _regexRuleRepository is null
-                ? Array.Empty<RegexReplacementRule>()
-                : await _regexRuleRepository.GetAllAsync(cancellationToken).ConfigureAwait(false);
-            var textProfile = TextProfileFingerprint.Create(
-                settings.ToTextSegmentationOptions(),
-                rules);
+            var textProfile = await GetCurrentTextProfileAsync(
+                settings,
+                cancellationToken).ConfigureAwait(false);
             var chapters = await _bookMetadataQuery
                 .GetChaptersAsync(bookId, chapterIndices, cancellationToken)
                 .ConfigureAwait(false);
@@ -306,7 +312,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService, IDisposable
         }
         catch (Exception exception) when (IsExpectedCompletenessFailure(exception))
         {
-            _failureReporter?.ReportCompletenessUnavailable(exception);
+            ReportCompletenessFailure(exception);
             return CurrentConfigurationData.Unavailable(chapterIndices);
         }
     }
@@ -328,6 +334,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService, IDisposable
         return exception is FileNotFoundException or
             DirectoryNotFoundException or
             UnauthorizedAccessException or
+            ArgumentOutOfRangeException or
             IOException or
             DecoderFallbackException or
             InvalidDataException;
@@ -366,23 +373,31 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService, IDisposable
             return;
         }
 
-        foreach (var chapter in chapters)
+        lock (_planRefreshGate)
         {
-            if (!statusesByIndex.TryGetValue(chapter.ChapterIndex, out var status) ||
-                (status.Kind != ChapterCacheStatusKind.PlanStale &&
-                 !(refreshMissingPlans && status.Kind == ChapterCacheStatusKind.PlanMissing)))
+            if (_backgroundStopping)
             {
-                continue;
+                return;
             }
 
-            var key = new PlanRefreshKey(bookId, chapter.ChapterIndex);
-            var refresh = _planRefreshes.GetOrAdd(
-                key,
-                static (refreshKey, owner) => new Lazy<Task>(
-                    () => owner.RefreshPlanAsync(refreshKey),
-                    LazyThreadSafetyMode.ExecutionAndPublication),
-                this);
-            _ = refresh.Value;
+            foreach (var chapter in chapters)
+            {
+                if (!statusesByIndex.TryGetValue(chapter.ChapterIndex, out var status) ||
+                    (status.Kind != ChapterCacheStatusKind.PlanStale &&
+                     !(refreshMissingPlans && status.Kind == ChapterCacheStatusKind.PlanMissing)))
+                {
+                    continue;
+                }
+
+                var key = new PlanRefreshKey(bookId, chapter.ChapterIndex, chapter.ChapterId!);
+                var refresh = _planRefreshes.GetOrAdd(
+                    key,
+                    static (refreshKey, owner) => new Lazy<Task>(
+                        () => owner.RefreshPlanAsync(refreshKey),
+                        LazyThreadSafetyMode.ExecutionAndPublication),
+                    this);
+                _ = refresh.Value;
+            }
         }
     }
 
@@ -395,15 +410,36 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService, IDisposable
                 .WaitAsync(_disposeCancellation.Token)
                 .ConfigureAwait(false);
             entered = true;
-            var chapter = await _bookContentService!
-                .GetChapterAsync(key.BookId, key.ChapterIndex, _disposeCancellation.Token)
-                .ConfigureAwait(false);
-            if (chapter is not null)
+            while (true)
             {
-                Changed?.Invoke(this, new CacheChangedEventArgs(key.BookId, key.ChapterIndex));
+                var profileBefore = await GetCurrentTextProfileAsync(
+                    _settingsService.Current,
+                    _disposeCancellation.Token).ConfigureAwait(false);
+                var chapter = await _bookContentService!
+                    .GetChapterAsync(key.BookId, key.ChapterIndex, _disposeCancellation.Token)
+                    .ConfigureAwait(false);
+                if (chapter is null)
+                {
+                    return;
+                }
+
+                var profileAfter = await GetCurrentTextProfileAsync(
+                    _settingsService.Current,
+                    _disposeCancellation.Token).ConfigureAwait(false);
+                if (!profileBefore.Equals(profileAfter) ||
+                    !await IsPersistedPlanCurrentAsync(key, profileAfter).ConfigureAwait(false))
+                {
+                    // The content service may have committed the first snapshot while a
+                    // rule/settings edit was in flight. Rebuild until the completion
+                    // observes one stable current text configuration and has committed it.
+                    continue;
+                }
+
+                TryPublishPlanRefresh(key);
+                return;
             }
         }
-        catch (OperationCanceledException) when (Volatile.Read(ref _disposed) != 0)
+        catch (OperationCanceledException) when (_disposeCancellation.IsCancellationRequested)
         {
         }
         catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
@@ -411,7 +447,7 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService, IDisposable
         }
         catch (Exception exception)
         {
-            _failureReporter?.ReportCompletenessUnavailable(exception);
+            ReportCompletenessFailure(exception);
         }
         finally
         {
@@ -430,6 +466,107 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService, IDisposable
         }
     }
 
+    private async Task<TextProfileFingerprint> GetCurrentTextProfileAsync(
+        AppSettings settings,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<RegexReplacementRule> rules = _regexRuleRepository is null
+            ? Array.Empty<RegexReplacementRule>()
+            : await _regexRuleRepository.GetAllAsync(cancellationToken).ConfigureAwait(false);
+        return TextProfileFingerprint.Create(settings.ToTextSegmentationOptions(), rules);
+    }
+
+    private async Task<bool> IsPersistedPlanCurrentAsync(
+        PlanRefreshKey key,
+        TextProfileFingerprint currentProfile)
+    {
+        ChapterSpeechPlan? plan = null;
+        if (_speechPlanStore is not null)
+        {
+            plan = await _speechPlanStore
+                .GetAsync(key.ChapterId, _disposeCancellation.Token)
+                .ConfigureAwait(false);
+        }
+
+        // The content service may have persisted while the settings or rule read was
+        // in flight. Require a third, post-persistence profile read to prove that the
+        // plan and the currently stable text configuration are still the same.
+        var stableProfile = await GetCurrentTextProfileAsync(
+            _settingsService.Current,
+            _disposeCancellation.Token).ConfigureAwait(false);
+        if (!currentProfile.Equals(stableProfile))
+        {
+            return false;
+        }
+
+        return _speechPlanStore is null ||
+            (plan is not null &&
+             plan.State == ChapterSpeechPlanState.Ready &&
+             plan.TextProfileFingerprint.Equals(stableProfile));
+    }
+
+    private void TryPublishPlanRefresh(PlanRefreshKey key)
+    {
+        lock (_planRefreshGate)
+        {
+            if (_backgroundStopping ||
+                Volatile.Read(ref _disposed) != 0 ||
+                _disposeCancellation.IsCancellationRequested)
+            {
+                return;
+            }
+
+            Changed?.Invoke(this, new CacheChangedEventArgs(key.BookId, key.ChapterIndex));
+        }
+    }
+
+    private void ReportCompletenessFailure(Exception exception)
+    {
+        try
+        {
+            _failureReporter?.ReportCompletenessUnavailable(exception);
+        }
+        catch
+        {
+            // Failure diagnostics are best effort and must not fault or strand the owned task.
+        }
+    }
+
+    public async Task StopBackgroundOperationsAsync(CancellationToken cancellationToken)
+    {
+        Task stopTask;
+        lock (_planRefreshGate)
+        {
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                return;
+            }
+
+            _backgroundStopping = true;
+            _disposeCancellation.Cancel();
+            _backgroundStopTask ??= Task.WhenAll(
+                _planRefreshes.Values
+                    .Where(static refresh => refresh.IsValueCreated)
+                    .Select(static refresh => refresh.Value)
+                    .ToArray());
+            ObserveTaskFaults(_backgroundStopTask);
+            stopTask = _backgroundStopTask;
+        }
+
+        await stopTask
+            .WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static void ObserveTaskFaults(Task task)
+    {
+        _ = task.ContinueWith(
+            static completedTask => _ = completedTask.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -438,7 +575,11 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService, IDisposable
         }
 
         _cacheStore.Changed -= OnCacheStoreChanged;
-        _disposeCancellation.Cancel();
+        lock (_planRefreshGate)
+        {
+            _backgroundStopping = true;
+            _disposeCancellation.Cancel();
+        }
         _planRefreshConcurrency.Dispose();
         _disposeCancellation.Dispose();
     }
@@ -462,5 +603,5 @@ public sealed class CacheWorkspaceService : ICacheWorkspaceService, IDisposable
             result.FailedEntryCount);
     }
 
-    private sealed record PlanRefreshKey(string BookId, int ChapterIndex);
+    private sealed record PlanRefreshKey(string BookId, int ChapterIndex, string ChapterId);
 }
