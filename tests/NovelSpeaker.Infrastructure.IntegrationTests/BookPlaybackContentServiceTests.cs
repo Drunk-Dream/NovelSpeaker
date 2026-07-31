@@ -138,6 +138,35 @@ public sealed class BookPlaybackContentServiceTests
     }
 
     [Fact]
+    public async Task GetChaptersAsync_does_not_read_metadata_for_unrequested_chapters()
+    {
+        using var database = CreateDatabase(createContentFile: true);
+        await using (var connection = new SqliteConnection(database.ConnectionString))
+        {
+            await connection.OpenAsync(CancellationToken.None);
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
+                VALUES ('chapter-unrequested', 'book-1', 'not-an-index', 99, '未请求章节', 0, 1);
+                """;
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        var service = new BookPlaybackContentService(
+            new SqliteBookPlaybackMetadataQuery(new TestSqliteConnectionFactory(database.ConnectionString)),
+            CreateContentReader(database),
+            new TextSegmenter(),
+            new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
+            new PassthroughRegexReplacementPipeline());
+
+        var chapters = await service.GetChaptersAsync("book-1", [0], CancellationToken.None);
+
+        var chapter = Assert.Single(chapters);
+        Assert.Equal(0, chapter.ChapterIndex);
+    }
+
+    [Fact]
     public async Task GetChapterAsync_marks_regex_filtered_chapter_as_loaded_empty()
     {
         var service = new BookPlaybackContentService(

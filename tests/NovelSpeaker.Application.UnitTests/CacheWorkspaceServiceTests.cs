@@ -501,6 +501,53 @@ public sealed class CacheWorkspaceServiceTests
     }
 
     [Fact]
+    public async Task GetCachedChaptersAsync_refreshes_only_cached_target_chapters()
+    {
+        var store = new FakeAudioCacheStore
+        {
+            ChaptersResult = [new CachedChapterStoreSummary("book-1", 2, 1, 1, 1024)],
+            CoverageResult =
+            [
+                new ChapterCacheStatus(2, 0, null)
+                {
+                    Kind = ChapterCacheStatusKind.PlanStale
+                }
+            ]
+        };
+        var metadata = new FakeBookPlaybackMetadataQuery();
+        metadata.Chapters[("book-1", 0)] = new PlaybackChapterMetadata(
+            0,
+            "第一章",
+            "content.txt",
+            0,
+            1,
+            "chapter-1-0");
+        metadata.Chapters[("book-1", 1)] = new PlaybackChapterMetadata(
+            1,
+            "第二章",
+            "content.txt",
+            1,
+            1,
+            "chapter-1-1");
+        metadata.Chapters[("book-1", 2)] = new PlaybackChapterMetadata(
+            2,
+            "第三章",
+            "content.txt",
+            2,
+            1,
+            "chapter-1-2");
+        var content = new BlockingBookPlaybackContentService();
+        using var service = CreateService(store, metadata, bookContentService: content);
+
+        var chapters = await service.GetCachedChaptersAsync("book-1", CancellationToken.None);
+
+        Assert.Equal(ChapterCacheStatusKind.PlanStale, Assert.Single(chapters).CurrentConfigurationStatus);
+        Assert.Equal([2], Assert.Single(metadata.RequestedChapterIndexBatches));
+        Assert.Equal(("book-1", 2), await content.Started.Task.WaitAsync(TimeSpan.FromSeconds(1)));
+        content.Release.TrySetResult();
+    }
+
+    [Fact]
     public async Task StopBackgroundOperationsAsync_cancels_and_waits_for_owned_plan_refreshes()
     {
         var store = new FakeAudioCacheStore
@@ -831,6 +878,8 @@ public sealed class CacheWorkspaceServiceTests
 
         public List<string> RequestedBookIds { get; } = [];
 
+        public List<int[]> RequestedChapterIndexBatches { get; } = [];
+
         public Exception? Exception { get; init; }
 
         public Task<PlaybackBookMetadata?> GetBookAsync(string bookId, CancellationToken cancellationToken)
@@ -854,6 +903,27 @@ public sealed class CacheWorkspaceServiceTests
             }
 
             return Task.FromResult(Chapters.GetValueOrDefault((bookId, chapterIndex)));
+        }
+
+        public Task<IReadOnlyList<PlaybackChapterMetadata>> GetChaptersAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Exception is not null)
+            {
+                throw Exception;
+            }
+
+            var requested = chapterIndices.Distinct().Order().ToArray();
+            RequestedChapterIndexBatches.Add(requested);
+            return Task.FromResult<IReadOnlyList<PlaybackChapterMetadata>>(
+                requested
+                    .Select(index => Chapters.GetValueOrDefault((bookId, index)))
+                    .Where(static chapter => chapter is not null)
+                    .Select(static chapter => chapter!)
+                    .ToArray());
         }
     }
 

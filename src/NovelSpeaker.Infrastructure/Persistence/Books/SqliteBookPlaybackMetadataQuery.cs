@@ -105,43 +105,67 @@ public sealed class SqliteBookPlaybackMetadataQuery : IBookPlaybackMetadataQuery
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
         ArgumentNullException.ThrowIfNull(chapterIndices);
 
-        var requestedIndices = chapterIndices.ToHashSet();
-        if (requestedIndices.Count == 0)
+        var requestedIndices = chapterIndices
+            .Distinct()
+            .Order()
+            .ToArray();
+        if (requestedIndices.Length == 0)
         {
             return [];
         }
 
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
-        command.CommandText =
-            """
-            SELECT c.Id, c.ChapterIndex, c.Title, b.StoredFilePath, c.StartOffset, c.Length
-            FROM Chapters c
-            INNER JOIN Books b ON b.Id = c.BookId
-            WHERE c.BookId = $bookId
-            ORDER BY c.SortOrder, c.ChapterIndex;
-            """;
-        command.Parameters.AddWithValue("$bookId", bookId);
-
-        var chapters = new List<PlaybackChapterMetadata>(requestedIndices.Count);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        var chapters = new List<ChapterMetadataRow>(requestedIndices.Length);
+        const int batchSize = 400;
+        for (var offset = 0; offset < requestedIndices.Length; offset += batchSize)
         {
-            var chapterIndex = reader.GetInt32(1);
-            if (!requestedIndices.Contains(chapterIndex))
+            cancellationToken.ThrowIfCancellationRequested();
+            var batchCount = Math.Min(batchSize, requestedIndices.Length - offset);
+            using var command = connection.CreateCommand();
+            command.Parameters.AddWithValue("$bookId", bookId);
+            var chapterParameters = new string[batchCount];
+            for (var index = 0; index < batchCount; index++)
             {
-                continue;
+                var parameterName = $"$chapterIndex{index}";
+                chapterParameters[index] = parameterName;
+                command.Parameters.AddWithValue(parameterName, requestedIndices[offset + index]);
             }
 
-            chapters.Add(new PlaybackChapterMetadata(
-                chapterIndex,
-                reader.GetString(2),
-                reader.GetString(3),
-                reader.GetInt32(4),
-                reader.GetInt32(5),
-                reader.GetString(0)));
+            command.CommandText =
+                $"""
+                SELECT c.Id, c.ChapterIndex, c.Title, b.StoredFilePath, c.StartOffset, c.Length, c.SortOrder
+                FROM Chapters c
+                INNER JOIN Books b ON b.Id = c.BookId
+                WHERE c.BookId = $bookId
+                  AND c.ChapterIndex IN ({string.Join(", ", chapterParameters)})
+                ORDER BY c.SortOrder, c.ChapterIndex;
+                """;
+
+            await using var reader = await command
+                .ExecuteReaderAsync(cancellationToken)
+                .ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                chapters.Add(new ChapterMetadataRow(
+                    new PlaybackChapterMetadata(
+                        reader.GetInt32(1),
+                        reader.GetString(2),
+                        reader.GetString(3),
+                        reader.GetInt32(4),
+                        reader.GetInt32(5),
+                        reader.GetString(0)),
+                    reader.GetInt32(6)));
+            }
         }
 
-        return chapters;
+        return chapters
+            .OrderBy(row => row.SortOrder)
+            .ThenBy(row => row.Metadata.ChapterIndex)
+            .Select(row => row.Metadata)
+            .ToArray();
     }
+
+    private sealed record ChapterMetadataRow(
+        PlaybackChapterMetadata Metadata,
+        int SortOrder);
 }
