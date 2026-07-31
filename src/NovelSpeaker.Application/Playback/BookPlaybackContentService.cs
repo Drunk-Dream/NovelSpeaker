@@ -1,3 +1,4 @@
+using System.Text;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
@@ -17,6 +18,7 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
     private readonly IRegexReplacementPipeline _regexReplacementPipeline;
     private readonly IAppSettingsService? _settingsService;
     private readonly IChapterSpeechPlanService? _speechPlanService;
+    private readonly IBookPlaybackContentFailureReporter? _failureReporter;
 
     public BookPlaybackContentService(
         IBookPlaybackMetadataQuery metadataQuery,
@@ -25,7 +27,8 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
         ITextSegmentationOptionsProvider optionsProvider,
         IRegexReplacementPipeline regexReplacementPipeline,
         IAppSettingsService? settingsService = null,
-        IChapterSpeechPlanService? speechPlanService = null)
+        IChapterSpeechPlanService? speechPlanService = null,
+        IBookPlaybackContentFailureReporter? failureReporter = null)
     {
         _metadataQuery = metadataQuery;
         _bookContentReader = bookContentReader;
@@ -34,6 +37,7 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
         _regexReplacementPipeline = regexReplacementPipeline;
         _settingsService = settingsService;
         _speechPlanService = speechPlanService;
+        _failureReporter = failureReporter;
     }
 
     public async Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
@@ -70,7 +74,19 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
             return null;
         }
 
-        return await LoadChapterAsync(metadata, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await LoadChapterAsync(metadata, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (IsExpectedContentFailure(exception))
+        {
+            ReportContentFailure(exception);
+            throw;
+        }
     }
 
     public async Task<IReadOnlyList<PlaybackChapterContent>> GetChaptersAsync(
@@ -94,10 +110,45 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
         foreach (var chapter in metadata)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            chapters.Add(await LoadChapterAsync(chapter, cancellationToken).ConfigureAwait(false));
+            try
+            {
+                chapters.Add(await LoadChapterAsync(chapter, cancellationToken).ConfigureAwait(false));
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception) when (IsExpectedContentFailure(exception))
+            {
+                ReportContentFailure(exception);
+                throw;
+            }
         }
 
         return chapters;
+    }
+
+    private void ReportContentFailure(Exception exception)
+    {
+        try
+        {
+            _failureReporter?.ReportChapterReadFailure(exception);
+        }
+        catch
+        {
+            // Failure diagnostics are best effort and must not replace the read failure.
+        }
+    }
+
+    private static bool IsExpectedContentFailure(Exception exception)
+    {
+        return exception is FileNotFoundException or
+            DirectoryNotFoundException or
+            UnauthorizedAccessException or
+            ArgumentOutOfRangeException or
+            IOException or
+            DecoderFallbackException or
+            InvalidDataException;
     }
 
     private async Task<PlaybackChapterContent> LoadChapterAsync(

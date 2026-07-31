@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
@@ -10,7 +11,9 @@ using NovelSpeaker.Infrastructure.Books.FileStorage;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
+using NovelSpeaker.Infrastructure.Playback;
 using Xunit;
+using NovelSpeaker.TestKit.Common;
 
 namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
@@ -169,6 +172,47 @@ public sealed class BookPlaybackContentServiceTests
         pipeline.Complete();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => loadTask);
+    }
+
+    [Fact]
+    public async Task GetChapterAsync_reports_expected_content_failures_without_logging_source_details()
+    {
+        const string privatePath = @"C:\private\novel-content.txt";
+        var logger = new CapturingLogger<BookPlaybackContentFailureReporter>();
+        var service = new BookPlaybackContentService(
+            new FixedMetadataQuery(),
+            new ThrowingBookContentReader(new FileNotFoundException(privatePath)),
+            new TextSegmenter(),
+            new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
+            new PassthroughRegexReplacementPipeline(),
+            failureReporter: new BookPlaybackContentFailureReporter(logger));
+
+        await Assert.ThrowsAsync<FileNotFoundException>(() =>
+            service.GetChapterAsync("book-1", 0, CancellationToken.None));
+
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.Null(entry.Exception);
+        Assert.DoesNotContain(privatePath, entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("novel-content", entry.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetChapterAsync_keeps_cancellation_normal_and_does_not_report_it()
+    {
+        var logger = new CapturingLogger<BookPlaybackContentFailureReporter>();
+        var service = new BookPlaybackContentService(
+            new FixedMetadataQuery(),
+            new ThrowingBookContentReader(new OperationCanceledException()),
+            new TextSegmenter(),
+            new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
+            new PassthroughRegexReplacementPipeline(),
+            failureReporter: new BookPlaybackContentFailureReporter(logger));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.GetChapterAsync("book-1", 0, CancellationToken.None));
+
+        Assert.Empty(logger.Entries);
     }
 
     private static TestDatabase CreateDatabase(bool createContentFile)
@@ -391,6 +435,19 @@ public sealed class BookPlaybackContentServiceTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(_content);
+        }
+    }
+
+    private sealed class ThrowingBookContentReader(Exception exception) : IBookContentReader
+    {
+        public Task<string> ReadChapterTextAsync(
+            string storedFilePath,
+            int startOffset,
+            int length,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromException<string>(exception);
         }
     }
 
