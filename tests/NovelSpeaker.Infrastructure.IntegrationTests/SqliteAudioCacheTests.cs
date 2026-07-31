@@ -626,6 +626,19 @@ public sealed class SqliteAudioCacheTests
     {
         var timeProvider = new ManualTimeProvider();
         var fixture = await CreateFixtureAsync(timeProvider: timeProvider);
+        var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
+        await planStore.SaveAsync(
+            CreatePlan(
+                "cache-chapter-1-0",
+                ChapterSpeechPlanState.Ready,
+                [CreatePlanSegment(0, 0, "缺失文件")]),
+            CancellationToken.None);
+        await planStore.SaveAsync(
+            CreatePlan(
+                "cache-chapter-1-1",
+                ChapterSpeechPlanState.Ready,
+                [CreatePlanSegment(0, 0, "损坏文件")]),
+            CancellationToken.None);
         var missingKey = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "缺失文件");
         var corruptKey = TestAudioCacheKey.Create("book-1", 1, 0, 1, 10, "损坏文件");
         var missing = await fixture.Cache.StoreAsync(
@@ -657,8 +670,23 @@ public sealed class SqliteAudioCacheTests
 
         Assert.Null(await fixture.Cache.TryGetAsync(missingKey, CancellationToken.None));
         Assert.Null(await fixture.Cache.TryGetAsync(corruptKey, CancellationToken.None));
+        Assert.Null(await planStore.GetAsync("cache-chapter-1-0", CancellationToken.None));
+        Assert.Null(await planStore.GetAsync("cache-chapter-1-1", CancellationToken.None));
         Assert.Contains(new CacheChangedEventArgs("book-1", 0), changes);
         Assert.Contains(new CacheChangedEventArgs("book-1", 1), changes);
+
+        await using var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT COUNT(*)
+            FROM ChapterSpeechPlans p
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM AudioCacheEntries e
+                WHERE e.ChapterId = p.ChapterId);
+            """;
+        Assert.Equal(0L, (long)(await command.ExecuteScalarAsync(CancellationToken.None))!);
     }
 
     [Fact]
