@@ -163,6 +163,8 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAudioCache>(provider.GetRequiredService<IAudioCache>());
                 Assert.IsAssignableFrom<IAudioCacheStore>(provider.GetRequiredService<IAudioCacheStore>());
                 Assert.IsAssignableFrom<ICacheWorkspaceService>(provider.GetRequiredService<ICacheWorkspaceService>());
+                Assert.IsAssignableFrom<ICacheWorkspaceBackgroundTaskOwner>(
+                    provider.GetRequiredService<ICacheWorkspaceBackgroundTaskOwner>());
                 Assert.IsAssignableFrom<IExportChaptersService>(provider.GetRequiredService<IExportChaptersService>());
                 Assert.IsAssignableFrom<IAudioCacheProtectionRegistry>(provider.GetRequiredService<IAudioCacheProtectionRegistry>());
                 Assert.IsType<PlaybackPrefetchController>(provider.GetRequiredService<IPlaybackPrefetchController>());
@@ -270,6 +272,7 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(ITtsRuleTestService),
             typeof(IBookPlaybackContentService),
             typeof(ICacheWorkspaceService),
+            typeof(ICacheWorkspaceBackgroundTaskOwner),
             typeof(IPlaybackAudioProvider),
             typeof(IActiveCacheCoordinator),
             typeof(ILocalAudioPlaybackCoordinator),

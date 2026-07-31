@@ -229,6 +229,25 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
 
     public async Task WaitForBackgroundTasksAsync(CancellationToken cancellationToken)
     {
+        if (_serviceProvider is not null)
+        {
+            try
+            {
+                await _serviceProvider
+                    .GetRequiredService<ICacheWorkspaceBackgroundTaskOwner>()
+                    .StopBackgroundOperationsAsync(cancellationToken)
+                    .WaitAsync(BackgroundShutdownTimeout, TimeProvider.System, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (TimeoutException exception)
+            {
+                RecordLifecycleFailure(
+                    "chapter-speech-plan-shutdown",
+                    "等待章节朗读清单后台任务退出超时，将继续关闭。",
+                    exception);
+            }
+        }
+
         await _backgroundTasks.WaitForCompletionAsync(
             BackgroundShutdownTimeout,
             cancellationToken).ConfigureAwait(false);
