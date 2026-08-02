@@ -681,8 +681,8 @@ public sealed partial class PlayerViewTests
 
             var fillBar = Assert.IsType<ProgressBar>(view.FindName("SegmentProgressFillBar"));
             var slider = Assert.IsType<Slider>(view.FindName("SegmentProgressSlider"));
-            var accentBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.TryFindResource("AccentFillColorDefaultBrush"));
-            var trackBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.TryFindResource("LayerFillColorAltBrush"));
+            var accentBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.TryFindResource("AccentBrush"));
+            var trackBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.TryFindResource("SecondarySurfaceBrush"));
             var fillBarForeground = Assert.IsType<SolidColorBrush>(fillBar.Foreground);
             var fillBarBackground = Assert.IsType<SolidColorBrush>(fillBar.Background);
 

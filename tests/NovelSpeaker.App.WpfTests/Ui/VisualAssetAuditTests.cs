@@ -107,7 +107,7 @@ public sealed class VisualAssetAuditTests
         Assert.Contains("WpfUiThemeRuntime.cs", theme.GetProperty("runtimeReplacement").GetString());
         Assert.Contains("ApplicationThemeManager", theme.GetProperty("runtimeReplacement").GetString());
         Assert.Contains("ThemePreferenceService.cs", theme.GetProperty("persistedPreference").GetString());
-        Assert.Contains("AccentFillColorDefaultBrush", theme.GetProperty("accentSource").GetString());
+        Assert.Contains("AccentBrush", theme.GetProperty("accentSource").GetString());
         Assert.Contains("DynamicResource", theme.GetProperty("synchronization").GetString());
 
         var runtimeAssets = root.GetProperty("runtimeAssets").EnumerateArray().ToArray();

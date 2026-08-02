@@ -2,12 +2,36 @@ using System.IO;
 using System.Linq;
 using System.Xml;
 using System.Xml.Linq;
+using System.Windows;
+using System.Windows.Media;
+using NovelSpeaker.App.Shared.Theming;
+using NovelSpeaker.UnitTests;
+using Wpf.Ui.Appearance;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
 
+[Collection("WpfDispatcher")]
 public sealed class ThemeResourceTests
 {
+    private static readonly string[] ForbiddenWpfUiBrushKeys =
+    {
+        "ApplicationBackgroundBrush",
+        "CardBackgroundFillColorDefaultBrush",
+        "CardStrokeColorDefaultBrush",
+        "ControlFillColorSecondaryBrush",
+        "ControlFillColorTertiaryBrush",
+        "LayerFillColorAltBrush",
+        "SolidBackgroundFillColorBaseBrush",
+        "TextFillColorPrimaryBrush",
+        "TextFillColorSecondaryBrush",
+        "AccentFillColorDefaultBrush",
+        "AccentFillColorSecondaryBrush",
+        "TextOnAccentFillColorPrimaryBrush",
+        "SystemFillColorCriticalBrush",
+        "SystemFillColorCriticalBackgroundBrush"
+    };
+
     [Fact]
     public void App_xaml_files_do_not_contain_fixed_hex_colors()
     {
@@ -27,7 +51,183 @@ public sealed class ThemeResourceTests
     }
 
     [Fact]
-    public void Semantic_styles_bind_to_wpf_ui_theme_resources()
+    public void Palette_files_have_the_same_semantic_brush_keys()
+    {
+        var paletteDirectory = Path.Combine(
+            GetRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "Themes");
+
+        var lightKeys = ReadResourceKeys(Path.Combine(paletteDirectory, "Palette.Light.xaml"));
+        var darkKeys = ReadResourceKeys(Path.Combine(paletteDirectory, "Palette.Dark.xaml"));
+
+        Assert.True(lightKeys.SetEquals(darkKeys));
+        Assert.True(
+            new[]
+            {
+                "AppBackgroundBrush", "CanvasSurfaceBrush", "PrimarySurfaceBrush", "SecondarySurfaceBrush",
+                "RaisedSurfaceBrush", "PrimaryTextBrush", "SecondaryTextBrush", "TertiaryTextBrush",
+                "SubtleBorderBrush", "StrongBorderBrush", "AccentBrush", "AccentForegroundBrush", "DangerBrush",
+                "WarningBrush", "SuccessBrush", "AccentHoverBrush", "AccentPressedBrush", "AccentSubtleBrush",
+                "AccentSubtleHoverBrush", "AccentFocusRingBrush"
+            }.All(lightKeys.Contains));
+    }
+
+    [Fact]
+    public void Loaded_palette_exposes_semantic_brushes()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            foreach (var key in ThemePaletteResourceKeys.SemanticKeys)
+            {
+                Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource(key));
+            }
+        });
+    }
+
+    [Fact]
+    public void Switching_palette_refreshes_dynamic_resources_used_by_open_windows()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var runtime = new ThemePaletteRuntime(
+                global::System.Windows.Application.Current.Resources,
+                new PackThemePaletteLoader());
+            runtime.Apply(ThemePaletteKind.Light);
+
+            var mainWindow = new Window();
+            mainWindow.SetResourceReference(Window.BackgroundProperty, "AppBackgroundBrush");
+            var miniPlayerWindow = new Window();
+            miniPlayerWindow.SetResourceReference(Window.BackgroundProperty, "AppBackgroundBrush");
+            var lightColor = Assert.IsType<SolidColorBrush>(mainWindow.Background).Color;
+
+            var result = runtime.Apply(ThemePaletteKind.Dark);
+
+            Assert.True(result.IsApplied);
+            Assert.Equal(ThemePaletteKind.Dark, result.EffectivePalette);
+            Assert.NotEqual(lightColor, Assert.IsType<SolidColorBrush>(mainWindow.Background).Color);
+            Assert.Equal(
+                Assert.IsType<SolidColorBrush>(mainWindow.Background).Color,
+                Assert.IsType<SolidColorBrush>(miniPlayerWindow.Background).Color);
+            Assert.Equal(
+                Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource("AppBackgroundBrush")).Color,
+                Assert.IsType<SolidColorBrush>(mainWindow.Background).Color);
+
+            runtime.Apply(ThemePaletteKind.Light);
+        });
+    }
+
+    [Fact]
+    public void Wpf_ui_theme_runtime_switches_provider_and_application_palette_together()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var runtime = new WpfUiThemeRuntime();
+
+            runtime.ApplyLightTheme();
+            Assert.Equal(
+                Color.FromRgb(0xF4, 0xF5, 0xF9),
+                Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource("AppBackgroundBrush")).Color);
+
+            runtime.ApplyDarkTheme();
+            Assert.Equal(
+                Color.FromRgb(0x10, 0x12, 0x18),
+                Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource("AppBackgroundBrush")).Color);
+
+            runtime.ApplySystemTheme();
+            var expectedColor = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark
+                ? Color.FromRgb(0x10, 0x12, 0x18)
+                : Color.FromRgb(0xF4, 0xF5, 0xF9);
+            Assert.Equal(
+                expectedColor,
+                Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource("AppBackgroundBrush")).Color);
+
+            runtime.ApplyLightTheme();
+        });
+    }
+
+    [Fact]
+    public void Missing_requested_palette_falls_back_to_light_palette()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var runtime = new ThemePaletteRuntime(
+                global::System.Windows.Application.Current.Resources,
+                new FailingPaletteLoader(ThemePaletteKind.Dark));
+
+            var result = runtime.Apply(ThemePaletteKind.Dark);
+
+            Assert.True(result.IsApplied);
+            Assert.Equal(ThemePaletteKind.Light, result.EffectivePalette);
+            Assert.True(result.UsedFallback);
+            Assert.Equal(
+                Assert.IsType<SolidColorBrush>(
+                    new PackThemePaletteLoader().Load(ThemePaletteKind.Light)["AppBackgroundBrush"]).Color,
+                Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource("AppBackgroundBrush")).Color);
+        });
+    }
+
+    [Fact]
+    public void Inconsistent_palette_keys_fall_back_to_light_palette()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var runtime = new ThemePaletteRuntime(
+                global::System.Windows.Application.Current.Resources,
+                new InconsistentPaletteLoader());
+
+            var result = runtime.Apply(ThemePaletteKind.Dark);
+
+            Assert.True(result.IsApplied);
+            Assert.Equal(ThemePaletteKind.Light, result.EffectivePalette);
+            Assert.True(result.UsedFallback);
+        });
+    }
+
+    [Fact]
+    public void Missing_all_palette_files_keeps_existing_valid_palette()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var runtime = new ThemePaletteRuntime(
+                global::System.Windows.Application.Current.Resources,
+                new FailingPaletteLoader(ThemePaletteKind.Light, ThemePaletteKind.Dark));
+
+            var before = Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource("AppBackgroundBrush")).Color;
+            var result = runtime.Apply(ThemePaletteKind.Dark);
+
+            Assert.True(result.IsApplied);
+            Assert.Equal(ThemePaletteKind.Light, result.EffectivePalette);
+            Assert.True(result.UsedFallback);
+            Assert.Equal(
+                before,
+                Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource("AppBackgroundBrush")).Color);
+        });
+    }
+
+    [Fact]
+    public void App_xaml_does_not_consume_wpf_ui_color_keys()
+    {
+        var xamlFiles = Directory.EnumerateFiles(
+            Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App"),
+            "*.xaml",
+            SearchOption.AllDirectories);
+
+        var violations = xamlFiles
+            .SelectMany(path => ForbiddenWpfUiBrushKeys
+                .Where(key => File.ReadAllText(path).Contains(key, StringComparison.Ordinal))
+                .Select(key => $"{Path.GetRelativePath(GetRepositoryRoot(), path)}: {key}"))
+            .ToArray();
+
+        Assert.Empty(violations);
+    }
+
+    [Fact]
+    public void Semantic_styles_bind_to_application_semantic_resources()
     {
         var semanticStylesPath = Path.Combine(
             GetRepositoryRoot(),
@@ -39,11 +239,13 @@ public sealed class ThemeResourceTests
             "SemanticStyles.xaml");
         var content = File.ReadAllText(semanticStylesPath);
 
-        Assert.Contains("TextFillColorPrimaryBrush", content);
-        Assert.Contains("TextFillColorSecondaryBrush", content);
-        Assert.Contains("CardBackgroundFillColorDefaultBrush", content);
-        Assert.Contains("CardStrokeColorDefaultBrush", content);
-        Assert.Contains("SystemFillColorCriticalBrush", content);
+        Assert.Contains("PrimaryTextBrush", content);
+        Assert.Contains("SecondaryTextBrush", content);
+        Assert.Contains("PrimarySurfaceBrush", content);
+        Assert.Contains("SubtleBorderBrush", content);
+        Assert.Contains("DangerBrush", content);
+        Assert.DoesNotContain("TextFillColor", content);
+        Assert.DoesNotContain("CardBackgroundFillColor", content);
     }
 
     [Fact]
@@ -64,7 +266,7 @@ public sealed class ThemeResourceTests
         Assert.Contains("Property=\"IsPressed\"", content);
         Assert.Contains("Property=\"IsKeyboardFocused\"", content);
         Assert.Contains("Property=\"IsEnabled\" Value=\"False\"", content);
-        Assert.Contains("AccentFillColorDefaultBrush", content);
+        Assert.Contains("AccentBrush", content);
         Assert.Contains("x:Key=\"IconButtonControlTemplate\"", content);
         Assert.Contains("x:Key=\"MediaIconButtonControlTemplate\"", content);
         Assert.Contains("TargetName=\"KeyboardFocusRing\"", content);
@@ -143,8 +345,8 @@ public sealed class ThemeResourceTests
             "{StaticResource CardBorderStyle}",
             (string?)selectedCardStyle.Attribute("BasedOn"));
         Assert.Contains("Binding=\"{Binding IsSelected}\"", selectedCardStyle.ToString());
-        Assert.Contains("ControlFillColorSecondaryBrush", selectedCardStyle.ToString());
-        Assert.Contains("AccentFillColorDefaultBrush", selectedCardStyle.ToString());
+        Assert.Contains("SecondarySurfaceBrush", selectedCardStyle.ToString());
+        Assert.Contains("AccentBrush", selectedCardStyle.ToString());
         Assert.Contains("Property=\"BorderThickness\" Value=\"0,0,0,2\"", selectedCardStyle.ToString());
         Assert.Equal(
             "{StaticResource SelectedCardContainerStyle}",
@@ -152,7 +354,7 @@ public sealed class ThemeResourceTests
         Assert.Equal(
             "{StaticResource SelectableListItemContainerStyle}",
             (string?)selectableCardListItemStyle.Attribute("BasedOn"));
-        Assert.Contains("CardStrokeColorDefaultBrush", selectableCardListItemStyle.ToString());
+        Assert.Contains("SubtleBorderBrush", selectableCardListItemStyle.ToString());
         Assert.Contains("Property=\"BorderThickness\" Value=\"1\"", selectableCardListItemStyle.ToString());
     }
 
@@ -308,6 +510,55 @@ public sealed class ThemeResourceTests
             document.Descendants(),
             element => element.Name.LocalName == "Style" &&
                        (string?)element.Attribute(xamlNamespace + "Key") == key);
+    }
+
+    private static HashSet<string> ReadResourceKeys(string path)
+    {
+        var document = XDocument.Load(path);
+        var xamlNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        return document
+            .Descendants()
+            .Select(element => (string?)element.Attribute(xamlNamespace + "Key"))
+            .Where(static key => key is not null)
+            .Select(static key => key!)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private sealed class FailingPaletteLoader : IThemePaletteLoader
+    {
+        private readonly HashSet<ThemePaletteKind> _failedPalettes;
+        private readonly PackThemePaletteLoader _inner = new();
+
+        public FailingPaletteLoader(params ThemePaletteKind[] failedPalettes)
+        {
+            _failedPalettes = failedPalettes.ToHashSet();
+        }
+
+        public ResourceDictionary Load(ThemePaletteKind palette)
+        {
+            if (_failedPalettes.Contains(palette))
+            {
+                throw new InvalidOperationException("Test palette load failure.");
+            }
+
+            return _inner.Load(palette);
+        }
+    }
+
+    private sealed class InconsistentPaletteLoader : IThemePaletteLoader
+    {
+        private readonly PackThemePaletteLoader _inner = new();
+
+        public ResourceDictionary Load(ThemePaletteKind palette)
+        {
+            var dictionary = _inner.Load(palette);
+            if (palette == ThemePaletteKind.Dark)
+            {
+                dictionary["UnexpectedBrush"] = new SolidColorBrush(Colors.Magenta);
+            }
+
+            return dictionary;
+        }
     }
 
     private static string GetRepositoryRoot()
