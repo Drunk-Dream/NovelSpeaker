@@ -4,6 +4,7 @@ using System.Xml;
 using System.Xml.Linq;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.UnitTests;
 using Wpf.Ui.Appearance;
@@ -249,6 +250,226 @@ public sealed class ThemeResourceTests
     }
 
     [Fact]
+    public void Design_tokens_have_unique_keys_and_complete_visual_scale()
+    {
+        var tokenPath = Path.Combine(
+            GetRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "DesignTokens.xaml");
+        var document = XDocument.Load(tokenPath);
+        var xamlNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var keys = document
+            .Root!
+            .Elements()
+            .Select(element => (string?)element.Attribute(xamlNamespace + "Key"))
+            .Where(static key => key is not null)
+            .Select(static key => key!)
+            .ToArray();
+
+        Assert.Equal(keys.Length, keys.Distinct(StringComparer.Ordinal).Count());
+
+        WpfTestHost.RunInSta(() =>
+        {
+            var resources = global::System.Windows.Application.Current.Resources;
+            foreach (var (key, expected) in new[]
+                     {
+                         ("Spacing4", 4d), ("Spacing8", 8d), ("Spacing12", 12d),
+                         ("Spacing16", 16d), ("Spacing20", 20d), ("Spacing24", 24d),
+                         ("Spacing32", 32d), ("Spacing40", 40d), ("Spacing48", 48d),
+                         ("CompactIconButtonSize", 32d), ("IconButtonSize", 36d),
+                         ("InputControlHeight", 36d), ("TextControlHeight", 40d),
+                         ("ListRowMinHeight", 48d), ("SettingsRowMinHeight", 52d),
+                         ("MediaControlButtonSize", 44d), ("PrimaryMediaControlButtonSize", 48d),
+                         ("ProgressTrackHeight", 4d), ("ProgressSliderHeight", 20d),
+                         ("ProgressThumbSize", 18d), ("IconSize16", 16d), ("IconSize18", 18d),
+                         ("IconSize20", 20d), ("IconSize24", 24d)
+                     })
+            {
+                Assert.Equal(expected, Assert.IsType<double>(resources[key]));
+            }
+
+            Assert.Equal(new CornerRadius(16), Assert.IsType<CornerRadius>(resources["PageCornerRadius"]));
+            Assert.Equal(new CornerRadius(14), Assert.IsType<CornerRadius>(resources["ContentCornerRadius"]));
+            Assert.Equal(new CornerRadius(10), Assert.IsType<CornerRadius>(resources["CardCornerRadius"]));
+            Assert.Equal(new CornerRadius(12), Assert.IsType<CornerRadius>(resources["DialogCornerRadius"]));
+            Assert.Equal(new CornerRadius(10), Assert.IsType<CornerRadius>(resources["ListRowCornerRadius"]));
+            Assert.Equal(new CornerRadius(8), Assert.IsType<CornerRadius>(resources["SmallControlCornerRadius"]));
+            Assert.Equal(new CornerRadius(999), Assert.IsType<CornerRadius>(resources["MediaControlCornerRadius"]));
+            Assert.Equal(new Thickness(1), Assert.IsType<Thickness>(resources["StandardBorderThickness"]));
+            Assert.Equal(new Thickness(1), Assert.IsType<Thickness>(resources["KeyboardFocusRingThickness"]));
+            foreach (var (key, expected) in new[]
+                     {
+                         ("SectionHeadingSpacing", new Thickness(0, 24, 0, 0)),
+                         ("FieldControlSpacing", new Thickness(0, 8, 0, 0)),
+                         ("FieldDescriptionSpacing", new Thickness(0, 8, 0, 0)),
+                         ("ToolbarActionMargin", new Thickness(0, 0, 8, 8)),
+                         ("ToolbarItemMargin", new Thickness(8, 0, 0, 0)),
+                         ("ToolbarItemTrailingMargin", new Thickness(0, 0, 8, 0)),
+                         ("ListHeaderMargin", new Thickness(16, 16, 16, 12)),
+                         ("EmptyListMessageMargin", new Thickness(16, 0, 16, 16)),
+                         ("ListViewportMargin", new Thickness(12, 0, 12, 12)),
+                         ("ListItemHeaderMargin", new Thickness(12, 12, 12, 0)),
+                         ("ListItemContentMargin", new Thickness(12, 12, 12, 12)),
+                         ("ListItemSpacing", new Thickness(0, 0, 0, 8)),
+                         ("FormSectionSpacing", new Thickness(0, 24, 0, 0)),
+                         ("CompactActionPadding", new Thickness(12, 4, 12, 4)),
+                         ("ToolbarActionPadding", new Thickness(12, 4, 12, 4)),
+                         ("SecondaryActionPadding", new Thickness(16, 8, 16, 8)),
+                         ("SmallActionPadding", new Thickness(12, 4, 12, 4))
+                     })
+            {
+                Assert.Equal(expected, Assert.IsType<Thickness>(resources[key]));
+            }
+
+            var spacingScale = new HashSet<double> { 0d, 4d, 8d, 12d, 16d, 20d, 24d, 32d, 40d, 48d };
+            foreach (var key in new[]
+                     {
+                         "PagePadding", "PageSectionSpacing", "SectionSpacing", "ContentSpacing", "FieldSpacing",
+                         "ControlSpacing", "SectionHeadingSpacing", "FieldControlSpacing", "FieldDescriptionSpacing",
+                         "TinySpacing", "ButtonGapMargin", "InlineGapMargin", "ToolbarActionMargin", "ToolbarItemMargin",
+                         "ToolbarItemTrailingMargin", "ListHeaderMargin", "EmptyListMessageMargin", "ListViewportMargin",
+                         "ListItemHeaderMargin", "ListItemContentMargin", "ListItemSpacing", "CardPadding", "CardPaddingLarge",
+                         "CardContentPadding", "DialogPadding", "SettingsGroupPadding", "SettingsRowPadding",
+                         "SettingsRowControlMargin", "ListRowPadding", "ListRowSpacing", "ButtonPadding", "CompactButtonPadding",
+                         "CompactActionPadding", "ToolbarActionPadding", "SecondaryActionPadding", "SmallActionPadding",
+                         "FormSectionSpacing", "IconToTextMargin", "TrailingIconMargin"
+                     })
+            {
+                var thickness = Assert.IsType<Thickness>(resources[key]);
+                Assert.All(
+                    new[] { thickness.Left, thickness.Top, thickness.Right, thickness.Bottom },
+                    component => Assert.Contains(component, spacingScale));
+            }
+
+            Assert.Equal(
+                "Segoe UI Variable Text, Microsoft YaHei UI, Segoe UI, sans-serif",
+                Assert.IsType<FontFamily>(resources["AppFontFamily"]).Source);
+
+            Assert.Equal(TimeSpan.FromMilliseconds(100), Assert.IsType<Duration>(resources["AnimFast"]).TimeSpan);
+            Assert.Equal(TimeSpan.FromMilliseconds(160), Assert.IsType<Duration>(resources["AnimNormal"]).TimeSpan);
+            Assert.Equal(TimeSpan.FromMilliseconds(220), Assert.IsType<Duration>(resources["AnimSlow"]).TimeSpan);
+            Assert.Equal(TimeSpan.Zero, Assert.IsType<Duration>(resources["AnimReducedMotion"]).TimeSpan);
+            Assert.Equal(0d, Assert.IsType<double>(resources["ReducedMotionOffset"]));
+            Assert.Equal(1d, Assert.IsType<double>(resources["ReducedMotionScale"]));
+        });
+    }
+
+    [Fact]
+    public void Missing_animation_duration_resource_keeps_the_220ms_fallback()
+    {
+        var missingResource = (object?)null;
+        var configuredDuration = new Duration(TimeSpan.FromMilliseconds(160));
+
+        Assert.Equal(
+            TimeSpan.FromMilliseconds(220),
+            global::NovelSpeaker.App.Features.Playback.Components.PlayerView.ResolveAnimationDuration(missingResource));
+        Assert.Equal(
+            TimeSpan.FromMilliseconds(220),
+            global::NovelSpeaker.App.Features.BookDetails.BookDetailsPage.ResolveAnimationDuration(missingResource));
+        Assert.Equal(
+            configuredDuration.TimeSpan,
+            global::NovelSpeaker.App.Features.Playback.Components.PlayerView.ResolveAnimationDuration(configuredDuration));
+        Assert.Equal(
+            configuredDuration.TimeSpan,
+            global::NovelSpeaker.App.Features.BookDetails.BookDetailsPage.ResolveAnimationDuration(configuredDuration));
+    }
+
+    [Fact]
+    public void Elevation_tokens_stay_within_the_visual_system_ranges()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var resources = global::System.Windows.Application.Current.Resources;
+            var low = Assert.IsType<DropShadowEffect>(resources["ElevationLow"]);
+            var medium = Assert.IsType<DropShadowEffect>(resources["ElevationMedium"]);
+            var high = Assert.IsType<DropShadowEffect>(resources["ElevationHigh"]);
+
+            Assert.InRange(low.ShadowDepth, 1d, 2d);
+            Assert.InRange(low.BlurRadius, 8d, 12d);
+            Assert.InRange(medium.ShadowDepth, 3d, 4d);
+            Assert.InRange(medium.BlurRadius, 16d, 20d);
+            Assert.InRange(high.ShadowDepth, 5d, 6d);
+            Assert.InRange(high.BlurRadius, 22d, 28d);
+            Assert.All(new[] { low, medium, high }, effect => Assert.InRange(effect.Opacity, 0d, 0.25d));
+        });
+    }
+
+    [Fact]
+    public void Shared_views_reference_tokens_for_repeated_public_dimensions()
+    {
+        var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
+        var paths = new[]
+        {
+            Path.Combine("Shared", "Theming", "Resources", "SemanticStyles.xaml"),
+            Path.Combine("Shell", "MainWindow.xaml"),
+            Path.Combine("Desktop", "MiniPlayer", "MiniPlayerWindow.xaml"),
+            Path.Combine("Features", "Library", "BookCardView.xaml"),
+            Path.Combine("Features", "Library", "LibraryPage.xaml"),
+            Path.Combine("Features", "Playback", "Components", "PlayerView.xaml"),
+            Path.Combine("Features", "BookDetails", "BookDetailsPage.xaml"),
+            Path.Combine("Features", "Cache", "CacheManagementPage.xaml"),
+            Path.Combine("Features", "ChapterRules", "ChapterRulesPage.xaml"),
+            Path.Combine("Features", "RegexReplacementRules", "RegexReplacementRulesPage.xaml"),
+            Path.Combine("Features", "TtsRules", "TtsRulesPage.xaml")
+        };
+
+        var repeatedPublicLiterals = new[]
+        {
+            "Margin=\"0,18,0,0\"",
+            "Margin=\"0,6,0,0\"",
+            "Margin=\"0,10,0,0\"",
+            "Padding=\"10,6\"",
+            "Padding=\"12,6\"",
+            "Padding=\"14,8\"",
+            "Margin=\"0,22,0,0\"",
+            "Margin=\"16,16,16,12\"",
+            "Margin=\"16,0,16,16\"",
+            "Margin=\"12,0,12,12\"",
+            "Margin=\"14,12,14,0\"",
+            "Margin=\"14,12,14,12\"",
+            "Margin=\"0,0,0,10\"",
+            "Padding=\"10,4\""
+        };
+
+        foreach (var relativePath in paths)
+        {
+            var content = File.ReadAllText(Path.Combine(appRoot, relativePath));
+            Assert.DoesNotContain("CornerRadius=\"999\"", content);
+            Assert.DoesNotContain("Height=\"4\"", content);
+            Assert.DoesNotContain("Padding=\"16,8\"", content);
+            Assert.DoesNotContain("Padding=\"14,12\"", content);
+            Assert.DoesNotContain("BorderThickness=\"1\"", content);
+            foreach (var literal in repeatedPublicLiterals)
+            {
+                Assert.DoesNotContain(literal, content);
+            }
+        }
+
+        var libraryPage = File.ReadAllText(Path.Combine(appRoot, "Features", "Library", "LibraryPage.xaml"));
+        Assert.Contains("ItemHeight=\"{StaticResource TextControlHeight}\"", libraryPage);
+        Assert.DoesNotContain("ItemHeight=\"{StaticResource ListRowMinHeight}\"", libraryPage);
+
+        var styles = File.ReadAllText(Path.Combine(
+            appRoot,
+            "Shared",
+            "Theming",
+            "Resources",
+            "SemanticStyles.xaml"));
+        Assert.Contains("StandardBorderThickness", styles);
+        Assert.Contains("SelectedIndicatorThickness", styles);
+        Assert.Contains("ListRowSpacing", styles);
+        Assert.Contains("ProgressTrackHeight", styles);
+        Assert.Contains("WindowTitleTextBlockStyle", styles);
+        Assert.Contains("CardTitleTextBlockStyle", styles);
+        Assert.Contains("BodyTextBlockStyle", styles);
+        Assert.Contains("CaptionTextBlockStyle", styles);
+    }
+
+    [Fact]
     public void Borderless_button_styles_keep_theme_backed_interaction_states()
     {
         var content = File.ReadAllText(Path.Combine(
@@ -316,7 +537,7 @@ public sealed class ThemeResourceTests
         Assert.Equal(
             "{StaticResource SettingsRowBorderStyle}",
             (string?)lastRowStyle.Attribute("BasedOn"));
-        Assert.Contains("Property=\"BorderThickness\" Value=\"0\"", lastRowStyle.ToString());
+        Assert.Contains("NoBorderThickness", lastRowStyle.ToString());
         Assert.Equal(
             "{StaticResource BorderlessListItemButtonStyle}",
             (string?)navigationRowStyle.Attribute("BasedOn"));
@@ -347,7 +568,7 @@ public sealed class ThemeResourceTests
         Assert.Contains("Binding=\"{Binding IsSelected}\"", selectedCardStyle.ToString());
         Assert.Contains("SecondarySurfaceBrush", selectedCardStyle.ToString());
         Assert.Contains("AccentBrush", selectedCardStyle.ToString());
-        Assert.Contains("Property=\"BorderThickness\" Value=\"0,0,0,2\"", selectedCardStyle.ToString());
+        Assert.Contains("SelectedIndicatorThickness", selectedCardStyle.ToString());
         Assert.Equal(
             "{StaticResource SelectedCardContainerStyle}",
             (string?)selectableListItemStyle.Attribute("BasedOn"));
@@ -355,7 +576,7 @@ public sealed class ThemeResourceTests
             "{StaticResource SelectableListItemContainerStyle}",
             (string?)selectableCardListItemStyle.Attribute("BasedOn"));
         Assert.Contains("SubtleBorderBrush", selectableCardListItemStyle.ToString());
-        Assert.Contains("Property=\"BorderThickness\" Value=\"1\"", selectableCardListItemStyle.ToString());
+        Assert.Contains("StandardBorderThickness", selectableCardListItemStyle.ToString());
     }
 
     [Fact]
