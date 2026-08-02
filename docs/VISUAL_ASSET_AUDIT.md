@@ -25,8 +25,22 @@
 | 启动状态窗口 | [`StartupStatusWindow.xaml`](../src/NovelSpeaker.App/Bootstrap/StartupStatusWindow.xaml) | 启动阶段、状态文本、无限进度 | `StartupCoordinatorTests` |
 | 迷你播放器 | [`MiniPlayerWindow.xaml`](../src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml) | 无系统标题栏、播放上下文、段落进度、媒体控制、音量 Popup | `MiniPlayerWindowTests`、`MiniPlayerViewModelTests` |
 | 应用资源入口 | [`App.xaml`](../src/NovelSpeaker.App/Bootstrap/App.xaml) | `ThemeResources.xaml`（初始 Light Palette）、Light `ThemesDictionary`、`ControlsDictionary`、令牌和语义资源 | `ThemeResourceTests`、主题协调器测试 |
-| 设计令牌 | [`DesignTokens.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/DesignTokens.xaml) | 页面间距、圆角、控件尺寸、动效时长、导航宽度 | `ThemeResourceTests` |
+| 设计令牌 | [`DesignTokens.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/DesignTokens.xaml) | 标准间距与语义布局间距、控件尺寸、字体栈/文字层级、圆角、描边、Elevation 资源、动效时长和导航宽度 | `ThemeResourceTests` |
 | 语义资源 | [`SemanticStyles.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml) | 文本、设置行、卡片/Popup、Button、Slider、列表状态和媒体按钮 | `ThemeResourceTests`、`IconButtonStyleTests` |
+
+任务 3 的令牌当前状态如下：`DesignTokens.xaml` 已提供唯一基础间距
+`Spacing4/8/12/16/20/24/32/40/48`，并以这些分量组成页面、区块、字段、列表、卡片、
+工具条和按钮的语义 Thickness；同时提供控件高度、图标尺寸、`AppFontFamily` 及
+Window/Page/Section/Card/Body/Secondary/Caption 文字层级、圆角和描边令牌。
+`SemanticStyles.xaml` 已引用字体、圆角、描边、进度和公共控件尺寸令牌；启动状态、主窗口、
+迷你播放器、书库、书籍详情、缓存、规则工作台、设置子页和 `PlayerView` 已引用相应的
+页面/字段/列表/工具条令牌。书籍封面的专属几何仍保留在 `BookCoverView.xaml`。
+
+`ElevationLow`、`ElevationMedium`、`ElevationHigh` 已作为应用资源定义，参数符合视觉系统的
+低/中/高层级范围；当前没有把阴影擅自应用到普通静态卡片或所有 Popup。后续由共享 Flyout、
+Dialog 和窗口表面归属这些资源。`AnimFast`、`AnimNormal`、`AnimSlow` 和
+`AnimReducedMotion` 已定义，`PlayerView` 与 `BookDetailsPage` 的定位逻辑读取 `AnimSlow`，
+并保留系统 Reduce Motion 检测；其它页面尚未建立独立的动效消费者。
 
 ### 可导航页面
 
@@ -150,18 +164,18 @@ ID、实际来源和目标归属；“迁移目标”不是未归属的以后处
 | `palette-ownership` | 颜色 | 页面和语义样式通过 `ThemeResources.xaml` 使用应用自有语义 Brush；Wpf.Ui 颜色名保留在底层主题/控件 provider 边界 | `Themes/Palette.Light.xaml`、`Themes/Palette.Dark.xaml`、`Themes/ThemeResources.xaml`，由语义 Brush 对外暴露 |
 | `local-state-colors` | 颜色 | 主动缓存、当前章节、播放段、多选、置顶状态在页面局部 Trigger 写 Brush | `Components/ListsAndCards.xaml`、`Components/MediaControls.xaml`、`Windows/MiniPlayer.xaml` 的共享状态样式 |
 | `cover-palette` | 颜色 | 生成封面使用独立的确定性渐变和内容色 | 保持 `BookCover` 专属资源边界，不并入全局 Accent |
-| `inline-corner-radii` | 圆角 | `8`、`10`、`12`、`999` 在 Popup/播放列表/封面/圆形按钮局部出现 | `DesignTokens.xaml` 增加 FlyoutItem、ToolbarPill、ListRow、Media、Cover 语义令牌 |
+| `inline-corner-radii` | 圆角 | Popup、播放列表、工具条胶囊、媒体按钮、书籍卡片和详情页的公共圆角已迁移到 `DesignTokens.xaml`，并由 `SemanticStyles.xaml`、`MainWindow.xaml`、`MiniPlayerWindow.xaml`、`PlayerView.xaml`、`BookDetailsPage.xaml` 和 `BookCardView.xaml` 引用；`BookCoverView.xaml` 的 `12` 仍是封面专属几何 | 保持现有 Card/Dialog/List/Toolbar/Media/Interactive 令牌作为公共所有者；后续若需要外层 MiniPlayer/Cover 表面令牌，由对应窗口/封面组件归属，不回退为页面字面量 |
 | `unrounded-mini-player-surface` | 圆角 | 迷你播放器外层 Border 未使用窗口圆角 | `Windows/MiniPlayer.xaml` 的 MiniPlayerSurface + MiniPlayerCornerRadius |
-| `shadow-ownership` | 阴影 | 没有应用 Elevation/Shadow 资源，深度依赖 Wpf.Ui/窗口平台默认 | `DesignTokens.xaml` 的 Low/Medium/High + Window/Flyout/Dialog 共享表面 |
-| `shared-button-templates` | Button Template | 三个公共 Button ControlTemplate 已在 SemanticStyles，但两处仍有局部派生样式 | `Components/Buttons.xaml`，补齐 RevealMore 和 CurrentRule 语义样式 |
-| `text-box-template` | TextBox Template | 没有应用自有 TextBox/PasswordBox Template，页面散落高度和对齐值 | `Components/Inputs.xaml` 统一输入、焦点、错误、禁用状态 |
-| `slider-template` | Slider Template | Slider/Thumb/RepeatButton 已共享，但归属于 SemanticStyles，进度与音量 Popup 结构重复 | `Components/MediaControls.xaml` 统一 Slider/Progress 模板与 Thumb 状态 |
-| `book-details-list-container` | 列表选择 | 详情页内联 ListBoxItem + ContentPresenter 模板，状态在数据 Border | `Components/ListsAndCards.xaml` 的虚拟化容器 + CurrentListItem 样式 |
-| `cache-management-list-container` | 列表选择 | 缓存管理内联 ListBoxItem 模板和选中 Border Trigger | 共享 ExtendedSelection 容器 + SelectedCard 样式；选择事实仍由 `DesktopSelectionController` |
-| `rules-list-container` | 列表选择 | 正则、章节、TTS 工作台分别声明容器/拖放/当前状态局部样式 | 共享 RuleWorkbench、DropTarget、CurrentRule 样式 |
-| `playback-list-selection` | 列表选择 | 播放章节、段落各自声明容器和当前/多选状态 | 共享 PlaybackChapter、PlaybackSegment、CurrentAndSelected 状态样式 |
+| `shadow-ownership` | 阴影 | `DesignTokens.xaml` 已定义 `ElevationLow`/`ElevationMedium`/`ElevationHigh`；当前没有普通静态卡片或所有 Popup 的应用级阴影消费者，现有深度仍由窗口/控件平台表面提供 | 保持令牌由 `DesignTokens.xaml` 单一所有；后续在共享 Flyout、Dialog、MiniPlayer 表面接入，不在页面添加局部 `DropShadowEffect` |
+| `shared-button-templates` | Button Template | 三个公共 Button ControlTemplate 仍由 `SemanticStyles.xaml` 所有；任务 3 已迁移公共按钮高度、内边距、圆角、描边和焦点环，RevealMore/CurrentRule 等行为包装仍是局部样式 | 任务 4 归属 `Components/Buttons.xaml` 的模板整理和行为语义样式迁移；本审计不把该模板迁移写成已完成 |
+| `text-box-template` | TextBox Template | 仍没有应用自有 TextBox/PasswordBox ControlTemplate；任务 3 已迁移可共享的控件高度与字段 spacing，页面的一次性文本框几何和 Wpf.Ui 基础模板仍保留 | 任务 5 归属 `Components/Inputs.xaml` 的统一输入模板/状态迁移；本审计不把输入组件迁移写成已完成 |
+| `slider-template` | Slider Template | Slider/Thumb/RepeatButton 仍由 `SemanticStyles.xaml` 共享；任务 3 已迁移进度轨道、滑块和媒体控件的公共尺寸，进度/音量 Popup 结构与模板所有权尚未合并 | 任务 5 归属 `Components/MediaControls.xaml` 的 Slider/Progress 模板和状态迁移；保留当前播放/音量行为 |
+| `book-details-list-container` | 列表选择 | 详情页内联 ListBoxItem + ContentPresenter 模板仍保留；章节行的公共圆角、尺寸和 spacing 已使用令牌，状态仍在数据 Border | 任务 5 归属 `Components/ListsAndCards.xaml` 的虚拟化容器 + CurrentListItem 样式 |
+| `cache-management-list-container` | 列表选择 | 缓存管理内联 ListBoxItem 模板和选中 Border Trigger 仍保留；列表公共间距、行尺寸和操作内边距已使用令牌 | 任务 5 归属共享 ExtendedSelection 容器 + SelectedCard 样式；选择事实仍由 `DesktopSelectionController` |
+| `rules-list-container` | 列表选择 | 正则、章节、TTS 工作台仍分别声明容器/拖放/当前状态局部样式；字段、列表和工具条 spacing 已迁移到 `DesignTokens.xaml` | 任务 5 归属共享 RuleWorkbench、DropTarget、CurrentRule 样式 |
+| `playback-list-selection` | 列表选择 | 播放章节、段落仍各自声明容器和当前/多选状态；公共行圆角、按钮尺寸和 spacing 已使用令牌 | 任务 5 归属共享 PlaybackChapter、PlaybackSegment、CurrentAndSelected 状态样式 |
 | `shell-active-cache-row` | 列表选择 | 主窗口 Flyout 内联当前/失败行背景 | 共享 FlyoutListItem + ActiveCacheStatus 样式 |
-| `local-popup-surfaces` | 表面/阴影 | 多个页面重复引用 PopupSurface，宽度和局部内边距散落 | 共享 FlyoutSurface、DialogSurface、MiniPlayerSurface；宽度仍是内容布局输入 |
+| `local-popup-surfaces` | 表面/阴影 | 多个页面仍引用 `PopupSurfaceBorderStyle`；公共圆角、边框、控件尺寸和部分内边距已令牌化，宽度与一次性内容布局仍留在调用方，Elevation 资源尚未在这些表面统一应用 | 后续由共享 FlyoutSurface、DialogSurface、MiniPlayerSurface 统一表面与 Elevation；宽度仍是内容布局输入 |
 | `settings-row-style` | 设置行 | 设置页面已统一复用四个语义样式，当前没有页面 Hover/Border 复制 | 保留语义样式单一所有者，仅把颜色映射到 ThemeResources 并补充 SettingGroup token |
 
 ### 控件模板现状结论

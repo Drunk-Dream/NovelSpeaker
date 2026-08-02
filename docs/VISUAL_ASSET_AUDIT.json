@@ -192,7 +192,71 @@
       "kind": "shared-resource-dictionary",
       "source": "src/NovelSpeaker.App/Shared/Theming/Resources/DesignTokens.xaml",
       "root": "ResourceDictionary",
-      "surfaces": ["spacing", "corner-radius", "control-sizes", "animation-duration", "navigation-width"],
+      "surfaces": ["spacing", "corner-radius", "control-sizes", "typography", "border-thickness", "elevation", "animation-duration", "reduced-motion", "navigation-width"],
+      "tokenStatus": {
+        "baseSpacing": [4, 8, 12, 16, 20, 24, 32, 40, 48],
+        "semanticFamilies": {
+          "spacing": ["PagePadding", "PageSectionSpacing", "SectionSpacing", "ContentSpacing", "FieldSpacing", "ControlSpacing", "SectionHeadingSpacing", "FieldControlSpacing", "FieldDescriptionSpacing", "ListHeaderMargin", "EmptyListMessageMargin", "ListViewportMargin", "ListItemHeaderMargin", "ListItemContentMargin", "ListItemSpacing", "CardPadding", "CardPaddingLarge", "CardContentPadding", "DialogPadding", "SettingsGroupPadding", "SettingsRowPadding", "SettingsRowControlMargin", "ListRowPadding", "ListRowSpacing", "ButtonPadding", "CompactButtonPadding", "CompactActionPadding", "ToolbarActionPadding", "SecondaryActionPadding", "SmallActionPadding", "FormSectionSpacing", "IconToTextMargin", "TrailingIconMargin", "ButtonGapMargin", "InlineGapMargin", "ToolbarActionMargin", "ToolbarItemMargin", "ToolbarItemTrailingMargin"],
+          "sizes": ["CompactIconButtonSize", "IconButtonSize", "SecondaryIconButtonSize", "InputControlHeight", "TextControlHeight", "ListRowMinHeight", "SettingsRowMinHeight", "MediaControlButtonSize", "PrimaryMediaControlButtonSize", "FloatingIconButtonSize", "ProgressTrackHeight", "ProgressSliderHeight", "ProgressThumbSize", "IconSize16", "IconSize18", "IconSize20", "IconSize24"],
+          "typography": ["AppFontFamily", "WindowTitleFontSize", "PageTitleFontSize", "SectionTitleFontSize", "CardTitleFontSize", "ItemTitleFontSize", "BodyFontSize", "SecondaryFontSize", "CaptionFontSize", "DialogTitleFontSize"],
+          "corners": ["PageCornerRadius", "ContentCornerRadius", "CardCornerRadius", "DialogCornerRadius", "ListRowCornerRadius", "SmallControlCornerRadius", "InputCornerRadius", "InteractiveSurfaceCornerRadius", "IconButtonCornerRadius", "ToolbarPillCornerRadius", "PillCornerRadius", "MediaControlCornerRadius"],
+          "borders": ["StandardBorderThickness", "SeparatorBorderThickness", "KeyboardFocusRingThickness", "SelectedIndicatorThickness", "NoBorderThickness"]
+        },
+        "elevation": {
+          "defined": ["ElevationLow", "ElevationMedium", "ElevationHigh"],
+          "currentlyReferencedBy": [],
+          "futureSurfaceOwners": ["shared Flyout surface", "shared Dialog surface", "MiniPlayer surface"]
+        },
+        "motion": {
+          "durations": ["AnimFast", "AnimNormal", "AnimSlow"],
+          "reducedMotion": ["AnimReducedMotion", "ReducedMotionOffset", "ReducedMotionScale"],
+          "consumers": ["src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml.cs", "src/NovelSpeaker.App/Features/BookDetails/BookDetailsPage.xaml.cs"]
+        },
+        "directSpacingConsumers": [
+          "src/NovelSpeaker.App/Bootstrap/StartupStatusWindow.xaml",
+          "src/NovelSpeaker.App/Shell/MainWindow.xaml",
+          "src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml",
+          "src/NovelSpeaker.App/Features/Appearance/AppearanceSettingsPage.xaml",
+          "src/NovelSpeaker.App/Features/BookDetails/BookDetailsPage.xaml",
+          "src/NovelSpeaker.App/Features/Cache/CacheAndDataPage.xaml",
+          "src/NovelSpeaker.App/Features/Cache/CacheManagementPage.xaml",
+          "src/NovelSpeaker.App/Features/ChapterRules/ChapterRulesPage.xaml",
+          "src/NovelSpeaker.App/Features/Diagnostics/DiagnosticsAboutPage.xaml",
+          "src/NovelSpeaker.App/Features/GeneralSettings/GeneralSettingsPage.xaml",
+          "src/NovelSpeaker.App/Features/ImportTextSettings/ImportTextSettingsPage.xaml",
+          "src/NovelSpeaker.App/Features/Library/BookCardView.xaml",
+          "src/NovelSpeaker.App/Features/Library/LibraryPage.xaml",
+          "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml",
+          "src/NovelSpeaker.App/Features/PlaybackSettings/PlaybackSettingsPage.xaml",
+          "src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml",
+          "src/NovelSpeaker.App/Features/Settings/SettingsPage.xaml",
+          "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml",
+          "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml"
+        ],
+        "typographyConsumers": [
+          "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml",
+          "src/NovelSpeaker.App/Bootstrap/StartupStatusWindow.xaml",
+          "src/NovelSpeaker.App/Shell/MainWindow.xaml",
+          "src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml",
+          "src/NovelSpeaker.App/Features/Appearance/AppearanceSettingsPage.xaml",
+          "src/NovelSpeaker.App/Features/BookDetails/BookDetailsPage.xaml",
+          "src/NovelSpeaker.App/Features/Cache/CacheAndDataPage.xaml",
+          "src/NovelSpeaker.App/Features/Cache/CacheManagementPage.xaml",
+          "src/NovelSpeaker.App/Features/ChapterRules/ChapterRulesPage.xaml",
+          "src/NovelSpeaker.App/Features/Diagnostics/DiagnosticsAboutPage.xaml",
+          "src/NovelSpeaker.App/Features/GeneralSettings/GeneralSettingsPage.xaml",
+          "src/NovelSpeaker.App/Features/ImportTextSettings/ImportTextSettingsPage.xaml",
+          "src/NovelSpeaker.App/Features/Library/BookCardView.xaml",
+          "src/NovelSpeaker.App/Features/Library/LibraryPage.xaml",
+          "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml",
+          "src/NovelSpeaker.App/Features/PlaybackSettings/PlaybackSettingsPage.xaml",
+          "src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml",
+          "src/NovelSpeaker.App/Features/Settings/SettingsPage.xaml",
+          "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml",
+          "src/NovelSpeaker.App/Shared/Presentation/Books/BookCoverView.xaml"
+        ],
+        "typographyOwner": "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml; pages consume the text-level styles rather than defining a parallel font stack"
+      },
       "behaviorContracts": ["ThemeResourceTests"]
     },
     {
@@ -320,9 +384,9 @@
     {
       "id": "inline-corner-radii",
       "category": "corner-radius",
-      "current": "Repeated inline values include 8 in MainWindow active-cache rows, 12 in PlayerView timer/speed pills, 10 in PlayerView chapter/segment rows, 999 in PlayerView/BookDetails circular action surfaces, and 12 in BookCoverView.",
-      "sources": ["src/NovelSpeaker.App/Shell/MainWindow.xaml", "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Features/BookDetails/BookDetailsPage.xaml", "src/NovelSpeaker.App/Shared/Presentation/Books/BookCoverView.xaml"],
-      "migrationTarget": "Extend DesignTokens.xaml with FlyoutItemCornerRadius, ToolbarPillCornerRadius, ListRowCornerRadius, MediaControlCornerRadius and CoverCornerRadius, then consume them from shared styles. Existing CardCornerRadius, IconButtonCornerRadius and InteractiveSurfaceCornerRadius remain the canonical aliases for their current families."
+      "current": "Public Popup, playback-list, toolbar-pill, media-button, card and detail-page corner radii are now owned by DesignTokens.xaml and consumed by SemanticStyles.xaml, MainWindow.xaml, MiniPlayerWindow.xaml, PlayerView.xaml, BookDetailsPage.xaml and BookCardView.xaml. BookCoverView.xaml still has a one-off CornerRadius=12 for cover geometry.",
+      "sources": ["src/NovelSpeaker.App/Shared/Theming/Resources/DesignTokens.xaml", "src/NovelSpeaker.App/Shell/MainWindow.xaml", "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Features/BookDetails/BookDetailsPage.xaml", "src/NovelSpeaker.App/Shared/Presentation/Books/BookCoverView.xaml"],
+      "migrationTarget": "Keep the existing Card/Dialog/List/Toolbar/Media/Interactive token families as the single public owners. If the MiniPlayer outer surface or cover surface later needs a public radius, assign it to the corresponding window or cover component; do not reintroduce page literals."
     },
     {
       "id": "unrounded-mini-player-surface",
@@ -334,56 +398,56 @@
     {
       "id": "shadow-ownership",
       "category": "shadow",
-      "current": "No application-owned DropShadowEffect, elevation resource or shadow style exists. Mica/FluentWindow and Wpf.Ui ContentDialog/Popup surfaces provide platform/theme-managed depth.",
-      "sources": ["src/NovelSpeaker.App/Shell/MainWindow.xaml", "src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml"],
-      "migrationTarget": "Define ElevationLow, ElevationMedium and ElevationHigh in DesignTokens.xaml and map them to shared Flyout, Dialog and MiniPlayer surface styles. Do not add page-local effects or shadow values."
+      "current": "DesignTokens.xaml defines application-owned ElevationLow, ElevationMedium and ElevationHigh DropShadowEffect resources with low-opacity visual-system parameters. No ordinary static card or all Popup surfaces currently consume them; existing depth remains platform/control-surface managed.",
+      "sources": ["src/NovelSpeaker.App/Shared/Theming/Resources/DesignTokens.xaml", "src/NovelSpeaker.App/Shell/MainWindow.xaml", "src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml"],
+      "migrationTarget": "Keep ElevationLow, ElevationMedium and ElevationHigh in DesignTokens.xaml and later map them only from shared Flyout, Dialog and MiniPlayer surface owners. Do not add page-local effects or claim ordinary cards are elevated until a shared surface consumes the resource."
     },
     {
       "id": "shared-button-templates",
       "category": "button-template",
-      "current": "SemanticStyles.xaml owns IconButtonControlTemplate, MediaIconButtonControlTemplate and BorderlessListItemButtonControlTemplate, with repeated hover, pressed, keyboard-focus and disabled triggers. BookCardView and TtsRulesPage still add local derived Button styles for reveal/current-rule behavior.",
+      "current": "SemanticStyles.xaml still owns IconButtonControlTemplate, MediaIconButtonControlTemplate and BorderlessListItemButtonControlTemplate, with repeated hover, pressed, keyboard-focus and disabled triggers. Task 3 migrated public button heights, padding, corners, borders and focus-ring thickness; BookCardView and TtsRulesPage still add local derived Button styles for reveal/current-rule behavior.",
       "sources": ["src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml", "src/NovelSpeaker.App/Features/Library/BookCardView.xaml", "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml"],
       "migrationTarget": "Move the three templates and their named semantic styles into Components/Buttons.xaml; add named RevealMoreIconButtonStyle and CurrentRuleActionButtonStyle for the two local behavior wrappers, leaving only bindings/triggers that represent their state."
     },
     {
       "id": "text-box-template",
       "category": "text-box-template",
-      "current": "No application-owned TextBox or PasswordBox ControlTemplate exists. Pages set local Height, Padding or VerticalContentAlignment for individual fields while inheriting the Wpf.Ui base template.",
+      "current": "No application-owned TextBox or PasswordBox ControlTemplate exists. Task 3 migrated shared control heights and field spacing, while one-off text-field geometry and the Wpf.Ui base template remain at page call sites.",
       "sources": ["src/NovelSpeaker.App/Features/BookDetails/BookDetailsPage.xaml", "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml", "src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml"],
       "migrationTarget": "Create the shared Inputs.xaml TextBox/PasswordBox/ComboBox semantic styles and templates in the input-component wave; migrate page-local height, focus, error and disabled visuals to those styles while preserving field bindings and keyboard handling."
     },
     {
       "id": "slider-template",
       "category": "slider-template",
-      "current": "SemanticStyles.xaml owns PlaybackProgressSliderStyle plus PlaybackSliderTrackButtonStyle and PlaybackSliderThumbStyle. PlayerView and MiniPlayerWindow reuse it for segment progress and volume, while ProgressBar uses a separate shared PlaybackProgressBarStyle.",
+      "current": "SemanticStyles.xaml owns PlaybackProgressSliderStyle plus PlaybackSliderTrackButtonStyle and PlaybackSliderThumbStyle. Task 3 migrated shared progress-track, thumb, media-control and icon dimensions; PlayerView and MiniPlayerWindow still reuse the slider for segment progress and volume, while ProgressBar uses a separate shared PlaybackProgressBarStyle.",
       "sources": ["src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml", "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml"],
       "migrationTarget": "Move the slider/progress templates to Components/MediaControls.xaml, add explicit hover/focus/dragging Thumb states and semantic ProgressTrack/ProgressFill resources, and keep one template for both playback and volume sliders."
     },
     {
       "id": "book-details-list-container",
       "category": "list-selection-style",
-      "current": "BookDetailsPage defines an inline ListBoxItem style and ContentPresenter-only ControlTemplate, then applies shared CurrentListItemContainerStyle to the data border.",
+      "current": "BookDetailsPage still defines an inline ListBoxItem style and ContentPresenter-only ControlTemplate, then applies shared CurrentListItemContainerStyle to the data border. Public list row dimensions, corners and spacing are tokenized.",
       "sources": ["src/NovelSpeaker.App/Features/BookDetails/BookDetailsPage.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml"],
       "migrationTarget": "Add a shared VirtualizedListItemContainerStyle with ContentPresenter-only behavior and use CurrentListItemContainerStyle for current-state visuals; keep chapter navigation and locator behavior in existing controllers."
     },
     {
       "id": "cache-management-list-container",
       "category": "list-selection-style",
-      "current": "CacheManagementPage defines an inline ListBoxItem style/ContentTemplate, binds IsSelected one-way to the selection view model and repeats selected-border trigger visuals in the item template.",
+      "current": "CacheManagementPage still defines an inline ListBoxItem style/ContentTemplate, binds IsSelected one-way to the selection view model and repeats selected-border trigger visuals in the item template. Public list and action dimensions are tokenized.",
       "sources": ["src/NovelSpeaker.App/Features/Cache/CacheManagementPage.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml"],
       "migrationTarget": "Use a shared ExtendedSelectionListItemContainerStyle plus SelectedCardContainerStyle/SelectableCardListItemContainerStyle; keep DesktopSelectionController and IsSelected projection as the only selection facts."
     },
     {
       "id": "rules-list-container",
       "category": "list-selection-style",
-      "current": "RegexReplacementRulesPage defines an inline ListBoxItem style/ContentTemplate; ChapterRulesPage and TtsRulesPage use separate local card/triggers for drag target, current rule and enabled state.",
+      "current": "RegexReplacementRulesPage defines an inline ListBoxItem style/ContentTemplate; ChapterRulesPage and TtsRulesPage use separate local card/triggers for drag target, current rule and enabled state. Their public field, list and toolbar spacing now references DesignTokens.xaml.",
       "sources": ["src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml", "src/NovelSpeaker.App/Features/ChapterRules/ChapterRulesPage.xaml", "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml"],
       "migrationTarget": "Add shared RuleWorkbenchListItemContainerStyle, DropTargetListItemContainerStyle and CurrentRuleActionStyle in Components/ListsAndCards.xaml; preserve rule ordering code-behind only as the existing drag/menu event bridge."
     },
     {
       "id": "playback-list-selection",
       "category": "list-selection-style",
-      "current": "PlayerView defines separate inline ListBoxItem styles for the chapter catalog and segment list, plus local current/active-cache-selected border triggers and a separate current-segment text-weight trigger.",
+      "current": "PlayerView defines separate inline ListBoxItem styles for the chapter catalog and segment list, plus local current/active-cache-selected border triggers and a separate current-segment text-weight trigger. Public row corners, dimensions and action spacing are tokenized.",
       "sources": ["src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml"],
       "migrationTarget": "Add shared PlaybackChapterListItemStyle, PlaybackSegmentListItemStyle and combined CurrentAndSelectedStateStyle in Components/ListsAndCards.xaml; keep IsCurrent, IsSelectedForActiveCache and VisualOpacity as semantic presentation inputs from PlayerViewModel."
     },
@@ -397,7 +461,7 @@
     {
       "id": "local-popup-surfaces",
       "category": "surface-style",
-      "current": "PlayerView, MiniPlayerWindow, TtsRulesPage, ChapterRulesPage and RegexReplacementRulesPage each place PopupSurfaceBorderStyle at their call sites, with page-specific widths and margins.",
+      "current": "PlayerView, MiniPlayerWindow, TtsRulesPage, ChapterRulesPage and RegexReplacementRulesPage still place PopupSurfaceBorderStyle at their call sites. Shared corners, borders, dimensions and public spacing are tokenized, while page-specific widths and one-off content layout remain; Elevation resources are not yet applied to these surfaces.",
       "sources": ["src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml", "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml", "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml", "src/NovelSpeaker.App/Features/ChapterRules/ChapterRulesPage.xaml", "src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml"],
       "migrationTarget": "Keep widths as content-specific layout inputs, but move RaisedSurface background, border, corner radius and ElevationMedium to a shared FlyoutSurface style; use DialogSurface/ElevationHigh for ContentDialog and MiniPlayer."
     },
