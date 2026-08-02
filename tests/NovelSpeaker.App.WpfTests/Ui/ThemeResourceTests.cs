@@ -472,30 +472,76 @@ public sealed class ThemeResourceTests
     [Fact]
     public void Borderless_button_styles_keep_theme_backed_interaction_states()
     {
-        var content = File.ReadAllText(Path.Combine(
+        var buttons = File.ReadAllText(Path.Combine(
             GetRepositoryRoot(),
             "src",
             "NovelSpeaker.App",
             "Shared",
             "Theming",
             "Resources",
-            "SemanticStyles.xaml"));
+            "Components",
+            "Buttons.xaml"));
+        var mediaControls = File.ReadAllText(Path.Combine(
+            GetRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "Components",
+            "MediaControls.xaml"));
 
-        Assert.Contains("x:Key=\"BorderlessIconButtonStyle\"", content);
-        Assert.Contains("x:Key=\"BorderlessListItemButtonStyle\"", content);
-        Assert.Contains("Property=\"IsMouseOver\"", content);
-        Assert.Contains("Property=\"IsPressed\"", content);
-        Assert.Contains("Property=\"IsKeyboardFocused\"", content);
-        Assert.Contains("Property=\"IsEnabled\" Value=\"False\"", content);
-        Assert.Contains("AccentBrush", content);
-        Assert.Contains("x:Key=\"IconButtonControlTemplate\"", content);
-        Assert.Contains("x:Key=\"MediaIconButtonControlTemplate\"", content);
-        Assert.Contains("TargetName=\"KeyboardFocusRing\"", content);
-        Assert.Contains("CornerRadius=\"{StaticResource IconButtonCornerRadius}\"", content);
-        Assert.Contains("CornerRadius=\"{StaticResource MediaControlCornerRadius}\"", content);
+        Assert.Contains("x:Key=\"PrimaryButtonStyle\"", buttons);
+        Assert.Contains("x:Key=\"SecondaryButtonStyle\"", buttons);
+        Assert.Contains("x:Key=\"SubtleButtonStyle\"", buttons);
+        Assert.Contains("x:Key=\"DangerButtonStyle\"", buttons);
+        Assert.Contains("x:Key=\"IconButtonStyle\"", buttons);
+        Assert.Contains("x:Key=\"BorderlessIconButtonStyle\"", buttons);
+        Assert.Contains("x:Key=\"BorderlessListItemButtonStyle\"", buttons);
+        Assert.Contains("Property=\"IsMouseOver\"", buttons);
+        Assert.Contains("Property=\"IsPressed\"", buttons);
+        Assert.Contains("Property=\"Selector.IsSelected\"", buttons);
+        Assert.Contains("Property=\"IsKeyboardFocused\"", buttons);
+        Assert.Contains("Property=\"IsEnabled\" Value=\"False\"", buttons);
+        Assert.Contains("AccentBrush", buttons);
+        Assert.Contains("x:Key=\"IconButtonControlTemplate\"", buttons);
+        Assert.Contains("TargetName=\"KeyboardFocusRing\"", buttons);
+        Assert.Contains("CornerRadius=\"{StaticResource IconButtonCornerRadius}\"", buttons);
+        Assert.Contains("x:Key=\"MediaIconButtonControlTemplate\"", mediaControls);
+        Assert.Contains("x:Key=\"PreviousChapterMediaButtonStyle\"", mediaControls);
+        Assert.Contains("x:Key=\"PreviousSegmentMediaButtonStyle\"", mediaControls);
+        Assert.Contains("x:Key=\"PlaybackMediaButtonStyle\"", mediaControls);
+        Assert.Contains("x:Key=\"NextSegmentMediaButtonStyle\"", mediaControls);
+        Assert.Contains("x:Key=\"NextChapterMediaButtonStyle\"", mediaControls);
+        Assert.Contains("TargetName=\"KeyboardFocusRing\"", mediaControls);
+        Assert.Contains("CornerRadius=\"{StaticResource MediaControlCornerRadius}\"", mediaControls);
+        Assert.DoesNotContain("x:Key=\"IconButtonControlTemplate\"", File.ReadAllText(Path.Combine(
+            GetRepositoryRoot(), "src", "NovelSpeaker.App", "Shared", "Theming", "Resources", "SemanticStyles.xaml")));
         Assert.DoesNotContain(
             "<Setter Property=\"BorderThickness\" Value=\"1\" />",
-            GetStyleElement(content, "BorderlessIconButtonStyle").ToString());
+            GetStyleElement(buttons, "BorderlessIconButtonStyle").ToString());
+    }
+
+    [Fact]
+    public void Window_and_mini_player_resources_have_one_chrome_owner()
+    {
+        var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
+        var buttons = File.ReadAllText(Path.Combine(
+            appRoot, "Shared", "Theming", "Resources", "Components", "Buttons.xaml"));
+        var miniPlayer = File.ReadAllText(Path.Combine(
+            appRoot, "Shared", "Theming", "Resources", "Windows", "MiniPlayer.xaml"));
+        var mainWindow = File.ReadAllText(Path.Combine(appRoot, "Shell", "MainWindow.xaml"));
+
+        Assert.Contains("x:Key=\"WindowChromeTitleBarStyle\"", buttons);
+        Assert.Contains("x:Key=\"WindowChromeButtonStyle\"", buttons);
+        Assert.Contains("x:Key=\"WindowOperationButtonStyle\"", buttons);
+        Assert.Contains("x:Key=\"WindowCloseButtonStyle\"", buttons);
+        Assert.Contains("Tag\" Value=\"WindowClose\"", buttons);
+        Assert.Contains("DangerSubtleBrush", buttons);
+        Assert.Contains("x:Key=\"MiniPlayerSurfaceStyle\"", miniPlayer);
+        Assert.Contains("PageCornerRadius", miniPlayer);
+        Assert.Contains("ElevationHigh", miniPlayer);
+        Assert.Contains("WindowChromeTitleBarStyle", mainWindow);
     }
 
     [Fact]
@@ -594,7 +640,7 @@ public sealed class ThemeResourceTests
         var bookCardView = File.ReadAllText(Path.Combine(appRoot, "Features", "Library", "BookCardView.xaml"));
 
         Assert.Contains("ToolbarValueButtonStyle", playerView);
-        Assert.Contains("PrimaryPlaybackIconButtonStyle", playerView);
+        Assert.Contains("PlaybackMediaButtonStyle", playerView);
         Assert.Contains("MediaIconButtonStyle", playerView);
         Assert.Contains("FloatingIconButtonStyle", playerView);
         Assert.Contains("BorderlessIconButtonStyle", libraryPage);
