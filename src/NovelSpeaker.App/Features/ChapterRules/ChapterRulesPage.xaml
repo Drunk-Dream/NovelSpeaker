@@ -77,8 +77,8 @@
               Margin="{StaticResource PageSectionSpacing}"
               MinHeight="0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="320" />
-                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="{StaticResource WorkbenchListPaneWidth}" />
+                <ColumnDefinition Width="{StaticResource WorkbenchPaneGap}" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -226,7 +226,7 @@
                         <Border.Style>
                             <Style TargetType="Border"
                                    BasedOn="{StaticResource CardBorderStyle}">
-                                <Setter Property="Padding" Value="20" />
+                                <Setter Property="Padding" Value="{StaticResource CardPadding}" />
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasEditor}" Value="False">
@@ -329,7 +329,7 @@
                                 </TextBlock.Style>
                             </TextBlock>
 
-                            <Grid Margin="0,24,0,0">
+                            <Grid Margin="{StaticResource FormSectionSpacing}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />

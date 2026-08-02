@@ -133,6 +133,8 @@
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource StrongBorderBrush}" />
         <Setter Property="BorderThickness" Value="{StaticResource StandardBorderThickness}" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Validation.ErrorTemplate" Value="{StaticResource InputValidationErrorTemplate}" />
         <Setter Property="Template" Value="{StaticResource InputPasswordBoxControlTemplate}" />
@@ -153,6 +155,8 @@
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource StrongBorderBrush}" />
         <Setter Property="BorderThickness" Value="{StaticResource StandardBorderThickness}" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Validation.ErrorTemplate" Value="{StaticResource InputValidationErrorTemplate}" />
         <Setter Property="ItemContainerStyle" Value="{DynamicResource InputComboBoxItemStyle}" />
@@ -166,6 +170,7 @@
         <Setter Property="Padding" Value="{StaticResource ListRowPadding}" />
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Style.Triggers>
             <Trigger Property="IsHighlighted" Value="True">
                 <Setter Property="Background" Value="{DynamicResource AccentSubtleHoverBrush}" />

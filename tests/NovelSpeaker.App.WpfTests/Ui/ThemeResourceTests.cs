@@ -290,8 +290,8 @@ public sealed class ThemeResourceTests
                          ("Spacing16", 16d), ("Spacing20", 20d), ("Spacing24", 24d),
                          ("Spacing32", 32d), ("Spacing40", 40d), ("Spacing48", 48d),
                          ("CompactIconButtonSize", 32d), ("IconButtonSize", 36d),
-                         ("InputControlHeight", 36d), ("TextControlHeight", 40d),
-                         ("ListRowMinHeight", 48d), ("SettingsRowMinHeight", 52d),
+                         ("InputControlHeight", 36d), ("TextControlHeight", 36d),
+                         ("ListRowMinHeight", 48d), ("SettingsRowMinHeight", 48d),
                          ("MediaControlButtonSize", 44d), ("PrimaryMediaControlButtonSize", 48d),
                          ("ProgressTrackHeight", 4d), ("ProgressSliderHeight", 20d),
                          ("ProgressThumbSize", 18d), ("IconSize16", 16d), ("IconSize18", 18d),
@@ -312,23 +312,23 @@ public sealed class ThemeResourceTests
             Assert.Equal(new Thickness(1), Assert.IsType<Thickness>(resources["KeyboardFocusRingThickness"]));
             foreach (var (key, expected) in new[]
                      {
-                         ("SectionHeadingSpacing", new Thickness(0, 24, 0, 0)),
-                         ("FieldControlSpacing", new Thickness(0, 8, 0, 0)),
-                         ("FieldDescriptionSpacing", new Thickness(0, 8, 0, 0)),
-                         ("ToolbarActionMargin", new Thickness(0, 0, 8, 8)),
-                         ("ToolbarItemMargin", new Thickness(8, 0, 0, 0)),
-                         ("ToolbarItemTrailingMargin", new Thickness(0, 0, 8, 0)),
-                         ("ListHeaderMargin", new Thickness(16, 16, 16, 12)),
-                         ("EmptyListMessageMargin", new Thickness(16, 0, 16, 16)),
-                         ("ListViewportMargin", new Thickness(12, 0, 12, 12)),
-                         ("ListItemHeaderMargin", new Thickness(12, 12, 12, 0)),
-                         ("ListItemContentMargin", new Thickness(12, 12, 12, 12)),
-                         ("ListItemSpacing", new Thickness(0, 0, 0, 8)),
-                         ("FormSectionSpacing", new Thickness(0, 24, 0, 0)),
-                         ("CompactActionPadding", new Thickness(12, 4, 12, 4)),
-                         ("ToolbarActionPadding", new Thickness(12, 4, 12, 4)),
-                         ("SecondaryActionPadding", new Thickness(16, 8, 16, 8)),
-                         ("SmallActionPadding", new Thickness(12, 4, 12, 4))
+                         ("SectionHeadingSpacing", new Thickness(0, 16, 0, 0)),
+                         ("FieldControlSpacing", new Thickness(0, 4, 0, 0)),
+                         ("FieldDescriptionSpacing", new Thickness(0, 4, 0, 0)),
+                         ("ToolbarActionMargin", new Thickness(0, 0, 4, 4)),
+                         ("ToolbarItemMargin", new Thickness(4, 0, 0, 0)),
+                         ("ToolbarItemTrailingMargin", new Thickness(0, 0, 4, 0)),
+                         ("ListHeaderMargin", new Thickness(12, 12, 12, 8)),
+                         ("EmptyListMessageMargin", new Thickness(12, 0, 12, 12)),
+                         ("ListViewportMargin", new Thickness(8, 0, 8, 8)),
+                         ("ListItemHeaderMargin", new Thickness(8, 8, 8, 0)),
+                         ("ListItemContentMargin", new Thickness(8, 8, 8, 8)),
+                         ("ListItemSpacing", new Thickness(0, 0, 0, 4)),
+                         ("FormSectionSpacing", new Thickness(0, 16, 0, 0)),
+                         ("CompactActionPadding", new Thickness(8, 4, 8, 4)),
+                         ("ToolbarActionPadding", new Thickness(8, 4, 8, 4)),
+                         ("SecondaryActionPadding", new Thickness(12, 4, 12, 4)),
+                         ("SmallActionPadding", new Thickness(8, 4, 8, 4))
                      })
             {
                 Assert.Equal(expected, Assert.IsType<Thickness>(resources[key]));
@@ -364,6 +364,24 @@ public sealed class ThemeResourceTests
             Assert.Equal(TimeSpan.Zero, Assert.IsType<Duration>(resources["AnimReducedMotion"]).TimeSpan);
             Assert.Equal(0d, Assert.IsType<double>(resources["ReducedMotionOffset"]));
             Assert.Equal(1d, Assert.IsType<double>(resources["ReducedMotionScale"]));
+        });
+    }
+
+    [Fact]
+    public void Compact_density_tokens_keep_page_content_and_editing_surfaces_from_overexpanding()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var resources = global::System.Windows.Application.Current.Resources;
+
+            Assert.Equal(new Thickness(16), Assert.IsType<Thickness>(resources["PagePadding"]));
+            Assert.Equal(new Thickness(12), Assert.IsType<Thickness>(resources["CardPadding"]));
+            Assert.Equal(new Thickness(16), Assert.IsType<Thickness>(resources["CardContentPadding"]));
+            Assert.Equal(new Thickness(8, 2, 8, 2), Assert.IsType<Thickness>(resources["InputControlPadding"]));
+            Assert.Equal(new Thickness(8, 4, 8, 4), Assert.IsType<Thickness>(resources["SettingsRowPadding"]));
+            Assert.Equal(220d, Assert.IsType<double>(resources["SettingsRowControlWidth"]));
+            Assert.Equal(new GridLength(300), Assert.IsType<GridLength>(resources["WorkbenchListPaneWidth"]));
+            Assert.Equal(new GridLength(12), Assert.IsType<GridLength>(resources["WorkbenchPaneGap"]));
         });
     }
 

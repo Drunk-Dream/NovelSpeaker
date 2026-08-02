@@ -68,7 +68,7 @@ public sealed class Task5ComponentResourceTests
             textBox.Arrange(new Rect(0, 0, 400, textBox.DesiredSize.Height));
             textBox.UpdateLayout();
 
-            Assert.Equal(40, textBox.Height);
+            Assert.Equal(36, textBox.Height);
             Assert.NotNull(textBox.ValidationErrorTemplate());
             Assert.Equal("帮助说明", textBox.ToolTip);
             Assert.Equal(new Thickness(1), textBox.BorderThickness);
@@ -126,7 +126,9 @@ public sealed class Task5ComponentResourceTests
                 window.Show();
                 window.UpdateLayout();
 
-                Assert.Equal(40d, passwordBox.Height);
+                Assert.Equal(36d, passwordBox.Height);
+                Assert.Equal(HorizontalAlignment.Left, comboBox.HorizontalContentAlignment);
+                Assert.Equal(VerticalAlignment.Center, comboBox.VerticalContentAlignment);
                 Assert.Equal(
                     GetSetter<double>(
                         Assert.IsType<Style>(global::System.Windows.Application.Current.FindResource("InputCheckBoxStyle")),
@@ -146,6 +148,7 @@ public sealed class Task5ComponentResourceTests
                 window.UpdateLayout();
                 var generatedItem = comboBox.ItemContainerGenerator.ContainerFromIndex(0);
                 Assert.IsType<ComboBoxItem>(generatedItem);
+                Assert.Equal(VerticalAlignment.Center, ((ComboBoxItem)generatedItem).VerticalContentAlignment);
                 Assert.Equal(
                     GetSetter<double>(
                         Assert.IsType<Style>(global::System.Windows.Application.Current.FindResource("InputComboBoxItemStyle")),

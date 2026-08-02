@@ -84,8 +84,8 @@
               Margin="{StaticResource PageSectionSpacing}"
               MinHeight="0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="360" />
-                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="{StaticResource WorkbenchListPaneWidth}" />
+                <ColumnDefinition Width="{StaticResource WorkbenchPaneGap}" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -187,7 +187,7 @@
 
                                                 <Button Grid.Column="2"
                                                         Margin="8,0,4,0"
-                                                        Padding="8,4"
+                                                        Padding="{StaticResource CompactActionPadding}"
                                                         Command="{Binding DataContext.SetCurrentRuleCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         CommandParameter="{Binding}"
                                                         AutomationProperties.Name="{Binding Name, StringFormat=设为当前规则：{0}}">
@@ -244,7 +244,7 @@
                         <Border.Style>
                             <Style TargetType="Border"
                                    BasedOn="{StaticResource CardBorderStyle}">
-                                <Setter Property="Padding" Value="20" />
+                                <Setter Property="Padding" Value="{StaticResource CardPadding}" />
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasEditor}" Value="False">
@@ -305,8 +305,8 @@
 
                             <Grid Margin="{StaticResource SectionHeadingSpacing}">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="180" />
-                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="8" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
 
@@ -338,10 +338,10 @@
                                     <DataTemplate>
                                         <Grid Margin="{StaticResource ListItemSpacing}">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="180" />
-                                                <ColumnDefinition Width="12" />
+                                                <ColumnDefinition Width="140" />
+                                                <ColumnDefinition Width="8" />
                                                 <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="12" />
+                                                <ColumnDefinition Width="8" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBox Grid.Column="0"
@@ -384,18 +384,18 @@
                                          Text="{Binding DraftRequestBody, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
 
-                            <WrapPanel Margin="0,24,0,0">
-                                <Button Margin="0,0,12,12"
+                            <WrapPanel Margin="{StaticResource FormSectionSpacing}">
+                                <Button Margin="{StaticResource ToolbarActionMargin}"
                                         Padding="{StaticResource ButtonPadding}"
                                         Command="{Binding TestDraftCommand}"
                                         Content="试听"
                                         IsEnabled="{Binding CanTestDraft}" />
-                                <Button Margin="0,0,12,12"
+                                <Button Margin="{StaticResource ToolbarActionMargin}"
                                         Padding="{StaticResource ButtonPadding}"
                                         Command="{Binding CancelEditingCommand}"
                                         Content="取消"
                                         IsEnabled="{Binding CanCancelEditing}" />
-                                <Button Margin="0,0,12,12"
+                                <Button Margin="{StaticResource ToolbarActionMargin}"
                                         Padding="{StaticResource ButtonPadding}"
                                         Command="{Binding SaveDraftCommand}"
                                         Content="保存"

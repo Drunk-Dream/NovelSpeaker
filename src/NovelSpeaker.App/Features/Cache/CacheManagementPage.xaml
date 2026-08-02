@@ -313,14 +313,14 @@
                             </ListBox.Style>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Button Margin="0,0,0,12"
+                                    <Button Margin="{StaticResource ListItemSpacing}"
                                             Padding="0"
                                             HorizontalContentAlignment="Stretch"
                                             Style="{StaticResource BorderlessListItemButtonStyle}"
                                             Click="ChapterCard_OnClick"
                                             ToolTip="{Binding ExportToolTip}"
                                             AutomationProperties.Name="{Binding AutomationName}">
-                                        <Border Padding="16"
+                                        <Border Padding="{StaticResource CardPadding}"
                                                 Style="{StaticResource SelectableCardListItemContainerStyle}">
                                             <StackPanel>
                                                 <DockPanel LastChildFill="True">

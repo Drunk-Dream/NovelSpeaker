@@ -205,7 +205,7 @@ public sealed class CachePagesViewTests
                     button => AutomationProperties.GetName(button) == chapters[0].AutomationName);
                 var selectedBorder = Assert.Single(
                     VisualTreeTestHelper.FindDescendants<Border>(firstChapterButton),
-                    border => border.Padding == new Thickness(16));
+                    border => border.Padding == new Thickness(12));
                 Assert.NotEqual(System.Windows.Media.Brushes.Transparent, selectedBorder.Background);
                 var firstChapterTexts = VisualTreeTestHelper.FindDescendants<TextBlock>(firstChapterButton).ToArray();
                 var orderText = Assert.Single(firstChapterTexts, text => text.Text == chapters[0].OrderText);

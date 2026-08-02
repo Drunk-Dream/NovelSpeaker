@@ -341,6 +341,32 @@ public sealed partial class TtsRulesPageTests
     }
 
     [Fact]
+    public void TtsRulesPage_keeps_editor_inputs_usable_when_shell_content_is_narrow()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var context = new TtsRulesViewLayoutContext
+            {
+                HasEditor = true,
+                Rules = [new TtsRuleListItemViewModel(1, "规则一", true, true, true)]
+            };
+            var view = new TtsRulesPage { DataContext = context };
+
+            view.Measure(new Size(680, 560));
+            view.Arrange(new Rect(0, 0, 680, 560));
+            view.UpdateLayout();
+
+            var contentTypeTextBox = Assert.IsType<TextBox>(VisualTreeTestHelper.FindDescendant<TextBox>(
+                view,
+                candidate => candidate.Text == context.DraftContentType));
+
+            Assert.True(
+                contentTypeTextBox.ActualWidth >= 96,
+                $"Content-Type editor is too narrow: {contentTypeTextBox.ActualWidth}px.");
+        });
+    }
+
+    [Fact]
     public void TtsRulesPage_hides_removed_rule_controls_and_preview_area()
     {
         WpfTestHost.RunInSta(() =>
