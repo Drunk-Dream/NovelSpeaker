@@ -100,6 +100,8 @@ public sealed class Task5ComponentResourceTests
     {
         WpfTestHost.RunInSta(() =>
         {
+            new WpfUiThemeRuntime().ApplyLightTheme();
+
             var passwordBox = new PasswordBox();
             var checkBox = new CheckBox { Content = "启用" };
             var toggleSwitch = new ToggleSwitch { Content = "启用" };
