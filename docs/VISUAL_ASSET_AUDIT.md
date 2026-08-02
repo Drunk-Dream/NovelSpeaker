@@ -41,7 +41,9 @@ Window/Page/Section/Card/Body/Secondary/Caption 文字层级、圆角和描边�
 `SemanticStyles.xaml` 已引用字体、圆角、描边、进度和公共控件尺寸令牌；按钮和媒体控件分别由
 `Components/Buttons.xaml` 与 `Components/MediaControls.xaml` 单一所有；启动状态、主窗口、
 迷你播放器、书库、书籍详情、缓存、规则工作台、设置子页和 `PlayerView` 已引用相应的
-页面/字段/列表/工具条令牌。书籍封面的专属几何仍保留在 `BookCoverView.xaml`。
+页面/字段/列表/工具条令牌。任务 5A 已将这些语义令牌收敛到紧凑密度：页面边距 `16`、
+卡片内容 `12–16`、输入内边距 `8,2`、设置行 `8,4/48`，并提供规则工作台 `300/12`
+布局令牌；书籍封面的专属几何仍保留在 `BookCoverView.xaml`。
 
 `ElevationLow`、`ElevationMedium`、`ElevationHigh` 已作为应用资源定义，参数符合视觉系统的
 低/中/高层级范围；迷你播放器窗口表面已由 `Windows/MiniPlayer.xaml` 使用
