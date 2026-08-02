@@ -15,8 +15,7 @@
         WindowStartupLocation="CenterScreen"
         Topmost="{Binding IsTopmost, Mode=TwoWay}"
         PreviewMouseLeftButtonDown="MiniPlayerWindow_OnPreviewMouseLeftButtonDown">
-    <Border Padding="{StaticResource CardPadding}"
-            Background="{DynamicResource AppBackgroundBrush}">
+    <Border Style="{StaticResource MiniPlayerSurfaceStyle}">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -28,6 +27,7 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
@@ -92,6 +92,15 @@
                         AutomationProperties.Name="恢复主窗口">
                     <ui:SymbolIcon Symbol="ArrowMaximize24" />
                 </Button>
+                <Button x:Name="MiniPlayerCloseButton"
+                        Grid.Column="3"
+                        Margin="{StaticResource InlineGapMargin}"
+                        Style="{StaticResource WindowCloseButtonStyle}"
+                        Click="MiniPlayerCloseButton_OnClick"
+                        ToolTip="关闭迷你播放器"
+                        AutomationProperties.Name="关闭迷你播放器">
+                    <ui:SymbolIcon Symbol="Dismiss24" />
+                </Button>
             </Grid>
 
             <Grid Grid.Row="1"
@@ -142,7 +151,7 @@
                             Orientation="Horizontal">
                     <Button x:Name="MiniPlayerPreviousChapterButton"
                             Margin="{StaticResource ToolbarItemTrailingMargin}"
-                            Style="{StaticResource MediaIconButtonStyle}"
+                            Style="{StaticResource PreviousChapterMediaButtonStyle}"
                             IsEnabled="{Binding HasPlaybackContext}"
                             Command="{Binding PreviousChapterCommand}"
                             ToolTip="上一章"
@@ -151,7 +160,7 @@
                     </Button>
                     <Button x:Name="MiniPlayerPreviousSegmentButton"
                             Margin="{StaticResource ToolbarItemTrailingMargin}"
-                            Style="{StaticResource MediaIconButtonStyle}"
+                            Style="{StaticResource PreviousSegmentMediaButtonStyle}"
                             IsEnabled="{Binding CanGoToPreviousSegment}"
                             Command="{Binding PreviousSegmentCommand}"
                             ToolTip="上一段"
@@ -160,7 +169,7 @@
                     </Button>
                     <Button x:Name="MiniPlayerPlaybackButton"
                             Margin="{StaticResource ToolbarItemTrailingMargin}"
-                            Style="{StaticResource PrimaryPlaybackIconButtonStyle}"
+                            Style="{StaticResource PlaybackMediaButtonStyle}"
                             IsEnabled="{Binding CanTogglePlayback}"
                             Command="{Binding TogglePlaybackCommand}"
                             ToolTip="{Binding PlaybackActionText}"
@@ -180,7 +189,7 @@
                     </Button>
                     <Button x:Name="MiniPlayerNextSegmentButton"
                             Margin="{StaticResource ToolbarItemTrailingMargin}"
-                            Style="{StaticResource MediaIconButtonStyle}"
+                            Style="{StaticResource NextSegmentMediaButtonStyle}"
                             IsEnabled="{Binding CanGoToNextSegment}"
                             Command="{Binding NextSegmentCommand}"
                             ToolTip="下一段"
@@ -188,7 +197,7 @@
                         <ui:SymbolIcon Symbol="ArrowNext24" />
                     </Button>
                     <Button x:Name="MiniPlayerNextChapterButton"
-                            Style="{StaticResource MediaIconButtonStyle}"
+                            Style="{StaticResource NextChapterMediaButtonStyle}"
                             IsEnabled="{Binding HasPlaybackContext}"
                             Command="{Binding NextChapterCommand}"
                             ToolTip="下一章"

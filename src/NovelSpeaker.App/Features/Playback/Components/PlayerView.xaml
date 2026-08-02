@@ -812,7 +812,7 @@
                                    HorizontalAlignment="Center">
                             <Button x:Name="PreviousChapterButton"
                                     Margin="{StaticResource ButtonGapMargin}"
-                                    Style="{StaticResource MediaIconButtonStyle}"
+                                    Style="{StaticResource PreviousChapterMediaButtonStyle}"
                                     IsEnabled="{Binding CanGoToPreviousChapter}"
                                     Command="{Binding PreviousChapterCommand}"
                                     ToolTip="上一章"
@@ -821,7 +821,7 @@
                             </Button>
                             <Button x:Name="PreviousSegmentButton"
                                     Margin="{StaticResource ButtonGapMargin}"
-                                    Style="{StaticResource MediaIconButtonStyle}"
+                                    Style="{StaticResource PreviousSegmentMediaButtonStyle}"
                                     IsEnabled="{Binding CanGoToPreviousSegment}"
                                     Command="{Binding PreviousSegmentCommand}"
                                     ToolTip="上一段"
@@ -830,7 +830,7 @@
                             </Button>
                             <Button x:Name="PrimaryPlaybackButton"
                                     Margin="{StaticResource ButtonGapMargin}"
-                                    Style="{StaticResource PrimaryPlaybackIconButtonStyle}"
+                                    Style="{StaticResource PlaybackMediaButtonStyle}"
                                     IsEnabled="{Binding CanTogglePlayPause}"
                                     Command="{Binding TogglePlayPauseCommand}"
                                     ToolTip="{Binding PrimaryActionText}"
@@ -859,7 +859,7 @@
                             </Button>
                             <Button x:Name="NextSegmentButton"
                                     Margin="{StaticResource ButtonGapMargin}"
-                                    Style="{StaticResource MediaIconButtonStyle}"
+                                    Style="{StaticResource NextSegmentMediaButtonStyle}"
                                     IsEnabled="{Binding CanGoToNextSegment}"
                                     Command="{Binding NextSegmentCommand}"
                                     ToolTip="下一段"
@@ -867,7 +867,7 @@
                                 <ui:SymbolIcon Symbol="ArrowNext24" />
                             </Button>
                             <Button x:Name="NextChapterButton"
-                                    Style="{StaticResource MediaIconButtonStyle}"
+                                    Style="{StaticResource NextChapterMediaButtonStyle}"
                                     IsEnabled="{Binding CanGoToNextChapter}"
                                     Command="{Binding NextChapterCommand}"
                                     ToolTip="下一章"

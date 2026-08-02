@@ -23,6 +23,7 @@
         </Grid.RowDefinitions>
 
         <ui:TitleBar Grid.Row="0"
+                     Style="{StaticResource WindowChromeTitleBarStyle}"
                      Title="NovelSpeaker"
                      Icon="{ui:ImageIcon 'pack://application:,,,/NovelSpeaker.App;component/Assets/Branding/app.ico'}"
                      ShowMinimize="True"

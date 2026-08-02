@@ -1,0 +1,131 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:theming="clr-namespace:NovelSpeaker.App.Shared.Theming">
+    <ControlTemplate x:Key="MediaIconButtonControlTemplate" TargetType="Button">
+        <Grid x:Name="RootGrid"
+              Background="Transparent"
+              SnapsToDevicePixels="True">
+            <Border x:Name="StateLayer"
+                    Background="{TemplateBinding Background}"
+                    CornerRadius="{StaticResource MediaControlCornerRadius}" />
+            <ContentPresenter Margin="{TemplateBinding Padding}"
+                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                              Content="{TemplateBinding Content}"
+                              ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              RecognizesAccessKey="True"
+                              SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+            <Border x:Name="KeyboardFocusRing"
+                    BorderBrush="{DynamicResource AccentFocusRingBrush}"
+                    BorderThickness="{StaticResource KeyboardFocusRingThickness}"
+                    CornerRadius="{StaticResource MediaControlCornerRadius}"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed" />
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="StateLayer"
+                        Property="Background"
+                        Value="{DynamicResource SecondarySurfaceBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="StateLayer"
+                        Property="Background"
+                        Value="{DynamicResource RaisedSurfaceBrush}" />
+            </Trigger>
+            <Trigger Property="Selector.IsSelected" Value="True">
+                <Setter TargetName="StateLayer"
+                        Property="Background"
+                        Value="{DynamicResource AccentSubtleBrush}" />
+            </Trigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource TemplatedParent}}"
+                               Value="True" />
+                    <Condition Binding="{Binding (theming:SemanticButtonState.IsAccent), RelativeSource={RelativeSource TemplatedParent}}"
+                               Value="True" />
+                </MultiDataTrigger.Conditions>
+                <Setter TargetName="StateLayer"
+                        Property="Background"
+                        Value="{DynamicResource AccentHoverBrush}" />
+            </MultiDataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource TemplatedParent}}"
+                               Value="True" />
+                    <Condition Binding="{Binding (theming:SemanticButtonState.IsAccent), RelativeSource={RelativeSource TemplatedParent}}"
+                               Value="True" />
+                </MultiDataTrigger.Conditions>
+                <Setter TargetName="StateLayer"
+                        Property="Background"
+                        Value="{DynamicResource AccentPressedBrush}" />
+            </MultiDataTrigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="KeyboardFocusRing" Property="Visibility" Value="Visible" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="RootGrid"
+                        Property="Opacity"
+                        Value="{StaticResource DisabledControlOpacity}" />
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <Style x:Key="PlaybackSpeedPillButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Height" Value="{StaticResource MediaControlButtonSize}" />
+        <Setter Property="MinWidth" Value="80" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="{StaticResource NoBorderThickness}" />
+    </Style>
+
+    <Style x:Key="ToolbarValueButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource PlaybackSpeedPillButtonStyle}" />
+
+    <Style x:Key="MediaIconButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource IconButtonStyle}">
+        <Setter Property="Width" Value="{StaticResource MediaControlButtonSize}" />
+        <Setter Property="Height" Value="{StaticResource MediaControlButtonSize}" />
+        <Setter Property="Template" Value="{StaticResource MediaIconButtonControlTemplate}" />
+    </Style>
+
+    <Style x:Key="PrimaryPlaybackIconButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource MediaIconButtonStyle}">
+        <Setter Property="Width" Value="{StaticResource PrimaryMediaControlButtonSize}" />
+        <Setter Property="Height" Value="{StaticResource PrimaryMediaControlButtonSize}" />
+    </Style>
+
+    <Style x:Key="PreviousChapterMediaButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource MediaIconButtonStyle}" />
+
+    <Style x:Key="PreviousSegmentMediaButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource MediaIconButtonStyle}" />
+
+    <Style x:Key="PlaybackMediaButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource PrimaryPlaybackIconButtonStyle}">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="theming:SemanticButtonState.IsAccent" Value="True" />
+    </Style>
+
+    <Style x:Key="NextSegmentMediaButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource MediaIconButtonStyle}" />
+
+    <Style x:Key="NextChapterMediaButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource MediaIconButtonStyle}" />
+</ResourceDictionary>
