@@ -26,9 +26,12 @@
 | 迷你播放器 | [`MiniPlayerWindow.xaml`](../src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml) | 无系统标题栏、播放上下文、段落进度、媒体控制、音量 Popup | `MiniPlayerWindowTests`、`MiniPlayerViewModelTests` |
 | 应用资源入口 | [`App.xaml`](../src/NovelSpeaker.App/Bootstrap/App.xaml) | `ThemeResources.xaml`（初始 Light Palette）、Light `ThemesDictionary`、`ControlsDictionary`、令牌和语义资源 | `ThemeResourceTests`、主题协调器测试 |
 | 设计令牌 | [`DesignTokens.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/DesignTokens.xaml) | 标准间距与语义布局间距、控件尺寸、字体栈/文字层级、圆角、描边、Elevation 资源、动效时长和导航宽度 | `ThemeResourceTests` |
-| 语义资源 | [`SemanticStyles.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml) | 文本、设置行、卡片/Popup、Slider 和列表状态 | `ThemeResourceTests`、`IconButtonStyleTests` |
+| 语义资源 | [`SemanticStyles.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml) | 文字层级、对话框标题、状态文字和错误文字 | `ThemeResourceTests`、`SettingsSubpageViewTests` |
 | 公共按钮资源 | [`Components/Buttons.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/Components/Buttons.xaml) | Primary/Secondary/Subtle/Danger/Icon、ListItem、焦点/禁用状态和窗口操作按钮 | `ThemeResourceTests`、`IconButtonStyleTests` |
-| 公共媒体资源 | [`Components/MediaControls.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/Components/MediaControls.xaml) | 媒体按钮模板、上一章/上一段/播放/下一段/下一章语义样式 | `ThemeResourceTests`、`IconButtonStyleTests`、`PlayerViewLayoutTests` |
+| 输入资源 | [`Components/Inputs.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/Components/Inputs.xaml) | TextBox/PasswordBox/ComboBox/Number Input/CheckBox/ToggleSwitch、验证错误和帮助文本 | `ThemeResourceTests`、`Task5ComponentResourceTests`、设置页契约 |
+| 列表与卡片资源 | [`Components/ListsAndCards.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/Components/ListsAndCards.xaml) | Card、Selected Card、Setting Row、虚拟化 ListBoxItem、播放/缓存/当前状态 | `ThemeResourceTests`、`Task5ComponentResourceTests`、详情/缓存/播放/规则页契约 |
+| 导航与菜单资源 | [`Components/NavigationAndMenus.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/Components/NavigationAndMenus.xaml) | Navigation Item、Settings Navigation Row、Toolbar、Menu/ContextMenu/MenuItem/Tooltip | `ThemeResourceTests`、`Task5ComponentResourceTests`、设置导航契约 |
+| 公共媒体资源 | [`Components/MediaControls.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/Components/MediaControls.xaml) | 媒体按钮模板、Slider/Thumb/RepeatButton、ProgressBar 和上一章/上一段/播放/下一段/下一章语义样式 | `ThemeResourceTests`、`Task5ComponentResourceTests`、`IconButtonStyleTests`、`PlayerViewLayoutTests` |
 | 迷你播放器窗口资源 | [`Windows/MiniPlayer.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/Windows/MiniPlayer.xaml) | 迷你播放器圆角表面和 Elevation | `MiniPlayerWindowTests` |
 
 任务 3 的令牌当前状态如下：`DesignTokens.xaml` 已提供唯一基础间距
@@ -173,15 +176,15 @@ ID、实际来源和目标归属；“迁移目标”不是未归属的以后处
 | `unrounded-mini-player-surface` | 圆角 | 迷你播放器外层 Border 已复用窗口表面样式、圆角和 `RaisedSurfaceBrush + ElevationHigh` | `Windows/MiniPlayer.xaml` 的 MiniPlayerSurfaceStyle |
 | `shadow-ownership` | 阴影 | `DesignTokens.xaml` 已定义 `ElevationLow`/`ElevationMedium`/`ElevationHigh`；迷你播放器表面是当前唯一应用级窗口表面消费者，普通静态卡片和 Popup 未使用阴影 | 保持令牌由 `DesignTokens.xaml` 单一所有；后续仅在共享 Flyout、Dialog 表面接入相应层级，不在页面添加局部 `DropShadowEffect` |
 | `shared-button-templates` | Button Template | 三个公共 Button ControlTemplate 已由 `Components/Buttons.xaml` 单一所有；Primary/Secondary/Subtle/Danger/Icon、窗口操作和统一交互状态均在公共字典中，页面仅保留行为绑定 | 保持 `Components/Buttons.xaml` 单一所有；任务 5 再处理输入、列表和卡片容器 |
-| `text-box-template` | TextBox Template | 仍没有应用自有 TextBox/PasswordBox ControlTemplate；任务 3 已迁移可共享的控件高度与字段 spacing，页面的一次性文本框几何和 Wpf.Ui 基础模板仍保留 | 任务 5 归属 `Components/Inputs.xaml` 的统一输入模板/状态迁移；本审计不把输入组件迁移写成已完成 |
-| `slider-template` | Slider Template | Slider/Thumb/RepeatButton 仍由 `SemanticStyles.xaml` 共享；任务 3 已迁移进度轨道、滑块和媒体控件的公共尺寸，进度/音量 Popup 结构与模板所有权尚未合并 | 任务 5 归属 `Components/MediaControls.xaml` 的 Slider/Progress 模板和状态迁移；保留当前播放/音量行为 |
-| `book-details-list-container` | 列表选择 | 详情页内联 ListBoxItem + ContentPresenter 模板仍保留；章节行的公共圆角、尺寸和 spacing 已使用令牌，状态仍在数据 Border | 任务 5 归属 `Components/ListsAndCards.xaml` 的虚拟化容器 + CurrentListItem 样式 |
-| `cache-management-list-container` | 列表选择 | 缓存管理内联 ListBoxItem 模板和选中 Border Trigger 仍保留；列表公共间距、行尺寸和操作内边距已使用令牌 | 任务 5 归属共享 ExtendedSelection 容器 + SelectedCard 样式；选择事实仍由 `DesktopSelectionController` |
-| `rules-list-container` | 列表选择 | 正则、章节、TTS 工作台仍分别声明容器/拖放/当前状态局部样式；字段、列表和工具条 spacing 已迁移到 `DesignTokens.xaml` | 任务 5 归属共享 RuleWorkbench、DropTarget、CurrentRule 样式 |
-| `playback-list-selection` | 列表选择 | 播放章节、段落仍各自声明容器和当前/多选状态；公共行圆角、按钮尺寸和 spacing 已使用令牌 | 任务 5 归属共享 PlaybackChapter、PlaybackSegment、CurrentAndSelected 状态样式 |
-| `shell-active-cache-row` | 列表选择 | 主窗口 Flyout 内联当前/失败行背景 | 共享 FlyoutListItem + ActiveCacheStatus 样式 |
+| `text-box-template` | TextBox Template | `Inputs.xaml` 已拥有 TextBox/PasswordBox 模板、统一高度、焦点环、只读/禁用状态和显式验证错误模板；页面保留字段绑定和键盘事件 | 保持 `Components/Inputs.xaml` 单一输入视觉所有者；字段错误和帮助文案分别使用 InputError/InputHelp 语义资源 |
+| `slider-template` | Slider Template | `MediaControls.xaml` 已拥有 Slider/Thumb/RepeatButton/ProgressBar 资源；Thumb 默认弱化，在 Hover/Focus/Dragging 时增强，播放和音量继续复用同一 Slider 样式 | 保持 `Components/MediaControls.xaml` 单一媒体进度所有者；页面保留进度绑定、Tooltip、鼠标/键盘事件和取消语义 |
+| `book-details-list-container` | 列表选择 | 详情页使用共享 `VirtualizedListItemContainerStyle` 和 `CurrentListItemContainerStyle`，保留虚拟化、章节命令、Tooltip、AutomationName 和定位控制器 | 保持 `Components/ListsAndCards.xaml` 的 ContentPresenter-only 容器与当前/hover 状态所有权 |
+| `cache-management-list-container` | 列表选择 | 缓存管理使用共享 ExtendedSelection 容器和 Selected Card 状态；`IsSelected` 仍是一向投影，Extended 多选、虚拟化和 DesktopSelectionController 未移动 | 保持选择事实由页面/ViewModel/controller 所有，视觉状态由 `Components/ListsAndCards.xaml` 所有 |
+| `rules-list-container` | 列表选择 | 正则列表使用共享 RuleWorkbench 容器，章节/TTS 卡片使用共享 DropTarget/Selectable Card；拖放、菜单、启用和当前规则绑定仍在页面 | 保持规则列表容器、拖放目标和选中卡片样式在 `Components/ListsAndCards.xaml` 单一归属 |
+| `playback-list-selection` | 列表选择 | 播放章节/段落使用共享容器和章节当前/主动缓存选中、段落当前状态样式；`IsCurrent`、`IsSelectedForActiveCache`、`VisualOpacity` 仍由 PlayerViewModel 投影 | 保持播放选择/当前状态样式在 `Components/ListsAndCards.xaml`，命令、键盘导航和自动居中仍由 PlayerView/controller 所有 |
+| `shell-active-cache-row` | 列表选择 | 主窗口 Flyout 使用共享 ActiveCache 容器与状态 Border；Shell 只保留 `IsCurrent`/`IsFailed` 绑定和取消命令 | 保持 ActiveCache 状态样式在 `Components/ListsAndCards.xaml`，状态所有权仍由 ShellActiveCacheController |
 | `local-popup-surfaces` | 表面/阴影 | 多个页面仍引用 `PopupSurfaceBorderStyle`；公共圆角、边框、控件尺寸和部分内边距已令牌化，宽度与一次性内容布局仍留在调用方；迷你播放器已独立使用 `RaisedSurfaceBrush + ElevationHigh` | 后续由共享 FlyoutSurface、DialogSurface 统一 Popup 表面与 Elevation；迷你播放器表面保持窗口资源所有权，宽度仍是内容布局输入 |
-| `settings-row-style` | 设置行 | 设置页面已统一复用四个语义样式，当前没有页面 Hover/Border 复制 | 保留语义样式单一所有者，仅把颜色映射到 ThemeResources 并补充 SettingGroup token |
+| `settings-row-style` | 设置行 | 设置分组/设置行/设置导航行分别复用 ListsAndCards 与 NavigationAndMenus 的共享样式，页面没有复制 Hover/Border 状态 | 保持设置表面和行样式由共享组件字典所有，页面只保留字段布局与导航绑定 |
 
 ### 控件模板现状结论
 
@@ -189,11 +192,11 @@ ID、实际来源和目标归属；“迁移目标”不是未归属的以后处
 | --- | --- | --- | --- |
 | Button/Icon/ListItem Button | 有 | `Components/Buttons.xaml` 的三个 `ControlTemplate` | 保持 `Components/Buttons.xaml` 单一所有；页面只引用语义样式 |
 | Media Button | 有 | `Components/MediaControls.xaml` 的 `MediaIconButtonControlTemplate` 和五个媒体语义样式 | 保持 `Components/MediaControls.xaml` 单一所有；Slider/ProgressBar 仍留在 `SemanticStyles.xaml`，属于任务 5 |
-| TextBox/PasswordBox | 无 | 未发现应用自有 `ControlTemplate` | `Components/Inputs.xaml` 的统一输入模板/状态 |
+| TextBox/PasswordBox | 有 | `Components/Inputs.xaml` 的 TextBox/PasswordBox 模板与显式验证错误模板 | 保持 `Components/Inputs.xaml` 单一所有 |
 | Slider/Thumb/RepeatButton | 有 | `PlaybackProgressSliderStyle`、`PlaybackSliderThumbStyle`、`PlaybackSliderTrackButtonStyle` | `Components/MediaControls.xaml`，增加 Hover/Focus/Dragging 语义 |
-| ProgressBar | 无独立 ControlTemplate | `PlaybackProgressBarStyle` 只设置尺寸和 Brush | 与 MediaControls 的进度轨道/填充语义资源统一 |
-| ListBoxItem | 局部多份 | 详情、缓存、正则、播放页有 ContentPresenter-only 容器 | 共享虚拟化容器样式，页面保留业务语义绑定 |
-| ComboBox/CheckBox | 无应用自有模板 | 使用 Wpf.Ui 控件模板，页面只设置数据/布局属性 | `Components/Inputs.xaml` 统一高度、焦点、禁用和错误表现 |
+| ProgressBar | 有应用语义样式 | `PlaybackProgressBarStyle` 在 `Components/MediaControls.xaml` 统一尺寸、Foreground/Background 和无边框轨道语义 | 保持 MediaControls 作为进度资源所有者 |
+| ListBoxItem | 有共享容器样式 | `Components/ListsAndCards.xaml` 提供 ContentPresenter-only 虚拟化容器及播放/规则/Extended 变体 | 页面只保留业务绑定、选择投影和特殊状态 |
+| ComboBox/CheckBox | 有语义样式 | `Components/Inputs.xaml` 统一高度、焦点、禁用、验证和下拉项状态；ToggleSwitch 复用 InputToggleSwitchStyle | 保持输入状态与字段行为分离 |
 
 ## 行为基线与测试证据
 

@@ -196,7 +196,7 @@
       "tokenStatus": {
         "baseSpacing": [4, 8, 12, 16, 20, 24, 32, 40, 48],
         "semanticFamilies": {
-          "spacing": ["PagePadding", "PageSectionSpacing", "SectionSpacing", "ContentSpacing", "FieldSpacing", "ControlSpacing", "SectionHeadingSpacing", "FieldControlSpacing", "FieldDescriptionSpacing", "ListHeaderMargin", "EmptyListMessageMargin", "ListViewportMargin", "ListItemHeaderMargin", "ListItemContentMargin", "ListItemSpacing", "CardPadding", "CardPaddingLarge", "CardContentPadding", "DialogPadding", "SettingsGroupPadding", "SettingsRowPadding", "SettingsRowControlMargin", "ListRowPadding", "ListRowSpacing", "ButtonPadding", "CompactButtonPadding", "CompactActionPadding", "ToolbarActionPadding", "SecondaryActionPadding", "SmallActionPadding", "FormSectionSpacing", "IconToTextMargin", "TrailingIconMargin", "ButtonGapMargin", "InlineGapMargin", "ToolbarActionMargin", "ToolbarItemMargin", "ToolbarItemTrailingMargin"],
+          "spacing": ["PagePadding", "PageSectionSpacing", "SectionSpacing", "ContentSpacing", "FieldSpacing", "ControlSpacing", "SectionHeadingSpacing", "FieldControlSpacing", "FieldDescriptionSpacing", "ListHeaderMargin", "EmptyListMessageMargin", "ListViewportMargin", "ListItemHeaderMargin", "ListItemContentMargin", "ListItemSpacing", "CardPadding", "CardPaddingLarge", "CardContentPadding", "InputControlPadding", "DialogPadding", "SettingsGroupPadding", "SettingsRowPadding", "SettingsRowControlMargin", "ListRowPadding", "ListRowSpacing", "ButtonPadding", "CompactButtonPadding", "CompactActionPadding", "ToolbarActionPadding", "SecondaryActionPadding", "SmallActionPadding", "FormSectionSpacing", "IconToTextMargin", "TrailingIconMargin", "ButtonGapMargin", "InlineGapMargin", "ToolbarActionMargin", "ToolbarItemMargin", "ToolbarItemTrailingMargin"],
           "sizes": ["CompactIconButtonSize", "IconButtonSize", "SecondaryIconButtonSize", "InputControlHeight", "TextControlHeight", "ListRowMinHeight", "SettingsRowMinHeight", "MediaControlButtonSize", "PrimaryMediaControlButtonSize", "FloatingIconButtonSize", "ProgressTrackHeight", "ProgressSliderHeight", "ProgressThumbSize", "IconSize16", "IconSize18", "IconSize20", "IconSize24"],
           "typography": ["AppFontFamily", "WindowTitleFontSize", "PageTitleFontSize", "SectionTitleFontSize", "CardTitleFontSize", "ItemTitleFontSize", "BodyFontSize", "SecondaryFontSize", "CaptionFontSize", "DialogTitleFontSize"],
           "corners": ["PageCornerRadius", "ContentCornerRadius", "CardCornerRadius", "DialogCornerRadius", "ListRowCornerRadius", "SmallControlCornerRadius", "InputCornerRadius", "InteractiveSurfaceCornerRadius", "IconButtonCornerRadius", "ToolbarPillCornerRadius", "PillCornerRadius", "MediaControlCornerRadius"],
@@ -264,8 +264,56 @@
       "kind": "shared-resource-dictionary",
       "source": "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml",
       "root": "ResourceDictionary",
-        "surfaces": ["text-styles", "settings-rows", "card-and-popup-surfaces", "slider-template", "list-selection-styles"],
-      "behaviorContracts": ["ThemeResourceTests", "IconButtonStyleTests", "SettingsSubpageViewTests", "PlayerViewLayoutTests"]
+      "surfaces": ["text-styles"],
+      "behaviorContracts": ["ThemeResourceTests", "SettingsSubpageViewTests"]
+    },
+    {
+      "id": "button-resources",
+      "kind": "shared-resource-dictionary",
+      "source": "src/NovelSpeaker.App/Shared/Theming/Resources/Components/Buttons.xaml",
+      "root": "ResourceDictionary",
+      "surfaces": ["primary-button", "secondary-button", "subtle-button", "danger-button", "icon-button", "window-chrome", "list-item-button"],
+      "behaviorContracts": ["ThemeResourceTests", "IconButtonStyleTests", "MainWindowNavigationTests", "MiniPlayerWindowTests"]
+    },
+    {
+      "id": "input-resources",
+      "kind": "shared-resource-dictionary",
+      "source": "src/NovelSpeaker.App/Shared/Theming/Resources/Components/Inputs.xaml",
+      "root": "ResourceDictionary",
+      "surfaces": ["text-box", "password-box", "combo-box", "number-input", "check-box", "toggle-switch", "validation", "help-text"],
+      "behaviorContracts": ["ThemeResourceTests", "Task5ComponentResourceTests", "SettingsSubpageViewTests", "PlayerViewLayoutTests"]
+    },
+    {
+      "id": "lists-and-cards-resources",
+      "kind": "shared-resource-dictionary",
+      "source": "src/NovelSpeaker.App/Shared/Theming/Resources/Components/ListsAndCards.xaml",
+      "root": "ResourceDictionary",
+      "surfaces": ["card", "selected-card", "list-row", "setting-row", "virtualized-container", "current-and-selected-state"],
+      "behaviorContracts": ["ThemeResourceTests", "Task5ComponentResourceTests", "BookDetailsPageTests", "CachePagesViewTests", "PlayerViewLayoutTests", "TtsRulesPageTests", "RegexReplacementRulesPageTests"]
+    },
+    {
+      "id": "media-controls-resources",
+      "kind": "shared-resource-dictionary",
+      "source": "src/NovelSpeaker.App/Shared/Theming/Resources/Components/MediaControls.xaml",
+      "root": "ResourceDictionary",
+      "surfaces": ["media-buttons", "slider", "thumb", "repeat-button", "progress-bar", "progress-track", "progress-fill"],
+      "behaviorContracts": ["ThemeResourceTests", "Task5ComponentResourceTests", "PlayerViewLayoutTests", "PlayerProgressInteractionControllerTests", "MiniPlayerWindowTests"]
+    },
+    {
+      "id": "navigation-and-menus-resources",
+      "kind": "shared-resource-dictionary",
+      "source": "src/NovelSpeaker.App/Shared/Theming/Resources/Components/NavigationAndMenus.xaml",
+      "root": "ResourceDictionary",
+      "surfaces": ["navigation-item", "settings-navigation-row", "toolbar", "menu", "context-menu", "menu-item", "tooltip"],
+      "behaviorContracts": ["ThemeResourceTests", "Task5ComponentResourceTests", "SettingsPageViewTests", "SettingsNavigationEntryViewTests"]
+    },
+    {
+      "id": "mini-player-resources",
+      "kind": "shared-resource-dictionary",
+      "source": "src/NovelSpeaker.App/Shared/Theming/Resources/Windows/MiniPlayer.xaml",
+      "root": "ResourceDictionary",
+      "surfaces": ["mini-player-surface"],
+      "behaviorContracts": ["MiniPlayerWindowTests", "ThemeResourceTests"]
     },
     {
       "id": "main-window",
@@ -370,9 +418,9 @@
     {
       "id": "local-state-colors",
       "category": "color",
-      "current": "MainWindow active-cache rows, PlayerView chapter/segment states, CacheManagement selected chapters, BookDetails current chapter and MiniPlayer topmost state use application semantic brushes in local triggers.",
-      "sources": ["src/NovelSpeaker.App/Shell/MainWindow.xaml", "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Features/Cache/CacheManagementPage.xaml", "src/NovelSpeaker.App/Features/BookDetails/BookDetailsPage.xaml", "src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml"],
-      "migrationTarget": "Move these triggers to shared semantic selected/current/active/focus styles in Components/ListsAndCards.xaml, Components/MediaControls.xaml and Components/Windows/MiniPlayer.xaml; retain only behavior/state bindings at the page call sites."
+      "current": "MainWindow active-cache rows, PlayerView chapter/segment states, CacheManagement selected chapters and BookDetails current chapters use shared component state styles; MiniPlayer topmost state remains in its existing window resource owner. Pages retain only state bindings.",
+      "sources": ["src/NovelSpeaker.App/Shell/MainWindow.xaml", "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Features/Cache/CacheManagementPage.xaml", "src/NovelSpeaker.App/Features/BookDetails/BookDetailsPage.xaml", "src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/Components/ListsAndCards.xaml"],
+      "migrationTarget": "Keep shared selected/current/active styles in ListsAndCards.xaml and window-owned MiniPlayer state in Windows/MiniPlayer.xaml; do not move behavior or state ownership into visual resources."
     },
     {
       "id": "cover-palette",
@@ -412,51 +460,51 @@
     {
       "id": "text-box-template",
       "category": "text-box-template",
-      "current": "No application-owned TextBox or PasswordBox ControlTemplate exists. Task 3 migrated shared control heights and field spacing, while one-off text-field geometry and the Wpf.Ui base template remain at page call sites.",
-      "sources": ["src/NovelSpeaker.App/Features/BookDetails/BookDetailsPage.xaml", "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml", "src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml"],
-      "migrationTarget": "Create the shared Inputs.xaml TextBox/PasswordBox/ComboBox semantic styles and templates in the input-component wave; migrate page-local height, focus, error and disabled visuals to those styles while preserving field bindings and keyboard handling."
+      "current": "Components/Inputs.xaml owns the application TextBox and PasswordBox templates plus TextBox, PasswordBox, ComboBox, number-input, CheckBox and ToggleSwitch semantic styles. Validation uses an explicit error template/message path and help/error text have separate resources; pages keep their existing bindings and keyboard handlers.",
+      "sources": ["src/NovelSpeaker.App/Shared/Theming/Resources/Components/Inputs.xaml", "src/NovelSpeaker.App/Features/BookDetails/BookDetailsPage.xaml", "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml", "src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml"],
+      "migrationTarget": "Keep Inputs.xaml as the single input visual owner; field values, commands and keyboard handling remain page-owned."
     },
     {
       "id": "slider-template",
       "category": "slider-template",
-      "current": "SemanticStyles.xaml owns PlaybackProgressSliderStyle plus PlaybackSliderTrackButtonStyle and PlaybackSliderThumbStyle. Task 3 migrated shared progress-track, thumb, media-control and icon dimensions; PlayerView and MiniPlayerWindow still reuse the slider for segment progress and volume, while ProgressBar uses a separate shared PlaybackProgressBarStyle.",
-      "sources": ["src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml", "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml"],
-      "migrationTarget": "Move the slider/progress templates to Components/MediaControls.xaml, add explicit hover/focus/dragging Thumb states and semantic ProgressTrack/ProgressFill resources, and keep one template for both playback and volume sliders."
+      "current": "Components/MediaControls.xaml owns PlaybackProgressSliderStyle, PlaybackSliderTrackButtonStyle, PlaybackSliderIncreaseTrackButtonStyle, PlaybackSliderThumbStyle and PlaybackProgressBarStyle. The Thumb is subdued by default and becomes prominent on hover, keyboard focus or dragging; PlayerView and MiniPlayerWindow reuse the same slider for segment progress and volume.",
+      "sources": ["src/NovelSpeaker.App/Shared/Theming/Resources/Components/MediaControls.xaml", "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml"],
+      "migrationTarget": "Keep slider and progress ownership in Components/MediaControls.xaml while preserving page progress bindings, Tooltip projection and input event bridges."
     },
     {
       "id": "book-details-list-container",
       "category": "list-selection-style",
-      "current": "BookDetailsPage still defines an inline ListBoxItem style and ContentPresenter-only ControlTemplate, then applies shared CurrentListItemContainerStyle to the data border. Public list row dimensions, corners and spacing are tokenized.",
-      "sources": ["src/NovelSpeaker.App/Features/BookDetails/BookDetailsPage.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml"],
-      "migrationTarget": "Add a shared VirtualizedListItemContainerStyle with ContentPresenter-only behavior and use CurrentListItemContainerStyle for current-state visuals; keep chapter navigation and locator behavior in existing controllers."
+      "current": "BookDetailsPage uses the shared VirtualizedListItemContainerStyle and CurrentListItemContainerStyle; chapter navigation, Tooltip, AutomationName and locator behavior remain at the page/controller boundary.",
+      "sources": ["src/NovelSpeaker.App/Features/BookDetails/BookDetailsPage.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/Components/ListsAndCards.xaml"],
+      "migrationTarget": "Keep the ContentPresenter-only virtualized container and current/hover state styles in Components/ListsAndCards.xaml."
     },
     {
       "id": "cache-management-list-container",
       "category": "list-selection-style",
-      "current": "CacheManagementPage still defines an inline ListBoxItem style/ContentTemplate, binds IsSelected one-way to the selection view model and repeats selected-border trigger visuals in the item template. Public list and action dimensions are tokenized.",
-      "sources": ["src/NovelSpeaker.App/Features/Cache/CacheManagementPage.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml"],
-      "migrationTarget": "Use a shared ExtendedSelectionListItemContainerStyle plus SelectedCardContainerStyle/SelectableCardListItemContainerStyle; keep DesktopSelectionController and IsSelected projection as the only selection facts."
+      "current": "CacheManagementPage uses ExtendedSelectionListItemContainerStyle and SelectableCardListItemContainerStyle; the one-way IsSelected projection, Extended selection, virtualization and DesktopSelectionController remain unchanged.",
+      "sources": ["src/NovelSpeaker.App/Features/Cache/CacheManagementPage.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/Components/ListsAndCards.xaml"],
+      "migrationTarget": "Keep the shared ExtendedSelection container and selected-card state in Components/ListsAndCards.xaml; do not move selection facts into the visual container."
     },
     {
       "id": "rules-list-container",
       "category": "list-selection-style",
-      "current": "RegexReplacementRulesPage defines an inline ListBoxItem style/ContentTemplate; ChapterRulesPage and TtsRulesPage use separate local card/triggers for drag target, current rule and enabled state. Their public field, list and toolbar spacing now references DesignTokens.xaml.",
-      "sources": ["src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml", "src/NovelSpeaker.App/Features/ChapterRules/ChapterRulesPage.xaml", "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml"],
-      "migrationTarget": "Add shared RuleWorkbenchListItemContainerStyle, DropTargetListItemContainerStyle and CurrentRuleActionStyle in Components/ListsAndCards.xaml; preserve rule ordering code-behind only as the existing drag/menu event bridge."
+      "current": "RegexReplacementRulesPage uses RuleWorkbenchListItemContainerStyle; ChapterRulesPage and TtsRulesPage use shared DropTargetListItemContainerStyle/SelectableCardListItemContainerStyle for rule cards. Drag/menu bridges and rule bindings remain at the page call sites.",
+      "sources": ["src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml", "src/NovelSpeaker.App/Features/ChapterRules/ChapterRulesPage.xaml", "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/Components/ListsAndCards.xaml"],
+      "migrationTarget": "Keep RuleWorkbenchListItemContainerStyle, DropTargetListItemContainerStyle and selected-card state in Components/ListsAndCards.xaml."
     },
     {
       "id": "playback-list-selection",
       "category": "list-selection-style",
-      "current": "PlayerView defines separate inline ListBoxItem styles for the chapter catalog and segment list, plus local current/active-cache-selected border triggers and a separate current-segment text-weight trigger. Public row corners, dimensions and action spacing are tokenized.",
-      "sources": ["src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml"],
-      "migrationTarget": "Add shared PlaybackChapterListItemStyle, PlaybackSegmentListItemStyle and combined CurrentAndSelectedStateStyle in Components/ListsAndCards.xaml; keep IsCurrent, IsSelectedForActiveCache and VisualOpacity as semantic presentation inputs from PlayerViewModel."
+      "current": "PlayerView uses shared playback ListBoxItem containers and shared chapter current/active-cache-selected plus segment-current Border styles; IsCurrent, IsSelectedForActiveCache and VisualOpacity remain PlayerViewModel presentation inputs.",
+      "sources": ["src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/Components/ListsAndCards.xaml"],
+      "migrationTarget": "Keep playback container and current/selected state ownership in Components/ListsAndCards.xaml; commands, keyboard navigation and auto-centering remain PlayerView/controller-owned."
     },
     {
       "id": "shell-active-cache-row",
       "category": "list-selection-style",
-      "current": "MainWindow ActiveCacheFlyout defines an inline ListBoxItem container and Border style with current and failed backgrounds.",
-      "sources": ["src/NovelSpeaker.App/Shell/MainWindow.xaml"],
-      "migrationTarget": "Use shared FlyoutListItemStyle and ActiveCacheStatusStyle with semantic Current and ErrorSubtle brushes; keep only IsCurrent/IsFailed bindings in the Shell template."
+      "current": "MainWindow ActiveCacheFlyout uses shared ActiveCacheListItemContainerStyle and ActiveCacheStatusBorderStyle; only IsCurrent/IsFailed bindings and the cancel command remain in the Shell template.",
+      "sources": ["src/NovelSpeaker.App/Shell/MainWindow.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/Components/ListsAndCards.xaml"],
+      "migrationTarget": "Keep the flyout row container and active-cache status style in Components/ListsAndCards.xaml while ShellActiveCacheController remains the state owner."
     },
     {
       "id": "local-popup-surfaces",
@@ -468,9 +516,9 @@
     {
       "id": "settings-row-style",
       "category": "repeated-component-style",
-      "current": "Settings pages consistently use SettingsRowsGroupBorderStyle, SettingsRowBorderStyle, SettingsLastRowBorderStyle and SettingsNavigationRowButtonStyle; the semantic styles already own their visual state and pages do not add hover setters.",
-      "sources": ["src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml", "src/NovelSpeaker.App/Features/Settings/SettingsPage.xaml", "src/NovelSpeaker.App/Features/PlaybackSettings/PlaybackSettingsPage.xaml", "src/NovelSpeaker.App/Features/ImportTextSettings/ImportTextSettingsPage.xaml", "src/NovelSpeaker.App/Features/Cache/CacheAndDataPage.xaml", "src/NovelSpeaker.App/Features/Appearance/AppearanceSettingsPage.xaml", "src/NovelSpeaker.App/Features/GeneralSettings/GeneralSettingsPage.xaml", "src/NovelSpeaker.App/Features/Diagnostics/DiagnosticsAboutPage.xaml"],
-      "migrationTarget": "Retain the four setting-row semantic styles as the single owner; migrate their Wpf.Ui color references to ThemeResources and add an explicit shared SettingGroup surface token without reintroducing page-local row borders."
+      "current": "Settings group/row styles are owned by ListsAndCards.xaml and SettingsNavigationRowButtonStyle is owned by NavigationAndMenus.xaml; pages do not add duplicate hover or border setters.",
+      "sources": ["src/NovelSpeaker.App/Shared/Theming/Resources/Components/ListsAndCards.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/Components/NavigationAndMenus.xaml", "src/NovelSpeaker.App/Features/Settings/SettingsPage.xaml", "src/NovelSpeaker.App/Features/PlaybackSettings/PlaybackSettingsPage.xaml", "src/NovelSpeaker.App/Features/ImportTextSettings/ImportTextSettingsPage.xaml", "src/NovelSpeaker.App/Features/Cache/CacheAndDataPage.xaml", "src/NovelSpeaker.App/Features/Appearance/AppearanceSettingsPage.xaml", "src/NovelSpeaker.App/Features/GeneralSettings/GeneralSettingsPage.xaml", "src/NovelSpeaker.App/Features/Diagnostics/DiagnosticsAboutPage.xaml"],
+      "migrationTarget": "Keep setting surfaces and rows in shared component dictionaries; pages retain only field layout, save policy and navigation bindings."
     }
   ],
   "behaviorBaseline": [
