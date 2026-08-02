@@ -239,11 +239,20 @@ public sealed class ThemeResourceTests
             "Resources",
             "SemanticStyles.xaml");
         var content = File.ReadAllText(semanticStylesPath);
+        var componentContent = File.ReadAllText(Path.Combine(
+            GetRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "Components",
+            "ListsAndCards.xaml"));
 
         Assert.Contains("PrimaryTextBrush", content);
         Assert.Contains("SecondaryTextBrush", content);
-        Assert.Contains("PrimarySurfaceBrush", content);
-        Assert.Contains("SubtleBorderBrush", content);
+        Assert.Contains("PrimarySurfaceBrush", componentContent);
+        Assert.Contains("SubtleBorderBrush", componentContent);
         Assert.Contains("DangerBrush", content);
         Assert.DoesNotContain("TextFillColor", content);
         Assert.DoesNotContain("CardBackgroundFillColor", content);
@@ -459,10 +468,24 @@ public sealed class ThemeResourceTests
             "Theming",
             "Resources",
             "SemanticStyles.xaml"));
-        Assert.Contains("StandardBorderThickness", styles);
-        Assert.Contains("SelectedIndicatorThickness", styles);
-        Assert.Contains("ListRowSpacing", styles);
-        Assert.Contains("ProgressTrackHeight", styles);
+        var listStyles = File.ReadAllText(Path.Combine(
+            appRoot,
+            "Shared",
+            "Theming",
+            "Resources",
+            "Components",
+            "ListsAndCards.xaml"));
+        var mediaStyles = File.ReadAllText(Path.Combine(
+            appRoot,
+            "Shared",
+            "Theming",
+            "Resources",
+            "Components",
+            "MediaControls.xaml"));
+        Assert.Contains("StandardBorderThickness", listStyles);
+        Assert.Contains("SelectedIndicatorThickness", listStyles);
+        Assert.Contains("ListRowSpacing", listStyles);
+        Assert.Contains("ProgressTrackHeight", mediaStyles);
         Assert.Contains("WindowTitleTextBlockStyle", styles);
         Assert.Contains("CardTitleTextBlockStyle", styles);
         Assert.Contains("BodyTextBlockStyle", styles);
@@ -560,6 +583,20 @@ public sealed class ThemeResourceTests
             "Theming",
             "Resources",
             "SemanticStyles.xaml"));
+        var listStyles = File.ReadAllText(Path.Combine(
+            appRoot,
+            "Shared",
+            "Theming",
+            "Resources",
+            "Components",
+            "ListsAndCards.xaml"));
+        var navigationStyles = File.ReadAllText(Path.Combine(
+            appRoot,
+            "Shared",
+            "Theming",
+            "Resources",
+            "Components",
+            "NavigationAndMenus.xaml"));
 
         Assert.Contains("x:Key=\"SettingsRowMinHeight\"", tokens);
         Assert.Contains("x:Key=\"SettingsRowPadding\"", tokens);
@@ -567,14 +604,14 @@ public sealed class ThemeResourceTests
         Assert.Contains("x:Key=\"SettingsRowControlMargin\"", tokens);
         Assert.Contains("x:Key=\"SettingsRowControlWidth\"", tokens);
 
-        var rowsGroupStyle = GetStyleElement(styles, "SettingsRowsGroupBorderStyle");
-        var settingsRowStyle = GetStyleElement(styles, "SettingsRowBorderStyle");
-        var lastRowStyle = GetStyleElement(styles, "SettingsLastRowBorderStyle");
+        var rowsGroupStyle = GetStyleElement(listStyles, "SettingsRowsGroupBorderStyle");
+        var settingsRowStyle = GetStyleElement(listStyles, "SettingsRowBorderStyle");
+        var lastRowStyle = GetStyleElement(listStyles, "SettingsLastRowBorderStyle");
         var rowTitleStyle = GetStyleElement(styles, "SettingsRowTitleTextBlockStyle");
         var rowValueStyle = GetStyleElement(styles, "SettingsRowValueTextBlockStyle");
-        var navigationRowStyle = GetStyleElement(styles, "SettingsNavigationRowButtonStyle");
+        var navigationRowStyle = GetStyleElement(navigationStyles, "SettingsNavigationRowButtonStyle");
 
-        Assert.Contains("x:Key=\"SettingsNavigationRowContentTemplate\"", styles);
+        Assert.Contains("x:Key=\"SettingsNavigationRowContentTemplate\"", navigationStyles);
         Assert.Contains("CardCornerRadius", rowsGroupStyle.ToString());
         Assert.Contains("SettingsRowMinHeight", settingsRowStyle.ToString());
         Assert.Contains("SettingsRowPadding", settingsRowStyle.ToString());
@@ -602,7 +639,8 @@ public sealed class ThemeResourceTests
             "Shared",
             "Theming",
             "Resources",
-            "SemanticStyles.xaml"));
+            "Components",
+            "ListsAndCards.xaml"));
 
         var selectedCardStyle = GetStyleElement(styles, "SelectedCardContainerStyle");
         var selectableListItemStyle = GetStyleElement(styles, "SelectableListItemContainerStyle");
