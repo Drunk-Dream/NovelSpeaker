@@ -204,8 +204,8 @@
         },
         "elevation": {
           "defined": ["ElevationLow", "ElevationMedium", "ElevationHigh"],
-          "currentlyReferencedBy": [],
-          "futureSurfaceOwners": ["shared Flyout surface", "shared Dialog surface", "MiniPlayer surface"]
+        "currentlyReferencedBy": ["src/NovelSpeaker.App/Shared/Theming/Resources/Windows/MiniPlayer.xaml"],
+        "futureSurfaceOwners": ["shared Flyout surface", "shared Dialog surface"]
         },
         "motion": {
           "durations": ["AnimFast", "AnimNormal", "AnimSlow"],
@@ -264,7 +264,7 @@
       "kind": "shared-resource-dictionary",
       "source": "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml",
       "root": "ResourceDictionary",
-      "surfaces": ["text-styles", "settings-rows", "card-and-popup-surfaces", "button-templates", "slider-template", "list-selection-styles", "media-button-styles"],
+        "surfaces": ["text-styles", "settings-rows", "card-and-popup-surfaces", "slider-template", "list-selection-styles"],
       "behaviorContracts": ["ThemeResourceTests", "IconButtonStyleTests", "SettingsSubpageViewTests", "PlayerViewLayoutTests"]
     },
     {
@@ -393,21 +393,21 @@
       "category": "corner-radius",
       "current": "MiniPlayerWindow has a transparent Window and an AppBackgroundBrush Border without an outer CornerRadius, despite being a borderless auxiliary window.",
       "sources": ["src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml"],
-      "migrationTarget": "Add the MiniPlayerSurface style in Windows/MiniPlayer.xaml using the shared MiniPlayerCornerRadius token and preserve the existing transparent-window hit-test/drag behavior."
+      "migrationTarget": "Keep MiniPlayerSurfaceStyle in Windows/MiniPlayer.xaml with the shared PageCornerRadius token, RaisedSurfaceBrush and ElevationHigh; preserve the existing transparent-window hit-test/drag behavior."
     },
     {
       "id": "shadow-ownership",
       "category": "shadow",
-      "current": "DesignTokens.xaml defines application-owned ElevationLow, ElevationMedium and ElevationHigh DropShadowEffect resources with low-opacity visual-system parameters. No ordinary static card or all Popup surfaces currently consume them; existing depth remains platform/control-surface managed.",
+      "current": "DesignTokens.xaml defines application-owned ElevationLow, ElevationMedium and ElevationHigh DropShadowEffect resources with low-opacity visual-system parameters. Windows/MiniPlayer.xaml consumes RaisedSurfaceBrush and ElevationHigh; ordinary static cards and Popup surfaces remain without application-level effects.",
       "sources": ["src/NovelSpeaker.App/Shared/Theming/Resources/DesignTokens.xaml", "src/NovelSpeaker.App/Shell/MainWindow.xaml", "src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml"],
-      "migrationTarget": "Keep ElevationLow, ElevationMedium and ElevationHigh in DesignTokens.xaml and later map them only from shared Flyout, Dialog and MiniPlayer surface owners. Do not add page-local effects or claim ordinary cards are elevated until a shared surface consumes the resource."
+      "migrationTarget": "Keep ElevationLow, ElevationMedium and ElevationHigh in DesignTokens.xaml and map the remaining levels only from shared Flyout and Dialog surface owners. Do not add page-local effects or claim ordinary cards are elevated."
     },
     {
       "id": "shared-button-templates",
       "category": "button-template",
-      "current": "SemanticStyles.xaml still owns IconButtonControlTemplate, MediaIconButtonControlTemplate and BorderlessListItemButtonControlTemplate, with repeated hover, pressed, keyboard-focus and disabled triggers. Task 3 migrated public button heights, padding, corners, borders and focus-ring thickness; BookCardView and TtsRulesPage still add local derived Button styles for reveal/current-rule behavior.",
-      "sources": ["src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml", "src/NovelSpeaker.App/Features/Library/BookCardView.xaml", "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml"],
-      "migrationTarget": "Move the three templates and their named semantic styles into Components/Buttons.xaml; add named RevealMoreIconButtonStyle and CurrentRuleActionButtonStyle for the two local behavior wrappers, leaving only bindings/triggers that represent their state."
+      "current": "Components/Buttons.xaml owns ButtonControlTemplate, IconButtonControlTemplate and BorderlessListItemButtonControlTemplate as the single public button template owner, with shared hover, pressed, selected, keyboard-focus and disabled states. Components/MediaControls.xaml owns the media template and semantic media styles; pages retain only commands, bindings and enablement.",
+      "sources": ["src/NovelSpeaker.App/Shared/Theming/Resources/Components/Buttons.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/Components/MediaControls.xaml", "src/NovelSpeaker.App/Features/Library/BookCardView.xaml", "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml"],
+      "migrationTarget": "Keep the public Button/Icon/Media template ownership in Components/Buttons.xaml and Components/MediaControls.xaml. Task 5 owns input, list and card container migration; page-local behavior wrappers may remain when they only represent binding state."
     },
     {
       "id": "text-box-template",
@@ -461,7 +461,7 @@
     {
       "id": "local-popup-surfaces",
       "category": "surface-style",
-      "current": "PlayerView, MiniPlayerWindow, TtsRulesPage, ChapterRulesPage and RegexReplacementRulesPage still place PopupSurfaceBorderStyle at their call sites. Shared corners, borders, dimensions and public spacing are tokenized, while page-specific widths and one-off content layout remain; Elevation resources are not yet applied to these surfaces.",
+      "current": "PlayerView, MiniPlayerWindow, TtsRulesPage, ChapterRulesPage and RegexReplacementRulesPage still place PopupSurfaceBorderStyle at their call sites. Shared corners, borders, dimensions and public spacing are tokenized, while page-specific widths and one-off content layout remain; MiniPlayerWindow uses its separate RaisedSurfaceBrush + ElevationHigh surface style.",
       "sources": ["src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml", "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml", "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml", "src/NovelSpeaker.App/Features/ChapterRules/ChapterRulesPage.xaml", "src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml"],
       "migrationTarget": "Keep widths as content-specific layout inputs, but move RaisedSurface background, border, corner radius and ElevationMedium to a shared FlyoutSurface style; use DialogSurface/ElevationHigh for ContentDialog and MiniPlayer."
     },
