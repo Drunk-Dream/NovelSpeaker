@@ -7,6 +7,7 @@
             <ResourceDictionary.MergedDictionaries>
                 <ui:ThemesDictionary Theme="Light" />
                 <ui:ControlsDictionary />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Themes/ThemeResources.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/DesignTokens.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/SemanticStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
