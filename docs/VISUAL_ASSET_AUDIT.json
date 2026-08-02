@@ -164,6 +164,30 @@
       "behaviorContracts": ["BookCoverGeneratorTests", "BookCardViewTests"]
     },
     {
+      "id": "light-palette",
+      "kind": "shared-resource-dictionary",
+      "source": "src/NovelSpeaker.App/Shared/Theming/Resources/Themes/Palette.Light.xaml",
+      "root": "ResourceDictionary",
+      "surfaces": ["light-semantic-brushes"],
+      "behaviorContracts": ["ThemeResourceTests"]
+    },
+    {
+      "id": "dark-palette",
+      "kind": "shared-resource-dictionary",
+      "source": "src/NovelSpeaker.App/Shared/Theming/Resources/Themes/Palette.Dark.xaml",
+      "root": "ResourceDictionary",
+      "surfaces": ["dark-semantic-brushes"],
+      "behaviorContracts": ["ThemeResourceTests"]
+    },
+    {
+      "id": "theme-resources",
+      "kind": "shared-resource-dictionary",
+      "source": "src/NovelSpeaker.App/Shared/Theming/Resources/Themes/ThemeResources.xaml",
+      "root": "ResourceDictionary",
+      "surfaces": ["stable-theme-entry", "palette-replacement"],
+      "behaviorContracts": ["ThemeResourceTests"]
+    },
+    {
       "id": "design-tokens",
       "kind": "shared-resource-dictionary",
       "source": "src/NovelSpeaker.App/Shared/Theming/Resources/DesignTokens.xaml",
@@ -261,28 +285,28 @@
     }
   ],
   "themeEntry": {
-    "initialDictionary": "src/NovelSpeaker.App/Bootstrap/App.xaml: ui:ThemesDictionary Theme=Light",
-    "themeResourceProvider": "Wpf.Ui ThemesDictionary and ControlsDictionary",
-    "runtimeReplacement": "src/NovelSpeaker.App/Shared/Theming/WpfUiThemeRuntime.cs via ApplicationThemeManager.Apply/ApplySystemTheme",
+    "initialDictionary": "src/NovelSpeaker.App/Bootstrap/App.xaml: ThemeResources.xaml (initial Palette.Light.xaml) plus Wpf.Ui ThemesDictionary Theme=Light",
+    "themeResourceProvider": "Application-owned ThemeResources.xaml with Palette.Light.xaml/Palette.Dark.xaml; Wpf.Ui ThemesDictionary and ControlsDictionary remain the control provider",
+    "runtimeReplacement": "src/NovelSpeaker.App/Shared/Theming/WpfUiThemeRuntime.cs via ApplicationThemeManager.Apply/ApplySystemTheme and ThemePaletteRuntime replacement inside ThemeResources.xaml",
     "startupCoordinator": "src/NovelSpeaker.App/Shared/Theming/AppThemeStartupCoordinator.cs",
     "persistedPreference": "src/NovelSpeaker.App/Shared/Theming/ThemePreferenceService.cs via IAppSettingsService",
     "selectionEntry": "src/NovelSpeaker.App/Features/Appearance/AppearanceSettingsPage.xaml and AppearanceSettingsViewModel.cs",
-    "accentSource": "Wpf.Ui theme resources, consumed as AccentFillColorDefaultBrush, AccentFillColorSecondaryBrush and TextOnAccentFillColorPrimaryBrush; the app currently has no app-owned accent picker or palette dictionary.",
-    "synchronization": "DynamicResource references update existing windows and popups after ApplicationThemeManager changes; MainWindow and MiniPlayerWindow both bind their outer surface to ApplicationBackgroundBrush.",
-    "fallback": "src/NovelSpeaker.App/Bootstrap/WpfStartupRuntime.cs applies System through AppThemeStartupCoordinator when the startup theme stage fails."
+    "accentSource": "Application-owned Palette.Light.xaml and Palette.Dark.xaml expose AccentBrush, AccentHoverBrush, AccentPressedBrush, AccentSubtleBrush, AccentSubtleHoverBrush, AccentFocusRingBrush and AccentForegroundBrush; Wpf.Ui remains the control-template provider.",
+    "synchronization": "ThemePaletteRuntime replaces semantic entries in the stable ThemeResources.xaml dictionary, so DynamicResource references in existing windows, popups and MiniPlayerWindow refresh without rebuilding their visual trees.",
+    "fallback": "ThemePaletteRuntime validates both palette key sets and falls back to a valid Light palette or the existing valid palette; src/NovelSpeaker.App/Bootstrap/WpfStartupRuntime.cs still applies System through AppThemeStartupCoordinator when the startup theme stage fails."
   },
   "migrationFindings": [
     {
       "id": "palette-ownership",
       "category": "color",
-      "current": "Pages and SemanticStyles consume Wpf.Ui names such as ApplicationBackgroundBrush, CardBackgroundFillColorDefaultBrush, ControlFillColorSecondaryBrush, LayerFillColorAltBrush, SolidBackgroundFillColorBaseBrush, AccentFillColorDefaultBrush and SystemFillColorCriticalBrush. No Palette.Light.xaml or Palette.Dark.xaml exists.",
+      "current": "Pages and SemanticStyles consume application-owned semantic Brush keys through ThemeResources.xaml and matching Palette.Light.xaml/Palette.Dark.xaml dictionaries; Wpf.Ui color names remain behind the control/theme provider boundary.",
       "sources": ["src/NovelSpeaker.App/Bootstrap/App.xaml", "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml", "src/NovelSpeaker.App/Shell/MainWindow.xaml", "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml"],
       "migrationTarget": "Create app-owned Palette.Light.xaml, Palette.Dark.xaml and ThemeResources.xaml. Map all page/control color use to AppBackground, CanvasSurface, PrimarySurface, SecondarySurface, RaisedSurface, text, border, Accent, state and focus semantic keys. Keep Wpf.Ui as the platform theme provider behind the mapping, not as a page-facing contract."
     },
     {
       "id": "local-state-colors",
       "category": "color",
-      "current": "MainWindow active-cache rows, PlayerView chapter/segment states, CacheManagement selected chapters, BookDetails current chapter and MiniPlayer topmost state set Wpf.Ui brushes directly in local triggers.",
+      "current": "MainWindow active-cache rows, PlayerView chapter/segment states, CacheManagement selected chapters, BookDetails current chapter and MiniPlayer topmost state use application semantic brushes in local triggers.",
       "sources": ["src/NovelSpeaker.App/Shell/MainWindow.xaml", "src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml", "src/NovelSpeaker.App/Features/Cache/CacheManagementPage.xaml", "src/NovelSpeaker.App/Features/BookDetails/BookDetailsPage.xaml", "src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml"],
       "migrationTarget": "Move these triggers to shared semantic selected/current/active/focus styles in Components/ListsAndCards.xaml, Components/MediaControls.xaml and Components/Windows/MiniPlayer.xaml; retain only behavior/state bindings at the page call sites."
     },
@@ -303,7 +327,7 @@
     {
       "id": "unrounded-mini-player-surface",
       "category": "corner-radius",
-      "current": "MiniPlayerWindow has a transparent Window and an ApplicationBackgroundBrush Border without an outer CornerRadius, despite being a borderless auxiliary window.",
+      "current": "MiniPlayerWindow has a transparent Window and an AppBackgroundBrush Border without an outer CornerRadius, despite being a borderless auxiliary window.",
       "sources": ["src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml"],
       "migrationTarget": "Add the MiniPlayerSurface style in Windows/MiniPlayer.xaml using the shared MiniPlayerCornerRadius token and preserve the existing transparent-window hit-test/drag behavior."
     },

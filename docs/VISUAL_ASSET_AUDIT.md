@@ -24,7 +24,7 @@
 | 主窗口 | [`MainWindow.xaml`](../src/NovelSpeaker.App/Shell/MainWindow.xaml) | `FluentWindow`、标题栏、一级导航、主动缓存 Flyout、`ContentDialogHost`、`SnackbarPresenter` | `MainWindowNavigationTests`、`ShellActivationCoordinatorTests` |
 | 启动状态窗口 | [`StartupStatusWindow.xaml`](../src/NovelSpeaker.App/Bootstrap/StartupStatusWindow.xaml) | 启动阶段、状态文本、无限进度 | `StartupCoordinatorTests` |
 | 迷你播放器 | [`MiniPlayerWindow.xaml`](../src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml) | 无系统标题栏、播放上下文、段落进度、媒体控制、音量 Popup | `MiniPlayerWindowTests`、`MiniPlayerViewModelTests` |
-| 应用资源入口 | [`App.xaml`](../src/NovelSpeaker.App/Bootstrap/App.xaml) | 初始 Light `ThemesDictionary`、`ControlsDictionary`、令牌和语义资源 | `ThemeResourceTests`、主题协调器测试 |
+| 应用资源入口 | [`App.xaml`](../src/NovelSpeaker.App/Bootstrap/App.xaml) | `ThemeResources.xaml`（初始 Light Palette）、Light `ThemesDictionary`、`ControlsDictionary`、令牌和语义资源 | `ThemeResourceTests`、主题协调器测试 |
 | 设计令牌 | [`DesignTokens.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/DesignTokens.xaml) | 页面间距、圆角、控件尺寸、动效时长、导航宽度 | `ThemeResourceTests` |
 | 语义资源 | [`SemanticStyles.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml) | 文本、设置行、卡片/Popup、Button、Slider、列表状态和媒体按钮 | `ThemeResourceTests`、`IconButtonStyleTests` |
 
@@ -54,6 +54,14 @@
 | 播放工作区 | [`PlayerView.xaml`](../src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml) | 播放工具、四个 Popup、章节/段落列表、媒体控制和无规则状态 | `PlayerViewLayoutTests`、`PlayerProgressInteractionControllerTests`、键盘快捷键测试 |
 | 书籍卡片 | [`BookCardView.xaml`](../src/NovelSpeaker.App/Features/Library/BookCardView.xaml) | 封面、书籍摘要、阅读进度、更多菜单 | `BookCardViewTests`、`LibraryPageTests` |
 | 生成封面 | [`BookCoverView.xaml`](../src/NovelSpeaker.App/Shared/Presentation/Books/BookCoverView.xaml) | 确定性封面背景、装饰几何形状和标题行 | `BookCoverGeneratorTests`、`BookCardViewTests` |
+
+### 主题资源字典
+
+| 资源 | 实际入口 | 当前职责 | 直接契约 |
+| --- | --- | --- | --- |
+| 浅色 Palette | [`Palette.Light.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/Themes/Palette.Light.xaml) | 应用浅色语义 Brush | `ThemeResourceTests` |
+| 深色 Palette | [`Palette.Dark.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/Themes/Palette.Dark.xaml) | 应用深色语义 Brush，与浅色键集合一致 | `ThemeResourceTests` |
+| 主题资源外壳 | [`ThemeResources.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/Themes/ThemeResources.xaml) | 稳定资源入口；运行时由 `ThemePaletteRuntime` 直接替换当前 Palette 语义键 | `ThemeResourceTests` |
 
 ## Dialog、Flyout、Snackbar 和菜单
 
@@ -118,17 +126,19 @@ AppearanceSettingsPage
             └─ 再持久化；失败时应用旧主题回滚
 ```
 
-当前浅色/深色入口不是应用自有 `Palette.*.xaml`，而是 Wpf.Ui 的 `ThemesDictionary`。应用的
-Accent 来源也是 Wpf.Ui 主题资源，当前使用的键包括：
+应用的颜色入口由 `ThemeResources.xaml` 稳定持有，并初始合并 `Palette.Light.xaml`；
+`Palette.Dark.xaml` 提供相同的语义 Brush 键集合。Wpf.Ui 的 `ThemesDictionary` 和
+`ControlsDictionary` 仍只负责底层控件模板与系统主题 provider。应用 Accent 族由自有 Palette
+暴露：
 
-- `AccentFillColorDefaultBrush`：主媒体按钮、当前状态、进度和强调边缘。
-- `AccentFillColorSecondaryBrush`：选择/强调状态层。
-- `TextOnAccentFillColorPrimaryBrush`：强调色表面上的图标/文字。
+- `AccentBrush`、`AccentHoverBrush`、`AccentPressedBrush`：主媒体按钮、当前状态和进度。
+- `AccentSubtleBrush`、`AccentSubtleHoverBrush`：选择与强调状态层。
+- `AccentFocusRingBrush`：键盘焦点环。
+- `AccentForegroundBrush`：强调色表面上的图标和文字。
 
-当前没有 Accent 选择器、Accent 持久化字段或应用自有 Accent Palette。任务 2 的迁移目标是
-在 `Palette.Light.xaml`、`Palette.Dark.xaml` 和 `ThemeResources.xaml` 中建立应用语义键，令页面
-不再依赖 Wpf.Ui 具体 Brush 名称；运行时仍通过替换主题资源字典完成，并保持已打开窗口、Popup、
-Dialog 和迷你播放器同步刷新。
+页面不再消费 Wpf.Ui 的具体颜色键。运行时由 `ThemePaletteRuntime` 替换稳定外壳中的 Palette
+语义键，并保持已打开窗口、Popup、Dialog 和迷你播放器的 `DynamicResource` 引用同步刷新；
+两套 Palette 加载或键集合校验失败时回退到有效的 Light 或现有 Palette。
 
 ## 重复局部样式与明确迁移目标
 
@@ -137,7 +147,7 @@ ID、实际来源和目标归属；“迁移目标”不是未归属的以后处
 
 | ID | 类别 | 当前重复/局部实现 | 明确迁移目标 |
 | --- | --- | --- | --- |
-| `palette-ownership` | 颜色 | 页面和语义样式直接使用 Wpf.Ui Brush 名称；没有应用 Palette | `Themes/Palette.Light.xaml`、`Themes/Palette.Dark.xaml`、`Themes/ThemeResources.xaml`，由语义 Brush 对外暴露 |
+| `palette-ownership` | 颜色 | 页面和语义样式通过 `ThemeResources.xaml` 使用应用自有语义 Brush；Wpf.Ui 颜色名保留在底层主题/控件 provider 边界 | `Themes/Palette.Light.xaml`、`Themes/Palette.Dark.xaml`、`Themes/ThemeResources.xaml`，由语义 Brush 对外暴露 |
 | `local-state-colors` | 颜色 | 主动缓存、当前章节、播放段、多选、置顶状态在页面局部 Trigger 写 Brush | `Components/ListsAndCards.xaml`、`Components/MediaControls.xaml`、`Windows/MiniPlayer.xaml` 的共享状态样式 |
 | `cover-palette` | 颜色 | 生成封面使用独立的确定性渐变和内容色 | 保持 `BookCover` 专属资源边界，不并入全局 Accent |
 | `inline-corner-radii` | 圆角 | `8`、`10`、`12`、`999` 在 Popup/播放列表/封面/圆形按钮局部出现 | `DesignTokens.xaml` 增加 FlyoutItem、ToolbarPill、ListRow、Media、Cover 语义令牌 |
