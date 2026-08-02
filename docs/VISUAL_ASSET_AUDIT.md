@@ -1,0 +1,184 @@
+# NovelSpeaker 视觉资产审计与行为基线
+
+本文件记录任务 1 对当前 WPF 资产的可审查基线。机器可检查的清单在同目录的
+[`VISUAL_ASSET_AUDIT.json`](VISUAL_ASSET_AUDIT.json)；JSON 的 `xamlAssets` 必须覆盖
+`src/NovelSpeaker.App` 下全部 XAML，`migrationFindings` 的每一项必须有明确迁移目标。
+
+审计日期：2026-08-02。
+
+## 审计边界
+
+本次只盘点现有资产和固定用户可观察行为，不改变生产行为，不新建视觉平行实现，也不把
+任务 2–5 的执行状态写入数字设计文档。当前实现由实际 XAML、运行时对话框/通知服务和
+现有 WPF/Presentation 测试共同确定；设计目标以
+[`13_VISUAL_DESIGN_SYSTEM.md`](13_VISUAL_DESIGN_SYSTEM.md)、
+[`06_UI_AND_USER_FLOWS.md`](06_UI_AND_USER_FLOWS.md) 和
+[`07_SETTINGS_PAGES.md`](07_SETTINGS_PAGES.md) 为准。
+
+## 资产覆盖清单
+
+### 顶级窗口、应用入口和全局资源
+
+| 资产 | 实际入口 | 当前表面/职责 | 现有行为契约 |
+| --- | --- | --- | --- |
+| 主窗口 | [`MainWindow.xaml`](../src/NovelSpeaker.App/Shell/MainWindow.xaml) | `FluentWindow`、标题栏、一级导航、主动缓存 Flyout、`ContentDialogHost`、`SnackbarPresenter` | `MainWindowNavigationTests`、`ShellActivationCoordinatorTests` |
+| 启动状态窗口 | [`StartupStatusWindow.xaml`](../src/NovelSpeaker.App/Bootstrap/StartupStatusWindow.xaml) | 启动阶段、状态文本、无限进度 | `StartupCoordinatorTests` |
+| 迷你播放器 | [`MiniPlayerWindow.xaml`](../src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerWindow.xaml) | 无系统标题栏、播放上下文、段落进度、媒体控制、音量 Popup | `MiniPlayerWindowTests`、`MiniPlayerViewModelTests` |
+| 应用资源入口 | [`App.xaml`](../src/NovelSpeaker.App/Bootstrap/App.xaml) | 初始 Light `ThemesDictionary`、`ControlsDictionary`、令牌和语义资源 | `ThemeResourceTests`、主题协调器测试 |
+| 设计令牌 | [`DesignTokens.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/DesignTokens.xaml) | 页面间距、圆角、控件尺寸、动效时长、导航宽度 | `ThemeResourceTests` |
+| 语义资源 | [`SemanticStyles.xaml`](../src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml) | 文本、设置行、卡片/Popup、Button、Slider、列表状态和媒体按钮 | `ThemeResourceTests`、`IconButtonStyleTests` |
+
+### 可导航页面
+
+| 页面 | 实际 XAML | 当前主要结构和交互面 | 直接契约 |
+| --- | --- | --- | --- |
+| 书库 | [`LibraryPage.xaml`](../src/NovelSpeaker.App/Features/Library/LibraryPage.xaml) | 搜索、排序、导入、书籍网格、空状态、无结果状态 | `LibraryPageTests`、`LibraryViewModelTests` |
+| 书籍详情 | [`BookDetailsPage.xaml`](../src/NovelSpeaker.App/Features/BookDetails/BookDetailsPage.xaml) | 编辑副本、书籍操作、虚拟化章节目录、当前章节定位 | `BookDetailsPageTests`、`BookDetailsViewModelTests` |
+| 播放页 | [`PlayerPage.xaml`](../src/NovelSpeaker.App/Features/Playback/PlayerPage.xaml) | `PlayerView` 页面宿主 | `AppRouteNavigationTests`、`PlayerViewLayoutTests` |
+| 设置首页 | [`SettingsPage.xaml`](../src/NovelSpeaker.App/Features/Settings/SettingsPage.xaml) | 分组设置导航行 | `SettingsPageViewTests`、`SettingsViewModelTests` |
+| 播放设置 | [`PlaybackSettingsPage.xaml`](../src/NovelSpeaker.App/Features/PlaybackSettings/PlaybackSettingsPage.xaml) | 语速、预取、朗读标题、TTS 规则入口 | `SettingsSubpageViewTests`、`PlaybackSettingsViewModelTests` |
+| TTS 规则 | [`TtsRulesPage.xaml`](../src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml) | 规则工作台、启用/当前操作、菜单、编辑器、帮助抽屉 | `TtsRulesPageTests`、`TtsRulesViewModelTests` |
+| 导入与文本 | [`ImportTextSettingsPage.xaml`](../src/NovelSpeaker.App/Features/ImportTextSettings/ImportTextSettingsPage.xaml) | 文件名模板、长段落设置、正则替换入口 | `SettingsSubpageViewTests`、`ImportTextSettingsViewModelTests` |
+| 正则替换规则 | [`RegexReplacementRulesPage.xaml`](../src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml) | 规则工作台、拖拽排序、更多菜单、编辑器、帮助抽屉 | `RegexReplacementRulesPageTests`、`RegexReplacementRulesViewModelTests` |
+| 章节规则 | [`ChapterRulesPage.xaml`](../src/NovelSpeaker.App/Features/ChapterRules/ChapterRulesPage.xaml) | 规则工作台、拖拽排序、更多菜单、编辑器、帮助抽屉 | `ChapterRulesPageTests`、`ChapterRulesViewModelTests` |
+| 缓存与数据 | [`CacheAndDataPage.xaml`](../src/NovelSpeaker.App/Features/Cache/CacheAndDataPage.xaml) | 缓存概览、上限、策略、清理全部缓存、缓存管理入口 | `CachePagesViewTests`、`CacheAndDataViewModelTests` |
+| 缓存管理 | [`CacheManagementPage.xaml`](../src/NovelSpeaker.App/Features/Cache/CacheManagementPage.xaml) | 单书选择、章节 Extended 多选、清理、导出和进度 | `CachePagesViewTests`、`CacheManagementViewModelTests`、`DesktopSelectionControllerTests` |
+| 常规 | [`GeneralSettingsPage.xaml`](../src/NovelSpeaker.App/Features/GeneralSettings/GeneralSettingsPage.xaml) | 关闭行为、启动最小化 | `SettingsSubpageViewTests`、`GeneralSettingsViewModelTests` |
+| 外观 | [`AppearanceSettingsPage.xaml`](../src/NovelSpeaker.App/Features/Appearance/AppearanceSettingsPage.xaml) | System/Light/Dark 主题选择 | `SettingsSubpageViewTests`、`AppearanceSettingsViewModelTests` |
+| 诊断与关于 | [`DiagnosticsAboutPage.xaml`](../src/NovelSpeaker.App/Features/Diagnostics/DiagnosticsAboutPage.xaml) | 版本、目录、日志级别、脱敏摘要、许可证入口 | `SettingsSubpageViewTests`、`DiagnosticsAboutViewModelTests` |
+
+### 可复用局部组件
+
+| 组件 | 实际 XAML | 当前职责 | 直接契约 |
+| --- | --- | --- | --- |
+| 播放工作区 | [`PlayerView.xaml`](../src/NovelSpeaker.App/Features/Playback/Components/PlayerView.xaml) | 播放工具、四个 Popup、章节/段落列表、媒体控制和无规则状态 | `PlayerViewLayoutTests`、`PlayerProgressInteractionControllerTests`、键盘快捷键测试 |
+| 书籍卡片 | [`BookCardView.xaml`](../src/NovelSpeaker.App/Features/Library/BookCardView.xaml) | 封面、书籍摘要、阅读进度、更多菜单 | `BookCardViewTests`、`LibraryPageTests` |
+| 生成封面 | [`BookCoverView.xaml`](../src/NovelSpeaker.App/Shared/Presentation/Books/BookCoverView.xaml) | 确定性封面背景、装饰几何形状和标题行 | `BookCoverGeneratorTests`、`BookCardViewTests` |
+
+## Dialog、Flyout、Snackbar 和菜单
+
+### Dialog
+
+应用没有独立 Dialog XAML；所有应用内模态对话框由 `ContentDialog` 运行时创建，并由主窗口的
+`RootContentDialogHost` 承载。没有 Host 时才使用原生 `MessageBox` 回退。
+
+| 资产 | 所有者 | 当前变体 | 契约和迁移归属 |
+| --- | --- | --- | --- |
+| 通用确认 | `Shared/Dialogs/AppDialogService.cs` | 确认、未保存修改（保存/放弃/取消） | `AppDialogService` 是唯一决策适配器；迁移到共享 Dialog Shell 和语义按钮资源 |
+| 删除书籍 | `Features/BookDetails/BookDeleteDialogService.cs` | 删除、音频缓存复选框、播放中提示 | 保留外部 TXT 安全语义；迁移到共享 Danger Confirmation Shell |
+| 编码选择 | `Features/Library/EncodingSelectionDialogService.cs` | 编码 ComboBox、继续导入/取消 | 迁移到共享表单 Dialog 和输入资源 |
+| 导入进度 | `Features/Library/ImportProgressDialogService.cs` | 不定/确定进度、取消 | 迁移到共享 Progress Dialog；保留取消源、进度投影和关闭等待 |
+| 启动错误 | `Bootstrap/App.xaml.cs`、`WpfStartupRuntime.cs` | 启动阶段错误、无法建立 Host 的错误 | 仍是 Bootstrap 边界回退；有 Host 时优先共享反馈层 |
+
+### Flyout、Popup 和帮助抽屉
+
+| 资产 | 实际位置 | 内容 | 现状 |
+| --- | --- | --- | --- |
+| 主动缓存进度 | `MainWindow.xaml#ActiveCacheFlyout` | 章节进度列表、取消任务 | 已复用 `PopupSurfaceBorderStyle`，列表行仍有局部状态样式 |
+| 定时停止 | `PlayerView.xaml#StopTimerPopup` | 快捷时长、自定义分钟数、错误提示 | 已复用 Popup 表面，按钮和输入高度/间距仍有局部常量 |
+| 规则切换 | `PlayerView.xaml#RuleMenuPopup` | 规则列表、当前标识、前往规则管理 | 列表行复用 BorderlessListItemButtonStyle，选中提示是局部 TextBlock 样式 |
+| 语速调整 | `PlayerView.xaml#SpeedMenuPopup` | 减速、输入、加速 | 已复用 Popup 表面，输入和动作按钮仍有局部尺寸 |
+| 播放音量 | `PlayerView.xaml#VolumeMenuPopup` | 音量百分比、Slider | 与迷你播放器共用 Slider 语义样式，但 Popup 结构重复 |
+| 迷你播放器音量 | `MiniPlayerWindow.xaml#MiniPlayerVolumeMenuPopup` | 音量百分比、Slider | 与播放页音量 Popup 结构重复 |
+| TTS 帮助 | `TtsRulesPage.xaml#HelpDrawerBorder` | 规则编写帮助 | 页内抽屉和遮罩，需共享 HelpDrawer 表面 |
+| 章节规则帮助 | `ChapterRulesPage.xaml#HelpDrawerBorder` | 规则生效帮助 | 页内抽屉和遮罩，需共享 HelpDrawer 表面 |
+| 正则替换帮助 | `RegexReplacementRulesPage.xaml#HelpDrawerBorder` | 正则语法和作用范围 | 页内抽屉和遮罩，需共享 HelpDrawer 表面 |
+
+### Snackbar 和菜单
+
+- Snackbar 只有主窗口 `RootSnackbarPresenter` 一个承载点；`AppNotificationService` 是统一适配器。
+  页面/ViewModel 不直接拥有 Snackbar 队列。
+- 书籍卡片菜单：书籍详情、删除书籍。
+- TTS 规则菜单：导出、删除。
+- 章节规则菜单：上移、下移、删除；内置规则按能力禁用删除。
+- 正则替换菜单：上移、下移、删除。
+- 菜单由 XAML 声明，规则菜单的拖拽/菜单事件只负责平台事件桥接；排序、删除和 dirty guard 仍由现有 ViewModel/页面协调。
+- 文件/文件夹选择器和系统打开目录不属于应用自绘视觉资产，由统一 `IPresentationFileDialogService`/
+  `IPresentationLauncher` 提供平台能力。
+
+## 主题入口、Accent 和资源替换
+
+当前链路如下：
+
+```text
+App.xaml
+  └─ Wpf.Ui ThemesDictionary(初始 Light) + ControlsDictionary
+       └─ DynamicResource 主题 Brush
+            └─ SemanticStyles.xaml / 页面 XAML
+
+settings.json → IAppSettingsService.Current.Theme
+  └─ AppThemeStartupCoordinator
+       └─ WpfUiThemeRuntime
+            └─ ApplicationThemeManager.Apply / ApplySystemTheme
+
+AppearanceSettingsPage
+  └─ AppearanceSettingsViewModel
+       └─ ThemePreferenceService
+            ├─ 先应用运行时主题
+            └─ 再持久化；失败时应用旧主题回滚
+```
+
+当前浅色/深色入口不是应用自有 `Palette.*.xaml`，而是 Wpf.Ui 的 `ThemesDictionary`。应用的
+Accent 来源也是 Wpf.Ui 主题资源，当前使用的键包括：
+
+- `AccentFillColorDefaultBrush`：主媒体按钮、当前状态、进度和强调边缘。
+- `AccentFillColorSecondaryBrush`：选择/强调状态层。
+- `TextOnAccentFillColorPrimaryBrush`：强调色表面上的图标/文字。
+
+当前没有 Accent 选择器、Accent 持久化字段或应用自有 Accent Palette。任务 2 的迁移目标是
+在 `Palette.Light.xaml`、`Palette.Dark.xaml` 和 `ThemeResources.xaml` 中建立应用语义键，令页面
+不再依赖 Wpf.Ui 具体 Brush 名称；运行时仍通过替换主题资源字典完成，并保持已打开窗口、Popup、
+Dialog 和迷你播放器同步刷新。
+
+## 重复局部样式与明确迁移目标
+
+下表是所有任务 1 发现的局部重复视觉关注点。每项都已在 JSON 的 `migrationFindings` 中有唯一
+ID、实际来源和目标归属；“迁移目标”不是未归属的以后处理项。
+
+| ID | 类别 | 当前重复/局部实现 | 明确迁移目标 |
+| --- | --- | --- | --- |
+| `palette-ownership` | 颜色 | 页面和语义样式直接使用 Wpf.Ui Brush 名称；没有应用 Palette | `Themes/Palette.Light.xaml`、`Themes/Palette.Dark.xaml`、`Themes/ThemeResources.xaml`，由语义 Brush 对外暴露 |
+| `local-state-colors` | 颜色 | 主动缓存、当前章节、播放段、多选、置顶状态在页面局部 Trigger 写 Brush | `Components/ListsAndCards.xaml`、`Components/MediaControls.xaml`、`Windows/MiniPlayer.xaml` 的共享状态样式 |
+| `cover-palette` | 颜色 | 生成封面使用独立的确定性渐变和内容色 | 保持 `BookCover` 专属资源边界，不并入全局 Accent |
+| `inline-corner-radii` | 圆角 | `8`、`10`、`12`、`999` 在 Popup/播放列表/封面/圆形按钮局部出现 | `DesignTokens.xaml` 增加 FlyoutItem、ToolbarPill、ListRow、Media、Cover 语义令牌 |
+| `unrounded-mini-player-surface` | 圆角 | 迷你播放器外层 Border 未使用窗口圆角 | `Windows/MiniPlayer.xaml` 的 MiniPlayerSurface + MiniPlayerCornerRadius |
+| `shadow-ownership` | 阴影 | 没有应用 Elevation/Shadow 资源，深度依赖 Wpf.Ui/窗口平台默认 | `DesignTokens.xaml` 的 Low/Medium/High + Window/Flyout/Dialog 共享表面 |
+| `shared-button-templates` | Button Template | 三个公共 Button ControlTemplate 已在 SemanticStyles，但两处仍有局部派生样式 | `Components/Buttons.xaml`，补齐 RevealMore 和 CurrentRule 语义样式 |
+| `text-box-template` | TextBox Template | 没有应用自有 TextBox/PasswordBox Template，页面散落高度和对齐值 | `Components/Inputs.xaml` 统一输入、焦点、错误、禁用状态 |
+| `slider-template` | Slider Template | Slider/Thumb/RepeatButton 已共享，但归属于 SemanticStyles，进度与音量 Popup 结构重复 | `Components/MediaControls.xaml` 统一 Slider/Progress 模板与 Thumb 状态 |
+| `book-details-list-container` | 列表选择 | 详情页内联 ListBoxItem + ContentPresenter 模板，状态在数据 Border | `Components/ListsAndCards.xaml` 的虚拟化容器 + CurrentListItem 样式 |
+| `cache-management-list-container` | 列表选择 | 缓存管理内联 ListBoxItem 模板和选中 Border Trigger | 共享 ExtendedSelection 容器 + SelectedCard 样式；选择事实仍由 `DesktopSelectionController` |
+| `rules-list-container` | 列表选择 | 正则、章节、TTS 工作台分别声明容器/拖放/当前状态局部样式 | 共享 RuleWorkbench、DropTarget、CurrentRule 样式 |
+| `playback-list-selection` | 列表选择 | 播放章节、段落各自声明容器和当前/多选状态 | 共享 PlaybackChapter、PlaybackSegment、CurrentAndSelected 状态样式 |
+| `shell-active-cache-row` | 列表选择 | 主窗口 Flyout 内联当前/失败行背景 | 共享 FlyoutListItem + ActiveCacheStatus 样式 |
+| `local-popup-surfaces` | 表面/阴影 | 多个页面重复引用 PopupSurface，宽度和局部内边距散落 | 共享 FlyoutSurface、DialogSurface、MiniPlayerSurface；宽度仍是内容布局输入 |
+| `settings-row-style` | 设置行 | 设置页面已统一复用四个语义样式，当前没有页面 Hover/Border 复制 | 保留语义样式单一所有者，仅把颜色映射到 ThemeResources 并补充 SettingGroup token |
+
+### 控件模板现状结论
+
+| 控件族 | 当前是否有应用自有模板 | 当前证据 | 迁移目标 |
+| --- | --- | --- | --- |
+| Button/Icon/Media/ListItem Button | 有 | `SemanticStyles.xaml` 的三个 `ControlTemplate` | 拆入 `Components/Buttons.xaml`，页面只引用语义样式 |
+| TextBox/PasswordBox | 无 | 未发现应用自有 `ControlTemplate` | `Components/Inputs.xaml` 的统一输入模板/状态 |
+| Slider/Thumb/RepeatButton | 有 | `PlaybackProgressSliderStyle`、`PlaybackSliderThumbStyle`、`PlaybackSliderTrackButtonStyle` | `Components/MediaControls.xaml`，增加 Hover/Focus/Dragging 语义 |
+| ProgressBar | 无独立 ControlTemplate | `PlaybackProgressBarStyle` 只设置尺寸和 Brush | 与 MediaControls 的进度轨道/填充语义资源统一 |
+| ListBoxItem | 局部多份 | 详情、缓存、正则、播放页有 ContentPresenter-only 容器 | 共享虚拟化容器样式，页面保留业务语义绑定 |
+| ComboBox/CheckBox | 无应用自有模板 | 使用 Wpf.Ui 控件模板，页面只设置数据/布局属性 | `Components/Inputs.xaml` 统一高度、焦点、禁用和错误表现 |
+
+## 行为基线与测试证据
+
+行为基线只固定用户可观察结果，不复制播放、选择或编辑状态机。
+
+| 范围 | 必须保持的行为 | 现有测试证据 |
+| --- | --- | --- |
+| Shell 导航 | 一级只有书库/设置；启动到书库；切换只留一个 active；关闭经过生命周期/guard | `MainWindowNavigationTests`、`AppRouteNavigationTests`、`GuardedNavigationServiceTests` |
+| 书库与详情 | 搜索/导入/空状态可访问；章节目录虚拟化；当前章节定位；未保存元数据支持保存、放弃、取消 | `LibraryPageTests`、`BookDetailsPageTests`、`LibraryViewModelTests`、`BookDetailsViewModelTests` |
+| 播放与键盘 | 播放命令启用矩阵、Space/Ctrl/Alt 快捷键、章节/段落虚拟化、进度拖动和当前项定位 | `PlayerViewLayoutTests`、`PlayerProgressInteractionControllerTests`、`KeyboardShortcutPolicyTests`、`WpfShortcutContextResolverTests`、`PlayerViewModelCommandTests` |
+| 多选与缓存 | 单书、章节 Extended 选择、Ctrl/Shift/Ctrl+A、无选择禁用、清理/导出进度和取消 | `CachePagesViewTests`、`DesktopSelectionControllerTests`、`CacheManagementViewModelTests` |
+| 规则工作台 | 左右滚动工作区、启用/当前、拖拽/菜单排序、dirty Save/Cancel、帮助抽屉 | `TtsRulesPageTests`、`ChapterRulesPageTests`、`RegexReplacementRulesPageTests` 及对应 ViewModel 测试 |
+| 设置与主题 | 设置导航行、字段保存策略、Light/Dark/System 应用、保存失败回滚 | `SettingsPageViewTests`、`SettingsSubpageViewTests`、设置 ViewModel 测试、`AppThemeStartupCoordinatorTests`、`ThemePreferenceServiceTests` |
+| 播放浮窗与反馈 | 迷你播放器关闭恢复主窗口；空白拖动不吞控件；进度/音量/媒体按钮有可访问名称；Dialog/Snackbar 走统一服务 | `MiniPlayerWindowTests`、`MiniPlayerViewModelTests`、`BookDeleteDialogServiceTests`、`FeedbackServicesTests` |
+
+新增的 `VisualAssetAuditTests` 只检查本清单自身的完整性：全部 23 个 XAML 均已登记，所有
+视觉发现均有迁移目标，且主题入口、Accent 来源、运行时替换和行为矩阵均有 owner/测试文件。
+它不以截图坐标或私有实现细节作为断言。
