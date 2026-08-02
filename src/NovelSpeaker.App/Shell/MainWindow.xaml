@@ -11,7 +11,7 @@
                   MinHeight="640"
                   WindowCornerPreference="Round"
                   ExtendsContentIntoTitleBar="True"
-                  Background="{DynamicResource ApplicationBackgroundBrush}">
+                  Background="{DynamicResource AppBackgroundBrush}">
     <ui:FluentWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </ui:FluentWindow.Resources>
@@ -38,7 +38,7 @@
                            IsPaneToggleVisible="True"
                            IsFooterSeparatorVisible="False"
                            PaneDisplayMode="Left"
-                           Background="{DynamicResource LayerFillColorAltBrush}">
+                           Background="{DynamicResource CanvasSurfaceBrush}">
             <ui:NavigationView.MenuItems>
                 <ui:NavigationViewItem x:Name="LibraryNavigationItem"
                                        Content="书库">
@@ -145,10 +145,10 @@
                                             <Setter Property="Background" Value="Transparent" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                                    <Setter Property="Background" Value="{DynamicResource SecondarySurfaceBrush}" />
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding IsFailed}" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBackgroundBrush}" />
+                                                    <Setter Property="Background" Value="{DynamicResource DangerSubtleBrush}" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>

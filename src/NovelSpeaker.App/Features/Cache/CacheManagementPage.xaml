@@ -339,8 +339,8 @@
                                                        BasedOn="{StaticResource CardBorderStyle}">
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                            <Setter Property="Background" Value="{DynamicResource AccentFillColorSecondaryBrush}" />
-                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                            <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>

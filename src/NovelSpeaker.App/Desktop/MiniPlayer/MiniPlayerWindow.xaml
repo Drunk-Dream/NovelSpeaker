@@ -16,7 +16,7 @@
         Topmost="{Binding IsTopmost, Mode=TwoWay}"
         PreviewMouseLeftButtonDown="MiniPlayerWindow_OnPreviewMouseLeftButtonDown">
     <Border Padding="16"
-            Background="{DynamicResource ApplicationBackgroundBrush}">
+            Background="{DynamicResource AppBackgroundBrush}">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -62,8 +62,8 @@
                                 <Setter Property="BorderThickness" Value="0" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsTopmost}" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                         <Setter Property="BorderThickness" Value="1" />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -72,10 +72,10 @@
                         <ui:SymbolIcon Symbol="Pin24">
                             <ui:SymbolIcon.Style>
                                 <Style TargetType="ui:SymbolIcon">
-                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsTopmost}" Value="True">
-                                            <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>

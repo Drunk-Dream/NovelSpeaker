@@ -417,7 +417,7 @@
                         Grid.Column="0"
                         AutomationProperties.Name="关闭规则帮助"
                         ToolTip="关闭规则帮助"
-                        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                        Background="{DynamicResource RaisedSurfaceBrush}"
                         BorderThickness="0"
                         Command="{Binding CloseHelpCommand}" />
 

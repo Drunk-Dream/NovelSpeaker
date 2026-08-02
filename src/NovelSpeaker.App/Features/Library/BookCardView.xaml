@@ -15,14 +15,14 @@
                     <DataTrigger Binding="{Binding IsMouseOver, ElementName=Root}"
                                  Value="True">
                         <Setter Property="BorderBrush"
-                                Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+                                Value="{DynamicResource AccentBrush}"/>
                         <Setter Property="BorderThickness"
                                 Value="1.5"/>
                     </DataTrigger>
                     <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=Root}"
                                  Value="True">
                         <Setter Property="BorderBrush"
-                                Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+                                Value="{DynamicResource AccentBrush}"/>
                         <Setter Property="BorderThickness"
                                 Value="1.5"/>
                     </DataTrigger>
@@ -116,7 +116,7 @@
                                   IsEnabled="{Binding Item.CanDelete}" />
                     </ContextMenu>
                 </Button.ContextMenu>
-                <ui:SymbolIcon Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                <ui:SymbolIcon Foreground="{DynamicResource SecondaryTextBrush}"
                                Symbol="MoreHorizontal24" />
             </Button>
         </Grid>

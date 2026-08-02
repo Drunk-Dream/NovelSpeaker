@@ -358,7 +358,7 @@
                 <Button Grid.Column="0"
                         AutomationProperties.Name="关闭正则替换帮助"
                         ToolTip="关闭正则替换帮助"
-                        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                        Background="{DynamicResource RaisedSurfaceBrush}"
                         BorderThickness="0"
                         Command="{Binding CloseHelpCommand}" />
 

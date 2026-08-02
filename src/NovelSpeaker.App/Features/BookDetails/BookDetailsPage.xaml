@@ -282,7 +282,7 @@
                                                         <Style TargetType="TextBlock"
                                                                BasedOn="{StaticResource SecondaryTextBlockStyle}">
                                                             <Setter Property="Visibility" Value="Collapsed" />
-                                                            <Setter Property="Foreground" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsCachePercentageVisible}" Value="True">
                                                                     <Setter Property="Visibility" Value="Visible" />
@@ -311,8 +311,8 @@
                                     AutomationProperties.Name="定位到当前章节">
                                 <Border Width="40"
                                         Height="40"
-                                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                        Background="{DynamicResource PrimarySurfaceBrush}"
+                                        BorderBrush="{DynamicResource SubtleBorderBrush}"
                                         BorderThickness="1"
                                         CornerRadius="999">
                                     <ui:SymbolIcon HorizontalAlignment="Center"

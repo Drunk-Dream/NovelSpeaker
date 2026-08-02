@@ -286,7 +286,7 @@
                                 <TextBox Margin="0,6,0,0"
                                          Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock Margin="0,6,0,0"
-                                           Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                           Foreground="{DynamicResource DangerBrush}"
                                            Text="{Binding NameValidationMessage}"
                                            TextWrapping="Wrap">
                                     <TextBlock.Style>
@@ -312,7 +312,7 @@
                                      TextWrapping="Wrap"
                                      Text="{Binding DraftPattern, UpdateSourceTrigger=PropertyChanged}" />
                             <TextBlock Margin="0,6,0,0"
-                                       Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                       Foreground="{DynamicResource DangerBrush}"
                                        Text="{Binding PatternValidationMessage}"
                                        TextWrapping="Wrap">
                                 <TextBlock.Style>
@@ -364,7 +364,7 @@
                         Grid.Column="0"
                         AutomationProperties.Name="关闭章节规则帮助"
                         ToolTip="关闭章节规则帮助"
-                        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                        Background="{DynamicResource RaisedSurfaceBrush}"
                         BorderThickness="0"
                         Command="{Binding CloseHelpCommand}" />
 
