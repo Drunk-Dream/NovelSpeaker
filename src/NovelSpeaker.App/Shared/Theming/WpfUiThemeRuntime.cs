@@ -1,5 +1,7 @@
 using System.Windows;
+using System.Windows.Controls;
 using Wpf.Ui.Appearance;
+using ToggleSwitch = Wpf.Ui.Controls.ToggleSwitch;
 
 namespace NovelSpeaker.App.Shared.Theming;
 
@@ -23,6 +25,7 @@ public sealed class WpfUiThemeRuntime : IThemeRuntime
         {
             ApplicationThemeManager.ApplySystemTheme();
             ApplyPaletteAndCorrectProviderTheme(GetCurrentPaletteKind());
+            RestoreInputImplicitStyles();
         });
     }
 
@@ -32,6 +35,7 @@ public sealed class WpfUiThemeRuntime : IThemeRuntime
         {
             ApplicationThemeManager.Apply(ApplicationTheme.Light);
             ApplyPaletteAndCorrectProviderTheme(ThemePaletteKind.Light);
+            RestoreInputImplicitStyles();
         });
     }
 
@@ -41,6 +45,7 @@ public sealed class WpfUiThemeRuntime : IThemeRuntime
         {
             ApplicationThemeManager.Apply(ApplicationTheme.Dark);
             ApplyPaletteAndCorrectProviderTheme(ThemePaletteKind.Dark);
+            RestoreInputImplicitStyles();
         });
     }
 
@@ -57,6 +62,28 @@ public sealed class WpfUiThemeRuntime : IThemeRuntime
         ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark
             ? ThemePaletteKind.Dark
             : ThemePaletteKind.Light;
+
+    private static void RestoreInputImplicitStyles()
+    {
+        var application = global::System.Windows.Application.Current;
+        if (application is null)
+        {
+            return;
+        }
+
+        foreach (var (controlType, styleKey) in new (Type ControlType, string StyleKey)[]
+        {
+            (typeof(CheckBox), "InputCheckBoxStyle"),
+            (typeof(PasswordBox), "InputPasswordBoxStyle"),
+            (typeof(ToggleSwitch), "InputToggleSwitchStyle")
+        })
+        {
+            if (application.TryFindResource(styleKey) is Style style)
+            {
+                application.Resources[controlType] = style;
+            }
+        }
+    }
 
     private static void InvokeOnUiThread(Action action)
     {
