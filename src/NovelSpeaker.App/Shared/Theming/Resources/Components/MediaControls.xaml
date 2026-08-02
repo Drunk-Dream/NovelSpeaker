@@ -128,4 +128,106 @@
     <Style x:Key="NextChapterMediaButtonStyle"
            TargetType="Button"
            BasedOn="{StaticResource MediaIconButtonStyle}" />
+
+    <!-- Slider and progress resources are owned here; the media button contract above is unchanged. -->
+    <Style x:Key="PlaybackProgressBarStyle"
+           TargetType="ProgressBar"
+           BasedOn="{StaticResource {x:Type ProgressBar}}">
+        <Setter Property="Height" Value="{StaticResource ProgressTrackHeight}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="Background" Value="{DynamicResource SecondarySurfaceBrush}" />
+        <Setter Property="BorderThickness" Value="{StaticResource NoBorderThickness}" />
+    </Style>
+
+    <Style x:Key="PlaybackSliderTrackButtonStyle" TargetType="RepeatButton">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <Border Height="{StaticResource ProgressTrackHeight}"
+                            VerticalAlignment="Center"
+                            Background="{DynamicResource AccentBrush}"
+                            CornerRadius="{StaticResource PillCornerRadius}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PlaybackSliderIncreaseTrackButtonStyle"
+           TargetType="RepeatButton"
+           BasedOn="{StaticResource PlaybackSliderTrackButtonStyle}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <Border Height="{StaticResource ProgressTrackHeight}"
+                            VerticalAlignment="Center"
+                            Background="{DynamicResource SecondarySurfaceBrush}"
+                            CornerRadius="{StaticResource PillCornerRadius}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PlaybackSliderThumbStyle" TargetType="Thumb">
+        <Setter Property="Width" Value="{StaticResource ProgressThumbSize}" />
+        <Setter Property="Height" Value="{StaticResource ProgressThumbSize}" />
+        <Setter Property="Opacity" Value="0.35" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border Background="{DynamicResource AccentBrush}"
+                            BorderBrush="{DynamicResource PrimarySurfaceBrush}"
+                            BorderThickness="{StaticResource ProgressThumbBorderThickness}"
+                            CornerRadius="{StaticResource PillCornerRadius}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Opacity" Value="0.9" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="Opacity" Value="1" />
+            </Trigger>
+            <Trigger Property="IsDragging" Value="True">
+                <Setter Property="Opacity" Value="1" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="PlaybackProgressSliderStyle"
+           TargetType="Slider"
+           BasedOn="{StaticResource {x:Type Slider}}">
+        <Setter Property="Height" Value="{StaticResource ProgressSliderHeight}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="Transparent" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Slider">
+                    <Grid Height="{TemplateBinding Height}">
+                        <Track x:Name="PART_Track"
+                               Minimum="{TemplateBinding Minimum}"
+                               Maximum="{TemplateBinding Maximum}"
+                               Value="{TemplateBinding Value}"
+                               Orientation="{TemplateBinding Orientation}"
+                               IsDirectionReversed="{TemplateBinding IsDirectionReversed}">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="Slider.DecreaseLarge"
+                                              Style="{StaticResource PlaybackSliderTrackButtonStyle}" />
+                            </Track.DecreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource PlaybackSliderThumbStyle}" />
+                            </Track.Thumb>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="Slider.IncreaseLarge"
+                                              Style="{StaticResource PlaybackSliderIncreaseTrackButtonStyle}" />
+                            </Track.IncreaseRepeatButton>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>

@@ -97,18 +97,7 @@
                             </ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
                         <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
-                                <Setter Property="Padding" Value="0" />
-                                <Setter Property="Margin" Value="0" />
-                                <Setter Property="Focusable" Value="False" />
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="ListBoxItem">
-                                            <ContentPresenter />
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
+                            <StaticResource ResourceKey="RuleWorkbenchListItemContainerStyle" />
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                                 <DataTemplate>
@@ -190,7 +179,7 @@
                                                         AutomationProperties.Name="{Binding Name, StringFormat=更多操作：{0}}">
                                                     <ui:SymbolIcon Symbol="MoreHorizontal24" />
                                                     <Button.ContextMenu>
-                                                        <ContextMenu>
+                                                        <ContextMenu Style="{StaticResource AppContextMenuStyle}">
                                                             <MenuItem Header="上移"
                                                                       IsEnabled="{Binding CanMoveUp}"
                                                                       Click="MoveRuleUpMenuItem_OnClick" />

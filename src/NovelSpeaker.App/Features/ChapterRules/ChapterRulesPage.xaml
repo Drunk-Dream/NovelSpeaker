@@ -46,6 +46,7 @@
             </Grid>
 
             <WrapPanel Grid.Column="1"
+                       Style="{StaticResource ToolbarPanelStyle}"
                        HorizontalAlignment="Right"
                        VerticalAlignment="Center">
                 <Button Margin="{StaticResource ButtonGapMargin}"
@@ -191,7 +192,7 @@
                                                         AutomationProperties.Name="{Binding Name, StringFormat=更多操作：{0}}">
                                                     <ui:SymbolIcon Symbol="MoreHorizontal24" />
                                                     <Button.ContextMenu>
-                                                        <ContextMenu>
+                                                        <ContextMenu Style="{StaticResource AppContextMenuStyle}">
                                                             <MenuItem Header="上移"
                                                                       IsEnabled="{Binding CanMoveUp}"
                                                                       Click="MoveRuleUpMenuItem_OnClick" />

@@ -106,7 +106,7 @@
                     </Style>
                 </Button.Style>
                 <Button.ContextMenu>
-                    <ContextMenu>
+                    <ContextMenu Style="{StaticResource AppContextMenuStyle}">
                         <MenuItem Command="{Binding OpenBookDetailsCommand}"
                                   CommandParameter="{Binding Item}"
                                   Header="书籍详情" />

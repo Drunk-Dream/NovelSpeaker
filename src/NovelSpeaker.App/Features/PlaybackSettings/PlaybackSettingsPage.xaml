@@ -119,6 +119,7 @@
                                                Text="播放每章正文前先朗读章节标题。" />
                                 </StackPanel>
                                 <ui:ToggleSwitch Grid.Column="1"
+                                                 Style="{StaticResource InputToggleSwitchStyle}"
                                                  Margin="{StaticResource SettingsRowControlMargin}"
                                                  VerticalAlignment="Center"
                                                  OffContent="关闭"

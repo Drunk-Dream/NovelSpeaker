@@ -296,22 +296,9 @@
                                 </ItemsPanelTemplate>
                             </ListBox.ItemsPanel>
                             <ListBox.ItemContainerStyle>
-                                <Style TargetType="ListBoxItem">
-                                    <Setter Property="Padding" Value="0" />
-                                    <Setter Property="Margin" Value="0" />
-                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                    <Setter Property="IsTabStop" Value="False" />
+                                <Style TargetType="ListBoxItem"
+                                       BasedOn="{StaticResource ExtendedSelectionListItemContainerStyle}">
                                     <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=OneWay}" />
-                                    <Setter Property="Background" Value="Transparent" />
-                                    <Setter Property="BorderThickness" Value="0" />
-                                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="ListBoxItem">
-                                                <ContentPresenter />
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
                                 </Style>
                             </ListBox.ItemContainerStyle>
                             <ListBox.Style>
@@ -333,18 +320,8 @@
                                             Click="ChapterCard_OnClick"
                                             ToolTip="{Binding ExportToolTip}"
                                             AutomationProperties.Name="{Binding AutomationName}">
-                                        <Border Padding="16">
-                                            <Border.Style>
-                                                <Style TargetType="Border"
-                                                       BasedOn="{StaticResource CardBorderStyle}">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                            <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
-                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
+                                        <Border Padding="16"
+                                                Style="{StaticResource SelectableCardListItemContainerStyle}">
                                             <StackPanel>
                                                 <DockPanel LastChildFill="True">
                                                     <TextBlock DockPanel.Dock="Left"

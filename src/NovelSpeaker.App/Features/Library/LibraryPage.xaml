@@ -29,6 +29,7 @@
                        Text="书库"/>
 
             <WrapPanel Grid.Column="1"
+                       Style="{StaticResource ToolbarPanelStyle}"
                        HorizontalAlignment="Right"
                        VerticalAlignment="Center"
                        ItemHeight="{StaticResource TextControlHeight}">

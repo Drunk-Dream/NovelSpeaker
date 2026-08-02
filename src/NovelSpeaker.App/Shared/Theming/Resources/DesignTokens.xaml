@@ -37,6 +37,7 @@
     <Thickness x:Key="CardPadding">16</Thickness>
     <Thickness x:Key="CardPaddingLarge">24</Thickness>
     <Thickness x:Key="CardContentPadding">20</Thickness>
+    <Thickness x:Key="InputControlPadding">12,8</Thickness>
     <Thickness x:Key="DialogPadding">24</Thickness>
     <Thickness x:Key="SettingsGroupPadding">16</Thickness>
     <Thickness x:Key="SettingsRowPadding">12,8</Thickness>

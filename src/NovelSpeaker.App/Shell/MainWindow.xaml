@@ -42,12 +42,14 @@
                            Background="{DynamicResource CanvasSurfaceBrush}">
             <ui:NavigationView.MenuItems>
                 <ui:NavigationViewItem x:Name="LibraryNavigationItem"
+                                       Style="{StaticResource NavigationItemStyle}"
                                        Content="书库">
                     <ui:NavigationViewItem.Icon>
                         <ui:SymbolIcon Symbol="Book24" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
                 <ui:NavigationViewItem x:Name="SettingsNavigationItem"
+                                       Style="{StaticResource NavigationItemStyle}"
                                        Content="设置">
                     <ui:NavigationViewItem.Icon>
                         <ui:SymbolIcon Symbol="Settings24" />
@@ -57,6 +59,7 @@
 
             <ui:NavigationView.FooterMenuItems>
                 <ui:NavigationViewItem x:Name="ActiveCacheNavigationItem"
+                                       Style="{StaticResource NavigationItemStyle}"
                                        Content="{Binding ActiveCache.CompactStatusText}"
                                        Click="ActiveCacheNavigationItem_OnClick"
                                        ToolTip="查看主动缓存进度"
@@ -67,6 +70,7 @@
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
                 <ui:NavigationViewItem x:Name="PlaybackNavigationItem"
+                                       Style="{StaticResource NavigationItemStyle}"
                                        Click="PlaybackNavigationItem_OnClick"
                                        Visibility="{Binding IsNowPlayingVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <ui:NavigationViewItem.Icon>
@@ -128,31 +132,13 @@
                              VirtualizingPanel.IsVirtualizing="True"
                              VirtualizingPanel.VirtualizationMode="Recycling">
                         <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
-                                <Setter Property="IsHitTestVisible" Value="False" />
-                                <Setter Property="Focusable" Value="False" />
-                                <Setter Property="Padding" Value="0" />
-                                <Setter Property="Margin" Value="0,0,0,4" />
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                            </Style>
+                            <StaticResource ResourceKey="ActiveCacheListItemContainerStyle" />
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <Border Padding="{StaticResource ListRowPadding}"
-                                        CornerRadius="{StaticResource SmallControlCornerRadius}">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="Background" Value="Transparent" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource SecondarySurfaceBrush}" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding IsFailed}" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource DangerSubtleBrush}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Border.Style>
+                                        CornerRadius="{StaticResource SmallControlCornerRadius}"
+                                        Style="{StaticResource ActiveCacheStatusBorderStyle}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />

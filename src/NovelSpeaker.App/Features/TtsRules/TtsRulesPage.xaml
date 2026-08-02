@@ -47,6 +47,7 @@
             </Grid>
 
             <WrapPanel Grid.Column="1"
+                       Style="{StaticResource ToolbarPanelStyle}"
                        HorizontalAlignment="Right"
                        VerticalAlignment="Center">
                 <Button Margin="{StaticResource ButtonGapMargin}"
@@ -215,7 +216,7 @@
                                                         AutomationProperties.Name="{Binding Name, StringFormat=更多操作：{0}}">
                                                     <ui:SymbolIcon Symbol="MoreHorizontal24" />
                                                     <Button.ContextMenu>
-                                                        <ContextMenu>
+                                                        <ContextMenu Style="{StaticResource AppContextMenuStyle}">
                                                             <MenuItem Header="导出"
                                                                       Click="ExportRuleMenuItem_OnClick" />
                                                             <MenuItem Header="删除"
