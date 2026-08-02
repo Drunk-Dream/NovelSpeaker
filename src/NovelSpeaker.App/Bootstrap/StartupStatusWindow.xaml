@@ -13,14 +13,14 @@
         <StackPanel VerticalAlignment="Center">
             <TextBlock Style="{StaticResource DialogTitleTextBlockStyle}"
                        Text="{Binding Title}" />
-            <TextBlock Margin="0,18,0,0"
+            <TextBlock Margin="{StaticResource ContentSpacing}"
                        Style="{StaticResource StatusTextBlockStyle}"
                        Text="{Binding StatusText}" />
-            <TextBlock Margin="0,12,0,0"
+            <TextBlock Margin="{StaticResource FieldSpacing}"
                        Style="{StaticResource SecondaryTextBlockStyle}"
                        TextWrapping="Wrap"
                        Text="{Binding DetailText}" />
-            <ProgressBar Margin="0,20,0,0"
+            <ProgressBar Margin="{StaticResource PageSectionSpacing}"
                          Height="10"
                          IsIndeterminate="True" />
         </StackPanel>

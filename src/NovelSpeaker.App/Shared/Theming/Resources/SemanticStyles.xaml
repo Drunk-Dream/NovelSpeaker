@@ -3,29 +3,58 @@
                     xmlns:theming="clr-namespace:NovelSpeaker.App.Shared.Theming"
                     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
     <Style x:Key="PageTitleTextBlockStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="28" />
+        <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+        <Setter Property="FontSize" Value="{StaticResource PageTitleFontSize}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    </Style>
+
+    <Style x:Key="WindowTitleTextBlockStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource PageTitleTextBlockStyle}">
+        <Setter Property="FontSize" Value="{StaticResource WindowTitleFontSize}" />
     </Style>
 
     <Style x:Key="SectionTitleTextBlockStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+        <Setter Property="FontSize" Value="{StaticResource SectionTitleFontSize}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
     </Style>
 
-    <Style x:Key="PrimaryTextBlockStyle" TargetType="TextBlock">
+    <Style x:Key="BodyTextBlockStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+        <Setter Property="FontSize" Value="{StaticResource BodyFontSize}" />
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
     </Style>
 
-    <Style x:Key="SecondaryTextBlockStyle" TargetType="TextBlock">
+    <Style x:Key="PrimaryTextBlockStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource BodyTextBlockStyle}" />
+
+    <Style x:Key="SecondaryTextBlockStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource BodyTextBlockStyle}">
+        <Setter Property="FontSize" Value="{StaticResource SecondaryFontSize}" />
         <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+    </Style>
+
+    <Style x:Key="CaptionTextBlockStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource SecondaryTextBlockStyle}">
+        <Setter Property="FontSize" Value="{StaticResource CaptionFontSize}" />
     </Style>
 
     <Style x:Key="StrongTextBlockStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource PrimaryTextBlockStyle}">
         <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="CardTitleTextBlockStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource StrongTextBlockStyle}">
+        <Setter Property="FontSize" Value="{StaticResource CardTitleFontSize}" />
     </Style>
 
     <Style x:Key="FormLabelTextBlockStyle"
@@ -36,7 +65,7 @@
     <Style x:Key="SettingsNavigationRowTitleTextBlockStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource StrongTextBlockStyle}">
-        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontSize" Value="{StaticResource ItemTitleFontSize}" />
     </Style>
 
     <DataTemplate x:Key="SettingsNavigationRowContentTemplate">
@@ -46,7 +75,7 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <ui:SymbolIcon Margin="0,0,14,0"
+            <ui:SymbolIcon Margin="0,0,8,0"
                            VerticalAlignment="Center">
                 <ui:SymbolIcon.Style>
                     <Style TargetType="ui:SymbolIcon">
@@ -97,7 +126,7 @@
                        Style="{StaticResource SettingsNavigationRowTitleTextBlockStyle}"
                        Text="{Binding}" />
             <ui:SymbolIcon Grid.Column="2"
-                           Margin="16,0,0,0"
+                           Margin="{StaticResource TrailingIconMargin}"
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource SecondaryTextBrush}"
                            Symbol="ChevronRight24" />
@@ -107,7 +136,7 @@
     <Style x:Key="SettingsGroupBorderStyle" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource PrimarySurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderThickness" Value="{StaticResource StandardBorderThickness}" />
         <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
         <Setter Property="Padding" Value="{StaticResource SettingsGroupPadding}" />
     </Style>
@@ -115,13 +144,13 @@
     <Style x:Key="SettingsRowsGroupBorderStyle" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource PrimarySurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderThickness" Value="{StaticResource StandardBorderThickness}" />
         <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
     </Style>
 
     <Style x:Key="SettingsRowBorderStyle" TargetType="Border">
         <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
-        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="BorderThickness" Value="{StaticResource SeparatorBorderThickness}" />
         <Setter Property="MinHeight" Value="{StaticResource SettingsRowMinHeight}" />
         <Setter Property="Padding" Value="{StaticResource SettingsRowPadding}" />
     </Style>
@@ -129,20 +158,20 @@
     <Style x:Key="SettingsLastRowBorderStyle"
            TargetType="Border"
            BasedOn="{StaticResource SettingsRowBorderStyle}">
-        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="BorderThickness" Value="{StaticResource NoBorderThickness}" />
     </Style>
 
     <Style x:Key="SettingsRowTitleTextBlockStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource StrongTextBlockStyle}">
-        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontSize" Value="{StaticResource ItemTitleFontSize}" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
     <Style x:Key="SettingsRowDescriptionTextBlockStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource SecondaryTextBlockStyle}">
-        <Setter Property="Margin" Value="0,4,0,0" />
+        <Setter Property="Margin" Value="{StaticResource ControlSpacing}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
@@ -155,19 +184,25 @@
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
-    <Style x:Key="DialogTitleTextBlockStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="22" />
+    <Style x:Key="DialogTitleTextBlockStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource BodyTextBlockStyle}">
+        <Setter Property="FontSize" Value="{StaticResource DialogTitleFontSize}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
     </Style>
 
-    <Style x:Key="StatusTextBlockStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="16" />
+    <Style x:Key="StatusTextBlockStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource BodyTextBlockStyle}">
+        <Setter Property="FontSize" Value="{StaticResource CardTitleFontSize}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
     </Style>
 
-    <Style x:Key="ErrorTextBlockStyle" TargetType="TextBlock">
+    <Style x:Key="ErrorTextBlockStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource BodyTextBlockStyle}">
         <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
@@ -175,7 +210,7 @@
     <Style x:Key="CardBorderStyle" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource PrimarySurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderThickness" Value="{StaticResource StandardBorderThickness}" />
         <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
     </Style>
 
@@ -185,16 +220,16 @@
         <!-- Keep transient panels fully opaque so their content remains legible over page content. -->
         <Setter Property="Background" Value="{DynamicResource RaisedSurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
-        <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
+        <Setter Property="CornerRadius" Value="{StaticResource DialogCornerRadius}" />
     </Style>
 
     <Style x:Key="PlaybackProgressBarStyle"
            TargetType="ProgressBar"
            BasedOn="{StaticResource {x:Type ProgressBar}}">
-        <Setter Property="Height" Value="4" />
+        <Setter Property="Height" Value="{StaticResource ProgressTrackHeight}" />
         <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
         <Setter Property="Background" Value="{DynamicResource SecondarySurfaceBrush}" />
-        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="BorderThickness" Value="{StaticResource NoBorderThickness}" />
     </Style>
 
     <Style x:Key="PlaybackSliderTrackButtonStyle" TargetType="RepeatButton">
@@ -204,25 +239,25 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RepeatButton">
-                    <Border Height="4"
+                    <Border Height="{StaticResource ProgressTrackHeight}"
                             VerticalAlignment="Center"
                             Background="Transparent"
-                            CornerRadius="999" />
+                            CornerRadius="{StaticResource PillCornerRadius}" />
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
 
     <Style x:Key="PlaybackSliderThumbStyle" TargetType="Thumb">
-        <Setter Property="Width" Value="18" />
-        <Setter Property="Height" Value="18" />
+        <Setter Property="Width" Value="{StaticResource ProgressThumbSize}" />
+        <Setter Property="Height" Value="{StaticResource ProgressThumbSize}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
                     <Border Background="{DynamicResource AccentBrush}"
                             BorderBrush="{DynamicResource PrimarySurfaceBrush}"
-                            BorderThickness="2"
-                            CornerRadius="999" />
+                            BorderThickness="{StaticResource ProgressThumbBorderThickness}"
+                            CornerRadius="{StaticResource PillCornerRadius}" />
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -231,7 +266,7 @@
     <Style x:Key="PlaybackProgressSliderStyle"
            TargetType="Slider"
            BasedOn="{StaticResource {x:Type Slider}}">
-        <Setter Property="Height" Value="20" />
+        <Setter Property="Height" Value="{StaticResource ProgressSliderHeight}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="Transparent" />
         <Setter Property="Template">
@@ -407,7 +442,7 @@
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="BorderThickness" Value="{StaticResource NoBorderThickness}" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template" Value="{StaticResource IconButtonControlTemplate}" />
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
@@ -432,7 +467,7 @@
         <Setter Property="Padding" Value="0" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="BorderThickness" Value="{StaticResource NoBorderThickness}" />
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Stretch" />
@@ -457,7 +492,7 @@
             <DataTrigger Binding="{Binding IsSelected}" Value="True">
                 <Setter Property="Background" Value="{DynamicResource SecondarySurfaceBrush}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                <Setter Property="BorderThickness" Value="0,0,0,2" />
+                <Setter Property="BorderThickness" Value="{StaticResource SelectedIndicatorThickness}" />
             </DataTrigger>
         </Style.Triggers>
     </Style>
@@ -465,11 +500,11 @@
     <Style x:Key="SelectableListItemContainerStyle"
            TargetType="Border"
            BasedOn="{StaticResource SelectedCardContainerStyle}">
-        <Setter Property="Margin" Value="0,0,0,10" />
-        <Setter Property="Padding" Value="14,12" />
+        <Setter Property="Margin" Value="{StaticResource ListRowSpacing}" />
+        <Setter Property="Padding" Value="{StaticResource ListRowPadding}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="BorderThickness" Value="{StaticResource NoBorderThickness}" />
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsEnabled}" Value="False">
                 <Setter Property="Opacity" Value="0.5" />
@@ -481,20 +516,20 @@
            TargetType="Border"
            BasedOn="{StaticResource SelectableListItemContainerStyle}">
         <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderThickness" Value="{StaticResource StandardBorderThickness}" />
     </Style>
 
     <Style x:Key="CurrentListItemContainerStyle" TargetType="Border">
-        <Setter Property="Margin" Value="0,0,0,10" />
-        <Setter Property="Padding" Value="14,12" />
+        <Setter Property="Margin" Value="{StaticResource ListRowSpacing}" />
+        <Setter Property="Padding" Value="{StaticResource ListRowPadding}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="BorderThickness" Value="{StaticResource NoBorderThickness}" />
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                 <Setter Property="Background" Value="{DynamicResource SecondarySurfaceBrush}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                <Setter Property="BorderThickness" Value="0,0,0,2" />
+                <Setter Property="BorderThickness" Value="{StaticResource SelectedIndicatorThickness}" />
             </DataTrigger>
             <MultiDataTrigger>
                 <MultiDataTrigger.Conditions>
@@ -513,7 +548,7 @@
             <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                 <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
-                <Setter Property="BorderThickness" Value="0,0,0,2" />
+                <Setter Property="BorderThickness" Value="{StaticResource SelectedIndicatorThickness}" />
             </DataTrigger>
         </Style.Triggers>
     </Style>
@@ -521,14 +556,14 @@
     <Style x:Key="PlaybackSpeedPillButtonStyle"
            TargetType="Button"
            BasedOn="{StaticResource {x:Type Button}}">
-        <Setter Property="Height" Value="44" />
+        <Setter Property="Height" Value="{StaticResource MediaControlButtonSize}" />
         <Setter Property="MinWidth" Value="80" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="BorderThickness" Value="{StaticResource NoBorderThickness}" />
     </Style>
 
     <Style x:Key="ToolbarValueButtonStyle"

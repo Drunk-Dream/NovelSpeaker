@@ -47,7 +47,7 @@
         </Grid>
 
         <Grid Grid.Row="1"
-              Margin="0,20,0,0"
+              Margin="{StaticResource PageSectionSpacing}"
               MinHeight="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="320" />
@@ -59,15 +59,15 @@
                     Style="{StaticResource CardBorderStyle}">
                 <DockPanel LastChildFill="True">
                     <StackPanel DockPanel.Dock="Top"
-                                Margin="16,16,16,12">
+                                Margin="{StaticResource ListHeaderMargin}">
                         <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
                                    Text="规则列表" />
-                        <TextBlock Margin="0,6,0,0"
+                        <TextBlock Margin="{StaticResource FieldControlSpacing}"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="{Binding Rules.Count, StringFormat=共 {0} 条规则}" />
                     </StackPanel>
 
-                    <TextBlock Margin="16,0,16,16"
+                    <TextBlock Margin="{StaticResource EmptyListMessageMargin}"
                                Text="还没有替换规则，请先新建一条。">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock"
@@ -82,7 +82,7 @@
                         </TextBlock.Style>
                     </TextBlock>
 
-                    <ListBox Margin="12,0,12,12"
+                    <ListBox Margin="{StaticResource ListViewportMargin}"
                              Background="Transparent"
                              BorderThickness="0"
                              ItemsSource="{Binding Rules}"
@@ -138,7 +138,7 @@
                                                     Panel.ZIndex="0" />
 
                                             <StackPanel Grid.Row="0"
-                                                        Margin="14,12,14,0"
+                                                        Margin="{StaticResource ListItemHeaderMargin}"
                                                         IsHitTestVisible="False"
                                                         Panel.ZIndex="1">
                                                     <TextBlock Style="{StaticResource StrongTextBlockStyle}"
@@ -151,7 +151,7 @@
                                             </StackPanel>
 
                                             <Grid Grid.Row="1"
-                                                  Margin="14,12,14,12"
+                                                  Margin="{StaticResource ListItemContentMargin}"
                                                   Panel.ZIndex="1">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
@@ -235,7 +235,7 @@
             <Border Grid.Column="2"
                     Style="{StaticResource CardBorderStyle}">
                 <Grid MinHeight="0">
-                    <Border Margin="20"
+                    <Border Margin="{StaticResource CardContentPadding}"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
                             MaxWidth="420">
@@ -255,7 +255,7 @@
                             <TextBlock HorizontalAlignment="Center"
                                        Style="{StaticResource SectionTitleTextBlockStyle}"
                                        Text="选择一条规则" />
-                            <TextBlock Margin="0,10,0,0"
+                            <TextBlock Margin="{StaticResource FieldDescriptionSpacing}"
                                        HorizontalAlignment="Center"
                                        Style="{StaticResource SecondaryTextBlockStyle}"
                                        Text="左侧选择已有规则，或使用顶部按钮新建规则。"
@@ -295,26 +295,26 @@
                             </Button>
                         </Grid>
 
-                        <TextBlock Margin="0,20,0,0"
+                        <TextBlock Margin="{StaticResource PageSectionSpacing}"
                                    Style="{StaticResource FormLabelTextBlockStyle}"
                                    Text="名称" />
                         <TextBox Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Margin="0,16,0,0"
+                        <TextBlock Margin="{StaticResource ContentSpacing}"
                                    Style="{StaticResource FormLabelTextBlockStyle}"
                                    Text="正则表达式" />
                         <TextBox AcceptsReturn="True"
                                  MinHeight="72"
                                  Text="{Binding DraftPattern, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Margin="0,16,0,0"
+                        <TextBlock Margin="{StaticResource ContentSpacing}"
                                    Style="{StaticResource FormLabelTextBlockStyle}"
                                    Text="替换文本" />
                         <TextBox AcceptsReturn="True"
                                  MinHeight="72"
                                  Text="{Binding DraftReplacement, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Margin="0,16,0,0"
+                        <TextBlock Margin="{StaticResource ContentSpacing}"
                                    Style="{StaticResource FormLabelTextBlockStyle}"
                                    Text="作用范围" />
                         <ComboBox ItemsSource="{Binding Scopes}"
@@ -332,12 +332,12 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <Button Grid.Column="1"
-                                    Padding="16,8"
+                                    Padding="{StaticResource ButtonPadding}"
                                     Command="{Binding CancelCommand}"
                                     IsEnabled="{Binding CanCancel}"
                                     Content="取消" />
                             <Button Grid.Column="3"
-                                    Padding="16,8"
+                                    Padding="{StaticResource ButtonPadding}"
                                     Command="{Binding SaveCommand}"
                                     IsEnabled="{Binding CanSave}"
                                     Content="保存" />
@@ -363,7 +363,7 @@
                         Command="{Binding CloseHelpCommand}" />
 
                 <Border Grid.Column="1"
-                        Padding="20"
+                        Padding="{StaticResource CardContentPadding}"
                         Style="{StaticResource PopupSurfaceBorderStyle}">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -387,7 +387,7 @@
                         </Grid>
 
                         <ScrollViewer Grid.Row="1"
-                                      Margin="0,16,0,0"
+                                      Margin="{StaticResource ContentSpacing}"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
                             <StackPanel>
@@ -398,7 +398,7 @@
                                            Text="“仅显示”只改变页面正文，“仅朗读”只改变送往 TTS 的文本，“显示与朗读”同时作用于两者。规则不会修改导入后的原始正文。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="0,18,0,0"
+                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="执行顺序" />
                                 <TextBlock Margin="0,8,0,0"
@@ -406,7 +406,7 @@
                                            Text="只执行已启用的规则，并按左侧顺序从前到后替换。可拖动排序，也可在更多菜单中使用上移或下移。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="0,18,0,0"
+                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="空输出" />
                                 <TextBlock Margin="0,8,0,0"
@@ -414,7 +414,7 @@
                                            Text="替换文本可以留空。显示结果为空时该段不显示；朗读结果为空时会安全跳过 TTS。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="0,18,0,0"
+                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="正则小抄" />
                                 <TextBlock Margin="0,8,0,0"

@@ -21,7 +21,7 @@
         </Button>
 
         <ScrollViewer Grid.Row="1"
-                      Margin="0,20,0,0"
+                      Margin="{StaticResource PageSectionSpacing}"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
@@ -70,7 +70,7 @@
                                                  Maximum="100"
                                                  Value="{Binding UsagePercentage}"
                                                  AutomationProperties.Name="缓存使用率" />
-                                    <TextBlock Margin="0,6,0,0"
+                                    <TextBlock Margin="{StaticResource FieldControlSpacing}"
                                                HorizontalAlignment="Right"
                                                Style="{StaticResource SecondaryTextBlockStyle}"
                                                Text="{Binding UsageText}" />
@@ -192,7 +192,7 @@
                                 <Button Grid.Column="1"
                                         Margin="{StaticResource SettingsRowControlMargin}"
                                         VerticalAlignment="Center"
-                                        Padding="16,8"
+                                        Padding="{StaticResource ButtonPadding}"
                                         Command="{Binding ClearAllCommand}"
                                         Content="清理全部缓存"
                                         ToolTip="清理全部缓存"

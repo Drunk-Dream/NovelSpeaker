@@ -51,26 +51,26 @@
                 <WrapPanel Grid.Column="1"
                            HorizontalAlignment="Right"
                            VerticalAlignment="Center">
-                    <Button Margin="0,0,12,0"
-                            Padding="16,8"
+                    <Button Margin="{StaticResource ButtonGapMargin}"
+                            Padding="{StaticResource ButtonPadding}"
                             Command="{Binding DeleteBookCommand}"
                             Content="删除" />
-                    <Button Margin="0,0,12,0"
-                            Padding="16,8"
+                    <Button Margin="{StaticResource ButtonGapMargin}"
+                            Padding="{StaticResource ButtonPadding}"
                             Command="{Binding ClearCacheCommand}"
                             Content="清理" />
-                    <Button Margin="0,0,12,0"
-                            Padding="16,8"
+                    <Button Margin="{StaticResource ButtonGapMargin}"
+                            Padding="{StaticResource ButtonPadding}"
                             Command="{Binding CancelEditCommand}"
                             Content="取消" />
-                    <Button Padding="16,8"
+                    <Button Padding="{StaticResource ButtonPadding}"
                             Command="{Binding SaveCommand}"
                             Content="保存" />
                 </WrapPanel>
             </Grid>
 
             <Grid Grid.Row="1"
-                  Margin="0,20,0,0"
+                  Margin="{StaticResource PageSectionSpacing}"
                   MinHeight="0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="380" />
@@ -81,7 +81,7 @@
                 <Border Grid.Column="0"
                         MinHeight="0"
                         Style="{StaticResource CardBorderStyle}">
-                    <Grid Margin="20"
+                    <Grid Margin="{StaticResource CardContentPadding}"
                           MinHeight="0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -95,7 +95,7 @@
                                          Cover="{Binding Cover}" />
 
                     <TextBlock Grid.Row="1"
-                               Margin="0,16,0,0"
+                               Margin="{StaticResource ContentSpacing}"
                                Text="{Binding StatusMessage}"
                                TextWrapping="Wrap">
                         <TextBlock.Style>
@@ -112,23 +112,23 @@
                     </TextBlock>
 
                         <StackPanel Grid.Row="2"
-                                    Margin="0,20,0,0">
+                                    Margin="{StaticResource ContentSpacing}">
                         <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
                                    Text="书籍信息" />
 
-                        <TextBlock Margin="0,16,0,0"
+                        <TextBlock Margin="{StaticResource ContentSpacing}"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="书名" />
-                        <TextBox Margin="0,6,0,0"
+                        <TextBox Margin="{StaticResource FieldControlSpacing}"
                                  Text="{Binding EditTitle, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Margin="0,16,0,0"
+                        <TextBlock Margin="{StaticResource ContentSpacing}"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="作者" />
-                        <TextBox Margin="0,6,0,0"
+                        <TextBox Margin="{StaticResource FieldControlSpacing}"
                                  Text="{Binding EditAuthor, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <Grid Margin="0,20,0,0">
+                        <Grid Margin="{StaticResource ContentSpacing}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
@@ -149,12 +149,12 @@
                                        TextAlignment="Right" />
 
                             <TextBlock Grid.Row="1"
-                                       Margin="0,14,0,0"
+                                       Margin="{StaticResource ContentSpacing}"
                                        Style="{StaticResource SecondaryTextBlockStyle}"
                                        Text="当前章节" />
                             <TextBlock Grid.Row="1"
                                        Grid.Column="1"
-                                       Margin="0,14,0,0"
+                                       Margin="{StaticResource ContentSpacing}"
                                        HorizontalAlignment="Right"
                                        Style="{StaticResource StrongTextBlockStyle}"
                                        Text="{Binding CurrentChapterText}"
@@ -162,12 +162,12 @@
                                        TextTrimming="CharacterEllipsis" />
 
                             <TextBlock Grid.Row="2"
-                                       Margin="0,14,0,0"
+                                       Margin="{StaticResource ContentSpacing}"
                                        Style="{StaticResource SecondaryTextBlockStyle}"
                                        Text="阅读进度" />
                             <StackPanel Grid.Row="2"
                                         Grid.Column="1"
-                                        Margin="0,14,0,0"
+                                        Margin="{StaticResource ContentSpacing}"
                                         HorizontalAlignment="Right">
                                 <ProgressBar Width="140"
                                              Height="10"
@@ -180,12 +180,12 @@
                             </StackPanel>
 
                             <TextBlock Grid.Row="3"
-                                       Margin="0,14,0,0"
+                                       Margin="{StaticResource ContentSpacing}"
                                        Style="{StaticResource SecondaryTextBlockStyle}"
                                        Text="缓存占用" />
                             <TextBlock Grid.Row="3"
                                        Grid.Column="1"
-                                       Margin="0,14,0,0"
+                                       Margin="{StaticResource ContentSpacing}"
                                        HorizontalAlignment="Right"
                                        Style="{StaticResource StrongTextBlockStyle}"
                                        Text="{Binding CacheSizeText}"
@@ -199,13 +199,13 @@
                         MinHeight="0"
                         Style="{StaticResource CardBorderStyle}">
                     <DockPanel LastChildFill="True"
-                               Margin="20"
+                               Margin="{StaticResource CardContentPadding}"
                                MinHeight="0">
                         <StackPanel DockPanel.Dock="Top"
                                     Margin="0,0,0,16">
                             <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
                                        Text="章节目录" />
-                            <TextBlock Margin="0,6,0,0"
+                            <TextBlock Margin="{StaticResource FieldControlSpacing}"
                                        Style="{StaticResource SecondaryTextBlockStyle}"
                                        Text="{Binding ChapterCatalogSummaryText}" />
                         </StackPanel>
@@ -250,7 +250,7 @@
                                     <Border Padding="0"
                                             Style="{StaticResource CurrentListItemContainerStyle}">
                                         <Button Style="{StaticResource BorderlessListItemButtonStyle}"
-                                                Padding="14,12"
+                                                Padding="{StaticResource ListRowPadding}"
                                                 ToolTip="{Binding TitleToolTip}"
                                                 AutomationProperties.Name="{Binding AutomationName}"
                                                 Command="{Binding DataContext.SelectChapterCommand, ElementName=RootLayout}"
@@ -309,12 +309,12 @@
                                     Style="{StaticResource FloatingIconButtonStyle}"
                                     ToolTip="定位到当前章节"
                                     AutomationProperties.Name="定位到当前章节">
-                                <Border Width="40"
-                                        Height="40"
+                                <Border Width="{StaticResource FloatingIconButtonSize}"
+                                        Height="{StaticResource FloatingIconButtonSize}"
                                         Background="{DynamicResource PrimarySurfaceBrush}"
                                         BorderBrush="{DynamicResource SubtleBorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="999">
+                                        BorderThickness="{StaticResource StandardBorderThickness}"
+                                        CornerRadius="{StaticResource PillCornerRadius}">
                                     <ui:SymbolIcon HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"
                                                    Symbol="TargetArrow24" />
