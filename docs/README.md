@@ -1,40 +1,60 @@
-# NovelSpeaker 项目文档
+# NovelSpeaker 文档索引
 
-`docs/` 是 NovelSpeaker 的产品、架构与开发计划入口。数字编号文档描述目标终态；`TASK_BACKLOG.md` 只描述尚未完成的开发任务；`archives/` 只用于历史追溯。
+本目录描述 NovelSpeaker 的稳定产品形态、架构约束、专项设计、质量标准和当前开发计划。
 
 ## 阅读顺序
 
-1. `00_PROJECT_BRIEF.md`：产品定位和核心链路。
-2. `01_PRODUCT_SCOPE.md`：目标产品范围。
-3. `02_TECH_STACK_AND_ARCHITECTURE.md`：分层、功能切片和依赖方向。
-4. `03_HTTP_TTS_COMPATIBILITY.md`：HTTP TTS 规则执行边界。
-5. `04_PLAYBACK_PIPELINE.md`：播放、预取、主动缓存和媒体控制语义。
-6. `05_DATA_AND_PERSISTENCE.md`：SQLite、文件、缓存和导出数据规则。
-7. `06_UI_AND_USER_FLOWS.md`：全局 UI、选择模式、播放和规则工作台。
-8. `07_SETTINGS_PAGES.md`：设置页层级和各子页职责。
-9. `08_RUNTIME_AND_LIFECYCLE.md`：进程、页面、播放和后台任务生命周期。
-10. `09_TESTING_AND_QUALITY.md`：自动测试和质量门禁。
-11. `10_ENGINEERING_CONVENTIONS.md`：代码与工程约定。
-12. `11_DECISIONS_RISKS_OPEN_QUESTIONS.md`：稳定决策和剩余风险。
-13. `12_REGEX_REPLACEMENT_PIPELINE.md`：正则替换专项语义。
-14. `TASK_BACKLOG.md`：下一阶段开发顺序、依赖和状态。
+1. `00_PROJECT_BRIEF.md`：项目目标、用户价值和总体边界。
+2. `01_PRODUCT_SCOPE.md`：页面、功能和用户可见行为。
+3. `02_TECH_STACK_AND_ARCHITECTURE.md`：技术栈、分层、依赖方向和代码组织。
+4. 按任务阅读对应专项设计：
+   - `03_HTTP_TTS_COMPATIBILITY.md`
+   - `04_PLAYBACK_PIPELINE.md`
+   - `05_DATA_AND_PERSISTENCE.md`
+   - `06_SECURITY_AND_DATA_SAFETY.md`
+   - `07_OBSERVABILITY_AND_OPERATIONS.md`
+   - `08_RUNTIME_AND_LIFECYCLE.md`
+   - `12_REGEX_REPLACEMENT_PIPELINE.md`
+   - `13_VISUAL_DESIGN_SYSTEM.md`
+5. `09_TESTING_AND_QUALITY.md`：测试分层、回归资产和质量门禁。
+6. `10_ENGINEERING_CONVENTIONS.md`：编码、资源、异步和提交约定。
+7. `11_DECISIONS_RISKS_OPEN_QUESTIONS.md`：已确认决策、风险和仍需明确的问题。
+8. `TASK_BACKLOG.md`：当前阶段唯一有效的开发顺序、任务状态和自动验收。
 
 ## 文档职责
 
-- 根目录 `README.md`：只描述当前已经实现、用户今天可以使用的能力。
-- 数字编号文档：描述产品和架构最终形态，可以包含尚待 Backlog 实现的目标设计。
-- `TASK_BACKLOG.md`：唯一的计划和任务状态来源，不在数字文档重复 Wave/Epic。
-- `AGENTS.md`：只记录开发约束和 Agent 工作规则，不重复维护产品事实。
-- `archives/`：已完成或被替代的历史，不作为最新实现依据。
+### 数字编号文档
 
-## 当前实现主线
+`00`–`13` 只描述产品和系统的最终形态：
 
-NovelSpeaker 保持本地 TXT + HTTP TTS 的轻量范围。当前实现已经完成：
+- 不记录迁移波次、临时兼容方案或“当前做到哪一步”。
+- 不使用待办状态表达尚未实现的内容。
+- 实现变化后，文档直接更新为最终应有行为。
+- 同一事实只在最合适的文档中定义，其余文档通过引用建立关系。
 
-- DI、生命周期、资源所有权和测试体系收口。
-- Fluent 视觉语言、规则工作台和设置子页统一。
-- 章节主动缓存、后台进度、缓存管理和按章 MP3 导出。
-- Windows 媒体控制、托盘、迷你播放器和定时停止。
-- 桌面多选、当前章节定位、禁用状态、空状态和 UI 文案统一。
+### 当前 Backlog
 
-当前开发主线是后台朗读清单补建的并发、生命周期和失败恢复审查；任务边界、依赖和状态以 `TASK_BACKLOG.md` 为准。
+`TASK_BACKLOG.md` 是唯一有效的开发计划：
+
+- 使用 Todo List 表达未开始、进行中、完成和阻塞状态。
+- 任务按实际开发依赖顺序编号。
+- 每项任务包含范围、前置条件和可重复的自动验收。
+- 已完成阶段从当前 Backlog 移出并归档。
+
+### 归档
+
+`archives/` 只用于历史追溯：
+
+- 归档任务不再作为当前实现依据。
+- 最新行为始终以数字编号文档和 `TASK_BACKLOG.md` 为准。
+- 归档文件不重新开启任务，也不覆盖后续设计决策。
+
+## 当前视觉设计入口
+
+全局界面重设计统一以 `13_VISUAL_DESIGN_SYSTEM.md` 为最终形态依据。该文档覆盖：
+
+- 浅色与深色主题的语义颜色和表面层级。
+- 字体、间距、圆角、描边、阴影与动效。
+- 主窗口、播放页、书库、规则工作台、设置、缓存管理和迷你播放器。
+- 按钮、列表、输入控件、进度、对话框、Flyout、Snackbar 和状态视图。
+- WPF 资源字典组织、主题切换、可访问性和视觉验收标准。
