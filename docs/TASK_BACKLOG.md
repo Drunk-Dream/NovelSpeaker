@@ -159,7 +159,7 @@ Archive branch: archive/visual-wave1-before-revert-2026-08-03
 Working branch: experiment/visual-system-v2
 ```
 
-## [ ] 2（P0）：建立样式所有权守卫并清理放弃阶段审计资产
+## [x] 2（P0）：建立样式所有权守卫并清理放弃阶段审计资产
 
 前置：1。
 
@@ -179,6 +179,12 @@ Working branch: experiment/visual-system-v2
 - 基线代码通过全部守卫。
 - 审计 manifest 可重复生成且路径分类完整。
 - 完整质量门禁通过。
+
+结果：
+
+- `VisualStyleArchitectureTests` 已覆盖隐式全局样式、未白名单全局模板、主题运行时资源写入和页面专用 Design Token 故障 fixture。
+- 审计 manifest：`artifacts/visual-review/02/style-ownership-audit.json`。
+- 已删除放弃阶段资产：`docs/VISUAL_ASSET_AUDIT.md`、`docs/VISUAL_ASSET_AUDIT.json`。
 
 ## [ ] 3（P0）：建立独立 Style Gallery 与自动截图宿主
 
