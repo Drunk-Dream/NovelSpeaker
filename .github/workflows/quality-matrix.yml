@@ -60,5 +60,8 @@ jobs:
             dotnet build -c Release --no-restore @versionArguments
           }
 
+      - name: Build Style Gallery
+        run: dotnet build tools/NovelSpeaker.StyleGallery/NovelSpeaker.StyleGallery.csproj -c Release --no-restore
+
       - name: Test ${{ matrix.layer }}
         run: dotnet test ${{ matrix.project }} -c Release --no-build

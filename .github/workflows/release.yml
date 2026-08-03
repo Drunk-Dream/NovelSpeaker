@@ -82,6 +82,8 @@ jobs:
           if ($publishedFixtures) { throw "Package contains test audio fixture: $($publishedFixtures.FullName -join ', ')" }
           $publishedTestAssemblies = Get-ChildItem artifacts/publish -Recurse -File | Where-Object { $_.Name -match 'Tests\.dll$' }
           if ($publishedTestAssemblies) { throw "Package contains test assembly: $($publishedTestAssemblies.FullName -join ', ')" }
+          $publishedStyleGalleryAssets = Get-ChildItem artifacts/publish -Recurse -File | Where-Object { $_.Name -match 'StyleGallery' -or $_.FullName -match '[\\/]visual-review([\\/]|$)' }
+          if ($publishedStyleGalleryAssets) { throw "Package contains Style Gallery asset: $($publishedStyleGalleryAssets.FullName -join ', ')" }
           $publishedTemporaryFiles = Get-ChildItem artifacts/publish -Recurse -File | Where-Object {
             $_.Name -in $temporaryExtensions -or
               $_.Extension -in $temporaryExtensions -or
@@ -100,6 +102,8 @@ jobs:
           if ($packagedFixtures) { throw "Package contains test audio fixture: $($packagedFixtures -join ', ')" }
           $packagedTestAssemblies = $entries | Where-Object { [System.IO.Path]::GetFileName($_) -match 'Tests\.dll$' }
           if ($packagedTestAssemblies) { throw "Package contains test assembly: $($packagedTestAssemblies -join ', ')" }
+          $packagedStyleGalleryAssets = $entries | Where-Object { [System.IO.Path]::GetFileName($_) -match 'StyleGallery' -or $_ -match '(^|/)visual-review(/|$)' }
+          if ($packagedStyleGalleryAssets) { throw "Package contains Style Gallery asset: $($packagedStyleGalleryAssets -join ', ')" }
           $packagedTemporaryFiles = $entries | Where-Object {
             $name = [System.IO.Path]::GetFileName($_)
             $extension = [System.IO.Path]::GetExtension($name)
