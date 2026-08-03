@@ -11,6 +11,10 @@ public static class GallerySceneRegistry
             "Wpf.Ui provider-backed standard controls and interaction states.",
             GallerySceneBuilders.CreateProviderControls),
         new GallerySceneDefinition(
+            "provider-style-probe",
+            "Explicit Provider Style Bridge aliases and measurable interaction contracts.",
+            GallerySceneBuilders.CreateProviderStyleProbe),
+        new GallerySceneDefinition(
             "theme-resource-probe",
             "Dynamic theme resource probes for surfaces, text, borders and accent colors.",
             GallerySceneBuilders.CreateThemeResourceProbe),

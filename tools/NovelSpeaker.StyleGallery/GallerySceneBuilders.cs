@@ -3,6 +3,8 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Button = System.Windows.Controls.Button;
+using CheckBox = System.Windows.Controls.CheckBox;
+using PasswordBox = System.Windows.Controls.PasswordBox;
 using TextBlock = System.Windows.Controls.TextBlock;
 using TextBox = System.Windows.Controls.TextBox;
 using Wpf.Ui.Controls;
@@ -26,6 +28,13 @@ internal static class GallerySceneBuilders
             "Theme resource probe",
             "DynamicResource values should change when the provider theme changes.",
             CreateThemeProbeContent);
+
+    public static FrameworkElement CreateProviderStyleProbe() =>
+        CreateSceneRoot(
+            "provider-style-probe",
+            "Provider Style Bridge probe",
+            "Each explicit alias keeps the Wpf.Ui template and exposes its measurable interaction contract.",
+            CreateProviderStyleProbeContent);
 
     public static FrameworkElement CreatePlaceholderSections() =>
         CreateSceneRoot(
@@ -264,6 +273,190 @@ internal static class GallerySceneBuilders
 
         return content;
     }
+
+    private static Panel CreateProviderStyleProbeContent()
+    {
+        var content = new Grid();
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        var header = new Grid { Margin = new Thickness(20, 16, 20, 10) };
+        foreach (var width in new[] { 170d, 190d, 190d, 86d, 86d, 180d, 140d })
+        {
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(width) });
+        }
+
+        foreach (var (label, column) in new[]
+                 {
+                     ("Bridge alias", 0),
+                     ("Default", 1),
+                     ("Disabled", 2),
+                     ("Template", 3),
+                     ("Min size", 4),
+                     ("Content alignment", 5),
+                     ("Focus", 6)
+                 })
+        {
+            var text = CreateText(label, 12, FontWeights.SemiBold);
+            Grid.SetColumn(text, column);
+            header.Children.Add(text);
+        }
+
+        Grid.SetRow(header, 0);
+        content.Children.Add(header);
+
+        var rows = new StackPanel { Margin = new Thickness(20, 0, 20, 20) };
+        foreach (var key in ProviderStyleBridgeKeys)
+        {
+            rows.Children.Add(CreateProviderStyleProbeRow(key));
+        }
+
+        var scrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = rows
+        };
+        Grid.SetRow(scrollViewer, 1);
+        content.Children.Add(scrollViewer);
+        return content;
+    }
+
+    private static Border CreateProviderStyleProbeRow(string resourceKey)
+    {
+        var defaultControl = CreateProviderControl(resourceKey);
+        var disabledControl = CreateProviderControl(resourceKey);
+        disabledControl.IsEnabled = false;
+
+        var defaultVisual = CreateProviderProbeVisual(defaultControl);
+        var disabledVisual = CreateProviderProbeVisual(disabledControl);
+        ApplyTemplate(defaultVisual, defaultControl);
+        ApplyTemplate(disabledVisual, disabledControl);
+
+        var row = new Grid { MinHeight = 56, Margin = new Thickness(0, 0, 0, 8) };
+        foreach (var width in new[] { 170d, 190d, 190d, 86d, 86d, 180d, 140d })
+        {
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(width) });
+        }
+
+        var keyText = CreateText(resourceKey, 12, FontWeights.SemiBold);
+        keyText.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(keyText, 0);
+        row.Children.Add(keyText);
+
+        defaultVisual.VerticalAlignment = VerticalAlignment.Center;
+        defaultVisual.Margin = new Thickness(0, 0, 12, 0);
+        Grid.SetColumn(defaultVisual, 1);
+        row.Children.Add(defaultVisual);
+
+        disabledVisual.VerticalAlignment = VerticalAlignment.Center;
+        disabledVisual.Margin = new Thickness(0, 0, 12, 0);
+        Grid.SetColumn(disabledVisual, 2);
+        row.Children.Add(disabledVisual);
+
+        AddProbeText(row, defaultControl.Template is not null ? "non-empty" : "missing", 3);
+        AddProbeText(
+            row,
+            $"{FormatDimension(defaultControl.MinWidth)} × {FormatDimension(defaultControl.MinHeight)}",
+            4);
+        AddProbeText(
+            row,
+            $"{defaultControl.HorizontalContentAlignment}\n{defaultControl.VerticalContentAlignment}",
+            5);
+        AddProbeText(
+            row,
+            defaultControl.Focusable ? "Focusable\nprovider state" : "not focusable",
+            6);
+
+        var surface = new Border
+        {
+            Padding = new Thickness(12, 8, 12, 8),
+            BorderThickness = new Thickness(1),
+            Child = row
+        };
+        surface.SetResourceReference(Border.BackgroundProperty, "GalleryMutedSurfaceBrush");
+        surface.SetResourceReference(Border.BorderBrushProperty, "GalleryBorderBrush");
+        return surface;
+    }
+
+    private static void AddProbeText(Grid row, string value, int column)
+    {
+        var text = new TextBlock
+        {
+            Text = value,
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Center
+        }.WithResource(TextBlock.ForegroundProperty, "GallerySecondaryTextBrush");
+        Grid.SetColumn(text, column);
+        row.Children.Add(text);
+    }
+
+    private static Control CreateProviderControl(string resourceKey)
+    {
+        Control control = resourceKey switch
+        {
+            "Provider.Button" => new Button { Content = "Provider button", MinHeight = 32 },
+            "Provider.TextBox" => new TextBox { Text = "Provider text", MinHeight = 32 },
+            "Provider.PasswordBox" => new PasswordBox { Password = "fixture", MinHeight = 32 },
+            "Provider.ComboBox" => new ComboBox
+            {
+                ItemsSource = new[] { "Light", "Dark" },
+                SelectedIndex = 0,
+                MinHeight = 32
+            },
+            "Provider.CheckBox" => new CheckBox { Content = "Provider check", IsChecked = true },
+            "Provider.ToggleSwitch" => new ToggleSwitch { Content = "Provider toggle", IsChecked = true },
+            "Provider.NavigationViewItem" => new NavigationViewItem { Content = "Provider navigation" },
+            "Provider.Slider" => new Slider { Minimum = 0, Maximum = 100, Value = 50, MinWidth = 120 },
+            _ => throw new InvalidOperationException($"Unknown provider bridge key '{resourceKey}'.")
+        };
+
+        control.Style = Application.Current?.FindResource(resourceKey) as Style
+            ?? throw new InvalidOperationException($"Provider bridge resource '{resourceKey}' was not found.");
+        AutomationProperties.SetName(control, resourceKey);
+        control.SetResourceReference(Control.ForegroundProperty, "GalleryPrimaryTextBrush");
+        return control;
+    }
+
+    private static FrameworkElement CreateProviderProbeVisual(Control control)
+    {
+        if (control is not NavigationViewItem navigationItem)
+        {
+            return control;
+        }
+
+        var navigation = new NavigationView
+        {
+            Width = 180,
+            Height = 48,
+            IsPaneOpen = true,
+            PaneDisplayMode = NavigationViewPaneDisplayMode.Left
+        };
+        navigation.MenuItems.Add(navigationItem);
+        return navigation;
+    }
+
+    private static void ApplyTemplate(FrameworkElement visual, Control control)
+    {
+        visual.Measure(new Size(180, 48));
+        visual.Arrange(new Rect(0, 0, 180, 48));
+        visual.UpdateLayout();
+        control.ApplyTemplate();
+    }
+
+    private static string FormatDimension(double value) =>
+        double.IsNaN(value) ? "auto" : value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static readonly string[] ProviderStyleBridgeKeys =
+    [
+        "Provider.Button",
+        "Provider.TextBox",
+        "Provider.PasswordBox",
+        "Provider.ComboBox",
+        "Provider.CheckBox",
+        "Provider.ToggleSwitch",
+        "Provider.NavigationViewItem",
+        "Provider.Slider"
+    ];
 
     private static Panel CreatePlaceholderContent()
     {

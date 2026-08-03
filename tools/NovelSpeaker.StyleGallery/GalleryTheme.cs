@@ -1,5 +1,6 @@
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Markup;
+using System.Windows;
 using System.Windows.Media;
 
 namespace NovelSpeaker.StyleGallery;
@@ -32,21 +33,68 @@ public static class GalleryThemeExtensions
 
 public static class GalleryThemeRuntime
 {
+    private static readonly string[] ProviderBridgeKeys =
+    [
+        "Provider.Button",
+        "Provider.TextBox",
+        "Provider.PasswordBox",
+        "Provider.ComboBox",
+        "Provider.CheckBox",
+        "Provider.ToggleSwitch",
+        "Provider.NavigationViewItem",
+        "Provider.Slider"
+    ];
+
     public static void EnsureProviderResources()
     {
         var application = System.Windows.Application.Current
             ?? throw new InvalidOperationException("Style Gallery resources require a WPF Application.");
         var dictionaries = application.Resources.MergedDictionaries;
 
-        if (!dictionaries.OfType<ThemesDictionary>().Any())
+        if (dictionaries.Count < 3 || !IsWpfUiThemeDictionary(dictionaries[0]))
         {
-            dictionaries.Insert(0, new ThemesDictionary { Theme = ApplicationTheme.Light });
+            throw new InvalidOperationException(
+                "Style Gallery Wpf.Ui theme provider must remain at logical dictionary position 0.");
         }
 
-        if (!dictionaries.OfType<ControlsDictionary>().Any())
+        if (dictionaries[1] is not ControlsDictionary)
         {
-            dictionaries.Add(new ControlsDictionary());
+            throw new InvalidOperationException(
+                "Style Gallery Wpf.Ui ControlsDictionary must remain at logical dictionary position 1.");
         }
+
+        var bridge = dictionaries[2];
+        var bridgeKeys = bridge.Keys
+            .Cast<object>()
+            .OfType<string>()
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        if (!IsProviderBridgeDictionary(bridge) ||
+            !ProviderBridgeKeys.Order(StringComparer.Ordinal).SequenceEqual(bridgeKeys) ||
+            ProviderBridgeKeys.Any(key => bridge[key] is not Style))
+        {
+            throw new InvalidOperationException(
+                "Style Gallery ProviderStyleBridge must remain at logical dictionary position 2 with its stable alias keys.");
+        }
+    }
+
+    private static bool IsWpfUiThemeDictionary(ResourceDictionary dictionary)
+    {
+        if (dictionary is ThemesDictionary)
+        {
+            return true;
+        }
+
+        var source = dictionary.Source?.OriginalString?.Replace('\\', '/');
+        return dictionary.GetType() == typeof(ResourceDictionary) &&
+               source?.Contains("Wpf.Ui", StringComparison.OrdinalIgnoreCase) == true &&
+               source.Contains("/Resources/Theme/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsProviderBridgeDictionary(ResourceDictionary dictionary)
+    {
+        var source = dictionary.Source?.OriginalString?.Replace('\\', '/');
+        return source?.EndsWith("/ProviderStyleBridge.xaml", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     public static void Apply(GalleryTheme theme)

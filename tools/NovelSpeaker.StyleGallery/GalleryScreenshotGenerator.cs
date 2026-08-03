@@ -63,7 +63,7 @@ public sealed class GalleryScreenshotGenerator
         }
 
         var manifest = new GalleryManifest(
-            "03",
+            options.Task,
             "NovelSpeaker.StyleGallery",
             GalleryRenderSettings.WindowWidth,
             GalleryRenderSettings.WindowHeight,
