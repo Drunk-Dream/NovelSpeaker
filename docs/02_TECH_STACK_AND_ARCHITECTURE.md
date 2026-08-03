@@ -127,7 +127,29 @@ Current playback > Playback prefetch > Active cache
 
 Application 不引用 Windows/WPF 类型；App adapter 负责平台事件与 Application 命令之间的转换。
 
-## 9. 资源所有权
+## 9. UI 主题与样式所有权
+
+Wpf.Ui 是标准 WPF/Wpf.Ui 控件的基础视觉提供者，NovelSpeaker 不复制其默认模板，也不通过主题切换代码重新注入标准控件样式。
+
+资源分层固定为：
+
+1. Wpf.Ui provider dictionaries：默认控件模板、Fluent 交互状态和框架主题资源。
+2. NovelSpeaker palette/tokens：语义颜色、稳定间距标尺、圆角、图标尺寸、最小控件尺寸和动效时长。
+3. Provider style bridge：将确实需要扩展的 Wpf.Ui 基础样式映射为显式、稳定的具名资源。
+4. NovelSpeaker explicit variants：`App.*` 具名样式，只覆盖必要属性，不以应用级隐式样式接管标准控件。
+5. NovelSpeaker components：书籍卡片、设置行、媒体控制条、页面标题等应用自有复合组件。
+6. Page layout：列宽、页面边距、工作台分栏和页面专用几何由 Shell、页面或组件中的唯一 owner 管理。
+
+约束：
+
+- `Application.Resources` 和全局合并字典不得为标准 WPF/Wpf.Ui 控件定义 NovelSpeaker 隐式样式。
+- NovelSpeaker 自有 CustomControl 可以使用默认样式键；局部组件内部可使用受控隐式样式，但作用域不能逃逸。
+- 标准控件完整 `ControlTemplate` 由 Wpf.Ui 所有。确需替换时必须使用局部具名样式或应用自有组件，并有专项 WPF 契约测试。
+- 主题切换只更新 Wpf.Ui 主题和 NovelSpeaker palette；样式字典、模板字典和类型资源键保持加载稳定。
+- ViewModel 只投影语义状态，不返回 Brush、Style、Thickness、CornerRadius 或其它视觉类型。
+- 开发用 Style Gallery 位于独立工具/测试边界，不进入正式导航，也不进入发布包。
+
+## 10. 资源所有权
 
 - HTTP transport 明确拥有 `HttpResponseMessage` 与 response stream，直到结果所有权转交或释放。
 - 临时 TTS 文件、缓存 staging 文件和 MP3 导出临时文件均有唯一 owner，并在失败/取消时清理。
@@ -135,7 +157,7 @@ Application 不引用 Windows/WPF 类型；App adapter 负责平台事件与 App
 - fire-and-forget 任务必须登记到进程/操作所有者，并观察异常。
 - `async void` 仅限 WPF 事件入口，且立即转交可等待流程。
 
-## 10. 数据兼容边界
+## 11. 数据兼容边界
 
 - SQLite 已发布 schema 为 7；已发布 migration 只能追加。
 - 内部正文、书籍元数据、规则和阅读进度不得因缓存重构失效。
@@ -143,7 +165,7 @@ Application 不引用 Windows/WPF 类型；App adapter 负责平台事件与 App
 - 数据格式变化必须有独立迁移和升级测试，不用兼容 wrapper 永久掩盖旧模型。
 - 所有持久化路径必须通过应用数据根目录约束的 resolver。
 
-## 11. 架构自动约束
+## 12. 架构自动约束
 
 测试持续验证：
 
@@ -152,6 +174,9 @@ Application 不引用 Windows/WPF 类型；App adapter 负责平台事件与 App
 - Infrastructure 不引用 App。
 - App 非 Bootstrap 代码不直接依赖 Infrastructure。
 - ViewModel 公共合同不暴露 Page/Window/Dispatcher/WPF 视觉类型。
+- 应用级资源中不存在接管标准 WPF/Wpf.Ui 控件的 NovelSpeaker 隐式样式。
+- 主题切换不通过代码重新写入 Style 或 ControlTemplate 类型资源。
+- 页面专用宽度、边距和分栏几何不进入全局 Design Token。
 - 文件名、主公共类型和命名空间保持一致。
 - 非组合根代码不新增 `IServiceProvider` 依赖。
 

@@ -2,13 +2,15 @@
 
 ## 1. 阶段定位
 
-此前的章节朗读清单查询与生命周期收口已全部完成，完整记录归档于：
+当前阶段重新建立长期稳定的视觉样式体系。现有全局视觉 Wave 1 从 `e8079000d4bd82f844e7741fb35cc6e63ad17e2f` 开始，其修改范围过大且样式所有权不稳定，将通过单个聚合 `git revert` 提交回到基线 `25a746c608bd46f87126b828b6c879104f3c08c6`，同时保留本次更新后的 `docs/`。
 
-- `archives/2026-08-02_COMPLETED_SPEECH_PLAN_QUERY_LIFECYCLE_BACKLOG.md`
+放弃阶段记录：
 
-当前阶段只实施 `13_VISUAL_DESIGN_SYSTEM.md` 定义的全局视觉重设计。目标是让主窗口、全部功能页面、对话框和迷你播放器共享统一的浅色/深色主题、表面层级、组件状态和窗口质感。
+- `archives/2026-08-03_ABANDONED_GLOBAL_VISUAL_WAVE1.md`
 
-本阶段不改变书籍、播放、缓存、规则、导出、托盘或媒体控制的业务语义。因界面重排必须调整 Presentation 投影时，只允许增加视觉所需的语义状态，不复制业务状态机。
+新的实现以 `13_VISUAL_DESIGN_SYSTEM.md` 为最终形态依据。Wpf.Ui 保持标准控件模板所有权，NovelSpeaker 通过 palette、稳定 Design Token、Provider Style Bridge、具名样式、自有组件和页面局部布局逐步迁移。
+
+本阶段不改变书籍、播放、缓存、规则、导出、托盘、媒体控制或持久化语义。
 
 ## 2. 状态与优先级
 
@@ -17,23 +19,26 @@
 - `[ ]` 未开始
 - `[~]` 进行中
 - `[x]` 完成
-- `[!]` 阻塞；必须记录可验证证据和恢复条件
+- `[!]` 阻塞；必须记录自动检查证据和恢复条件
 
 优先级：
 
-- `P0`：全局主题、公共组件、行为回归和发布阻塞项。
-- `P1`：主要窗口与页面改造。
-- `P2`：细节质感、清理和非阻塞增强。
+- `P0`：Git 回退、资源所有权、主题稳定性、行为回归和发布阻塞项。
+- `P1`：Style Gallery、公共组件和单页迁移。
+- `P2`：最终一致性、清理和非阻塞增强。
 
-## 3. 执行规则
+## 3. Codex 执行规则
 
-1. 开始任务前阅读 `13_VISUAL_DESIGN_SYSTEM.md`、相关页面数字文档、生产 XAML/ViewModel 和直接测试。
-2. 先固定现有用户可观察行为，再替换视觉；不得以视觉重构为由改变导航、播放、选择、缓存或保存语义。
-3. 所有可复用颜色、尺寸、圆角、阴影和状态模板必须进入公共资源，不在页面局部复制。
-4. 页面 ViewModel 不返回 Brush、Thickness、CornerRadius 或其它 WPF 视觉类型。
-5. 每项任务按逻辑目的拆分多个原子提交；公共资源变更与页面批量迁移不得压成一次提交。
-6. 每个 Wave 结束执行针对性 WPF 契约测试；最终执行完整自动质量门禁。
-7. 不把主观“看起来不错”作为唯一验收，使用资源、模板、可访问性、窗口缩放和行为回归测试建立可重复证据。
+1. 默认每次调用只执行一个编号任务；完成该任务、更新状态、提交并报告后停止。只有用户明确指定多个编号时才串行执行多个任务。
+2. 不把用户视觉确认写入任务完成条件。要求截图的任务必须自动生成浅色/深色 PNG 与 JSON manifest，并报告路径，供用户在任务结束后自行查看。
+3. 每个任务只能修改其声明的组件族或页面。不得顺便调整其它控件、全局密度、其它页面布局或 Wpf.Ui 版本。
+4. 新视觉先进入 Style Gallery；除明确写明“迁移到产品页面”的任务外，不修改正式页面。
+5. 页面迁移使用显式 `App.*` 样式和应用自有组件，不新增 Application/global 标准控件隐式样式。
+6. 不在全局字典中替换标准 WPF/Wpf.Ui 控件完整 `ControlTemplate`。
+7. Design Token 只保存跨组件稳定标尺；页面专用列宽、Padding、Margin 和固定宽度保留在唯一布局 owner。
+8. 缺陷修复先增加失败测试。截图只作为产物，自动关闭依赖构建、资源、几何、可访问性和行为测试。
+9. 除任务 1 的用户指定聚合回退外，提交按逻辑目的保持小而可回退。不得推送、强制更新远端或删除远端分支。
+10. 每项任务完成后将自身 `[ ]` 更新为 `[x]`；不得预先标记后续任务。
 
 完整自动质量门禁：
 
@@ -44,439 +49,525 @@ dotnet build -c Release --no-restore
 dotnet test -c Release --no-build
 ```
 
+视觉截图输出目录：
+
+```text
+artifacts/visual-review/<task-id>/
+```
+
+该目录不进入 Git 提交。每个 manifest 至少记录任务号、Git commit、主题、DPI、窗口尺寸、场景名和 PNG SHA-256。
+
 ## 4. 总体开发顺序
 
 ```text
-1 视觉资产审计与行为基线
-  ↓
-2 主题颜色与语义资源
-  ↓
-3 尺寸、字体、圆角、阴影和动效令牌
-  ↓
-4 公共窗口与组件模板
-  ↓
-5 输入、列表、卡片、导航和进度组件
-  ↓
-5A 页面密度收敛与编辑器宽度修正
-  ↓
-5B 公共控件继承与页面几何回归收口
-  ↓
-6 主窗口壳层和导航
-  ↓
-7–11 主要页面分批迁移
-  ↓
-12 迷你播放器与辅助浮窗
-  ↓
-13 对话框、Flyout、Snackbar 和状态视图
-  ↓
-14 主题切换、缩放和可访问性
-  ↓
-15 清理局部旧样式
-  ↓
-16 自动回归与发布质量门禁
+1  聚合 revert 并切换实验分支
+2  样式所有权守卫与旧审计清理
+3  Style Gallery 与自动截图宿主
+4  Wpf.Ui Provider Bridge 和稳定主题链路
+5  语义 Palette
+6  稳定 Token、排版和表面
+7  按钮组件族
+8  媒体控制组件族
+9  迷你播放器窗口表面
+10 迷你播放器内容与媒体控制
+11 输入与选择控件族
+12 列表、卡片和设置行
+13 导航、菜单、进度与反馈组件
+14 设置页试点
+15 其余设置页
+16 书库
+17 书籍详情
+18 播放页
+19 TTS 规则工作台
+20 章节规则工作台
+21 正则替换工作台
+22 缓存管理与缓存数据页
+23 主窗口壳层
+24 Dialog、Flyout、Snackbar 与状态视图
+25 DPI、可访问性、资源清理与发布门禁
 ```
 
 ---
 
-# Wave 1：视觉基础与公共资源
+## [ ] 1（P0）：聚合回退不稳定视觉 Wave，并切换到实验分支
 
-## [x] 1（P0）：完成视觉资产审计与行为基线
+目标：
 
-实现：
+- 保留已经提交的历史，不使用 `reset --hard` 或强推改写主分支历史。
+- 将 `25a746c608bd46f87126b828b6c879104f3c08c6` 之后、当前 docs 更新提交之前的全部视觉 Wave 修改反向应用。
+- 回退结果压缩为一个提交。
+- 保留当前 docs 更新内容。
+- 从回退后的主分支创建并切换到 `experiment/visual-system-v2`。
 
-- 列出所有顶级窗口、页面、Dialog、Flyout、Snackbar、菜单和局部组件资源。
-- 标记页面内重复颜色、圆角、阴影、Button Template、TextBox Template、Slider Template 和列表选择样式。
-- 记录当前浅色/深色主题切换入口、Accent 来源和运行时资源替换方式。
-- 为主窗口导航、书库、播放、规则工作台、设置、缓存管理、迷你播放器和关键对话框建立结构契约测试。
-- 固定现有导航、命令启用、键盘、多选、播放和未保存修改行为。
+前置自动检查：
+
+- 当前分支必须是 `main`，工作区和 index 必须干净。
+- 当前 `HEAD` 必须是用户刚提交的 docs-only 提交；`git diff-tree` 结果不得包含 `docs/` 以外的文件。
+- `e8079000d4bd82f844e7741fb35cc6e63ad17e2f^` 必须等于基线 `25a746c608bd46f87126b828b6c879104f3c08c6`。
+- 基线必须是回退终点的祖先。
+- 回退范围不得包含 merge commit；若包含则标记 `[!]` 并停止，不猜测 `-m` mainline。
+- `archive/visual-wave1-before-revert-2026-08-03` 和 `experiment/visual-system-v2` 不得已指向其它提交。
+
+执行算法：
+
+```bash
+BASE=25a746c608bd46f87126b828b6c879104f3c08c6
+DOCS_HEAD=$(git rev-parse HEAD)
+ROLLBACK_END=$(git rev-parse HEAD^)
+
+git branch archive/visual-wave1-before-revert-2026-08-03 "$DOCS_HEAD"
+git revert --no-commit "$BASE..$ROLLBACK_END"
+git restore --source="$DOCS_HEAD" --staged --worktree -- docs
+```
+
+随后：
+
+- 只允许在 `docs/TASK_BACKLOG.md` 中将任务 1 标为完成，并填写实际回退提交/分支结果。
+- `git diff "$BASE" -- . ':(exclude)docs/**'` 必须为空，证明非 docs 工作树等于基线。
+- `git diff "$DOCS_HEAD" -- docs` 只能包含 `docs/TASK_BACKLOG.md` 的任务状态和结果记录。
+- 运行完整自动质量门禁。
+- 将全部反向代码差异和任务 1 状态压缩为一个提交：
+
+```text
+revert(ui): roll back unstable visual system wave
+```
+
+- 提交后再次验证该提交之外的非 docs 树与基线完全一致。
+- 从该提交创建并切换：
+
+```bash
+git switch -c experiment/visual-system-v2
+```
+
+- 不推送任何分支。
 
 自动验收：
 
-- 视觉资源清单覆盖全部顶级视图。
-- 关键页面加载测试和行为特征测试通过。
-- 审计结果中每个局部重复样式都有明确迁移目标，不保留无归属的“以后处理”。
+- `main` 新增且只新增一个聚合回退提交。
+- 回退提交是普通单父提交。
+- 非 docs 文件树与基线提交一致。
+- 当前 docs 仍存在，只有任务 1 跟踪内容发生预期变化。
+- 归档分支指向回退前 docs 提交。
+- 当前分支为 `experiment/visual-system-v2`，其起点为聚合回退提交。
+- 完整自动质量门禁通过。
 
-## [x] 2（P0）：建立浅色与深色语义颜色系统
+回退结果（由执行任务的 Codex 自动填写）：
+
+```text
+Revert commit: <pending>
+Archive branch: archive/visual-wave1-before-revert-2026-08-03
+Working branch: experiment/visual-system-v2
+```
+
+## [ ] 2（P0）：建立样式所有权守卫并清理放弃阶段审计资产
 
 前置：1。
 
 实现：
 
-- 建立 `Palette.Light.xaml`、`Palette.Dark.xaml` 和主题资源入口。
-- 定义 AppBackground、CanvasSurface、PrimarySurface、SecondarySurface、RaisedSurface、文本、边框、Accent 和状态色族。
-- 建立 Accent Hover、Pressed、Subtle 和 FocusRing 资源。
-- 主题颜色只通过语义 Brush 暴露给组件和页面。
-- 保持现有主题设置和持久化语义不变。
-- 主题加载失败时回退到安全默认主题。
+- 删除不再代表当前实现的 `docs/VISUAL_ASSET_AUDIT.md` 和 `docs/VISUAL_ASSET_AUDIT.json`；历史原因由归档文档保留。
+- 新增 `VisualStyleArchitectureTests` 或等价测试，扫描 App.xaml、全局合并字典和主题运行时代码。
+- 禁止 Application/global 范围的标准 WPF/Wpf.Ui 控件隐式 NovelSpeaker 样式；允许项必须位于自有组件局部并有显式白名单。
+- 禁止主题运行时代码向 `Application.Resources` 写入 Style/ControlTemplate 类型键。
+- 禁止全局资源替换标准控件完整模板。
+- 禁止全局 Design Token 使用页面专用命名，例如 `PagePaneWidth`、`SettingsControlWidth`、`WorkbenchListWidth`、`RuleActionGap`。
+- 生成 `artifacts/visual-review/02/style-ownership-audit.json`，列出 provider、全局字典、隐式样式、模板覆盖和页面局部资源。
 
 自动验收：
 
-- 浅色和深色字典具有相同资源键。
-- 页面 XAML 不新增硬编码可复用颜色。
-- 运行时切换主题后已打开主窗口和迷你播放器同步刷新。
-- 主题资源缺失测试能够安全回退。
+- 架构测试能够用内置故障 fixture 证明每条禁令会失败。
+- 基线代码通过全部守卫。
+- 审计 manifest 可重复生成且路径分类完整。
+- 完整质量门禁通过。
 
-## [x] 3（P0）：建立尺寸、字体、圆角、描边、阴影和动效令牌
+## [ ] 3（P0）：建立独立 Style Gallery 与自动截图宿主
 
 前置：2。
 
 实现：
 
-- 扩充或重构 `DesignTokens.xaml`。
-- 固定间距标尺、控件高度、图标尺寸、页面边距和列表行高。
-- 定义字体层级、正文和元数据样式。
-- 定义统一圆角语义。
-- 定义 ElevationLow/Medium/High。
-- 定义 100/160/220 ms 动效时长和减少动画替代状态。
-- 移除页面中可由令牌表达的重复常量。
+- 新增 `tools/NovelSpeaker.StyleGallery` 或等价独立 WPF 工具项目。
+- 工具只引用 UI 资源和测试数据，不读取用户数据库、设置、书籍或缓存。
+- 工具不注册到正式导航，不被生产 App 引用，不进入 publish 输出。
+- 提供场景注册表、浅色/深色切换、固定窗口尺寸、固定 DPI 和自动退出截图模式。
+- 初始场景至少包含 Provider 标准控件、主题资源探针和占位分区。
+- 输出 PNG 和 JSON manifest 到 `artifacts/visual-review/03/`。
+- WPF 测试复用同一场景注册表，验证每个场景可构造、Measure/Arrange、Render 且无 Dispatcher 未观察异常。
 
 自动验收：
 
-- 令牌键唯一且命名按语义分组。
-- 公共组件不写重复尺寸常量。
-- 减少动画模式下不执行位移和缩放动画。
-- DPI 相关尺寸不通过像素截图坐标硬编码。
+- Light/Dark 各生成至少一张非空 PNG。
+- PNG 尺寸、DPI、场景名和 SHA-256 与 manifest 一致。
+- 连续运行两次场景清单和尺寸一致。
+- self-contained publish 自动检查确认不包含 Style Gallery 程序集和资产。
+- 完整质量门禁通过。
 
-## [x] 4（P0）：重构公共窗口、按钮和媒体控制模板
+## [ ] 4（P0）：建立 Wpf.Ui Provider Style Bridge 和稳定主题链路
 
-前置：2、3。
+前置：3。
 
 实现：
 
-- 建立统一 Window Chrome、标题栏和窗口操作按钮。
-- 建立 Primary、Secondary、Subtle、Danger 和 Icon Button。
-- 建立中性状态层、Accent 状态层、FocusRing 和 Disabled 状态。
-- 建立上一章、上一段、播放/暂停、下一段、下一章等媒体按钮语义样式。
-- Close 按钮默认中性，Hover 使用 DangerSubtle。
-- 所有公共纯图标按钮支持 Tooltip 和 AutomationName。
+- 固定 Wpf.Ui theme/provider dictionaries 的加载顺序和生命周期。
+- 新增只含显式键的 `ProviderStyleBridge.xaml`，为后续需要扩展的 Button、TextBox、PasswordBox、ComboBox、CheckBox、ToggleSwitch、NavigationViewItem 和 Slider 提供 provider alias。
+- Provider Bridge 不设置页面语义、不替换模板。
+- 主题切换只调用 Wpf.Ui 主题入口和 NovelSpeaker palette 入口；删除或禁止任何 Style 恢复/重新注入路径。
+- Style Gallery 增加 provider probe，显示每个桥接样式的模板、MinWidth、MinHeight、内容对齐、Focus 和 Disabled 状态。
 
 自动验收：
 
-- Hover、Pressed、Selected、Disabled 和 Focus 状态可分别触发。
-- 状态变化不引发布局抖动。
-- 普通图标按钮不出现方形 Stroke Hover。
-- 媒体图标和窗口操作按钮契约测试通过。
+- 主题切换前后 provider/bridge Style 对象可解析，资源字典数量和类型键集合不漂移。
+- 标准控件 Template 非空，内容对齐和 Disabled/Focus 状态可触发。
+- 运行时代码扫描不存在 Style 重新写入。
+- 生成 `artifacts/visual-review/04/` 浅色/深色截图与 manifest。
+- 完整质量门禁通过。
 
-## [x] 5（P0）：重构输入、列表、卡片、导航和进度组件
+## [ ] 5（P1）：建立语义 Palette，不迁移正式页面
 
-前置：2–4。
+前置：4。
 
 实现：
 
-- 统一 TextBox、PasswordBox、ComboBox、Number Input、Switch、Slider 和 ProgressBar。
-- 统一 List Row、Card、Selected Card、Setting Row、Navigation Item 和 Toolbar。
-- 统一字段标签、帮助、错误、只读和禁用状态。
-- 建立 Menu、ContextMenu 和 Tooltip 基础样式。
-- 保持虚拟化、多选和键盘导航行为不变。
-- Slider 默认弱化 Thumb，Hover/Focus/Dragging 时显示。
+- 建立 Light/Dark palette 和语义 Brush：AppBackground、CanvasSurface、PrimarySurface、SecondarySurface、RaisedSurface、三档文本、两档边框、Accent 族和状态色。
+- palette 键在两个主题中完全一致。
+- Brush 使用 `DynamicResource` 链路，Style Gallery 热切换后更新。
+- 不修改任何正式页面、窗口布局、控件高度、Padding 或模板。
+- Gallery 展示全部颜色及文本/图标对比样例。
 
 自动验收：
 
-- 输入错误不只通过颜色表达。
-- 列表选中与 Hover 可以同时辨识。
-- 多选 controller 不依赖视觉容器保存选择事实。
-- Slider、ProgressBar 和列表虚拟化回归测试通过。
+- Light/Dark 键集合和资源类型一致。
+- 热切换后所有 probe Brush 更新且 Style/Template 实例未被替换。
+- 对主要文本/背景组合执行自动对比度检查。
+- 生成 `artifacts/visual-review/05/`。
+- 完整质量门禁通过。
 
-## [x] 5A（P0）：收敛统一样式后的页面密度并恢复编辑器可用宽度
+## [ ] 6（P1）：建立稳定 Token、排版和表面组件，不迁移正式页面
 
-前置：3–5；任务 6–16 必须以前置任务的新密度令牌为准。
-
-背景：任务 3–5 已将页面和公共组件迁移到统一令牌，但原始语义值在页面边距、卡片内容、列表行、设置行和表单区块上叠加后过于稀疏。在主窗口最小内容宽度下，规则工作台右侧编辑器的固定列会被压缩，部分编辑输入框实际宽度为 0。
+前置：5。
 
 实现：
 
-- 将页面外边距、卡片/弹层内容、列表行、设置行、输入控件和动作按钮统一收敛到紧凑密度档；保留不小于 `32 × 32` 的可点击区域。
-- 将页面区块、字段标签/控件、帮助文本和编辑器操作区的间距分别固定为 `16`、`4` 和 `16` 等语义值，避免多层 `20/24` 间距叠加。
-- 三个规则工作台共享 `300 px` 左列表、`12 px` 分隔和紧凑编辑器表面；编辑器内部固定列同步缩窄。
-- 设置控件宽度收敛到 `220 px`，设置行高度收敛到 `48 px`，避免编辑控件占据不必要的横向空间。
-- 删除页面中重复的旧 padding/margin 字面量，统一通过 Design Token 表达。
+- 定义稳定间距标尺、圆角、图标尺寸、最小控件高度、字体层级、动效时长和 Elevation。
+- 新增 PageHeader、SectionSurface 和 StatusView 的 Style Gallery 组件样例。
+- 不定义页面列宽、设置控件宽度、规则列表宽度或页面专用 Padding。
+- 不调整正式页面密度和布局。
 
 自动验收：
 
-- 资源契约测试验证紧凑密度令牌、输入控件高度和规则工作台尺寸。
-- `680 × 560` 的规则编辑工作区中，Content-Type 等编辑输入框实际宽度至少为 `96 px`，且编辑器仍可滚动。
-- 主题、输入、设置、规则、缓存和播放 WPF 契约测试通过；导航、保存、选择和播放语义不变。
+- Token 命名架构测试通过且不存在页面专用几何。
+- 组件在 Light/Dark、100/125/150% DPI 下 Measure/Arrange 无负值、NaN、零宽关键内容或裁剪异常。
+- 生成 `artifacts/visual-review/06/`。
+- 完整质量门禁通过。
 
-## [x] 5B（P0）：公共控件继承与页面几何回归收口
+## [ ] 7（P1）：建立具名按钮组件族，仅用于 Style Gallery
 
-前置：5A。
-
-背景：紧凑密度迁移后，部分页面仍同时叠加 Wpf.Ui 默认布局和页面局部尺寸；无内容标签的 `ToggleSwitch` 在默认模板中会被测量为近零宽度，导航页框架的默认边距也与页面自身边距重复。
+前置：4–6。
 
 实现：
 
-- Wpf.Ui `NavigationViewItem`、`ToggleSwitch` 和输入控件通过 `BasedOn` 保留默认模板与交互状态，只在公共语义样式中覆盖尺寸、对齐和颜色。
-- 主导航显式取消重复的 `FrameMargin` 和项间距；页面自身成为唯一页面外边距所有者。
-- 为状态型 `ToggleSwitch` 提供统一 `96 × 48` 几何，为 ComboBox 清除不适用的默认最小宽度。
-- 媒体 pill、设置双控件、规则卡片动作和常规进度条使用共享 token/组件资源，避免页面重复固定宽度和对齐规则。
-- 文本输入模板传递内容对齐属性，保证主题/模板切换后仍保持字段内垂直对齐。
+- 建立 Primary、Secondary、Subtle、Icon 和 Danger 具名样式。
+- 样式通过 Provider Bridge 保留 Wpf.Ui 模板和基础状态，不设置完整 ControlTemplate。
+- Gallery 覆盖 Default、Hover、Pressed、Focus、Disabled、图标+文本和长中文文本。
+- 不修改正式页面中的 Button Style 引用。
 
 自动验收：
 
-- Wpf.Ui 继承链、导航无间隔、`FrameMargin=0`、ToggleSwitch 和 ComboBox 几何由 WPF 资源契约测试固定。
-- 播放、详情、缓存、TTS、章节、正则和设置页面回归通过；媒体 pill 和规则动作不改变行为语义。
-- 完整 WPF 测试套件通过。
+- 全局隐式样式守卫通过。
+- 每个状态可通过 WPF 输入/VisualState 驱动并保持内容可见。
+- 点击区域不小于 `32 × 32`，状态变化不改变外部布局尺寸。
+- 生成 `artifacts/visual-review/07/`。
+- 完整质量门禁通过。
 
-### Wave 1 Gate
+## [ ] 8（P1）：建立媒体控制组件族，仅用于 Style Gallery
 
-- 浅色/深色资源键一致。
-- 公共组件样式契约测试通过。
-- 完整 build 和针对性 WPF 测试通过。
-- 后续页面不需要再新建全局颜色或基础控件模板。
-
----
-
-# Wave 2：主窗口与核心阅读体验
-
-## [ ] 6（P1）：重构主窗口壳层、标题栏与一级导航
-
-前置：4、5。
+前置：7。
 
 实现：
 
-- 应用统一 Window Chrome。
-- 重排自定义标题栏、拖动区域和窗口操作。
-- 一级导航使用统一 Navigation Item。
-- 当前项使用 AccentSubtle，Hover、Focus 和 Selected 状态不冲突。
-- 页面内容区统一边距、标题区和 Snackbar Overlay。
-- 保持一级导航、退出、托盘隐藏和未保存导航守卫语义不变。
-- 窄窗口按设计收缩导航，不隐藏核心入口。
+- 建立主播放按钮、段落按钮、章节按钮、窗口动作按钮和媒体 Slider 的具名样式/自有组件。
+- 明确上一章与上一段、下一章与下一段图标差异。
+- Gallery 覆盖播放/暂停、置顶激活、长 Tooltip、Focus、Disabled 和拖动状态。
+- 不修改正式播放页或迷你播放器。
 
 自动验收：
 
-- 最小化、最大化、恢复、关闭和拖动行为测试通过。
-- 关闭到托盘与真正退出仍走既有生命周期。
-- 导航焦点顺序和 AutomationName 完整。
-- `960 × 640`、125% DPI 下核心导航可用。
+- 主按钮、段落按钮和章节按钮最小尺寸与视觉权重合同通过。
+- Slider Tooltip 投影 `x/y`，拖动不触发真实播放命令。
+- 生成 `artifacts/visual-review/08/`。
+- 完整质量门禁通过。
 
-## [ ] 7（P1）：重构书库与书籍详情
+## [ ] 9（P1）：只迁移迷你播放器窗口表面与窗口动作
 
-前置：6。
+前置：8。
 
 实现：
 
-- 书库改为自适应书籍卡片网格。
-- 卡片统一书名、作者、当前章节、剩余章节和低频菜单层级。
-- 无封面时使用简洁中性识别块，不加入装饰插画。
-- 书籍详情统一页面标题、元数据摘要和虚拟化目录。
-- 当前章节、选中、Hover 和键盘 Focus 使用统一状态。
-- “定位到当前章节”应用统一悬浮图标按钮。
-- 保持导入、打开、删除、章节跳转和缓存百分比显示语义不变。
+- 只调整迷你播放器 RaisedSurface、轻描边、圆角、阴影、标题文本层级和置顶/恢复/关闭窗口动作。
+- 保留现有媒体按钮、进度条、内部布局尺寸和所有命令语义。
+- 不修改主窗口或其它页面。
+- 自动构造有播放上下文、无播放上下文、长书名/章节名和置顶状态。
 
 自动验收：
 
-- 书库不同宽度列数变化测试。
-- 虚拟化、当前章节定位和章节点击行为回归通过。
-- 长书名、长章节名使用省略与 Tooltip。
-- 空书库只显示一个主要导入入口。
+- 修改文件白名单只允许 MiniPlayer 窗口、专属局部资源、直接测试和 Backlog。
+- 隐藏/恢复、关闭等价恢复、置顶、拖动空白区和位置记忆测试通过。
+- Light/Dark、长文本、100/125/150% DPI 截图生成到 `artifacts/visual-review/09/`。
+- 完整质量门禁通过。
 
-## [ ] 8（P1）：重构播放页与正文阅读区域
+## [ ] 10（P1）：迁移迷你播放器内容布局与媒体控制
 
-前置：6。
+前置：9。
 
 实现：
 
-- 正文区成为页面主要视觉区域。
-- 统一章节标题、当前段和阅读正文层级。
-- 媒体控制区应用 SecondarySurface 和统一媒体按钮。
-- 播放/暂停作为唯一 Accent 主按钮。
-- 语速、定时停止、缓存等低频入口使用统一 Flyout。
-- 当前朗读段使用克制的 AccentSubtle 投影。
-- 章节侧栏与正文区通过表面和间距分隔。
-- 保持播放状态机、进度保存、预取、规则刷新和快捷键语义不变。
+- 按最终横向媒体面板结构迁移章节标题、书名/段落信息、进度和五个媒体按钮。
+- 应用任务 8 的显式媒体组件，不复制模板。
+- 窗口尺寸约束为 `440–500 × 130–160` 的可用范围，并保留长标题省略与 Tooltip。
+- 不修改播放页媒体控件。
 
 自动验收：
 
-- 播放、暂停、上下段、上下章和 Slider 拖动回归通过。
-- 正文高亮不改变段落身份或滚动定位。
-- 125%/150% 文本缩放下控制区不遮挡。
-- 主题切换不重建播放会话。
+- 主窗口与迷你播放器共享 PlaybackSnapshot，不增加第二状态机。
+- 上下章、上下段、播放/暂停、Slider 拖动和 Tooltip 回归通过。
+- 最小尺寸与 150% DPI 下按钮不重叠、文本不覆盖窗口动作。
+- 生成 `artifacts/visual-review/10/`。
+- 完整质量门禁通过。
 
-### Wave 2 Gate
+## [ ] 11（P1）：建立输入与选择控件族，仅用于 Style Gallery
 
-- 主窗口、书库、详情和播放页在两种主题下使用同一公共资源。
-- 导航、播放和章节行为回归通过。
-- 页面中不新增重复基础控件模板。
-
----
-
-# Wave 3：规则、设置与缓存页面
-
-## [ ] 9（P1）：统一三个规则工作台的视觉结构
-
-前置：5、6。
+前置：4–6。
 
 实现：
 
-- TTS 规则、章节规则和正则替换统一为双栏工作台。
-- 左侧应用统一列表行/轻卡片、当前状态、启用状态和 `⋮` 菜单。
-- 右侧应用统一表单字段、帮助、试听、取消和保存操作区。
-- Dirty 状态使用统一标题提示、按钮状态和导航守卫投影。
-- 拖动排序、启用、当前规则和选中编辑项保持可区分。
-- 不修改规则执行、排序、缓存失效和播放刷新语义。
+- 建立 Standard/Compact TextBox、PasswordBox、ComboBox、CheckBox 和 ToggleSwitch 具名样式。
+- 保留 Provider 模板、内容对齐、Popup、键盘、Focus、Disabled 和验证状态。
+- Gallery 覆盖空内容、长内容、无标签 ToggleSwitch、错误、只读和禁用。
+- 不迁移正式页面。
 
 自动验收：
 
-- 三个页面共享公共工作台资源，不复制模板。
-- 保存、取消、试听、切换和未保存确认回归通过。
-- 长规则名和错误说明布局稳定。
-- 键盘焦点顺序覆盖列表、表单和操作区。
+- 主题热切换后 Style/Template 不漂移。
+- Measure/Arrange 下输入内容区域非零，ToggleSwitch 不塌缩为窄条。
+- Popup/ComboBoxItem 主题资源正确解析。
+- 生成 `artifacts/visual-review/11/`。
+- 完整质量门禁通过。
 
-## [ ] 10（P1）：重构设置首页与全部设置子页
+## [ ] 12（P1）：建立列表、卡片与设置行组件族，仅用于 Style Gallery
 
-前置：5、6。
+前置：6、7、11。
 
 实现：
 
-- 设置首页统一使用 `图标 + 标题 + Chevron` 行。
-- 设置子页使用 Setting Group、Setting Row、Switch、ComboBox 和辅助说明。
-- 常规、播放、缓存与数据、外观及其它现有设置保持统一间距。
-- 数据清理等危险操作独立成危险区域。
-- 主题选择控件使用真实主题预览或清晰选中状态，不复制主题值。
-- 保持设置持久化、规范化、损坏恢复和即时生效语义不变。
+- 建立 BookCard、ListRow、SelectableRow、SettingsRow、RuleListItem 和 EmptyState 自有组件。
+- 选择、当前播放、Hover、Focus 和 Disabled 使用独立状态。
+- 组件只规定内部结构和最小尺寸，不规定页面列宽。
+- 不迁移正式页面。
 
 自动验收：
 
-- 二级/三级导航与返回行为通过。
-- Switch、ComboBox 和主题选择键盘操作通过。
-- 设置保存失败和损坏恢复仍使用统一错误投影。
-- 页面不使用传统大边框按钮作为导航入口。
+- 虚拟化和选择状态不依赖容器实例。
+- 长标题、省略、Tooltip、AutomationName 和多状态组合测试通过。
+- 生成 `artifacts/visual-review/12/`。
+- 完整质量门禁通过。
 
-## [ ] 11（P1）：重构缓存管理与后台缓存状态
+## [ ] 13（P1）：建立导航、菜单、进度与反馈组件族，仅用于 Style Gallery
 
-前置：5、6。
+前置：4–7、12。
 
 实现：
 
-- 左侧单书列表和右侧章节列表应用统一表面与选择状态。
-- 页面工具栏统一清理、导出和选择数量。
-- 章节物理缓存、大小和当前配置完整度按中性层级展示。
-- 不可导出、未计算和异常状态使用统一文字、图标和 Tooltip。
-- 主动缓存全局状态入口和 Flyout 应用统一进度组件。
-- 保持文件管理器式多选、清理、导出、取消和通知刷新语义不变。
+- 建立 Navigation Entry、ContextMenu/MenuItem、ProgressBar、Flyout surface、Dialog shell、Snackbar content 和 Loading/Error/NoResult 状态组件。
+- Navigation 只通过显式样式扩展 Provider，不修改全局 NavigationViewItem。
+- Danger 菜单项分组，Close 默认中性。
+- 不迁移正式页面。
 
 自动验收：
 
-- 单击、Ctrl、Shift、Ctrl+A 和 Esc 多选回归通过。
-- 0 项选择时动作禁用状态清晰。
-- 导出确认、取消和打开目录语义不变。
-- 后台缓存状态在页面切换后继续正确显示。
+- 键盘导航、Focus、Escape、默认按钮和取消语义测试通过。
+- 进度与 Slider 视觉和行为不混用。
+- 生成 `artifacts/visual-review/13/`。
+- 完整质量门禁通过。
 
-### Wave 3 Gate
+## [ ] 14（P1）：以外观设置页作为首个正式页面试点
 
-- 规则、设置、缓存页面没有局部复制的基础 Button/Input/List Template。
-- Dirty、多选、保存、清理、导出和后台状态回归通过。
-- 两种主题和键盘焦点契约通过。
-
----
-
-# Wave 4：辅助窗口、反馈与收口
-
-## [ ] 12（P1）：按横向媒体控制面板重构迷你播放器
-
-前置：4、5、8。
+前置：11–13。
 
 实现：
 
-- 窗口宽度控制在 `440–500 px`，高度控制在 `130–160 px`。
-- 使用 RaisedSurface、轻描边、ElevationHigh 和 `14–16 px` 圆角。
-- 顶部显示章节标题和置顶/恢复/关闭。
-- 次行显示书名和段落进度。
-- 中部使用统一媒体 Slider。
-- 底部 SecondarySurface 控制条显示五个媒体按钮。
-- 播放/暂停为 Accent 圆形主按钮；上下段和上下章按设计区分权重。
-- 置顶激活使用 AccentSubtle。
-- 关闭等价于恢复主窗口时，Tooltip 明确写“返回主窗口”。
-- 复用现有 PlaybackSnapshot，不创建视觉专用播放状态。
+- 只迁移 AppearanceSettingsPage 及其直接自有组件。
+- 使用显式输入/设置行/导航组件。
+- 页面保持原有布局 owner，不调整 Shell、其它设置页或全局页面密度。
+- 保持主题选择、即时生效、持久化和损坏恢复语义。
 
 自动验收：
 
-- 置顶、位置记忆、恢复主窗口和关闭语义通过。
-- 播放状态与主窗口同步，无第二套状态机。
-- 浅色/深色切换立即更新。
-- 长章节名和 125% DPI 下按钮不重叠。
+- 修改文件白名单和资源引用测试通过。
+- 设置命令、持久化、导航和主题切换回归通过。
+- 100/125/150% DPI 与 Light/Dark 截图生成到 `artifacts/visual-review/14/`。
+- 完整质量门禁通过。
 
-## [ ] 13（P1）：统一 Dialog、Flyout、Menu、Snackbar 和状态视图
+## [ ] 15（P1）：逐个迁移其余设置页面
 
-前置：4、5。
+前置：14。
 
 实现：
 
-- 建立统一 Dialog Shell。
-- 迁移删除、清理、导出、未保存修改和关闭询问等现有确认。
-- 统一 Flyout、ContextMenu、Tooltip 和后台状态浮层。
-- 统一 Snackbar 队列、成功、警告和错误投影。
-- 统一空状态、加载状态、无结果和可重试错误视图。
-- 错误信息不显示内部异常、敏感请求或路径细节。
+- 按子页面分独立原子提交迁移 Settings 首页、General、Playback、ImportText、CacheAndData 和 Diagnostics/About。
+- 每个提交只迁移一个页面及其直接组件。
+- 不改变设置值、保存时机、导航层级或危险操作语义。
+- 每个子页面分别生成 Light/Dark 截图目录。
 
 自动验收：
 
-- 对话框默认按钮、取消、Escape 和关闭守卫行为通过。
-- Snackbar 不覆盖对话框和关键操作。
-- 菜单危险项分组和键盘导航通过。
-- 空、加载、错误状态在两种主题下可读。
+- 每个子提交通过页面文件白名单、设置行为和键盘焦点测试。
+- 最小窗口和 150% DPI 下右侧控件不遮挡标题/说明。
+- 全部子页面完成后运行完整质量门禁。
 
-## [ ] 14（P0）：完成主题切换、窗口缩放、DPI 与可访问性收口
+## [ ] 16（P1）：迁移书库与书籍卡片
 
-前置：6–13。
+前置：12、13、15。
 
 实现：
 
-- 确保所有已打开窗口、Dialog、Flyout 和迷你播放器即时响应主题切换。
-- 验证 100%、125%、150% DPI 和文本缩放。
-- 补齐 Tooltip、AutomationName、Tab 顺序和键盘快捷路径。
-- 验证 Focus 不只依赖颜色，错误和选中不只依赖颜色。
-- 接入系统减少动画和高对比模式的安全退化。
-- 修复所有核心操作点击区域小于 `32 × 32` 的情况。
+- 迁移 LibraryPage 和 BookCardView。
+- 保持搜索、排序、拖放、打开、详情、删除和滚动位置语义。
+- 卡片网格响应式列数由页面拥有，不进入全局 Token。
 
 自动验收：
 
-- 主题热切换资源泄漏和失效测试。
-- 关键窗口 DPI 参数化布局测试。
-- 自动化属性和键盘导航契约测试。
-- 减少动画模式不执行位移/缩放。
-- 高对比模式下核心内容和操作可辨识。
+- 空书库、搜索无结果、长书名、不同书籍数量和多窗口宽度测试通过。
+- 生成 `artifacts/visual-review/16/`。
+- 完整质量门禁通过。
 
-## [ ] 15（P2）：删除旧局部样式并完成视觉一致性审计
+## [ ] 17（P1）：迁移书籍详情与目录
 
-前置：6–14。
+前置：12、13、16。
 
 实现：
 
-- 删除已经由公共资源替代的局部 Brush、Style、ControlTemplate、Trigger 和 Converter。
-- 清理未使用 Design Token、重复图标和失效主题资源。
-- 审计硬编码颜色、随机间距、圆角、阴影和动画时长。
-- 审计页面中仍存在的方形 Hover Stroke、边框嵌套和按钮堆叠。
-- 保留真实页面专用布局资源，不为“统一”制造难以理解的万能样式。
-- 更新与视觉资源相关的代码注释和测试名称。
+- 迁移 BookDetailsPage 的摘要、编辑区、目录和定位按钮。
+- 保持虚拟化、Dirty State、章节跳转、缓存百分比和当前章节语义。
+- 页面拥有目录/摘要布局，不修改 Shell。
 
 自动验收：
 
-- 源码规则检查不允许新增硬编码可复用颜色。
-- 无未引用主题资源和重复基础模板。
-- 删除样式后全部页面加载测试通过。
-- 资源字典合并顺序无循环引用和重复键冲突。
+- 长标题、0% 隐藏、定位、编辑保存/取消和导航守卫测试通过。
+- 生成 `artifacts/visual-review/17/`。
+- 完整质量门禁通过。
 
-## [ ] 16（P0）：完成全量回归、视觉契约和发布质量门禁
+## [ ] 18（P1）：迁移播放页
 
-前置：1–15。
+前置：8、12、13、17。
 
-实现与验收：
+实现：
 
-- 运行全部结构、资源键、模板状态和页面加载测试。
-- 运行导航、播放、规则、设置、多选、缓存、导出、托盘、迷你播放器和生命周期回归。
-- 对浅色/深色、常用窗口尺寸和 DPI 建立稳定的结构或截图基线；截图基线只验证关键布局，不对抗锯齿像素做脆弱比较。
-- 验证主题切换后不存在旧 Brush、事件订阅或窗口资源泄漏。
-- 验证 self-contained `win-x64` 发布包含所需资源字典和图标。
-- 执行 locked restore、format、Release build、全量 test 和 publish 内容检查。
-- 发现的非阻塞问题必须修复或拆成新的明确 Todo，不使用“人工再看看”关闭阶段。
+- 迁移 PlayerPage、PlayerView 和直接媒体/正文组件。
+- 复用已验证媒体组件，正文、章节侧栏和控制条布局由页面拥有。
+- 保持播放状态机、进度、滚动追随、音量、定时停止、主动缓存和快捷键语义。
 
-## 5. 阶段完成标准
+自动验收：
 
-- 主窗口、全部页面、对话框和迷你播放器符合 `13_VISUAL_DESIGN_SYSTEM.md`。
-- 浅色和深色主题只通过语义资源切换。
-- 页面不再自建可复用基础颜色和控件模板。
-- Accent 使用范围克制且一致。
-- 所有关键交互状态、键盘焦点和可访问性信息清晰。
-- 视觉迁移未改变导航、播放、规则、缓存、导出和生命周期业务行为。
-- 完整自动质量门禁和 self-contained 发布检查通过。
+- 播放/暂停、上下段/章、拖动、当前段居中、用户滚动暂停追随和页面离开测试通过。
+- 生成 `artifacts/visual-review/18/`。
+- 完整质量门禁通过。
+
+## [ ] 19（P1）：迁移 TTS 规则工作台
+
+前置：11–13。
+
+实现：
+
+- 只迁移 TtsRulesPage。
+- 左侧使用 RuleListItem，右侧使用显式输入与页面自有布局。
+- 保持试听、当前规则、启用、排序、导出、删除、Dirty State 和导航守卫语义。
+
+自动验收：
+
+- 不使用全局固定工作台宽度 Token。
+- 最小工作区下关键字段有非零可用宽度并可滚动。
+- 生成 `artifacts/visual-review/19/`。
+- 完整质量门禁通过。
+
+## [ ] 20（P1）：迁移章节规则工作台
+
+前置：19。
+
+实现与自动验收遵循任务 19 的样式边界，只迁移 ChapterRulesPage，并覆盖默认规则、启用、排序、帮助、保存/取消和导航守卫。截图输出到 `artifacts/visual-review/20/`，完整质量门禁通过。
+
+## [ ] 21（P1）：迁移正则替换工作台
+
+前置：20。
+
+实现与自动验收遵循任务 19 的样式边界，只迁移 RegexReplacementRulesPage，并覆盖 Pattern/Replacement、启用、排序、错误投影、保存/取消和播放刷新语义。截图输出到 `artifacts/visual-review/21/`，完整质量门禁通过。
+
+## [ ] 22（P1）：迁移缓存管理与缓存数据页
+
+前置：12、13、15。
+
+实现：
+
+- 迁移 CacheManagementPage 和 CacheAndDataPage，两个页面分独立原子提交。
+- 保持单书选择、Ctrl/Shift/Ctrl+A、多选工具栏、清理、导出、0%、未计算和后台缓存状态语义。
+- 页面分栏由 CacheManagementPage 拥有。
+
+自动验收：
+
+- 选择、确认、取消、导出、清理、Tooltip 和 AutomationName 回归通过。
+- 生成 `artifacts/visual-review/22/`。
+- 完整质量门禁通过。
+
+## [ ] 23（P1）：迁移主窗口壳层与一级导航
+
+前置：14–22。
+
+实现：
+
+- 最后迁移 MainWindow 标题栏、一级导航、内容宿主和全局运行时入口。
+- Shell 只拥有标题栏、导航和内容边界，不向页面重复注入 Padding/FrameMargin。
+- 保持关闭到托盘、真正退出、未保存导航守卫、正在播放和主动缓存入口语义。
+
+自动验收：
+
+- Window Chrome、拖动、最小化、最大化、恢复、关闭和托盘状态机测试通过。
+- 页面在 `960 × 640` 和 125/150% DPI 下无重复外边距或核心内容遮挡。
+- 生成 `artifacts/visual-review/23/`。
+- 完整质量门禁通过。
+
+## [ ] 24（P1）：迁移 Dialog、Flyout、Snackbar 和全局状态视图
+
+前置：13、23。
+
+实现：
+
+- 迁移删除、清理、导出、未保存修改和关闭询问等现有 Dialog。
+- 迁移音量、定时停止、主动缓存等 Flyout。
+- 统一 Snackbar、Loading、Empty、NoResult 和 Error 投影。
+- 不改变确认顺序、取消、默认按钮和脱敏错误语义。
+
+自动验收：
+
+- Dialog/Flyout 键盘、Escape、Focus trap、默认按钮和关闭守卫测试通过。
+- Snackbar 不覆盖模态决策和关键操作。
+- 生成 `artifacts/visual-review/24/`。
+- 完整质量门禁通过。
+
+## [ ] 25（P0）：DPI、可访问性、资源清理与发布门禁
+
+前置：1–24。
+
+实现：
+
+- 对全部 Gallery 场景和关键页面执行 Light/Dark、100/125/150% DPI、文本缩放和减少动画测试。
+- 补齐 Tooltip、AutomationName、Tab 顺序、Focus 可见性和颜色非唯一状态信号。
+- 删除未使用 palette、Token、Style、组件、旧局部模板和临时桥接；不删除受保护测试资产。
+- 扫描硬编码主题色、禁止隐式样式、全局模板覆盖、运行时 Style 写入和页面几何 Token。
+- 执行完整质量门禁、self-contained `win-x64` publish 和发布内容检查。
+- 生成最终 `artifacts/visual-review/25/manifest.json`，列出所有场景、页面、主题、DPI 和截图哈希。
+
+自动验收：
+
+- 全部样式架构、资源、几何、行为、可访问性和渲染测试通过。
+- Style Gallery 不进入发布包。
+- 主题切换不产生旧 Style、资源字典或窗口事件订阅泄漏。
+- self-contained 发布内容完整且不包含测试/视觉工具资产。

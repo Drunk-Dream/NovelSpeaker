@@ -125,17 +125,19 @@
 - 托盘 close/exit 状态机。
 - 定时停止使用可控 `TimeProvider`。
 
-### UI
+### UI 与样式体系
 
-- dirty state：未修改时取消/保存禁用。
-- 导航 guard。
-- 当前章节定位与虚拟化列表。
-- 播放页章节卡片 Tooltip 显示完整章节名。
-- 紧凑密度令牌、规则工作台窄宽度下编辑输入框可用宽度和编辑器滚动。
-- 播放页和详情页目录的当前章节无文字标记、缓存百分比投影、缓存变化刷新和页面退订。
-- 目录 0% 继续投影为空文本；1%–100% 保持现有整数百分比格式。
-- 主动缓存多选项的整卡视觉状态，包含当前章节同时被选中的组合状态。
-- icon button semantic style、focus 和 AutomationName。
+- 导航、播放、选择、Dirty State、缓存和页面生命周期继续以用户可观察行为测试为主。
+- 应用级资源不得出现接管标准 WPF/Wpf.Ui 控件的 NovelSpeaker 隐式样式；允许项必须有最小局部作用域和明确白名单。
+- Wpf.Ui provider dictionaries、Provider Style Bridge、NovelSpeaker palette/tokens 和具名样式的加载顺序由资源契约测试固定。
+- 主题切换不得在运行时代码中重新插入 Style 或 ControlTemplate；已打开窗口和 Style Gallery 场景使用 `DynamicResource` 更新颜色。
+- 共享样式不得替换标准控件完整模板，除非位于受控局部组件并由专项测试证明状态、内容对齐、Focus、Disabled 和主题切换语义完整。
+- Design Token 只包含跨组件稳定值；架构测试阻止页面列宽、设置控件宽度、工作台分栏等页面几何进入全局令牌。
+- Style Gallery 自动覆盖浅色/深色下的 Default、Hover、Pressed、Focus、Disabled、Selected 和 Error 场景。
+- 自动截图工具在固定 DPI、窗口尺寸和测试数据下生成 PNG 与 manifest；任务验收只要求可重复生成、尺寸正确、场景完整和无渲染异常，不以主观审美作为自动关闭条件。
+- 几何测试只固定最小点击区域、非零可用宽度、关键内容可见和不重叠等下限，不冻结尚可调整的精确 Padding、Margin、Width 或 Height。
+- 迷你播放器覆盖隐藏/恢复、置顶、段落进度、Tooltip、拖动边界、长标题和主题热切换。
+- 页面视觉迁移必须保留原有命令启用、键盘焦点顺序、AutomationName、虚拟化和滚动行为。
 
 ## 5. 异步测试
 
@@ -169,4 +171,4 @@ dotnet test -c Release --no-build
 - 受影响项目的 build/test。
 - 行为/数据/安全边界改变时的回归测试。
 
-Wave 收口运行完整质量门禁。无法自动证明的视觉细节应尽量通过样式资源、VisualState、Automation 属性和 WPF 测试建立机器可检查的契约，而不是把人工验证写成任务完成条件。
+阶段收口运行完整质量门禁。视觉任务额外生成 Style Gallery 或目标页面的浅色/深色截图和 manifest，作为用户后续查看的产物，但任务完成条件只使用自动构建、契约、几何、可访问性和渲染检查。

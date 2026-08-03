@@ -38,12 +38,20 @@
 - 新公共接口必须能回答：谁调用、谁实现、谁拥有状态、取消语义是什么。
 - DTO 不与 UI 卡片/控件一一绑定；Presentation 自行投影。
 
-## 6. WPF
+## 6. WPF 与样式
 
 - 业务逻辑不写在 code-behind。
 - code-behind 可处理 WPF 必需的焦点、拖放、滚动、虚拟化、动画、窗口和事件桥接。
-- 视觉样式优先放入共享 ResourceDictionary/Design Token，不在页面复制 Trigger。
+- Wpf.Ui provider dictionaries 先加载并在进程生命周期内保持稳定；主题切换不重新注入 Style。
+- `Application.Resources` 和全局合并字典禁止为标准 WPF/Wpf.Ui 控件定义 NovelSpeaker 隐式样式。
+- 公共外观使用带 `x:Key` 的 `App.*` 具名样式；需要继承 Wpf.Ui 时通过受测试的 Provider Style Bridge，而不是依赖不透明的加载顺序。
+- 不在全局资源中替换标准控件完整 `ControlTemplate`。确需完全自定义时，使用应用自有 CustomControl/UserControl 或局部具名样式，并增加专项 WPF 测试。
+- 全局 Design Token 只保存稳定标尺：颜色语义、间距刻度、圆角、图标尺寸、最小控件高度和动效时长。
+- 页面 Padding、列宽、规则列表宽度、设置编辑控件宽度等布局值由 Shell、页面或复合组件中的唯一 owner 管理。
+- 页面不得复制通用 Trigger/VisualState，但可以保留真实页面专用的 Grid、Margin、MinWidth 和滚动结构。
+- ViewModel 不返回 Brush、Style、ControlTemplate、Thickness、CornerRadius 或其它 WPF 视觉类型。
 - UI 平台能力通过 presentation port/adapter 暴露给可测试代码。
+- 视觉开发先在 Style Gallery 中实现，再以显式引用迁移到单个窗口或页面；一次改动不同时调整 palette、控件模板、页面密度和页面布局。
 
 ## 7. 数据与文件
 
