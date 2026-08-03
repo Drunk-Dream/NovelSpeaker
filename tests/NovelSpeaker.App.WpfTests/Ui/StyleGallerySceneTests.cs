@@ -24,7 +24,7 @@ public sealed class StyleGallerySceneTests
         var scenes = GallerySceneRegistry.All;
 
         Assert.Equal(
-            ["placeholder-sections", "provider-controls", "theme-resource-probe"],
+            ["placeholder-sections", "provider-controls", "provider-style-probe", "theme-resource-probe"],
             scenes.Select(scene => scene.Name).Order(StringComparer.Ordinal));
         Assert.All(scenes, scene =>
         {
@@ -32,6 +32,17 @@ public sealed class StyleGallerySceneTests
             Assert.Equal(GalleryRenderSettings.WindowHeight, scene.Height);
         });
         Assert.Equal(96, GalleryRenderSettings.Dpi);
+    }
+
+    [Fact]
+    public void Gallery_task_defaults_to_03_and_accepts_explicit_task_04()
+    {
+        var defaultOptions = GalleryCommandLineOptions.Parse(["--screenshot"]);
+        var task04Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "04"]);
+
+        Assert.Equal("03", defaultOptions.Task);
+        Assert.Equal(Path.Combine("artifacts", "visual-review", "03"), defaultOptions.OutputDirectory);
+        Assert.Equal("04", task04Options.Task);
     }
 
     [Theory]
@@ -97,6 +108,20 @@ public sealed class StyleGallerySceneTests
             Assert.NotEmpty(FindDescendants<Slider>(providerScene));
             Assert.NotEmpty(FindDescendants<ProgressBar>(providerScene));
 
+            var bridgeProbe = GallerySceneRegistry.Build("provider-style-probe");
+            bridgeProbe.Measure(new Size(GalleryRenderSettings.WindowWidth, GalleryRenderSettings.WindowHeight));
+            bridgeProbe.Arrange(new Rect(0, 0, GalleryRenderSettings.WindowWidth, GalleryRenderSettings.WindowHeight));
+            bridgeProbe.UpdateLayout();
+            var bridgeControls = FindDescendants<Control>(bridgeProbe)
+                .Where(control => AutomationProperties.GetName(control).StartsWith(
+                    "Provider.",
+                    StringComparison.Ordinal))
+                .ToArray();
+            Assert.Equal(16, bridgeControls.Length);
+            Assert.All(
+                bridgeControls,
+                control => Assert.NotNull(control.Template));
+
             var dynamicResourceElements = FindDescendants<FrameworkElement>(probeScene)
                 .Where(element => element.ReadLocalValue(Control.BackgroundProperty) != DependencyProperty.UnsetValue ||
                                   element.ReadLocalValue(Control.ForegroundProperty) != DependencyProperty.UnsetValue)
@@ -120,22 +145,76 @@ public sealed class StyleGallerySceneTests
                 "--output",
                 output.Path
             ]);
-            var window = new GalleryWindow();
+            GalleryWindow? firstWindow = null;
+            GalleryWindow? secondWindow = null;
             try
             {
-                window.Show();
                 var generator = new GalleryScreenshotGenerator();
 
-                await generator.GenerateAsync(window, options, cancellation.Token);
+                firstWindow = new GalleryWindow();
+                firstWindow.Show();
+                await generator.GenerateAsync(firstWindow, options, cancellation.Token);
                 var firstManifest = await ReadManifestAsync(output.ManifestPath, cancellation.Token);
                 await AssertManifestMatchesPngsAsync(firstManifest, output.Path, cancellation.Token);
                 var firstSnapshot = CreateSceneSnapshot(firstManifest);
+                firstWindow.Close();
+                firstWindow = null;
 
-                await generator.GenerateAsync(window, options, cancellation.Token);
+                secondWindow = new GalleryWindow();
+                secondWindow.Show();
+                await generator.GenerateAsync(secondWindow, options, cancellation.Token);
                 var secondManifest = await ReadManifestAsync(output.ManifestPath, cancellation.Token);
                 await AssertManifestMatchesPngsAsync(secondManifest, output.Path, cancellation.Token);
 
                 Assert.Equal(firstSnapshot, CreateSceneSnapshot(secondManifest));
+            }
+            finally
+            {
+                if (firstWindow?.IsVisible == true)
+                {
+                    firstWindow.Close();
+                }
+
+                if (secondWindow?.IsVisible == true)
+                {
+                    secondWindow.Close();
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Screenshot_generator_writes_explicit_task_04_to_manifest()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            using var output = new TemporaryOutputDirectory();
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var options = GalleryCommandLineOptions.Parse(
+            [
+                "--screenshot",
+                "--task",
+                "04",
+                "--theme",
+                "all",
+                "--scene",
+                "provider-style-probe",
+                "--output",
+                output.Path
+            ]);
+            var window = new GalleryWindow();
+            try
+            {
+                window.Show();
+                await new GalleryScreenshotGenerator().GenerateAsync(window, options, cancellation.Token);
+                var manifest = await ReadManifestAsync(output.ManifestPath, cancellation.Token);
+
+                await AssertManifestMatchesPngsAsync(
+                    manifest,
+                    output.Path,
+                    "04",
+                    ["provider-style-probe"],
+                    cancellation.Token);
             }
             finally
             {
@@ -185,16 +264,31 @@ public sealed class StyleGallerySceneTests
         string outputDirectory,
         CancellationToken cancellationToken)
     {
-        Assert.Equal("03", manifest.Task);
+        await AssertManifestMatchesPngsAsync(
+            manifest,
+            outputDirectory,
+            "03",
+            GallerySceneRegistry.All.Select(scene => scene.Name).ToArray(),
+            cancellationToken);
+    }
+
+    private static async Task AssertManifestMatchesPngsAsync(
+        GalleryManifest manifest,
+        string outputDirectory,
+        string expectedTask,
+        IReadOnlyCollection<string> expectedSceneNames,
+        CancellationToken cancellationToken)
+    {
+        Assert.Equal(expectedTask, manifest.Task);
         Assert.Equal("NovelSpeaker.StyleGallery", manifest.Tool);
         Assert.Equal(GalleryRenderSettings.WindowWidth, manifest.WindowWidth);
         Assert.Equal(GalleryRenderSettings.WindowHeight, manifest.WindowHeight);
         Assert.Equal(GalleryRenderSettings.Dpi, manifest.Dpi);
 
         var registeredScenes = GallerySceneRegistry.All.ToDictionary(scene => scene.Name, StringComparer.Ordinal);
-        Assert.Equal(registeredScenes.Count * 2, manifest.Scenes.Count);
+        Assert.Equal(expectedSceneNames.Count * 2, manifest.Scenes.Count);
         Assert.Equal(
-            registeredScenes.Keys.Order(StringComparer.Ordinal),
+            expectedSceneNames.Order(StringComparer.Ordinal),
             manifest.Scenes.Select(scene => scene.Scene).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
         Assert.Equal(
             ["Dark", "Light"],
