@@ -217,7 +217,7 @@ Working branch: experiment/visual-system-v2
 - 完整 `dotnet test -c Release --no-build`、self-contained `win-x64` publish 和发布包隔离检查通过；首次全量测试中的 PlaybackCoordinator 超时经单测重跑通过，确认是时序波动。
 - Release workflow 已增加 Style Gallery 程序集与 `visual-review` 资产排除检查；新增 Gallery lock 文件，WPF 测试 lock 仅记录新增项目依赖及还原后的项目版本。
 
-## [ ] 4（P0）：建立 Wpf.Ui Provider Style Bridge 和稳定主题链路
+## [x] 4（P0）：建立 Wpf.Ui Provider Style Bridge 和稳定主题链路
 
 前置：3。
 
@@ -236,6 +236,15 @@ Working branch: experiment/visual-system-v2
 - 运行时代码扫描不存在 Style 重新写入。
 - 生成 `artifacts/visual-review/04/` 浅色/深色截图与 manifest。
 - 完整质量门禁通过。
+
+结果：
+
+- 新增显式键 Provider Bridge，固定 Wpf.Ui theme、Controls、Bridge、DesignTokens、SemanticStyles 的加载顺序；Provider Bridge 不复制模板、不写页面语义。
+- Button 与 Slider 的现有具名样式已通过 Bridge alias 解析；主题入口只调用 Wpf.Ui theme 和 NovelSpeaker palette 入口，未新增 Style/ControlTemplate 运行时写入。
+- Style Gallery 新增 `provider-style-probe`，覆盖 8 个 alias 的模板、最小尺寸、内容对齐、Focus 和 Disabled 状态；适配 Wpf.Ui 4.3.0 主题字典的实际运行时表示。
+- Provider Bridge 与资源稳定性契约测试 11/11、主题 Presentation 测试 7/7、完整测试门禁通过；Release build 0 警告、0 错误。
+- `artifacts/visual-review/04/manifest.json` 与 8 张 Light/Dark PNG 已生成；PNG 为 1280×820、96 DPI、非空，SHA 与 manifest 一致，连续运行哈希稳定。
+- self-contained `win-x64` publish 通过，生产包不含 Style Gallery、visual-review、测试程序集或 fixture。
 
 ## [ ] 5（P1）：建立语义 Palette，不迁移正式页面
 
