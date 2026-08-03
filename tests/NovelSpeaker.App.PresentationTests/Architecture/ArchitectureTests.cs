@@ -39,7 +39,8 @@ public sealed class ArchitectureTests
             "tests/NovelSpeaker.Application.UnitTests/NovelSpeaker.Application.UnitTests.csproj",
             "tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj",
             "tests/NovelSpeaker.App.PresentationTests/NovelSpeaker.App.PresentationTests.csproj",
-            "tests/NovelSpeaker.App.WpfTests/NovelSpeaker.App.WpfTests.csproj"
+            "tests/NovelSpeaker.App.WpfTests/NovelSpeaker.App.WpfTests.csproj",
+            "tools/NovelSpeaker.StyleGallery/NovelSpeaker.StyleGallery.csproj"
         };
 
         AssertEqualSet(expected, Repository.ReadSolutionProjectPaths());
@@ -52,27 +53,30 @@ public sealed class ArchitectureTests
         {
             new TestProjectBoundary(
                 "tests/NovelSpeaker.Domain.UnitTests/NovelSpeaker.Domain.UnitTests.csproj",
-                "src/NovelSpeaker.Domain/NovelSpeaker.Domain.csproj",
+                ["src/NovelSpeaker.Domain/NovelSpeaker.Domain.csproj"],
                 "net10.0",
                 UsesWpf: false),
             new TestProjectBoundary(
                 "tests/NovelSpeaker.Application.UnitTests/NovelSpeaker.Application.UnitTests.csproj",
-                "src/NovelSpeaker.Application/NovelSpeaker.Application.csproj",
+                ["src/NovelSpeaker.Application/NovelSpeaker.Application.csproj"],
                 "net10.0",
                 UsesWpf: false),
             new TestProjectBoundary(
                 "tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj",
-                "src/NovelSpeaker.Infrastructure/NovelSpeaker.Infrastructure.csproj",
+                ["src/NovelSpeaker.Infrastructure/NovelSpeaker.Infrastructure.csproj"],
                 "net10.0",
                 UsesWpf: false),
             new TestProjectBoundary(
                 "tests/NovelSpeaker.App.PresentationTests/NovelSpeaker.App.PresentationTests.csproj",
-                "src/NovelSpeaker.App/NovelSpeaker.App.csproj",
+                ["src/NovelSpeaker.App/NovelSpeaker.App.csproj"],
                 "net10.0-windows10.0.19041.0",
                 UsesWpf: false),
             new TestProjectBoundary(
                 "tests/NovelSpeaker.App.WpfTests/NovelSpeaker.App.WpfTests.csproj",
-                "src/NovelSpeaker.App/NovelSpeaker.App.csproj",
+                [
+                    "src/NovelSpeaker.App/NovelSpeaker.App.csproj",
+                    "tools/NovelSpeaker.StyleGallery/NovelSpeaker.StyleGallery.csproj"
+                ],
                 "net10.0-windows10.0.19041.0",
                 UsesWpf: true)
         };
@@ -81,11 +85,44 @@ public sealed class ArchitectureTests
         {
             var project = Repository.ReadProject(expected.ProjectPath);
 
-            AssertEqualSet([expected.ProductionProjectPath], project.ProjectReferences);
+            AssertEqualSet(expected.ProductionProjectPaths, project.ProjectReferences);
             Assert.Equal("true", project.Properties["IsTestProject"], ignoreCase: true);
             Assert.Equal(expected.TargetFramework, project.Properties["TargetFramework"]);
             Assert.Equal(expected.UsesWpf, ArchitectureRules.UsesWpf(project));
         }
+    }
+
+    [Fact]
+    public void Style_gallery_isolated_from_production_app_and_data_layers()
+    {
+        var gallery = Repository.ReadProject("tools/NovelSpeaker.StyleGallery/NovelSpeaker.StyleGallery.csproj");
+        Assert.Empty(gallery.ProjectReferences);
+        Assert.Empty(gallery.FrameworkReferences);
+        AssertEqualSet(["wpf-ui"], gallery.PackageReferences);
+        Assert.Equal("false", gallery.Properties["IsPackable"], ignoreCase: true);
+
+        var app = Repository.ReadProject("src/NovelSpeaker.App/NovelSpeaker.App.csproj");
+        Assert.DoesNotContain(
+            app.ProjectReferences,
+            reference => reference.Equals(
+                "tools/NovelSpeaker.StyleGallery/NovelSpeaker.StyleGallery.csproj",
+                StringComparison.Ordinal));
+
+        var galleryRoot = Path.Combine(Repository.RootPath, "tools", "NovelSpeaker.StyleGallery");
+        var forbiddenFragments = new[]
+        {
+            "NovelSpeaker.Infrastructure",
+            "Microsoft.Data.Sqlite",
+            "settings.json",
+            "UserData",
+            "Cache"
+        };
+        var gallerySources = Directory.EnumerateFiles(galleryRoot, "*.cs", SearchOption.AllDirectories)
+            .Concat(Directory.EnumerateFiles(galleryRoot, "*.xaml", SearchOption.AllDirectories))
+            .Select(File.ReadAllText)
+            .ToArray();
+        Assert.DoesNotContain(gallerySources, source =>
+            forbiddenFragments.Any(fragment => source.Contains(fragment, StringComparison.OrdinalIgnoreCase)));
     }
 
     [Fact]
@@ -454,7 +491,7 @@ public sealed class ArchitectureTests
 
     private sealed record TestProjectBoundary(
         string ProjectPath,
-        string ProductionProjectPath,
+        IReadOnlyList<string> ProductionProjectPaths,
         string TargetFramework,
         bool UsesWpf);
 

@@ -202,6 +202,9 @@ public sealed class BehaviorDebtBaselineTests
             "corrupt-tone.mp3",
             "Package contains test audio fixture",
             "Package contains test assembly",
+            "Package contains Style Gallery asset",
+            "StyleGallery",
+            "visual-review",
             "Package contains temporary file",
             "ZIP contains temporary file",
             ".partial",
@@ -216,7 +219,8 @@ public sealed class BehaviorDebtBaselineTests
             "dotnet test ${{ matrix.project }} -c Release --no-build",
             "tests/NovelSpeaker.Domain.UnitTests/NovelSpeaker.Domain.UnitTests.csproj",
             "tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj",
-            "tests/NovelSpeaker.App.WpfTests/NovelSpeaker.App.WpfTests.csproj"
+            "tests/NovelSpeaker.App.WpfTests/NovelSpeaker.App.WpfTests.csproj",
+            "tools/NovelSpeaker.StyleGallery/NovelSpeaker.StyleGallery.csproj"
         };
 
         foreach (var fragment in releaseFragments)
