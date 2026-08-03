@@ -11,7 +11,7 @@
                   MinHeight="640"
                   WindowCornerPreference="Round"
                   ExtendsContentIntoTitleBar="True"
-                  Background="{DynamicResource AppBackgroundBrush}">
+                  Background="{DynamicResource ApplicationBackgroundBrush}">
     <ui:FluentWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </ui:FluentWindow.Resources>
@@ -23,7 +23,6 @@
         </Grid.RowDefinitions>
 
         <ui:TitleBar Grid.Row="0"
-                     Style="{StaticResource WindowChromeTitleBarStyle}"
                      Title="NovelSpeaker"
                      Icon="{ui:ImageIcon 'pack://application:,,,/NovelSpeaker.App;component/Assets/Branding/app.ico'}"
                      ShowMinimize="True"
@@ -39,18 +38,15 @@
                            IsPaneToggleVisible="True"
                            IsFooterSeparatorVisible="False"
                            PaneDisplayMode="Left"
-                           FrameMargin="0"
-                           Background="{DynamicResource CanvasSurfaceBrush}">
+                           Background="{DynamicResource LayerFillColorAltBrush}">
             <ui:NavigationView.MenuItems>
                 <ui:NavigationViewItem x:Name="LibraryNavigationItem"
-                                       Style="{StaticResource NavigationItemStyle}"
                                        Content="书库">
                     <ui:NavigationViewItem.Icon>
                         <ui:SymbolIcon Symbol="Book24" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
                 <ui:NavigationViewItem x:Name="SettingsNavigationItem"
-                                       Style="{StaticResource NavigationItemStyle}"
                                        Content="设置">
                     <ui:NavigationViewItem.Icon>
                         <ui:SymbolIcon Symbol="Settings24" />
@@ -60,7 +56,6 @@
 
             <ui:NavigationView.FooterMenuItems>
                 <ui:NavigationViewItem x:Name="ActiveCacheNavigationItem"
-                                       Style="{StaticResource NavigationItemStyle}"
                                        Content="{Binding ActiveCache.CompactStatusText}"
                                        Click="ActiveCacheNavigationItem_OnClick"
                                        ToolTip="查看主动缓存进度"
@@ -71,7 +66,6 @@
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
                 <ui:NavigationViewItem x:Name="PlaybackNavigationItem"
-                                       Style="{StaticResource NavigationItemStyle}"
                                        Click="PlaybackNavigationItem_OnClick"
                                        Visibility="{Binding IsNowPlayingVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <ui:NavigationViewItem.Icon>
@@ -97,7 +91,8 @@
                     <StackPanel>
                         <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                    Text="{Binding NowPlayingTitle}" />
-                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                        <TextBlock FontSize="12"
+                                   Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="{Binding NowPlayingStatus}" />
                     </StackPanel>
                 </ui:NavigationViewItem>
@@ -117,14 +112,14 @@
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
                                Text="{Binding ActiveCache.BatchStatusText}" />
-                    <TextBlock Margin="{StaticResource TinySpacing}"
+                    <TextBlock Margin="0,4,0,0"
                                Style="{StaticResource SecondaryTextBlockStyle}"
                                Text="{Binding ActiveCache.BookTitle}"
                                TextTrimming="CharacterEllipsis" />
 
                     <ListBox x:Name="ActiveCacheChapterList"
                              MaxHeight="300"
-                             Margin="{StaticResource ContentSpacing}"
+                             Margin="0,16,0,0"
                              ItemsSource="{Binding ActiveCache.Chapters}"
                              BorderThickness="0"
                              Background="Transparent"
@@ -133,13 +128,31 @@
                              VirtualizingPanel.IsVirtualizing="True"
                              VirtualizingPanel.VirtualizationMode="Recycling">
                         <ListBox.ItemContainerStyle>
-                            <StaticResource ResourceKey="ActiveCacheListItemContainerStyle" />
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="IsHitTestVisible" Value="False" />
+                                <Setter Property="Focusable" Value="False" />
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="Margin" Value="0,0,0,4" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Border Padding="{StaticResource ListRowPadding}"
-                                        CornerRadius="{StaticResource SmallControlCornerRadius}"
-                                        Style="{StaticResource ActiveCacheStatusBorderStyle}">
+                                <Border Padding="10,8"
+                                        CornerRadius="8">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsFailed}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBackgroundBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -158,13 +171,13 @@
                         </ListBox.ItemTemplate>
                     </ListBox>
 
-                    <TextBlock Margin="{StaticResource FieldSpacing}"
+                    <TextBlock Margin="0,12,0,0"
                                Style="{StaticResource SecondaryTextBlockStyle}"
                                Text="{Binding ActiveCache.TotalSegmentProgressText}" />
                     <Button x:Name="CancelActiveCacheButton"
-                            Margin="{StaticResource ContentSpacing}"
+                            Margin="0,16,0,0"
                             HorizontalAlignment="Right"
-                            Padding="{StaticResource CompactButtonPadding}"
+                            Padding="12,7"
                             Command="{Binding ActiveCache.CancelCommand}"
                             Content="取消任务"
                             ToolTip="取消主动缓存任务"

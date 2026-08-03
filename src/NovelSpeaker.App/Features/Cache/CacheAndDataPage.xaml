@@ -21,7 +21,7 @@
         </Button>
 
         <ScrollViewer Grid.Row="1"
-                      Margin="{StaticResource PageSectionSpacing}"
+                      Margin="0,20,0,0"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
@@ -65,12 +65,12 @@
                                                FontSize="22"
                                                Text="{Binding TotalCacheSizeText}"
                                                AutomationProperties.Name="当前缓存占用" />
-                                    <ProgressBar Margin="{StaticResource FieldControlSpacing}"
-                                                 Style="{StaticResource PlaybackProgressBarStyle}"
+                                    <ProgressBar Margin="0,8,0,0"
+                                                 Height="8"
                                                  Maximum="100"
                                                  Value="{Binding UsagePercentage}"
                                                  AutomationProperties.Name="缓存使用率" />
-                                    <TextBlock Margin="{StaticResource FieldControlSpacing}"
+                                    <TextBlock Margin="0,6,0,0"
                                                HorizontalAlignment="Right"
                                                Style="{StaticResource SecondaryTextBlockStyle}"
                                                Text="{Binding UsageText}" />
@@ -93,7 +93,7 @@
 
                                     <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
                                                Text="{Binding LoadErrorMessage}" />
-                                    <Button Margin="{StaticResource FieldControlSpacing}"
+                                    <Button Margin="0,8,0,0"
                                             Width="120"
                                             HorizontalAlignment="Right"
                                             Command="{Binding RetryCommand}"
@@ -135,14 +135,14 @@
                                             VerticalAlignment="Center"
                                             Orientation="Horizontal">
                                     <TextBox x:Name="CacheLimitValueTextBox"
-                                             Width="{StaticResource CompactSettingNumberWidth}"
+                                             Width="160"
                                              PreviewKeyDown="CacheLimitValueTextBox_OnPreviewKeyDown"
                                              LostKeyboardFocus="CacheLimitValueTextBox_OnLostKeyboardFocus"
                                              Text="{Binding CacheLimitValueText, UpdateSourceTrigger=PropertyChanged}"
                                              AutomationProperties.Name="缓存上限数值" />
                                     <ComboBox x:Name="CacheLimitUnitComboBox"
-                                              Width="{StaticResource CompactSettingUnitWidth}"
-                                              Margin="{StaticResource ToolbarItemMargin}"
+                                              Width="100"
+                                              Margin="12,0,0,0"
                                               SelectionChanged="CacheLimitUnitComboBox_OnSelectionChanged"
                                               ItemsSource="{Binding CacheLimitUnits}"
                                               SelectedItem="{Binding SelectedCacheLimitUnit}"
@@ -192,7 +192,7 @@
                                 <Button Grid.Column="1"
                                         Margin="{StaticResource SettingsRowControlMargin}"
                                         VerticalAlignment="Center"
-                                        Padding="{StaticResource ButtonPadding}"
+                                        Padding="16,8"
                                         Command="{Binding ClearAllCommand}"
                                         Content="清理全部缓存"
                                         ToolTip="清理全部缓存"

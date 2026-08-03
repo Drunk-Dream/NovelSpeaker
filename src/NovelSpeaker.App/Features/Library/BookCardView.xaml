@@ -4,27 +4,27 @@
              xmlns:local="clr-namespace:NovelSpeaker.App.Shared.Presentation.Books"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              x:Name="Root">
-    <Border Padding="{StaticResource CardPadding}"
+    <Border Padding="14"
             CornerRadius="{StaticResource CardCornerRadius}">
         <Border.Style>
             <Style TargetType="Border"
                    BasedOn="{StaticResource CardBorderStyle}">
                 <Setter Property="BorderThickness"
-                        Value="{StaticResource StandardBorderThickness}"/>
+                        Value="1"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding IsMouseOver, ElementName=Root}"
                                  Value="True">
                         <Setter Property="BorderBrush"
-                                Value="{DynamicResource AccentBrush}"/>
+                                Value="{DynamicResource AccentFillColorDefaultBrush}"/>
                         <Setter Property="BorderThickness"
-                                Value="{StaticResource KeyboardFocusRingThickness}"/>
+                                Value="1.5"/>
                     </DataTrigger>
                     <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=Root}"
                                  Value="True">
                         <Setter Property="BorderBrush"
-                                Value="{DynamicResource AccentBrush}"/>
+                                Value="{DynamicResource AccentFillColorDefaultBrush}"/>
                         <Setter Property="BorderThickness"
-                                Value="{StaticResource KeyboardFocusRingThickness}"/>
+                                Value="1.5"/>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -51,25 +51,25 @@
                                 Margin="16,0,42,0"
                                 VerticalAlignment="Center">
                         <TextBlock Style="{StaticResource StrongTextBlockStyle}"
-                                   FontSize="{StaticResource CardTitleFontSize}"
+                                   FontSize="17"
                                    Text="{Binding Item.Title, ElementName=Root}"
                                    ToolTip="{Binding Item.TitleToolTip, ElementName=Root}"
                                    TextTrimming="CharacterEllipsis"
                                    TextWrapping="NoWrap" />
-                        <TextBlock Margin="{StaticResource FieldControlSpacing}"
+                        <TextBlock Margin="0,6,0,0"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="{Binding Item.DisplayAuthor, ElementName=Root}"
                                    TextTrimming="CharacterEllipsis" />
-                        <TextBlock Margin="{StaticResource FieldDescriptionSpacing}"
+                        <TextBlock Margin="0,10,0,0"
                                    Style="{StaticResource PrimaryTextBlockStyle}"
                                    Text="{Binding Item.CurrentChapterTitle, ElementName=Root}"
                                    ToolTip="{Binding Item.CurrentChapterToolTip, ElementName=Root}"
                                    TextTrimming="CharacterEllipsis"
                                    TextWrapping="NoWrap" />
-                        <TextBlock Margin="{StaticResource FieldControlSpacing}"
+                        <TextBlock Margin="0,6,0,0"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="{Binding Item.RemainingChapterText, ElementName=Root}" />
-                        <ProgressBar Margin="{StaticResource FieldSpacing}"
+                        <ProgressBar Margin="0,12,0,0"
                                      Style="{StaticResource PlaybackProgressBarStyle}"
                                      Maximum="1"
                                      Value="{Binding Item.ProgressRatio, ElementName=Root, Mode=OneWay}" />
@@ -78,8 +78,8 @@
             </Button>
 
             <Button x:Name="MoreButton"
-                    Width="{StaticResource CompactIconButtonSize}"
-                    Height="{StaticResource CompactIconButtonSize}"
+                    Width="34"
+                    Height="34"
                     Margin="0,0,0,0"
                     Padding="0"
                     AutomationProperties.Name="{Binding Item.MoreActionsAutomationName, ElementName=Root}"
@@ -106,7 +106,7 @@
                     </Style>
                 </Button.Style>
                 <Button.ContextMenu>
-                    <ContextMenu Style="{StaticResource AppContextMenuStyle}">
+                    <ContextMenu>
                         <MenuItem Command="{Binding OpenBookDetailsCommand}"
                                   CommandParameter="{Binding Item}"
                                   Header="书籍详情" />
@@ -116,7 +116,7 @@
                                   IsEnabled="{Binding Item.CanDelete}" />
                     </ContextMenu>
                 </Button.ContextMenu>
-                <ui:SymbolIcon Foreground="{DynamicResource SecondaryTextBrush}"
+                <ui:SymbolIcon Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                Symbol="MoreHorizontal24" />
             </Button>
         </Grid>

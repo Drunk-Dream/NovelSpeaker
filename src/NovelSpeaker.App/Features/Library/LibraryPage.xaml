@@ -29,17 +29,16 @@
                        Text="书库"/>
 
             <WrapPanel Grid.Column="1"
-                       Style="{StaticResource ToolbarPanelStyle}"
                        HorizontalAlignment="Right"
                        VerticalAlignment="Center"
-                       ItemHeight="{StaticResource TextControlHeight}">
+                       ItemHeight="40">
                 <Grid Width="260"
-                      Margin="{StaticResource ButtonGapMargin}">
-                    <TextBox Padding="8,0,32,0"
+                      Margin="0,0,12,0">
+                    <TextBox Padding="12,0,36,0"
                              VerticalContentAlignment="Center"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
-                    <Button Width="{StaticResource CompactIconButtonSize}"
-                            Height="{StaticResource CompactIconButtonSize}"
+                    <Button Width="28"
+                            Height="28"
                             Margin="0,0,6,0"
                             Style="{StaticResource BorderlessIconButtonStyle}"
                             HorizontalAlignment="Right"
@@ -52,7 +51,7 @@
                     </Button>
                 </Grid>
                 <ComboBox Width="140"
-                          Margin="{StaticResource ButtonGapMargin}"
+                          Margin="0,0,12,0"
                           DisplayMemberPath="DisplayName"
                           ItemsSource="{Binding AvailableSortOptions}"
                           SelectedValue="{Binding SelectedSortMode}"
@@ -68,10 +67,10 @@
         </Grid>
 
         <StackPanel Grid.Row="1"
-                    Margin="{StaticResource ControlSpacing}">
+                    Margin="0,10,0,0">
             <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
                        Text="{Binding LibrarySummaryText}"/>
-            <TextBlock Margin="{StaticResource FieldControlSpacing}"
+            <TextBlock Margin="0,6,0,0"
                        Text="{Binding ImportStatusMessage}"
                        TextWrapping="Wrap">
                 <TextBlock.Style>
@@ -89,7 +88,7 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
-            <TextBlock Margin="{StaticResource FieldControlSpacing}"
+            <TextBlock Margin="0,6,0,0"
                        Text="{Binding StatusMessage}"
                        TextWrapping="Wrap">
                 <TextBlock.Style>
@@ -110,7 +109,7 @@
         </StackPanel>
 
         <Grid Grid.Row="2"
-              Margin="{StaticResource PageSectionSpacing}">
+              Margin="0,20,0,0">
             <ScrollViewer x:Name="BooksScrollViewer"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
@@ -169,7 +168,7 @@
                            Style="{StaticResource SecondaryTextBlockStyle}"
                            Text="将 TXT 拖到这里，或选择文件导入。"/>
                 <Button x:Name="EmptyStateImportButton"
-                        Margin="{StaticResource ContentSpacing}"
+                        Margin="0,16,0,0"
                         HorizontalAlignment="Center"
                         Style="{StaticResource BorderlessIconButtonStyle}"
                         Click="ImportButton_OnClick"
@@ -206,7 +205,7 @@
                            HorizontalAlignment="Center"
                            Style="{StaticResource SecondaryTextBlockStyle}"
                            Text="试试修改关键词，或清空搜索条件。"/>
-                <Button Margin="{StaticResource ContentSpacing}"
+                <Button Margin="0,16,0,0"
                         HorizontalAlignment="Center"
                         Command="{Binding ClearSearchCommand}"
                         Content="清空搜索"/>

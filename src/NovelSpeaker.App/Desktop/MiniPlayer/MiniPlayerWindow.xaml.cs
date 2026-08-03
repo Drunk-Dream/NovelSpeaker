@@ -62,11 +62,6 @@ public partial class MiniPlayerWindow : Window
         }
     }
 
-    private void MiniPlayerCloseButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        Close();
-    }
-
     private void MiniPlayerProgressSlider_OnValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         _progressController.Preview(e.NewValue);

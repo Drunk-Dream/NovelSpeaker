@@ -47,24 +47,23 @@
             </Grid>
 
             <WrapPanel Grid.Column="1"
-                       Style="{StaticResource ToolbarPanelStyle}"
                        HorizontalAlignment="Right"
                        VerticalAlignment="Center">
-                <Button Margin="{StaticResource ButtonGapMargin}"
+                <Button Margin="0,0,12,0"
                         Style="{StaticResource SecondaryIconButtonStyle}"
                         Command="{Binding NewRuleCommand}"
                         ToolTip="新建规则"
                         AutomationProperties.Name="新建规则">
                     <ui:SymbolIcon Symbol="DocumentAdd24" />
                 </Button>
-                <Button Margin="{StaticResource ButtonGapMargin}"
+                <Button Margin="0,0,12,0"
                         Style="{StaticResource SecondaryIconButtonStyle}"
                         Click="ImportFromFileButton_OnClick"
                         ToolTip="导入文件"
                         AutomationProperties.Name="导入文件">
                     <ui:SymbolIcon Symbol="ArrowImport24" />
                 </Button>
-                <Button Margin="{StaticResource ButtonGapMargin}"
+                <Button Margin="0,0,12,0"
                         Style="{StaticResource SecondaryIconButtonStyle}"
                         Click="ImportFromClipboardButton_OnClick"
                         ToolTip="从剪贴板"
@@ -81,11 +80,11 @@
         </Grid>
 
         <Grid Grid.Row="1"
-              Margin="{StaticResource PageSectionSpacing}"
+              Margin="0,20,0,0"
               MinHeight="0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="{StaticResource WorkbenchListPaneWidth}" />
-                <ColumnDefinition Width="{StaticResource WorkbenchPaneGap}" />
+                <ColumnDefinition Width="360" />
+                <ColumnDefinition Width="20" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -94,15 +93,15 @@
                     Style="{StaticResource CardBorderStyle}">
                 <DockPanel LastChildFill="True">
                     <StackPanel DockPanel.Dock="Top"
-                                Margin="{StaticResource ListHeaderMargin}">
+                                Margin="16,16,16,12">
                         <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
                                    Text="规则列表" />
-                        <TextBlock Margin="{StaticResource FieldControlSpacing}"
+                        <TextBlock Margin="0,6,0,0"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="{Binding Rules.Count, StringFormat=共 {0} 条规则}" />
                     </StackPanel>
 
-                    <TextBlock Margin="{StaticResource EmptyListMessageMargin}"
+                    <TextBlock Margin="16,0,16,16"
                                Text="还没有规则，先新建或导入一条。">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock"
@@ -118,7 +117,7 @@
                     </TextBlock>
 
                     <ScrollViewer x:Name="RulesListScrollViewer"
-                                  Margin="{StaticResource ListViewportMargin}"
+                                  Margin="12,0,12,12"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl ItemsSource="{Binding Rules}">
@@ -144,20 +143,20 @@
                                                     Panel.ZIndex="0" />
 
                                             <StackPanel Grid.Row="0"
-                                                        Margin="{StaticResource ListItemHeaderMargin}"
+                                                        Margin="14,12,14,0"
                                                         IsHitTestVisible="False"
                                                         Panel.ZIndex="1">
                                                     <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                                                Text="{Binding Name}"
                                                                TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Margin="{StaticResource FieldControlSpacing}"
+                                                    <TextBlock Margin="0,6,0,0"
                                                                Style="{StaticResource SecondaryTextBlockStyle}"
                                                                Text="{Binding RequestSummary}"
                                                                TextTrimming="CharacterEllipsis" />
                                             </StackPanel>
 
                                             <Grid Grid.Row="1"
-                                                  Margin="{StaticResource ListItemContentMargin}"
+                                                  Margin="14,12,14,12"
                                                   Panel.ZIndex="1">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
@@ -168,8 +167,8 @@
 
                                                 <Button VerticalAlignment="Center"
                                                         HorizontalAlignment="Left"
-                                                        Style="{StaticResource RuleCardActionButtonStyle}"
-                                                        HorizontalContentAlignment="Left"
+                                                        Padding="4"
+                                                        Style="{StaticResource BorderlessListItemButtonStyle}"
                                                         Command="{Binding DataContext.ToggleRuleEnabledCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         CommandParameter="{Binding}"
                                                         AutomationProperties.Name="{Binding Name, StringFormat=切换规则启用状态：{0}}">
@@ -186,14 +185,14 @@
                                                 </Button>
 
                                                 <Button Grid.Column="2"
-                                                        Margin="{StaticResource RuleCardActionMargin}"
-                                                        Padding="{StaticResource CompactActionPadding}"
+                                                        Margin="8,0,4,0"
+                                                        Padding="8,4"
                                                         Command="{Binding DataContext.SetCurrentRuleCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         CommandParameter="{Binding}"
                                                         AutomationProperties.Name="{Binding Name, StringFormat=设为当前规则：{0}}">
                                                     <Button.Style>
-                                                       <Style TargetType="Button"
-                                                               BasedOn="{StaticResource RuleCardActionButtonStyle}">
+                                                        <Style TargetType="Button"
+                                                               BasedOn="{StaticResource BorderlessListItemButtonStyle}">
                                                             <Setter Property="Content" Value="设为当前" />
                                                             <Setter Property="IsEnabled" Value="True" />
                                                             <Style.Triggers>
@@ -216,7 +215,7 @@
                                                         AutomationProperties.Name="{Binding Name, StringFormat=更多操作：{0}}">
                                                     <ui:SymbolIcon Symbol="MoreHorizontal24" />
                                                     <Button.ContextMenu>
-                                                        <ContextMenu Style="{StaticResource AppContextMenuStyle}">
+                                                        <ContextMenu>
                                                             <MenuItem Header="导出"
                                                                       Click="ExportRuleMenuItem_OnClick" />
                                                             <MenuItem Header="删除"
@@ -237,14 +236,14 @@
             <Border Grid.Column="2"
                     Style="{StaticResource CardBorderStyle}">
                 <Grid MinHeight="0">
-                    <Border Margin="{StaticResource CardContentPadding}"
+                    <Border Margin="20"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
                             MaxWidth="420">
                         <Border.Style>
                             <Style TargetType="Border"
                                    BasedOn="{StaticResource CardBorderStyle}">
-                                <Setter Property="Padding" Value="{StaticResource CardPadding}" />
+                                <Setter Property="Padding" Value="20" />
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasEditor}" Value="False">
@@ -257,7 +256,7 @@
                             <TextBlock HorizontalAlignment="Center"
                                        Style="{StaticResource SectionTitleTextBlockStyle}"
                                        Text="选择一条规则" />
-                            <TextBlock Margin="{StaticResource FieldDescriptionSpacing}"
+                            <TextBlock Margin="0,10,0,0"
                                        HorizontalAlignment="Center"
                                        Style="{StaticResource SecondaryTextBlockStyle}"
                                        Text="左侧选择已有规则，或使用顶部按钮新建、导入规则。"
@@ -267,7 +266,7 @@
                     </Border>
 
                     <ScrollViewer x:Name="RuleEditorScrollViewer"
-                                  Margin="{StaticResource CardContentPadding}"
+                                  Margin="20"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                         <ScrollViewer.Style>
@@ -285,35 +284,35 @@
                             <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
                                        Text="规则编辑" />
 
-                            <Grid Margin="{StaticResource PageSectionSpacing}">
+                            <Grid Margin="0,20,0,0">
                                 <StackPanel>
                                     <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                                Text="名称" />
-                                    <TextBox Margin="{StaticResource FieldControlSpacing}"
+                                    <TextBox Margin="0,6,0,0"
                                              Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
                             </Grid>
 
-                            <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                            <TextBlock Margin="0,18,0,0"
                                        Style="{StaticResource StrongTextBlockStyle}"
                                        Text="请求 URL / 模板" />
-                            <TextBox Margin="{StaticResource FieldControlSpacing}"
+                            <TextBox Margin="0,6,0,0"
                                      AcceptsReturn="True"
                                      MinHeight="74"
                                      TextWrapping="Wrap"
                                      Text="{Binding DraftUrl, UpdateSourceTrigger=PropertyChanged}" />
 
-                            <Grid Margin="{StaticResource SectionHeadingSpacing}">
+                            <Grid Margin="0,18,0,0">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="160" />
-                                                    <ColumnDefinition Width="{StaticResource RuleCardActionGap}" />
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="16" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
 
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                                Text="请求方法" />
-                                    <ComboBox Margin="{StaticResource FieldControlSpacing}"
+                                    <ComboBox Margin="0,6,0,0"
                                               SelectedValue="{Binding DraftRequestMethod}"
                                               SelectedValuePath="Content">
                                         <ComboBoxItem Content="GET" />
@@ -324,24 +323,24 @@
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                                Text="Content-Type" />
-                                    <TextBox Margin="{StaticResource FieldControlSpacing}"
+                                    <TextBox Margin="0,6,0,0"
                                              Text="{Binding DraftContentType, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
                             </Grid>
 
-                            <TextBlock Margin="{StaticResource FormSectionSpacing}"
+                            <TextBlock Margin="0,22,0,0"
                                        Style="{StaticResource StrongTextBlockStyle}"
                                        Text="Header" />
                             <ItemsControl Margin="0,8,0,0"
                                           ItemsSource="{Binding HeaderEntries}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid Margin="{StaticResource ListItemSpacing}">
+                                        <Grid Margin="0,0,0,10">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="140" />
-                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="180" />
+                                                <ColumnDefinition Width="12" />
                                                 <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="12" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBox Grid.Column="0"
@@ -361,42 +360,42 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                             <Button HorizontalAlignment="Left"
-                                    Padding="{StaticResource SecondaryActionPadding}"
+                                    Padding="14,8"
                                     Command="{Binding AddHeaderEntryCommand}"
                                     Content="添加 Header" />
 
-                            <StackPanel Margin="{StaticResource FormSectionSpacing}">
+                            <StackPanel Margin="0,22,0,0">
                                 <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                            Text="并发限制" />
-                                <TextBox Margin="{StaticResource FieldControlSpacing}"
+                                <TextBox Margin="0,6,0,0"
                                          Text="{Binding DraftConcurrentRate, UpdateSourceTrigger=PropertyChanged}"
                                          ToolTip="格式：次数/毫秒，例如 2/1000" />
                             </StackPanel>
 
-                            <StackPanel Margin="{StaticResource FormSectionSpacing}"
+                            <StackPanel Margin="0,22,0,0"
                                         Visibility="{Binding IsPostMethod, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                            Text="请求体" />
-                                <TextBox Margin="{StaticResource FieldControlSpacing}"
+                                <TextBox Margin="0,6,0,0"
                                          AcceptsReturn="True"
                                          MinHeight="90"
                                          TextWrapping="Wrap"
                                          Text="{Binding DraftRequestBody, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
 
-                            <WrapPanel Margin="{StaticResource FormSectionSpacing}">
-                                <Button Margin="{StaticResource ToolbarActionMargin}"
-                                        Padding="{StaticResource ButtonPadding}"
+                            <WrapPanel Margin="0,24,0,0">
+                                <Button Margin="0,0,12,12"
+                                        Padding="16,8"
                                         Command="{Binding TestDraftCommand}"
                                         Content="试听"
                                         IsEnabled="{Binding CanTestDraft}" />
-                                <Button Margin="{StaticResource ToolbarActionMargin}"
-                                        Padding="{StaticResource ButtonPadding}"
+                                <Button Margin="0,0,12,12"
+                                        Padding="16,8"
                                         Command="{Binding CancelEditingCommand}"
                                         Content="取消"
                                         IsEnabled="{Binding CanCancelEditing}" />
-                                <Button Margin="{StaticResource ToolbarActionMargin}"
-                                        Padding="{StaticResource ButtonPadding}"
+                                <Button Margin="0,0,12,12"
+                                        Padding="16,8"
                                         Command="{Binding SaveDraftCommand}"
                                         Content="保存"
                                         IsEnabled="{Binding CanSaveDraft}" />
@@ -418,13 +417,13 @@
                         Grid.Column="0"
                         AutomationProperties.Name="关闭规则帮助"
                         ToolTip="关闭规则帮助"
-                        Background="{DynamicResource RaisedSurfaceBrush}"
+                        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
                         BorderThickness="0"
                         Command="{Binding CloseHelpCommand}" />
 
                 <Border x:Name="HelpDrawerBorder"
                         Grid.Column="1"
-                        Padding="{StaticResource CardContentPadding}"
+                        Padding="20"
                         Style="{StaticResource PopupSurfaceBorderStyle}">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -449,7 +448,7 @@
                         </Grid>
 
                         <ScrollViewer Grid.Row="1"
-                                      Margin="{StaticResource ContentSpacing}"
+                                      Margin="0,16,0,0"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
                             <StackPanel>
@@ -459,7 +458,7 @@
                                            Text="先新建规则，填写名称和服务商提供的完整 HTTP/HTTPS 地址；再选择 GET 或 POST，填入服务要求的参数，保存后点击“试听”。试听成功后再设为当前规则。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="GET 示例" />
                                 <TextBlock Margin="0,8,0,0"
@@ -471,7 +470,7 @@
                                            Style="{StaticResource SecondaryTextBlockStyle}"
                                            TextWrapping="Wrap">https://example.com/tts?text={{encodeURIComponent(speakText)}}&amp;speed={{speakSpeed}}</TextBlock>
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="POST JSON 示例" />
                                 <TextBlock Margin="0,8,0,0"
@@ -483,7 +482,7 @@
                                            Style="{StaticResource SecondaryTextBlockStyle}"
                                            TextWrapping="Wrap">{{&quot;text&quot;:{{JSON.stringify(speakText)}},&quot;speed&quot;:{{speakSpeed}}}}</TextBlock>
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="字段怎么填" />
                                 <TextBlock Margin="0,8,0,0"
@@ -491,7 +490,7 @@
                                            Text="名称和 URL 必填，URL 必须是绝对地址。Content-Type 用来声明期望返回的音频类型，例如 audio/mpeg；它不是请求体格式。Header 可填写鉴权信息，但不要在截图、导出内容或日志中泄露密钥。请求体只用于 POST。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="Header、请求体与限流" />
                                 <TextBlock Margin="0,8,0,0"
@@ -499,7 +498,7 @@
                                            Text="请求体格式由 Header 中的 Content-Type 决定：application/json 发送 JSON，application/x-www-form-urlencoded 发送表单，其它类型按原始文本发送。GET 不能携带请求体。并发限制可留空；1000 表示两次请求至少间隔 1000 毫秒，2/1000 表示 1000 毫秒内最多 2 次请求。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="模板表达式" />
                                 <TextBlock Margin="0,8,0,0"
@@ -507,7 +506,7 @@
                                            Text="URL、Header 和请求体都可使用 {{ JavaScript 表达式 }}。可用值有 speakText、speakSpeed，以及只读的 source.name、source.url、source.contentType、source.concurrentRate。可使用 JSON、Math、Date、encodeURI、encodeURIComponent，也兼容 java.encodeURI 和 java.encodeURIComponent。模板只能写表达式，不能写多条语句。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="不支持的模板能力" />
                                 <TextBlock Margin="0,8,0,0"
@@ -515,7 +514,7 @@
                                            Text="不支持 Cookie、source.get/put、其它 java.* 辅助函数，也不能访问 CLR、文件、进程或网络。包含这些能力的导入规则需要改写，或无法导入。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="试听与导入" />
                                 <TextBlock Margin="0,8,0,0"
@@ -523,7 +522,7 @@
                                            Text="试听固定使用“你好，欢迎试听。”和当前默认语速。未保存的草稿可以直接试听，不会自动保存；再次试听会取消上一次请求。导入支持单个 JSON 对象或数组，只保留名称、URL、Content-Type、并发限制、Header、启用状态和请求方法/请求体；未知字段会丢弃。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="失败时按这个顺序检查" />
                                 <TextBlock Margin="0,8,0,0"

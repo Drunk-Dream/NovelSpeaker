@@ -46,8 +46,6 @@ public sealed class MiniPlayerWindowTests
                 Assert.Equal("播放音量 100%", AutomationProperties.GetName(volumeButton));
                 AssertControl<Button>(window, "MiniPlayerRestoreButton", "恢复主窗口");
                 AssertControl<Button>(window, "MiniPlayerTopmostButton", "置顶");
-                AssertControl<Button>(window, "MiniPlayerCloseButton", "关闭迷你播放器");
-                Assert.Equal(new CornerRadius(16), Assert.IsType<Border>(window.Content).CornerRadius);
                 var topmostStateBorder = Assert.IsType<Border>(window.FindName("MiniPlayerTopmostStateBorder"));
                 Assert.Equal(Brushes.Transparent, topmostStateBorder.Background);
                 var topmostTrigger = Assert.Single(topmostStateBorder.Style!.Triggers.OfType<DataTrigger>());

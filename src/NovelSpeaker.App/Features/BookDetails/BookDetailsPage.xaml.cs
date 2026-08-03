@@ -10,8 +10,6 @@ namespace NovelSpeaker.App.Features.BookDetails;
 
 public partial class BookDetailsPage : System.Windows.Controls.Page, INavigationAware, INavigableView<BookDetailsViewModel>
 {
-    private static readonly TimeSpan DefaultChapterLocatorAnimationDuration = TimeSpan.FromMilliseconds(220);
-
     private readonly PageActivationController _activation = new();
     private readonly INavigationGuardService _navigationGuardService;
     private readonly CurrentItemLocatorInteraction _chapterLocator;
@@ -30,7 +28,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
             () => ViewModel.CurrentChapterItem,
             () => IsLoaded && ChaptersListBox.ActualHeight > 0,
             () => !SystemParameters.ClientAreaAnimation,
-            GetChapterLocatorAnimationDuration,
+            () => TimeSpan.FromMilliseconds(220),
             isVisible => LocateCurrentChapterButton.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -104,17 +102,5 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
                     _chapterLocator.NotifyCurrentItemChanged(animate: false);
                 }
             }));
-    }
-
-    private TimeSpan GetChapterLocatorAnimationDuration()
-    {
-        return ResolveAnimationDuration(TryFindResource("AnimSlow"));
-    }
-
-    internal static TimeSpan ResolveAnimationDuration(object? resource)
-    {
-        return resource is Duration duration && duration.HasTimeSpan
-            ? duration.TimeSpan
-            : DefaultChapterLocatorAnimationDuration;
     }
 }

@@ -75,17 +75,16 @@
                         ToolTip="定时停止"
                         AutomationProperties.Name="{Binding StopTimerButtonAutomationName, FallbackValue=定时停止}">
                     <Border x:Name="StopTimerPillBorder"
-                            MinWidth="{StaticResource ToolbarPillMinWidth}"
-                            Height="{StaticResource TextControlHeight}"
-                            Padding="8,0"
-                            HorizontalAlignment="Center"
-                            Background="{DynamicResource SecondarySurfaceBrush}"
-                            BorderBrush="{DynamicResource SubtleBorderBrush}"
-                            BorderThickness="{StaticResource StandardBorderThickness}"
-                            CornerRadius="{StaticResource ToolbarPillCornerRadius}">
+                            Width="80"
+                            Height="40"
+                            Padding="12,0"
+                            Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="12">
                         <StackPanel Orientation="Horizontal">
                             <ui:SymbolIcon Symbol="Clock24" />
-                            <TextBlock Margin="{StaticResource InlineGapMargin}"
+                            <TextBlock Margin="8,0,0,0"
                                        VerticalAlignment="Center"
                                        Style="{StaticResource StrongTextBlockStyle}"
                                        Text="{Binding StopTimerRemainingText}" />
@@ -99,17 +98,16 @@
                         ToolTip="调整语速"
                         AutomationProperties.Name="{Binding SpeakSpeedButtonText}">
                     <Border x:Name="SpeedMenuPillBorder"
-                            MinWidth="{StaticResource ToolbarPillMinWidth}"
-                            Height="{StaticResource TextControlHeight}"
-                            Padding="8,0"
-                            HorizontalAlignment="Center"
-                            Background="{DynamicResource SecondarySurfaceBrush}"
-                            BorderBrush="{DynamicResource SubtleBorderBrush}"
-                            BorderThickness="{StaticResource StandardBorderThickness}"
-                            CornerRadius="{StaticResource ToolbarPillCornerRadius}">
+                            Width="80"
+                            Height="40"
+                            Padding="12,0"
+                            Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="12">
                         <StackPanel Orientation="Horizontal">
                             <ui:SymbolIcon Symbol="Speaker124" />
-                            <TextBlock Margin="{StaticResource InlineGapMargin}"
+                            <TextBlock Margin="8,0,0,0"
                                        VerticalAlignment="Center"
                                        Style="{StaticResource StrongTextBlockStyle}"
                                        Text="{Binding SpeakSpeed}" />
@@ -132,25 +130,25 @@
                     <StackPanel>
                         <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
                                    Text="定时停止" />
-                        <WrapPanel Margin="{StaticResource ContentSpacing}">
-                            <Button Margin="{StaticResource ToolbarActionMargin}"
-                                    Padding="{StaticResource CompactActionPadding}"
+                        <WrapPanel Margin="0,16,0,0">
+                            <Button Margin="0,0,8,8"
+                                    Padding="10,6"
                                     Command="{Binding ScheduleStopAfter15MinutesCommand}"
                                     Content="15 分钟" />
-                            <Button Margin="{StaticResource ToolbarActionMargin}"
-                                    Padding="{StaticResource CompactActionPadding}"
+                            <Button Margin="0,0,8,8"
+                                    Padding="10,6"
                                     Command="{Binding ScheduleStopAfter30MinutesCommand}"
                                     Content="30 分钟" />
-                            <Button Margin="{StaticResource ToolbarActionMargin}"
-                                    Padding="{StaticResource CompactActionPadding}"
+                            <Button Margin="0,0,8,8"
+                                    Padding="10,6"
                                     Command="{Binding ScheduleStopAfter45MinutesCommand}"
                                     Content="45 分钟" />
-                            <Button Margin="{StaticResource ToolbarActionMargin}"
-                                    Padding="{StaticResource CompactActionPadding}"
+                            <Button Margin="0,0,8,8"
+                                    Padding="10,6"
                                     Command="{Binding ScheduleStopAfter60MinutesCommand}"
                                     Content="60 分钟" />
-                            <Button Margin="{StaticResource ToolbarActionMargin}"
-                                    Padding="{StaticResource CompactActionPadding}"
+                            <Button Margin="0,0,8,8"
+                                    Padding="10,6"
                                     Command="{Binding ScheduleStopAfter90MinutesCommand}"
                                     Content="90 分钟" />
                         </WrapPanel>
@@ -161,15 +159,15 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="CustomStopMinutesTextBox"
-                                     Height="{StaticResource InputControlHeight}"
+                                     Height="36"
                                      VerticalContentAlignment="Center"
                                      Text="{Binding CustomStopMinutesText, UpdateSourceTrigger=PropertyChanged}"
                                      ToolTip="自定义分钟数，范围 1 到 1440"
                                      AutomationProperties.Name="自定义定时停止分钟数" />
                             <Button x:Name="CancelStopTimerButton"
                                     Grid.Column="1"
-                                    Margin="{StaticResource ToolbarItemMargin}"
-                                    Padding="{StaticResource ToolbarActionPadding}"
+                                    Margin="8,0,0,0"
+                                    Padding="12,6"
                                     Command="{Binding CancelStopTimerCommand}"
                                     Content="取消"
                                     IsEnabled="{Binding HasActiveStopTimer}"
@@ -177,14 +175,14 @@
                                     AutomationProperties.Name="取消" />
                             <Button x:Name="ApplyCustomStopTimerButton"
                                     Grid.Column="2"
-                                    Margin="{StaticResource ToolbarItemMargin}"
-                                    Padding="{StaticResource ToolbarActionPadding}"
+                                    Margin="8,0,0,0"
+                                    Padding="12,6"
                                     Command="{Binding ScheduleCustomStopTimerCommand}"
                                     Content="应用"
                                     ToolTip="应用自定义定时停止"
                                     AutomationProperties.Name="应用自定义定时停止" />
                         </Grid>
-                        <TextBlock Margin="{StaticResource FieldControlSpacing}"
+                        <TextBlock Margin="0,6,0,0"
                                    Text="{Binding CustomStopTimerErrorText}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock"
@@ -219,12 +217,12 @@
                             <TextBlock Margin="0,8,0,0"
                                        Style="{StaticResource SecondaryTextBlockStyle}"
                                        Text="当前规则仅在菜单中显示勾选。" />
-                            <ItemsControl Margin="{StaticResource ContentSpacing}"
+                            <ItemsControl Margin="0,16,0,0"
                                           ItemsSource="{Binding Rules}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Button Margin="0,0,0,8"
-                                                Padding="{StaticResource ListRowPadding}"
+                                                Padding="12,8"
                                                 Style="{StaticResource BorderlessListItemButtonStyle}"
                                                 HorizontalContentAlignment="Stretch"
                                                 IsEnabled="{Binding IsEnabled}"
@@ -273,7 +271,7 @@
                                 </TextBlock.Style>
                             </TextBlock>
                             <Button Margin="0,12,0,0"
-                                    Padding="{StaticResource SecondaryActionPadding}"
+                                    Padding="14,8"
                                     HorizontalAlignment="Left"
                                     Command="{Binding OpenRulesManagementCommand}"
                                     Content="前往规则管理" />
@@ -298,7 +296,7 @@
                             <TextBlock Margin="0,8,0,0"
                                        Style="{StaticResource SecondaryTextBlockStyle}"
                                        Text="输入后端实际使用的原始整数值。" />
-                            <Grid Margin="{StaticResource ContentSpacing}">
+                            <Grid Margin="0,16,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
@@ -306,9 +304,9 @@
                                 </Grid.ColumnDefinitions>
                                 <Button x:Name="DecreaseSpeedButton"
                                         Grid.Column="0"
-                                        Width="{StaticResource TextControlHeight}"
-                                        Height="{StaticResource InputControlHeight}"
-                                        Margin="{StaticResource ToolbarItemTrailingMargin}"
+                                        Width="40"
+                                        Height="36"
+                                        Margin="0,0,8,0"
                                         Command="{Binding DecreaseSpeakSpeedCommand}"
                                         Content="-"
                                         IsEnabled="{Binding CanDecreaseSpeakSpeed}"
@@ -316,7 +314,7 @@
                                         AutomationProperties.Name="降低语速" />
                                 <TextBox x:Name="SpeedEditorTextBox"
                                          Grid.Column="1"
-                                         Height="{StaticResource InputControlHeight}"
+                                         Height="36"
                                          VerticalContentAlignment="Center"
                                          HorizontalContentAlignment="Center"
                                          PreviewKeyDown="SpeedEditorTextBox_OnPreviewKeyDown"
@@ -324,9 +322,9 @@
                                          Text="{Binding SpeedEditorText, UpdateSourceTrigger=PropertyChanged}" />
                                 <Button x:Name="IncreaseSpeedButton"
                                         Grid.Column="2"
-                                        Width="{StaticResource TextControlHeight}"
-                                        Height="{StaticResource InputControlHeight}"
-                                        Margin="{StaticResource ToolbarItemMargin}"
+                                        Width="40"
+                                        Height="36"
+                                        Margin="8,0,0,0"
                                         Command="{Binding IncreaseSpeakSpeedCommand}"
                                         Content="+"
                                         IsEnabled="{Binding CanIncreaseSpeakSpeed}"
@@ -353,7 +351,7 @@
         </Grid>
 
         <Grid Grid.Row="1"
-              Margin="{StaticResource PageSectionSpacing}"
+              Margin="0,20,0,0"
               MinHeight="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="320" />
@@ -399,16 +397,16 @@
                                        Style="{StaticResource SecondaryTextBlockStyle}"
                                        Text="{Binding ActiveCacheStatusText}"
                                        TextWrapping="Wrap" />
-                            <WrapPanel Margin="{StaticResource FieldDescriptionSpacing}">
+                            <WrapPanel Margin="0,10,0,0">
                                 <Button x:Name="CancelActiveCacheSelectionButton"
-                                        Padding="{StaticResource CompactActionPadding}"
+                                        Padding="10,6"
                                         Command="{Binding CancelActiveCacheSelectionCommand}"
                                         Content="取消选择"
                                         ToolTip="取消选择"
                                         AutomationProperties.Name="取消选择" />
                                 <Button x:Name="StartActiveCacheButton"
-                                        Margin="{StaticResource ToolbarItemMargin}"
-                                        Padding="{StaticResource CompactActionPadding}"
+                                        Margin="8,0,0,0"
+                                        Padding="10,6"
                                         Command="{Binding StartActiveCacheCommand}"
                                         Content="开始缓存"
                                         IsEnabled="{Binding CanStartActiveCache}"
@@ -437,7 +435,14 @@
                             </ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
                         <ListBox.ItemContainerStyle>
-                            <StaticResource ResourceKey="PlaybackChapterListItemContainerStyle" />
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="Margin" Value="0,0,0,6" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                            </Style>
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
@@ -451,10 +456,38 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
-                                        <Border Style="{StaticResource PlaybackChapterCurrentIndicatorStyle}" />
+                                        <Border Background="{DynamicResource AccentFillColorDefaultBrush}">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Opacity" Value="0" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                            <Setter Property="Opacity" Value="1" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                        </Border>
 
                                         <Border Grid.Column="1"
-                                                Style="{StaticResource PlaybackChapterStateBorderStyle}">
+                                                Padding="12,8"
+                                                CornerRadius="10">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                                    <Setter Property="BorderThickness" Value="1" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsSelectedForActiveCache}" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource AccentFillColorSecondaryBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
@@ -467,9 +500,9 @@
                                                            VerticalAlignment="Center" />
                                                 <Border Grid.Column="1"
                                                         Margin="10,0,0,0"
-                                                        Padding="{StaticResource CompactActionPadding}"
-                                                        CornerRadius="{StaticResource PillCornerRadius}"
-                                                        Background="{DynamicResource SecondarySurfaceBrush}">
+                                                        Padding="8,2"
+                                                        CornerRadius="999"
+                                                        Background="{DynamicResource LayerFillColorAltBrush}">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
                                                             <Setter Property="Visibility" Value="Collapsed" />
@@ -502,12 +535,12 @@
                                 Style="{StaticResource FloatingIconButtonStyle}"
                                 ToolTip="定位到当前章节"
                                 AutomationProperties.Name="定位到当前章节">
-                            <Border Width="{StaticResource FloatingIconButtonSize}"
-                                    Height="{StaticResource FloatingIconButtonSize}"
-                                    Background="{DynamicResource PrimarySurfaceBrush}"
-                                    BorderBrush="{DynamicResource SubtleBorderBrush}"
-                                    BorderThickness="{StaticResource StandardBorderThickness}"
-                                    CornerRadius="{StaticResource PillCornerRadius}">
+                            <Border Width="40"
+                                    Height="40"
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="999">
                                 <ui:SymbolIcon HorizontalAlignment="Center"
                                                VerticalAlignment="Center"
                                                Symbol="TargetArrow24" />
@@ -525,10 +558,10 @@
                 </Grid.RowDefinitions>
 
                 <Border Padding="{StaticResource CardPadding}"
-                        Background="{DynamicResource SecondarySurfaceBrush}"
-                        BorderBrush="{DynamicResource SubtleBorderBrush}"
-                        BorderThickness="{StaticResource StandardBorderThickness}"
-                        CornerRadius="{StaticResource DialogCornerRadius}">
+                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
                     <Border.Style>
                         <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Collapsed" />
@@ -551,8 +584,8 @@
                         <WrapPanel Grid.Column="1"
                                    Margin="16,0,0,0"
                                    VerticalAlignment="Center">
-                            <Button Margin="{StaticResource ToolbarItemTrailingMargin}"
-                                    Padding="{StaticResource SecondaryActionPadding}"
+                            <Button Margin="0,0,8,0"
+                                    Padding="14,8"
                                     Command="{Binding RetryCurrentSegmentCommand}"
                                     Content="再次尝试"
                                     ToolTip="再次尝试"
@@ -629,7 +662,7 @@
                                     </Style>
                                 </StackPanel.Style>
                                 <ProgressBar Width="52"
-                                             Height="{StaticResource ProgressTrackHeight}"
+                                             Height="4"
                                              Margin="0,0,10,0"
                                              VerticalAlignment="Center"
                                              IsIndeterminate="True" />
@@ -663,7 +696,14 @@
                                     </ItemsPanelTemplate>
                                 </ListBox.ItemsPanel>
                                 <ListBox.ItemContainerStyle>
-                                    <StaticResource ResourceKey="PlaybackSegmentListItemContainerStyle" />
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Padding" Value="0" />
+                                        <Setter Property="Margin" Value="0,0,0,8" />
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="BorderThickness" Value="0" />
+                                    </Style>
                                 </ListBox.ItemContainerStyle>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
@@ -673,7 +713,19 @@
                                                 CommandParameter="{Binding}"
                                                 IsEnabled="{Binding IsInteractive}">
                                             <Border HorizontalAlignment="Stretch"
-                                                    Style="{StaticResource PlaybackSegmentStateBorderStyle}">
+                                                    Padding="14,6,14,10"
+                                                    Background="Transparent"
+                                                    CornerRadius="10">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="Transparent" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
                                                 <TextBlock Text="{Binding Text}"
                                                            TextWrapping="Wrap"
                                                            Opacity="{Binding VisualOpacity}"
@@ -704,12 +756,12 @@
                                     Command="{Binding ReturnToCurrentSegmentCommand}"
                                     ToolTip="返回当前段落"
                                     AutomationProperties.Name="返回当前段落">
-                                <Border Width="{StaticResource FloatingIconButtonSize}"
-                                        Height="{StaticResource FloatingIconButtonSize}"
-                                        Background="{DynamicResource PrimarySurfaceBrush}"
-                                        BorderBrush="{DynamicResource SubtleBorderBrush}"
-                                        BorderThickness="{StaticResource StandardBorderThickness}"
-                                        CornerRadius="{StaticResource PillCornerRadius}">
+                                <Border Width="40"
+                                        Height="40"
+                                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="999">
                                     <ui:SymbolIcon HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"
                                                    Symbol="TargetArrow24" />
@@ -733,7 +785,7 @@
         </Grid>
 
         <Grid Grid.Row="2"
-              Margin="{StaticResource PageSectionSpacing}"
+              Margin="0,20,0,0"
               MinHeight="0">
             <Border x:Name="PlaybackFooterBorder"
                     Padding="{StaticResource CardPadding}">
@@ -759,8 +811,8 @@
                                    Grid.Column="1"
                                    HorizontalAlignment="Center">
                             <Button x:Name="PreviousChapterButton"
-                                    Margin="{StaticResource ButtonGapMargin}"
-                                    Style="{StaticResource PreviousChapterMediaButtonStyle}"
+                                    Margin="0,0,12,0"
+                                    Style="{StaticResource MediaIconButtonStyle}"
                                     IsEnabled="{Binding CanGoToPreviousChapter}"
                                     Command="{Binding PreviousChapterCommand}"
                                     ToolTip="上一章"
@@ -768,8 +820,8 @@
                                 <ui:SymbolIcon Symbol="ChevronDoubleLeft20" />
                             </Button>
                             <Button x:Name="PreviousSegmentButton"
-                                    Margin="{StaticResource ButtonGapMargin}"
-                                    Style="{StaticResource PreviousSegmentMediaButtonStyle}"
+                                    Margin="0,0,12,0"
+                                    Style="{StaticResource MediaIconButtonStyle}"
                                     IsEnabled="{Binding CanGoToPreviousSegment}"
                                     Command="{Binding PreviousSegmentCommand}"
                                     ToolTip="上一段"
@@ -777,20 +829,20 @@
                                 <ui:SymbolIcon Symbol="ArrowPrevious24" />
                             </Button>
                             <Button x:Name="PrimaryPlaybackButton"
-                                    Margin="{StaticResource ButtonGapMargin}"
-                                    Style="{StaticResource PlaybackMediaButtonStyle}"
+                                    Margin="0,0,12,0"
+                                    Style="{StaticResource PrimaryPlaybackIconButtonStyle}"
                                     IsEnabled="{Binding CanTogglePlayPause}"
                                     Command="{Binding TogglePlayPauseCommand}"
                                     ToolTip="{Binding PrimaryActionText}"
                                     AutomationProperties.Name="{Binding PrimaryActionText}">
-                                <Border Width="{StaticResource PrimaryMediaControlButtonSize}"
-                                        Height="{StaticResource PrimaryMediaControlButtonSize}"
-                                        Background="{DynamicResource AccentBrush}"
-                                        CornerRadius="{StaticResource MediaControlCornerRadius}">
+                                <Border Width="48"
+                                        Height="48"
+                                        Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                        CornerRadius="999">
                                     <ui:SymbolIcon HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"
-                                                   FontSize="{StaticResource IconSize24}"
-                                                   Foreground="{DynamicResource AccentForegroundBrush}">
+                                                   FontSize="24"
+                                                   Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}">
                                         <ui:SymbolIcon.Style>
                                             <Style TargetType="ui:SymbolIcon">
                                                 <Setter Property="Symbol" Value="PlayCircle24" />
@@ -806,8 +858,8 @@
                                 </Border>
                             </Button>
                             <Button x:Name="NextSegmentButton"
-                                    Margin="{StaticResource ButtonGapMargin}"
-                                    Style="{StaticResource NextSegmentMediaButtonStyle}"
+                                    Margin="0,0,12,0"
+                                    Style="{StaticResource MediaIconButtonStyle}"
                                     IsEnabled="{Binding CanGoToNextSegment}"
                                     Command="{Binding NextSegmentCommand}"
                                     ToolTip="下一段"
@@ -815,7 +867,7 @@
                                 <ui:SymbolIcon Symbol="ArrowNext24" />
                             </Button>
                             <Button x:Name="NextChapterButton"
-                                    Style="{StaticResource NextChapterMediaButtonStyle}"
+                                    Style="{StaticResource MediaIconButtonStyle}"
                                     IsEnabled="{Binding CanGoToNextChapter}"
                                     Command="{Binding NextChapterCommand}"
                                     ToolTip="下一章"
@@ -846,7 +898,7 @@
                         </Button>
                     </Grid>
 
-                    <Grid Margin="{StaticResource ContentSpacing}">
+                    <Grid Margin="0,16,0,0">
                         <ProgressBar x:Name="SegmentProgressFillBar"
                                      VerticalAlignment="Center"
                                      IsHitTestVisible="False"
@@ -901,7 +953,7 @@
                         </Grid>
                         <Slider x:Name="VolumeSlider"
                                 Width="232"
-                                Margin="{StaticResource ContentSpacing}"
+                                Margin="0,16,0,0"
                                 HorizontalAlignment="Left"
                                 Style="{StaticResource PlaybackProgressSliderStyle}"
                                 Minimum="0"
@@ -933,8 +985,8 @@
                                Style="{StaticResource SecondaryTextBlockStyle}"
                                Text="先前往 TTS 规则页选择或导入一条可用规则，再回到当前书籍位置继续准备播放。"
                                TextWrapping="Wrap" />
-                    <Button Margin="{StaticResource ContentSpacing}"
-                            Padding="{StaticResource SecondaryActionPadding}"
+                    <Button Margin="0,16,0,0"
+                            Padding="14,8"
                             HorizontalAlignment="Left"
                             Command="{Binding OpenRulesManagementCommand}"
                             Content="前往 TTS 规则" />

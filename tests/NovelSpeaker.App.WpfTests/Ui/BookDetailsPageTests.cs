@@ -169,7 +169,7 @@ public sealed class BookDetailsPageTests
     }
 
     [Fact]
-    public void BookDetailsPage_keeps_current_and_hover_states_distinguishable()
+    public void BookDetailsPage_removes_outer_current_highlight_while_chapter_is_hovered()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -185,8 +185,8 @@ public sealed class BookDetailsPageTests
             Assert.Contains(
                 hoverTrigger.Setters.OfType<Setter>(),
                 setter => setter.Property == Border.BackgroundProperty &&
-                          setter.Value is DynamicResourceExtension resource &&
-                          Equals(resource.ResourceKey, "AccentSubtleHoverBrush"));
+                          setter.Value is SolidColorBrush brush &&
+                          brush.Color == Colors.Transparent);
         });
     }
 

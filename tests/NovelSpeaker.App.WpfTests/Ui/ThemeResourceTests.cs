@@ -2,37 +2,12 @@ using System.IO;
 using System.Linq;
 using System.Xml;
 using System.Xml.Linq;
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Effects;
-using NovelSpeaker.App.Shared.Theming;
-using NovelSpeaker.UnitTests;
-using Wpf.Ui.Appearance;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
 
-[Collection("WpfDispatcher")]
 public sealed class ThemeResourceTests
 {
-    private static readonly string[] ForbiddenWpfUiBrushKeys =
-    {
-        "ApplicationBackgroundBrush",
-        "CardBackgroundFillColorDefaultBrush",
-        "CardStrokeColorDefaultBrush",
-        "ControlFillColorSecondaryBrush",
-        "ControlFillColorTertiaryBrush",
-        "LayerFillColorAltBrush",
-        "SolidBackgroundFillColorBaseBrush",
-        "TextFillColorPrimaryBrush",
-        "TextFillColorSecondaryBrush",
-        "AccentFillColorDefaultBrush",
-        "AccentFillColorSecondaryBrush",
-        "TextOnAccentFillColorPrimaryBrush",
-        "SystemFillColorCriticalBrush",
-        "SystemFillColorCriticalBackgroundBrush"
-    };
-
     [Fact]
     public void App_xaml_files_do_not_contain_fixed_hex_colors()
     {
@@ -52,183 +27,7 @@ public sealed class ThemeResourceTests
     }
 
     [Fact]
-    public void Palette_files_have_the_same_semantic_brush_keys()
-    {
-        var paletteDirectory = Path.Combine(
-            GetRepositoryRoot(),
-            "src",
-            "NovelSpeaker.App",
-            "Shared",
-            "Theming",
-            "Resources",
-            "Themes");
-
-        var lightKeys = ReadResourceKeys(Path.Combine(paletteDirectory, "Palette.Light.xaml"));
-        var darkKeys = ReadResourceKeys(Path.Combine(paletteDirectory, "Palette.Dark.xaml"));
-
-        Assert.True(lightKeys.SetEquals(darkKeys));
-        Assert.True(
-            new[]
-            {
-                "AppBackgroundBrush", "CanvasSurfaceBrush", "PrimarySurfaceBrush", "SecondarySurfaceBrush",
-                "RaisedSurfaceBrush", "PrimaryTextBrush", "SecondaryTextBrush", "TertiaryTextBrush",
-                "SubtleBorderBrush", "StrongBorderBrush", "AccentBrush", "AccentForegroundBrush", "DangerBrush",
-                "WarningBrush", "SuccessBrush", "AccentHoverBrush", "AccentPressedBrush", "AccentSubtleBrush",
-                "AccentSubtleHoverBrush", "AccentFocusRingBrush"
-            }.All(lightKeys.Contains));
-    }
-
-    [Fact]
-    public void Loaded_palette_exposes_semantic_brushes()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            foreach (var key in ThemePaletteResourceKeys.SemanticKeys)
-            {
-                Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource(key));
-            }
-        });
-    }
-
-    [Fact]
-    public void Switching_palette_refreshes_dynamic_resources_used_by_open_windows()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var runtime = new ThemePaletteRuntime(
-                global::System.Windows.Application.Current.Resources,
-                new PackThemePaletteLoader());
-            runtime.Apply(ThemePaletteKind.Light);
-
-            var mainWindow = new Window();
-            mainWindow.SetResourceReference(Window.BackgroundProperty, "AppBackgroundBrush");
-            var miniPlayerWindow = new Window();
-            miniPlayerWindow.SetResourceReference(Window.BackgroundProperty, "AppBackgroundBrush");
-            var lightColor = Assert.IsType<SolidColorBrush>(mainWindow.Background).Color;
-
-            var result = runtime.Apply(ThemePaletteKind.Dark);
-
-            Assert.True(result.IsApplied);
-            Assert.Equal(ThemePaletteKind.Dark, result.EffectivePalette);
-            Assert.NotEqual(lightColor, Assert.IsType<SolidColorBrush>(mainWindow.Background).Color);
-            Assert.Equal(
-                Assert.IsType<SolidColorBrush>(mainWindow.Background).Color,
-                Assert.IsType<SolidColorBrush>(miniPlayerWindow.Background).Color);
-            Assert.Equal(
-                Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource("AppBackgroundBrush")).Color,
-                Assert.IsType<SolidColorBrush>(mainWindow.Background).Color);
-
-            runtime.Apply(ThemePaletteKind.Light);
-        });
-    }
-
-    [Fact]
-    public void Wpf_ui_theme_runtime_switches_provider_and_application_palette_together()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var runtime = new WpfUiThemeRuntime();
-
-            runtime.ApplyLightTheme();
-            Assert.Equal(
-                Color.FromRgb(0xF4, 0xF5, 0xF9),
-                Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource("AppBackgroundBrush")).Color);
-
-            runtime.ApplyDarkTheme();
-            Assert.Equal(
-                Color.FromRgb(0x10, 0x12, 0x18),
-                Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource("AppBackgroundBrush")).Color);
-
-            runtime.ApplySystemTheme();
-            var expectedColor = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark
-                ? Color.FromRgb(0x10, 0x12, 0x18)
-                : Color.FromRgb(0xF4, 0xF5, 0xF9);
-            Assert.Equal(
-                expectedColor,
-                Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource("AppBackgroundBrush")).Color);
-
-            runtime.ApplyLightTheme();
-        });
-    }
-
-    [Fact]
-    public void Missing_requested_palette_falls_back_to_light_palette()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var runtime = new ThemePaletteRuntime(
-                global::System.Windows.Application.Current.Resources,
-                new FailingPaletteLoader(ThemePaletteKind.Dark));
-
-            var result = runtime.Apply(ThemePaletteKind.Dark);
-
-            Assert.True(result.IsApplied);
-            Assert.Equal(ThemePaletteKind.Light, result.EffectivePalette);
-            Assert.True(result.UsedFallback);
-            Assert.Equal(
-                Assert.IsType<SolidColorBrush>(
-                    new PackThemePaletteLoader().Load(ThemePaletteKind.Light)["AppBackgroundBrush"]).Color,
-                Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource("AppBackgroundBrush")).Color);
-        });
-    }
-
-    [Fact]
-    public void Inconsistent_palette_keys_fall_back_to_light_palette()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var runtime = new ThemePaletteRuntime(
-                global::System.Windows.Application.Current.Resources,
-                new InconsistentPaletteLoader());
-
-            var result = runtime.Apply(ThemePaletteKind.Dark);
-
-            Assert.True(result.IsApplied);
-            Assert.Equal(ThemePaletteKind.Light, result.EffectivePalette);
-            Assert.True(result.UsedFallback);
-        });
-    }
-
-    [Fact]
-    public void Missing_all_palette_files_keeps_existing_valid_palette()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var runtime = new ThemePaletteRuntime(
-                global::System.Windows.Application.Current.Resources,
-                new FailingPaletteLoader(ThemePaletteKind.Light, ThemePaletteKind.Dark));
-
-            var before = Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource("AppBackgroundBrush")).Color;
-            var result = runtime.Apply(ThemePaletteKind.Dark);
-
-            Assert.True(result.IsApplied);
-            Assert.Equal(ThemePaletteKind.Light, result.EffectivePalette);
-            Assert.True(result.UsedFallback);
-            Assert.Equal(
-                before,
-                Assert.IsType<SolidColorBrush>(global::System.Windows.Application.Current.TryFindResource("AppBackgroundBrush")).Color);
-        });
-    }
-
-    [Fact]
-    public void App_xaml_does_not_consume_wpf_ui_color_keys()
-    {
-        var xamlFiles = Directory.EnumerateFiles(
-            Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App"),
-            "*.xaml",
-            SearchOption.AllDirectories);
-
-        var violations = xamlFiles
-            .SelectMany(path => ForbiddenWpfUiBrushKeys
-                .Where(key => File.ReadAllText(path).Contains(key, StringComparison.Ordinal))
-                .Select(key => $"{Path.GetRelativePath(GetRepositoryRoot(), path)}: {key}"))
-            .ToArray();
-
-        Assert.Empty(violations);
-    }
-
-    [Fact]
-    public void Semantic_styles_bind_to_application_semantic_resources()
+    public void Semantic_styles_bind_to_wpf_ui_theme_resources()
     {
         var semanticStylesPath = Path.Combine(
             GetRepositoryRoot(),
@@ -239,356 +38,41 @@ public sealed class ThemeResourceTests
             "Resources",
             "SemanticStyles.xaml");
         var content = File.ReadAllText(semanticStylesPath);
-        var componentContent = File.ReadAllText(Path.Combine(
-            GetRepositoryRoot(),
-            "src",
-            "NovelSpeaker.App",
-            "Shared",
-            "Theming",
-            "Resources",
-            "Components",
-            "ListsAndCards.xaml"));
 
-        Assert.Contains("PrimaryTextBrush", content);
-        Assert.Contains("SecondaryTextBrush", content);
-        Assert.Contains("PrimarySurfaceBrush", componentContent);
-        Assert.Contains("SubtleBorderBrush", componentContent);
-        Assert.Contains("DangerBrush", content);
-        Assert.DoesNotContain("TextFillColor", content);
-        Assert.DoesNotContain("CardBackgroundFillColor", content);
-    }
-
-    [Fact]
-    public void Design_tokens_have_unique_keys_and_complete_visual_scale()
-    {
-        var tokenPath = Path.Combine(
-            GetRepositoryRoot(),
-            "src",
-            "NovelSpeaker.App",
-            "Shared",
-            "Theming",
-            "Resources",
-            "DesignTokens.xaml");
-        var document = XDocument.Load(tokenPath);
-        var xamlNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
-        var keys = document
-            .Root!
-            .Elements()
-            .Select(element => (string?)element.Attribute(xamlNamespace + "Key"))
-            .Where(static key => key is not null)
-            .Select(static key => key!)
-            .ToArray();
-
-        Assert.Equal(keys.Length, keys.Distinct(StringComparer.Ordinal).Count());
-
-        WpfTestHost.RunInSta(() =>
-        {
-            var resources = global::System.Windows.Application.Current.Resources;
-            foreach (var (key, expected) in new[]
-                     {
-                         ("Spacing4", 4d), ("Spacing8", 8d), ("Spacing12", 12d),
-                         ("Spacing16", 16d), ("Spacing20", 20d), ("Spacing24", 24d),
-                         ("Spacing32", 32d), ("Spacing40", 40d), ("Spacing48", 48d),
-                         ("CompactIconButtonSize", 32d), ("IconButtonSize", 36d),
-                         ("InputControlHeight", 36d), ("TextControlHeight", 36d),
-                         ("ListRowMinHeight", 48d), ("SettingsRowMinHeight", 48d),
-                         ("ToggleSwitchWidth", 96d), ("ToolbarPillMinWidth", 64d),
-                         ("MediaControlButtonSize", 44d), ("PrimaryMediaControlButtonSize", 48d),
-                         ("ProgressTrackHeight", 4d), ("ProgressSliderHeight", 20d),
-                         ("ProgressThumbSize", 18d), ("IconSize16", 16d), ("IconSize18", 18d),
-                         ("IconSize20", 20d), ("IconSize24", 24d)
-                     })
-            {
-                Assert.Equal(expected, Assert.IsType<double>(resources[key]));
-            }
-
-            Assert.Equal(new CornerRadius(16), Assert.IsType<CornerRadius>(resources["PageCornerRadius"]));
-            Assert.Equal(new CornerRadius(14), Assert.IsType<CornerRadius>(resources["ContentCornerRadius"]));
-            Assert.Equal(new CornerRadius(10), Assert.IsType<CornerRadius>(resources["CardCornerRadius"]));
-            Assert.Equal(new CornerRadius(12), Assert.IsType<CornerRadius>(resources["DialogCornerRadius"]));
-            Assert.Equal(new CornerRadius(10), Assert.IsType<CornerRadius>(resources["ListRowCornerRadius"]));
-            Assert.Equal(new CornerRadius(8), Assert.IsType<CornerRadius>(resources["SmallControlCornerRadius"]));
-            Assert.Equal(new CornerRadius(999), Assert.IsType<CornerRadius>(resources["MediaControlCornerRadius"]));
-            Assert.Equal(new Thickness(1), Assert.IsType<Thickness>(resources["StandardBorderThickness"]));
-            Assert.Equal(new Thickness(1), Assert.IsType<Thickness>(resources["KeyboardFocusRingThickness"]));
-            foreach (var (key, expected) in new[]
-                     {
-                         ("SectionHeadingSpacing", new Thickness(0, 16, 0, 0)),
-                         ("FieldControlSpacing", new Thickness(0, 4, 0, 0)),
-                         ("FieldDescriptionSpacing", new Thickness(0, 4, 0, 0)),
-                         ("ToolbarActionMargin", new Thickness(0, 0, 4, 4)),
-                         ("ToolbarItemMargin", new Thickness(4, 0, 0, 0)),
-                         ("ToolbarItemTrailingMargin", new Thickness(0, 0, 4, 0)),
-                         ("RuleCardActionMargin", new Thickness(8, 0, 4, 0)),
-                         ("ListHeaderMargin", new Thickness(12, 12, 12, 8)),
-                         ("EmptyListMessageMargin", new Thickness(12, 0, 12, 12)),
-                         ("ListViewportMargin", new Thickness(8, 0, 8, 8)),
-                         ("ListItemHeaderMargin", new Thickness(8, 8, 8, 0)),
-                         ("ListItemContentMargin", new Thickness(8, 8, 8, 8)),
-                         ("ListItemSpacing", new Thickness(0, 0, 0, 4)),
-                         ("FormSectionSpacing", new Thickness(0, 16, 0, 0)),
-                         ("CompactActionPadding", new Thickness(8, 4, 8, 4)),
-                         ("ToolbarActionPadding", new Thickness(8, 4, 8, 4)),
-                         ("SecondaryActionPadding", new Thickness(12, 4, 12, 4)),
-                         ("SmallActionPadding", new Thickness(8, 4, 8, 4))
-                     })
-            {
-                Assert.Equal(expected, Assert.IsType<Thickness>(resources[key]));
-            }
-
-            var spacingScale = new HashSet<double> { 0d, 4d, 8d, 12d, 16d, 20d, 24d, 32d, 40d, 48d };
-            foreach (var key in new[]
-                     {
-                         "PagePadding", "PageSectionSpacing", "SectionSpacing", "ContentSpacing", "FieldSpacing",
-                         "ControlSpacing", "SectionHeadingSpacing", "FieldControlSpacing", "FieldDescriptionSpacing",
-                         "TinySpacing", "ButtonGapMargin", "InlineGapMargin", "ToolbarActionMargin", "ToolbarItemMargin",
-                         "ToolbarItemTrailingMargin", "RuleCardActionMargin", "ListHeaderMargin", "EmptyListMessageMargin", "ListViewportMargin",
-                         "ListItemHeaderMargin", "ListItemContentMargin", "ListItemSpacing", "CardPadding", "CardPaddingLarge",
-                         "CardContentPadding", "DialogPadding", "SettingsGroupPadding", "SettingsRowPadding",
-                         "SettingsRowControlMargin", "ListRowPadding", "ListRowSpacing", "ButtonPadding", "CompactButtonPadding",
-                         "CompactActionPadding", "ToolbarActionPadding", "SecondaryActionPadding", "SmallActionPadding",
-                         "FormSectionSpacing", "IconToTextMargin", "TrailingIconMargin"
-                     })
-            {
-                var thickness = Assert.IsType<Thickness>(resources[key]);
-                Assert.All(
-                    new[] { thickness.Left, thickness.Top, thickness.Right, thickness.Bottom },
-                    component => Assert.Contains(component, spacingScale));
-            }
-
-            Assert.Equal(
-                "Segoe UI Variable Text, Microsoft YaHei UI, Segoe UI, sans-serif",
-                Assert.IsType<FontFamily>(resources["AppFontFamily"]).Source);
-
-            Assert.Equal(TimeSpan.FromMilliseconds(100), Assert.IsType<Duration>(resources["AnimFast"]).TimeSpan);
-            Assert.Equal(TimeSpan.FromMilliseconds(160), Assert.IsType<Duration>(resources["AnimNormal"]).TimeSpan);
-            Assert.Equal(TimeSpan.FromMilliseconds(220), Assert.IsType<Duration>(resources["AnimSlow"]).TimeSpan);
-            Assert.Equal(TimeSpan.Zero, Assert.IsType<Duration>(resources["AnimReducedMotion"]).TimeSpan);
-            Assert.Equal(0d, Assert.IsType<double>(resources["ReducedMotionOffset"]));
-            Assert.Equal(1d, Assert.IsType<double>(resources["ReducedMotionScale"]));
-        });
-    }
-
-    [Fact]
-    public void Compact_density_tokens_keep_page_content_and_editing_surfaces_from_overexpanding()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var resources = global::System.Windows.Application.Current.Resources;
-
-            Assert.Equal(new Thickness(16), Assert.IsType<Thickness>(resources["PagePadding"]));
-            Assert.Equal(new Thickness(12), Assert.IsType<Thickness>(resources["CardPadding"]));
-            Assert.Equal(new Thickness(16), Assert.IsType<Thickness>(resources["CardContentPadding"]));
-            Assert.Equal(new Thickness(8, 2, 8, 2), Assert.IsType<Thickness>(resources["InputControlPadding"]));
-            Assert.Equal(new Thickness(8, 4, 8, 4), Assert.IsType<Thickness>(resources["SettingsRowPadding"]));
-            Assert.Equal(220d, Assert.IsType<double>(resources["SettingsRowControlWidth"]));
-            Assert.Equal(96d, Assert.IsType<double>(resources["ToggleSwitchWidth"]));
-            Assert.Equal(64d, Assert.IsType<double>(resources["ToolbarPillMinWidth"]));
-            Assert.Equal(128d, Assert.IsType<double>(resources["CompactSettingNumberWidth"]));
-            Assert.Equal(80d, Assert.IsType<double>(resources["CompactSettingUnitWidth"]));
-            Assert.Equal(new GridLength(300), Assert.IsType<GridLength>(resources["WorkbenchListPaneWidth"]));
-            Assert.Equal(new GridLength(12), Assert.IsType<GridLength>(resources["WorkbenchPaneGap"]));
-        });
-    }
-
-    [Fact]
-    public void Missing_animation_duration_resource_keeps_the_220ms_fallback()
-    {
-        var missingResource = (object?)null;
-        var configuredDuration = new Duration(TimeSpan.FromMilliseconds(160));
-
-        Assert.Equal(
-            TimeSpan.FromMilliseconds(220),
-            global::NovelSpeaker.App.Features.Playback.Components.PlayerView.ResolveAnimationDuration(missingResource));
-        Assert.Equal(
-            TimeSpan.FromMilliseconds(220),
-            global::NovelSpeaker.App.Features.BookDetails.BookDetailsPage.ResolveAnimationDuration(missingResource));
-        Assert.Equal(
-            configuredDuration.TimeSpan,
-            global::NovelSpeaker.App.Features.Playback.Components.PlayerView.ResolveAnimationDuration(configuredDuration));
-        Assert.Equal(
-            configuredDuration.TimeSpan,
-            global::NovelSpeaker.App.Features.BookDetails.BookDetailsPage.ResolveAnimationDuration(configuredDuration));
-    }
-
-    [Fact]
-    public void Elevation_tokens_stay_within_the_visual_system_ranges()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var resources = global::System.Windows.Application.Current.Resources;
-            var low = Assert.IsType<DropShadowEffect>(resources["ElevationLow"]);
-            var medium = Assert.IsType<DropShadowEffect>(resources["ElevationMedium"]);
-            var high = Assert.IsType<DropShadowEffect>(resources["ElevationHigh"]);
-
-            Assert.InRange(low.ShadowDepth, 1d, 2d);
-            Assert.InRange(low.BlurRadius, 8d, 12d);
-            Assert.InRange(medium.ShadowDepth, 3d, 4d);
-            Assert.InRange(medium.BlurRadius, 16d, 20d);
-            Assert.InRange(high.ShadowDepth, 5d, 6d);
-            Assert.InRange(high.BlurRadius, 22d, 28d);
-            Assert.All(new[] { low, medium, high }, effect => Assert.InRange(effect.Opacity, 0d, 0.25d));
-        });
-    }
-
-    [Fact]
-    public void Shared_views_reference_tokens_for_repeated_public_dimensions()
-    {
-        var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
-        var paths = new[]
-        {
-            Path.Combine("Shared", "Theming", "Resources", "SemanticStyles.xaml"),
-            Path.Combine("Shell", "MainWindow.xaml"),
-            Path.Combine("Desktop", "MiniPlayer", "MiniPlayerWindow.xaml"),
-            Path.Combine("Features", "Library", "BookCardView.xaml"),
-            Path.Combine("Features", "Library", "LibraryPage.xaml"),
-            Path.Combine("Features", "Playback", "Components", "PlayerView.xaml"),
-            Path.Combine("Features", "BookDetails", "BookDetailsPage.xaml"),
-            Path.Combine("Features", "Cache", "CacheManagementPage.xaml"),
-            Path.Combine("Features", "ChapterRules", "ChapterRulesPage.xaml"),
-            Path.Combine("Features", "RegexReplacementRules", "RegexReplacementRulesPage.xaml"),
-            Path.Combine("Features", "TtsRules", "TtsRulesPage.xaml")
-        };
-
-        var repeatedPublicLiterals = new[]
-        {
-            "Margin=\"0,18,0,0\"",
-            "Margin=\"0,6,0,0\"",
-            "Margin=\"0,10,0,0\"",
-            "Padding=\"10,6\"",
-            "Padding=\"12,6\"",
-            "Padding=\"14,8\"",
-            "Margin=\"0,22,0,0\"",
-            "Margin=\"16,16,16,12\"",
-            "Margin=\"16,0,16,16\"",
-            "Margin=\"12,0,12,12\"",
-            "Margin=\"14,12,14,0\"",
-            "Margin=\"14,12,14,12\"",
-            "Margin=\"0,0,0,10\"",
-            "Padding=\"10,4\""
-        };
-
-        foreach (var relativePath in paths)
-        {
-            var content = File.ReadAllText(Path.Combine(appRoot, relativePath));
-            Assert.DoesNotContain("CornerRadius=\"999\"", content);
-            Assert.DoesNotContain("Height=\"4\"", content);
-            Assert.DoesNotContain("Padding=\"16,8\"", content);
-            Assert.DoesNotContain("Padding=\"14,12\"", content);
-            Assert.DoesNotContain("BorderThickness=\"1\"", content);
-            foreach (var literal in repeatedPublicLiterals)
-            {
-                Assert.DoesNotContain(literal, content);
-            }
-        }
-
-        var libraryPage = File.ReadAllText(Path.Combine(appRoot, "Features", "Library", "LibraryPage.xaml"));
-        Assert.Contains("ItemHeight=\"{StaticResource TextControlHeight}\"", libraryPage);
-        Assert.DoesNotContain("ItemHeight=\"{StaticResource ListRowMinHeight}\"", libraryPage);
-
-        var styles = File.ReadAllText(Path.Combine(
-            appRoot,
-            "Shared",
-            "Theming",
-            "Resources",
-            "SemanticStyles.xaml"));
-        var listStyles = File.ReadAllText(Path.Combine(
-            appRoot,
-            "Shared",
-            "Theming",
-            "Resources",
-            "Components",
-            "ListsAndCards.xaml"));
-        var mediaStyles = File.ReadAllText(Path.Combine(
-            appRoot,
-            "Shared",
-            "Theming",
-            "Resources",
-            "Components",
-            "MediaControls.xaml"));
-        Assert.Contains("StandardBorderThickness", listStyles);
-        Assert.Contains("SelectedIndicatorThickness", listStyles);
-        Assert.Contains("ListRowSpacing", listStyles);
-        Assert.Contains("ProgressTrackHeight", mediaStyles);
-        Assert.Contains("WindowTitleTextBlockStyle", styles);
-        Assert.Contains("CardTitleTextBlockStyle", styles);
-        Assert.Contains("BodyTextBlockStyle", styles);
-        Assert.Contains("CaptionTextBlockStyle", styles);
+        Assert.Contains("TextFillColorPrimaryBrush", content);
+        Assert.Contains("TextFillColorSecondaryBrush", content);
+        Assert.Contains("CardBackgroundFillColorDefaultBrush", content);
+        Assert.Contains("CardStrokeColorDefaultBrush", content);
+        Assert.Contains("SystemFillColorCriticalBrush", content);
     }
 
     [Fact]
     public void Borderless_button_styles_keep_theme_backed_interaction_states()
     {
-        var buttons = File.ReadAllText(Path.Combine(
+        var content = File.ReadAllText(Path.Combine(
             GetRepositoryRoot(),
             "src",
             "NovelSpeaker.App",
             "Shared",
             "Theming",
             "Resources",
-            "Components",
-            "Buttons.xaml"));
-        var mediaControls = File.ReadAllText(Path.Combine(
-            GetRepositoryRoot(),
-            "src",
-            "NovelSpeaker.App",
-            "Shared",
-            "Theming",
-            "Resources",
-            "Components",
-            "MediaControls.xaml"));
+            "SemanticStyles.xaml"));
 
-        Assert.Contains("x:Key=\"PrimaryButtonStyle\"", buttons);
-        Assert.Contains("x:Key=\"SecondaryButtonStyle\"", buttons);
-        Assert.Contains("x:Key=\"SubtleButtonStyle\"", buttons);
-        Assert.Contains("x:Key=\"DangerButtonStyle\"", buttons);
-        Assert.Contains("x:Key=\"IconButtonStyle\"", buttons);
-        Assert.Contains("x:Key=\"BorderlessIconButtonStyle\"", buttons);
-        Assert.Contains("x:Key=\"BorderlessListItemButtonStyle\"", buttons);
-        Assert.Contains("Property=\"IsMouseOver\"", buttons);
-        Assert.Contains("Property=\"IsPressed\"", buttons);
-        Assert.Contains("Property=\"Selector.IsSelected\"", buttons);
-        Assert.Contains("Property=\"IsKeyboardFocused\"", buttons);
-        Assert.Contains("Property=\"IsEnabled\" Value=\"False\"", buttons);
-        Assert.Contains("AccentBrush", buttons);
-        Assert.Contains("x:Key=\"IconButtonControlTemplate\"", buttons);
-        Assert.Contains("TargetName=\"KeyboardFocusRing\"", buttons);
-        Assert.Contains("CornerRadius=\"{StaticResource IconButtonCornerRadius}\"", buttons);
-        Assert.Contains("x:Key=\"MediaIconButtonControlTemplate\"", mediaControls);
-        Assert.Contains("x:Key=\"PreviousChapterMediaButtonStyle\"", mediaControls);
-        Assert.Contains("x:Key=\"PreviousSegmentMediaButtonStyle\"", mediaControls);
-        Assert.Contains("x:Key=\"PlaybackMediaButtonStyle\"", mediaControls);
-        Assert.Contains("x:Key=\"NextSegmentMediaButtonStyle\"", mediaControls);
-        Assert.Contains("x:Key=\"NextChapterMediaButtonStyle\"", mediaControls);
-        Assert.Contains("TargetName=\"KeyboardFocusRing\"", mediaControls);
-        Assert.Contains("CornerRadius=\"{StaticResource MediaControlCornerRadius}\"", mediaControls);
-        Assert.DoesNotContain("x:Key=\"IconButtonControlTemplate\"", File.ReadAllText(Path.Combine(
-            GetRepositoryRoot(), "src", "NovelSpeaker.App", "Shared", "Theming", "Resources", "SemanticStyles.xaml")));
+        Assert.Contains("x:Key=\"BorderlessIconButtonStyle\"", content);
+        Assert.Contains("x:Key=\"BorderlessListItemButtonStyle\"", content);
+        Assert.Contains("Property=\"IsMouseOver\"", content);
+        Assert.Contains("Property=\"IsPressed\"", content);
+        Assert.Contains("Property=\"IsKeyboardFocused\"", content);
+        Assert.Contains("Property=\"IsEnabled\" Value=\"False\"", content);
+        Assert.Contains("AccentFillColorDefaultBrush", content);
+        Assert.Contains("x:Key=\"IconButtonControlTemplate\"", content);
+        Assert.Contains("x:Key=\"MediaIconButtonControlTemplate\"", content);
+        Assert.Contains("TargetName=\"KeyboardFocusRing\"", content);
+        Assert.Contains("CornerRadius=\"{StaticResource IconButtonCornerRadius}\"", content);
+        Assert.Contains("CornerRadius=\"{StaticResource MediaControlCornerRadius}\"", content);
         Assert.DoesNotContain(
             "<Setter Property=\"BorderThickness\" Value=\"1\" />",
-            GetStyleElement(buttons, "BorderlessIconButtonStyle").ToString());
-    }
-
-    [Fact]
-    public void Window_and_mini_player_resources_have_one_chrome_owner()
-    {
-        var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
-        var buttons = File.ReadAllText(Path.Combine(
-            appRoot, "Shared", "Theming", "Resources", "Components", "Buttons.xaml"));
-        var miniPlayer = File.ReadAllText(Path.Combine(
-            appRoot, "Shared", "Theming", "Resources", "Windows", "MiniPlayer.xaml"));
-        var mainWindow = File.ReadAllText(Path.Combine(appRoot, "Shell", "MainWindow.xaml"));
-
-        Assert.Contains("x:Key=\"WindowChromeTitleBarStyle\"", buttons);
-        Assert.Contains("x:Key=\"WindowChromeButtonStyle\"", buttons);
-        Assert.Contains("x:Key=\"WindowOperationButtonStyle\"", buttons);
-        Assert.Contains("x:Key=\"WindowCloseButtonStyle\"", buttons);
-        Assert.Contains("Tag\" Value=\"WindowClose\"", buttons);
-        Assert.Contains("DangerSubtleBrush", buttons);
-        Assert.Contains("x:Key=\"MiniPlayerSurfaceStyle\"", miniPlayer);
-        Assert.Contains("PageCornerRadius", miniPlayer);
-        Assert.Contains("ElevationHigh", miniPlayer);
-        Assert.Contains("WindowChromeTitleBarStyle", mainWindow);
+            GetStyleElement(content, "BorderlessIconButtonStyle").ToString());
     }
 
     [Fact]
@@ -607,38 +91,21 @@ public sealed class ThemeResourceTests
             "Theming",
             "Resources",
             "SemanticStyles.xaml"));
-        var listStyles = File.ReadAllText(Path.Combine(
-            appRoot,
-            "Shared",
-            "Theming",
-            "Resources",
-            "Components",
-            "ListsAndCards.xaml"));
-        var navigationStyles = File.ReadAllText(Path.Combine(
-            appRoot,
-            "Shared",
-            "Theming",
-            "Resources",
-            "Components",
-            "NavigationAndMenus.xaml"));
 
         Assert.Contains("x:Key=\"SettingsRowMinHeight\"", tokens);
         Assert.Contains("x:Key=\"SettingsRowPadding\"", tokens);
         Assert.Contains("x:Key=\"SettingsGroupPadding\"", tokens);
         Assert.Contains("x:Key=\"SettingsRowControlMargin\"", tokens);
         Assert.Contains("x:Key=\"SettingsRowControlWidth\"", tokens);
-        Assert.Contains("x:Key=\"ToggleSwitchWidth\"", tokens);
-        Assert.Contains("x:Key=\"ToolbarPillMinWidth\"", tokens);
-        Assert.Contains("x:Key=\"RuleCardActionGap\"", tokens);
 
-        var rowsGroupStyle = GetStyleElement(listStyles, "SettingsRowsGroupBorderStyle");
-        var settingsRowStyle = GetStyleElement(listStyles, "SettingsRowBorderStyle");
-        var lastRowStyle = GetStyleElement(listStyles, "SettingsLastRowBorderStyle");
+        var rowsGroupStyle = GetStyleElement(styles, "SettingsRowsGroupBorderStyle");
+        var settingsRowStyle = GetStyleElement(styles, "SettingsRowBorderStyle");
+        var lastRowStyle = GetStyleElement(styles, "SettingsLastRowBorderStyle");
         var rowTitleStyle = GetStyleElement(styles, "SettingsRowTitleTextBlockStyle");
         var rowValueStyle = GetStyleElement(styles, "SettingsRowValueTextBlockStyle");
-        var navigationRowStyle = GetStyleElement(navigationStyles, "SettingsNavigationRowButtonStyle");
+        var navigationRowStyle = GetStyleElement(styles, "SettingsNavigationRowButtonStyle");
 
-        Assert.Contains("x:Key=\"SettingsNavigationRowContentTemplate\"", navigationStyles);
+        Assert.Contains("x:Key=\"SettingsNavigationRowContentTemplate\"", styles);
         Assert.Contains("CardCornerRadius", rowsGroupStyle.ToString());
         Assert.Contains("SettingsRowMinHeight", settingsRowStyle.ToString());
         Assert.Contains("SettingsRowPadding", settingsRowStyle.ToString());
@@ -647,7 +114,7 @@ public sealed class ThemeResourceTests
         Assert.Equal(
             "{StaticResource SettingsRowBorderStyle}",
             (string?)lastRowStyle.Attribute("BasedOn"));
-        Assert.Contains("NoBorderThickness", lastRowStyle.ToString());
+        Assert.Contains("Property=\"BorderThickness\" Value=\"0\"", lastRowStyle.ToString());
         Assert.Equal(
             "{StaticResource BorderlessListItemButtonStyle}",
             (string?)navigationRowStyle.Attribute("BasedOn"));
@@ -666,8 +133,7 @@ public sealed class ThemeResourceTests
             "Shared",
             "Theming",
             "Resources",
-            "Components",
-            "ListsAndCards.xaml"));
+            "SemanticStyles.xaml"));
 
         var selectedCardStyle = GetStyleElement(styles, "SelectedCardContainerStyle");
         var selectableListItemStyle = GetStyleElement(styles, "SelectableListItemContainerStyle");
@@ -677,17 +143,17 @@ public sealed class ThemeResourceTests
             "{StaticResource CardBorderStyle}",
             (string?)selectedCardStyle.Attribute("BasedOn"));
         Assert.Contains("Binding=\"{Binding IsSelected}\"", selectedCardStyle.ToString());
-        Assert.Contains("SecondarySurfaceBrush", selectedCardStyle.ToString());
-        Assert.Contains("AccentBrush", selectedCardStyle.ToString());
-        Assert.Contains("SelectedIndicatorThickness", selectedCardStyle.ToString());
+        Assert.Contains("ControlFillColorSecondaryBrush", selectedCardStyle.ToString());
+        Assert.Contains("AccentFillColorDefaultBrush", selectedCardStyle.ToString());
+        Assert.Contains("Property=\"BorderThickness\" Value=\"0,0,0,2\"", selectedCardStyle.ToString());
         Assert.Equal(
             "{StaticResource SelectedCardContainerStyle}",
             (string?)selectableListItemStyle.Attribute("BasedOn"));
         Assert.Equal(
             "{StaticResource SelectableListItemContainerStyle}",
             (string?)selectableCardListItemStyle.Attribute("BasedOn"));
-        Assert.Contains("SubtleBorderBrush", selectableCardListItemStyle.ToString());
-        Assert.Contains("StandardBorderThickness", selectableCardListItemStyle.ToString());
+        Assert.Contains("CardStrokeColorDefaultBrush", selectableCardListItemStyle.ToString());
+        Assert.Contains("Property=\"BorderThickness\" Value=\"1\"", selectableCardListItemStyle.ToString());
     }
 
     [Fact]
@@ -705,7 +171,7 @@ public sealed class ThemeResourceTests
         var bookCardView = File.ReadAllText(Path.Combine(appRoot, "Features", "Library", "BookCardView.xaml"));
 
         Assert.Contains("ToolbarValueButtonStyle", playerView);
-        Assert.Contains("PlaybackMediaButtonStyle", playerView);
+        Assert.Contains("PrimaryPlaybackIconButtonStyle", playerView);
         Assert.Contains("MediaIconButtonStyle", playerView);
         Assert.Contains("FloatingIconButtonStyle", playerView);
         Assert.Contains("BorderlessIconButtonStyle", libraryPage);
@@ -842,55 +308,6 @@ public sealed class ThemeResourceTests
             document.Descendants(),
             element => element.Name.LocalName == "Style" &&
                        (string?)element.Attribute(xamlNamespace + "Key") == key);
-    }
-
-    private static HashSet<string> ReadResourceKeys(string path)
-    {
-        var document = XDocument.Load(path);
-        var xamlNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
-        return document
-            .Descendants()
-            .Select(element => (string?)element.Attribute(xamlNamespace + "Key"))
-            .Where(static key => key is not null)
-            .Select(static key => key!)
-            .ToHashSet(StringComparer.Ordinal);
-    }
-
-    private sealed class FailingPaletteLoader : IThemePaletteLoader
-    {
-        private readonly HashSet<ThemePaletteKind> _failedPalettes;
-        private readonly PackThemePaletteLoader _inner = new();
-
-        public FailingPaletteLoader(params ThemePaletteKind[] failedPalettes)
-        {
-            _failedPalettes = failedPalettes.ToHashSet();
-        }
-
-        public ResourceDictionary Load(ThemePaletteKind palette)
-        {
-            if (_failedPalettes.Contains(palette))
-            {
-                throw new InvalidOperationException("Test palette load failure.");
-            }
-
-            return _inner.Load(palette);
-        }
-    }
-
-    private sealed class InconsistentPaletteLoader : IThemePaletteLoader
-    {
-        private readonly PackThemePaletteLoader _inner = new();
-
-        public ResourceDictionary Load(ThemePaletteKind palette)
-        {
-            var dictionary = _inner.Load(palette);
-            if (palette == ThemePaletteKind.Dark)
-            {
-                dictionary["UnexpectedBrush"] = new SolidColorBrush(Colors.Magenta);
-            }
-
-            return dictionary;
-        }
     }
 
     private static string GetRepositoryRoot()

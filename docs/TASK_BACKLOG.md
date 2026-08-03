@@ -89,7 +89,7 @@ artifacts/visual-review/<task-id>/
 
 ---
 
-## [ ] 1（P0）：聚合回退不稳定视觉 Wave，并切换到实验分支
+## [x] 1（P0）：聚合回退不稳定视觉 Wave，并切换到实验分支
 
 目标：
 
@@ -154,7 +154,7 @@ git switch -c experiment/visual-system-v2
 回退结果（由执行任务的 Codex 自动填写）：
 
 ```text
-Revert commit: <pending>
+Revert commit: the single-parent commit containing this result (`revert(ui): roll back unstable visual system wave`), directly on top of `57d4dfe`
 Archive branch: archive/visual-wave1-before-revert-2026-08-03
 Working branch: experiment/visual-system-v2
 ```

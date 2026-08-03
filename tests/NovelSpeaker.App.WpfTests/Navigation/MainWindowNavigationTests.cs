@@ -243,49 +243,6 @@ public sealed class MainWindowNavigationTests
     }
 
     [Fact]
-    public void Main_window_title_bar_keeps_application_icon_and_window_operation_buttons()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            using var provider = WpfTestHost.BuildServiceProvider();
-            var window = provider.GetRequiredService<MainWindow>();
-
-            try
-            {
-                window.Show();
-                window.UpdateLayout();
-
-                var titleBar = Assert.IsType<TitleBar>(VisualTreeTestHelper.FindDescendant<TitleBar>(window));
-                var titleBarButtons = VisualTreeTestHelper
-                    .FindDescendants<TitleBarButton>(titleBar)
-                    .ToArray();
-
-                Assert.NotNull(titleBar.Icon);
-                Assert.True(titleBarButtons.Length >= 3);
-                var operationButtons = titleBarButtons
-                    .Where(button => button.ButtonType is
-                        TitleBarButtonType.Minimize or
-                        TitleBarButtonType.Maximize or
-                        TitleBarButtonType.Close)
-                    .ToArray();
-
-                Assert.Equal(3, operationButtons.Length);
-                Assert.All(operationButtons, button =>
-                {
-                    Assert.Equal(Visibility.Visible, button.Visibility);
-                    Assert.True(button.ActualWidth > 0);
-                    Assert.True(button.ActualHeight > 0);
-                });
-            }
-            finally
-            {
-                window.Close();
-                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            }
-        });
-    }
-
-    [Fact]
     public async Task Real_guarded_navigation_to_player_page_keeps_navigation_content_presenter_configuration()
     {
         await WpfTestHost.RunInStaAsync(async () =>

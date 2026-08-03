@@ -17,7 +17,7 @@
         </Button>
 
         <ScrollViewer Grid.Row="1"
-                      Margin="{StaticResource PageSectionSpacing}"
+                      Margin="0,20,0,0"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
@@ -66,7 +66,6 @@
                                                Text="导入时将超过阈值的段落拆分为较短段落。" />
                                 </StackPanel>
                                 <ui:ToggleSwitch Grid.Column="1"
-                                                 Style="{StaticResource InputToggleSwitchStyle}"
                                                  Margin="{StaticResource SettingsRowControlMargin}"
                                                  VerticalAlignment="Center"
                                                  OffContent="关闭"

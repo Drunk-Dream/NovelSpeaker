@@ -47,11 +47,11 @@
         </Grid>
 
         <Grid Grid.Row="1"
-              Margin="{StaticResource PageSectionSpacing}"
+              Margin="0,20,0,0"
               MinHeight="0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="{StaticResource WorkbenchListPaneWidth}" />
-                <ColumnDefinition Width="{StaticResource WorkbenchPaneGap}" />
+                <ColumnDefinition Width="320" />
+                <ColumnDefinition Width="16" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -59,15 +59,15 @@
                     Style="{StaticResource CardBorderStyle}">
                 <DockPanel LastChildFill="True">
                     <StackPanel DockPanel.Dock="Top"
-                                Margin="{StaticResource ListHeaderMargin}">
+                                Margin="16,16,16,12">
                         <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
                                    Text="规则列表" />
-                        <TextBlock Margin="{StaticResource FieldControlSpacing}"
+                        <TextBlock Margin="0,6,0,0"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="{Binding Rules.Count, StringFormat=共 {0} 条规则}" />
                     </StackPanel>
 
-                    <TextBlock Margin="{StaticResource EmptyListMessageMargin}"
+                    <TextBlock Margin="16,0,16,16"
                                Text="还没有替换规则，请先新建一条。">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock"
@@ -82,7 +82,7 @@
                         </TextBlock.Style>
                     </TextBlock>
 
-                    <ListBox Margin="{StaticResource ListViewportMargin}"
+                    <ListBox Margin="12,0,12,12"
                              Background="Transparent"
                              BorderThickness="0"
                              ItemsSource="{Binding Rules}"
@@ -97,7 +97,18 @@
                             </ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
                         <ListBox.ItemContainerStyle>
-                            <StaticResource ResourceKey="RuleWorkbenchListItemContainerStyle" />
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="Margin" Value="0" />
+                                <Setter Property="Focusable" Value="False" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <ContentPresenter />
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                                 <DataTemplate>
@@ -127,7 +138,7 @@
                                                     Panel.ZIndex="0" />
 
                                             <StackPanel Grid.Row="0"
-                                                        Margin="{StaticResource ListItemHeaderMargin}"
+                                                        Margin="14,12,14,0"
                                                         IsHitTestVisible="False"
                                                         Panel.ZIndex="1">
                                                     <TextBlock Style="{StaticResource StrongTextBlockStyle}"
@@ -140,13 +151,13 @@
                                             </StackPanel>
 
                                             <Grid Grid.Row="1"
-                                                  Margin="{StaticResource ListItemContentMargin}"
+                                                  Margin="14,12,14,12"
                                                   Panel.ZIndex="1">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="{StaticResource RuleCardActionGap}" />
+                                                    <ColumnDefinition Width="8" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
 
@@ -179,7 +190,7 @@
                                                         AutomationProperties.Name="{Binding Name, StringFormat=更多操作：{0}}">
                                                     <ui:SymbolIcon Symbol="MoreHorizontal24" />
                                                     <Button.ContextMenu>
-                                                        <ContextMenu Style="{StaticResource AppContextMenuStyle}">
+                                                        <ContextMenu>
                                                             <MenuItem Header="上移"
                                                                       IsEnabled="{Binding CanMoveUp}"
                                                                       Click="MoveRuleUpMenuItem_OnClick" />
@@ -196,7 +207,7 @@
                                             </Grid>
 
                                             <TextBlock Grid.Row="2"
-                                                       Margin="{StaticResource ListItemContentMargin}"
+                                                       Margin="14,0,14,12"
                                                        Panel.ZIndex="1"
                                                        AutomationProperties.LiveSetting="Assertive"
                                                        AutomationProperties.Name="规则错误"
@@ -224,14 +235,14 @@
             <Border Grid.Column="2"
                     Style="{StaticResource CardBorderStyle}">
                 <Grid MinHeight="0">
-                    <Border Margin="{StaticResource CardContentPadding}"
+                    <Border Margin="20"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
                             MaxWidth="420">
                         <Border.Style>
                             <Style TargetType="Border"
                                    BasedOn="{StaticResource CardBorderStyle}">
-                                <Setter Property="Padding" Value="{StaticResource CardPadding}" />
+                                <Setter Property="Padding" Value="20" />
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasEditor}" Value="False">
@@ -244,7 +255,7 @@
                             <TextBlock HorizontalAlignment="Center"
                                        Style="{StaticResource SectionTitleTextBlockStyle}"
                                        Text="选择一条规则" />
-                            <TextBlock Margin="{StaticResource FieldDescriptionSpacing}"
+                            <TextBlock Margin="0,10,0,0"
                                        HorizontalAlignment="Center"
                                        Style="{StaticResource SecondaryTextBlockStyle}"
                                        Text="左侧选择已有规则，或使用顶部按钮新建规则。"
@@ -253,7 +264,7 @@
                         </StackPanel>
                     </Border>
 
-                <ScrollViewer Margin="{StaticResource CardContentPadding}"
+                <ScrollViewer Margin="24"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <ScrollViewer.Style>
@@ -284,26 +295,26 @@
                             </Button>
                         </Grid>
 
-                        <TextBlock Margin="{StaticResource PageSectionSpacing}"
+                        <TextBlock Margin="0,20,0,0"
                                    Style="{StaticResource FormLabelTextBlockStyle}"
                                    Text="名称" />
                         <TextBox Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Margin="{StaticResource ContentSpacing}"
+                        <TextBlock Margin="0,16,0,0"
                                    Style="{StaticResource FormLabelTextBlockStyle}"
                                    Text="正则表达式" />
                         <TextBox AcceptsReturn="True"
                                  MinHeight="72"
                                  Text="{Binding DraftPattern, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Margin="{StaticResource ContentSpacing}"
+                        <TextBlock Margin="0,16,0,0"
                                    Style="{StaticResource FormLabelTextBlockStyle}"
                                    Text="替换文本" />
                         <TextBox AcceptsReturn="True"
                                  MinHeight="72"
                                  Text="{Binding DraftReplacement, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Margin="{StaticResource ContentSpacing}"
+                        <TextBlock Margin="0,16,0,0"
                                    Style="{StaticResource FormLabelTextBlockStyle}"
                                    Text="作用范围" />
                         <ComboBox ItemsSource="{Binding Scopes}"
@@ -313,7 +324,7 @@
                                    Style="{StaticResource ErrorTextBlockStyle}"
                                    Text="{Binding ValidationMessage}" />
 
-                        <Grid Margin="{StaticResource FormSectionSpacing}">
+                        <Grid Margin="0,24,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
@@ -321,12 +332,12 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <Button Grid.Column="1"
-                                    Padding="{StaticResource ButtonPadding}"
+                                    Padding="16,8"
                                     Command="{Binding CancelCommand}"
                                     IsEnabled="{Binding CanCancel}"
                                     Content="取消" />
                             <Button Grid.Column="3"
-                                    Padding="{StaticResource ButtonPadding}"
+                                    Padding="16,8"
                                     Command="{Binding SaveCommand}"
                                     IsEnabled="{Binding CanSave}"
                                     Content="保存" />
@@ -347,12 +358,12 @@
                 <Button Grid.Column="0"
                         AutomationProperties.Name="关闭正则替换帮助"
                         ToolTip="关闭正则替换帮助"
-                        Background="{DynamicResource RaisedSurfaceBrush}"
+                        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
                         BorderThickness="0"
                         Command="{Binding CloseHelpCommand}" />
 
                 <Border Grid.Column="1"
-                        Padding="{StaticResource CardContentPadding}"
+                        Padding="20"
                         Style="{StaticResource PopupSurfaceBorderStyle}">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -376,7 +387,7 @@
                         </Grid>
 
                         <ScrollViewer Grid.Row="1"
-                                      Margin="{StaticResource ContentSpacing}"
+                                      Margin="0,16,0,0"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
                             <StackPanel>
@@ -387,7 +398,7 @@
                                            Text="“仅显示”只改变页面正文，“仅朗读”只改变送往 TTS 的文本，“显示与朗读”同时作用于两者。规则不会修改导入后的原始正文。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="执行顺序" />
                                 <TextBlock Margin="0,8,0,0"
@@ -395,7 +406,7 @@
                                            Text="只执行已启用的规则，并按左侧顺序从前到后替换。可拖动排序，也可在更多菜单中使用上移或下移。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="空输出" />
                                 <TextBlock Margin="0,8,0,0"
@@ -403,7 +414,7 @@
                                            Text="替换文本可以留空。显示结果为空时该段不显示；朗读结果为空时会安全跳过 TTS。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="正则小抄" />
                                 <TextBlock Margin="0,8,0,0"

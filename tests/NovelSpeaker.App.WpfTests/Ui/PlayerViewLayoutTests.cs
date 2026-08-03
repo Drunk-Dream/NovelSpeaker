@@ -204,8 +204,8 @@ public sealed partial class PlayerViewTests
             static border =>
                 Grid.GetColumn(border) == 1 &&
                 border.Child is Grid &&
-                border.Padding.Left == 8 &&
-                border.Padding.Top == 4));
+                border.Padding.Left == 12 &&
+                border.Padding.Top == 8));
     }
 
     [Fact]
@@ -618,11 +618,11 @@ public sealed partial class PlayerViewTests
             Assert.InRange(Math.Abs(ruleButton.ActualHeight - speedButton.ActualHeight), 0d, 1d);
             Assert.InRange(Math.Abs(stopTimerButton.ActualHeight - speedButton.ActualHeight), 0d, 1d);
             Assert.Equal("定时停止", stopTimerButton.ToolTip);
-            Assert.Equal(64d, speedPill.ActualWidth);
-            Assert.Equal(36d, speedPill.ActualHeight);
+            Assert.Equal(80d, speedPill.ActualWidth);
+            Assert.Equal(40d, speedPill.ActualHeight);
             Assert.Equal(new CornerRadius(12), speedPill.CornerRadius);
-            Assert.Equal(64d, stopTimerPill.ActualWidth);
-            Assert.Equal(36d, stopTimerPill.ActualHeight);
+            Assert.Equal(80d, stopTimerPill.ActualWidth);
+            Assert.Equal(40d, stopTimerPill.ActualHeight);
             Assert.Equal(new CornerRadius(12), stopTimerPill.CornerRadius);
         });
     }
@@ -681,8 +681,8 @@ public sealed partial class PlayerViewTests
 
             var fillBar = Assert.IsType<ProgressBar>(view.FindName("SegmentProgressFillBar"));
             var slider = Assert.IsType<Slider>(view.FindName("SegmentProgressSlider"));
-            var accentBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.TryFindResource("AccentBrush"));
-            var trackBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.TryFindResource("SecondarySurfaceBrush"));
+            var accentBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.TryFindResource("AccentFillColorDefaultBrush"));
+            var trackBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.TryFindResource("LayerFillColorAltBrush"));
             var fillBarForeground = Assert.IsType<SolidColorBrush>(fillBar.Foreground);
             var fillBarBackground = Assert.IsType<SolidColorBrush>(fillBar.Background);
 

@@ -42,7 +42,7 @@
         </Grid>
 
         <Grid Grid.Row="1"
-              Margin="{StaticResource PageSectionSpacing}"
+              Margin="0,20,0,0"
               MinHeight="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="320" />
@@ -54,15 +54,15 @@
                     Style="{StaticResource CardBorderStyle}">
                 <DockPanel LastChildFill="True">
                     <StackPanel DockPanel.Dock="Top"
-                                Margin="{StaticResource ListHeaderMargin}">
+                                Margin="16,16,16,12">
                         <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
                                    Text="书籍" />
-                        <TextBlock Margin="{StaticResource FieldControlSpacing}"
+                        <TextBlock Margin="0,6,0,0"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="{Binding Books.Count, StringFormat=共 {0} 本}" />
                     </StackPanel>
 
-                    <TextBlock Margin="{StaticResource EmptyListMessageMargin}"
+                    <TextBlock Margin="16,0,16,16"
                                Text="当前没有可管理的缓存。">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock"
@@ -78,7 +78,7 @@
                     </TextBlock>
 
                     <ScrollViewer x:Name="BooksScrollViewer"
-                                  Margin="{StaticResource ListViewportMargin}"
+                                  Margin="12,0,12,12"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl ItemsSource="{Binding Books}">
@@ -88,7 +88,7 @@
                                             Style="{StaticResource SelectableCardListItemContainerStyle}"
                                             AutomationProperties.Name="{Binding AutomationName}">
                                         <Button Style="{StaticResource BorderlessListItemButtonStyle}"
-                                                Padding="{StaticResource ListRowPadding}"
+                                                Padding="14,12"
                                                 AutomationProperties.Name="{Binding AutomationName}"
                                                 Command="{Binding DataContext.SelectBookCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                 CommandParameter="{Binding}">
@@ -100,7 +100,7 @@
                                                            Style="{StaticResource SecondaryTextBlockStyle}"
                                                            Text="{Binding Author}"
                                                            TextTrimming="CharacterEllipsis" />
-                                                <DockPanel Margin="{StaticResource FieldDescriptionSpacing}">
+                                                <DockPanel Margin="0,10,0,0">
                                                     <TextBlock DockPanel.Dock="Left"
                                                                Style="{StaticResource SecondaryTextBlockStyle}"
                                                                Text="{Binding ChapterCountText}" />
@@ -120,7 +120,7 @@
 
             <Border Grid.Column="2"
                     Style="{StaticResource CardBorderStyle}">
-                <Grid Margin="{StaticResource CardContentPadding}"
+                <Grid Margin="20"
                       MinHeight="0">
                     <StackPanel VerticalAlignment="Center"
                                 HorizontalAlignment="Center"
@@ -138,7 +138,7 @@
                         <TextBlock HorizontalAlignment="Center"
                                    Style="{StaticResource SectionTitleTextBlockStyle}"
                                    Text="请选择左侧书籍" />
-                        <TextBlock Margin="{StaticResource FieldDescriptionSpacing}"
+                        <TextBlock Margin="0,10,0,0"
                                    HorizontalAlignment="Center"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="选中后可查看当前配置下的章节缓存完整度，并选择一个或多个章节清理或导出。"
@@ -172,13 +172,13 @@
                             <StackPanel>
                                 <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
                                            Text="{Binding SelectedBookTitle}" />
-                                <TextBlock Margin="{StaticResource FieldControlSpacing}"
+                                <TextBlock Margin="0,6,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
                                            Text="{Binding SelectedBookAuthor}" />
-                                <TextBlock Margin="{StaticResource FieldControlSpacing}"
+                                <TextBlock Margin="0,6,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
                                            Text="{Binding SelectedBookChapterCountText}" />
-                                <TextBlock Margin="{StaticResource FieldControlSpacing}"
+                                <TextBlock Margin="0,6,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="{Binding SelectedBookCacheSizeText}" />
                             </StackPanel>
@@ -192,14 +192,14 @@
                                            Text="{Binding ChapterSelectionSummary}" />
                                 <StackPanel Orientation="Horizontal">
                                     <Button x:Name="ClearSelectedChaptersButton"
-                                            Padding="{StaticResource ButtonPadding}"
+                                            Padding="16,8"
                                             Command="{Binding ClearSelectedChaptersCommand}"
                                             Content="清理"
                                             ToolTip="清理所选章节缓存"
                                             AutomationProperties.Name="清理所选章节缓存" />
                                     <Button x:Name="ExportSelectedChaptersButton"
                                             Margin="8,0,0,0"
-                                            Padding="{StaticResource ButtonPadding}"
+                                            Padding="16,8"
                                             Command="{Binding ExportSelectedChaptersCommand}"
                                             Content="导出"
                                             ToolTip="{Binding ExportCommandToolTip}"
@@ -218,7 +218,7 @@
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
-                                    <ProgressBar Height="{StaticResource ProgressTrackHeight}"
+                                    <ProgressBar Height="4"
                                                  IsIndeterminate="True"
                                                  AutomationProperties.Name="章节导出进度" />
                                     <DockPanel Margin="0,8,0,0"
@@ -226,7 +226,7 @@
                                         <Button x:Name="CancelExportButton"
                                                 DockPanel.Dock="Right"
                                                 Margin="12,0,0,0"
-                                                Padding="{StaticResource SmallActionPadding}"
+                                                Padding="10,4"
                                                 Command="{Binding CancelExportCommand}"
                                                 Content="取消"
                                                 ToolTip="取消导出"
@@ -241,7 +241,7 @@
                                 <Button x:Name="OpenExportDirectoryButton"
                                         Margin="0,12,0,0"
                                         HorizontalAlignment="Right"
-                                        Padding="{StaticResource SmallActionPadding}"
+                                        Padding="10,4"
                                         Command="{Binding OpenExportDirectoryCommand}"
                                         Content="打开目录"
                                         ToolTip="打开目录"
@@ -267,7 +267,7 @@
                             <TextBlock HorizontalAlignment="Center"
                                        Style="{StaticResource SectionTitleTextBlockStyle}"
                                        Text="该书暂无缓存" />
-                            <TextBlock Margin="{StaticResource FieldDescriptionSpacing}"
+                            <TextBlock Margin="0,10,0,0"
                                        HorizontalAlignment="Center"
                                        Style="{StaticResource SecondaryTextBlockStyle}"
                                        Text="左侧列表已移除这本书；如果继续播放，它会在重新产生缓存后再次出现。"
@@ -277,7 +277,7 @@
 
                         <ListBox x:Name="ChaptersListBox"
                                  Grid.Row="1"
-                                 Margin="{StaticResource PageSectionSpacing}"
+                                 Margin="0,20,0,0"
                                  Padding="0"
                                  Background="Transparent"
                                  BorderThickness="0"
@@ -296,9 +296,22 @@
                                 </ItemsPanelTemplate>
                             </ListBox.ItemsPanel>
                             <ListBox.ItemContainerStyle>
-                                <Style TargetType="ListBoxItem"
-                                       BasedOn="{StaticResource ExtendedSelectionListItemContainerStyle}">
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="Margin" Value="0" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="IsTabStop" Value="False" />
                                     <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=OneWay}" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="BorderThickness" Value="0" />
+                                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <ContentPresenter />
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
                                 </Style>
                             </ListBox.ItemContainerStyle>
                             <ListBox.Style>
@@ -313,30 +326,40 @@
                             </ListBox.Style>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Button Margin="{StaticResource ListItemSpacing}"
+                                    <Button Margin="0,0,0,12"
                                             Padding="0"
                                             HorizontalContentAlignment="Stretch"
                                             Style="{StaticResource BorderlessListItemButtonStyle}"
                                             Click="ChapterCard_OnClick"
                                             ToolTip="{Binding ExportToolTip}"
                                             AutomationProperties.Name="{Binding AutomationName}">
-                                        <Border Padding="{StaticResource CardPadding}"
-                                                Style="{StaticResource SelectableCardListItemContainerStyle}">
+                                        <Border Padding="16">
+                                            <Border.Style>
+                                                <Style TargetType="Border"
+                                                       BasedOn="{StaticResource CardBorderStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource AccentFillColorSecondaryBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
                                             <StackPanel>
                                                 <DockPanel LastChildFill="True">
                                                     <TextBlock DockPanel.Dock="Left"
-                                                               Margin="{StaticResource ButtonGapMargin}"
+                                                               Margin="0,0,12,0"
                                                                Style="{StaticResource StrongTextBlockStyle}"
                                                                Text="{Binding OrderText}" />
                                                     <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
                                                                Text="{Binding Title}"
                                                                TextTrimming="CharacterEllipsis" />
                                                 </DockPanel>
-                                                <WrapPanel Margin="{StaticResource FieldDescriptionSpacing}">
-                                                    <TextBlock Margin="{StaticResource ButtonGapMargin}"
+                                                <WrapPanel Margin="0,10,0,0">
+                                                    <TextBlock Margin="0,0,12,0"
                                                                Style="{StaticResource SecondaryTextBlockStyle}"
                                                                Text="{Binding CacheSizeText}" />
-                                                    <TextBlock Margin="{StaticResource ButtonGapMargin}"
+                                                    <TextBlock Margin="0,0,12,0"
                                                                Style="{StaticResource SecondaryTextBlockStyle}"
                                                                Text="{Binding EntryCountText}" />
                                                     <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"

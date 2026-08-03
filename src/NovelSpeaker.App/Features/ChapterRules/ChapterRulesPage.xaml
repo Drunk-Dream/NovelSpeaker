@@ -46,24 +46,23 @@
             </Grid>
 
             <WrapPanel Grid.Column="1"
-                       Style="{StaticResource ToolbarPanelStyle}"
                        HorizontalAlignment="Right"
                        VerticalAlignment="Center">
-                <Button Margin="{StaticResource ButtonGapMargin}"
+                <Button Margin="0,0,12,0"
                         Style="{StaticResource SecondaryIconButtonStyle}"
                         Command="{Binding NewRuleCommand}"
                         ToolTip="新建规则"
                         AutomationProperties.Name="新建规则">
                     <ui:SymbolIcon Symbol="DocumentAdd24" />
                 </Button>
-                <Button Margin="{StaticResource ButtonGapMargin}"
+                <Button Margin="0,0,12,0"
                         Style="{StaticResource SecondaryIconButtonStyle}"
                         Command="{Binding ImportDefaultsCommand}"
                         ToolTip="导入默认规则"
                         AutomationProperties.Name="导入默认规则">
                     <ui:SymbolIcon Symbol="ArrowDownload24" />
                 </Button>
-                <Button Margin="{StaticResource ButtonGapMargin}"
+                <Button Margin="0,0,12,0"
                         Style="{StaticResource SecondaryIconButtonStyle}"
                         Command="{Binding RestoreDefaultsCommand}"
                         ToolTip="恢复默认规则"
@@ -74,11 +73,11 @@
         </Grid>
 
         <Grid Grid.Row="1"
-              Margin="{StaticResource PageSectionSpacing}"
+              Margin="0,20,0,0"
               MinHeight="0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="{StaticResource WorkbenchListPaneWidth}" />
-                <ColumnDefinition Width="{StaticResource WorkbenchPaneGap}" />
+                <ColumnDefinition Width="320" />
+                <ColumnDefinition Width="16" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -86,15 +85,15 @@
                     Style="{StaticResource CardBorderStyle}">
                 <DockPanel LastChildFill="True">
                     <StackPanel DockPanel.Dock="Top"
-                                Margin="{StaticResource ListHeaderMargin}">
+                                Margin="16,16,16,12">
                         <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
                                    Text="规则列表" />
-                        <TextBlock Margin="{StaticResource FieldControlSpacing}"
+                        <TextBlock Margin="0,6,0,0"
                                    Style="{StaticResource SecondaryTextBlockStyle}"
                                    Text="{Binding Rules.Count, StringFormat=共 {0} 条规则}" />
                     </StackPanel>
 
-                    <TextBlock Margin="{StaticResource EmptyListMessageMargin}"
+                    <TextBlock Margin="16,0,16,16"
                                Text="还没有章节规则，先新建一条或导入默认规则。">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock"
@@ -110,7 +109,7 @@
                     </TextBlock>
 
                     <ScrollViewer x:Name="RulesListScrollViewer"
-                                  Margin="{StaticResource ListViewportMargin}"
+                                  Margin="12,0,12,12"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl ItemsSource="{Binding Rules}">
@@ -141,7 +140,7 @@
                                                     Panel.ZIndex="0" />
 
                                             <StackPanel Grid.Row="0"
-                                                        Margin="{StaticResource ListItemHeaderMargin}"
+                                                        Margin="14,12,14,0"
                                                         IsHitTestVisible="False"
                                                         Panel.ZIndex="1">
                                                     <TextBlock Style="{StaticResource StrongTextBlockStyle}"
@@ -154,13 +153,13 @@
                                             </StackPanel>
 
                                             <Grid Grid.Row="1"
-                                                  Margin="{StaticResource ListItemContentMargin}"
+                                                  Margin="14,12,14,12"
                                                   Panel.ZIndex="1">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="{StaticResource RuleCardActionGap}" />
+                                                    <ColumnDefinition Width="8" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
 
@@ -192,7 +191,7 @@
                                                         AutomationProperties.Name="{Binding Name, StringFormat=更多操作：{0}}">
                                                     <ui:SymbolIcon Symbol="MoreHorizontal24" />
                                                     <Button.ContextMenu>
-                                                        <ContextMenu Style="{StaticResource AppContextMenuStyle}">
+                                                        <ContextMenu>
                                                             <MenuItem Header="上移"
                                                                       IsEnabled="{Binding CanMoveUp}"
                                                                       Click="MoveRuleUpMenuItem_OnClick" />
@@ -219,14 +218,14 @@
             <Border Grid.Column="2"
                     Style="{StaticResource CardBorderStyle}">
                 <Grid MinHeight="0">
-                    <Border Margin="{StaticResource CardContentPadding}"
+                    <Border Margin="20"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
                             MaxWidth="420">
                         <Border.Style>
                             <Style TargetType="Border"
                                    BasedOn="{StaticResource CardBorderStyle}">
-                                <Setter Property="Padding" Value="{StaticResource CardPadding}" />
+                                <Setter Property="Padding" Value="20" />
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasEditor}" Value="False">
@@ -239,7 +238,7 @@
                             <TextBlock HorizontalAlignment="Center"
                                        Style="{StaticResource SectionTitleTextBlockStyle}"
                                        Text="选择一条规则" />
-                            <TextBlock Margin="{StaticResource FieldDescriptionSpacing}"
+                            <TextBlock Margin="0,10,0,0"
                                        HorizontalAlignment="Center"
                                        Style="{StaticResource SecondaryTextBlockStyle}"
                                        Text="左侧选择已有规则，或使用顶部按钮新建规则、导入默认规则。"
@@ -249,7 +248,7 @@
                     </Border>
 
                     <ScrollViewer x:Name="RuleEditorScrollViewer"
-                                  Margin="{StaticResource CardContentPadding}"
+                                  Margin="20"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                         <ScrollViewer.Style>
@@ -281,13 +280,13 @@
                                 </Button>
                             </Grid>
 
-                            <StackPanel Margin="{StaticResource PageSectionSpacing}">
+                            <StackPanel Margin="0,20,0,0">
                                 <TextBlock Style="{StaticResource StrongTextBlockStyle}"
                                            Text="名称" />
-                                <TextBox Margin="{StaticResource FieldControlSpacing}"
+                                <TextBox Margin="0,6,0,0"
                                          Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Margin="{StaticResource FieldControlSpacing}"
-                                           Foreground="{DynamicResource DangerBrush}"
+                                <TextBlock Margin="0,6,0,0"
+                                           Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                                            Text="{Binding NameValidationMessage}"
                                            TextWrapping="Wrap">
                                     <TextBlock.Style>
@@ -304,16 +303,16 @@
                                 </TextBlock>
                             </StackPanel>
 
-                            <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                            <TextBlock Margin="0,18,0,0"
                                        Style="{StaticResource StrongTextBlockStyle}"
                                        Text="正则表达式" />
-                            <TextBox Margin="{StaticResource FieldControlSpacing}"
+                            <TextBox Margin="0,6,0,0"
                                      AcceptsReturn="True"
                                      MinHeight="88"
                                      TextWrapping="Wrap"
                                      Text="{Binding DraftPattern, UpdateSourceTrigger=PropertyChanged}" />
-                            <TextBlock Margin="{StaticResource FieldControlSpacing}"
-                                       Foreground="{DynamicResource DangerBrush}"
+                            <TextBlock Margin="0,6,0,0"
+                                       Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                                        Text="{Binding PatternValidationMessage}"
                                        TextWrapping="Wrap">
                                 <TextBlock.Style>
@@ -329,7 +328,7 @@
                                 </TextBlock.Style>
                             </TextBlock>
 
-                            <Grid Margin="{StaticResource FormSectionSpacing}">
+                            <Grid Margin="0,24,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
@@ -338,12 +337,12 @@
                                 </Grid.ColumnDefinitions>
 
                                 <Button Grid.Column="1"
-                                        Padding="{StaticResource ButtonPadding}"
+                                        Padding="16,8"
                                         Command="{Binding CancelEditingCommand}"
                                         IsEnabled="{Binding CanCancelEditing}"
                                         Content="取消" />
                                 <Button Grid.Column="3"
-                                        Padding="{StaticResource ButtonPadding}"
+                                        Padding="16,8"
                                         Command="{Binding SaveDraftCommand}"
                                         IsEnabled="{Binding CanSaveDraft}"
                                         Content="保存" />
@@ -365,13 +364,13 @@
                         Grid.Column="0"
                         AutomationProperties.Name="关闭章节规则帮助"
                         ToolTip="关闭章节规则帮助"
-                        Background="{DynamicResource RaisedSurfaceBrush}"
+                        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
                         BorderThickness="0"
                         Command="{Binding CloseHelpCommand}" />
 
                 <Border x:Name="HelpDrawerBorder"
                         Grid.Column="1"
-                        Padding="{StaticResource CardContentPadding}"
+                        Padding="20"
                         Style="{StaticResource PopupSurfaceBorderStyle}">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -396,7 +395,7 @@
                         </Grid>
 
                         <ScrollViewer Grid.Row="1"
-                                      Margin="{StaticResource ContentSpacing}"
+                                      Margin="0,16,0,0"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
                             <StackPanel>
@@ -406,7 +405,7 @@
                                            Text="导入 TXT 时，应用会逐行检查标题。只使用已启用的规则，并按列表排序从前到后尝试；一行被第一个规则命中后，就会成为章节标题，该标题行不会进入章节正文。若完全没有识别到章节，会将整本书作为“全文”单章导入。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="从一个规则开始" />
                                 <TextBlock Margin="0,8,0,0"
@@ -419,7 +418,7 @@
                                            Text="^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="正则小抄" />
                                 <TextBlock Margin="0,8,0,0"
@@ -427,7 +426,7 @@
                                            Text="^ 和 $ 分别限定行首、行尾，建议同时使用以免正文中的短语被误判；\s* 匹配可有可无的空白；(?:甲|乙) 表示匹配其中之一；(?:\s+.+)? 表示可选的标题副标题。保存时会按 CultureInvariant 规则校验正则是否有效。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="内置规则覆盖什么" />
                                 <TextBlock Margin="0,8,0,0"
@@ -435,7 +434,7 @@
                                            Text="默认规则分别识别“第一章 初见”这类章节数字标题、“第十卷 风起”这类卷标，以及“序章”“楔子”“前言”“尾声”“后记”“番外 特别篇”等独立标题。它们可以编辑、启用和排序，但不能删除。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="排序与误识别" />
                                 <TextBlock Margin="0,8,0,0"
@@ -443,7 +442,7 @@
                                            Text="越具体的规则应排在越前面，宽泛规则放在后面。若正文被误识别为标题，先加入 ^ 和 $，再收紧“第…章”等必要文字；若有标题漏掉，新建对应规则并上移到可能抢先命中的宽泛规则之前。"
                                            TextWrapping="Wrap" />
 
-                                <TextBlock Margin="{StaticResource SectionHeadingSpacing}"
+                                <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource StrongTextBlockStyle}"
                                            Text="与正文正则替换的区别" />
                                 <TextBlock Margin="0,8,0,0"

@@ -181,17 +181,13 @@ internal sealed class VirtualizedListItemCenteringController
         var animate = _pendingAnimate;
         CompletePendingRequest();
 
-        var duration = _getAnimationDuration();
-        if (!animate ||
-            _isReducedMotionEnabled() ||
-            duration <= TimeSpan.Zero ||
-            Math.Abs(targetOffset - scrollViewer.VerticalOffset) < 0.5d)
+        if (!animate || _isReducedMotionEnabled() || Math.Abs(targetOffset - scrollViewer.VerticalOffset) < 0.5d)
         {
             RunProgrammaticScroll(() => scrollViewer.ScrollToVerticalOffset(targetOffset));
             return;
         }
 
-        StartAnimation(requestVersion, scrollViewer, targetOffset, duration);
+        StartAnimation(requestVersion, scrollViewer, targetOffset);
     }
 
     private void CompletePendingRequest()
@@ -201,15 +197,12 @@ internal sealed class VirtualizedListItemCenteringController
         DetachReadinessEvents();
     }
 
-    private void StartAnimation(
-        int requestVersion,
-        ScrollViewer scrollViewer,
-        double targetOffset,
-        TimeSpan duration)
+    private void StartAnimation(int requestVersion, ScrollViewer scrollViewer, double targetOffset)
     {
         StopAnimation();
 
         var startOffset = scrollViewer.VerticalOffset;
+        var duration = _getAnimationDuration();
         var stopwatch = Stopwatch.StartNew();
         var timer = new DispatcherTimer(DispatcherPriority.Render, _dispatcher)
         {

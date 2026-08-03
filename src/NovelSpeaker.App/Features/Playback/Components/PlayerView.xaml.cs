@@ -40,8 +40,7 @@ public partial class PlayerView : UserControl
         DataContextChanged += OnDataContextChanged;
     }
 
-    internal TimeSpan SegmentAutoCenterAnimationDuration { get; set; } =
-        ResolveAnimationDuration(global::System.Windows.Application.Current?.TryFindResource("AnimSlow"));
+    internal TimeSpan SegmentAutoCenterAnimationDuration { get; set; } = DefaultSegmentAutoCenterAnimationDuration;
 
     internal bool? ReduceMotionOverride { get; set; }
 
@@ -247,13 +246,6 @@ public partial class PlayerView : UserControl
     private bool IsReducedMotionEnabled()
     {
         return ReduceMotionOverride ?? !SystemParameters.ClientAreaAnimation;
-    }
-
-    internal static TimeSpan ResolveAnimationDuration(object? resource)
-    {
-        return resource is Duration duration && duration.HasTimeSpan
-            ? duration.TimeSpan
-            : DefaultSegmentAutoCenterAnimationDuration;
     }
 
     private async Task RunEventOperationAsync(Func<Task> operation, string failureTitle)

@@ -16,7 +16,7 @@
         </Button>
 
         <ScrollViewer Grid.Row="1"
-                      Margin="{StaticResource PageSectionSpacing}"
+                      Margin="0,20,0,0"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
