@@ -186,7 +186,7 @@ Working branch: experiment/visual-system-v2
 - 审计 manifest：`artifacts/visual-review/02/style-ownership-audit.json`。
 - 已删除放弃阶段资产：`docs/VISUAL_ASSET_AUDIT.md`、`docs/VISUAL_ASSET_AUDIT.json`。
 
-## [ ] 3（P0）：建立独立 Style Gallery 与自动截图宿主
+## [x] 3（P0）：建立独立 Style Gallery 与自动截图宿主
 
 前置：2。
 
@@ -207,6 +207,15 @@ Working branch: experiment/visual-system-v2
 - 连续运行两次场景清单和尺寸一致。
 - self-contained publish 自动检查确认不包含 Style Gallery 程序集和资产。
 - 完整质量门禁通过。
+
+结果：
+
+- 独立工具 `tools/NovelSpeaker.StyleGallery` 已加入 solution；仅引用 `wpf-ui`，不引用生产 App、Application、Infrastructure 或数据层。
+- 场景注册表、Provider 标准控件、主题资源探针、占位分区、Light/Dark 资源切换、固定 1280×820/96 DPI 宿主和自动退出截图入口已完成。
+- `artifacts/visual-review/03/manifest.json` 与 6 张 PNG 已生成；PNG 为 1280×820、非空，manifest 含场景名、尺寸、DPI 和 SHA-256；连续两次运行哈希与清单一致。
+- WPF 场景、manifest 和 PNG 契约测试 5/5 通过；架构/发布边界测试通过；Style Gallery 与完整 solution Release build 均 0 警告、0 错误；`dotnet format --verify-no-changes --no-restore` 通过。
+- 完整 `dotnet test -c Release --no-build`、self-contained `win-x64` publish 和发布包隔离检查通过；首次全量测试中的 PlaybackCoordinator 超时经单测重跑通过，确认是时序波动。
+- Release workflow 已增加 Style Gallery 程序集与 `visual-review` 资产排除检查；新增 Gallery lock 文件，WPF 测试 lock 仅记录新增项目依赖及还原后的项目版本。
 
 ## [ ] 4（P0）：建立 Wpf.Ui Provider Style Bridge 和稳定主题链路
 
