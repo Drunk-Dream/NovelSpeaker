@@ -339,9 +339,6 @@
         </Style.Triggers>
     </Style>
 
-    <Style TargetType="ui:TitleBarButton"
-           BasedOn="{StaticResource WindowChromeButtonStyle}" />
-
     <Style x:Key="BorderlessListItemButtonStyle"
            TargetType="Button"
            BasedOn="{StaticResource {x:Type Button}}">
@@ -357,9 +354,12 @@
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
     </Style>
 
-    <Style x:Key="WindowChromeTitleBarStyle" TargetType="ui:TitleBar">
+    <Style x:Key="WindowChromeTitleBarStyle"
+           TargetType="ui:TitleBar"
+           BasedOn="{StaticResource {x:Type ui:TitleBar}}">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+        <Setter Property="ButtonsForeground" Value="{DynamicResource PrimaryTextBrush}" />
         <Setter Property="Height" Value="{StaticResource TextControlHeight}" />
     </Style>
 </ResourceDictionary>
