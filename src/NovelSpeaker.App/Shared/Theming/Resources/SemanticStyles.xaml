@@ -230,7 +230,7 @@
 
     <Style x:Key="PlaybackProgressSliderStyle"
            TargetType="Slider"
-           BasedOn="{StaticResource {x:Type Slider}}">
+           BasedOn="{StaticResource Provider.Slider}">
         <Setter Property="Height" Value="20" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="Transparent" />
@@ -399,7 +399,7 @@
 
     <Style x:Key="BorderlessIconButtonStyle"
            TargetType="Button"
-           BasedOn="{StaticResource {x:Type Button}}">
+           BasedOn="{StaticResource Provider.Button}">
         <Setter Property="Width" Value="{StaticResource IconButtonSize}" />
         <Setter Property="Height" Value="{StaticResource IconButtonSize}" />
         <Setter Property="Padding" Value="0" />
@@ -428,7 +428,7 @@
 
     <Style x:Key="BorderlessListItemButtonStyle"
            TargetType="Button"
-           BasedOn="{StaticResource {x:Type Button}}">
+           BasedOn="{StaticResource Provider.Button}">
         <Setter Property="Padding" Value="0" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
@@ -520,7 +520,7 @@
 
     <Style x:Key="PlaybackSpeedPillButtonStyle"
            TargetType="Button"
-           BasedOn="{StaticResource {x:Type Button}}">
+           BasedOn="{StaticResource Provider.Button}">
         <Setter Property="Height" Value="44" />
         <Setter Property="MinWidth" Value="80" />
         <Setter Property="Padding" Value="0" />
