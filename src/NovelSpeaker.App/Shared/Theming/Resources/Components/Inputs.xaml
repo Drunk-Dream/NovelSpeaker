@@ -11,6 +11,8 @@
                     CornerRadius="{StaticResource InputCornerRadius}">
                 <ScrollViewer x:Name="PART_ContentHost"
                               Margin="{TemplateBinding Padding}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                               HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
                               VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}"
                               Focusable="False" />
@@ -52,6 +54,8 @@
                     CornerRadius="{StaticResource InputCornerRadius}">
                 <ScrollViewer x:Name="PART_ContentHost"
                               Margin="{TemplateBinding Padding}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                               HorizontalScrollBarVisibility="Hidden"
                               VerticalScrollBarVisibility="Hidden"
                               Focusable="False" />
@@ -101,6 +105,7 @@
         <Setter Property="FontSize" Value="{StaticResource BodyFontSize}" />
         <Setter Property="Height" Value="{StaticResource TextControlHeight}" />
         <Setter Property="MinHeight" Value="{StaticResource TextControlHeight}" />
+        <Setter Property="MinWidth" Value="0" />
         <Setter Property="Padding" Value="{StaticResource InputControlPadding}" />
         <Setter Property="Background" Value="{DynamicResource PrimarySurfaceBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
@@ -190,6 +195,8 @@
         <Setter Property="FontSize" Value="{StaticResource BodyFontSize}" />
         <Setter Property="MinHeight" Value="{StaticResource InputControlHeight}" />
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Validation.ErrorTemplate" Value="{StaticResource InputValidationErrorTemplate}" />
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
@@ -200,8 +207,11 @@
     <Style x:Key="InputToggleSwitchStyle"
            TargetType="ui:ToggleSwitch"
            BasedOn="{StaticResource {x:Type ui:ToggleSwitch}}">
+        <Setter Property="Width" Value="{StaticResource ToggleSwitchWidth}" />
+        <Setter Property="MinWidth" Value="{StaticResource ToggleSwitchWidth}" />
         <Setter Property="MinHeight" Value="{StaticResource SettingsRowMinHeight}" />
-        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Validation.ErrorTemplate" Value="{StaticResource InputValidationErrorTemplate}" />
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />

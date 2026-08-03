@@ -39,6 +39,7 @@
                            IsPaneToggleVisible="True"
                            IsFooterSeparatorVisible="False"
                            PaneDisplayMode="Left"
+                           FrameMargin="0"
                            Background="{DynamicResource CanvasSurfaceBrush}">
             <ui:NavigationView.MenuItems>
                 <ui:NavigationViewItem x:Name="LibraryNavigationItem"

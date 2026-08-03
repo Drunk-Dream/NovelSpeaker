@@ -31,6 +31,7 @@
     <Thickness x:Key="ToolbarActionMargin">0,0,4,4</Thickness>
     <Thickness x:Key="ToolbarItemMargin">4,0,0,0</Thickness>
     <Thickness x:Key="ToolbarItemTrailingMargin">0,0,4,0</Thickness>
+    <Thickness x:Key="RuleCardActionMargin">8,0,4,0</Thickness>
     <Thickness x:Key="ListHeaderMargin">12,12,12,8</Thickness>
     <Thickness x:Key="EmptyListMessageMargin">12,0,12,12</Thickness>
     <Thickness x:Key="ListViewportMargin">8,0,8,8</Thickness>
@@ -85,8 +86,13 @@
     <sys:Double x:Key="ListRowMinHeight">48</sys:Double>
     <sys:Double x:Key="SettingsRowMinHeight">48</sys:Double>
     <sys:Double x:Key="SettingsRowControlWidth">220</sys:Double>
+    <sys:Double x:Key="ToggleSwitchWidth">96</sys:Double>
+    <sys:Double x:Key="ToolbarPillMinWidth">64</sys:Double>
+    <sys:Double x:Key="CompactSettingNumberWidth">128</sys:Double>
+    <sys:Double x:Key="CompactSettingUnitWidth">80</sys:Double>
     <GridLength x:Key="WorkbenchListPaneWidth">300</GridLength>
     <GridLength x:Key="WorkbenchPaneGap">12</GridLength>
+    <GridLength x:Key="RuleCardActionGap">8</GridLength>
     <sys:Double x:Key="MediaControlButtonSize">44</sys:Double>
     <sys:Double x:Key="PrimaryMediaControlButtonSize">48</sys:Double>
     <sys:Double x:Key="FloatingIconButtonSize">40</sys:Double>

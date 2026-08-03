@@ -75,9 +75,10 @@
                         ToolTip="定时停止"
                         AutomationProperties.Name="{Binding StopTimerButtonAutomationName, FallbackValue=定时停止}">
                     <Border x:Name="StopTimerPillBorder"
-                            Width="80"
+                            MinWidth="{StaticResource ToolbarPillMinWidth}"
                             Height="{StaticResource TextControlHeight}"
                             Padding="8,0"
+                            HorizontalAlignment="Center"
                             Background="{DynamicResource SecondarySurfaceBrush}"
                             BorderBrush="{DynamicResource SubtleBorderBrush}"
                             BorderThickness="{StaticResource StandardBorderThickness}"
@@ -98,9 +99,10 @@
                         ToolTip="调整语速"
                         AutomationProperties.Name="{Binding SpeakSpeedButtonText}">
                     <Border x:Name="SpeedMenuPillBorder"
-                            Width="80"
+                            MinWidth="{StaticResource ToolbarPillMinWidth}"
                             Height="{StaticResource TextControlHeight}"
                             Padding="8,0"
+                            HorizontalAlignment="Center"
                             Background="{DynamicResource SecondarySurfaceBrush}"
                             BorderBrush="{DynamicResource SubtleBorderBrush}"
                             BorderThickness="{StaticResource StandardBorderThickness}"

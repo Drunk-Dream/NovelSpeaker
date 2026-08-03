@@ -354,6 +354,15 @@
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
     </Style>
 
+    <Style x:Key="RuleCardActionButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource BorderlessListItemButtonStyle}">
+        <Setter Property="MinHeight" Value="{StaticResource CompactIconButtonSize}" />
+        <Setter Property="Padding" Value="{StaticResource CompactActionPadding}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
     <Style x:Key="WindowChromeTitleBarStyle"
            TargetType="ui:TitleBar"
            BasedOn="{StaticResource {x:Type ui:TitleBar}}">

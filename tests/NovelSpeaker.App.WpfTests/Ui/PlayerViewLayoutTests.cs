@@ -618,10 +618,10 @@ public sealed partial class PlayerViewTests
             Assert.InRange(Math.Abs(ruleButton.ActualHeight - speedButton.ActualHeight), 0d, 1d);
             Assert.InRange(Math.Abs(stopTimerButton.ActualHeight - speedButton.ActualHeight), 0d, 1d);
             Assert.Equal("定时停止", stopTimerButton.ToolTip);
-            Assert.Equal(80d, speedPill.ActualWidth);
+            Assert.Equal(64d, speedPill.ActualWidth);
             Assert.Equal(36d, speedPill.ActualHeight);
             Assert.Equal(new CornerRadius(12), speedPill.CornerRadius);
-            Assert.Equal(80d, stopTimerPill.ActualWidth);
+            Assert.Equal(64d, stopTimerPill.ActualWidth);
             Assert.Equal(36d, stopTimerPill.ActualHeight);
             Assert.Equal(new CornerRadius(12), stopTimerPill.CornerRadius);
         });

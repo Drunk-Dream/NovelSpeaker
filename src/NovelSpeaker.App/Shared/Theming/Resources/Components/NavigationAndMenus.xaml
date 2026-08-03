@@ -18,10 +18,15 @@
            TargetType="Button"
            BasedOn="{StaticResource IconButtonStyle}" />
 
-    <Style x:Key="NavigationItemStyle" TargetType="ui:NavigationViewItem">
+    <Style x:Key="NavigationItemStyle"
+           TargetType="ui:NavigationViewItem"
+           BasedOn="{StaticResource {x:Type ui:NavigationViewItem}}">
         <Setter Property="MinHeight" Value="{StaticResource SettingsRowMinHeight}" />
         <Setter Property="Padding" Value="{StaticResource SettingsRowPadding}" />
+        <Setter Property="Margin" Value="{StaticResource NoBorderThickness}" />
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
     </Style>
 

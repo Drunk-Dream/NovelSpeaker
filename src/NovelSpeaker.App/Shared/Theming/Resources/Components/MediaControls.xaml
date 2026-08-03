@@ -74,9 +74,9 @@
 
     <Style x:Key="PlaybackSpeedPillButtonStyle"
            TargetType="Button"
-           BasedOn="{StaticResource {x:Type Button}}">
+           BasedOn="{StaticResource SubtleButtonStyle}">
         <Setter Property="Height" Value="{StaticResource MediaControlButtonSize}" />
-        <Setter Property="MinWidth" Value="80" />
+        <Setter Property="MinWidth" Value="{StaticResource ToolbarPillMinWidth}" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />

@@ -65,8 +65,8 @@
                                                FontSize="22"
                                                Text="{Binding TotalCacheSizeText}"
                                                AutomationProperties.Name="当前缓存占用" />
-                                    <ProgressBar Margin="0,8,0,0"
-                                                 Height="8"
+                                    <ProgressBar Margin="{StaticResource FieldControlSpacing}"
+                                                 Style="{StaticResource PlaybackProgressBarStyle}"
                                                  Maximum="100"
                                                  Value="{Binding UsagePercentage}"
                                                  AutomationProperties.Name="缓存使用率" />
@@ -93,7 +93,7 @@
 
                                     <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
                                                Text="{Binding LoadErrorMessage}" />
-                                    <Button Margin="0,8,0,0"
+                                    <Button Margin="{StaticResource FieldControlSpacing}"
                                             Width="120"
                                             HorizontalAlignment="Right"
                                             Command="{Binding RetryCommand}"
@@ -135,14 +135,14 @@
                                             VerticalAlignment="Center"
                                             Orientation="Horizontal">
                                     <TextBox x:Name="CacheLimitValueTextBox"
-                                             Width="160"
+                                             Width="{StaticResource CompactSettingNumberWidth}"
                                              PreviewKeyDown="CacheLimitValueTextBox_OnPreviewKeyDown"
                                              LostKeyboardFocus="CacheLimitValueTextBox_OnLostKeyboardFocus"
                                              Text="{Binding CacheLimitValueText, UpdateSourceTrigger=PropertyChanged}"
                                              AutomationProperties.Name="缓存上限数值" />
                                     <ComboBox x:Name="CacheLimitUnitComboBox"
-                                              Width="100"
-                                              Margin="12,0,0,0"
+                                              Width="{StaticResource CompactSettingUnitWidth}"
+                                              Margin="{StaticResource ToolbarItemMargin}"
                                               SelectionChanged="CacheLimitUnitComboBox_OnSelectionChanged"
                                               ItemsSource="{Binding CacheLimitUnits}"
                                               SelectedItem="{Binding SelectedCacheLimitUnit}"

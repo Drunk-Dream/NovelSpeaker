@@ -292,6 +292,7 @@ public sealed class ThemeResourceTests
                          ("CompactIconButtonSize", 32d), ("IconButtonSize", 36d),
                          ("InputControlHeight", 36d), ("TextControlHeight", 36d),
                          ("ListRowMinHeight", 48d), ("SettingsRowMinHeight", 48d),
+                         ("ToggleSwitchWidth", 96d), ("ToolbarPillMinWidth", 64d),
                          ("MediaControlButtonSize", 44d), ("PrimaryMediaControlButtonSize", 48d),
                          ("ProgressTrackHeight", 4d), ("ProgressSliderHeight", 20d),
                          ("ProgressThumbSize", 18d), ("IconSize16", 16d), ("IconSize18", 18d),
@@ -318,6 +319,7 @@ public sealed class ThemeResourceTests
                          ("ToolbarActionMargin", new Thickness(0, 0, 4, 4)),
                          ("ToolbarItemMargin", new Thickness(4, 0, 0, 0)),
                          ("ToolbarItemTrailingMargin", new Thickness(0, 0, 4, 0)),
+                         ("RuleCardActionMargin", new Thickness(8, 0, 4, 0)),
                          ("ListHeaderMargin", new Thickness(12, 12, 12, 8)),
                          ("EmptyListMessageMargin", new Thickness(12, 0, 12, 12)),
                          ("ListViewportMargin", new Thickness(8, 0, 8, 8)),
@@ -340,7 +342,7 @@ public sealed class ThemeResourceTests
                          "PagePadding", "PageSectionSpacing", "SectionSpacing", "ContentSpacing", "FieldSpacing",
                          "ControlSpacing", "SectionHeadingSpacing", "FieldControlSpacing", "FieldDescriptionSpacing",
                          "TinySpacing", "ButtonGapMargin", "InlineGapMargin", "ToolbarActionMargin", "ToolbarItemMargin",
-                         "ToolbarItemTrailingMargin", "ListHeaderMargin", "EmptyListMessageMargin", "ListViewportMargin",
+                         "ToolbarItemTrailingMargin", "RuleCardActionMargin", "ListHeaderMargin", "EmptyListMessageMargin", "ListViewportMargin",
                          "ListItemHeaderMargin", "ListItemContentMargin", "ListItemSpacing", "CardPadding", "CardPaddingLarge",
                          "CardContentPadding", "DialogPadding", "SettingsGroupPadding", "SettingsRowPadding",
                          "SettingsRowControlMargin", "ListRowPadding", "ListRowSpacing", "ButtonPadding", "CompactButtonPadding",
@@ -380,6 +382,10 @@ public sealed class ThemeResourceTests
             Assert.Equal(new Thickness(8, 2, 8, 2), Assert.IsType<Thickness>(resources["InputControlPadding"]));
             Assert.Equal(new Thickness(8, 4, 8, 4), Assert.IsType<Thickness>(resources["SettingsRowPadding"]));
             Assert.Equal(220d, Assert.IsType<double>(resources["SettingsRowControlWidth"]));
+            Assert.Equal(96d, Assert.IsType<double>(resources["ToggleSwitchWidth"]));
+            Assert.Equal(64d, Assert.IsType<double>(resources["ToolbarPillMinWidth"]));
+            Assert.Equal(128d, Assert.IsType<double>(resources["CompactSettingNumberWidth"]));
+            Assert.Equal(80d, Assert.IsType<double>(resources["CompactSettingUnitWidth"]));
             Assert.Equal(new GridLength(300), Assert.IsType<GridLength>(resources["WorkbenchListPaneWidth"]));
             Assert.Equal(new GridLength(12), Assert.IsType<GridLength>(resources["WorkbenchPaneGap"]));
         });
@@ -621,6 +627,9 @@ public sealed class ThemeResourceTests
         Assert.Contains("x:Key=\"SettingsGroupPadding\"", tokens);
         Assert.Contains("x:Key=\"SettingsRowControlMargin\"", tokens);
         Assert.Contains("x:Key=\"SettingsRowControlWidth\"", tokens);
+        Assert.Contains("x:Key=\"ToggleSwitchWidth\"", tokens);
+        Assert.Contains("x:Key=\"ToolbarPillMinWidth\"", tokens);
+        Assert.Contains("x:Key=\"RuleCardActionGap\"", tokens);
 
         var rowsGroupStyle = GetStyleElement(listStyles, "SettingsRowsGroupBorderStyle");
         var settingsRowStyle = GetStyleElement(listStyles, "SettingsRowBorderStyle");

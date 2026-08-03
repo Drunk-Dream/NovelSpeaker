@@ -168,8 +168,8 @@
 
                                                 <Button VerticalAlignment="Center"
                                                         HorizontalAlignment="Left"
-                                                        Padding="4"
-                                                        Style="{StaticResource BorderlessListItemButtonStyle}"
+                                                        Style="{StaticResource RuleCardActionButtonStyle}"
+                                                        HorizontalContentAlignment="Left"
                                                         Command="{Binding DataContext.ToggleRuleEnabledCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         CommandParameter="{Binding}"
                                                         AutomationProperties.Name="{Binding Name, StringFormat=切换规则启用状态：{0}}">
@@ -186,14 +186,14 @@
                                                 </Button>
 
                                                 <Button Grid.Column="2"
-                                                        Margin="8,0,4,0"
+                                                        Margin="{StaticResource RuleCardActionMargin}"
                                                         Padding="{StaticResource CompactActionPadding}"
                                                         Command="{Binding DataContext.SetCurrentRuleCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         CommandParameter="{Binding}"
                                                         AutomationProperties.Name="{Binding Name, StringFormat=设为当前规则：{0}}">
                                                     <Button.Style>
-                                                        <Style TargetType="Button"
-                                                               BasedOn="{StaticResource BorderlessListItemButtonStyle}">
+                                                       <Style TargetType="Button"
+                                                               BasedOn="{StaticResource RuleCardActionButtonStyle}">
                                                             <Setter Property="Content" Value="设为当前" />
                                                             <Setter Property="IsEnabled" Value="True" />
                                                             <Style.Triggers>
@@ -306,7 +306,7 @@
                             <Grid Margin="{StaticResource SectionHeadingSpacing}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="160" />
-                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="{StaticResource RuleCardActionGap}" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
 

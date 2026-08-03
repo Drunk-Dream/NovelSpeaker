@@ -171,10 +171,10 @@
                                         Margin="{StaticResource ContentSpacing}"
                                         HorizontalAlignment="Right">
                                 <ProgressBar Width="140"
-                                             Height="10"
+                                             Style="{StaticResource PlaybackProgressBarStyle}"
                                              Maximum="1"
                                              Value="{Binding ProgressRatio}" />
-                                <TextBlock Margin="0,8,0,0"
+                                <TextBlock Margin="{StaticResource FieldControlSpacing}"
                                            HorizontalAlignment="Right"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
                                            Text="{Binding ProgressText}" />

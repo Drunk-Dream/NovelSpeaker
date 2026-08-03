@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using NavigationViewItem = Wpf.Ui.Controls.NavigationViewItem;
+using NavigationView = Wpf.Ui.Controls.NavigationView;
 using ToggleSwitch = Wpf.Ui.Controls.ToggleSwitch;
 using Xunit;
 
@@ -41,6 +42,8 @@ public sealed class Task5ComponentResourceTests
         Assert.Contains("x:Key=\"InputToggleSwitchStyle\"", inputs);
         Assert.Contains("x:Key=\"InputErrorTextStyle\"", inputs);
         Assert.Contains("x:Key=\"InputHelpTextStyle\"", inputs);
+        Assert.Contains("x:Key=\"RuleCardActionButtonStyle\"", File.ReadAllText(Path.Combine(
+            appRoot, "Shared", "Theming", "Resources", "Components", "Buttons.xaml")));
         Assert.Contains("x:Key=\"VirtualizedListItemContainerStyle\"", lists);
         Assert.Contains("x:Key=\"SelectedCardContainerStyle\"", lists);
         Assert.Contains("x:Key=\"PlaybackProgressSliderStyle\"", media);
@@ -236,6 +239,62 @@ public sealed class Task5ComponentResourceTests
         Assert.Contains("SelectionMode=\"Extended\"", cachePage);
         Assert.Contains("VirtualizingPanel.VirtualizationMode=\"Recycling\"", bookDetailsPage);
         Assert.Contains("AutomationProperties.Name", bookDetailsPage);
+    }
+
+    [Fact]
+    public void Shared_layout_resources_keep_wpfui_controls_inheritable_and_compact()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            new WpfUiThemeRuntime().ApplyLightTheme();
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var window = provider.GetRequiredService<MainWindow>();
+                window.Show();
+                window.UpdateLayout();
+                var navigationItem = Assert.IsType<NavigationViewItem>(window.FindName("LibraryNavigationItem"));
+                var navigationStyle = Assert.IsType<Style>(global::System.Windows.Application.Current.FindResource("NavigationItemStyle"));
+                Assert.NotNull(navigationStyle.BasedOn);
+                Assert.Equal(new Thickness(0), navigationItem.Margin);
+                var navigationView = Assert.IsType<NavigationView>(window.FindName("RootNavigationView"));
+                Assert.Equal(0, navigationView.FrameMargin.Left);
+                var settingsItem = Assert.IsType<NavigationViewItem>(window.FindName("SettingsNavigationItem"));
+                var firstItemOrigin = navigationItem.TransformToAncestor(navigationView).Transform(new Point(0, 0));
+                var secondItemOrigin = settingsItem.TransformToAncestor(navigationView).Transform(new Point(0, 0));
+                Assert.InRange(
+                    Math.Abs((secondItemOrigin.Y - firstItemOrigin.Y) - navigationItem.ActualHeight),
+                    0d,
+                    1d);
+
+                var toggle = new ToggleSwitch { OffContent = "关闭", OnContent = "开启" };
+                toggle.Style = Assert.IsType<Style>(global::System.Windows.Application.Current.FindResource("InputToggleSwitchStyle"));
+                var panel = new StackPanel();
+                panel.Children.Add(toggle);
+                var host = new Window { Width = 400, Height = 220, Content = panel };
+                host.Show();
+                host.UpdateLayout();
+                Assert.Equal(96d, toggle.Width);
+                Assert.Equal(96d, toggle.MinWidth);
+                Assert.Equal(96d, toggle.ActualWidth);
+                Assert.Equal(48d, toggle.ActualHeight);
+
+                var combo = new ComboBox { Width = 220 };
+                combo.Style = Assert.IsType<Style>(global::System.Windows.Application.Current.FindResource("InputComboBoxStyle"));
+                panel.Children.Add(combo);
+                host.UpdateLayout();
+                Assert.Equal(0d, combo.MinWidth);
+                Assert.Equal(220d, combo.ActualWidth);
+            }
+            finally
+            {
+                foreach (var diagnosticWindow in global::System.Windows.Application.Current.Windows.OfType<Window>().ToArray())
+                {
+                    diagnosticWindow.Close();
+                }
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
     }
 
     private static T GetSetter<T>(Style style, DependencyProperty property)
