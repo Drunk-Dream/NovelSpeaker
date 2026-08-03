@@ -5,6 +5,9 @@
     <Project Path="src/NovelSpeaker.Domain/NovelSpeaker.Domain.csproj" />
     <Project Path="src/NovelSpeaker.Infrastructure/NovelSpeaker.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/NovelSpeaker.StyleGallery/NovelSpeaker.StyleGallery.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/NovelSpeaker.Domain.UnitTests/NovelSpeaker.Domain.UnitTests.csproj" />
     <Project Path="tests/NovelSpeaker.Application.UnitTests/NovelSpeaker.Application.UnitTests.csproj" />
