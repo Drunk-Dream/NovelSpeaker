@@ -150,6 +150,36 @@ public sealed class WindowsTrayLifecycleAdapterTests
     }
 
     [Fact]
+    public void Mini_player_close_publishes_exit_application_command()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var miniPlayer = provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.MiniPlayerWindow>();
+                var adapter = new WindowsTrayLifecycleAdapter(
+                    miniPlayer,
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.IMiniPlayerPlacementPersistence>());
+                adapter.AttachMainWindow(provider.GetRequiredService<MainWindow>());
+                DesktopLifecycleCommand? received = null;
+                adapter.CommandReceived += (_, command) => received = command;
+
+                miniPlayer.Show();
+                miniPlayer.Close();
+
+                Assert.Equal(DesktopLifecycleCommand.ExitApplication, received);
+                Assert.True(miniPlayer.IsVisible);
+                miniPlayer.CloseForShutdown();
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
     public async Task Owned_extracted_icon_is_destroyed_once_after_repeated_stop()
     {
         await WpfTestHost.RunInStaAsync(async () =>

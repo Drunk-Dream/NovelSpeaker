@@ -73,7 +73,6 @@
     <CornerRadius x:Key="InteractiveSurfaceCornerRadius">8</CornerRadius>
     <CornerRadius x:Key="IconButtonCornerRadius">8</CornerRadius>
     <CornerRadius x:Key="MediaControlCornerRadius">999</CornerRadius>
-    <Thickness x:Key="KeyboardFocusRingThickness">1</Thickness>
     <sys:Double x:Key="DisabledControlOpacity">0.5</sys:Double>
     <sys:Double x:Key="IconButtonSize">40</sys:Double>
     <sys:Double x:Key="SecondaryIconButtonSize">44</sys:Double>

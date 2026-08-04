@@ -8,20 +8,17 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed class IconButtonStyleTests
 {
     [Fact]
-    public void Tool_icon_button_uses_rounded_state_layer_and_independent_focus_ring()
+    public void Tool_icon_button_uses_rounded_state_layer_and_provider_focus_visual()
     {
         WpfTestHost.RunInSta(() =>
         {
             var button = CreateButton("BorderlessIconButtonStyle");
 
             var stateLayer = Assert.IsType<Border>(button.Template.FindName("StateLayer", button));
-            var focusRing = Assert.IsType<Border>(button.Template.FindName("KeyboardFocusRing", button));
 
             Assert.Equal(new CornerRadius(8), stateLayer.CornerRadius);
-            Assert.Equal(new CornerRadius(8), focusRing.CornerRadius);
             Assert.Equal(new Thickness(0), button.BorderThickness);
-            Assert.Null(button.FocusVisualStyle);
-            Assert.Equal(Visibility.Collapsed, focusRing.Visibility);
+            Assert.NotNull(button.FocusVisualStyle);
         });
     }
 
@@ -33,10 +30,8 @@ public sealed class IconButtonStyleTests
             var button = CreateButton("MediaIconButtonStyle");
 
             var stateLayer = Assert.IsType<Border>(button.Template.FindName("StateLayer", button));
-            var focusRing = Assert.IsType<Border>(button.Template.FindName("KeyboardFocusRing", button));
 
             Assert.Equal(new CornerRadius(999), stateLayer.CornerRadius);
-            Assert.Equal(new CornerRadius(999), focusRing.CornerRadius);
             Assert.Equal(44, button.Width);
             Assert.Equal(44, button.Height);
         });

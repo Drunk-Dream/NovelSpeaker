@@ -38,6 +38,8 @@ public partial class MiniPlayerWindow : Window
 
     public event EventHandler? RestoreRequested;
 
+    public event EventHandler? ExitRequested;
+
     internal void CloseForShutdown()
     {
         _allowClose = true;
@@ -179,8 +181,10 @@ public partial class MiniPlayerWindow : Window
         }
 
         e.Cancel = true;
-        ViewModel.RequestRestore();
+        ExitRequested?.Invoke(this, EventArgs.Empty);
     }
+
+    private void MiniPlayerCloseButton_OnClick(object sender, RoutedEventArgs e) => Close();
 
     private void OnRestoreRequested(object? sender, EventArgs e) =>
         RestoreRequested?.Invoke(this, EventArgs.Empty);

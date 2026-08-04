@@ -39,7 +39,7 @@
 - 系统 Previous/Next 映射上一/下一段。
 - Windows 系统媒体控制使用 `SystemMediaTransportControls`，由 App 中的 Windows adapter 接入 Application port。
 - 托盘使用 App 中基于 `Shell_NotifyIconW` 的小型 Windows adapter，不新增托盘框架依赖。
-- 迷你播放器隐藏主窗口，关闭迷你窗口恢复主窗口。
+- 迷你播放器隐藏主窗口；恢复主窗口是独立动作，关闭迷你窗口统一退出应用。
 - 记忆迷你窗口位置和置顶，不记忆迷你模式。
 - 定时停止支持固定/自定义时长，触发后只暂停播放。
 - 关闭主窗口行为支持托盘、退出、每次询问。

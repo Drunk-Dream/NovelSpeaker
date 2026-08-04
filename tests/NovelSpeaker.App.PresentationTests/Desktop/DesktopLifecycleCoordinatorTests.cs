@@ -150,6 +150,22 @@ public sealed class DesktopLifecycleCoordinatorTests
     }
 
     [Fact]
+    public async Task Restart_starts_from_main_window_after_mini_player_session()
+    {
+        var fixture = CreateFixture(AppSettings.Default);
+        await fixture.Coordinator.StartAsync(CancellationToken.None);
+        await fixture.Coordinator.OpenMiniPlayerAsync(CancellationToken.None);
+        await fixture.Coordinator.StopAsync(CancellationToken.None);
+
+        await fixture.Coordinator.StartAsync(CancellationToken.None);
+
+        Assert.Equal(2, fixture.Platform.ShowCount);
+        Assert.Equal(1, fixture.Platform.ShowMiniCount);
+        Assert.Equal(1, fixture.Platform.HideCount);
+        await fixture.Coordinator.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task Cancellation_callback_can_reenter_stop_and_platform_stops_once()
     {
         var fixture = CreateFixture(AppSettings.Default);

@@ -62,12 +62,12 @@ public sealed class ThemeResourceTests
         Assert.Contains("x:Key=\"BorderlessListItemButtonStyle\"", content);
         Assert.Contains("Property=\"IsMouseOver\"", content);
         Assert.Contains("Property=\"IsPressed\"", content);
-        Assert.Contains("Property=\"IsKeyboardFocused\"", content);
+        Assert.DoesNotContain("Property=\"IsKeyboardFocused\"", content);
         Assert.Contains("Property=\"IsEnabled\" Value=\"False\"", content);
         Assert.Contains("AccentFillColorDefaultBrush", content);
         Assert.Contains("x:Key=\"IconButtonControlTemplate\"", content);
         Assert.Contains("x:Key=\"MediaIconButtonControlTemplate\"", content);
-        Assert.Contains("TargetName=\"KeyboardFocusRing\"", content);
+        Assert.DoesNotContain("TargetName=\"KeyboardFocusRing\"", content);
         Assert.Contains("CornerRadius=\"{StaticResource IconButtonCornerRadius}\"", content);
         Assert.Contains("CornerRadius=\"{StaticResource MediaControlCornerRadius}\"", content);
         Assert.DoesNotContain(

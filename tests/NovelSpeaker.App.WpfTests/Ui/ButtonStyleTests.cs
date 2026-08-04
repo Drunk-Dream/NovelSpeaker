@@ -77,7 +77,7 @@ public sealed class ButtonStyleTests
                 Assert.Equal(typeof(WpfButton), button.Style.TargetType);
                 Assert.Same(provider, button.Style.BasedOn);
                 Assert.Equal(
-                    ["IsEnabled", "IsKeyboardFocused", "IsMouseOver", "IsPressed"],
+                    ["IsEnabled", "IsMouseOver", "IsPressed"],
                     button.Style.Triggers
                         .OfType<Trigger>()
                         .Select(trigger => trigger.Property.Name)
@@ -143,6 +143,7 @@ public sealed class ButtonStyleTests
             }
         });
     }
+
 
     private static IReadOnlyList<T> FindDescendants<T>(DependencyObject root)
         where T : DependencyObject

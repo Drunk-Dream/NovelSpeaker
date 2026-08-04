@@ -7,7 +7,6 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +36,7 @@ public sealed class MiniPlayerWindowTests
                 Assert.Equal(WindowStyle.None, window.WindowStyle);
                 Assert.True(window.AllowsTransparency);
                 Assert.Equal(Brushes.Transparent, window.Background);
+                Assert.Equal(ResizeMode.NoResize, window.ResizeMode);
                 Assert.Equal(480d, window.Width);
                 Assert.Equal(150d, window.Height);
                 Assert.Equal(440d, window.MinWidth);
@@ -46,14 +46,12 @@ public sealed class MiniPlayerWindowTests
 
                 var surface = Assert.IsType<Border>(window.FindName("MiniPlayerSurface"));
                 Assert.Same(window.FindResource("RaisedSurfaceBrush"), surface.Background);
-                Assert.Same(window.FindResource("SubtleBorderBrush"), surface.BorderBrush);
-                Assert.Equal(new Thickness(1), surface.BorderThickness);
+                Assert.Equal(Brushes.Transparent, surface.BorderBrush);
+                Assert.Equal(new Thickness(0), surface.BorderThickness);
                 Assert.Equal(
                     Assert.IsType<CornerRadius>(window.FindResource("CornerRadiusLarge")),
                     surface.CornerRadius);
-                var elevation = Assert.IsType<DropShadowEffect>(surface.Effect);
-                Assert.Equal(26, elevation.BlurRadius);
-                Assert.Equal(6, elevation.ShadowDepth);
+                Assert.Null(surface.Effect);
 
                 var bookTitle = Assert.IsType<TextBlock>(window.FindName("MiniPlayerBookTitle"));
                 Assert.NotNull(bookTitle.GetBindingExpression(TextBlock.TextProperty));
@@ -73,13 +71,8 @@ public sealed class MiniPlayerWindowTests
                 AssertControl<Button>(window, "MiniPlayerPlaybackButton", "播放");
                 var playbackButton = Assert.IsType<Button>(window.FindName("MiniPlayerPlaybackButton"));
                 Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(playbackButton.Background).Color);
-                var playbackSurface = Assert.IsType<Border>(window.FindName("MiniPlayerPlaybackSurface"));
-                Assert.Equal(48, playbackSurface.Width);
-                Assert.Equal(48, playbackSurface.Height);
-                Assert.Equal(new CornerRadius(999), playbackSurface.CornerRadius);
-                Assert.Same(window.FindResource("AccentDefaultBrush"), playbackSurface.Background);
-                Assert.Equal(new Thickness(0), playbackSurface.BorderThickness);
-                var playbackIcon = Assert.IsType<SymbolIcon>(playbackSurface.Child);
+                Assert.Equal(new Thickness(0), playbackButton.BorderThickness);
+                var playbackIcon = Assert.IsType<SymbolIcon>(playbackButton.Content);
                 var playbackTrigger = Assert.Single(playbackIcon.Style!.Triggers.OfType<DataTrigger>());
                 var playbackBinding = Assert.IsType<Binding>(playbackTrigger.Binding);
                 Assert.Equal("PlaybackActionText", playbackBinding.Path.Path);
@@ -89,7 +82,7 @@ public sealed class MiniPlayerWindowTests
                 Assert.Equal("播放音量", volumeButton.ToolTip);
                 Assert.Equal("播放音量 100%", AutomationProperties.GetName(volumeButton));
                 AssertControl<Button>(window, "MiniPlayerRestoreButton", "恢复主窗口");
-                AssertControl<Button>(window, "MiniPlayerCloseButton", "返回主窗口");
+                AssertControl<Button>(window, "MiniPlayerCloseButton", "退出应用");
                 AssertControl<Button>(window, "MiniPlayerTopmostButton", "置顶");
                 var topmostStateBorder = Assert.IsType<Border>(window.FindName("MiniPlayerTopmostStateBorder"));
                 Assert.Equal(Brushes.Transparent, topmostStateBorder.Background);
@@ -118,20 +111,27 @@ public sealed class MiniPlayerWindowTests
                 Assert.IsType<Grid>(window.FindName("MiniPlayerControlBar"));
                 var mediaSurface = Assert.IsType<Border>(window.FindName("MiniPlayerMediaSurface"));
                 Assert.Same(window.FindResource("SecondarySurfaceBrush"), mediaSurface.Background);
+                Assert.Equal(
+                    Assert.IsType<CornerRadius>(window.FindResource("CornerRadiusMedium")),
+                    mediaSurface.CornerRadius);
+                Assert.True(mediaSurface.ClipToBounds);
                 var mediaControls = Assert.IsType<StackPanel>(window.FindName("MiniPlayerMediaControls"));
                 Assert.Equal(1, Grid.GetColumn(mediaControls));
                 Assert.Equal(HorizontalAlignment.Center, mediaControls.HorizontalAlignment);
                 Assert.Equal(2, Grid.GetColumn(volumeButton));
                 Assert.Equal(HorizontalAlignment.Right, volumeButton.HorizontalAlignment);
-                Assert.Same(window.FindResource("App.Media.Primary"),
-                    Assert.IsType<Button>(window.FindName("MiniPlayerPlaybackButton")).Style);
-                Assert.Same(window.FindResource("App.Media.Secondary"),
+                Assert.Same(window.FindResource("App.Button.Icon"), playbackButton.Style);
+                Assert.Same(window.FindResource("App.Button.Icon"),
                     Assert.IsType<Button>(window.FindName("MiniPlayerPreviousSegmentButton")).Style);
-                Assert.Same(window.FindResource("App.Media.Chapter"),
+                Assert.Same(window.FindResource("App.Button.Icon"),
                     Assert.IsType<Button>(window.FindName("MiniPlayerPreviousChapterButton")).Style);
-                Assert.Same(window.FindResource("App.Media.WindowAction"),
+                Assert.Same(window.FindResource("App.Button.Icon"),
                     Assert.IsType<Button>(window.FindName("MiniPlayerRestoreButton")).Style);
-                Assert.Same(window.FindResource("App.Media.Secondary"), volumeButton.Style);
+                Assert.Same(window.FindResource("App.Button.Icon"), volumeButton.Style);
+                Assert.Same(window.FindResource("App.Button.Icon"),
+                    Assert.IsType<Button>(window.FindName("MiniPlayerTopmostButton")).Style);
+                Assert.Same(window.FindResource("App.Button.Icon"),
+                    Assert.IsType<Button>(window.FindName("MiniPlayerCloseButton")).Style);
                 Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
                     volumePopup,
                     textBlock => textBlock.Text == "仅调整应用内播放音量，不改变系统音量。"));
@@ -190,7 +190,7 @@ public sealed class MiniPlayerWindowTests
     }
 
     [Fact]
-    public void User_close_requests_main_window_restore_instead_of_exiting()
+    public void User_close_requests_application_exit_instead_of_restoring_main_window()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -198,19 +198,44 @@ public sealed class MiniPlayerWindowTests
             try
             {
                 var window = provider.GetRequiredService<MiniPlayerWindow>();
-                var restoreRequested = false;
-                window.RestoreRequested += (_, _) => restoreRequested = true;
+                var exitRequested = false;
+                window.ExitRequested += (_, _) => exitRequested = true;
                 window.Show();
 
                 window.Close();
 
-                Assert.True(restoreRequested);
+                Assert.True(exitRequested);
                 Assert.True(window.IsVisible);
                 window.CloseForShutdown();
             }
             finally
             {
                 provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
+    public void Close_button_requests_application_exit_without_restoring_main_window()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var fixture = CreateWindow(PlaybackSnapshot.Idle);
+            try
+            {
+                var exitRequested = false;
+                fixture.Window.ExitRequested += (_, _) => exitRequested = true;
+                fixture.Window.Show();
+
+                FindButton(fixture.Window, "MiniPlayerCloseButton")
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+                Assert.True(exitRequested);
+                Assert.True(fixture.Window.IsVisible);
+            }
+            finally
+            {
+                CloseFixture(fixture);
             }
         });
     }
@@ -328,7 +353,7 @@ public sealed class MiniPlayerWindowTests
                             var surface = Assert.IsType<Border>(fixture.Window.FindName("MiniPlayerSurface"));
                             var progress = Assert.IsType<Slider>(fixture.Window.FindName("MiniPlayerProgressSlider"));
                             var controlBar = Assert.IsType<Grid>(fixture.Window.FindName("MiniPlayerControlBar"));
-                            var playbackSurface = Assert.IsType<Border>(fixture.Window.FindName("MiniPlayerPlaybackSurface"));
+                            var playbackButton = Assert.IsType<Button>(fixture.Window.FindName("MiniPlayerPlaybackButton"));
                             var progressBounds = GetBoundsIn(progress, surface);
                             var controlBarBounds = GetBoundsIn(controlBar, surface);
                             var gap = controlBarBounds.Top - progressBounds.Bottom;
@@ -343,10 +368,8 @@ public sealed class MiniPlayerWindowTests
                             Assert.True(controlBar.IsVisible);
                             Assert.True(controlBar.ActualWidth > 0);
                             Assert.True(controlBar.ActualHeight > 0);
-                            Assert.Equal(48, playbackSurface.ActualWidth);
-                            Assert.Equal(48, playbackSurface.ActualHeight);
-                            Assert.Equal(new CornerRadius(999), playbackSurface.CornerRadius);
-                            Assert.Same(fixture.Window.FindResource("AccentDefaultBrush"), playbackSurface.Background);
+                            Assert.Equal(48, playbackButton.ActualWidth);
+                            Assert.Equal(48, playbackButton.ActualHeight);
 
                             foreach (var name in new[]
                                      {
@@ -354,13 +377,18 @@ public sealed class MiniPlayerWindowTests
                                          "MiniPlayerPreviousSegmentButton",
                                          "MiniPlayerPlaybackButton",
                                          "MiniPlayerNextSegmentButton",
-                                         "MiniPlayerNextChapterButton"
+                                         "MiniPlayerNextChapterButton",
+                                         "MiniPlayerVolumeMenuButton"
                                      })
                             {
                                 var button = Assert.IsType<Button>(fixture.Window.FindName(name));
                                 Assert.True(button.IsVisible);
                                 Assert.True(button.ActualWidth > 0);
                                 Assert.True(button.ActualHeight > 0);
+                                Assert.Equal(new Thickness(0), button.BorderThickness);
+                                Assert.Equal(
+                                    Colors.Transparent,
+                                    Assert.IsType<SolidColorBrush>(button.Background).Color);
                             }
                         }
                         finally

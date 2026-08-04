@@ -329,12 +329,6 @@
                               ContentTemplate="{TemplateBinding ContentTemplate}"
                               RecognizesAccessKey="True"
                               SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
-            <Border x:Name="KeyboardFocusRing"
-                    BorderBrush="{DynamicResource AccentFillColorDefaultBrush}"
-                    BorderThickness="{StaticResource KeyboardFocusRingThickness}"
-                    CornerRadius="{StaticResource IconButtonCornerRadius}"
-                    IsHitTestVisible="False"
-                    Visibility="Collapsed" />
         </Grid>
         <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
@@ -346,9 +340,6 @@
                 <Setter TargetName="StateLayer"
                         Property="Background"
                         Value="{DynamicResource ControlFillColorTertiaryBrush}" />
-            </Trigger>
-            <Trigger Property="IsKeyboardFocused" Value="True">
-                <Setter TargetName="KeyboardFocusRing" Property="Visibility" Value="Visible" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter TargetName="RootGrid"
@@ -373,12 +364,6 @@
                               ContentTemplate="{TemplateBinding ContentTemplate}"
                               RecognizesAccessKey="True"
                               SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
-            <Border x:Name="KeyboardFocusRing"
-                    BorderBrush="{DynamicResource AccentFillColorDefaultBrush}"
-                    BorderThickness="{StaticResource KeyboardFocusRingThickness}"
-                    CornerRadius="{StaticResource MediaControlCornerRadius}"
-                    IsHitTestVisible="False"
-                    Visibility="Collapsed" />
         </Grid>
         <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
@@ -390,9 +375,6 @@
                 <Setter TargetName="StateLayer"
                         Property="Background"
                         Value="{DynamicResource ControlFillColorTertiaryBrush}" />
-            </Trigger>
-            <Trigger Property="IsKeyboardFocused" Value="True">
-                <Setter TargetName="KeyboardFocusRing" Property="Visibility" Value="Visible" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter TargetName="RootGrid"
@@ -420,12 +402,6 @@
                                   RecognizesAccessKey="True"
                                   SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
             </Border>
-            <Border x:Name="KeyboardFocusRing"
-                    BorderBrush="{DynamicResource AccentFillColorDefaultBrush}"
-                    BorderThickness="{StaticResource KeyboardFocusRingThickness}"
-                    CornerRadius="{StaticResource InteractiveSurfaceCornerRadius}"
-                    IsHitTestVisible="False"
-                    Visibility="Collapsed" />
         </Grid>
         <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
@@ -437,9 +413,6 @@
                 <Setter TargetName="StateLayer"
                         Property="Background"
                         Value="{DynamicResource ControlFillColorTertiaryBrush}" />
-            </Trigger>
-            <Trigger Property="IsKeyboardFocused" Value="True">
-                <Setter TargetName="KeyboardFocusRing" Property="Visibility" Value="Visible" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter TargetName="RootGrid"
@@ -460,7 +433,6 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template" Value="{StaticResource IconButtonControlTemplate}" />
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
     </Style>
@@ -488,7 +460,6 @@
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Stretch" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template" Value="{StaticResource BorderlessListItemButtonControlTemplate}" />
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
     </Style>

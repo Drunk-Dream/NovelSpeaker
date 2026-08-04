@@ -12,7 +12,7 @@
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
-        ResizeMode="CanResizeWithGrip"
+        ResizeMode="NoResize"
         ShowInTaskbar="True"
         WindowStartupLocation="CenterScreen"
         Topmost="{Binding IsTopmost, Mode=TwoWay}"
@@ -20,10 +20,10 @@
     <Border x:Name="MiniPlayerSurface"
             Padding="12,6"
             Background="{DynamicResource RaisedSurfaceBrush}"
-            BorderBrush="{DynamicResource SubtleBorderBrush}"
-            BorderThickness="1"
+            BorderBrush="Transparent"
+            BorderThickness="0"
             CornerRadius="{StaticResource CornerRadiusLarge}"
-            Effect="{StaticResource ElevationHigh}">
+            ClipToBounds="True">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -48,7 +48,7 @@
                             Orientation="Horizontal">
                     <Button x:Name="MiniPlayerTopmostButton"
                             Margin="4,0,0,0"
-                            Style="{StaticResource App.Media.WindowAction}"
+                            Style="{StaticResource App.Button.Icon}"
                             Command="{Binding ToggleTopmostCommand}"
                             ToolTip="{Binding TopmostActionText, FallbackValue=置顶}"
                             AutomationProperties.Name="{Binding TopmostActionText, FallbackValue=置顶}">
@@ -88,7 +88,7 @@
                     </Button>
                     <Button x:Name="MiniPlayerRestoreButton"
                             Margin="4,0,0,0"
-                            Style="{StaticResource App.Media.WindowAction}"
+                            Style="{StaticResource App.Button.Icon}"
                             Command="{Binding RestoreMainWindowCommand}"
                             ToolTip="恢复主窗口"
                             AutomationProperties.Name="恢复主窗口">
@@ -98,10 +98,10 @@
                     </Button>
                     <Button x:Name="MiniPlayerCloseButton"
                             Margin="4,0,0,0"
-                            Style="{StaticResource App.Media.WindowAction}"
-                            Command="{Binding RestoreMainWindowCommand}"
-                            ToolTip="返回主窗口"
-                            AutomationProperties.Name="返回主窗口">
+                            Style="{StaticResource App.Button.Icon}"
+                            Click="MiniPlayerCloseButton_OnClick"
+                            ToolTip="退出应用"
+                            AutomationProperties.Name="退出应用">
                         <ui:SymbolIcon Width="20"
                                        Height="20"
                                        Symbol="DismissSquare24" />
@@ -161,11 +161,12 @@
             <Border x:Name="MiniPlayerMediaSurface"
                     Grid.Row="3"
                     Margin="0,4,0,0"
-                    Padding="2,0"
+                    Padding="4,0"
                     Background="{DynamicResource SecondarySurfaceBrush}"
                     BorderBrush="{DynamicResource SubtleBorderBrush}"
                     BorderThickness="1"
-                    CornerRadius="{StaticResource CornerRadiusSmall}">
+                    CornerRadius="{StaticResource CornerRadiusMedium}"
+                    ClipToBounds="True">
                 <Grid x:Name="MiniPlayerControlBar">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -178,7 +179,7 @@
                                 Orientation="Horizontal">
                         <Button x:Name="MiniPlayerPreviousChapterButton"
                                 Margin="2,0"
-                                Style="{StaticResource App.Media.Chapter}"
+                                Style="{StaticResource App.Button.Icon}"
                                 IsEnabled="{Binding HasPlaybackContext}"
                                 Command="{Binding PreviousChapterCommand}"
                                 ToolTip="上一章"
@@ -189,7 +190,11 @@
                         </Button>
                         <Button x:Name="MiniPlayerPreviousSegmentButton"
                                 Margin="2,0"
-                                Style="{StaticResource App.Media.Secondary}"
+                                Width="36"
+                                Height="36"
+                                MinWidth="36"
+                                MinHeight="36"
+                                Style="{StaticResource App.Button.Icon}"
                                 IsEnabled="{Binding CanGoToPreviousSegment}"
                                 Command="{Binding PreviousSegmentCommand}"
                                 ToolTip="上一段"
@@ -200,58 +205,40 @@
                         </Button>
                         <Button x:Name="MiniPlayerPlaybackButton"
                                 Margin="2,0"
-                                Style="{StaticResource App.Media.Primary}"
+                                Width="48"
+                                Height="48"
+                                MinWidth="48"
+                                MinHeight="48"
+                                Style="{StaticResource App.Button.Icon}"
                                 Background="Transparent"
                                 BorderBrush="Transparent"
+                                BorderThickness="0"
                                 IsEnabled="{Binding CanTogglePlayback}"
                                 Command="{Binding TogglePlaybackCommand}"
                                 ToolTip="{Binding PlaybackActionText}"
                                 AutomationProperties.Name="{Binding PlaybackActionText}">
-                            <Border x:Name="MiniPlayerPlaybackSurface"
-                                    Width="48"
-                                    Height="48"
-                                    CornerRadius="999">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{DynamicResource AccentDefaultBrush}" />
-                                        <Setter Property="BorderBrush" Value="Transparent" />
-                                        <Setter Property="BorderThickness" Value="0" />
+                            <ui:SymbolIcon Width="28"
+                                           Height="28"
+                                           Foreground="{DynamicResource PrimaryTextBrush}">
+                                <ui:SymbolIcon.Style>
+                                    <Style TargetType="ui:SymbolIcon">
+                                        <Setter Property="Symbol" Value="PlayCircle24" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
-                                                         Value="True">
-                                                <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding IsPressed, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
-                                                         Value="True">
-                                                <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding IsKeyboardFocused, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
-                                                         Value="True">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource AccentFocusRingBrush}" />
-                                                <Setter Property="BorderThickness" Value="1" />
+                                            <DataTrigger Binding="{Binding PlaybackActionText}" Value="暂停">
+                                                <Setter Property="Symbol" Value="PauseCircle24" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </Border.Style>
-                                <ui:SymbolIcon Width="28"
-                                               Height="28"
-                                               Foreground="{DynamicResource AccentTextBrush}">
-                                    <ui:SymbolIcon.Style>
-                                        <Style TargetType="ui:SymbolIcon">
-                                            <Setter Property="Symbol" Value="PlayCircle24" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding PlaybackActionText}" Value="暂停">
-                                                    <Setter Property="Symbol" Value="PauseCircle24" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </ui:SymbolIcon.Style>
-                                </ui:SymbolIcon>
-                            </Border>
+                                </ui:SymbolIcon.Style>
+                            </ui:SymbolIcon>
                         </Button>
                         <Button x:Name="MiniPlayerNextSegmentButton"
                                 Margin="2,0"
-                                Style="{StaticResource App.Media.Secondary}"
+                                Width="36"
+                                Height="36"
+                                MinWidth="36"
+                                MinHeight="36"
+                                Style="{StaticResource App.Button.Icon}"
                                 IsEnabled="{Binding CanGoToNextSegment}"
                                 Command="{Binding NextSegmentCommand}"
                                 ToolTip="下一段"
@@ -262,7 +249,7 @@
                         </Button>
                         <Button x:Name="MiniPlayerNextChapterButton"
                                 Margin="2,0"
-                                Style="{StaticResource App.Media.Chapter}"
+                                Style="{StaticResource App.Button.Icon}"
                                 IsEnabled="{Binding HasPlaybackContext}"
                                 Command="{Binding NextChapterCommand}"
                                 ToolTip="下一章"
@@ -275,8 +262,12 @@
                     <Button x:Name="MiniPlayerVolumeMenuButton"
                             Grid.Column="2"
                             Margin="4,0,2,0"
+                            Width="36"
+                            Height="36"
+                            MinWidth="36"
+                            MinHeight="36"
                             HorizontalAlignment="Right"
-                            Style="{StaticResource App.Media.Secondary}"
+                            Style="{StaticResource App.Button.Icon}"
                             Command="{Binding ToggleVolumeMenuCommand}"
                             ToolTip="播放音量"
                             AutomationProperties.Name="{Binding VolumeButtonAutomationName, FallbackValue=播放音量}">
