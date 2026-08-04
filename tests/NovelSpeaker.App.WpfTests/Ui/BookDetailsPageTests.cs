@@ -67,7 +67,7 @@ public sealed class BookDetailsPageTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 frame.Navigate(page);
                 page.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
                 window.UpdateLayout();
@@ -247,7 +247,7 @@ public sealed class BookDetailsPageTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 frame.Navigate(page);
                 page.OnNavigatedToAsync().GetAwaiter().GetResult();
 

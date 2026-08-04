@@ -59,7 +59,7 @@ public sealed class WpfShortcutContextResolverTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 popup.IsOpen = true;
                 popupContent.Focus();
 
@@ -89,7 +89,7 @@ public sealed class WpfShortcutContextResolverTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 window.UpdateLayout();
 
                 var context = new WpfShortcutContextResolver().Resolve(
@@ -117,7 +117,7 @@ public sealed class WpfShortcutContextResolverTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
 
                 var context = new WpfShortcutContextResolver().Resolve(
                     true,

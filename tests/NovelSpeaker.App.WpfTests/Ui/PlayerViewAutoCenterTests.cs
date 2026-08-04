@@ -66,8 +66,8 @@ public sealed partial class PlayerViewTests
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
-                new FakePlaybackStopTimer(),
-                new FakeActiveCacheCoordinator(),
+                new WpfFakePlaybackStopTimer(),
+                new WpfFakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
@@ -77,7 +77,7 @@ public sealed partial class PlayerViewTests
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator(),
                 new FakeCacheWorkspaceService(),
-                new FakeMiniPlayerLauncher());
+                new WpfFakeMiniPlayerLauncher());
 
             var page = new PlayerPage(viewModel)
             {
@@ -99,7 +99,7 @@ public sealed partial class PlayerViewTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 DoEvents();
                 page.UpdateLayout();
 
@@ -159,8 +159,8 @@ public sealed partial class PlayerViewTests
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
-                new FakePlaybackStopTimer(),
-                new FakeActiveCacheCoordinator(),
+                new WpfFakePlaybackStopTimer(),
+                new WpfFakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
@@ -170,7 +170,7 @@ public sealed partial class PlayerViewTests
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
                 new FakeCacheWorkspaceService(),
-                new FakeMiniPlayerLauncher());
+                new WpfFakeMiniPlayerLauncher());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
@@ -193,7 +193,7 @@ public sealed partial class PlayerViewTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 DoEvents();
                 view.UpdateLayout();
 
@@ -259,8 +259,8 @@ public sealed partial class PlayerViewTests
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
-                new FakePlaybackStopTimer(),
-                new FakeActiveCacheCoordinator(),
+                new WpfFakePlaybackStopTimer(),
+                new WpfFakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
@@ -270,7 +270,7 @@ public sealed partial class PlayerViewTests
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
                 new FakeCacheWorkspaceService(),
-                new FakeMiniPlayerLauncher());
+                new WpfFakeMiniPlayerLauncher());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
@@ -293,7 +293,7 @@ public sealed partial class PlayerViewTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 DoEvents();
                 view.UpdateLayout();
 
@@ -357,8 +357,8 @@ public sealed partial class PlayerViewTests
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
-                new FakePlaybackStopTimer(),
-                new FakeActiveCacheCoordinator(),
+                new WpfFakePlaybackStopTimer(),
+                new WpfFakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
@@ -368,7 +368,7 @@ public sealed partial class PlayerViewTests
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
                 new FakeCacheWorkspaceService(),
-                new FakeMiniPlayerLauncher());
+                new WpfFakeMiniPlayerLauncher());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
@@ -393,7 +393,7 @@ public sealed partial class PlayerViewTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 DoEvents();
                 view.UpdateLayout();
 
@@ -458,8 +458,8 @@ public sealed partial class PlayerViewTests
                     .ToArray());
             var viewModel = new PlayerViewModel(
                 coordinator,
-                new FakePlaybackStopTimer(),
-                new FakeActiveCacheCoordinator(),
+                new WpfFakePlaybackStopTimer(),
+                new WpfFakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
                     chapter),
@@ -469,7 +469,7 @@ public sealed partial class PlayerViewTests
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
                 new FakeCacheWorkspaceService(),
-                new FakeMiniPlayerLauncher());
+                new WpfFakeMiniPlayerLauncher());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
@@ -492,7 +492,7 @@ public sealed partial class PlayerViewTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 DoEvents();
                 view.UpdateLayout();
 

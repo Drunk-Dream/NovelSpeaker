@@ -90,7 +90,7 @@ public sealed class NavigationViewportHeightBehaviorTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 frame.Navigate(page);
                 page.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
                 window.UpdateLayout();

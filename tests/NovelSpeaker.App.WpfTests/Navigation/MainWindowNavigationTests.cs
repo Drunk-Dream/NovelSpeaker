@@ -31,7 +31,7 @@ public sealed class MainWindowNavigationTests
         await WpfTestHost.RunInStaAsync(async () =>
         {
             using var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
-            var activeCache = new NovelSpeaker.App.WpfTests.FakeActiveCacheCoordinator(CreateActiveCacheSnapshot());
+            var activeCache = new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeActiveCacheCoordinator(CreateActiveCacheSnapshot());
             var navigationService = new FakeNavigationService();
             var window = CreateWindow(
                 navigationService,
@@ -43,7 +43,7 @@ public sealed class MainWindowNavigationTests
                 serviceProvider,
                 new FakeMainWindowAppearanceConfigurator(),
                 activeCache);
-            window.Show();
+            WpfWindowHost.Show(window);
             try
             {
                 window.UpdateLayout();
@@ -100,7 +100,7 @@ public sealed class MainWindowNavigationTests
                     return Task.CompletedTask;
                 },
                 () => exitApproved);
-            window.Show();
+            WpfWindowHost.Show(window);
 
             window.Close();
             await DrainDispatcherAsync(window.Dispatcher);
@@ -127,7 +127,7 @@ public sealed class MainWindowNavigationTests
                 new FakeAppFeedbackService(),
                 _ => throw new InvalidOperationException("Exit callback must not run after approval."),
                 () => true);
-            window.Show();
+            WpfWindowHost.Show(window);
 
             window.Close();
             await DrainDispatcherAsync(window.Dispatcher);
@@ -150,7 +150,7 @@ public sealed class MainWindowNavigationTests
                 feedback,
                 _ => throw new InvalidOperationException("sensitive detail"),
                 () => exitApproved);
-            window.Show();
+            WpfWindowHost.Show(window);
 
             window.Close();
             await DrainDispatcherAsync(window.Dispatcher);
@@ -251,7 +251,7 @@ public sealed class MainWindowNavigationTests
             var window = provider.GetRequiredService<MainWindow>();
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 window.UpdateLayout();
 
                 var navigationService = provider.GetRequiredService<IAppNavigator>();
@@ -281,7 +281,7 @@ public sealed class MainWindowNavigationTests
             var window = provider.GetRequiredService<MainWindow>();
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 window.UpdateLayout();
                 await DrainDispatcherAsync(window.Dispatcher);
 
@@ -372,7 +372,7 @@ public sealed class MainWindowNavigationTests
             new MainWindowViewModel(
                 new FakePlaybackCoordinator(),
                 new ShellActiveCacheController(
-                    activeCacheCoordinator ?? new NovelSpeaker.App.WpfTests.FakeActiveCacheCoordinator(),
+                    activeCacheCoordinator ?? new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeActiveCacheCoordinator(),
                     feedbackService),
                 navigationService),
             feedbackService,

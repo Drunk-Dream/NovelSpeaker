@@ -105,7 +105,7 @@ public sealed class ButtonStyleTests
             };
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 window.UpdateLayout();
 
                 Assert.All(buttons, pair =>

@@ -41,7 +41,7 @@ public sealed class BookCardViewTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 window.UpdateLayout();
 
                 var openButton = VisualTreeTestHelper.FindDescendant<Button>(

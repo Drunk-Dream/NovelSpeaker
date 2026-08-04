@@ -156,7 +156,7 @@ public sealed class ProviderStyleBridgeTests
             var window = new TestWindow(button);
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 button.Measure(new Size(240, 60));
                 button.Arrange(new Rect(0, 0, 240, 60));
                 button.ApplyTemplate();
@@ -207,7 +207,7 @@ public sealed class ProviderStyleBridgeTests
             var window = new TestWindow(navigation);
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 window.UpdateLayout();
                 navigationItem.Measure(new Size(240, 60));
                 navigationItem.Arrange(new Rect(0, 0, 240, 60));

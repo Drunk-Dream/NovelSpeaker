@@ -63,8 +63,8 @@ public sealed class NavigationPageLifecycleTests
                     null,
                     false,
                     false)),
-                new NovelSpeaker.App.WpfTests.FakePlaybackStopTimer(),
-                new NovelSpeaker.App.WpfTests.FakeActiveCacheCoordinator(),
+                new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakePlaybackStopTimer(),
+                new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
                     PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
@@ -74,7 +74,7 @@ public sealed class NavigationPageLifecycleTests
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator(),
                 new FakeCacheWorkspaceService(),
-                new NovelSpeaker.App.WpfTests.FakeMiniPlayerLauncher());
+                new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeMiniPlayerLauncher());
             var page = new PlayerPage(viewModel);
             page.DataContext = new PlayerNavigationRequest("book-7", PlayerNavigationMode.ReturnToCurrentSession);
 
@@ -108,8 +108,8 @@ public sealed class NavigationPageLifecycleTests
                 false));
             var viewModel = new PlayerViewModel(
                 playback,
-                new NovelSpeaker.App.WpfTests.FakePlaybackStopTimer(),
-                new NovelSpeaker.App.WpfTests.FakeActiveCacheCoordinator(),
+                new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakePlaybackStopTimer(),
+                new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeActiveCacheCoordinator(),
                 new FakeBookPlaybackContentService(
                     new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
                     PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
@@ -119,7 +119,7 @@ public sealed class NavigationPageLifecycleTests
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator(),
                 new FakeCacheWorkspaceService(),
-                new NovelSpeaker.App.WpfTests.FakeMiniPlayerLauncher());
+                new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeMiniPlayerLauncher());
             var page = new PlayerPage(viewModel)
             {
                 DataContext = new PlayerNavigationRequest("book-7", PlayerNavigationMode.ReturnToCurrentSession)

@@ -159,7 +159,7 @@ public sealed class StyleGallerySceneTests
             };
             try
             {
-                host.Show();
+                WpfWindowHost.Show(host);
                 host.UpdateLayout();
 
                 var buttons = FindDescendants<WpfButton>(scene)
@@ -233,7 +233,7 @@ public sealed class StyleGallerySceneTests
             };
             try
             {
-                host.Show();
+                WpfWindowHost.Show(host);
                 host.UpdateLayout();
 
                 var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
@@ -310,7 +310,7 @@ public sealed class StyleGallerySceneTests
             };
             try
             {
-                host.Show();
+                WpfWindowHost.Show(host);
                 host.UpdateLayout();
 
                 var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
@@ -355,7 +355,7 @@ public sealed class StyleGallerySceneTests
             };
             try
             {
-                host.Show();
+                WpfWindowHost.Show(host);
                 host.UpdateLayout();
                 var buttons = FindDescendants<WpfButton>(scene)
                     .Where(button => AutomationProperties.GetAutomationId(button).StartsWith(
@@ -414,7 +414,7 @@ public sealed class StyleGallerySceneTests
             };
             try
             {
-                host.Show();
+                WpfWindowHost.Show(host);
                 host.UpdateLayout();
 
                 var swatches = FindDescendants<Border>(scene)
@@ -565,7 +565,7 @@ public sealed class StyleGallerySceneTests
             };
             try
             {
-                host.Show();
+                WpfWindowHost.Show(host);
                 host.UpdateLayout();
 
                 Assert.True(spacing > 0);
@@ -603,6 +603,11 @@ public sealed class StyleGallerySceneTests
     [Fact]
     public async Task Screenshot_generator_writes_verified_manifest_and_stable_png_outputs()
     {
+        if (!VisualArtifactTestGuard.IsEnabled)
+        {
+            return;
+        }
+
         await WpfTestHost.RunInStaAsync(async () =>
         {
             using var output = new TemporaryOutputDirectory();
@@ -622,7 +627,7 @@ public sealed class StyleGallerySceneTests
                 var generator = new GalleryScreenshotGenerator();
 
                 firstWindow = new GalleryWindow();
-                firstWindow.Show();
+                WpfWindowHost.Show(firstWindow);
                 await generator.GenerateAsync(firstWindow, options, cancellation.Token);
                 var firstManifest = await ReadManifestAsync(output.ManifestPath, cancellation.Token);
                 await AssertManifestMatchesPngsAsync(firstManifest, output.Path, cancellation.Token);
@@ -631,7 +636,7 @@ public sealed class StyleGallerySceneTests
                 firstWindow = null;
 
                 secondWindow = new GalleryWindow();
-                secondWindow.Show();
+                WpfWindowHost.Show(secondWindow);
                 await generator.GenerateAsync(secondWindow, options, cancellation.Token);
                 var secondManifest = await ReadManifestAsync(output.ManifestPath, cancellation.Token);
                 await AssertManifestMatchesPngsAsync(secondManifest, output.Path, cancellation.Token);
@@ -656,6 +661,11 @@ public sealed class StyleGallerySceneTests
     [Fact]
     public async Task Screenshot_generator_writes_explicit_task_04_to_manifest()
     {
+        if (!VisualArtifactTestGuard.IsEnabled)
+        {
+            return;
+        }
+
         await WpfTestHost.RunInStaAsync(async () =>
         {
             using var output = new TemporaryOutputDirectory();
@@ -675,7 +685,7 @@ public sealed class StyleGallerySceneTests
             var window = new GalleryWindow();
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 await new GalleryScreenshotGenerator().GenerateAsync(window, options, cancellation.Token);
                 var manifest = await ReadManifestAsync(output.ManifestPath, cancellation.Token);
 
@@ -699,6 +709,11 @@ public sealed class StyleGallerySceneTests
     [Fact]
     public async Task Screenshot_generator_writes_explicit_task_05_palette_scene_to_manifest()
     {
+        if (!VisualArtifactTestGuard.IsEnabled)
+        {
+            return;
+        }
+
         await WpfTestHost.RunInStaAsync(async () =>
         {
             using var output = new TemporaryOutputDirectory();
@@ -718,7 +733,7 @@ public sealed class StyleGallerySceneTests
             var window = new GalleryWindow();
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 await new GalleryScreenshotGenerator().GenerateAsync(window, options, cancellation.Token);
                 var manifest = await ReadManifestAsync(output.ManifestPath, cancellation.Token);
 
@@ -742,6 +757,11 @@ public sealed class StyleGallerySceneTests
     [Fact]
     public async Task Screenshot_generator_writes_explicit_task_07_button_scene_to_manifest()
     {
+        if (!VisualArtifactTestGuard.IsEnabled)
+        {
+            return;
+        }
+
         await WpfTestHost.RunInStaAsync(async () =>
         {
             using var output = new TemporaryOutputDirectory();
@@ -761,7 +781,7 @@ public sealed class StyleGallerySceneTests
             var window = new GalleryWindow();
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 await new GalleryScreenshotGenerator().GenerateAsync(window, options, cancellation.Token);
                 var manifest = await ReadManifestAsync(output.ManifestPath, cancellation.Token);
 

@@ -138,7 +138,7 @@ public sealed class CachePagesViewTests
                     Height = 760,
                     Content = frame
                 };
-                window.Show();
+                WpfWindowHost.Show(window);
                 frame.Navigate(page);
                 page.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
                 window.UpdateLayout();

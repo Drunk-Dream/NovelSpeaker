@@ -165,7 +165,7 @@ public sealed class WindowsTrayLifecycleAdapterTests
                 DesktopLifecycleCommand? received = null;
                 adapter.CommandReceived += (_, command) => received = command;
 
-                miniPlayer.Show();
+                WpfWindowHost.Show(miniPlayer);
                 miniPlayer.Close();
 
                 Assert.Equal(DesktopLifecycleCommand.ExitApplication, received);
