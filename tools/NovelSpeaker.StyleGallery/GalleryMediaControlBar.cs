@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
+using System.Windows.Media;
 using Wpf.Ui.Controls;
 using Button = System.Windows.Controls.Button;
 using TextBlock = System.Windows.Controls.TextBlock;
@@ -67,11 +69,21 @@ public sealed class GalleryMediaControlBar : Border
 
     public Slider ProgressSlider { get; private set; } = null!;
 
+    public Grid ProgressTrack { get; private set; } = null!;
+
+    public Border PlayedTrack { get; private set; } = null!;
+
+    public Border UnplayedTrack { get; private set; } = null!;
+
     public TextBlock SliderProjectionText { get; private set; } = null!;
+
+    public TextBlock SliderPositionText { get; private set; } = null!;
 
     public Button PlayButton { get; private set; } = null!;
 
     public Button PauseButton { get; private set; } = null!;
+
+    public Button VolumeButton { get; private set; } = null!;
 
     public Button PreviousSegmentButton { get; private set; } = null!;
 
@@ -172,6 +184,38 @@ public sealed class GalleryMediaControlBar : Border
         Grid.SetColumn(label, 0);
         row.Children.Add(label);
 
+        ProgressTrack = new Grid
+        {
+            Height = 24,
+            MinHeight = 24,
+            MinWidth = 280,
+            ClipToBounds = false
+        };
+        ProgressTrack.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        ProgressTrack.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        PlayedTrack = new Border
+        {
+            Height = 6,
+            VerticalAlignment = VerticalAlignment.Center,
+            CornerRadius = new CornerRadius(3)
+        };
+        PlayedTrack.SetResourceReference(Panel.BackgroundProperty, "AccentBrush");
+        AutomationProperties.SetAutomationId(PlayedTrack, "media-slider-played-track");
+        Grid.SetColumn(PlayedTrack, 0);
+        ProgressTrack.Children.Add(PlayedTrack);
+
+        UnplayedTrack = new Border
+        {
+            Height = 6,
+            VerticalAlignment = VerticalAlignment.Center,
+            CornerRadius = new CornerRadius(3)
+        };
+        UnplayedTrack.SetResourceReference(Panel.BackgroundProperty, "SecondarySurfaceBrush");
+        AutomationProperties.SetAutomationId(UnplayedTrack, "media-slider-unplayed-track");
+        Grid.SetColumn(UnplayedTrack, 1);
+        ProgressTrack.Children.Add(UnplayedTrack);
+
         ProgressSlider = new Slider
         {
             Style = FindStyle("Slider"),
@@ -180,6 +224,7 @@ public sealed class GalleryMediaControlBar : Border
             Value = SliderProjection.Value,
             TickFrequency = 1,
             HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = Brushes.Transparent,
             ToolTip = new ToolTip
             {
                 Content = SliderProjection.TooltipText,
@@ -194,14 +239,17 @@ public sealed class GalleryMediaControlBar : Border
         ProgressSlider.ValueChanged += OnProgressValueChanged;
         ProgressSlider.Loaded += (_, _) =>
         {
+            UpdateProgressTrack();
             if (ProgressSlider.ToolTip is ToolTip toolTip)
             {
                 toolTip.PlacementTarget = ProgressSlider;
                 toolTip.IsOpen = true;
             }
         };
-        Grid.SetColumn(ProgressSlider, 1);
-        row.Children.Add(ProgressSlider);
+        ProgressTrack.Children.Add(ProgressSlider);
+        Grid.SetColumnSpan(ProgressSlider, 2);
+        Grid.SetColumn(ProgressTrack, 1);
+        row.Children.Add(ProgressTrack);
 
         var position = new TextBlock
         {
@@ -212,6 +260,9 @@ public sealed class GalleryMediaControlBar : Border
         AutomationProperties.SetAutomationId(position, "media-slider-position");
         Grid.SetColumn(position, 2);
         row.Children.Add(position);
+        SliderPositionText = position;
+        ProgressTrack.SizeChanged += (_, _) => UpdateProgressTrack();
+        UpdateProgressTrack();
         return row;
 
         ToolTip CreateProgressToolTip(Slider slider) => new()
@@ -251,14 +302,14 @@ public sealed class GalleryMediaControlBar : Border
             SymbolRegular.PlayCircle24,
             "播放：开始读取当前段。此 Gallery fixture 不执行播放命令。",
             "App.Media.Primary 播放",
-            24);
+            28);
         PauseButton = CreateButton(
             "Primary",
             "media-primary-pause",
             SymbolRegular.PauseCircle24,
             "暂停：暂停当前段。此 Gallery fixture 不执行播放命令。",
             "App.Media.Primary 暂停（Focus preview）",
-            24);
+            28);
         PauseButton.SetResourceReference(Control.BorderBrushProperty, "AccentFocusRingBrush");
         NextSegmentButton = CreateButton(
             "Secondary",
@@ -274,6 +325,13 @@ public sealed class GalleryMediaControlBar : Border
             "下一章：跳转到下一章的第一段。",
             "App.Media.Chapter 下一章",
             16);
+        VolumeButton = CreateButton(
+            "Secondary",
+            "media-volume",
+            SymbolRegular.Speaker224,
+            "音量：调整播放音量。此 Gallery fixture 不执行真实音量命令。",
+            "App.Media.Secondary 音量",
+            20);
 
         foreach (var button in new[]
                  {
@@ -282,7 +340,8 @@ public sealed class GalleryMediaControlBar : Border
                      PlayButton,
                      PauseButton,
                      NextSegmentButton,
-                     NextChapterButton
+                     NextChapterButton,
+                     VolumeButton
                  })
         {
             button.Margin = new Thickness(4, 0, 4, 0);
@@ -319,15 +378,25 @@ public sealed class GalleryMediaControlBar : Border
         string automationName,
         double iconSize)
     {
+        var foregroundKey = styleName switch
+        {
+            "Primary" => "AccentTextBrush",
+            "Chapter" => "SecondaryTextBrush",
+            _ => "PrimaryTextBrush"
+        };
+        var icon = new SymbolIcon
+        {
+            Symbol = symbol,
+            Width = iconSize,
+            Height = iconSize
+        };
+        icon.SetResourceReference(SymbolIcon.ForegroundProperty, foregroundKey);
+        icon.SetResourceReference(TextElement.ForegroundProperty, foregroundKey);
+        icon.Loaded += (_, _) => ApplyMediaIconGlyphForeground(icon, foregroundKey);
         var button = new Button
         {
             Style = FindStyle(styleName),
-            Content = new SymbolIcon
-            {
-                Symbol = symbol,
-                Width = iconSize,
-                Height = iconSize
-            },
+            Content = icon,
             ToolTip = toolTip,
             Focusable = true
         };
@@ -335,6 +404,36 @@ public sealed class GalleryMediaControlBar : Border
         AutomationProperties.SetAutomationId(button, automationId);
         AutomationProperties.SetName(button, automationName);
         return button;
+    }
+
+    private static void ApplyMediaIconGlyphForeground(SymbolIcon icon, string foregroundKey)
+    {
+        icon.ApplyTemplate();
+        foreach (var glyph in FindVisualDescendants<TextBlock>(icon))
+        {
+            glyph.SetResourceReference(TextBlock.ForegroundProperty, foregroundKey);
+        }
+    }
+
+    private static IReadOnlyList<T> FindVisualDescendants<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        var matches = new List<T>();
+        Visit(root, matches);
+        return matches;
+
+        static void Visit(DependencyObject current, ICollection<T> matches)
+        {
+            if (current is T match)
+            {
+                matches.Add(match);
+            }
+
+            for (var index = 0; index < VisualTreeHelper.GetChildrenCount(current); index++)
+            {
+                Visit(VisualTreeHelper.GetChild(current, index), matches);
+            }
+        }
     }
 
     private void OnProgressValueChanged(object sender, RoutedPropertyChangedEventArgs<double> args)
@@ -346,12 +445,22 @@ public sealed class GalleryMediaControlBar : Border
         }
 
         SliderProjectionText.Text = FormatProjection();
-        if (ProgressSlider.Parent is Grid row &&
-            row.Children.OfType<TextBlock>().SingleOrDefault(
-                text => AutomationProperties.GetAutomationId(text) == "media-slider-position") is { } position)
+        SliderPositionText.Text = SliderProjection.TooltipText;
+        UpdateProgressTrack();
+    }
+
+    private void UpdateProgressTrack()
+    {
+        if (ProgressTrack is null || ProgressTrack.ActualWidth <= 0)
         {
-            position.Text = SliderProjection.TooltipText;
+            return;
         }
+
+        var playedRatio = SliderProjection.Maximum == 0
+            ? 0
+            : (double)SliderProjection.Value / SliderProjection.Maximum;
+        ProgressTrack.ColumnDefinitions[0].Width = new GridLength(playedRatio, GridUnitType.Star);
+        ProgressTrack.ColumnDefinitions[1].Width = new GridLength(1 - playedRatio, GridUnitType.Star);
     }
 
     private string FormatProjection() =>

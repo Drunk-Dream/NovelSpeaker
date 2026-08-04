@@ -1,6 +1,7 @@
 using System.IO;
 using System.Security.Cryptography;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -9,6 +10,7 @@ using NovelSpeaker.StyleGallery;
 using Wpf.Ui.Controls;
 using Xunit;
 using Button = System.Windows.Controls.Button;
+using TextBlock = System.Windows.Controls.TextBlock;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
 
@@ -277,6 +279,158 @@ public sealed class MediaControlStyleTests
         });
     }
 
+    [Fact]
+    public void Gallery_media_fixture_uses_equal_primary_button_and_icon_geometry()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            var bar = new GalleryMediaControlBar();
+            var window = CreateFixtureWindow(bar, 900, 360);
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+
+                Assert.Equal(bar.PlayButton.RenderSize, bar.PauseButton.RenderSize);
+                Assert.Equal(48, bar.PlayButton.ActualWidth);
+                Assert.Equal(48, bar.PlayButton.ActualHeight);
+
+                var playIcon = Assert.IsType<SymbolIcon>(bar.PlayButton.Content);
+                var pauseIcon = Assert.IsType<SymbolIcon>(bar.PauseButton.Content);
+                Assert.Equal(28, playIcon.Width);
+                Assert.Equal(28, playIcon.Height);
+                Assert.Equal(playIcon.Width, pauseIcon.Width);
+                Assert.Equal(playIcon.Height, pauseIcon.Height);
+                Assert.Equal(playIcon.RenderSize, pauseIcon.RenderSize);
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void Gallery_media_fixture_binds_dark_media_glyph_nodes_to_semantic_foregrounds()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(GalleryTheme.Dark);
+            var bar = new GalleryMediaControlBar();
+            var window = CreateFixtureWindow(bar, 900, 360);
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+
+                var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                    global::System.Windows.Application.Current);
+                var expectedAccent = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("AccentTextBrush")).Color;
+                var expectedPrimary = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("PrimaryTextBrush")).Color;
+
+                AssertMediaGlyphForeground(bar.PlayButton, expectedAccent);
+                AssertMediaGlyphForeground(bar.PauseButton, expectedAccent);
+                AssertMediaGlyphForeground(bar.VolumeButton, expectedPrimary);
+                AssertMediaGlyphForeground(bar.NextSegmentButton, expectedPrimary);
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void Gallery_media_fixture_projects_accent_and_neutral_progress_tracks_during_drag()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            var bar = new GalleryMediaControlBar();
+            var window = CreateFixtureWindow(bar, 900, 360);
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+
+                var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                    global::System.Windows.Application.Current);
+                var expectedAccent = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("AccentBrush")).Color;
+                var expectedNeutral = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("SecondarySurfaceBrush")).Color;
+                var played = FindDescendants<Border>(bar).Single(border =>
+                    AutomationProperties.GetAutomationId(border) == "media-slider-played-track");
+                var unplayed = FindDescendants<Border>(bar).Single(border =>
+                    AutomationProperties.GetAutomationId(border) == "media-slider-unplayed-track");
+
+                Assert.Equal(expectedAccent, Assert.IsType<SolidColorBrush>(played.Background).Color);
+                Assert.Equal(expectedNeutral, Assert.IsType<SolidColorBrush>(unplayed.Background).Color);
+                Assert.True(played.ActualWidth > 0);
+                Assert.True(unplayed.ActualWidth > 0);
+                var initialPlayedWidth = played.ActualWidth;
+
+                bar.ProgressSlider.Value = 112;
+                window.UpdateLayout();
+
+                Assert.Equal(112, bar.SliderProjection.Value);
+                Assert.True(played.ActualWidth > initialPlayedWidth);
+                Assert.True(unplayed.ActualWidth < bar.ProgressTrack.ActualWidth);
+                Assert.Equal("112 / 140", Assert.IsType<ToolTip>(bar.ProgressSlider.ToolTip).Content);
+            }
+            finally
+            {
+                bar.SliderProjection.EndDrag();
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void Gallery_media_fixture_exposes_a_non_command_volume_button()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            var bar = new GalleryMediaControlBar();
+            var window = CreateFixtureWindow(bar, 900, 360);
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+
+                Assert.Equal(
+                    SymbolRegular.Speaker224,
+                    Assert.IsType<SymbolIcon>(bar.VolumeButton.Content).Symbol);
+                Assert.Contains("音量", AutomationProperties.GetName(bar.VolumeButton), StringComparison.Ordinal);
+                Assert.Contains("音量", Assert.IsType<string>(bar.VolumeButton.ToolTip), StringComparison.Ordinal);
+                Assert.True(bar.VolumeButton.ActualWidth >= 36);
+                Assert.True(bar.VolumeButton.ActualHeight >= 36);
+
+                var clickCount = 0;
+                bar.VolumeButton.Click += (_, _) => clickCount++;
+                bar.ProgressSlider.Value = 96;
+                window.UpdateLayout();
+                Assert.Equal(0, clickCount);
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+                window.Close();
+            }
+        });
+    }
+
     [Theory]
     [InlineData(GalleryTheme.Light)]
     [InlineData(GalleryTheme.Dark)]
@@ -327,6 +481,46 @@ public sealed class MediaControlStyleTests
             Style = Assert.IsType<Style>(application.FindResource(styleKey)),
             Content = new SymbolIcon { Symbol = symbol }
         };
+
+    private static Window CreateFixtureWindow(FrameworkElement content, double width, double height) =>
+        new()
+        {
+            Content = content,
+            Width = width,
+            Height = height,
+            ShowInTaskbar = false,
+            WindowStyle = WindowStyle.ToolWindow
+        };
+
+    private static void AssertMediaGlyphForeground(Button button, Color expectedColor)
+    {
+        var icon = Assert.IsType<SymbolIcon>(button.Content);
+        var glyph = Assert.Single(FindDescendants<TextBlock>(icon));
+        var foreground = Assert.IsType<SolidColorBrush>(glyph.Foreground);
+        Assert.Equal(expectedColor, foreground.Color);
+        Assert.NotEqual(Colors.Black, foreground.Color);
+    }
+
+    private static IReadOnlyList<T> FindDescendants<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        var matches = new List<T>();
+        Visit(root, matches);
+        return matches;
+
+        static void Visit(DependencyObject current, ICollection<T> matches)
+        {
+            if (current is T match)
+            {
+                matches.Add(match);
+            }
+
+            for (var index = 0; index < VisualTreeHelper.GetChildrenCount(current); index++)
+            {
+                Visit(VisualTreeHelper.GetChild(current, index), matches);
+            }
+        }
+    }
 
     private static string LocateRepositoryRoot()
     {

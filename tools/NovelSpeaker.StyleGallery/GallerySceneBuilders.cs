@@ -55,7 +55,7 @@ internal static class GallerySceneBuilders
         CreateSceneRoot(
             "media-controls",
             "Media control components",
-            "App.Media styles and the Gallery-only control bar show playback, window actions and deterministic slider projection.",
+            "App.Media styles and the Gallery-only control bar show playback, volume, window actions and deterministic slider projection.",
             CreateMediaControlsContent);
 
     public static FrameworkElement CreateProviderStyleProbe() =>
@@ -414,13 +414,13 @@ internal static class GallerySceneBuilders
                 CreateText("State fixtures", 15, FontWeights.SemiBold),
                 new TextBlock
                 {
-                    Text = "播放 / 暂停使用唯一 Accent 主按钮；上一章 / 下一章使用 32 px 低权重图标，上一段 / 下一段使用 36 px 中性按钮。Focus、Disabled、置顶激活和长 Tooltip 均为固定 Gallery 状态。",
+                    Text = "播放 / 暂停使用统一 48 px 外部布局与 28 px icon 容器的唯一 Accent 主按钮；上一章 / 下一章使用 32 px 低权重图标，上一段 / 下一段和音量使用 36 px 中性按钮。Focus、Disabled、置顶激活和长 Tooltip 均为固定 Gallery 状态。",
                     Margin = new Thickness(0, 8, 0, 0),
                     TextWrapping = TextWrapping.Wrap
                 }.WithResource(TextBlock.ForegroundProperty, "SecondaryTextBrush"),
                 new TextBlock
                 {
-                    Text = "拖动 Slider 只更新 x / y projection fixture，不连接任何真实播放命令。",
+                    Text = "段落进度使用 Accent 已播放轨道和中性未播放轨道；拖动 Slider 实时更新轨道与 x / y projection fixture，不连接任何真实播放命令或音量命令。",
                     Margin = new Thickness(0, 8, 0, 0),
                     TextWrapping = TextWrapping.Wrap
                 }.WithResource(TextBlock.ForegroundProperty, "TertiaryTextBrush")
