@@ -353,7 +353,7 @@ Working branch: experiment/visual-system-v2
 - 已生成 `artifacts/visual-review/08/manifest.json`、`media-controls.light.png` 和 `media-controls.dark.png`；固定为 1280×820、96 DPI，manifest SHA-256 与 PNG 一致，连续生成哈希稳定。
 - 未修改正式播放页、正式迷你播放器或任何媒体命令语义/布局。
 
-## [ ] 9（P1）：只迁移迷你播放器窗口表面与窗口动作
+## [x] 9（P1）：只迁移迷你播放器窗口表面与窗口动作
 
 前置：8。
 
@@ -370,6 +370,13 @@ Working branch: experiment/visual-system-v2
 - 隐藏/恢复、关闭等价恢复、置顶、拖动空白区和位置记忆测试通过。
 - Light/Dark、长文本、100/125/150% DPI 截图生成到 `artifacts/visual-review/09/`。
 - 完整质量门禁通过。
+
+结果：
+
+- `MiniPlayerWindow` 保留原有窗口尺寸、控件树、媒体按钮、进度条和命令绑定，只将窗口表面切换为 `RaisedSurfaceBrush`、`SubtleBorderBrush`、`CornerRadiusLarge` 和 `ElevationHigh`，并使用显式标题层级；未修改主窗口、播放页或其它页面。
+- 修正有播放上下文且初始段落非零时，XAML 初始化期间进度 Slider 先触发 `ValueChanged` 而控制器尚未创建的问题；控制器初始化顺序调整不改变拖动/跳转命令语义。
+- WPF 契约测试覆盖无/有播放上下文、长书名/章节名、隐藏/恢复、关闭等价恢复、置顶、空白区拖动、位置记忆、Light/Dark 和 100/125/150% DPI，并生成 12 个 PNG 与 manifest 到 `artifacts/visual-review/09/`；manifest 包含从仓库 HEAD 读取的有效 `GitCommit`，测试重新读取 manifest，逐条核对 PNG 的 SHA-256、DPI、实际宽高和唯一场景键，并连续生成两轮比较包含 commit 的稳定快照；该目录不入 Git。
+- 完整质量门禁已通过。
 
 ## [ ] 10（P1）：迁移迷你播放器内容布局与媒体控制
 
