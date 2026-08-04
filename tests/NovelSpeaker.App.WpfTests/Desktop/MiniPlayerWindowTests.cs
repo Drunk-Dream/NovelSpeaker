@@ -264,6 +264,91 @@ public sealed class MiniPlayerWindowTests
     }
 
     [Fact]
+    public void Default_layout_keeps_progress_and_control_bar_close_without_overlap()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var themeRuntime = new WpfUiThemeRuntime();
+            var scenarios = new[]
+            {
+                (Name: "no-context", Snapshot: PlaybackSnapshot.Idle),
+                (Name: "with-context", Snapshot: PlaybackSnapshot.Idle with
+                {
+                    State = PlaybackState.Paused,
+                    BookId = "geometry-book",
+                    BookTitle = "几何测试书名",
+                    ChapterTitle = "几何测试章节",
+                    ChapterIndex = 1,
+                    SegmentIndex = 1,
+                    SegmentCount = 4
+                })
+            };
+
+            try
+            {
+                foreach (var (themeName, applyTheme) in new (string Name, Action Apply)[]
+                         {
+                             ("light", themeRuntime.ApplyLightTheme),
+                             ("dark", themeRuntime.ApplyDarkTheme)
+                         })
+                {
+                    applyTheme();
+                    foreach (var (_, snapshot) in scenarios)
+                    {
+                        var fixture = CreateWindow(snapshot);
+                        try
+                        {
+                            fixture.Window.Show();
+                            fixture.Window.UpdateLayout();
+
+                            var surface = Assert.IsType<Border>(fixture.Window.FindName("MiniPlayerSurface"));
+                            var progress = Assert.IsType<Slider>(fixture.Window.FindName("MiniPlayerProgressSlider"));
+                            var controlBar = Assert.IsType<Grid>(fixture.Window.FindName("MiniPlayerControlBar"));
+                            var progressBounds = GetBoundsIn(progress, surface);
+                            var controlBarBounds = GetBoundsIn(controlBar, surface);
+                            var gap = controlBarBounds.Top - progressBounds.Bottom;
+
+                            Assert.True(
+                                gap is >= 0.5 and <= 24,
+                                $"Progress/control-bar gap was {gap:0.##} DIP in {themeName}.");
+                            Assert.False(progressBounds.IntersectsWith(controlBarBounds));
+                            Assert.True(progress.IsVisible);
+                            Assert.True(progress.ActualWidth > 0);
+                            Assert.True(progress.ActualHeight > 0);
+                            Assert.True(controlBar.IsVisible);
+                            Assert.True(controlBar.ActualWidth > 0);
+                            Assert.True(controlBar.ActualHeight > 0);
+
+                            foreach (var name in new[]
+                                     {
+                                         "MiniPlayerPreviousChapterButton",
+                                         "MiniPlayerPreviousSegmentButton",
+                                         "MiniPlayerPlaybackButton",
+                                         "MiniPlayerNextSegmentButton",
+                                         "MiniPlayerNextChapterButton"
+                                     })
+                            {
+                                var button = Assert.IsType<Button>(fixture.Window.FindName(name));
+                                Assert.True(button.IsVisible);
+                                Assert.True(button.ActualWidth > 0);
+                                Assert.True(button.ActualHeight > 0);
+                            }
+                        }
+                        finally
+                        {
+                            CloseFixture(fixture);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                themeRuntime.ApplyLightTheme();
+            }
+        });
+    }
+
+    [Fact]
     public void Saved_position_is_restored_and_a_user_move_is_persisted()
     {
         WpfTestHost.RunInSta(() =>
@@ -562,6 +647,12 @@ public sealed class MiniPlayerWindowTests
 
     private static Button FindButton(MiniPlayerWindow window, string name) =>
         Assert.IsType<Button>(window.FindName(name));
+
+    private static Rect GetBoundsIn(FrameworkElement element, UIElement ancestor)
+    {
+        var topLeft = element.TranslatePoint(new Point(0, 0), ancestor);
+        return new Rect(topLeft, new Size(element.ActualWidth, element.ActualHeight));
+    }
 
     private static byte[] EncodePng(BitmapSource bitmap)
     {
