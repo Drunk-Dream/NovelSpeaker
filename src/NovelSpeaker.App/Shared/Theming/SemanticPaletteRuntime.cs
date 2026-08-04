@@ -33,6 +33,8 @@ internal static class SemanticPaletteRuntime
         "DangerBrush",
         "DangerSubtleBrush",
         "DangerTextBrush",
+        "DangerPressedBrush",
+        "DangerPressedTextBrush",
         "WarningBrush",
         "WarningSubtleBrush",
         "WarningTextBrush",

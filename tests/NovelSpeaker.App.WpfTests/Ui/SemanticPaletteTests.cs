@@ -80,6 +80,7 @@ public sealed class SemanticPaletteTests
                 AssertContrast(application, "TertiaryTextBrush", "PrimarySurfaceBrush", 3.0);
                 AssertContrast(application, "AccentTextBrush", "AccentBrush", 4.4);
                 AssertContrast(application, "DangerTextBrush", "DangerBrush", 4.5);
+                AssertContrast(application, "DangerPressedTextBrush", "DangerPressedBrush", 4.5);
                 AssertContrast(application, "WarningTextBrush", "WarningBrush", 4.5);
                 AssertContrast(application, "SuccessTextBrush", "SuccessBrush", 4.5);
             }

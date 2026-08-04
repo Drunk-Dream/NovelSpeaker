@@ -134,8 +134,9 @@
                 <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
-                <Setter Property="Background" Value="{DynamicResource DangerBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}" />
+                <Setter Property="Background" Value="{DynamicResource DangerPressedBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource DangerPressedTextBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource DangerPressedBrush}" />
             </Trigger>
             <Trigger Property="IsKeyboardFocused" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource AccentFocusRingBrush}" />
