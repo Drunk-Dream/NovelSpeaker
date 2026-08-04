@@ -348,7 +348,7 @@ Working branch: experiment/visual-system-v2
 结果：
 
 - 新增 `MediaControlStyles.xaml`，提供 `App.Media.Primary`、`App.Media.Secondary`、`App.Media.Chapter`、`App.Media.WindowAction` 和 `App.Media.Slider` 五个显式样式；全部通过 Provider Bridge 继承 Wpf.Ui 标准模板，不复制完整 ControlTemplate。
-- 新增 Gallery-only `GalleryMediaControlBar` 和 `media-controls` 场景，固定展示播放/暂停、上一章/上一段/下一段/下一章的图标差异、置顶激活、窗口动作、Focus、Disabled、长 Tooltip 以及 Slider 拖动 projection；Slider 只更新 `x / y` fixture，不连接真实播放命令。
+- 新增 Gallery-only `GalleryMediaControlBar` 和 `media-controls` 场景，固定展示统一尺寸的播放/暂停、上一章/上一段/下一段/下一章和音量按钮、置顶激活、窗口动作、Focus、Disabled、长 Tooltip，以及 Accent 已播放/中性未播放轨道和 Slider 拖动 projection；Slider 只更新 `x / y` fixture，不连接真实播放或音量命令。
 - 新增 WPF 契约测试，覆盖媒体样式 Provider 边界、主/段落/章节/窗口动作最小尺寸与视觉权重、图标差异、Tooltip 投影、拖动无播放点击、Light/Dark 布局稳定性以及 task 08 截图 manifest。
 - 已生成 `artifacts/visual-review/08/manifest.json`、`media-controls.light.png` 和 `media-controls.dark.png`；固定为 1280×820、96 DPI，manifest SHA-256 与 PNG 一致，连续生成哈希稳定。
 - 未修改正式播放页、正式迷你播放器或任何媒体命令语义/布局。
