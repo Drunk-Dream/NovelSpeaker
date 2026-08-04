@@ -8,6 +8,7 @@
                 <ui:ThemesDictionary Theme="Light" />
                 <ui:ControlsDictionary />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Provider/ProviderStyleBridge.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Palettes/Palette.Light.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/DesignTokens.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/SemanticStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
