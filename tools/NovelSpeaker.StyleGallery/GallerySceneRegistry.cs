@@ -31,6 +31,10 @@ public static class GallerySceneRegistry
             "Explicit App.Button variants and deterministic interaction-state previews.",
             GallerySceneBuilders.CreateButtonStyles),
         new GallerySceneDefinition(
+            "media-controls",
+            "Explicit App.Media controls with deterministic playback and slider fixtures.",
+            GallerySceneBuilders.CreateMediaControls),
+        new GallerySceneDefinition(
             "placeholder-sections",
             "Reserved sections for the later visual component waves.",
             GallerySceneBuilders.CreatePlaceholderSections)

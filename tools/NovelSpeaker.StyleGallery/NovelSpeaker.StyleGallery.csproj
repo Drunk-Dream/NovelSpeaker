@@ -25,6 +25,8 @@
           Link="Resources\DesignTokens.xaml" />
     <Page Include="..\..\src\NovelSpeaker.App\Shared\Theming\Resources\ButtonStyles.xaml"
           Link="Resources\ButtonStyles.xaml" />
+    <Page Include="..\..\src\NovelSpeaker.App\Shared\Theming\Resources\MediaControlStyles.xaml"
+          Link="Resources\MediaControlStyles.xaml" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\..\src\NovelSpeaker.App\Shared\Theming\SemanticPaletteRuntime.cs"

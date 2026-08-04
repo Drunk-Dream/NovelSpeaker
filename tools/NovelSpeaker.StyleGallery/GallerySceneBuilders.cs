@@ -50,6 +50,13 @@ internal static class GallerySceneBuilders
             "App.Button variants inherit the Wpf.Ui provider template; only explicit semantic values and states are owned here.",
             CreateButtonStylesContent);
 
+    public static FrameworkElement CreateMediaControls() =>
+        CreateSceneRoot(
+            "media-controls",
+            "Media control components",
+            "App.Media styles and the Gallery-only control bar show playback, window actions and deterministic slider projection.",
+            CreateMediaControlsContent);
+
     public static FrameworkElement CreateProviderStyleProbe() =>
         CreateSceneRoot(
             "provider-style-probe",
@@ -378,6 +385,45 @@ internal static class GallerySceneBuilders
         var content = new StackPanel();
         content.Children.Add(CreateButtonStateTable());
         content.Children.Add(CreateButtonContentSamples());
+        scrollViewer.Content = content;
+        return scrollViewer;
+    }
+
+    private static FrameworkElement CreateMediaControlsContent()
+    {
+        var scrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+        var content = new StackPanel();
+        content.Children.Add(new GalleryMediaControlBar
+        {
+            Margin = new Thickness(0, 0, 0, 16)
+        });
+
+        var stateSurface = CreateComponentSurface("media-state-fixtures");
+        stateSurface.Padding = new Thickness(20);
+        stateSurface.Child = new StackPanel
+        {
+            Children =
+            {
+                CreateText("State fixtures", 15, FontWeights.SemiBold),
+                new TextBlock
+                {
+                    Text = "播放 / 暂停使用唯一 Accent 主按钮；上一章 / 下一章使用 32 px 低权重图标，上一段 / 下一段使用 36 px 中性按钮。Focus、Disabled、置顶激活和长 Tooltip 均为固定 Gallery 状态。",
+                    Margin = new Thickness(0, 8, 0, 0),
+                    TextWrapping = TextWrapping.Wrap
+                }.WithResource(TextBlock.ForegroundProperty, "SecondaryTextBrush"),
+                new TextBlock
+                {
+                    Text = "拖动 Slider 只更新 x / y projection fixture，不连接任何真实播放命令。",
+                    Margin = new Thickness(0, 8, 0, 0),
+                    TextWrapping = TextWrapping.Wrap
+                }.WithResource(TextBlock.ForegroundProperty, "TertiaryTextBrush")
+            }
+        };
+        content.Children.Add(stateSurface);
         scrollViewer.Content = content;
         return scrollViewer;
     }
