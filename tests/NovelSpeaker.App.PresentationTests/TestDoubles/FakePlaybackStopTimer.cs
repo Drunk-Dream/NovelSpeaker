@@ -1,6 +1,6 @@
 using NovelSpeaker.Application.Playback;
 
-namespace NovelSpeaker.App.WpfTests;
+namespace NovelSpeaker.App.PresentationTests.TestDoubles;
 
 internal sealed class FakePlaybackStopTimer : IPlaybackStopTimer
 {

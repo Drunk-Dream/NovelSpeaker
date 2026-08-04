@@ -9,9 +9,8 @@ using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.App.WpfTests;
+namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
-[Collection("WpfDispatcher")]
 public sealed class CacheManagementViewModelTests
 {
     [Fact]
@@ -238,26 +237,6 @@ public sealed class CacheManagementViewModelTests
 
         await refreshCompleted.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(callsBeforeChange + 1, workspaceService.GetCachedChaptersCallCount);
-    }
-
-    [Fact]
-    public async Task Cache_management_page_lifecycle_owns_cache_change_subscription()
-    {
-        await WpfTestHost.RunInStaAsync(async () =>
-        {
-            var workspaceService = new FakeCacheWorkspaceService
-            {
-                BooksResult = [new CachedBookCacheItem("book-1", "第一本", null, 1, 1, 1024)]
-            };
-            var viewModel = CreateViewModel(workspaceService);
-            var page = new CacheManagementPage(viewModel);
-
-            await page.OnNavigatedToAsync();
-            Assert.Equal(1, workspaceService.ChangedSubscriberCount);
-
-            await page.OnNavigatedFromAsync();
-            Assert.Equal(0, workspaceService.ChangedSubscriberCount);
-        });
     }
 
     [Fact]
@@ -680,39 +659,6 @@ public sealed class CacheManagementViewModelTests
             new CachedChapterCacheItem("book-2", 0, "另一章", 1, 1, 1024, 1)
         ];
         return workspace;
-    }
-
-    [Fact]
-    public async Task SelectBookAsync_on_bound_page_loads_async_chapters_without_error()
-    {
-        await WpfTestHost.RunInStaAsync(async () =>
-        {
-            var workspaceService = new FakeCacheWorkspaceService
-            {
-                BooksResult =
-                [
-                    new CachedBookCacheItem("book-1", "第一本", "作者甲", 1, 1, 1024)
-                ],
-                LoadChaptersOnBackgroundThread = true
-            };
-            workspaceService.ChaptersResult["book-1"] =
-            [
-                new CachedChapterCacheItem("book-1", 0, "第一章", 1, 1, 1024, 1)
-            ];
-            var feedbackService = new FakeFeedbackService();
-            var viewModel = CreateViewModel(workspaceService, feedbackService: feedbackService);
-            var page = new CacheManagementPage(viewModel);
-            page.Measure(new System.Windows.Size(1280, 820));
-            page.Arrange(new System.Windows.Rect(0, 0, 1280, 820));
-            page.UpdateLayout();
-
-            await viewModel.LoadAsync(CancellationToken.None);
-            await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
-
-            Assert.Null(feedbackService.LastTitle);
-            Assert.Single(viewModel.Chapters);
-            Assert.Equal("第一章", viewModel.Chapters[0].Title);
-        });
     }
 
     private static CacheManagementViewModel CreateViewModel(

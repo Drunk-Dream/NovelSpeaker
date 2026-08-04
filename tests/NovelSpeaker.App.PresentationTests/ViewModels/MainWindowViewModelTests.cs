@@ -6,30 +6,27 @@ using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shell.Navigation;
 using Xunit;
 
-namespace NovelSpeaker.App.WpfTests;
+namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
-[Collection("WpfDispatcher")]
 public sealed class MainWindowViewModelTests
 {
     [Fact]
     public void Active_cache_projection_is_process_scoped_and_unchanged_by_playback_updates()
     {
-        WpfTestHost.RunInSta(() =>
-        {
-            var playback = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
-            var activeCache = new FakeActiveCacheCoordinator(new ActiveCacheSnapshot(
-                Guid.NewGuid(),
-                "book-1",
-                "示例小说",
-                ActiveCacheBatchStatus.Running,
-                1,
-                2,
-                3,
-                6,
-                1,
-                "第二章",
-                [
-                    new ActiveCacheChapterSnapshot(
+        var playback = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+        var activeCache = new FakeActiveCacheCoordinator(new ActiveCacheSnapshot(
+            Guid.NewGuid(),
+            "book-1",
+            "示例小说",
+            ActiveCacheBatchStatus.Running,
+            1,
+            2,
+            3,
+            6,
+            1,
+            "第二章",
+            [
+                new ActiveCacheChapterSnapshot(
                         0,
                         "第一章",
                         3,
@@ -43,52 +40,48 @@ public sealed class MainWindowViewModelTests
                         3,
                         ActiveCacheChapterStatus.Running,
                         null)
-                ],
-                null));
-            var activeProjection = new ShellActiveCacheController(
-                activeCache,
-                new FakeAppFeedbackService());
-            var viewModel = new MainWindowViewModel(
-                playback,
-                activeProjection,
-                new FakeNavigationService());
+            ],
+            null));
+        var activeProjection = new ShellActiveCacheController(
+            activeCache,
+            new FakeAppFeedbackService());
+        var viewModel = new MainWindowViewModel(
+            playback,
+            activeProjection,
+            new FakeNavigationService());
 
-            playback.Publish(new PlaybackSnapshot(
-                PlaybackState.Paused,
-                "book-2",
-                "另一本书",
-                0,
-                "第一章",
-                0,
-                1,
-                1,
-                "默认规则",
-                10,
-                0,
-                0,
-                null,
-                false,
-                false));
+        playback.Publish(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-2",
+            "另一本书",
+            0,
+            "第一章",
+            0,
+            1,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false));
 
-            Assert.Same(activeProjection, viewModel.ActiveCache);
-            Assert.True(viewModel.ActiveCache.IsVisible);
-            Assert.Equal("缓存中 · 1/2 章 · 50%", viewModel.ActiveCache.CompactStatusText);
-        });
+        Assert.Same(activeProjection, viewModel.ActiveCache);
+        Assert.True(viewModel.ActiveCache.IsVisible);
+        Assert.Equal("缓存中 · 1/2 章 · 50%", viewModel.ActiveCache.CompactStatusText);
     }
 
     [Fact]
     public void Idle_snapshot_hides_now_playing_entry()
     {
-        WpfTestHost.RunInSta(() =>
-        {
-            var navigationService = new FakeNavigationService();
-            var viewModel = CreateViewModel(
-                new FakePlaybackCoordinator(PlaybackSnapshot.Idle),
-                navigationService);
+        var navigationService = new FakeNavigationService();
+        var viewModel = CreateViewModel(
+            new FakePlaybackCoordinator(PlaybackSnapshot.Idle),
+            navigationService);
 
-            Assert.False(viewModel.IsNowPlayingVisible);
-            Assert.Equal(NowPlayingVisualState.Inactive, viewModel.NowPlayingVisualState);
-        });
+        Assert.False(viewModel.IsNowPlayingVisible);
+        Assert.Equal(NowPlayingVisualState.Inactive, viewModel.NowPlayingVisualState);
     }
 
     [Theory]
@@ -102,100 +95,91 @@ public sealed class MainWindowViewModelTests
         string title,
         NowPlayingVisualState visualState)
     {
-        WpfTestHost.RunInSta(() =>
-        {
-            var navigationService = new FakeNavigationService();
-            var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
-            var viewModel = CreateViewModel(coordinator, navigationService);
+        var navigationService = new FakeNavigationService();
+        var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+        var viewModel = CreateViewModel(coordinator, navigationService);
 
-            coordinator.Publish(new PlaybackSnapshot(
-                state,
-                "book-1",
-                title,
-                0,
-                "第一章",
-                0,
-                3,
-                1,
-                "默认规则",
-                10,
-                0,
-                1000,
-                "message",
-                false,
-                false));
+        coordinator.Publish(new PlaybackSnapshot(
+            state,
+            "book-1",
+            title,
+            0,
+            "第一章",
+            0,
+            3,
+            1,
+            "默认规则",
+            10,
+            0,
+            1000,
+            "message",
+            false,
+            false));
 
-            Assert.True(viewModel.IsNowPlayingVisible);
-            Assert.Equal(status, viewModel.NowPlayingStatus);
-            Assert.Equal(title, viewModel.NowPlayingTitle);
-            Assert.Equal(visualState, viewModel.NowPlayingVisualState);
-        });
+        Assert.True(viewModel.IsNowPlayingVisible);
+        Assert.Equal(status, viewModel.NowPlayingStatus);
+        Assert.Equal(title, viewModel.NowPlayingTitle);
+        Assert.Equal(visualState, viewModel.NowPlayingVisualState);
     }
 
     [Fact]
     public async Task NavigateToNowPlayingCommand_uses_player_request_without_playback_control()
     {
-        await WpfTestHost.RunInStaAsync(async () =>
-        {
-            var navigationService = new FakeNavigationService();
-            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-                PlaybackState.Paused,
-                "book-9",
-                "示例小说",
-                0,
-                "第一章",
-                0,
-                3,
-                1,
-                "默认规则",
-                10,
-                0,
-                1000,
-                null,
-                false,
-                false));
-            var viewModel = CreateViewModel(coordinator, navigationService);
+        var navigationService = new FakeNavigationService();
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-9",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            3,
+            1,
+            "默认规则",
+            10,
+            0,
+            1000,
+            null,
+            false,
+            false));
+        var viewModel = CreateViewModel(coordinator, navigationService);
 
-            await viewModel.NavigateToNowPlayingCommand.ExecuteAsync(null);
+        await viewModel.NavigateToNowPlayingCommand.ExecuteAsync(null);
 
-            Assert.Equal(typeof(PlayerPage), navigationService.LastNavigationPageType);
-            var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigationData);
-            Assert.Equal("book-9", request.BookId);
-            Assert.Equal(PlayerNavigationMode.ReturnToCurrentSession, request.Mode);
-        });
+        Assert.Equal(typeof(PlayerPage), navigationService.LastNavigationPageType);
+        var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigationData);
+        Assert.Equal("book-9", request.BookId);
+        Assert.Equal(PlayerNavigationMode.ReturnToCurrentSession, request.Mode);
     }
 
     [Fact]
     public void Missing_rule_snapshot_still_shows_now_playing_entry_until_context_is_cleared()
     {
-        WpfTestHost.RunInSta(() =>
-        {
-            var navigationService = new FakeNavigationService();
-            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-                PlaybackState.Stopped,
-                "book-1",
-                "示例小说",
-                0,
-                "第一章",
-                0,
-                1,
-                null,
-                null,
-                10,
-                0,
-                0,
-                "当前没有可用的 TTS 规则，请先前往规则页选择或导入规则。",
-                false,
-                false,
-                "作者甲",
-                false));
-            var viewModel = CreateViewModel(coordinator, navigationService);
+        var navigationService = new FakeNavigationService();
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Stopped,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            1,
+            null,
+            null,
+            10,
+            0,
+            0,
+            "当前没有可用的 TTS 规则，请先前往规则页选择或导入规则。",
+            false,
+            false,
+            "作者甲",
+            false));
+        var viewModel = CreateViewModel(coordinator, navigationService);
 
-            Assert.True(viewModel.IsNowPlayingVisible);
-            Assert.Equal("示例小说", viewModel.NowPlayingTitle);
-            Assert.Equal("已停止", viewModel.NowPlayingStatus);
-            Assert.Equal(NowPlayingVisualState.Inactive, viewModel.NowPlayingVisualState);
-        });
+        Assert.True(viewModel.IsNowPlayingVisible);
+        Assert.Equal("示例小说", viewModel.NowPlayingTitle);
+        Assert.Equal("已停止", viewModel.NowPlayingStatus);
+        Assert.Equal(NowPlayingVisualState.Inactive, viewModel.NowPlayingVisualState);
     }
 
     private static MainWindowViewModel CreateViewModel(

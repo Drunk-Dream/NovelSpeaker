@@ -14,7 +14,7 @@ using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.App.WpfTests;
+namespace NovelSpeaker.App.PresentationTests.ViewModels.Player;
 
 public sealed partial class PlayerViewModelTests
 {
@@ -197,23 +197,20 @@ public sealed partial class PlayerViewModelTests
     [Fact]
     public async Task NotifyUserScrollInput_exposes_return_to_current_segment()
     {
-        WpfTestHost.RunInSta(() =>
-        {
-            var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
-            var viewModel = CreateViewModel(
-                new FakePlaybackCoordinator(),
-                new FakeBookPlaybackContentService(null, null),
-                autoScrollCoordinator: autoScrollCoordinator);
+        var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
+        var viewModel = CreateViewModel(
+            new FakePlaybackCoordinator(),
+            new FakeBookPlaybackContentService(null, null),
+            autoScrollCoordinator: autoScrollCoordinator);
 
-            viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
-            viewModel.NotifyUserScrollInput();
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.NotifyUserScrollInput();
 
-            Assert.True(viewModel.ShowReturnToCurrentSegment);
-            Assert.Equal(PlayerAutoScrollState.ManualBrowsing, viewModel.AutoScrollState);
-            viewModel.ReturnToCurrentSegmentCommand.Execute(null);
-            Assert.False(viewModel.ShowReturnToCurrentSegment);
-            Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
-        });
+        Assert.True(viewModel.ShowReturnToCurrentSegment);
+        Assert.Equal(PlayerAutoScrollState.ManualBrowsing, viewModel.AutoScrollState);
+        viewModel.ReturnToCurrentSegmentCommand.Execute(null);
+        Assert.False(viewModel.ShowReturnToCurrentSegment);
+        Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
     }
 
     [Fact]

@@ -3,7 +3,7 @@ using NovelSpeaker.Application.Playback.ActiveCache;
 using NovelSpeaker.Domain.Books;
 using Xunit;
 
-namespace NovelSpeaker.App.WpfTests;
+namespace NovelSpeaker.App.PresentationTests.ViewModels.Player;
 
 public sealed partial class PlayerViewModelTests
 {

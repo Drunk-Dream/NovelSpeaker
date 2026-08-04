@@ -17,7 +17,7 @@ using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.App.WpfTests;
+namespace NovelSpeaker.App.PresentationTests.ViewModels.Player;
 
 public sealed partial class PlayerViewModelTests
 {

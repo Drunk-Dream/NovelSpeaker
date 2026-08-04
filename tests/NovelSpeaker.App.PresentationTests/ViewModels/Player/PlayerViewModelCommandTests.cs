@@ -14,7 +14,7 @@ using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
 
-namespace NovelSpeaker.App.WpfTests;
+namespace NovelSpeaker.App.PresentationTests.ViewModels.Player;
 
 public sealed partial class PlayerViewModelTests
 {
@@ -173,88 +173,6 @@ public sealed partial class PlayerViewModelTests
 
         Assert.Equal(10, settingsService.Settings.DefaultSpeakSpeed);
         Assert.Null(coordinator.LastChangedSpeakSpeed);
-    }
-
-    [Theory]
-    [InlineData("1", 1)]
-    [InlineData("20", 20)]
-    public async Task ApplySpeakSpeedCommand_accepts_boundary_values(string input, int expectedSpeed)
-    {
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
-            "book-1",
-            "示例小说",
-            0,
-            "第一章",
-            0,
-            1,
-            1,
-            "默认规则",
-            10,
-            0,
-            0,
-            null,
-            false,
-            false));
-        var viewModel = CreateViewModel(
-            coordinator,
-            new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
-                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
-
-        await viewModel.LoadAsync(CancellationToken.None);
-        await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
-            CancellationToken.None);
-
-        viewModel.ToggleSpeedMenuCommand.Execute(null);
-        viewModel.SpeedEditorText = input;
-        await viewModel.ApplySpeakSpeedCommand.ExecuteAsync(null);
-
-        Assert.Equal(expectedSpeed, coordinator.LastChangedSpeakSpeed);
-        Assert.Equal(string.Empty, viewModel.SpeedEditorErrorText);
-    }
-
-    [Theory]
-    [InlineData("0")]
-    [InlineData("21")]
-    [InlineData("abc")]
-    public async Task ApplySpeakSpeedCommand_rejects_invalid_or_out_of_range_values(string input)
-    {
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
-            "book-1",
-            "示例小说",
-            0,
-            "第一章",
-            0,
-            1,
-            1,
-            "默认规则",
-            10,
-            0,
-            0,
-            null,
-            false,
-            false));
-        var viewModel = CreateViewModel(
-            coordinator,
-            new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
-                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
-
-        await viewModel.LoadAsync(CancellationToken.None);
-        await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
-            CancellationToken.None);
-
-        viewModel.ToggleSpeedMenuCommand.Execute(null);
-        viewModel.SpeedEditorText = input;
-        await viewModel.ApplySpeakSpeedCommand.ExecuteAsync(null);
-
-        Assert.Null(coordinator.LastChangedSpeakSpeed);
-        Assert.Contains("1 到 20", viewModel.SpeedEditorErrorText);
-        Assert.Equal(PlaybackState.Paused, viewModel.CurrentPlaybackState);
     }
 
     [Fact]

@@ -8,7 +8,7 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Speech;
 using Xunit;
 
-namespace NovelSpeaker.App.WpfTests;
+namespace NovelSpeaker.App.PresentationTests.ViewModels.Player;
 
 public sealed partial class PlayerViewModelTests
 {
