@@ -98,7 +98,7 @@
                     </Button>
                     <Button x:Name="MiniPlayerCloseButton"
                             Margin="4,0,0,0"
-                            Style="{StaticResource App.Button.Icon}"
+                            Style="{StaticResource App.Button.DangerIcon}"
                             Click="MiniPlayerCloseButton_OnClick"
                             ToolTip="退出应用"
                             AutomationProperties.Name="退出应用">

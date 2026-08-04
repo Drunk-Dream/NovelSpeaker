@@ -130,7 +130,7 @@ public sealed class MiniPlayerWindowTests
                 Assert.Same(window.FindResource("App.Button.Icon"), volumeButton.Style);
                 Assert.Same(window.FindResource("App.Button.Icon"),
                     Assert.IsType<Button>(window.FindName("MiniPlayerTopmostButton")).Style);
-                Assert.Same(window.FindResource("App.Button.Icon"),
+                Assert.Same(window.FindResource("App.Button.DangerIcon"),
                     Assert.IsType<Button>(window.FindName("MiniPlayerCloseButton")).Style);
                 Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
                     volumePopup,

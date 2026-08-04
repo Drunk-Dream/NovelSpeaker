@@ -17,6 +17,7 @@ public sealed class ButtonStyleTests
         "App.Button.Secondary",
         "App.Button.Subtle",
         "App.Button.Icon",
+        "App.Button.DangerIcon",
         "App.Button.Danger"
     ];
 
