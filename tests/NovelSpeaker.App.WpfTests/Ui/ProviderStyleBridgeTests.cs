@@ -36,7 +36,7 @@ public sealed class ProviderStyleBridgeTests
             var dictionaries = Assert.IsAssignableFrom<global::System.Windows.Application>(
                 global::System.Windows.Application.Current).Resources.MergedDictionaries;
 
-            Assert.Equal(8, dictionaries.Count);
+            Assert.Equal(9, dictionaries.Count);
             Assert.True(IsWpfUiThemeDictionary(dictionaries[0]));
             Assert.Contains("Wpf.Ui", dictionaries[0].Source?.OriginalString, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(
@@ -61,16 +61,20 @@ public sealed class ProviderStyleBridgeTests
                 dictionaries[4].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/ButtonStyles.xaml",
+                "Shared/Theming/Resources/Inputs.xaml",
                 dictionaries[5].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/SliderStyles.xaml",
+                "Shared/Theming/Resources/ButtonStyles.xaml",
                 dictionaries[6].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/SemanticStyles.xaml",
+                "Shared/Theming/Resources/SliderStyles.xaml",
                 dictionaries[7].Source?.OriginalString,
+                StringComparison.Ordinal);
+            Assert.EndsWith(
+                "Shared/Theming/Resources/SemanticStyles.xaml",
+                dictionaries[8].Source?.OriginalString,
                 StringComparison.Ordinal);
         });
     }
