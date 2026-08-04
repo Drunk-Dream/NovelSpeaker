@@ -19,6 +19,10 @@ public static class GallerySceneRegistry
             "Dynamic theme resource probes for surfaces, text, borders and accent colors.",
             GallerySceneBuilders.CreateThemeResourceProbe),
         new GallerySceneDefinition(
+            "palette-probe",
+            "Complete semantic palette with text and icon contrast samples.",
+            GallerySceneBuilders.CreatePaletteProbe),
+        new GallerySceneDefinition(
             "placeholder-sections",
             "Reserved sections for the later visual component waves.",
             GallerySceneBuilders.CreatePlaceholderSections)

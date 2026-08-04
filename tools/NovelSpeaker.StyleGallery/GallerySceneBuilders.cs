@@ -29,6 +29,13 @@ internal static class GallerySceneBuilders
             "DynamicResource values should change when the provider theme changes.",
             CreateThemeProbeContent);
 
+    public static FrameworkElement CreatePaletteProbe() =>
+        CreateSceneRoot(
+            "palette-probe",
+            "Semantic palette",
+            "Every stable palette brush is shown with readable text and icon samples; only values change between themes.",
+            CreatePaletteContent);
+
     public static FrameworkElement CreateProviderStyleProbe() =>
         CreateSceneRoot(
             "provider-style-probe",
@@ -272,6 +279,103 @@ internal static class GallerySceneBuilders
         content.Children.Add(sampleSurface);
 
         return content;
+    }
+
+    private static Panel CreatePaletteContent()
+    {
+        var scrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+        var container = new Grid();
+        var columns = new Grid();
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var left = new StackPanel { Margin = new Thickness(0, 0, SectionGap / 2, 0) };
+        var right = new StackPanel { Margin = new Thickness(SectionGap / 2, 0, 0, 0) };
+        var swatches = new[]
+        {
+            ("AppBackgroundBrush", "PrimaryTextBrush", "App background"),
+            ("CanvasSurfaceBrush", "PrimaryTextBrush", "Canvas surface"),
+            ("PrimarySurfaceBrush", "PrimaryTextBrush", "Primary surface"),
+            ("SecondarySurfaceBrush", "PrimaryTextBrush", "Secondary surface"),
+            ("RaisedSurfaceBrush", "PrimaryTextBrush", "Raised surface"),
+            ("PrimaryTextBrush", "PrimarySurfaceBrush", "Primary text"),
+            ("SecondaryTextBrush", "PrimarySurfaceBrush", "Secondary text"),
+            ("TertiaryTextBrush", "PrimarySurfaceBrush", "Tertiary text"),
+            ("SubtleBorderBrush", "PrimaryTextBrush", "Subtle border"),
+            ("StrongBorderBrush", "PrimaryTextBrush", "Strong border"),
+            ("AccentBrush", "AccentTextBrush", "Accent"),
+            ("AccentDefaultBrush", "AccentTextBrush", "Accent default"),
+            ("AccentHoverBrush", "AccentTextBrush", "Accent hover"),
+            ("AccentPressedBrush", "AccentTextBrush", "Accent pressed"),
+            ("AccentSubtleBrush", "PrimaryTextBrush", "Accent subtle"),
+            ("AccentFocusRingBrush", "AccentTextBrush", "Accent focus ring"),
+            ("AccentTextBrush", "AccentBrush", "Accent text"),
+            ("DangerBrush", "DangerTextBrush", "Danger"),
+            ("DangerSubtleBrush", "PrimaryTextBrush", "Danger subtle"),
+            ("DangerTextBrush", "DangerBrush", "Danger text"),
+            ("WarningBrush", "WarningTextBrush", "Warning"),
+            ("WarningSubtleBrush", "PrimaryTextBrush", "Warning subtle"),
+            ("WarningTextBrush", "WarningBrush", "Warning text"),
+            ("SuccessBrush", "SuccessTextBrush", "Success"),
+            ("SuccessSubtleBrush", "PrimaryTextBrush", "Success subtle"),
+            ("SuccessTextBrush", "SuccessBrush", "Success text")
+        };
+
+        for (var index = 0; index < swatches.Length; index++)
+        {
+            var swatch = CreatePaletteSwatch(swatches[index].Item1, swatches[index].Item2, swatches[index].Item3);
+            (index < (swatches.Length + 1) / 2 ? left : right).Children.Add(swatch);
+        }
+
+        columns.Children.Add(left);
+        Grid.SetColumn(right, 1);
+        columns.Children.Add(right);
+        scrollViewer.Content = columns;
+        container.Children.Add(scrollViewer);
+        return container;
+    }
+
+    private static Border CreatePaletteSwatch(string backgroundKey, string foregroundKey, string label)
+    {
+        var icon = new SymbolIcon
+        {
+            Symbol = SymbolRegular.Circle24,
+            Width = 18,
+            Height = 18,
+            Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        icon.SetResourceReference(SymbolIcon.ForegroundProperty, foregroundKey);
+
+        var text = new TextBlock
+        {
+            Text = $"{label}  ·  {backgroundKey}",
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap
+        };
+        text.SetResourceReference(TextBlock.ForegroundProperty, foregroundKey);
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(icon);
+        row.Children.Add(text);
+
+        var swatch = new Border
+        {
+            MinHeight = 42,
+            Margin = new Thickness(0, 0, 0, 8),
+            Padding = new Thickness(12, 8, 12, 8),
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            Child = row
+        };
+        swatch.SetResourceReference(Border.BackgroundProperty, backgroundKey);
+        swatch.SetResourceReference(Border.BorderBrushProperty, "SubtleBorderBrush");
+        AutomationProperties.SetAutomationId(swatch, $"palette-{backgroundKey}");
+        return swatch;
     }
 
     private static Panel CreateProviderStyleProbeContent()

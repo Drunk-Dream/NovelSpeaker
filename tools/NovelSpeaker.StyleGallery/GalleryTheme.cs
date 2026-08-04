@@ -1,7 +1,7 @@
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Markup;
 using System.Windows;
-using System.Windows.Media;
+using NovelSpeaker.App.Shared.Theming;
 
 namespace NovelSpeaker.StyleGallery;
 
@@ -76,6 +76,15 @@ public static class GalleryThemeRuntime
             throw new InvalidOperationException(
                 "Style Gallery ProviderStyleBridge must remain at logical dictionary position 2 with its stable alias keys.");
         }
+
+        if (dictionaries.Count < 4 ||
+            dictionaries[3].Source?.OriginalString?.EndsWith(
+                "Palettes/Palette.Light.xaml",
+                StringComparison.Ordinal) != true)
+        {
+            throw new InvalidOperationException(
+                "Style Gallery semantic palette must remain at logical dictionary position 3.");
+        }
     }
 
     private static bool IsWpfUiThemeDictionary(ResourceDictionary dictionary)
@@ -103,21 +112,40 @@ public static class GalleryThemeRuntime
         ApplicationThemeManager.Apply(theme.ToWpfUiTheme());
 
         var application = System.Windows.Application.Current!;
-        SetBrush(application, "GalleryCanvasBackgroundBrush", theme == GalleryTheme.Dark ? "#101218" : "#F4F5F9");
-        SetBrush(application, "GallerySurfaceBrush", theme == GalleryTheme.Dark ? "#1B1F27" : "#FFFFFF");
-        SetBrush(application, "GalleryMutedSurfaceBrush", theme == GalleryTheme.Dark ? "#232832" : "#F1F3F8");
-        SetBrush(application, "GalleryPrimaryTextBrush", theme == GalleryTheme.Dark ? "#F2F4F8" : "#20242C");
-        SetBrush(application, "GallerySecondaryTextBrush", theme == GalleryTheme.Dark ? "#AEB5C1" : "#626A77");
-        SetBrush(application, "GalleryTertiaryTextBrush", theme == GalleryTheme.Dark ? "#7F8794" : "#8A919D");
-        SetBrush(application, "GalleryBorderBrush", theme == GalleryTheme.Dark ? "#3A414D" : "#D9DDE6");
-        SetBrush(application, "GalleryAccentBrush", theme == GalleryTheme.Dark ? "#7C8CFF" : "#5B6FD8");
-        SetBrush(application, "GalleryOnAccentTextBrush", theme == GalleryTheme.Dark ? "#101218" : "#FFFFFF");
+        var sourcePrefix = IsStyleGalleryPalette(application)
+            ? "/NovelSpeaker.StyleGallery;component/Resources/Palettes/Palette."
+            : "/NovelSpeaker.App;component/Shared/Theming/Palettes/Palette.";
+        SemanticPaletteRuntime.Apply(
+            application,
+            theme.ToWpfUiTheme(),
+            $"{sourcePrefix}Light.xaml",
+            $"{sourcePrefix}Dark.xaml");
+
+        SetGalleryAliases(application);
     }
 
-    private static void SetBrush(System.Windows.Application application, string key, string color)
+    private static bool IsStyleGalleryPalette(System.Windows.Application application) =>
+        application.Resources.MergedDictionaries.Any(dictionary =>
+            dictionary.Source?.OriginalString?.Contains(
+                "NovelSpeaker.StyleGallery",
+                StringComparison.OrdinalIgnoreCase) == true);
+
+    private static void SetGalleryAliases(System.Windows.Application application)
     {
-        var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color)!);
-        brush.Freeze();
-        application.Resources[key] = brush;
+        foreach (var (alias, paletteKey) in new[]
+                 {
+                     ("GalleryCanvasBackgroundBrush", "CanvasSurfaceBrush"),
+                     ("GallerySurfaceBrush", "PrimarySurfaceBrush"),
+                     ("GalleryMutedSurfaceBrush", "SecondarySurfaceBrush"),
+                     ("GalleryPrimaryTextBrush", "PrimaryTextBrush"),
+                     ("GallerySecondaryTextBrush", "SecondaryTextBrush"),
+                     ("GalleryTertiaryTextBrush", "TertiaryTextBrush"),
+                     ("GalleryBorderBrush", "SubtleBorderBrush"),
+                     ("GalleryAccentBrush", "AccentBrush"),
+                     ("GalleryOnAccentTextBrush", "AccentTextBrush")
+                 })
+        {
+            application.Resources[alias] = application.FindResource(paletteKey);
+        }
     }
 }

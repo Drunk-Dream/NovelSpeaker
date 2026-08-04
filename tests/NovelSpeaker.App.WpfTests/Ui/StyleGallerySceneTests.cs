@@ -24,7 +24,7 @@ public sealed class StyleGallerySceneTests
         var scenes = GallerySceneRegistry.All;
 
         Assert.Equal(
-            ["placeholder-sections", "provider-controls", "provider-style-probe", "theme-resource-probe"],
+            ["palette-probe", "placeholder-sections", "provider-controls", "provider-style-probe", "theme-resource-probe"],
             scenes.Select(scene => scene.Name).Order(StringComparer.Ordinal));
         Assert.All(scenes, scene =>
         {
@@ -35,14 +35,16 @@ public sealed class StyleGallerySceneTests
     }
 
     [Fact]
-    public void Gallery_task_defaults_to_03_and_accepts_explicit_task_04()
+    public void Gallery_task_defaults_to_03_and_accepts_explicit_tasks_04_and_05()
     {
         var defaultOptions = GalleryCommandLineOptions.Parse(["--screenshot"]);
         var task04Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "04"]);
+        var task05Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "05"]);
 
         Assert.Equal("03", defaultOptions.Task);
         Assert.Equal(Path.Combine("artifacts", "visual-review", "03"), defaultOptions.OutputDirectory);
         Assert.Equal("04", task04Options.Task);
+        Assert.Equal("05", task05Options.Task);
     }
 
     [Theory]
@@ -131,6 +133,81 @@ public sealed class StyleGallerySceneTests
     }
 
     [Fact]
+    public void Palette_probe_updates_dynamic_brushes_without_replacing_style_or_template()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                global::System.Windows.Application.Current);
+            GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            var scene = GallerySceneRegistry.Build("palette-probe");
+            var host = new Window
+            {
+                Content = scene,
+                Width = GalleryRenderSettings.WindowWidth,
+                Height = GalleryRenderSettings.WindowHeight,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            try
+            {
+                host.Show();
+                host.UpdateLayout();
+
+                var swatches = FindDescendants<Border>(scene)
+                    .Where(border => AutomationProperties.GetAutomationId(border).StartsWith(
+                        "palette-",
+                        StringComparison.Ordinal))
+                    .ToDictionary(
+                        border => AutomationProperties.GetAutomationId(border),
+                        border => Assert.IsType<SolidColorBrush>(border.Background),
+                        StringComparer.Ordinal);
+                Assert.Equal(26, swatches.Count);
+
+                var providerStyle = Assert.IsType<Style>(application.FindResource("Provider.Button"));
+                var button = new WpfButton
+                {
+                    Content = "template stability fixture",
+                    Style = providerStyle
+                };
+                button.Measure(new Size(240, 60));
+                button.Arrange(new Rect(0, 0, 240, 60));
+                button.ApplyTemplate();
+                button.UpdateLayout();
+                var template = button.Template;
+                Assert.NotNull(template);
+
+                var lightColors = swatches.ToDictionary(
+                    pair => pair.Key,
+                    pair => pair.Value.Color,
+                    StringComparer.Ordinal);
+
+                GalleryThemeRuntime.Apply(GalleryTheme.Dark);
+                host.UpdateLayout();
+
+                Assert.All(
+                    swatches,
+                    pair =>
+                    {
+                        var current = Assert.IsType<SolidColorBrush>(
+                            FindDescendants<Border>(scene).Single(border =>
+                                AutomationProperties.GetAutomationId(border) == pair.Key).Background);
+                        Assert.NotEqual(lightColors[pair.Key], current.Color);
+                    });
+                Assert.Same(providerStyle, application.FindResource("Provider.Button"));
+                Assert.Same(template, button.Template);
+
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            }
+            finally
+            {
+                host.Close();
+            }
+        });
+    }
+
+    [Fact]
     public async Task Screenshot_generator_writes_verified_manifest_and_stable_png_outputs()
     {
         await WpfTestHost.RunInStaAsync(async () =>
@@ -214,6 +291,49 @@ public sealed class StyleGallerySceneTests
                     output.Path,
                     "04",
                     ["provider-style-probe"],
+                    cancellation.Token);
+            }
+            finally
+            {
+                if (window.IsVisible)
+                {
+                    window.Close();
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Screenshot_generator_writes_explicit_task_05_palette_scene_to_manifest()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            using var output = new TemporaryOutputDirectory();
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var options = GalleryCommandLineOptions.Parse(
+            [
+                "--screenshot",
+                "--task",
+                "05",
+                "--theme",
+                "all",
+                "--scene",
+                "palette-probe",
+                "--output",
+                output.Path
+            ]);
+            var window = new GalleryWindow();
+            try
+            {
+                window.Show();
+                await new GalleryScreenshotGenerator().GenerateAsync(window, options, cancellation.Token);
+                var manifest = await ReadManifestAsync(output.ManifestPath, cancellation.Token);
+
+                await AssertManifestMatchesPngsAsync(
+                    manifest,
+                    output.Path,
+                    "05",
+                    ["palette-probe"],
                     cancellation.Token);
             }
             finally
