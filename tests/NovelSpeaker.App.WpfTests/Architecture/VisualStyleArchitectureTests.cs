@@ -12,6 +12,45 @@ namespace NovelSpeaker.App.WpfTests.Architecture;
 
 public sealed class VisualStyleArchitectureTests
 {
+    private static readonly string[] StableDesignTokenKeys =
+    [
+        "Spacing4",
+        "Spacing8",
+        "Spacing12",
+        "Spacing16",
+        "Spacing20",
+        "Spacing24",
+        "Spacing32",
+        "Spacing40",
+        "Spacing48",
+        "CornerRadiusSmall",
+        "CornerRadiusMedium",
+        "CornerRadiusLarge",
+        "IconSizeSmall",
+        "IconSizeMedium",
+        "IconSizeLarge",
+        "IconSizeTouch",
+        "ControlMinHeightCompact",
+        "ControlMinHeightStandard",
+        "FontFamilyUi",
+        "FontSizePageTitle",
+        "FontSizeSectionTitle",
+        "FontSizeItemTitle",
+        "FontSizeBody",
+        "FontSizeSecondary",
+        "FontSizeCaption",
+        "FontWeightRegular",
+        "FontWeightSemiBold",
+        "TextLineHeightBody",
+        "TextLineHeightSecondary",
+        "MotionDurationFast",
+        "MotionDurationStandard",
+        "MotionDurationSlow",
+        "ElevationLow",
+        "ElevationMedium",
+        "ElevationHigh"
+    ];
+
     [Fact]
     public void Current_application_style_ownership_has_no_violations_and_writes_a_reproducible_manifest()
     {
@@ -127,6 +166,42 @@ public sealed class VisualStyleArchitectureTests
             result.Violations,
             violation => violation.Rule == "page-specific-design-token");
         Assert.Equal(2, result.ForbiddenDesignTokens.Count);
+    }
+
+    [Fact]
+    public void Stable_design_tokens_have_cross_component_names_and_gallery_does_not_use_page_geometry()
+    {
+        var repositoryRoot = LocateRepositoryRoot();
+        var designTokensPath = Path.Combine(
+            repositoryRoot,
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "DesignTokens.xaml");
+        var result = VisualStyleOwnershipScanner.ScanDesignTokens(
+            "src/NovelSpeaker.App/Shared/Theming/Resources/DesignTokens.xaml",
+            XDocument.Load(designTokensPath, LoadOptions.SetLineInfo));
+
+        Assert.Equal(
+            StableDesignTokenKeys.Order(StringComparer.Ordinal),
+            StableDesignTokenKeys
+                .Where(result.DesignTokens.Contains)
+                .Order(StringComparer.Ordinal));
+        Assert.DoesNotContain(
+            StableDesignTokenKeys,
+            key => key.Contains("PagePadding", StringComparison.Ordinal) ||
+                   key.Contains("Width", StringComparison.Ordinal) ||
+                   key.Contains("Margin", StringComparison.Ordinal) ||
+                   key.Contains("Column", StringComparison.Ordinal) ||
+                   key.Contains("List", StringComparison.Ordinal));
+
+        var componentGallerySource = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "NovelSpeaker.StyleGallery", "GallerySceneBuilders.cs"));
+        Assert.DoesNotContain("PagePadding", componentGallerySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("SettingsRowControlWidth", componentGallerySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("NavigationPaneOpenWidth", componentGallerySource, StringComparison.Ordinal);
     }
 
     [Fact]

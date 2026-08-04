@@ -1,6 +1,64 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- Stable cross-component tokens. These resources are theme-independent and are
+         intentionally loaded once; theme changes update palette values only. -->
+    <sys:Double x:Key="Spacing4">4</sys:Double>
+    <sys:Double x:Key="Spacing8">8</sys:Double>
+    <sys:Double x:Key="Spacing12">12</sys:Double>
+    <sys:Double x:Key="Spacing16">16</sys:Double>
+    <sys:Double x:Key="Spacing20">20</sys:Double>
+    <sys:Double x:Key="Spacing24">24</sys:Double>
+    <sys:Double x:Key="Spacing32">32</sys:Double>
+    <sys:Double x:Key="Spacing40">40</sys:Double>
+    <sys:Double x:Key="Spacing48">48</sys:Double>
+
+    <CornerRadius x:Key="CornerRadiusSmall">8</CornerRadius>
+    <CornerRadius x:Key="CornerRadiusMedium">12</CornerRadius>
+    <CornerRadius x:Key="CornerRadiusLarge">16</CornerRadius>
+
+    <sys:Double x:Key="IconSizeSmall">16</sys:Double>
+    <sys:Double x:Key="IconSizeMedium">20</sys:Double>
+    <sys:Double x:Key="IconSizeLarge">24</sys:Double>
+    <sys:Double x:Key="IconSizeTouch">32</sys:Double>
+    <sys:Double x:Key="ControlMinHeightCompact">32</sys:Double>
+    <sys:Double x:Key="ControlMinHeightStandard">40</sys:Double>
+
+    <FontFamily x:Key="FontFamilyUi">Segoe UI Variable Text, Microsoft YaHei UI, Segoe UI, sans-serif</FontFamily>
+    <sys:Double x:Key="FontSizePageTitle">24</sys:Double>
+    <sys:Double x:Key="FontSizeSectionTitle">18</sys:Double>
+    <sys:Double x:Key="FontSizeItemTitle">16</sys:Double>
+    <sys:Double x:Key="FontSizeBody">14</sys:Double>
+    <sys:Double x:Key="FontSizeSecondary">13</sys:Double>
+    <sys:Double x:Key="FontSizeCaption">12</sys:Double>
+    <FontWeight x:Key="FontWeightRegular">Regular</FontWeight>
+    <FontWeight x:Key="FontWeightSemiBold">SemiBold</FontWeight>
+    <sys:Double x:Key="TextLineHeightBody">22</sys:Double>
+    <sys:Double x:Key="TextLineHeightSecondary">20</sys:Double>
+
+    <Duration x:Key="MotionDurationFast">0:0:0.10</Duration>
+    <Duration x:Key="MotionDurationStandard">0:0:0.16</Duration>
+    <Duration x:Key="MotionDurationSlow">0:0:0.22</Duration>
+
+    <DropShadowEffect x:Key="ElevationLow"
+                      BlurRadius="10"
+                      Direction="90"
+                      Opacity="0.14"
+                      ShadowDepth="2" />
+    <DropShadowEffect x:Key="ElevationMedium"
+                      BlurRadius="18"
+                      Direction="90"
+                      Opacity="0.18"
+                      ShadowDepth="4" />
+    <DropShadowEffect x:Key="ElevationHigh"
+                      BlurRadius="26"
+                      Direction="90"
+                      Opacity="0.22"
+                      ShadowDepth="6" />
+
+    <!-- Historical page-owned resources. Existing pages still consume these keys;
+         they are compatibility resources, not part of the new stable token contract.
+         New components must use the tokens above and must not add page geometry here. -->
     <Thickness x:Key="PagePadding">24</Thickness>
     <Thickness x:Key="SectionSpacing">0,20,0,0</Thickness>
     <Thickness x:Key="ItemSpacing">0,12,0,0</Thickness>
