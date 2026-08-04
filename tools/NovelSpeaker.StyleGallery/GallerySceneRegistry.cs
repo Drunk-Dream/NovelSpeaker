@@ -23,6 +23,10 @@ public static class GallerySceneRegistry
             "Complete semantic palette with text and icon contrast samples.",
             GallerySceneBuilders.CreatePaletteProbe),
         new GallerySceneDefinition(
+            "token-components",
+            "Stable token-based PageHeader, SectionSurface and StatusView samples.",
+            GallerySceneBuilders.CreateTokenComponents),
+        new GallerySceneDefinition(
             "placeholder-sections",
             "Reserved sections for the later visual component waves.",
             GallerySceneBuilders.CreatePlaceholderSections)

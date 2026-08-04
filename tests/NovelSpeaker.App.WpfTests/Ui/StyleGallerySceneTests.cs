@@ -5,11 +5,13 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using System.Windows.Media.Imaging;
 using NovelSpeaker.StyleGallery;
 using Wpf.Ui.Controls;
 using WpfButton = System.Windows.Controls.Button;
+using WpfTextBlock = System.Windows.Controls.TextBlock;
 using WpfTextBox = System.Windows.Controls.TextBox;
 using Xunit;
 
@@ -24,7 +26,7 @@ public sealed class StyleGallerySceneTests
         var scenes = GallerySceneRegistry.All;
 
         Assert.Equal(
-            ["palette-probe", "placeholder-sections", "provider-controls", "provider-style-probe", "theme-resource-probe"],
+            ["palette-probe", "placeholder-sections", "provider-controls", "provider-style-probe", "theme-resource-probe", "token-components"],
             scenes.Select(scene => scene.Name).Order(StringComparer.Ordinal));
         Assert.All(scenes, scene =>
         {
@@ -35,16 +37,18 @@ public sealed class StyleGallerySceneTests
     }
 
     [Fact]
-    public void Gallery_task_defaults_to_03_and_accepts_explicit_tasks_04_and_05()
+    public void Gallery_task_defaults_to_03_and_accepts_explicit_tasks_04_through_06()
     {
         var defaultOptions = GalleryCommandLineOptions.Parse(["--screenshot"]);
         var task04Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "04"]);
         var task05Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "05"]);
+        var task06Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "06"]);
 
         Assert.Equal("03", defaultOptions.Task);
         Assert.Equal(Path.Combine("artifacts", "visual-review", "03"), defaultOptions.OutputDirectory);
         Assert.Equal("04", task04Options.Task);
         Assert.Equal("05", task05Options.Task);
+        Assert.Equal("06", task06Options.Task);
     }
 
     [Theory]
@@ -198,6 +202,137 @@ public sealed class StyleGallerySceneTests
                 Assert.Same(providerStyle, application.FindResource("Provider.Button"));
                 Assert.Same(template, button.Template);
 
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            }
+            finally
+            {
+                host.Close();
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
+    public void Token_components_measure_and_arrange_at_supported_dpi_scales(GalleryTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(theme);
+            var scene = GallerySceneRegistry.Build("token-components");
+
+            foreach (var scale in new[] { 1d, 1.25d, 1.5d })
+            {
+                // The shared WPF host runs at its machine DPI. A layout transform
+                // provides a deterministic physical-scale contract for 100/125/150%.
+                scene.LayoutTransform = new ScaleTransform(scale, scale);
+                var availableSize = new Size(
+                    GalleryRenderSettings.WindowWidth,
+                    GalleryRenderSettings.WindowHeight);
+                scene.Measure(availableSize);
+                scene.Arrange(new Rect(new Point(0, 0), availableSize));
+                scene.UpdateLayout();
+
+                foreach (var componentId in new[]
+                         {
+                             "component-page-header",
+                             "component-section-surface",
+                             "component-status-view",
+                             "component-status-view-success",
+                             "component-status-view-warning",
+                             "component-status-view-error"
+                         })
+                {
+                    var component = FindDescendants<FrameworkElement>(scene)
+                        .Single(element => AutomationProperties.GetAutomationId(element) == componentId);
+                    Assert.True(
+                        IsFiniteAndPositive(component.ActualWidth) && IsFiniteAndPositive(component.ActualHeight),
+                        $"{componentId} did not receive a usable layout at {scale:0.##}x DPI.");
+                }
+
+                foreach (var textId in new[]
+                         {
+                             "component-page-header-title",
+                             "component-page-header-description",
+                             "component-section-surface-title",
+                             "component-section-surface-body",
+                             "component-status-view-error-description"
+                         })
+                {
+                    var text = FindDescendants<WpfTextBlock>(scene)
+                        .Single(block => AutomationProperties.GetAutomationId(block) == textId);
+                    Assert.True(
+                        IsFiniteAndPositive(text.ActualWidth) && IsFiniteAndPositive(text.ActualHeight),
+                        $"{textId} was clipped to an unusable layout at {scale:0.##}x DPI.");
+                    Assert.Equal(TextWrapping.Wrap, text.TextWrapping);
+                }
+
+                Assert.All(
+                    FindDescendants<FrameworkElement>(scene),
+                    element =>
+                    {
+                        Assert.True(double.IsFinite(element.DesiredSize.Width));
+                        Assert.True(double.IsFinite(element.DesiredSize.Height));
+                        Assert.True(element.DesiredSize.Width >= 0);
+                        Assert.True(element.DesiredSize.Height >= 0);
+                    });
+            }
+        });
+    }
+
+    [Fact]
+    public void Token_components_keep_shared_token_resources_and_dynamic_palette_references()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                global::System.Windows.Application.Current);
+            var tokenDictionary = application.Resources.MergedDictionaries.Single(dictionary =>
+                dictionary.Source?.OriginalString?.EndsWith(
+                    "Resources/DesignTokens.xaml",
+                    StringComparison.Ordinal) == true);
+            var spacing = Assert.IsType<double>(application.FindResource("Spacing24"));
+            var cornerRadius = Assert.IsType<CornerRadius>(application.FindResource("CornerRadiusMedium"));
+            var shadow = Assert.IsType<DropShadowEffect>(application.FindResource("ElevationLow"));
+            var scene = GallerySceneRegistry.Build("token-components");
+            var host = new Window
+            {
+                Content = scene,
+                Width = GalleryRenderSettings.WindowWidth,
+                Height = GalleryRenderSettings.WindowHeight,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            try
+            {
+                host.Show();
+                host.UpdateLayout();
+
+                Assert.True(spacing > 0);
+                Assert.True(cornerRadius.TopLeft > 0);
+                Assert.True(shadow.BlurRadius > 0);
+                Assert.Contains(
+                    FindDescendants<Border>(scene),
+                    border => AutomationProperties.GetAutomationId(border).StartsWith(
+                        "component-",
+                        StringComparison.Ordinal));
+
+                var pageHeader = FindDescendants<Border>(scene).Single(border =>
+                    AutomationProperties.GetAutomationId(border) == "component-page-header");
+                var lightBackground = Assert.IsType<SolidColorBrush>(pageHeader.Background);
+                var lightColor = lightBackground.Color;
+                Assert.Equal(spacing, Assert.IsType<double>(application.FindResource("Spacing24")));
+                Assert.Same(tokenDictionary, application.Resources.MergedDictionaries.Single(dictionary =>
+                    dictionary.Source?.OriginalString?.EndsWith(
+                        "Resources/DesignTokens.xaml",
+                        StringComparison.Ordinal) == true));
+
+                GalleryThemeRuntime.Apply(GalleryTheme.Dark);
+                host.UpdateLayout();
+                Assert.Same(shadow, application.FindResource("ElevationLow"));
+                Assert.NotEqual(lightColor, Assert.IsType<SolidColorBrush>(pageHeader.Background).Color);
                 GalleryThemeRuntime.Apply(GalleryTheme.Light);
             }
             finally
@@ -366,6 +501,9 @@ public sealed class StyleGallerySceneTests
             }
         }
     }
+
+    private static bool IsFiniteAndPositive(double value) =>
+        double.IsFinite(value) && value > 0;
 
     private static async Task<GalleryManifest> ReadManifestAsync(
         string path,

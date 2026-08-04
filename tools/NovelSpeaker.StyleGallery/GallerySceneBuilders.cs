@@ -36,6 +36,13 @@ internal static class GallerySceneBuilders
             "Every stable palette brush is shown with readable text and icon samples; only values change between themes.",
             CreatePaletteContent);
 
+    public static FrameworkElement CreateTokenComponents() =>
+        CreateSceneRoot(
+            "token-components",
+            "Stable token components",
+            "PageHeader, SectionSurface and StatusView use the shared token contract and dynamic semantic palette.",
+            CreateTokenComponentsContent);
+
     public static FrameworkElement CreateProviderStyleProbe() =>
         CreateSceneRoot(
             "provider-style-probe",
@@ -54,7 +61,7 @@ internal static class GallerySceneBuilders
         string automationId,
         string title,
         string description,
-        Func<Panel> contentFactory)
+        Func<FrameworkElement> contentFactory)
     {
         var root = new Grid
         {
@@ -337,6 +344,261 @@ internal static class GallerySceneBuilders
         scrollViewer.Content = columns;
         container.Children.Add(scrollViewer);
         return container;
+    }
+
+    private static FrameworkElement CreateTokenComponentsContent()
+    {
+        var scrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+        var content = new StackPanel();
+        content.Children.Add(CreatePageHeaderSample());
+        content.Children.Add(CreateSectionSurfaceSample());
+        content.Children.Add(CreateStatusViewSample());
+        scrollViewer.Content = content;
+        return scrollViewer;
+    }
+
+    private static Border CreatePageHeaderSample()
+    {
+        var title = CreateTokenText(
+            "PageHeader · 长标题在窄空间中保持可读并自然换行",
+            "FontSizePageTitle",
+            "FontWeightSemiBold",
+            "PrimaryTextBrush");
+        AutomationProperties.SetAutomationId(title, "component-page-header-title");
+
+        var description = CreateTokenText(
+            "这是一个固定 fixture，用来验证标题、说明文字和操作入口在 Light/Dark 以及不同 DPI 下保持清晰。",
+            "FontSizeSecondary",
+            "FontWeightRegular",
+            "SecondaryTextBrush",
+            "TextLineHeightSecondary");
+        AutomationProperties.SetAutomationId(description, "component-page-header-description");
+
+        var copy = new StackPanel();
+        copy.Children.Add(title);
+        description.Margin = new Thickness(0, TokenDouble("Spacing8"), 0, 0);
+        copy.Children.Add(description);
+
+        var icon = new SymbolIcon
+        {
+            Symbol = SymbolRegular.DocumentText24,
+            VerticalAlignment = VerticalAlignment.Top
+        };
+        icon.SetResourceReference(FrameworkElement.WidthProperty, "IconSizeLarge");
+        icon.SetResourceReference(FrameworkElement.HeightProperty, "IconSizeLarge");
+        icon.SetResourceReference(SymbolIcon.ForegroundProperty, "AccentBrush");
+        AutomationProperties.SetAutomationId(icon, "component-page-header-icon");
+
+        var action = new Button
+        {
+            Content = "示例动作",
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Padding = TokenPadding("Spacing12")
+        };
+        action.Style = Application.Current?.FindResource("Provider.Button") as Style;
+        action.SetResourceReference(FrameworkElement.MinHeightProperty, "ControlMinHeightCompact");
+        action.SetResourceReference(Control.BackgroundProperty, "AccentBrush");
+        action.SetResourceReference(Control.ForegroundProperty, "AccentTextBrush");
+        AutomationProperties.SetName(action, "PageHeader sample action");
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        icon.Margin = new Thickness(0, 0, TokenDouble("Spacing12"), 0);
+        Grid.SetColumn(icon, 0);
+        Grid.SetColumn(copy, 1);
+        Grid.SetColumn(action, 2);
+        grid.Children.Add(icon);
+        grid.Children.Add(copy);
+        grid.Children.Add(action);
+
+        var surface = CreateComponentSurface("component-page-header");
+        surface.Padding = TokenPadding("Spacing24");
+        surface.Child = grid;
+        return surface;
+    }
+
+    private static Border CreateSectionSurfaceSample()
+    {
+        var title = CreateTokenText(
+            "SectionSurface · 主要内容",
+            "FontSizeSectionTitle",
+            "FontWeightSemiBold",
+            "PrimaryTextBrush");
+        AutomationProperties.SetAutomationId(title, "component-section-surface-title");
+
+        var body = CreateTokenText(
+            "表面组件通过层级、留白和轻微抬升建立分组，不引入页面列宽、规则列表宽度或补偿性 Padding。长文本 fixture 也应保持可见。",
+            "FontSizeBody",
+            "FontWeightRegular",
+            "PrimaryTextBrush",
+            "TextLineHeightBody");
+        AutomationProperties.SetAutomationId(body, "component-section-surface-body");
+        body.Margin = new Thickness(0, TokenDouble("Spacing12"), 0, 0);
+
+        var hint = new Border
+        {
+            Padding = TokenPadding("Spacing8"),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Child = CreateTokenText(
+                "ElevationLow · PrimarySurface",
+                "FontSizeCaption",
+                "FontWeightRegular",
+                "SecondaryTextBrush")
+        };
+        hint.SetResourceReference(Border.BackgroundProperty, "SecondarySurfaceBrush");
+        hint.SetResourceReference(Border.BorderBrushProperty, "SubtleBorderBrush");
+        hint.SetResourceReference(Border.CornerRadiusProperty, "CornerRadiusSmall");
+        hint.Margin = new Thickness(0, TokenDouble("Spacing16"), 0, 0);
+        AutomationProperties.SetAutomationId(hint, "component-section-surface-hint");
+
+        var content = new StackPanel();
+        content.Children.Add(title);
+        content.Children.Add(body);
+        content.Children.Add(hint);
+
+        var surface = CreateComponentSurface("component-section-surface");
+        surface.Padding = TokenPadding("Spacing20");
+        surface.SetResourceReference(UIElement.EffectProperty, "ElevationLow");
+        surface.Child = content;
+        return surface;
+    }
+
+    private static Border CreateStatusViewSample()
+    {
+        var content = new StackPanel();
+        content.Children.Add(CreateTokenText(
+            "StatusView · 可读状态",
+            "FontSizeSectionTitle",
+            "FontWeightSemiBold",
+            "PrimaryTextBrush"));
+        content.Children.Add(CreateStatusRow(
+            "component-status-view-success",
+            SymbolRegular.CheckmarkCircle24,
+            "已完成",
+            "SuccessSubtleBrush",
+            "SuccessBrush",
+            "当前章节的示例音频已准备就绪。"));
+        content.Children.Add(CreateStatusRow(
+            "component-status-view-warning",
+            SymbolRegular.Warning24,
+            "需要注意",
+            "WarningSubtleBrush",
+            "WarningBrush",
+            "部分内容仍在等待处理，状态文字不能只依赖颜色表达。"));
+        content.Children.Add(CreateStatusRow(
+            "component-status-view-error",
+            SymbolRegular.DismissCircle24,
+            "无法完成请求",
+            "DangerSubtleBrush",
+            "DangerBrush",
+            "这是用于布局契约的长错误说明：错误摘要保持简洁，详细文字可以换行并在 100%、125% 和 150% DPI 下完整显示。"));
+
+        var surface = CreateComponentSurface("component-status-view");
+        surface.Padding = TokenPadding("Spacing20");
+        surface.Child = content;
+        return surface;
+    }
+
+    private static Border CreateStatusRow(
+        string automationId,
+        SymbolRegular symbol,
+        string title,
+        string backgroundKey,
+        string accentKey,
+        string description)
+    {
+        var icon = new SymbolIcon { Symbol = symbol, VerticalAlignment = VerticalAlignment.Top };
+        icon.SetResourceReference(FrameworkElement.WidthProperty, "IconSizeMedium");
+        icon.SetResourceReference(FrameworkElement.HeightProperty, "IconSizeMedium");
+        icon.SetResourceReference(SymbolIcon.ForegroundProperty, accentKey);
+        icon.Margin = new Thickness(0, 2, TokenDouble("Spacing12"), 0);
+
+        var copy = new StackPanel();
+        copy.Children.Add(CreateTokenText(title, "FontSizeItemTitle", "FontWeightSemiBold", accentKey));
+        var details = CreateTokenText(
+            description,
+            "FontSizeSecondary",
+            "FontWeightRegular",
+            "SecondaryTextBrush",
+            "TextLineHeightSecondary");
+        details.Margin = new Thickness(0, TokenDouble("Spacing4"), 0, 0);
+        AutomationProperties.SetAutomationId(details, $"{automationId}-description");
+        copy.Children.Add(details);
+
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(icon, 0);
+        Grid.SetColumn(copy, 1);
+        row.Children.Add(icon);
+        row.Children.Add(copy);
+
+        var surface = new Border
+        {
+            Padding = TokenPadding("Spacing12"),
+            Child = row
+        };
+        surface.SetResourceReference(Border.BackgroundProperty, backgroundKey);
+        surface.SetResourceReference(Border.CornerRadiusProperty, "CornerRadiusSmall");
+        surface.Margin = new Thickness(0, TokenDouble("Spacing12"), 0, 0);
+        AutomationProperties.SetAutomationId(surface, automationId);
+        return surface;
+    }
+
+    private static Border CreateComponentSurface(string automationId)
+    {
+        var surface = new Border
+        {
+            BorderThickness = new Thickness(1),
+            SnapsToDevicePixels = true
+        };
+        surface.SetResourceReference(Border.BackgroundProperty, "PrimarySurfaceBrush");
+        surface.SetResourceReference(Border.BorderBrushProperty, "SubtleBorderBrush");
+        surface.SetResourceReference(Border.CornerRadiusProperty, "CornerRadiusMedium");
+        surface.Margin = new Thickness(0, 0, 0, TokenDouble("Spacing16"));
+        AutomationProperties.SetAutomationId(surface, automationId);
+        return surface;
+    }
+
+    private static TextBlock CreateTokenText(
+        string text,
+        string fontSizeKey,
+        string fontWeightKey,
+        string foregroundKey,
+        string? lineHeightKey = null)
+    {
+        var block = new TextBlock
+        {
+            Text = text,
+            TextWrapping = TextWrapping.Wrap
+        };
+        block.SetResourceReference(TextBlock.FontFamilyProperty, "FontFamilyUi");
+        block.SetResourceReference(TextBlock.FontSizeProperty, fontSizeKey);
+        block.SetResourceReference(TextBlock.FontWeightProperty, fontWeightKey);
+        block.SetResourceReference(TextBlock.ForegroundProperty, foregroundKey);
+        if (lineHeightKey is not null)
+        {
+            block.SetResourceReference(TextBlock.LineHeightProperty, lineHeightKey);
+        }
+
+        return block;
+    }
+
+    private static double TokenDouble(string key) =>
+        (double)(Application.Current?.FindResource(key)
+            ?? throw new InvalidOperationException($"Gallery token '{key}' was not found."));
+
+    private static Thickness TokenPadding(string key)
+    {
+        var value = TokenDouble(key);
+        return new Thickness(value);
     }
 
     private static Border CreatePaletteSwatch(string backgroundKey, string foregroundKey, string label)

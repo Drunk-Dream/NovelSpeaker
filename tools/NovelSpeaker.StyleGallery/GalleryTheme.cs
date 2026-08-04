@@ -85,6 +85,15 @@ public static class GalleryThemeRuntime
             throw new InvalidOperationException(
                 "Style Gallery semantic palette must remain at logical dictionary position 3.");
         }
+
+        if (dictionaries.Count < 5 ||
+            dictionaries[4].Source?.OriginalString?.EndsWith(
+                "Resources/DesignTokens.xaml",
+                StringComparison.Ordinal) != true)
+        {
+            throw new InvalidOperationException(
+                "Style Gallery DesignTokens must remain at logical dictionary position 4.");
+        }
     }
 
     private static bool IsWpfUiThemeDictionary(ResourceDictionary dictionary)
