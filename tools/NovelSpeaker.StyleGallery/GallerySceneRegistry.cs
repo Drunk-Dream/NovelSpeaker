@@ -35,6 +35,10 @@ public static class GallerySceneRegistry
             "Shared App.Button.Icon controls with deterministic playback and slider fixtures.",
             GallerySceneBuilders.CreateMediaControls),
         new GallerySceneDefinition(
+            "input-controls",
+            "Explicit App.Input TextBox, PasswordBox, ComboBox, CheckBox and ToggleSwitch fixtures.",
+            GallerySceneBuilders.CreateInputControls),
+        new GallerySceneDefinition(
             "placeholder-sections",
             "Reserved sections for the later visual component waves.",
             GallerySceneBuilders.CreatePlaceholderSections)

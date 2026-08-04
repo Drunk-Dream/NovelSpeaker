@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Media;
 using Button = System.Windows.Controls.Button;
@@ -57,6 +59,13 @@ internal static class GallerySceneBuilders
             "Media control components",
             "App.Button.Icon and the Gallery-only control bar show playback, volume, window actions and deterministic slider projection.",
             CreateMediaControlsContent);
+
+    public static FrameworkElement CreateInputControls() =>
+        CreateSceneRoot(
+            "input-controls",
+            "Input and selection controls",
+            "Explicit App.Input variants cover content, density, selection, disabled, read-only and visible validation states without replacing Provider templates.",
+            CreateInputControlsContent);
 
     public static FrameworkElement CreateProviderStyleProbe() =>
         CreateSceneRoot(
@@ -428,6 +437,257 @@ internal static class GallerySceneBuilders
         };
         content.Children.Add(stateSurface);
         scrollViewer.Content = content;
+        return scrollViewer;
+    }
+
+    private static FrameworkElement CreateInputControlsContent()
+    {
+        var scrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Focusable = false
+        };
+        AutomationProperties.SetAutomationId(scrollViewer, "input-controls-scroll-viewer");
+        AutomationProperties.SetName(scrollViewer, "Input and selection controls scroll area");
+
+        var columns = new Grid();
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var textEntrySurface = CreateSurface();
+        textEntrySurface.Margin = new Thickness(0, 0, SectionGap / 2, 0);
+        Grid.SetColumn(textEntrySurface, 0);
+        var textEntries = new StackPanel();
+        textEntries.Children.Add(CreateSurfaceLabel("Text entry and password"));
+        textEntries.Children.Add(CreateInputField(
+            "Empty content · TextBox.Standard",
+            CreateInputControl(
+                new TextBox(),
+                "App.Input.TextBox.Standard",
+                "input-textbox-empty-standard",
+                "TextBox empty content")));
+        textEntries.Children.Add(CreateInputField(
+            "Long Chinese content · TextBox.Standard",
+            CreateInputControl(
+                new TextBox
+                {
+                    Text = "长中文内容：这是用于 Style Gallery 的固定输入样本，检查文本在标准高度、固定窗口和浅色或深色主题下都保持可读，并且不会因为控件状态改变而被裁掉。"
+                },
+                "App.Input.TextBox.Standard",
+                "input-textbox-long-standard",
+                "TextBox long Chinese content")));
+        textEntries.Children.Add(CreateInputField(
+            "Read-only content · TextBox.Compact",
+            CreateInputControl(
+                new TextBox
+                {
+                    Text = "只读：当前章节标题不可编辑。",
+                    IsReadOnly = true
+                },
+                "App.Input.TextBox.Compact",
+                "input-textbox-readonly-compact",
+                "TextBox read-only content")));
+        textEntries.Children.Add(CreateInputField(
+            "Disabled content · TextBox.Compact",
+            CreateInputControl(
+                new TextBox
+                {
+                    Text = "禁用：导入任务尚未完成。",
+                    IsEnabled = false
+                },
+                "App.Input.TextBox.Compact",
+                "input-textbox-disabled-compact",
+                "TextBox disabled content")));
+
+        var invalidTextBox = CreateInputControl(
+            new TextBox { Text = "不完整的章节名称" },
+            "App.Input.TextBox.Standard",
+            "input-textbox-error-standard",
+            "TextBox invalid chapter name");
+        MarkInputValidationError(
+            invalidTextBox,
+            TextBox.TextProperty,
+            "章节名称还需要包含作者信息。请补充后再继续。");
+        textEntries.Children.Add(CreateInputField(
+            "Error · TextBox.Standard",
+            invalidTextBox,
+            "章节名称还需要包含作者信息。请补充后再继续。"));
+
+        textEntries.Children.Add(CreateInputField(
+            "Password · PasswordBox.Standard",
+            CreateInputControl(
+                new PasswordBox { Password = "gallery-secret" },
+                "App.Input.PasswordBox.Standard",
+                "input-password-standard",
+                "PasswordBox standard password")));
+        textEntries.Children.Add(CreateInputField(
+            "Disabled password · PasswordBox.Compact",
+            CreateInputControl(
+                new PasswordBox
+                {
+                    Password = "disabled-secret",
+                    IsEnabled = false
+                },
+                "App.Input.PasswordBox.Compact",
+                "input-password-disabled-compact",
+                "PasswordBox disabled password")));
+        textEntrySurface.Child = textEntries;
+        columns.Children.Add(textEntrySurface);
+
+        var selectionSurface = CreateSurface();
+        selectionSurface.Margin = new Thickness(SectionGap / 2, 0, 0, 0);
+        Grid.SetColumn(selectionSurface, 1);
+        var selections = new StackPanel();
+        selections.Children.Add(CreateSurfaceLabel("ComboBox, CheckBox and ToggleSwitch"));
+
+        var comboItems = new[]
+        {
+            "普通章节",
+            "长中文选项：这是用于检查 ComboBoxItem、Popup 宽度和换行边界的固定长项。",
+            "有声书章节与正文同步",
+            "未选择来源"
+        };
+        selections.Children.Add(CreateInputField(
+            "Dropdown items · ComboBox.Standard",
+            CreateInputControl(
+                new ComboBox
+                {
+                    ItemsSource = comboItems,
+                    SelectedIndex = 0,
+                    MaxDropDownHeight = 180
+                },
+                "App.Input.ComboBox.Standard",
+                "input-combobox-options-standard",
+                "ComboBox dropdown options")));
+        selections.Children.Add(CreateInputField(
+            "Long selected item · ComboBox.Compact",
+            CreateInputControl(
+                new ComboBox
+                {
+                    ItemsSource = comboItems,
+                    SelectedIndex = 1,
+                    MaxDropDownHeight = 180
+                },
+                "App.Input.ComboBox.Compact",
+                "input-combobox-long-compact",
+                "ComboBox long selected item")));
+
+        selections.Children.Add(CreateInputField(
+            "Checked · CheckBox.Standard",
+            CreateInputControl(
+                new CheckBox
+                {
+                    Content = "朗读章节标题",
+                    IsChecked = true
+                },
+                "App.Input.CheckBox.Standard",
+                "input-checkbox-checked-standard",
+                "CheckBox checked read chapter title")));
+        selections.Children.Add(CreateInputField(
+            "Unchecked · CheckBox.Standard",
+            CreateInputControl(
+                new CheckBox
+                {
+                    Content = "朗读章节脚注",
+                    IsChecked = false
+                },
+                "App.Input.CheckBox.Standard",
+                "input-checkbox-unchecked-standard",
+                "CheckBox unchecked read footnotes")));
+        selections.Children.Add(CreateInputField(
+            "Disabled · CheckBox.Compact",
+            CreateInputControl(
+                new CheckBox
+                {
+                    Content = "禁用选项（没有可用的 TTS 声音）",
+                    IsChecked = true,
+                    IsEnabled = false
+                },
+                "App.Input.CheckBox.Compact",
+                "input-checkbox-disabled-compact",
+                "CheckBox disabled option")));
+
+        var invalidCheckBox = CreateInputControl(
+            new CheckBox
+            {
+                Content = "将章节标题合并到正文",
+                IsChecked = false
+            },
+            "App.Input.CheckBox.Compact",
+            "input-checkbox-error-compact",
+            "CheckBox invalid chapter title option");
+        MarkInputValidationError(
+            invalidCheckBox,
+            ToggleButton.IsCheckedProperty,
+            "请选择是否合并章节标题，否则无法保存当前朗读配置。");
+        selections.Children.Add(CreateInputField(
+            "Error · CheckBox.Compact",
+            invalidCheckBox,
+            "请选择是否合并章节标题，否则无法保存当前朗读配置。"));
+
+        selections.Children.Add(CreateInputField(
+            "On with label · ToggleSwitch.Standard",
+            CreateInputControl(
+                new ToggleSwitch
+                {
+                    Content = "启用自动缓存",
+                    IsChecked = true
+                },
+                "App.Input.ToggleSwitch.Standard",
+                "input-toggle-labeled-on-standard",
+                "ToggleSwitch on with label")));
+        selections.Children.Add(CreateInputField(
+            "Off with label · ToggleSwitch.Standard",
+            CreateInputControl(
+                new ToggleSwitch
+                {
+                    Content = "允许移动网络下载",
+                    IsChecked = false
+                },
+                "App.Input.ToggleSwitch.Standard",
+                "input-toggle-labeled-off-standard",
+                "ToggleSwitch off with label")));
+        selections.Children.Add(CreateInputField(
+            "On without label · ToggleSwitch.Compact",
+            CreateInputControl(
+                new ToggleSwitch { IsChecked = true },
+                "App.Input.ToggleSwitch.Compact",
+                "input-toggle-unlabeled-on-compact",
+                "ToggleSwitch on without label")));
+        selections.Children.Add(CreateInputField(
+            "Off and disabled · ToggleSwitch.Compact",
+            CreateInputControl(
+                new ToggleSwitch
+                {
+                    IsChecked = false,
+                    IsEnabled = false
+                },
+                "App.Input.ToggleSwitch.Compact",
+                "input-toggle-unlabeled-off-disabled-compact",
+                "ToggleSwitch off disabled without label")));
+
+        var invalidToggle = CreateInputControl(
+            new ToggleSwitch
+            {
+                Content = "允许后台朗读",
+                IsChecked = false
+            },
+            "App.Input.ToggleSwitch.Standard",
+            "input-toggle-error-standard",
+            "ToggleSwitch invalid background reading option");
+        MarkInputValidationError(
+            invalidToggle,
+            ToggleButton.IsCheckedProperty,
+            "后台朗读需要先启用本地缓存，请检查相关设置。");
+        selections.Children.Add(CreateInputField(
+            "Error · ToggleSwitch.Standard",
+            invalidToggle,
+            "后台朗读需要先启用本地缓存，请检查相关设置。"));
+        selectionSurface.Child = selections;
+        columns.Children.Add(selectionSurface);
+
+        scrollViewer.Content = columns;
         return scrollViewer;
     }
 
@@ -1220,6 +1480,78 @@ internal static class GallerySceneBuilders
         stack.Children.Add(control);
         field.Child = stack;
         return field;
+    }
+
+    private static T CreateInputControl<T>(
+        T control,
+        string styleKey,
+        string automationId,
+        string automationName)
+        where T : Control
+    {
+        control.SetResourceReference(FrameworkElement.StyleProperty, styleKey);
+        AutomationProperties.SetAutomationId(control, automationId);
+        AutomationProperties.SetName(control, automationName);
+        return control;
+    }
+
+    private static Border CreateInputField(string label, Control control, string? errorMessage = null)
+    {
+        var field = new Border { Margin = new Thickness(0, 16, 0, 0) };
+        var stack = new StackPanel();
+        stack.Children.Add(new TextBlock
+        {
+            Text = label,
+            Margin = new Thickness(0, 0, 0, 6)
+        }.WithResource(TextBlock.ForegroundProperty, "GallerySecondaryTextBrush"));
+        stack.Children.Add(control);
+        if (errorMessage is not null)
+        {
+            var error = new TextBlock
+            {
+                Text = errorMessage,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 6, 0, 0),
+                FontSize = 12
+            }.WithResource(TextBlock.ForegroundProperty, "DangerBrush");
+            AutomationProperties.SetAutomationId(
+                error,
+                $"{AutomationProperties.GetAutomationId(control)}-error");
+            stack.Children.Add(error);
+        }
+
+        field.Child = stack;
+        return field;
+    }
+
+    private static void MarkInputValidationError(
+        Control control,
+        DependencyProperty property,
+        string message)
+    {
+        var source = new GalleryValidationSource { Value = control.GetValue(property) };
+        BindingOperations.SetBinding(
+            control,
+            property,
+            new Binding(nameof(GalleryValidationSource.Value))
+            {
+                Source = source,
+                Mode = BindingMode.OneWay
+            });
+        var expression = BindingOperations.GetBindingExpressionBase(control, property)
+            ?? throw new InvalidOperationException(
+                $"Could not create a validation binding for {AutomationProperties.GetAutomationId(control)}.");
+        Validation.MarkInvalid(
+            expression,
+            new ValidationError(new ExceptionValidationRule(), expression)
+            {
+                ErrorContent = message
+            });
+    }
+
+    private sealed class GalleryValidationSource
+    {
+        public object? Value { get; set; }
     }
 
     private static T WithResource<T>(this T element, DependencyProperty property, object resourceKey)
