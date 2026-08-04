@@ -274,7 +274,7 @@ Working branch: experiment/visual-system-v2
 - `artifacts/visual-review/05/manifest.json` 与 10 张 Light/Dark PNG 已生成；PNG 为 1280×820、96 DPI、非空，manifest SHA-256 一致，连续两次生成哈希稳定。
 - 任务 5 相关 WPF 契约测试 24/24 通过；完整质量门禁通过：locked restore、format、Release build（0 警告/0 错误）和全量测试（2 + 208 + 306 + 343 + 268）均通过。
 
-## [ ] 6（P1）：建立稳定 Token、排版和表面组件，不迁移正式页面
+## [x] 6（P1）：建立稳定 Token、排版和表面组件，不迁移正式页面
 
 前置：5。
 
@@ -291,6 +291,15 @@ Working branch: experiment/visual-system-v2
 - 组件在 Light/Dark、100/125/150% DPI 下 Measure/Arrange 无负值、NaN、零宽关键内容或裁剪异常。
 - 生成 `artifacts/visual-review/06/`。
 - 完整质量门禁通过。
+
+结果：
+
+- `DesignTokens.xaml` 新增跨组件稳定契约：`4/8/12/16/20/24/32/40/48` 间距、Small/Medium/Large 圆角、图标尺寸、紧凑/标准最小控件高度、UI 字体与字号层级、正文行高、Fast/Standard/Slow 动效时长和 Low/Medium/High 阴影等级。现有正式页面使用的历史页面几何键保留为兼容资源，并由架构测试明确隔离；新组件未引用页面 Padding、列宽、控件宽度或规则列表宽度。
+- 新增稳定排版具名样式 `App.Typography.*`，仅进入全局样式资源供后续组件迁移使用；未迁移正式页面、窗口布局或页面密度。
+- Style Gallery 新增 `token-components`，以任务 5 palette 的 `DynamicResource` 展示 PageHeader、SectionSurface 和 StatusView，覆盖 Light/Dark、成功/警告/错误状态及长文本；共享 token 字典在主题切换前后保持同一资源实例。
+- 新增稳定 token 命名/页面几何守卫，以及组件在 Light/Dark、100/125/150% DPI 可用尺寸下 Measure/Arrange、非零关键文本、无 NaN/负尺寸的 WPF 契约测试；无任意 Sleep/Delay。
+- `artifacts/visual-review/06/manifest.json` 与 12 张 Light/Dark PNG 已生成；PNG 为 1280×820、96 DPI，manifest SHA-256 一致，连续两次生成哈希稳定。
+- 完整质量门禁通过：locked restore、format、Release build（0 警告/0 错误）和全量测试（2 + 208 + 306 + 343 + 272）均通过。
 
 ## [ ] 7（P1）：建立具名按钮组件族，仅用于 Style Gallery
 
