@@ -379,7 +379,7 @@ Working branch: experiment/visual-system-v2
 - WPF 契约测试覆盖无/有播放上下文、长书名/章节名、隐藏/恢复、关闭等价恢复、置顶、空白区拖动、位置记忆、Light/Dark 和 100/125/150% DPI，并生成 12 个 PNG 与 manifest 到 `artifacts/visual-review/09/`；manifest 包含从仓库 HEAD 读取的有效 `GitCommit`，测试重新读取 manifest，逐条核对 PNG 的 SHA-256、DPI、实际宽高和唯一场景键，并连续生成两轮比较包含 commit 的稳定快照；该目录不入 Git。
 - 完整质量门禁已通过。
 
-## [ ] 10（P1）：迁移迷你播放器内容布局与媒体控制
+## [x] 10（P1）：迁移迷你播放器内容布局与媒体控制
 
 前置：9。
 
@@ -397,6 +397,12 @@ Working branch: experiment/visual-system-v2
 - 最小尺寸与 150% DPI 下按钮不重叠、文本不覆盖窗口动作。
 - 生成 `artifacts/visual-review/10/`。
 - 完整质量门禁通过。
+
+结果：
+
+- 迷你播放器已迁移为 `440–500 × 130–160` 的横向媒体控制面板，使用任务 8 的显式 `App.Media.*` 样式；播放按钮保留 `App.Media.Primary` 接入并以 48 DIP 圆形 Accent 内容表面呈现。
+- 已纳入音量按钮与应用内音量滑块，保留 PlaybackSnapshot、段落拖动、Tooltip、窗口动作、位置记忆和关闭等价恢复；未修改播放页媒体控件。
+- `MiniPlayerViewModelTests` 与 `MiniPlayerWindowTests` 通过，视觉回归产物生成到 `artifacts/visual-review/10/`。
 
 ## [ ] 11（P1）：建立输入与选择控件族，仅用于 Style Gallery
 
