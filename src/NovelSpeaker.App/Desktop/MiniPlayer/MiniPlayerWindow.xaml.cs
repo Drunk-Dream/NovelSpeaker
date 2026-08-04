@@ -24,10 +24,10 @@ public partial class MiniPlayerWindow : Window
         ViewModel = viewModel;
         _screenBoundsProvider = screenBoundsProvider;
         DataContext = viewModel;
-        InitializeComponent();
         _progressController = new PlayerProgressInteractionController(
             () => ViewModel,
             () => ViewModel.LifetimeCancellationToken);
+        InitializeComponent();
         ViewModel.RestoreRequested += OnRestoreRequested;
         Loaded += OnLoaded;
         LocationChanged += OnLocationChanged;

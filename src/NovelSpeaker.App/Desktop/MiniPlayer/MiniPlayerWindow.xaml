@@ -15,8 +15,13 @@
         WindowStartupLocation="CenterScreen"
         Topmost="{Binding IsTopmost, Mode=TwoWay}"
         PreviewMouseLeftButtonDown="MiniPlayerWindow_OnPreviewMouseLeftButtonDown">
-    <Border Padding="16"
-            Background="{DynamicResource ApplicationBackgroundBrush}">
+    <Border x:Name="MiniPlayerSurface"
+            Padding="16"
+            Background="{DynamicResource RaisedSurfaceBrush}"
+            BorderBrush="{DynamicResource SubtleBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource CornerRadiusLarge}"
+            Effect="{StaticResource ElevationHigh}">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -33,14 +38,16 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock x:Name="MiniPlayerBookTitle"
-                               Style="{StaticResource SectionTitleTextBlockStyle}"
+                               Style="{StaticResource App.Typography.ItemTitle}"
                                Text="{Binding BookTitle}"
+                               TextWrapping="NoWrap"
                                TextTrimming="CharacterEllipsis"
                                AutomationProperties.Name="{Binding BookTitle}" />
                     <TextBlock x:Name="MiniPlayerChapterTitle"
                                Margin="0,4,0,0"
-                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Style="{StaticResource App.Typography.Secondary}"
                                Text="{Binding ChapterTitle}"
+                               TextWrapping="NoWrap"
                                TextTrimming="CharacterEllipsis"
                                AutomationProperties.Name="{Binding ChapterTitle}" />
                 </StackPanel>
