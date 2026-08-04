@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 using Button = System.Windows.Controls.Button;
 using CheckBox = System.Windows.Controls.CheckBox;
@@ -338,6 +339,8 @@ internal static class GallerySceneBuilders
             ("DangerBrush", "DangerTextBrush", "Danger"),
             ("DangerSubtleBrush", "PrimaryTextBrush", "Danger subtle"),
             ("DangerTextBrush", "DangerBrush", "Danger text"),
+            ("DangerPressedBrush", "DangerPressedTextBrush", "Danger pressed"),
+            ("DangerPressedTextBrush", "DangerPressedBrush", "Danger pressed text"),
             ("WarningBrush", "WarningTextBrush", "Warning"),
             ("WarningSubtleBrush", "PrimaryTextBrush", "Warning subtle"),
             ("WarningTextBrush", "WarningBrush", "Warning text"),
@@ -491,7 +494,7 @@ internal static class GallerySceneBuilders
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(0, 0, 12, 8),
             Content = variant == "Icon"
-                ? new SymbolIcon { Symbol = SymbolRegular.Settings24 }
+                ? CreateButtonIcon(SymbolRegular.Settings24, "PrimaryTextBrush")
                 : variant,
             ToolTip = $"{variant} · {state}"
         };
@@ -517,7 +520,8 @@ internal static class GallerySceneBuilders
                        variant is "Danger" ? "DangerSubtleBrush" :
                        variant is "Secondary" ? "SecondarySurfaceBrush" : "AccentSubtleBrush",
             "Pressed" => variant is "Primary" ? "AccentPressedBrush" :
-                         variant is "Secondary" ? "AccentSubtleBrush" : "SecondarySurfaceBrush",
+                         variant is "Secondary" ? "AccentSubtleBrush" :
+                         variant is "Danger" ? "DangerPressedBrush" : "SecondarySurfaceBrush",
             _ => null
         };
         if (backgroundKey is not null)
@@ -532,7 +536,8 @@ internal static class GallerySceneBuilders
 
         if (state == "Pressed" && variant == "Danger")
         {
-            button.SetResourceReference(Control.BorderBrushProperty, "DangerBrush");
+            button.SetResourceReference(Control.ForegroundProperty, "DangerPressedTextBrush");
+            button.SetResourceReference(Control.BorderBrushProperty, "DangerPressedBrush");
         }
 
         if (state == "Focus")
@@ -547,6 +552,10 @@ internal static class GallerySceneBuilders
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
+        var iconAndTextSymbol = CreateButtonIcon(SymbolRegular.PlayCircle24, "AccentTextBrush");
+        iconAndTextSymbol.Width = 20;
+        iconAndTextSymbol.Height = 20;
+        iconAndTextSymbol.Margin = new Thickness(0, 0, 8, 0);
         var iconAndText = new Button
         {
             Style = FindButtonStyle("Primary"),
@@ -556,17 +565,18 @@ internal static class GallerySceneBuilders
                 Orientation = Orientation.Horizontal,
                 Children =
                 {
-                    new SymbolIcon
+                    iconAndTextSymbol,
+                    new TextBlock
                     {
-                        Symbol = SymbolRegular.PlayCircle24,
-                        Width = 20,
-                        Height = 20,
-                        Margin = new Thickness(0, 0, 8, 0)
-                    },
-                    new TextBlock { Text = "图标 + 文本", VerticalAlignment = VerticalAlignment.Center }
+                        Text = "图标 + 文本",
+                        VerticalAlignment = VerticalAlignment.Center
+                    }.WithResource(TextBlock.ForegroundProperty, "AccentTextBrush")
                 }
             }
         };
+        AutomationProperties.SetAutomationId(
+            iconAndTextSymbol,
+            "button-icon-text-symbol");
         AutomationProperties.SetAutomationId(iconAndText, "button-icon-text");
         AutomationProperties.SetName(iconAndText, "App.Button.Primary icon and text");
         Grid.SetColumn(iconAndText, 0);
@@ -600,6 +610,45 @@ internal static class GallerySceneBuilders
             }
         };
         return surface;
+    }
+
+    private static SymbolIcon CreateButtonIcon(SymbolRegular symbol, string foregroundKey)
+    {
+        var icon = new SymbolIcon { Symbol = symbol };
+        icon.SetResourceReference(SymbolIcon.ForegroundProperty, foregroundKey);
+        icon.SetResourceReference(TextElement.ForegroundProperty, foregroundKey);
+        icon.Loaded += (_, _) => ApplyButtonIconGlyphForeground(icon, foregroundKey);
+        return icon;
+    }
+
+    private static void ApplyButtonIconGlyphForeground(SymbolIcon icon, string foregroundKey)
+    {
+        icon.ApplyTemplate();
+        foreach (var glyph in FindVisualDescendants<TextBlock>(icon))
+        {
+            glyph.SetResourceReference(TextBlock.ForegroundProperty, foregroundKey);
+        }
+    }
+
+    private static IReadOnlyList<T> FindVisualDescendants<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        var matches = new List<T>();
+        Visit(root, matches);
+        return matches;
+
+        static void Visit(DependencyObject current, ICollection<T> matches)
+        {
+            if (current is T match)
+            {
+                matches.Add(match);
+            }
+
+            for (var index = 0; index < VisualTreeHelper.GetChildrenCount(current); index++)
+            {
+                Visit(VisualTreeHelper.GetChild(current, index), matches);
+            }
+        }
     }
 
     private static Style FindButtonStyle(string variant) =>

@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
@@ -212,6 +213,130 @@ public sealed class StyleGallerySceneTests
         });
     }
 
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
+    public void Button_style_gallery_binds_symbol_icons_to_theme_semantic_foregrounds(GalleryTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(theme);
+            var scene = GallerySceneRegistry.Build("button-styles");
+            var host = new Window
+            {
+                Content = scene,
+                Width = GalleryRenderSettings.WindowWidth,
+                Height = GalleryRenderSettings.WindowHeight,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            try
+            {
+                host.Show();
+                host.UpdateLayout();
+
+                var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                    global::System.Windows.Application.Current);
+                var iconButton = FindDescendants<WpfButton>(scene).Single(button =>
+                    AutomationProperties.GetAutomationId(button) == "button-icon-default");
+                var icon = FindDescendants<SymbolIcon>(iconButton).Single();
+                var iconAndText = FindDescendants<WpfButton>(scene).Single(button =>
+                    AutomationProperties.GetAutomationId(button) == "button-icon-text");
+                var iconAndTextSymbol = FindDescendants<SymbolIcon>(iconAndText).Single();
+
+                var expectedIconBrush = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("PrimaryTextBrush"));
+                var expectedPrimaryBrush = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("AccentTextBrush"));
+                Assert.Equal(expectedIconBrush.Color, Assert.IsType<SolidColorBrush>(icon.Foreground).Color);
+                Assert.Equal(
+                    expectedPrimaryBrush.Color,
+                    Assert.IsType<SolidColorBrush>(iconAndTextSymbol.Foreground).Color);
+                Assert.NotEqual(
+                    Colors.Black,
+                    Assert.IsType<SolidColorBrush>(icon.Foreground).Color);
+                Assert.NotEqual(
+                    Colors.Black,
+                    Assert.IsType<SolidColorBrush>(iconAndTextSymbol.Foreground).Color);
+
+                Assert.Equal(
+                    expectedIconBrush.Color,
+                    Assert.IsType<SolidColorBrush>(icon.GetValue(TextElement.ForegroundProperty)).Color);
+                Assert.Equal(
+                    expectedPrimaryBrush.Color,
+                    Assert.IsType<SolidColorBrush>(
+                        iconAndTextSymbol.GetValue(TextElement.ForegroundProperty)).Color);
+
+                var iconGlyph = Assert.Single(FindDescendants<WpfTextBlock>(icon));
+                var iconAndTextGlyph = Assert.Single(FindDescendants<WpfTextBlock>(iconAndTextSymbol));
+                Assert.Equal(expectedIconBrush.Color, Assert.IsType<SolidColorBrush>(iconGlyph.Foreground).Color);
+                Assert.Equal(
+                    expectedPrimaryBrush.Color,
+                    Assert.IsType<SolidColorBrush>(iconAndTextGlyph.Foreground).Color);
+                var primaryBackground = Assert.IsType<SolidColorBrush>(iconAndText.Background);
+                Assert.True(
+                    ContrastRatio(
+                        Assert.IsType<SolidColorBrush>(iconAndTextGlyph.Foreground).Color,
+                        primaryBackground.Color) >= 4.4,
+                    $"Primary icon contrast was {ContrastRatio(
+                        Assert.IsType<SolidColorBrush>(iconAndTextGlyph.Foreground).Color,
+                        primaryBackground.Color):0.00}:1.");
+            }
+            finally
+            {
+                host.Close();
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
+    public void Button_style_gallery_danger_pressed_uses_a_readable_semantic_color_pair(GalleryTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(theme);
+            var scene = GallerySceneRegistry.Build("button-styles");
+            var host = new Window
+            {
+                Content = scene,
+                Width = GalleryRenderSettings.WindowWidth,
+                Height = GalleryRenderSettings.WindowHeight,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            try
+            {
+                host.Show();
+                host.UpdateLayout();
+
+                var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                    global::System.Windows.Application.Current);
+                var pressed = FindDescendants<WpfButton>(scene).Single(button =>
+                    AutomationProperties.GetAutomationId(button) == "button-danger-pressed");
+                var foreground = Assert.IsType<SolidColorBrush>(pressed.Foreground);
+                var background = Assert.IsType<SolidColorBrush>(pressed.Background);
+                var expectedForeground = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("DangerPressedTextBrush"));
+                var expectedBackground = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("DangerPressedBrush"));
+
+                Assert.Equal(expectedForeground.Color, foreground.Color);
+                Assert.Equal(expectedBackground.Color, background.Color);
+                Assert.True(
+                    ContrastRatio(foreground.Color, background.Color) >= 4.5,
+                    $"Danger Pressed contrast was {ContrastRatio(foreground.Color, background.Color):0.00}:1.");
+            }
+            finally
+            {
+                host.Close();
+            }
+        });
+    }
+
     [Fact]
     public void Button_style_gallery_keeps_layout_sizes_when_theme_changes()
     {
@@ -300,7 +425,7 @@ public sealed class StyleGallerySceneTests
                         border => AutomationProperties.GetAutomationId(border),
                         border => Assert.IsType<SolidColorBrush>(border.Background),
                         StringComparer.Ordinal);
-                Assert.Equal(26, swatches.Count);
+                Assert.Equal(28, swatches.Count);
 
                 var providerStyle = Assert.IsType<Style>(application.FindResource("Provider.Button"));
                 var button = new WpfButton
@@ -680,6 +805,30 @@ public sealed class StyleGallerySceneTests
 
     private static bool IsFiniteAndPositive(double value) =>
         double.IsFinite(value) && value > 0;
+
+    private static double ContrastRatio(Color foreground, Color background)
+    {
+        var foregroundLuminance = RelativeLuminance(foreground);
+        var backgroundLuminance = RelativeLuminance(background);
+        var lighter = Math.Max(foregroundLuminance, backgroundLuminance);
+        var darker = Math.Min(foregroundLuminance, backgroundLuminance);
+        return (lighter + 0.05) / (darker + 0.05);
+    }
+
+    private static double RelativeLuminance(Color color)
+    {
+        static double Linearize(byte channel)
+        {
+            var value = channel / 255d;
+            return value <= 0.03928
+                ? value / 12.92
+                : Math.Pow((value + 0.055) / 1.055, 2.4);
+        }
+
+        return (0.2126 * Linearize(color.R)) +
+               (0.7152 * Linearize(color.G)) +
+               (0.0722 * Linearize(color.B));
+    }
 
     private static async Task<GalleryManifest> ReadManifestAsync(
         string path,
