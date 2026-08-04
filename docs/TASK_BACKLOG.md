@@ -333,7 +333,6 @@ Working branch: experiment/visual-system-v2
 
 实现：
 
-- 建立主播放按钮、段落按钮、章节按钮、窗口动作按钮和媒体 Slider 的具名样式/自有组件。
 - 明确上一章与上一段、下一章与下一段图标差异。
 - Gallery 覆盖播放/暂停、置顶激活、长 Tooltip、Focus、Disabled 和拖动状态。
 - 不修改正式播放页或迷你播放器。
@@ -347,10 +346,10 @@ Working branch: experiment/visual-system-v2
 
 结果：
 
-- 新增 `MediaControlStyles.xaml`，提供 `App.Media.Primary`、`App.Media.Secondary`、`App.Media.Chapter`、`App.Media.WindowAction` 和 `App.Media.Slider` 五个显式样式；全部通过 Provider Bridge 继承 Wpf.Ui 标准模板，不复制完整 ControlTemplate。
 - 新增 Gallery-only `GalleryMediaControlBar` 和 `media-controls` 场景，固定展示统一尺寸的播放/暂停、上一章/上一段/下一段/下一章和音量按钮、置顶激活、窗口动作、Focus、Disabled、长 Tooltip，以及 Accent 已播放/中性未播放轨道和 Slider 拖动 projection；Slider 只更新 `x / y` fixture，不连接真实播放或音量命令。
-- 新增 WPF 契约测试，覆盖媒体样式 Provider 边界、主/段落/章节/窗口动作最小尺寸与视觉权重、图标差异、Tooltip 投影、拖动无播放点击、Light/Dark 布局稳定性以及 task 08 截图 manifest。
+- 新增 WPF 契约测试，覆盖共享按钮与媒体 Slider 的 Provider 边界、按钮最小尺寸与视觉权重、图标差异、Tooltip 投影、拖动无播放点击、Light/Dark 布局稳定性以及 task 08 截图 manifest。
 - 已生成 `artifacts/visual-review/08/manifest.json`、`media-controls.light.png` 和 `media-controls.dark.png`；固定为 1280×820、96 DPI，manifest SHA-256 与 PNG 一致，连续生成哈希稳定。
+- 共享具名按钮不再把鼠标点击后的 `IsKeyboardFocused` 直接投影为常驻边框，交由 Provider 的键盘焦点视觉处理；键盘导航仍保留焦点反馈。
 - 未修改正式播放页、正式迷你播放器或任何媒体命令语义/布局。
 
 ## [x] 9（P1）：只迁移迷你播放器窗口表面与窗口动作
@@ -367,16 +366,16 @@ Working branch: experiment/visual-system-v2
 自动验收：
 
 - 修改文件白名单只允许 MiniPlayer 窗口、专属局部资源、直接测试和 Backlog。
-- 隐藏/恢复、关闭等价恢复、置顶、拖动空白区和位置记忆测试通过。
+- 隐藏/恢复、关闭退出应用、置顶、拖动空白区和位置记忆测试通过。
 - Light/Dark、长文本、100/125/150% DPI 截图生成到 `artifacts/visual-review/09/`。
 - 完整质量门禁通过。
 
 结果：
 
-- `MiniPlayerWindow` 保留原有窗口尺寸、控件树、媒体按钮、进度条和命令绑定，只将窗口表面切换为 `RaisedSurfaceBrush`、`SubtleBorderBrush`、`CornerRadiusLarge` 和 `ElevationHigh`，并使用显式标题层级；未修改主窗口、播放页或其它页面。
+- `MiniPlayerWindow` 保留原有窗口尺寸、控件树、媒体按钮、进度条和命令绑定，只将窗口表面切换为 `RaisedSurfaceBrush`、`CornerRadiusLarge` 和显式标题层级；移除透明窗口的系统 resize grip、阴影叠层和外缘灰色描边伪影，未修改主窗口、播放页或其它页面。
 - 修正有播放上下文且初始段落非零时，XAML 初始化期间进度 Slider 先触发 `ValueChanged` 而控制器尚未创建的问题；控制器初始化顺序调整不改变拖动/跳转命令语义。
 - 后续局部密度修正已将进度行与媒体控制栏之间的占位行固定为 `8 DIP`，在默认窗口尺寸下收紧实际垂直空白；Light/Dark 与无/有播放上下文的几何契约验证控件可见且不重叠，未改变按钮、进度条或媒体命令语义。
-- WPF 契约测试覆盖无/有播放上下文、长书名/章节名、隐藏/恢复、关闭等价恢复、置顶、空白区拖动、位置记忆、Light/Dark 和 100/125/150% DPI，并生成 12 个 PNG 与 manifest 到 `artifacts/visual-review/09/`；manifest 包含从仓库 HEAD 读取的有效 `GitCommit`，测试重新读取 manifest，逐条核对 PNG 的 SHA-256、DPI、实际宽高和唯一场景键，并连续生成两轮比较包含 commit 的稳定快照；该目录不入 Git。
+- WPF 契约测试覆盖无/有播放上下文、长书名/章节名、隐藏/恢复、关闭退出应用、置顶、空白区拖动、位置记忆、Light/Dark 和 100/125/150% DPI，并生成 12 个 PNG 与 manifest 到 `artifacts/visual-review/09/`；manifest 包含从仓库 HEAD 读取的有效 `GitCommit`，测试重新读取 manifest，逐条核对 PNG 的 SHA-256、DPI、实际宽高和唯一场景键，并连续生成两轮比较包含 commit 的稳定快照；该目录不入 Git。
 - 完整质量门禁已通过。
 
 ## [x] 10（P1）：迁移迷你播放器内容布局与媒体控制
@@ -386,7 +385,7 @@ Working branch: experiment/visual-system-v2
 实现：
 
 - 按最终横向媒体面板结构迁移章节标题、书名/段落信息、进度和五个媒体按钮。
-- 应用任务 8 的显式媒体组件，不复制模板。
+- 复用共享 `App.Button.Icon` 和媒体 Slider，不复制模板。
 - 窗口尺寸约束为 `440–500 × 130–160` 的可用范围，并保留长标题省略与 Tooltip。
 - 不修改播放页媒体控件。
 
@@ -400,9 +399,10 @@ Working branch: experiment/visual-system-v2
 
 结果：
 
-- 迷你播放器已迁移为 `440–500 × 130–160` 的横向媒体控制面板，使用任务 8 的显式 `App.Media.*` 样式；播放按钮保留 `App.Media.Primary` 接入并以 48 DIP 圆形 Accent 内容表面呈现。
-- 已纳入音量按钮与应用内音量滑块，保留 PlaybackSnapshot、段落拖动、Tooltip、窗口动作、位置记忆和关闭等价恢复；未修改播放页媒体控件。
-- `MiniPlayerViewModelTests` 与 `MiniPlayerWindowTests` 通过，视觉回归产物生成到 `artifacts/visual-review/10/`。
+- 迷你播放器已迁移为 `440–500 × 130–160` 的横向媒体控制面板；所有按钮直接复用 `ButtonStyles.xaml` 的 `App.Button.Icon`，未新增迷你播放器专属按钮样式。
+- 已纳入音量按钮与应用内音量滑块，保留 PlaybackSnapshot、段落拖动、Tooltip、窗口动作和位置记忆；关闭迷你播放器改为统一退出应用，未修改播放页媒体控件。
+- 媒体控制区使用独立裁切表面和中等圆角，按钮无可见描边，播放/暂停为无填充背景的 48 DIP 图标按钮，修复底部控制区边缘/层次缺陷；关闭按钮和迷你窗口关闭事件统一发布 `ExitApplication`，恢复主窗口按钮仍保留原行为，下一次启动不恢复迷你模式。
+- `MiniPlayerViewModelTests`、`MiniPlayerWindowTests` 与 `WindowsTrayLifecycleAdapterTests` 通过，视觉回归产物重新生成到 `artifacts/visual-review/10/`。
 
 ## [ ] 11（P1）：建立输入与选择控件族，仅用于 Style Gallery
 

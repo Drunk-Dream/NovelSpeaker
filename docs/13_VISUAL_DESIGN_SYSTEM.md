@@ -102,8 +102,6 @@ App.Button.Icon
 App.Button.Danger
 App.Input.Standard
 App.Input.Compact
-App.Media.Primary
-App.Media.Secondary
 ```
 
 规则：
@@ -185,11 +183,11 @@ Accent 至少提供 Default、Hover、Pressed、Subtle 和 FocusRing。浅色 Ac
 3. `PrimarySurface` / `SecondarySurface`
 4. `RaisedSurface`
 
-普通静态卡片默认不带阴影。Hover 卡片可使用低抬升；Flyout 使用中抬升；Dialog 和迷你播放器使用高抬升。
+普通静态卡片默认不带阴影。Hover 卡片可使用低抬升；Flyout 使用中抬升；Dialog 使用高抬升，迷你播放器依靠透明窗口和表面层次保持轻量。
 
 ### 6.2 描边
 
-- 窗口、Dialog、Flyout 和迷你播放器使用 `1 px` 轻描边。
+- 窗口、Dialog 和 Flyout 使用 `1 px` 轻描边；迷你播放器透明窗口不叠加外缘描边，媒体控制表面自行拥有边界。
 - 卡片默认无边框；背景差异不足时才使用 SubtleBorder。
 - FocusRing 独立于普通 Border，不通过改变尺寸造成布局抖动。
 - Close 按钮默认中性，只有 Hover/Pressed 使用 DangerSubtle。
@@ -200,7 +198,7 @@ Accent 至少提供 Default、Hover、Pressed、Subtle 和 FocusRing。浅色 Ac
 |---|---|---|
 | `ElevationLow` | Hover 卡片、轻悬浮按钮 | 偏移 1–2，模糊 8–12 |
 | `ElevationMedium` | Flyout、菜单 | 偏移 3–4，模糊 16–20 |
-| `ElevationHigh` | Dialog、迷你播放器 | 偏移 5–6，模糊 22–28 |
+| `ElevationHigh` | Dialog 等需要明显抬升的浮层 | 偏移 5–6，模糊 22–28 |
 
 深色主题降低纯黑阴影强度，并用低透明度浅色描边补充边缘。
 
@@ -390,25 +388,24 @@ TTS、章节规则和正则替换共享双栏交互骨架，但页面各自拥�
 - 宽度 `440–500 px`
 - 高度 `130–160 px`
 - RaisedSurface 背景
-- `1 px` 轻描边
+- 透明窗口不使用会形成灰色角层的系统阴影或 resize grip；媒体控制表面使用独立边界和裁切。
 - `14–16 px` 圆角
-- ElevationHigh 阴影
 
 结构：
 
 ```text
-顶部：章节标题 + 置顶/恢复主窗口/关闭
+顶部：章节标题 + 置顶/恢复主窗口/退出应用
 次行：书名 · 第 x / y 段
 中部：段落进度
 底部：SecondarySurface 媒体控制条
       上一章 / 上一段 / 播放暂停 / 下一段 / 下一章
 ```
 
-- 播放/暂停为 `44–48 px` Accent 圆形主按钮。
-- 上一段/下一段为 `36 px` 中性按钮。
-- 上一章/下一章为 `32–34 px`，视觉权重略低。
+- 迷你播放器按钮直接复用 `ButtonStyles.xaml` 的 `App.Button.Icon`，不新增页面专属按钮样式。
+- 媒体控制按钮使用无可见描边的图标式命中区；播放/暂停为 `44–48 px` 图标按钮，不使用填充背景。
+- 上一段/下一段为 `36 px` 图标按钮；上一章/下一章为 `32–34 px`，视觉权重略低。
 - 置顶激活使用 AccentSubtle。
-- 关闭等价于恢复主窗口时，Tooltip 写明“返回主窗口”。
+- 关闭按钮退出应用时，Tooltip 写明“退出应用”；“恢复主窗口”单独保留返回主窗口语义。
 - 标题一行省略，书名和段落使用 SecondaryText。
 - 不显示作者、缓存、规则、语速或封面。
 

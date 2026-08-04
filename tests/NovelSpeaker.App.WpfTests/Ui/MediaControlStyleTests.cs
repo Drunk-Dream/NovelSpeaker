@@ -19,10 +19,6 @@ public sealed class MediaControlStyleTests
 {
     private static readonly string[] MediaStyleKeys =
     [
-        "App.Media.Primary",
-        "App.Media.Secondary",
-        "App.Media.Chapter",
-        "App.Media.WindowAction",
         "App.Media.Slider"
     ];
 
@@ -108,7 +104,7 @@ public sealed class MediaControlStyleTests
     }
 
     [Fact]
-    public void Media_style_dictionary_contains_explicit_provider_based_styles_without_templates()
+    public void Media_slider_style_dictionary_contains_explicit_provider_based_style_without_template()
     {
         var path = Path.Combine(
             LocateRepositoryRoot(),
@@ -117,7 +113,7 @@ public sealed class MediaControlStyleTests
             "Shared",
             "Theming",
             "Resources",
-            "MediaControlStyles.xaml");
+            "SliderStyles.xaml");
         var document = XDocument.Load(path);
         var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
         var resources = document.Root?.Elements().ToArray() ?? [];
@@ -128,80 +124,12 @@ public sealed class MediaControlStyleTests
         Assert.All(resources, resource =>
         {
             Assert.Equal("Style", resource.Name.LocalName);
-            Assert.Equal(
-                resource.Attribute("TargetType")?.Value == "Slider" ? "{StaticResource Provider.Slider}" : "{StaticResource Provider.Button}",
-                (string?)resource.Attribute("BasedOn"));
+            Assert.Equal("{StaticResource Provider.Slider}", (string?)resource.Attribute("BasedOn"));
             Assert.DoesNotContain(
                 resource.Descendants(),
                 element => element.Name.LocalName == "ControlTemplate" ||
                            (element.Name.LocalName == "Setter" &&
                             (string?)element.Attribute("Property") == "Template"));
-        });
-    }
-
-    [Fact]
-    public void Media_controls_meet_minimum_geometry_and_visual_weight_contract()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
-                global::System.Windows.Application.Current);
-            var stack = new StackPanel { Orientation = Orientation.Horizontal };
-            var primary = CreateButton(application, "App.Media.Primary", SymbolRegular.PlayCircle24);
-            var secondary = CreateButton(application, "App.Media.Secondary", SymbolRegular.ChevronLeft20);
-            var chapter = CreateButton(application, "App.Media.Chapter", SymbolRegular.ChevronDoubleLeft20);
-            var windowAction = CreateButton(application, "App.Media.WindowAction", SymbolRegular.Pin24);
-            var slider = new Slider
-            {
-                Style = Assert.IsType<Style>(application.FindResource("App.Media.Slider")),
-                Minimum = 0,
-                Maximum = 100,
-                Value = 50,
-                Width = 320
-            };
-
-            foreach (var control in new Control[] { primary, secondary, chapter, windowAction, slider })
-            {
-                stack.Children.Add(control);
-            }
-
-            var window = new Window
-            {
-                Content = stack,
-                Width = 760,
-                Height = 160,
-                ShowInTaskbar = false,
-                WindowStyle = WindowStyle.ToolWindow
-            };
-            try
-            {
-                window.Show();
-                window.UpdateLayout();
-
-                Assert.Equal(48, primary.ActualWidth);
-                Assert.Equal(48, primary.ActualHeight);
-                Assert.Equal(36, secondary.ActualWidth);
-                Assert.Equal(36, secondary.ActualHeight);
-                Assert.Equal(32, chapter.ActualWidth);
-                Assert.Equal(32, chapter.ActualHeight);
-                Assert.Equal(32, windowAction.ActualWidth);
-                Assert.Equal(32, windowAction.ActualHeight);
-                Assert.True(slider.ActualWidth >= 280);
-                Assert.True(slider.ActualHeight >= 24);
-
-                var primaryBackground = Assert.IsType<SolidColorBrush>(primary.Background);
-                var secondaryBackground = Assert.IsType<SolidColorBrush>(secondary.Background);
-                Assert.NotEqual(primaryBackground.Color, secondaryBackground.Color);
-                Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(chapter.Background).Color);
-                Assert.True(primary.Foreground is SolidColorBrush);
-                Assert.True(chapter.Foreground is SolidColorBrush);
-                Assert.NotNull(primary.Template);
-                Assert.NotNull(slider.Template);
-            }
-            finally
-            {
-                window.Close();
-            }
         });
     }
 
@@ -329,13 +257,11 @@ public sealed class MediaControlStyleTests
 
                 var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
                     global::System.Windows.Application.Current);
-                var expectedAccent = Assert.IsType<SolidColorBrush>(
-                    application.FindResource("AccentTextBrush")).Color;
                 var expectedPrimary = Assert.IsType<SolidColorBrush>(
                     application.FindResource("PrimaryTextBrush")).Color;
 
-                AssertMediaGlyphForeground(bar.PlayButton, expectedAccent);
-                AssertMediaGlyphForeground(bar.PauseButton, expectedAccent);
+                AssertMediaGlyphForeground(bar.PlayButton, expectedPrimary);
+                AssertMediaGlyphForeground(bar.PauseButton, expectedPrimary);
                 AssertMediaGlyphForeground(bar.VolumeButton, expectedPrimary);
                 AssertMediaGlyphForeground(bar.NextSegmentButton, expectedPrimary);
             }
@@ -471,16 +397,6 @@ public sealed class MediaControlStyleTests
             }
         });
     }
-
-    private static Button CreateButton(
-        global::System.Windows.Application application,
-        string styleKey,
-        SymbolRegular symbol) =>
-        new()
-        {
-            Style = Assert.IsType<Style>(application.FindResource(styleKey)),
-            Content = new SymbolIcon { Symbol = symbol }
-        };
 
     private static Window CreateFixtureWindow(FrameworkElement content, double width, double height) =>
         new()

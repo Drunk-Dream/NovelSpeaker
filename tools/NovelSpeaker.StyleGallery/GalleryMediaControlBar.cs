@@ -125,35 +125,35 @@ public sealed class GalleryMediaControlBar : Border
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
         PinButton = CreateButton(
-            "WindowAction",
+            32,
             "media-window-pin",
             SymbolRegular.Pin24,
             "置顶已激活：固定窗口在其它窗口上方。此 Gallery fixture 不执行窗口命令。",
-            "App.Media.WindowAction 置顶（已激活）",
+            "App.Button.Icon 置顶（已激活）",
             18);
         PinButton.SetResourceReference(Control.BackgroundProperty, "AccentSubtleBrush");
         PinButton.SetResourceReference(Control.BorderBrushProperty, "AccentBrush");
 
         RestoreButton = CreateButton(
-            "WindowAction",
+            32,
             "media-window-restore",
             SymbolRegular.WindowArrowUp24,
             "返回主窗口：此 Gallery fixture 只展示窗口动作 Tooltip，不执行导航。",
-            "App.Media.WindowAction 返回主窗口",
+            "App.Button.Icon 返回主窗口",
             18);
         CloseButton = CreateButton(
-            "WindowAction",
+            32,
             "media-window-close",
             SymbolRegular.DismissSquare24,
             "关闭媒体窗口：此 Gallery fixture 只展示窗口动作 Tooltip，不关闭真实窗口。",
-            "App.Media.WindowAction 关闭",
+            "App.Button.Icon 关闭",
             18);
         DisabledWindowActionButton = CreateButton(
-            "WindowAction",
+            32,
             "media-window-disabled",
             SymbolRegular.Dismiss24,
             "Disabled 窗口动作：Tooltip 在禁用状态仍然可访问。",
-            "App.Media.WindowAction Disabled",
+            "App.Button.Icon Disabled",
             18);
         DisabledWindowActionButton.IsEnabled = false;
 
@@ -218,7 +218,7 @@ public sealed class GalleryMediaControlBar : Border
 
         ProgressSlider = new Slider
         {
-            Style = FindStyle("Slider"),
+            Style = FindSliderStyle(),
             Minimum = 0,
             Maximum = SliderProjection.Maximum,
             Value = SliderProjection.Value,
@@ -283,54 +283,53 @@ public sealed class GalleryMediaControlBar : Border
         };
 
         PreviousChapterButton = CreateButton(
-            "Chapter",
+            32,
             "media-chapter-previous",
             SymbolRegular.ChevronDoubleLeft20,
             "上一章：跳转到上一章的第一段。",
-            "App.Media.Chapter 上一章",
+            "App.Button.Icon 上一章",
             16);
         PreviousSegmentButton = CreateButton(
-            "Secondary",
+            36,
             "media-segment-previous",
             SymbolRegular.ChevronLeft20,
             "上一段：跳转到当前章节的上一段。",
-            "App.Media.Secondary 上一段",
+            "App.Button.Icon 上一段",
             18);
         PlayButton = CreateButton(
-            "Primary",
+            48,
             "media-primary-play",
             SymbolRegular.PlayCircle24,
             "播放：开始读取当前段。此 Gallery fixture 不执行播放命令。",
-            "App.Media.Primary 播放",
+            "App.Button.Icon 播放",
             28);
         PauseButton = CreateButton(
-            "Primary",
+            48,
             "media-primary-pause",
             SymbolRegular.PauseCircle24,
             "暂停：暂停当前段。此 Gallery fixture 不执行播放命令。",
-            "App.Media.Primary 暂停（Focus preview）",
+            "App.Button.Icon 暂停（Focus preview）",
             28);
-        PauseButton.SetResourceReference(Control.BorderBrushProperty, "AccentFocusRingBrush");
         NextSegmentButton = CreateButton(
-            "Secondary",
+            36,
             "media-segment-next",
             SymbolRegular.ChevronRight20,
             "下一段：跳转到当前章节的下一段。",
-            "App.Media.Secondary 下一段",
+            "App.Button.Icon 下一段",
             18);
         NextChapterButton = CreateButton(
-            "Chapter",
+            32,
             "media-chapter-next",
             SymbolRegular.ChevronDoubleRight20,
             "下一章：跳转到下一章的第一段。",
-            "App.Media.Chapter 下一章",
+            "App.Button.Icon 下一章",
             16);
         VolumeButton = CreateButton(
-            "Secondary",
+            36,
             "media-volume",
             SymbolRegular.Speaker224,
             "音量：调整播放音量。此 Gallery fixture 不执行真实音量命令。",
-            "App.Media.Secondary 音量",
+            "App.Button.Icon 音量",
             20);
 
         foreach (var button in new[]
@@ -371,19 +370,14 @@ public sealed class GalleryMediaControlBar : Border
     }
 
     private Button CreateButton(
-        string styleName,
+        double buttonSize,
         string automationId,
         SymbolRegular symbol,
         string toolTip,
         string automationName,
         double iconSize)
     {
-        var foregroundKey = styleName switch
-        {
-            "Primary" => "AccentTextBrush",
-            "Chapter" => "SecondaryTextBrush",
-            _ => "PrimaryTextBrush"
-        };
+        const string foregroundKey = "PrimaryTextBrush";
         var icon = new SymbolIcon
         {
             Symbol = symbol,
@@ -395,7 +389,11 @@ public sealed class GalleryMediaControlBar : Border
         icon.Loaded += (_, _) => ApplyMediaIconGlyphForeground(icon, foregroundKey);
         var button = new Button
         {
-            Style = FindStyle(styleName),
+            Style = FindButtonStyle(),
+            Width = buttonSize,
+            Height = buttonSize,
+            MinWidth = buttonSize,
+            MinHeight = buttonSize,
             Content = icon,
             ToolTip = toolTip,
             Focusable = true
@@ -466,9 +464,13 @@ public sealed class GalleryMediaControlBar : Border
     private string FormatProjection() =>
         $"拖动预览 · {SliderProjection.TooltipText} · 仅更新 Gallery projection，不触发真实播放命令。";
 
-    private static Style FindStyle(string name) =>
-        Application.Current?.FindResource($"App.Media.{name}") as Style
-        ?? throw new InvalidOperationException($"Media style 'App.Media.{name}' was not found.");
+    private static Style FindButtonStyle() =>
+        Application.Current?.FindResource("App.Button.Icon") as Style
+        ?? throw new InvalidOperationException("Button style 'App.Button.Icon' was not found.");
+
+    private static Style FindSliderStyle() =>
+        Application.Current?.FindResource("App.Media.Slider") as Style
+        ?? throw new InvalidOperationException("Slider style 'App.Media.Slider' was not found.");
 
 }
 

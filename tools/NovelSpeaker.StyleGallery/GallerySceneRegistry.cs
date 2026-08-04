@@ -32,7 +32,7 @@ public static class GallerySceneRegistry
             GallerySceneBuilders.CreateButtonStyles),
         new GallerySceneDefinition(
             "media-controls",
-            "Explicit App.Media controls with deterministic playback and slider fixtures.",
+            "Shared App.Button.Icon controls with deterministic playback and slider fixtures.",
             GallerySceneBuilders.CreateMediaControls),
         new GallerySceneDefinition(
             "placeholder-sections",

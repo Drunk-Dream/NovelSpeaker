@@ -11,7 +11,7 @@
                 <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/Palettes/Palette.Light.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/DesignTokens.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/ButtonStyles.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/MediaControlStyles.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/SliderStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

@@ -55,7 +55,7 @@ internal static class GallerySceneBuilders
         CreateSceneRoot(
             "media-controls",
             "Media control components",
-            "App.Media styles and the Gallery-only control bar show playback, volume, window actions and deterministic slider projection.",
+            "App.Button.Icon and the Gallery-only control bar show playback, volume, window actions and deterministic slider projection.",
             CreateMediaControlsContent);
 
     public static FrameworkElement CreateProviderStyleProbe() =>

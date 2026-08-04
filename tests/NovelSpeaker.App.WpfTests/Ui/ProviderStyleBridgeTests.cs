@@ -65,7 +65,7 @@ public sealed class ProviderStyleBridgeTests
                 dictionaries[5].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/MediaControlStyles.xaml",
+                "Shared/Theming/Resources/SliderStyles.xaml",
                 dictionaries[6].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
