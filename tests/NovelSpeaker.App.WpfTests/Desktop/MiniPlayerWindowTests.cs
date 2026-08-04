@@ -37,10 +37,12 @@ public sealed class MiniPlayerWindowTests
                 Assert.Equal(WindowStyle.None, window.WindowStyle);
                 Assert.True(window.AllowsTransparency);
                 Assert.Equal(Brushes.Transparent, window.Background);
-                Assert.Equal(420d, window.Width);
-                Assert.Equal(210d, window.Height);
-                Assert.Equal(360d, window.MinWidth);
-                Assert.Equal(190d, window.MinHeight);
+                Assert.Equal(480d, window.Width);
+                Assert.Equal(150d, window.Height);
+                Assert.Equal(440d, window.MinWidth);
+                Assert.Equal(130d, window.MinHeight);
+                Assert.Equal(500d, window.MaxWidth);
+                Assert.Equal(160d, window.MaxHeight);
 
                 var surface = Assert.IsType<Border>(window.FindName("MiniPlayerSurface"));
                 Assert.Same(window.FindResource("RaisedSurfaceBrush"), surface.Background);
@@ -55,19 +57,29 @@ public sealed class MiniPlayerWindowTests
 
                 var bookTitle = Assert.IsType<TextBlock>(window.FindName("MiniPlayerBookTitle"));
                 Assert.NotNull(bookTitle.GetBindingExpression(TextBlock.TextProperty));
-                Assert.Equal(16, bookTitle.FontSize);
-                Assert.Equal(FontWeights.SemiBold, bookTitle.FontWeight);
+                Assert.Equal(13, bookTitle.FontSize);
+                Assert.Equal(FontWeights.Normal, bookTitle.FontWeight);
                 Assert.Equal(TextWrapping.NoWrap, bookTitle.TextWrapping);
                 var chapterTitle = Assert.IsType<TextBlock>(window.FindName("MiniPlayerChapterTitle"));
                 Assert.NotNull(chapterTitle.GetBindingExpression(TextBlock.TextProperty));
-                Assert.Equal(13, chapterTitle.FontSize);
-                Assert.Equal(FontWeights.Normal, chapterTitle.FontWeight);
+                Assert.Equal(16, chapterTitle.FontSize);
+                Assert.Equal(FontWeights.SemiBold, chapterTitle.FontWeight);
                 Assert.Equal(TextWrapping.NoWrap, chapterTitle.TextWrapping);
+                Assert.NotNull(chapterTitle.GetBindingExpression(FrameworkElement.ToolTipProperty));
+                var segmentCounter = Assert.IsType<TextBlock>(window.FindName("MiniPlayerSegmentCounterText"));
+                Assert.NotNull(segmentCounter.GetBindingExpression(TextBlock.TextProperty));
                 AssertControl<Button>(window, "MiniPlayerPreviousChapterButton", "上一章");
                 AssertControl<Button>(window, "MiniPlayerPreviousSegmentButton", "上一段");
                 AssertControl<Button>(window, "MiniPlayerPlaybackButton", "播放");
-                var playbackIcon = Assert.IsType<SymbolIcon>(
-                    Assert.IsType<Button>(window.FindName("MiniPlayerPlaybackButton")).Content);
+                var playbackButton = Assert.IsType<Button>(window.FindName("MiniPlayerPlaybackButton"));
+                Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(playbackButton.Background).Color);
+                var playbackSurface = Assert.IsType<Border>(window.FindName("MiniPlayerPlaybackSurface"));
+                Assert.Equal(48, playbackSurface.Width);
+                Assert.Equal(48, playbackSurface.Height);
+                Assert.Equal(new CornerRadius(999), playbackSurface.CornerRadius);
+                Assert.Same(window.FindResource("AccentDefaultBrush"), playbackSurface.Background);
+                Assert.Equal(new Thickness(0), playbackSurface.BorderThickness);
+                var playbackIcon = Assert.IsType<SymbolIcon>(playbackSurface.Child);
                 var playbackTrigger = Assert.Single(playbackIcon.Style!.Triggers.OfType<DataTrigger>());
                 var playbackBinding = Assert.IsType<Binding>(playbackTrigger.Binding);
                 Assert.Equal("PlaybackActionText", playbackBinding.Path.Path);
@@ -77,6 +89,7 @@ public sealed class MiniPlayerWindowTests
                 Assert.Equal("播放音量", volumeButton.ToolTip);
                 Assert.Equal("播放音量 100%", AutomationProperties.GetName(volumeButton));
                 AssertControl<Button>(window, "MiniPlayerRestoreButton", "恢复主窗口");
+                AssertControl<Button>(window, "MiniPlayerCloseButton", "返回主窗口");
                 AssertControl<Button>(window, "MiniPlayerTopmostButton", "置顶");
                 var topmostStateBorder = Assert.IsType<Border>(window.FindName("MiniPlayerTopmostStateBorder"));
                 Assert.Equal(Brushes.Transparent, topmostStateBorder.Background);
@@ -92,7 +105,7 @@ public sealed class MiniPlayerWindowTests
                 var progressToolTip = Assert.IsType<ToolTip>(progressSlider.ToolTip);
                 Assert.True(progressToolTip.StaysOpen);
                 Assert.False(ToolTipService.GetIsEnabled(progressSlider));
-                Assert.Same(window.FindResource("PlaybackProgressSliderStyle"), progressSlider.Style);
+                Assert.Same(window.FindResource("App.Media.Slider"), progressSlider.Style);
 
                 var volumePopup = Assert.IsType<Popup>(window.FindName("MiniPlayerVolumeMenuPopup"));
                 var volumeSlider = Assert.IsType<Slider>(window.FindName("MiniPlayerVolumeSlider"));
@@ -100,14 +113,25 @@ public sealed class MiniPlayerWindowTests
                 Assert.Equal(0d, volumeSlider.Minimum);
                 Assert.Equal(1d, volumeSlider.Maximum);
                 Assert.Equal("播放音量", AutomationProperties.GetName(volumeSlider));
-                Assert.Same(window.FindResource("PlaybackProgressSliderStyle"), volumeSlider.Style);
+                Assert.Same(window.FindResource("App.Media.Slider"), volumeSlider.Style);
 
                 Assert.IsType<Grid>(window.FindName("MiniPlayerControlBar"));
+                var mediaSurface = Assert.IsType<Border>(window.FindName("MiniPlayerMediaSurface"));
+                Assert.Same(window.FindResource("SecondarySurfaceBrush"), mediaSurface.Background);
                 var mediaControls = Assert.IsType<StackPanel>(window.FindName("MiniPlayerMediaControls"));
                 Assert.Equal(1, Grid.GetColumn(mediaControls));
                 Assert.Equal(HorizontalAlignment.Center, mediaControls.HorizontalAlignment);
                 Assert.Equal(2, Grid.GetColumn(volumeButton));
                 Assert.Equal(HorizontalAlignment.Right, volumeButton.HorizontalAlignment);
+                Assert.Same(window.FindResource("App.Media.Primary"),
+                    Assert.IsType<Button>(window.FindName("MiniPlayerPlaybackButton")).Style);
+                Assert.Same(window.FindResource("App.Media.Secondary"),
+                    Assert.IsType<Button>(window.FindName("MiniPlayerPreviousSegmentButton")).Style);
+                Assert.Same(window.FindResource("App.Media.Chapter"),
+                    Assert.IsType<Button>(window.FindName("MiniPlayerPreviousChapterButton")).Style);
+                Assert.Same(window.FindResource("App.Media.WindowAction"),
+                    Assert.IsType<Button>(window.FindName("MiniPlayerRestoreButton")).Style);
+                Assert.Same(window.FindResource("App.Media.Secondary"), volumeButton.Style);
                 Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
                     volumePopup,
                     textBlock => textBlock.Text == "仅调整应用内播放音量，不改变系统音量。"));
@@ -304,6 +328,7 @@ public sealed class MiniPlayerWindowTests
                             var surface = Assert.IsType<Border>(fixture.Window.FindName("MiniPlayerSurface"));
                             var progress = Assert.IsType<Slider>(fixture.Window.FindName("MiniPlayerProgressSlider"));
                             var controlBar = Assert.IsType<Grid>(fixture.Window.FindName("MiniPlayerControlBar"));
+                            var playbackSurface = Assert.IsType<Border>(fixture.Window.FindName("MiniPlayerPlaybackSurface"));
                             var progressBounds = GetBoundsIn(progress, surface);
                             var controlBarBounds = GetBoundsIn(controlBar, surface);
                             var gap = controlBarBounds.Top - progressBounds.Bottom;
@@ -318,6 +343,10 @@ public sealed class MiniPlayerWindowTests
                             Assert.True(controlBar.IsVisible);
                             Assert.True(controlBar.ActualWidth > 0);
                             Assert.True(controlBar.ActualHeight > 0);
+                            Assert.Equal(48, playbackSurface.ActualWidth);
+                            Assert.Equal(48, playbackSurface.ActualHeight);
+                            Assert.Equal(new CornerRadius(999), playbackSurface.CornerRadius);
+                            Assert.Same(fixture.Window.FindResource("AccentDefaultBrush"), playbackSurface.Background);
 
                             foreach (var name in new[]
                                      {
@@ -390,7 +419,7 @@ public sealed class MiniPlayerWindowTests
     }
 
     [Fact]
-    public void Task09_visual_review_generates_light_dark_context_and_dpi_screenshots()
+    public void Task10_visual_review_generates_light_dark_context_and_dpi_screenshots()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -398,7 +427,7 @@ public sealed class MiniPlayerWindowTests
                 LocateRepositoryRoot(),
                 "artifacts",
                 "visual-review",
-                "09");
+                "10");
             Directory.CreateDirectory(outputDirectory);
             var expectedGitCommit = ReadGitCommit(LocateRepositoryRoot());
             GenerateVisualReview(outputDirectory, expectedGitCommit);
@@ -539,11 +568,11 @@ public sealed class MiniPlayerWindowTests
             }
 
             var manifest = new MiniPlayerVisualReviewManifest(
-                "09",
+                "10",
                 "NovelSpeaker.App.WpfTests",
                 gitCommit,
-                420,
-                210,
+                480,
+                150,
                 entries);
             File.WriteAllText(
                 Path.Combine(outputDirectory, "manifest.json"),
@@ -569,12 +598,12 @@ public sealed class MiniPlayerWindowTests
         string outputDirectory,
         string expectedGitCommit)
     {
-        Assert.Equal("09", manifest.Task);
+        Assert.Equal("10", manifest.Task);
         Assert.Equal("NovelSpeaker.App.WpfTests", manifest.Tool);
         Assert.Equal(expectedGitCommit, manifest.GitCommit);
         Assert.True(IsValidGitCommit(manifest.GitCommit));
-        Assert.Equal(420, manifest.WindowWidth);
-        Assert.Equal(210, manifest.WindowHeight);
+        Assert.Equal(480, manifest.WindowWidth);
+        Assert.Equal(150, manifest.WindowHeight);
         Assert.Equal(12, manifest.Scenarios.Count);
 
         var keys = new HashSet<string>(StringComparer.Ordinal);
