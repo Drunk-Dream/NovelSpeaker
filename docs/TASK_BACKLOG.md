@@ -327,7 +327,7 @@ Working branch: experiment/visual-system-v2
 - 新增 WPF 契约测试，固定 Provider 继承、无模板覆盖、状态触发器、内容可见、最小 `32 × 32` 点击区域和状态/主题切换不改变外部布局尺寸；新增测试不使用任意 Sleep/Task.Delay。
 - `artifacts/visual-review/07/manifest.json`、`button-styles.light.png` 和 `button-styles.dark.png` 已生成，固定为 1280×820、96 DPI，并记录 SHA-256；Style Gallery 命令支持显式 `--task 07 --scene button-styles`。
 
-## [ ] 8（P1）：建立媒体控制组件族，仅用于 Style Gallery
+## [x] 8（P1）：建立媒体控制组件族，仅用于 Style Gallery
 
 前置：7。
 
@@ -344,6 +344,14 @@ Working branch: experiment/visual-system-v2
 - Slider Tooltip 投影 `x/y`，拖动不触发真实播放命令。
 - 生成 `artifacts/visual-review/08/`。
 - 完整质量门禁通过。
+
+结果：
+
+- 新增 `MediaControlStyles.xaml`，提供 `App.Media.Primary`、`App.Media.Secondary`、`App.Media.Chapter`、`App.Media.WindowAction` 和 `App.Media.Slider` 五个显式样式；全部通过 Provider Bridge 继承 Wpf.Ui 标准模板，不复制完整 ControlTemplate。
+- 新增 Gallery-only `GalleryMediaControlBar` 和 `media-controls` 场景，固定展示播放/暂停、上一章/上一段/下一段/下一章的图标差异、置顶激活、窗口动作、Focus、Disabled、长 Tooltip 以及 Slider 拖动 projection；Slider 只更新 `x / y` fixture，不连接真实播放命令。
+- 新增 WPF 契约测试，覆盖媒体样式 Provider 边界、主/段落/章节/窗口动作最小尺寸与视觉权重、图标差异、Tooltip 投影、拖动无播放点击、Light/Dark 布局稳定性以及 task 08 截图 manifest。
+- 已生成 `artifacts/visual-review/08/manifest.json`、`media-controls.light.png` 和 `media-controls.dark.png`；固定为 1280×820、96 DPI，manifest SHA-256 与 PNG 一致，连续生成哈希稳定。
+- 未修改正式播放页、正式迷你播放器或任何媒体命令语义/布局。
 
 ## [ ] 9（P1）：只迁移迷你播放器窗口表面与窗口动作
 
