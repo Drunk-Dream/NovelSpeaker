@@ -404,7 +404,7 @@ Working branch: experiment/visual-system-v2
 - 媒体控制区使用独立裁切表面和中等圆角，五个媒体播放按钮和音量按钮统一为无填充背景的 48 DIP 命中区，修复底部控制区边缘/层次缺陷；退出应用的关闭按钮使用共享 `App.Button.DangerIcon`，关闭按钮和迷你窗口关闭事件统一发布 `ExitApplication`，恢复主窗口按钮使用 `ArrowMaximize24`，下一次启动不恢复迷你模式。外层窗口补回 `StrongBorderBrush` 的 2 DIP 明显边框，右侧边缘仅允许调整宽度，确保透明窗口与桌面背景清晰区分。
 - `MiniPlayerViewModelTests`、`MiniPlayerWindowTests` 与 `WindowsTrayLifecycleAdapterTests` 通过，视觉回归产物重新生成到 `artifacts/visual-review/10/`。
 
-## [ ] 11（P1）：建立输入与选择控件族，仅用于 Style Gallery
+## [x] 11（P1）：建立输入与选择控件族，仅用于 Style Gallery
 
 前置：4–6。
 
@@ -422,6 +422,13 @@ Working branch: experiment/visual-system-v2
 - Popup/ComboBoxItem 主题资源正确解析。
 - 生成 `artifacts/visual-review/11/`。
 - 完整质量门禁通过。
+
+结果：
+
+- 新增输入控件契约测试，覆盖 12 个 `App.Input.*` Standard/Compact 具名样式及其 Provider 继承链、无隐式标准控件样式、`input-controls` 五类控件和全部状态 fixture、AutomationName/AutomationId、错误文案、非零 Measure/Arrange、无标签 ToggleSwitch 最小宽度、Light/Dark 热切换 Style/Template 稳定性、DynamicResource 颜色更新，以及 ComboBox Popup/ComboBoxItem 主题资源解析。
+- `GalleryCommandLineOptions` 接受 `--task 11`；既有 Style Gallery 场景契约补充 `input-controls` 清单和任务 11 manifest 校验。
+- `NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 下截图契约测试通过；真实命令生成 `artifacts/visual-review/11/manifest.json`、`input-controls.light.png` 和 `input-controls.dark.png`，固定 1280×820、96 DPI，SHA-256/尺寸/DPI 与 manifest 一致。
+- Slice C 实现与定向契约已完成：输入控件契约测试 8/8 通过；Style Gallery 场景测试未开启产物和开启产物均为 21/21 通过。完整质量门禁通过：locked restore、format、Release build（0 警告/0 错误）及全量测试全部通过（Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 225），无失败/跳过。
 
 ## [ ] 12（P1）：建立列表、卡片与设置行组件族，仅用于 Style Gallery
 
