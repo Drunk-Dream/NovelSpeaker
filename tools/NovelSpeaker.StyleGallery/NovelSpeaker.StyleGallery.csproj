@@ -23,6 +23,8 @@
           Link="Resources\Palettes\Palette.Dark.xaml" />
     <Page Include="..\..\src\NovelSpeaker.App\Shared\Theming\Resources\DesignTokens.xaml"
           Link="Resources\DesignTokens.xaml" />
+    <Page Include="..\..\src\NovelSpeaker.App\Shared\Theming\Resources\ButtonStyles.xaml"
+          Link="Resources\ButtonStyles.xaml" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\..\src\NovelSpeaker.App\Shared\Theming\SemanticPaletteRuntime.cs"

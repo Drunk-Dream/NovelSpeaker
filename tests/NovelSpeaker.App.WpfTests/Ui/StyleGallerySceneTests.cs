@@ -26,7 +26,7 @@ public sealed class StyleGallerySceneTests
         var scenes = GallerySceneRegistry.All;
 
         Assert.Equal(
-            ["palette-probe", "placeholder-sections", "provider-controls", "provider-style-probe", "theme-resource-probe", "token-components"],
+            ["button-styles", "palette-probe", "placeholder-sections", "provider-controls", "provider-style-probe", "theme-resource-probe", "token-components"],
             scenes.Select(scene => scene.Name).Order(StringComparer.Ordinal));
         Assert.All(scenes, scene =>
         {
@@ -43,12 +43,14 @@ public sealed class StyleGallerySceneTests
         var task04Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "04"]);
         var task05Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "05"]);
         var task06Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "06"]);
+        var task07Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "07"]);
 
         Assert.Equal("03", defaultOptions.Task);
         Assert.Equal(Path.Combine("artifacts", "visual-review", "03"), defaultOptions.OutputDirectory);
         Assert.Equal("04", task04Options.Task);
         Assert.Equal("05", task05Options.Task);
         Assert.Equal("06", task06Options.Task);
+        Assert.Equal("07", task07Options.Task);
     }
 
     [Theory]
@@ -133,6 +135,137 @@ public sealed class StyleGallerySceneTests
                                   element.ReadLocalValue(Control.ForegroundProperty) != DependencyProperty.UnsetValue)
                 .ToArray();
             Assert.NotEmpty(dynamicResourceElements);
+        });
+    }
+
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
+    public void Button_style_gallery_contains_named_variants_states_and_content_fixtures(GalleryTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(theme);
+            var scene = GallerySceneRegistry.Build("button-styles");
+            var host = new Window
+            {
+                Content = scene,
+                Width = GalleryRenderSettings.WindowWidth,
+                Height = GalleryRenderSettings.WindowHeight,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            try
+            {
+                host.Show();
+                host.UpdateLayout();
+
+                var buttons = FindDescendants<WpfButton>(scene)
+                    .Where(button => AutomationProperties.GetAutomationId(button).StartsWith(
+                        "button-",
+                        StringComparison.Ordinal))
+                    .ToArray();
+                Assert.Equal(27, buttons.Length);
+                Assert.All(
+                    buttons,
+                    button =>
+                    {
+                        Assert.NotNull(button.Style);
+                        Assert.StartsWith("App.Button.", AutomationProperties.GetName(button));
+                        Assert.True(button.ActualWidth >= 32);
+                        Assert.True(button.ActualHeight >= 32);
+                        Assert.True(button.IsEnabled || button.Opacity < 1);
+                    });
+
+                foreach (var variant in new[] { "primary", "secondary", "subtle", "icon", "danger" })
+                {
+                    var stateButtons = buttons
+                        .Where(button =>
+                        {
+                            var automationId = AutomationProperties.GetAutomationId(button);
+                            return new[] { "default", "hover", "pressed", "focus", "disabled" }
+                                .Any(state => automationId == $"button-{variant}-{state}");
+                        })
+                        .ToArray();
+                    Assert.Equal(5, stateButtons.Length);
+                    var defaultButton = stateButtons.Single(button =>
+                        AutomationProperties.GetAutomationId(button) == $"button-{variant}-default");
+                    Assert.All(
+                        stateButtons,
+                        stateButton =>
+                        {
+                            Assert.Equal(defaultButton.ActualWidth, stateButton.ActualWidth);
+                            Assert.Equal(defaultButton.ActualHeight, stateButton.ActualHeight);
+                        });
+                }
+
+                Assert.NotNull(FindDescendants<WpfTextBlock>(scene).Single(block =>
+                    block.Text.StartsWith("长中文文本：", StringComparison.Ordinal)));
+                Assert.NotNull(FindDescendants<WpfTextBlock>(scene).Single(block =>
+                    block.Text == "图标 + 文本"));
+            }
+            finally
+            {
+                host.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void Button_style_gallery_keeps_layout_sizes_when_theme_changes()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            var scene = GallerySceneRegistry.Build("button-styles");
+            var host = new Window
+            {
+                Content = scene,
+                Width = GalleryRenderSettings.WindowWidth,
+                Height = GalleryRenderSettings.WindowHeight,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            try
+            {
+                host.Show();
+                host.UpdateLayout();
+                var buttons = FindDescendants<WpfButton>(scene)
+                    .Where(button => AutomationProperties.GetAutomationId(button).StartsWith(
+                        "button-",
+                        StringComparison.Ordinal))
+                    .ToDictionary(
+                        button => AutomationProperties.GetAutomationId(button),
+                        button => (button.Style, button.ActualWidth, button.ActualHeight),
+                        StringComparer.Ordinal);
+                var lightBackground = Assert.IsType<SolidColorBrush>(
+                    FindDescendants<WpfButton>(scene).Single(button =>
+                        AutomationProperties.GetAutomationId(button) == "button-primary-default").Background);
+
+                GalleryThemeRuntime.Apply(GalleryTheme.Dark);
+                host.UpdateLayout();
+
+                Assert.All(buttons, pair =>
+                {
+                    var button = FindDescendants<WpfButton>(scene).Single(candidate =>
+                        AutomationProperties.GetAutomationId(candidate) == pair.Key);
+                    Assert.Same(pair.Value.Style, button.Style);
+                    Assert.Equal(pair.Value.ActualWidth, button.ActualWidth);
+                    Assert.Equal(pair.Value.ActualHeight, button.ActualHeight);
+                });
+                Assert.NotEqual(
+                    lightBackground.Color,
+                    Assert.IsType<SolidColorBrush>(
+                        FindDescendants<WpfButton>(scene).Single(button =>
+                            AutomationProperties.GetAutomationId(button) == "button-primary-default").Background).Color);
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+                host.Close();
+            }
         });
     }
 
@@ -469,6 +602,49 @@ public sealed class StyleGallerySceneTests
                     output.Path,
                     "05",
                     ["palette-probe"],
+                    cancellation.Token);
+            }
+            finally
+            {
+                if (window.IsVisible)
+                {
+                    window.Close();
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Screenshot_generator_writes_explicit_task_07_button_scene_to_manifest()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            using var output = new TemporaryOutputDirectory();
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var options = GalleryCommandLineOptions.Parse(
+            [
+                "--screenshot",
+                "--task",
+                "07",
+                "--theme",
+                "all",
+                "--scene",
+                "button-styles",
+                "--output",
+                output.Path
+            ]);
+            var window = new GalleryWindow();
+            try
+            {
+                window.Show();
+                await new GalleryScreenshotGenerator().GenerateAsync(window, options, cancellation.Token);
+                var manifest = await ReadManifestAsync(output.ManifestPath, cancellation.Token);
+
+                await AssertManifestMatchesPngsAsync(
+                    manifest,
+                    output.Path,
+                    "07",
+                    ["button-styles"],
                     cancellation.Token);
             }
             finally

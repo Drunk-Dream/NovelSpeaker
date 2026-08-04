@@ -27,6 +27,10 @@ public static class GallerySceneRegistry
             "Stable token-based PageHeader, SectionSurface and StatusView samples.",
             GallerySceneBuilders.CreateTokenComponents),
         new GallerySceneDefinition(
+            "button-styles",
+            "Explicit App.Button variants and deterministic interaction-state previews.",
+            GallerySceneBuilders.CreateButtonStyles),
+        new GallerySceneDefinition(
             "placeholder-sections",
             "Reserved sections for the later visual component waves.",
             GallerySceneBuilders.CreatePlaceholderSections)

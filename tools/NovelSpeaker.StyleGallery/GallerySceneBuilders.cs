@@ -43,6 +43,13 @@ internal static class GallerySceneBuilders
             "PageHeader, SectionSurface and StatusView use the shared token contract and dynamic semantic palette.",
             CreateTokenComponentsContent);
 
+    public static FrameworkElement CreateButtonStyles() =>
+        CreateSceneRoot(
+            "button-styles",
+            "Named button styles",
+            "App.Button variants inherit the Wpf.Ui provider template; only explicit semantic values and states are owned here.",
+            CreateButtonStylesContent);
+
     public static FrameworkElement CreateProviderStyleProbe() =>
         CreateSceneRoot(
             "provider-style-probe",
@@ -360,6 +367,216 @@ internal static class GallerySceneBuilders
         scrollViewer.Content = content;
         return scrollViewer;
     }
+
+    private static FrameworkElement CreateButtonStylesContent()
+    {
+        var scrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+        var content = new StackPanel();
+        content.Children.Add(CreateButtonStateTable());
+        content.Children.Add(CreateButtonContentSamples());
+        scrollViewer.Content = content;
+        return scrollViewer;
+    }
+
+    private static Border CreateButtonStateTable()
+    {
+        var table = new Grid();
+        table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
+        foreach (var _ in ButtonPreviewStates)
+        {
+            table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
+        }
+
+        table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        foreach (var _ in ButtonStyleVariants)
+        {
+            table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
+
+        AddButtonTableHeader(table, "Variant", 0);
+        for (var stateIndex = 0; stateIndex < ButtonPreviewStates.Length; stateIndex++)
+        {
+            AddButtonTableHeader(table, ButtonPreviewStates[stateIndex], stateIndex + 1);
+        }
+
+        for (var variantIndex = 0; variantIndex < ButtonStyleVariants.Length; variantIndex++)
+        {
+            var variant = ButtonStyleVariants[variantIndex];
+            var label = CreateText(variant, 13, FontWeights.SemiBold);
+            label.VerticalAlignment = VerticalAlignment.Center;
+            label.Margin = new Thickness(0, 8, 12, 8);
+            Grid.SetRow(label, variantIndex + 1);
+            Grid.SetColumn(label, 0);
+            table.Children.Add(label);
+
+            for (var stateIndex = 0; stateIndex < ButtonPreviewStates.Length; stateIndex++)
+            {
+                var state = ButtonPreviewStates[stateIndex];
+                var button = CreateButtonPreview(variant, state);
+                Grid.SetRow(button, variantIndex + 1);
+                Grid.SetColumn(button, stateIndex + 1);
+                table.Children.Add(button);
+            }
+        }
+
+        var surface = CreateComponentSurface("button-style-state-table");
+        surface.Padding = new Thickness(20);
+        surface.Child = table;
+        return surface;
+    }
+
+    private static void AddButtonTableHeader(Grid table, string text, int column)
+    {
+        var header = CreateText(text, 12, FontWeights.SemiBold);
+        header.Margin = new Thickness(0, 0, 12, 8);
+        Grid.SetColumn(header, column);
+        table.Children.Add(header);
+    }
+
+    private static Button CreateButtonPreview(string variant, string state)
+    {
+        var button = new Button
+        {
+            Style = FindButtonStyle(variant),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 0, 12, 8),
+            Content = variant == "Icon"
+                ? new SymbolIcon { Symbol = SymbolRegular.Settings24 }
+                : variant,
+            ToolTip = $"{variant} · {state}"
+        };
+        AutomationProperties.SetAutomationId(
+            button,
+            $"button-{variant.ToLowerInvariant()}-{state.ToLowerInvariant()}");
+        AutomationProperties.SetName(button, $"App.Button.{variant} {state}");
+        ApplyButtonPreviewState(button, variant, state);
+        return button;
+    }
+
+    private static void ApplyButtonPreviewState(Button button, string variant, string state)
+    {
+        if (state == "Disabled")
+        {
+            button.IsEnabled = false;
+            return;
+        }
+
+        var backgroundKey = state switch
+        {
+            "Hover" => variant is "Primary" ? "AccentHoverBrush" :
+                       variant is "Danger" ? "DangerSubtleBrush" :
+                       variant is "Secondary" ? "SecondarySurfaceBrush" : "AccentSubtleBrush",
+            "Pressed" => variant is "Primary" ? "AccentPressedBrush" :
+                         variant is "Secondary" ? "AccentSubtleBrush" : "SecondarySurfaceBrush",
+            _ => null
+        };
+        if (backgroundKey is not null)
+        {
+            button.SetResourceReference(Control.BackgroundProperty, backgroundKey);
+        }
+
+        if (state == "Hover" && variant == "Danger")
+        {
+            button.SetResourceReference(Control.ForegroundProperty, "PrimaryTextBrush");
+        }
+
+        if (state == "Pressed" && variant == "Danger")
+        {
+            button.SetResourceReference(Control.BorderBrushProperty, "DangerBrush");
+        }
+
+        if (state == "Focus")
+        {
+            button.SetResourceReference(Control.BorderBrushProperty, "AccentFocusRingBrush");
+        }
+    }
+
+    private static Border CreateButtonContentSamples()
+    {
+        var grid = new Grid { Margin = new Thickness(0, 16, 0, 0) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var iconAndText = new Button
+        {
+            Style = FindButtonStyle("Primary"),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Children =
+                {
+                    new SymbolIcon
+                    {
+                        Symbol = SymbolRegular.PlayCircle24,
+                        Width = 20,
+                        Height = 20,
+                        Margin = new Thickness(0, 0, 8, 0)
+                    },
+                    new TextBlock { Text = "图标 + 文本", VerticalAlignment = VerticalAlignment.Center }
+                }
+            }
+        };
+        AutomationProperties.SetAutomationId(iconAndText, "button-icon-text");
+        AutomationProperties.SetName(iconAndText, "App.Button.Primary icon and text");
+        Grid.SetColumn(iconAndText, 0);
+        grid.Children.Add(iconAndText);
+
+        var longText = new Button
+        {
+            Style = FindButtonStyle("Secondary"),
+            Width = 520,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Content = new TextBlock
+            {
+                Text = "长中文文本：这是一个固定的按钮内容 fixture，用来验证具名样式在宽窗口与不同 DPI 下保持完整可见，不通过裁剪或改变外部布局来隐藏文字。",
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 480
+            }
+        };
+        AutomationProperties.SetAutomationId(longText, "button-long-text");
+        AutomationProperties.SetName(longText, "App.Button.Secondary long Chinese text");
+        Grid.SetColumn(longText, 1);
+        grid.Children.Add(longText);
+
+        var surface = CreateComponentSurface("button-style-content-samples");
+        surface.Padding = new Thickness(20);
+        surface.Child = new StackPanel
+        {
+            Children =
+            {
+                CreateText("Content variations", 15, FontWeights.SemiBold),
+                grid
+            }
+        };
+        return surface;
+    }
+
+    private static Style FindButtonStyle(string variant) =>
+        Application.Current?.FindResource($"App.Button.{variant}") as Style
+        ?? throw new InvalidOperationException($"Button style 'App.Button.{variant}' was not found.");
+
+    private static readonly string[] ButtonStyleVariants =
+    [
+        "Primary",
+        "Secondary",
+        "Subtle",
+        "Icon",
+        "Danger"
+    ];
+
+    private static readonly string[] ButtonPreviewStates =
+    [
+        "Default",
+        "Hover",
+        "Pressed",
+        "Focus",
+        "Disabled"
+    ];
 
     private static Border CreatePageHeaderSample()
     {
