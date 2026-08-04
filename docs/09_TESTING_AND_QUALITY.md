@@ -36,6 +36,9 @@
 
 - 必须依赖 WPF visual tree、STA、资源字典或窗口行为的少量测试。
 - 需要数据库的 WPF 测试使用隔离临时数据目录，并显式完成 schema 初始化，不依赖开发机本地数据或测试顺序。
+- 通过 `tests/TestKit/Wpf/WpfTestHost.cs` 共享唯一后台 STA Dispatcher；窗口测试统一使用 `WpfWindowHost`，布局/离屏渲染测试使用 `WpfControlHost`。
+- 默认窗口位于虚拟屏幕之外且不激活、不进入任务栏；仅设置 `NOVELSPEAKER_TEST_SHOW_WINDOWS=1` 时允许可见调试窗口。
+- 测试失败时由共享宿主写入 `TestResults/wpf-diagnostics/<test-name>/`，包括 PNG、视觉树和窗口状态；成功测试不生成视觉文件。
 
 ## 3. 测试清理准则
 
@@ -145,8 +148,15 @@
 - 等待明确事件、Task、状态版本、channel 或 fake clock。
 - 取消必须验证 `OperationCanceledException`/Cancelled 语义，不把取消当 Error。
 - 并发测试通过可控 barrier/gate 排列时序。
+- 共享 Test Doubles 放在 `tests/TestKit`；跨测试项目复用的缓存身份和音频 fixture helper 不在各项目重复定义。
 
-## 6. 自动质量门禁
+## 6. WPF 视觉产物
+
+- 默认 `dotnet test` 不生成 PNG、manifest 或仓库内审计文件。
+- Style Gallery、媒体控件和迷你播放器截图测试只有在设置 `NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 时运行。
+- 视觉产物写入显式输出目录；失败诊断与成功截图分开，CI 仅在 WPF job 失败时上传 `TestResults/wpf-diagnostics`。
+
+## 7. 自动质量门禁
 
 完整门禁固定为：
 
@@ -163,7 +173,7 @@ dotnet test -c Release --no-build
 - Windows Media Foundation MP3 编码所需的 NAudio runtime assemblies 存在。
 - 不包含测试程序集、TestAssets、损坏音频 fixture 或临时文件。
 
-## 7. 任务验收
+## 8. 任务验收
 
 每个 Backlog 任务至少定义：
 
