@@ -301,7 +301,7 @@ Working branch: experiment/visual-system-v2
 - `artifacts/visual-review/06/manifest.json` 与 12 张 Light/Dark PNG 已生成；PNG 为 1280×820、96 DPI，manifest SHA-256 一致，连续两次生成哈希稳定。
 - 完整质量门禁通过：locked restore、format、Release build（0 警告/0 错误）和全量测试（2 + 208 + 306 + 343 + 272）均通过。
 
-## [ ] 7（P1）：建立具名按钮组件族，仅用于 Style Gallery
+## [x] 7（P1）：建立具名按钮组件族，仅用于 Style Gallery
 
 前置：4–6。
 
@@ -319,6 +319,13 @@ Working branch: experiment/visual-system-v2
 - 点击区域不小于 `32 × 32`，状态变化不改变外部布局尺寸。
 - 生成 `artifacts/visual-review/07/`。
 - 完整质量门禁通过。
+
+结果：
+
+- 新增 `ButtonStyles.xaml`，提供 `App.Button.Primary`、`App.Button.Secondary`、`App.Button.Subtle`、`App.Button.Icon` 和 `App.Button.Danger` 五个显式样式；全部通过 `Provider.Button` 继承 Wpf.Ui 基础模板，不声明完整 `ControlTemplate`，并使用 DynamicResource 语义色与稳定尺寸令牌。
+- 新增 Style Gallery `button-styles` 场景，覆盖五个变体的 Default、Hover、Pressed、Focus、Disabled，以及图标+文本和长中文文本；未修改任何正式页面 Button Style 引用。
+- 新增 WPF 契约测试，固定 Provider 继承、无模板覆盖、状态触发器、内容可见、最小 `32 × 32` 点击区域和状态/主题切换不改变外部布局尺寸；新增测试不使用任意 Sleep/Task.Delay。
+- `artifacts/visual-review/07/manifest.json`、`button-styles.light.png` 和 `button-styles.dark.png` 已生成，固定为 1280×820、96 DPI，并记录 SHA-256；Style Gallery 命令支持显式 `--task 07 --scene button-styles`。
 
 ## [ ] 8（P1）：建立媒体控制组件族，仅用于 Style Gallery
 
