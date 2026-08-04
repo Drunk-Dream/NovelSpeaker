@@ -137,22 +137,12 @@ public sealed class ArchitectureTests
             ["tests/NovelSpeaker.App.WpfTests"] = "NovelSpeaker.App.WpfTests",
             ["tests/TestKit"] = "NovelSpeaker.TestKit"
         };
-        var protectedNamespaceExceptions = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "tests/NovelSpeaker.App.WpfTests/WpfTestHost.cs",
-            "tests/TestKit/Wpf/VisualTreeTestHelper.cs"
-        };
         var violations = new List<string>();
 
         foreach (var (relativeDirectory, expectedRoot) in expectedRoots)
         {
             foreach (var file in ReadTestSourceFiles(relativeDirectory))
             {
-                if (protectedNamespaceExceptions.Contains(file.RelativePath))
-                {
-                    continue;
-                }
-
                 var match = Regex.Match(
                     file.Content,
                     @"^\s*namespace\s+(?<name>[A-Za-z_][A-Za-z0-9_.]*)\s*[;{]",

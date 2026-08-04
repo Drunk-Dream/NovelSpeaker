@@ -52,7 +52,7 @@ public sealed class VisualStyleArchitectureTests
     ];
 
     [Fact]
-    public void Current_application_style_ownership_has_no_violations_and_writes_a_reproducible_manifest()
+    public void Current_application_style_ownership_has_no_violations()
     {
         var repositoryRoot = LocateRepositoryRoot();
         var audit = VisualStyleOwnershipScanner.ScanRepository(repositoryRoot);
@@ -68,17 +68,6 @@ public sealed class VisualStyleArchitectureTests
         var secondAudit = VisualStyleOwnershipScanner.ScanRepository(repositoryRoot);
         Assert.Equal(audit.ToJson(), secondAudit.ToJson());
 
-        var outputPath = Path.Combine(
-            repositoryRoot,
-            "artifacts",
-            "visual-review",
-            "02",
-            "style-ownership-audit.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-        File.WriteAllText(outputPath, audit.ToJson() + Environment.NewLine);
-
-        Assert.True(File.Exists(outputPath));
-        Assert.Equal(audit.ToJson() + Environment.NewLine, File.ReadAllText(outputPath));
     }
 
     [Fact]

@@ -2,7 +2,7 @@ using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Books;
 
-namespace NovelSpeaker.Application.UnitTests;
+namespace NovelSpeaker.TestKit.Audio;
 
 internal static class TestAudioCacheKey
 {
@@ -16,6 +16,18 @@ internal static class TestAudioCacheKey
         AudioCacheKey.FromIdentity(AudioCacheIdentity.Create(
             $"{bookId}/chapter/{chapterIndex}",
             StableSpeechSegmentIdentity.Body(sourceStartOffset, 1),
+            speechText,
+            CreateProfile(ruleId, speakSpeed)));
+
+    public static AudioCacheKey CreateTitle(
+        string bookId,
+        int chapterIndex,
+        long ruleId,
+        int speakSpeed,
+        string speechText) =>
+        AudioCacheKey.FromIdentity(AudioCacheIdentity.Create(
+            $"{bookId}/chapter/{chapterIndex}",
+            StableSpeechSegmentIdentity.ChapterTitle(),
             speechText,
             CreateProfile(ruleId, speakSpeed)));
 
