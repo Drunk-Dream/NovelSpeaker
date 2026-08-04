@@ -246,7 +246,7 @@ Working branch: experiment/visual-system-v2
 - `artifacts/visual-review/04/manifest.json` 与 8 张 Light/Dark PNG 已生成；PNG 为 1280×820、96 DPI、非空，SHA 与 manifest 一致，连续运行哈希稳定。
 - self-contained `win-x64` publish 通过，生产包不含 Style Gallery、visual-review、测试程序集或 fixture。
 
-## [ ] 5（P1）：建立语义 Palette，不迁移正式页面
+## [x] 5（P1）：建立语义 Palette，不迁移正式页面
 
 前置：4。
 
@@ -265,6 +265,14 @@ Working branch: experiment/visual-system-v2
 - 对主要文本/背景组合执行自动对比度检查。
 - 生成 `artifacts/visual-review/05/`。
 - 完整质量门禁通过。
+
+结果：
+
+- 新增 Light/Dark 语义 palette，26 个稳定显式 `SolidColorBrush` 键在两主题中集合和类型一致，覆盖表面、三档文本、两档边框、Accent 状态族及 Danger/Warning/Success 状态色。
+- 主题入口通过 `DynamicResource` 资源链路更新 palette 值；Wpf.Ui provider、Provider Bridge、具名 Style 和 ControlTemplate 不重新注入或替换。正式页面、窗口布局、控件高度、Padding 和模板未迁移。
+- Style Gallery 新增完整 `palette-probe`，覆盖全部 palette 颜色及文本/图标对比样例；新增热切换、Style/Template 稳定性和对比度契约测试。
+- `artifacts/visual-review/05/manifest.json` 与 10 张 Light/Dark PNG 已生成；PNG 为 1280×820、96 DPI、非空，manifest SHA-256 一致，连续两次生成哈希稳定。
+- 任务 5 相关 WPF 契约测试 24/24 通过；完整质量门禁通过：locked restore、format、Release build（0 警告/0 错误）和全量测试（2 + 208 + 306 + 343 + 268）均通过。
 
 ## [ ] 6（P1）：建立稳定 Token、排版和表面组件，不迁移正式页面
 
