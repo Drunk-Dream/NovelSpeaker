@@ -27,7 +27,7 @@ public sealed class StyleGallerySceneTests
         var scenes = GallerySceneRegistry.All;
 
         Assert.Equal(
-            ["button-styles", "media-controls", "palette-probe", "placeholder-sections", "provider-controls", "provider-style-probe", "theme-resource-probe", "token-components"],
+            ["button-styles", "input-controls", "media-controls", "palette-probe", "placeholder-sections", "provider-controls", "provider-style-probe", "theme-resource-probe", "token-components"],
             scenes.Select(scene => scene.Name).Order(StringComparer.Ordinal));
         Assert.All(scenes, scene =>
         {
@@ -38,13 +38,15 @@ public sealed class StyleGallerySceneTests
     }
 
     [Fact]
-    public void Gallery_task_defaults_to_03_and_accepts_explicit_tasks_04_through_06()
+    public void Gallery_task_defaults_to_03_and_accepts_explicit_tasks_04_through_11()
     {
         var defaultOptions = GalleryCommandLineOptions.Parse(["--screenshot"]);
         var task04Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "04"]);
         var task05Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "05"]);
         var task06Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "06"]);
         var task07Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "07"]);
+        var task08Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "08"]);
+        var task11Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "11"]);
 
         Assert.Equal("03", defaultOptions.Task);
         Assert.Equal(Path.Combine("artifacts", "visual-review", "03"), defaultOptions.OutputDirectory);
@@ -52,6 +54,8 @@ public sealed class StyleGallerySceneTests
         Assert.Equal("05", task05Options.Task);
         Assert.Equal("06", task06Options.Task);
         Assert.Equal("07", task07Options.Task);
+        Assert.Equal("08", task08Options.Task);
+        Assert.Equal("11", task11Options.Task);
     }
 
     [Theory]
@@ -790,6 +794,54 @@ public sealed class StyleGallerySceneTests
                     output.Path,
                     "07",
                     ["button-styles"],
+                    cancellation.Token);
+            }
+            finally
+            {
+                if (window.IsVisible)
+                {
+                    window.Close();
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Screenshot_generator_writes_explicit_task_11_input_controls_scene_to_manifest()
+    {
+        if (!VisualArtifactTestGuard.IsEnabled)
+        {
+            return;
+        }
+
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            using var output = new TemporaryOutputDirectory();
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var options = GalleryCommandLineOptions.Parse(
+            [
+                "--screenshot",
+                "--task",
+                "11",
+                "--theme",
+                "all",
+                "--scene",
+                "input-controls",
+                "--output",
+                output.Path
+            ]);
+            var window = new GalleryWindow();
+            try
+            {
+                WpfWindowHost.Show(window);
+                await new GalleryScreenshotGenerator().GenerateAsync(window, options, cancellation.Token);
+                var manifest = await ReadManifestAsync(output.ManifestPath, cancellation.Token);
+
+                await AssertManifestMatchesPngsAsync(
+                    manifest,
+                    output.Path,
+                    "11",
+                    ["input-controls"],
                     cancellation.Token);
             }
             finally

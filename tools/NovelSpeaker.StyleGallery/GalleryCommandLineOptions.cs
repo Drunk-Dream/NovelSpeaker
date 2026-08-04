@@ -53,12 +53,12 @@ public sealed record GalleryCommandLineOptions(
     }
 
     public static string UsageText =>
-        "Usage: dotnet run --project tools/NovelSpeaker.StyleGallery -- --screenshot --task 08 --scene media-controls --theme all --output artifacts/visual-review/08";
+        "Usage: dotnet run --project tools/NovelSpeaker.StyleGallery -- --screenshot --task 11 --scene input-controls --theme all --output artifacts/visual-review/11";
 
     private static string ParseTask(string value) =>
-        value is "03" or "04" or "05" or "06" or "07" or "08"
+        value is "03" or "04" or "05" or "06" or "07" or "08" or "11"
             ? value
-            : throw new GalleryUsageException($"Task must be '03', '04', '05', '06', '07' or '08', but was '{value}'.{Environment.NewLine}{UsageText}");
+            : throw new GalleryUsageException($"Task must be '03', '04', '05', '06', '07', '08' or '11', but was '{value}'.{Environment.NewLine}{UsageText}");
 }
 
 public enum GalleryThemeChoice
