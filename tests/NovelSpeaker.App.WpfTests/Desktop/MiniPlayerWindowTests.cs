@@ -18,6 +18,7 @@ using NovelSpeaker.Domain.Settings;
 using Wpf.Ui.Appearance;
 using Xunit;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 
 namespace NovelSpeaker.App.WpfTests.Desktop;
 
@@ -40,14 +41,14 @@ public sealed class MiniPlayerWindowTests
                 Assert.Equal(480d, window.Width);
                 Assert.Equal(150d, window.Height);
                 Assert.Equal(440d, window.MinWidth);
-                Assert.Equal(130d, window.MinHeight);
+                Assert.Equal(150d, window.MinHeight);
                 Assert.Equal(500d, window.MaxWidth);
-                Assert.Equal(160d, window.MaxHeight);
+                Assert.Equal(150d, window.MaxHeight);
 
                 var surface = Assert.IsType<Border>(window.FindName("MiniPlayerSurface"));
                 Assert.Same(window.FindResource("RaisedSurfaceBrush"), surface.Background);
-                Assert.Equal(Brushes.Transparent, surface.BorderBrush);
-                Assert.Equal(new Thickness(0), surface.BorderThickness);
+                Assert.Same(window.FindResource("StrongBorderBrush"), surface.BorderBrush);
+                Assert.Equal(new Thickness(2), surface.BorderThickness);
                 Assert.Equal(
                     Assert.IsType<CornerRadius>(window.FindResource("CornerRadiusLarge")),
                     surface.CornerRadius);
@@ -82,6 +83,10 @@ public sealed class MiniPlayerWindowTests
                 Assert.Equal("播放音量", volumeButton.ToolTip);
                 Assert.Equal("播放音量 100%", AutomationProperties.GetName(volumeButton));
                 AssertControl<Button>(window, "MiniPlayerRestoreButton", "恢复主窗口");
+                Assert.Equal(
+                    SymbolRegular.ArrowMaximize24,
+                    Assert.IsType<SymbolIcon>(
+                        Assert.IsType<Button>(window.FindName("MiniPlayerRestoreButton")).Content).Symbol);
                 AssertControl<Button>(window, "MiniPlayerCloseButton", "退出应用");
                 AssertControl<Button>(window, "MiniPlayerTopmostButton", "置顶");
                 var topmostStateBorder = Assert.IsType<Border>(window.FindName("MiniPlayerTopmostStateBorder"));
@@ -150,13 +155,53 @@ public sealed class MiniPlayerWindowTests
         {
             var blankSurface = new Border();
             var button = new Button();
+            var resizeThumb = new Thumb();
             var slider = new Slider();
             var textBox = new TextBox();
 
             Assert.True(MiniPlayerWindowDragPolicy.CanStartDrag(blankSurface));
             Assert.False(MiniPlayerWindowDragPolicy.CanStartDrag(button));
+            Assert.False(MiniPlayerWindowDragPolicy.CanStartDrag(resizeThumb));
             Assert.False(MiniPlayerWindowDragPolicy.CanStartDrag(slider));
             Assert.False(MiniPlayerWindowDragPolicy.CanStartDrag(textBox));
+        });
+    }
+
+    [Fact]
+    public void Width_resize_thumb_changes_only_width_within_window_bounds()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var fixture = CreateWindow(PlaybackSnapshot.Idle);
+            try
+            {
+                fixture.Window.Show();
+                fixture.Window.UpdateLayout();
+
+                var resizeThumb = Assert.IsType<Thumb>(fixture.Window.FindName("MiniPlayerWidthResizeThumb"));
+                Assert.Equal(0, resizeThumb.Opacity);
+                var initialHeight = fixture.Window.ActualHeight;
+
+                resizeThumb.RaiseEvent(new DragDeltaEventArgs(12, 40)
+                {
+                    RoutedEvent = Thumb.DragDeltaEvent
+                });
+
+                Assert.Equal(492, fixture.Window.Width);
+                Assert.Equal(initialHeight, fixture.Window.ActualHeight);
+
+                resizeThumb.RaiseEvent(new DragDeltaEventArgs(100, 40)
+                {
+                    RoutedEvent = Thumb.DragDeltaEvent
+                });
+
+                Assert.Equal(fixture.Window.MaxWidth, fixture.Window.Width);
+                Assert.Equal(initialHeight, fixture.Window.ActualHeight);
+            }
+            finally
+            {
+                CloseFixture(fixture);
+            }
         });
     }
 
@@ -368,6 +413,14 @@ public sealed class MiniPlayerWindowTests
                             Assert.True(controlBar.IsVisible);
                             Assert.True(controlBar.ActualWidth > 0);
                             Assert.True(controlBar.ActualHeight > 0);
+                            var previousSegmentButton = Assert.IsType<Button>(
+                                fixture.Window.FindName("MiniPlayerPreviousSegmentButton"));
+                            var nextSegmentButton = Assert.IsType<Button>(
+                                fixture.Window.FindName("MiniPlayerNextSegmentButton"));
+                            Assert.Equal(previousSegmentButton.ActualWidth, playbackButton.ActualWidth);
+                            Assert.Equal(previousSegmentButton.ActualHeight, playbackButton.ActualHeight);
+                            Assert.Equal(nextSegmentButton.ActualWidth, playbackButton.ActualWidth);
+                            Assert.Equal(nextSegmentButton.ActualHeight, playbackButton.ActualHeight);
                             Assert.Equal(48, playbackButton.ActualWidth);
                             Assert.Equal(48, playbackButton.ActualHeight);
 
@@ -385,6 +438,8 @@ public sealed class MiniPlayerWindowTests
                                 Assert.True(button.IsVisible);
                                 Assert.True(button.ActualWidth > 0);
                                 Assert.True(button.ActualHeight > 0);
+                                Assert.Equal(48, button.ActualWidth);
+                                Assert.Equal(48, button.ActualHeight);
                                 Assert.Equal(new Thickness(0), button.BorderThickness);
                                 Assert.Equal(
                                     Colors.Transparent,
@@ -525,8 +580,8 @@ public sealed class MiniPlayerWindowTests
     {
         Assert.True(FindButton(window, "MiniPlayerTopmostButton").ActualWidth >= 32 * 0.9, $"Topmost button collapsed at {scale:0.##}x.");
         Assert.True(FindButton(window, "MiniPlayerRestoreButton").ActualWidth >= 32 * 0.9, $"Restore button collapsed at {scale:0.##}x.");
-        Assert.True(FindButton(window, "MiniPlayerPlaybackButton").ActualWidth >= 44 * 0.9, $"Playback button collapsed at {scale:0.##}x.");
-        Assert.True(FindButton(window, "MiniPlayerVolumeMenuButton").ActualWidth >= 32 * 0.9, $"Volume button collapsed at {scale:0.##}x.");
+        Assert.True(FindButton(window, "MiniPlayerPlaybackButton").ActualWidth >= 48 * 0.9, $"Playback button collapsed at {scale:0.##}x.");
+        Assert.True(FindButton(window, "MiniPlayerVolumeMenuButton").ActualWidth >= 48 * 0.9, $"Volume button collapsed at {scale:0.##}x.");
         Assert.True(Assert.IsType<TextBlock>(window.FindName("MiniPlayerBookTitle")).ActualWidth > 0);
         Assert.True(Assert.IsType<TextBlock>(window.FindName("MiniPlayerChapterTitle")).ActualWidth > 0);
     }

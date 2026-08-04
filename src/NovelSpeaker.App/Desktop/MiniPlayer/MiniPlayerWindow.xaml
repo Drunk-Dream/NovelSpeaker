@@ -6,9 +6,9 @@
         Width="480"
         Height="150"
         MinWidth="440"
-        MinHeight="130"
+        MinHeight="150"
         MaxWidth="500"
-        MaxHeight="160"
+        MaxHeight="150"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -20,8 +20,8 @@
     <Border x:Name="MiniPlayerSurface"
             Padding="12,6"
             Background="{DynamicResource RaisedSurfaceBrush}"
-            BorderBrush="Transparent"
-            BorderThickness="0"
+            BorderBrush="{DynamicResource StrongBorderBrush}"
+            BorderThickness="2"
             CornerRadius="{StaticResource CornerRadiusLarge}"
             ClipToBounds="True">
         <Grid>
@@ -94,7 +94,7 @@
                             AutomationProperties.Name="恢复主窗口">
                         <ui:SymbolIcon Width="20"
                                        Height="20"
-                                       Symbol="WindowArrowUp24" />
+                                       Symbol="ArrowMaximize24" />
                     </Button>
                     <Button x:Name="MiniPlayerCloseButton"
                             Margin="4,0,0,0"
@@ -179,6 +179,10 @@
                                 Orientation="Horizontal">
                         <Button x:Name="MiniPlayerPreviousChapterButton"
                                 Margin="2,0"
+                                Width="48"
+                                Height="48"
+                                MinWidth="48"
+                                MinHeight="48"
                                 Style="{StaticResource App.Button.Icon}"
                                 IsEnabled="{Binding HasPlaybackContext}"
                                 Command="{Binding PreviousChapterCommand}"
@@ -190,10 +194,10 @@
                         </Button>
                         <Button x:Name="MiniPlayerPreviousSegmentButton"
                                 Margin="2,0"
-                                Width="36"
-                                Height="36"
-                                MinWidth="36"
-                                MinHeight="36"
+                                Width="48"
+                                Height="48"
+                                MinWidth="48"
+                                MinHeight="48"
                                 Style="{StaticResource App.Button.Icon}"
                                 IsEnabled="{Binding CanGoToPreviousSegment}"
                                 Command="{Binding PreviousSegmentCommand}"
@@ -210,9 +214,6 @@
                                 MinWidth="48"
                                 MinHeight="48"
                                 Style="{StaticResource App.Button.Icon}"
-                                Background="Transparent"
-                                BorderBrush="Transparent"
-                                BorderThickness="0"
                                 IsEnabled="{Binding CanTogglePlayback}"
                                 Command="{Binding TogglePlaybackCommand}"
                                 ToolTip="{Binding PlaybackActionText}"
@@ -234,10 +235,10 @@
                         </Button>
                         <Button x:Name="MiniPlayerNextSegmentButton"
                                 Margin="2,0"
-                                Width="36"
-                                Height="36"
-                                MinWidth="36"
-                                MinHeight="36"
+                                Width="48"
+                                Height="48"
+                                MinWidth="48"
+                                MinHeight="48"
                                 Style="{StaticResource App.Button.Icon}"
                                 IsEnabled="{Binding CanGoToNextSegment}"
                                 Command="{Binding NextSegmentCommand}"
@@ -249,6 +250,10 @@
                         </Button>
                         <Button x:Name="MiniPlayerNextChapterButton"
                                 Margin="2,0"
+                                Width="48"
+                                Height="48"
+                                MinWidth="48"
+                                MinHeight="48"
                                 Style="{StaticResource App.Button.Icon}"
                                 IsEnabled="{Binding HasPlaybackContext}"
                                 Command="{Binding NextChapterCommand}"
@@ -262,10 +267,10 @@
                     <Button x:Name="MiniPlayerVolumeMenuButton"
                             Grid.Column="2"
                             Margin="4,0,2,0"
-                            Width="36"
-                            Height="36"
-                            MinWidth="36"
-                            MinHeight="36"
+                            Width="48"
+                            Height="48"
+                            MinWidth="48"
+                            MinHeight="48"
                             HorizontalAlignment="Right"
                             Style="{StaticResource App.Button.Icon}"
                             Command="{Binding ToggleVolumeMenuCommand}"
@@ -321,6 +326,20 @@
                     </StackPanel>
                 </Border>
             </Popup>
+
+            <Thumb x:Name="MiniPlayerWidthResizeThumb"
+                   Width="8"
+                   HorizontalAlignment="Right"
+                   VerticalAlignment="Stretch"
+                   Background="Transparent"
+                   BorderBrush="Transparent"
+                   BorderThickness="0"
+                   Cursor="SizeWE"
+                   Focusable="False"
+                   IsTabStop="False"
+                   Opacity="0"
+                   DragDelta="MiniPlayerWidthResizeThumb_OnDragDelta"
+                   AutomationProperties.Name="调整窗口宽度" />
         </Grid>
     </Border>
 </Window>

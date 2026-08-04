@@ -307,7 +307,7 @@ Working branch: experiment/visual-system-v2
 
 实现：
 
-- 建立 Primary、Secondary、Subtle、Icon 和 Danger 具名样式。
+- 建立 Primary、Secondary、Subtle、Icon、DangerIcon 和 Danger 具名样式。
 - 样式通过 Provider Bridge 保留 Wpf.Ui 模板和基础状态，不设置完整 ControlTemplate。
 - Gallery 覆盖 Default、Hover、Pressed、Focus、Disabled、图标+文本和长中文文本。
 - 不修改正式页面中的 Button Style 引用。
@@ -322,7 +322,7 @@ Working branch: experiment/visual-system-v2
 
 结果：
 
-- 新增 `ButtonStyles.xaml`，提供 `App.Button.Primary`、`App.Button.Secondary`、`App.Button.Subtle`、`App.Button.Icon` 和 `App.Button.Danger` 五个显式样式；全部通过 `Provider.Button` 继承 Wpf.Ui 基础模板，不声明完整 `ControlTemplate`，并使用 DynamicResource 语义色与稳定尺寸令牌。
+- 新增 `ButtonStyles.xaml`，提供 `App.Button.Primary`、`App.Button.Secondary`、`App.Button.Subtle`、`App.Button.Icon`、`App.Button.DangerIcon` 和 `App.Button.Danger` 六个显式样式；全部通过 `Provider.Button` 继承 Wpf.Ui 基础模板，不声明完整 `ControlTemplate`，并使用 DynamicResource 语义色与稳定尺寸令牌。
 - 新增 Style Gallery `button-styles` 场景，覆盖五个变体的 Default、Hover、Pressed、Focus、Disabled，以及图标+文本和长中文文本；未修改任何正式页面 Button Style 引用。
 - 新增 WPF 契约测试，固定 Provider 继承、无模板覆盖、状态触发器、内容可见、最小 `32 × 32` 点击区域和状态/主题切换不改变外部布局尺寸；新增测试不使用任意 Sleep/Task.Delay。
 - `artifacts/visual-review/07/manifest.json`、`button-styles.light.png` 和 `button-styles.dark.png` 已生成，固定为 1280×820、96 DPI，并记录 SHA-256；Style Gallery 命令支持显式 `--task 07 --scene button-styles`。
@@ -386,7 +386,7 @@ Working branch: experiment/visual-system-v2
 
 - 按最终横向媒体面板结构迁移章节标题、书名/段落信息、进度和五个媒体按钮。
 - 复用共享 `App.Button.Icon` 和媒体 Slider，不复制模板。
-- 窗口尺寸约束为 `440–500 × 130–160` 的可用范围，并保留长标题省略与 Tooltip。
+- 窗口宽度约束为 `440–500`，高度固定为 `150`，并保留长标题省略与 Tooltip；右侧边缘仅允许调整宽度。
 - 不修改播放页媒体控件。
 
 自动验收：
@@ -399,9 +399,9 @@ Working branch: experiment/visual-system-v2
 
 结果：
 
-- 迷你播放器已迁移为 `440–500 × 130–160` 的横向媒体控制面板；所有按钮直接复用 `ButtonStyles.xaml` 的 `App.Button.Icon`，未新增迷你播放器专属按钮样式。
+- 迷你播放器已迁移为宽度 `440–500`、高度固定 `150` 的横向媒体控制面板；媒体按钮直接复用 `ButtonStyles.xaml` 的 `App.Button.Icon`，退出应用按钮使用共享危险图标样式，未新增迷你播放器专属按钮样式。
 - 已纳入音量按钮与应用内音量滑块，保留 PlaybackSnapshot、段落拖动、Tooltip、窗口动作和位置记忆；关闭迷你播放器改为统一退出应用，未修改播放页媒体控件。
-- 媒体控制区使用独立裁切表面和中等圆角，按钮无可见描边，播放/暂停为无填充背景的 48 DIP 图标按钮，修复底部控制区边缘/层次缺陷；关闭按钮和迷你窗口关闭事件统一发布 `ExitApplication`，恢复主窗口按钮仍保留原行为，下一次启动不恢复迷你模式。
+- 媒体控制区使用独立裁切表面和中等圆角，五个媒体播放按钮和音量按钮统一为无填充背景的 48 DIP 命中区，修复底部控制区边缘/层次缺陷；退出应用的关闭按钮使用共享 `App.Button.DangerIcon`，关闭按钮和迷你窗口关闭事件统一发布 `ExitApplication`，恢复主窗口按钮使用 `ArrowMaximize24`，下一次启动不恢复迷你模式。外层窗口补回 `StrongBorderBrush` 的 2 DIP 明显边框，右侧边缘仅允许调整宽度，确保透明窗口与桌面背景清晰区分。
 - `MiniPlayerViewModelTests`、`MiniPlayerWindowTests` 与 `WindowsTrayLifecycleAdapterTests` 通过，视觉回归产物重新生成到 `artifacts/visual-review/10/`。
 
 ## [ ] 11（P1）：建立输入与选择控件族，仅用于 Style Gallery

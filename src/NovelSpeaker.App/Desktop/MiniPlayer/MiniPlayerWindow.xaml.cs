@@ -64,6 +64,18 @@ public partial class MiniPlayerWindow : Window
         }
     }
 
+    private void MiniPlayerWidthResizeThumb_OnDragDelta(object sender, DragDeltaEventArgs e)
+    {
+        var currentWidth = ActualWidth > 0 ? ActualWidth : Width;
+        if (!double.IsFinite(currentWidth))
+        {
+            return;
+        }
+
+        Width = Math.Clamp(currentWidth + e.HorizontalChange, MinWidth, MaxWidth);
+        e.Handled = true;
+    }
+
     private void MiniPlayerProgressSlider_OnValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         _progressController.Preview(e.NewValue);
@@ -196,6 +208,7 @@ internal static class MiniPlayerWindowDragPolicy
     {
         return source is not null &&
                FindAncestor<ButtonBase>(source) is null &&
+               FindAncestor<Thumb>(source) is null &&
                FindAncestor<Slider>(source) is null &&
                FindAncestor<TextBoxBase>(source) is null;
     }
