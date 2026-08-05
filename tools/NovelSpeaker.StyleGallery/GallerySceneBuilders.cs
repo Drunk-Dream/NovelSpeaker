@@ -67,6 +67,13 @@ internal static class GallerySceneBuilders
             "Explicit App.Input variants cover content, density, selection, disabled, read-only and visible validation states without replacing Provider templates.",
             CreateInputControlsContent);
 
+    public static FrameworkElement CreateListComponents() =>
+        CreateSceneRoot(
+            "list-components",
+            "List, card and settings components",
+            "Gallery-only BookCard, ListRow, SelectableRow, SettingsRow, RuleListItem and EmptyState components keep state ownership independent from virtualized containers.",
+            GalleryListComponentScene.Create);
+
     public static FrameworkElement CreateProviderStyleProbe() =>
         CreateSceneRoot(
             "provider-style-probe",

@@ -430,7 +430,7 @@ Working branch: experiment/visual-system-v2
 - `NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 下截图契约测试通过；真实命令生成 `artifacts/visual-review/11/manifest.json`、`input-controls.light.png` 和 `input-controls.dark.png`，固定 1280×820、96 DPI，SHA-256/尺寸/DPI 与 manifest 一致。
 - Slice C 实现与定向契约已完成：输入控件契约测试 8/8 通过；Style Gallery 场景测试未开启产物和开启产物均为 21/21 通过。完整质量门禁通过：locked restore、format、Release build（0 警告/0 错误）及全量测试全部通过（Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 225），无失败/跳过。
 
-## [ ] 12（P1）：建立列表、卡片与设置行组件族，仅用于 Style Gallery
+## [x] 12（P1）：建立列表、卡片与设置行组件族，仅用于 Style Gallery
 
 前置：6、7、11。
 
@@ -447,6 +447,13 @@ Working branch: experiment/visual-system-v2
 - 长标题、省略、Tooltip、AutomationName 和多状态组合测试通过。
 - 生成 `artifacts/visual-review/12/`。
 - 完整质量门禁通过。
+
+结果：
+
+- 新增 Gallery-only BookCard、ListRow、SelectableRow、SettingsRow、RuleListItem 和 EmptyState 自有组件及显式 App.Component.* 模板；组件只拥有内部结构和最小尺寸，不声明页面列宽。
+- 组件状态由自身依赖属性表达，Selected、CurrentPlayback、Hover、Focus 和 Disabled 使用独立视觉标记；Gallery 的 ItemsControl 使用可回收 VirtualizingStackPanel 提供虚拟化，选择状态不绑定容器实例。
+- list-components 场景覆盖长标题 CharacterEllipsis、Tooltip、AutomationName、各组件九种状态组合、Light/Dark 主题和固定 1280×820、96 DPI 截图；生成 artifacts/visual-review/12/manifest.json、list-components.light.png 和 list-components.dark.png，manifest SHA-256/尺寸/DPI 校验通过。
+- 任务 12 定向 WPF 契约和 Gallery 场景测试 28/28 通过；完整质量门禁通过：locked restore、format、Release build（0 警告/0 错误）及全量测试全部通过（Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 232），无失败/跳过。
 
 ## [ ] 13（P1）：建立导航、菜单、进度与反馈组件族，仅用于 Style Gallery
 

@@ -39,6 +39,10 @@ public static class GallerySceneRegistry
             "Explicit App.Input TextBox, PasswordBox, ComboBox, CheckBox and ToggleSwitch fixtures.",
             GallerySceneBuilders.CreateInputControls),
         new GallerySceneDefinition(
+            "list-components",
+            "Book cards, list rows, selection rows, settings rows, rule items and empty states.",
+            GallerySceneBuilders.CreateListComponents),
+        new GallerySceneDefinition(
             "placeholder-sections",
             "Reserved sections for the later visual component waves.",
             GallerySceneBuilders.CreatePlaceholderSections)
