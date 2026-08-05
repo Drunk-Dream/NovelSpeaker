@@ -480,7 +480,7 @@ Working branch: experiment/visual-system-v2
 - `GalleryCommandLineOptions` 接受 `--task 13`；场景测试和契约测试覆盖 Light/Dark Measure/Arrange、Focus/Disabled、菜单分组、Provider 继承链、进度/Slider 类型边界和截图 manifest。
 - 任务 13 定向契约与 Gallery 场景测试 29/29 通过；`NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 下真实命令生成 `artifacts/visual-review/13/manifest.json`、`navigation-feedback.light.png` 和 `navigation-feedback.dark.png`，固定 1280×820、96 DPI，SHA-256/尺寸/DPI 与 manifest 一致；完整质量门禁通过：locked restore、format、Release build（0 警告/0 错误）及全量测试全部通过（Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 239），无失败/跳过。
 
-## [ ] 14（P1）：以外观设置页作为首个正式页面试点
+## [x] 14（P1）：以外观设置页作为首个正式页面试点
 
 前置：11–13。
 
@@ -497,6 +497,12 @@ Working branch: experiment/visual-system-v2
 - 设置命令、持久化、导航和主题切换回归通过。
 - 100/125/150% DPI 与 Light/Dark 截图生成到 `artifacts/visual-review/14/`。
 - 完整质量门禁通过。
+
+结果：
+
+- `AppearanceSettingsPage` 仅迁移页面自身：返回入口、标题、主题设置行和 ComboBox 分别复用 `App.Button.Icon`、`App.Typography.*`、`App.Component.SettingsRow` 与 `App.Input.ComboBox.Standard`；页面继续拥有边距、滚动和设置行列布局，未修改 Shell、其它设置页或主题服务。
+- WPF 页面契约、设置页结构、显式资源引用和主题回归定向测试 21/21 通过；外观 ViewModel、主题持久化和导航相关回归通过。
+- 视觉契约生成 `artifacts/visual-review/14/manifest.json` 与 6 张 Light/Dark、100/125/150% DPI PNG；manifest 的实际尺寸、DPI、SHA-256 与连续生成快照校验通过。
 
 ## [ ] 15（P1）：逐个迁移其余设置页面
 

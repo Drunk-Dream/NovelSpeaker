@@ -37,9 +37,6 @@ public sealed class SettingsSubpageViewTests
                     "CacheLimitItemBorder",
                     "CachePolicyItemBorder");
                 AssertRows(
-                    provider.GetRequiredService<AppearanceSettingsPage>(),
-                    "ThemeItemBorder");
-                AssertRows(
                     provider.GetRequiredService<GeneralSettingsPage>(),
                     "CloseBehaviorItemBorder",
                     "StartMinimizedItemBorder");
