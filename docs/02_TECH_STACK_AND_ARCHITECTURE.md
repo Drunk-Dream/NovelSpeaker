@@ -136,14 +136,18 @@ Wpf.Ui 是标准 WPF/Wpf.Ui 控件的基础视觉提供者，NovelSpeaker 不复
 1. Wpf.Ui provider dictionaries：默认控件模板、Fluent 交互状态和框架主题资源。
 2. NovelSpeaker palette/tokens：语义颜色、稳定间距标尺、圆角、图标尺寸、最小控件尺寸和动效时长。
 3. Provider style bridge：将确实需要扩展的 Wpf.Ui 基础样式映射为显式、稳定的具名资源。
-4. NovelSpeaker explicit variants：`App.*` 具名样式，只覆盖必要属性，不以应用级隐式样式接管标准控件。
-5. NovelSpeaker components：书籍卡片、设置行、媒体控制条、页面标题等应用自有复合组件。
-6. Page layout：列宽、页面边距、工作台分栏和页面专用几何由 Shell、页面或组件中的唯一 owner 管理。
+4. NovelSpeaker explicit variants：按控件族集中维护的 `App.*` 具名样式，只覆盖必要属性，不以应用级隐式样式接管标准控件。
+5. NovelSpeaker shared controls：页面标题、设置行、表单字段和状态视图等跨 Feature 的应用自有控件；控件类位于 `Shared/Presentation/Controls`，默认模板位于 `Shared/Theming/Resources/ControlThemes`。
+6. Feature components：书籍卡片、规则列表项、播放视图和缓存章节项等领域视图，由对应 Feature 拥有。
+7. Page layout：列宽、页面边距、工作台分栏和页面专用几何由 Shell、页面或组件中的唯一 owner 管理。
 
 约束：
 
 - `Application.Resources` 和全局合并字典不得为标准 WPF/Wpf.Ui 控件定义 NovelSpeaker 隐式样式。
 - NovelSpeaker 自有 CustomControl 可以使用默认样式键；局部组件内部可使用受控隐式样式，但作用域不能逃逸。
+- Style Gallery fixture 只存在于开发工具，生产控件不得硬编码演示文本、命令或状态。
+- Style Gallery 按稳定资源族注册 scene，用于集中展示正式资源和自有控件；scene 身份不依赖 backlog 任务编号。
+- 正式页面截图由视觉测试宿主实例化真实 View，按稳定 page/window 身份输出；不得用 Gallery 页面仿制品替代。
 - 标准控件完整 `ControlTemplate` 由 Wpf.Ui 所有。确需替换时必须使用局部具名样式或应用自有组件，并有专项 WPF 契约测试。
 - 主题切换只更新 Wpf.Ui 主题和 NovelSpeaker palette；样式字典、模板字典和类型资源键保持加载稳定。
 - ViewModel 只投影语义状态，不返回 Brush、Style、Thickness、CornerRadius 或其它视觉类型。

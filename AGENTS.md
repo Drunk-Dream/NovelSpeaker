@@ -9,7 +9,7 @@
 - 文档入口和阅读顺序：`docs/README.md`
 - 产品范围：`docs/00_PROJECT_BRIEF.md`、`docs/01_PRODUCT_SCOPE.md`
 - 架构与代码组织：`docs/02_TECH_STACK_AND_ARCHITECTURE.md`
-- 专项设计：`docs/03_HTTP_TTS_COMPATIBILITY.md` 至 `docs/08_RUNTIME_AND_LIFECYCLE.md`、`docs/12_REGEX_REPLACEMENT_PIPELINE.md`
+- 专项设计：`docs/03_HTTP_TTS_COMPATIBILITY.md` 至 `docs/08_RUNTIME_AND_LIFECYCLE.md`、`docs/12_REGEX_REPLACEMENT_PIPELINE.md`、`docs/13_VISUAL_DESIGN_SYSTEM.md`
 - 测试与工程约定：`docs/09_TESTING_AND_QUALITY.md`、`docs/10_ENGINEERING_CONVENTIONS.md`
 - 决策和风险：`docs/11_DECISIONS_RISKS_OPEN_QUESTIONS.md`
 - 当前任务、依赖和状态：`docs/TASK_BACKLOG.md`
@@ -62,6 +62,7 @@ Codex 配置目录直接读取 `~/.codex/`。
 
 - `docs/06_UI_AND_USER_FLOWS.md`
 - `docs/07_SETTINGS_PAGES.md`
+- `docs/13_VISUAL_DESIGN_SYSTEM.md`
 - 正则替换相关任务另读 `docs/12_REGEX_REPLACEMENT_PIPELINE.md`
 
 若需求与设计文档冲突，先更新设计或记录经用户确认的偏离原因，再修改代码。不得通过新增并行页面、局部导航或重复交互绕过既有设计。
@@ -97,6 +98,8 @@ UI 事件和平台能力通过可测试的 presentation port 转交；不得在�
 - 已完成历史只在必要时移入 `docs/archives/`，归档不作为新实现依据。
 - 根目录 `README.md` 只描述当前已经实现的能力；规划中的功能不得提前写成可用能力。
 - 新的 backlog/任务验收不得把“手动验证”作为关闭条件；尽量用自动测试、架构检查、WPF 契约测试和发布包检查建立可重复证据。
+- Style Gallery 场景和截图按稳定资源族命名；正式界面截图按稳定页面/窗口身份命名。任何视觉产物路径不得使用 backlog 任务编号。
+- 页面截图必须来自正式 View 与确定性脱敏 fixture；Gallery 只展示资源族、控件族和样式族，不制作正式页面副本。
 
 ## 日常验证
 
