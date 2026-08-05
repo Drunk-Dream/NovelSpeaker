@@ -1,9 +1,11 @@
+using System.ComponentModel;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
@@ -22,19 +24,71 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed class StyleGallerySceneTests
 {
     [Fact]
-    public void Scene_registry_contains_the_initial_gallery_scenes_with_fixed_dimensions()
+    public void Scene_registry_groups_concrete_gallery_scenes_with_fixed_dimensions()
     {
         var scenes = GallerySceneRegistry.All;
 
         Assert.Equal(
-            ["button-styles", "input-controls", "list-components", "media-controls", "navigation-feedback", "palette-probe", "placeholder-sections", "provider-controls", "provider-style-probe", "theme-resource-probe", "token-components"],
+            ["button-styles", "input-controls", "list-components", "media-controls", "navigation-feedback", "palette-probe", "provider-controls", "provider-style-probe", "theme-resource-probe", "token-components"],
             scenes.Select(scene => scene.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(
+            ["Theme foundations", "Standard controls", "Component families"],
+            scenes.Select(scene => scene.GroupName).Distinct(StringComparer.Ordinal));
+        Assert.Equal(
+            ["provider-style-probe", "theme-resource-probe", "palette-probe", "token-components"],
+            scenes.Where(scene => scene.Group == GallerySceneGroup.ThemeFoundations)
+                .Select(scene => scene.Name));
+        Assert.Equal(
+            ["provider-controls", "button-styles", "input-controls"],
+            scenes.Where(scene => scene.Group == GallerySceneGroup.StandardControls)
+                .Select(scene => scene.Name));
+        Assert.Equal(
+            ["media-controls", "list-components", "navigation-feedback"],
+            scenes.Where(scene => scene.Group == GallerySceneGroup.ComponentFamilies)
+                .Select(scene => scene.Name));
+        Assert.DoesNotContain(scenes, scene => scene.Name == "placeholder-sections");
         Assert.All(scenes, scene =>
         {
             Assert.Equal(GalleryRenderSettings.WindowWidth, scene.Width);
             Assert.Equal(GalleryRenderSettings.WindowHeight, scene.Height);
         });
         Assert.Equal(96, GalleryRenderSettings.Dpi);
+    }
+
+    [Fact]
+    public void Gallery_window_scene_selector_exposes_the_three_scene_groups()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            var window = new GalleryWindow();
+            var selector = FindDescendants<ComboBox>((DependencyObject)window.Content!).Single();
+            var view = Assert.IsAssignableFrom<ICollectionView>(selector.ItemsSource);
+
+            Assert.Equal(
+                ["Theme foundations", "Standard controls", "Component families"],
+                view.Groups.Cast<CollectionViewGroup>().Select(group => group.Name));
+            Assert.Equal(10, view.Cast<GallerySceneDefinition>().Count());
+
+            var headerTemplate = Assert.Single(selector.GroupStyle).HeaderTemplate;
+            Assert.NotNull(headerTemplate);
+            Assert.Equal(
+                ["Theme foundations", "Standard controls", "Component families"],
+                view.Groups.Cast<CollectionViewGroup>()
+                    .Select(group =>
+                    {
+                        var headerHost = new ContentControl
+                        {
+                            Content = group,
+                            ContentTemplate = headerTemplate!
+                        };
+                        headerHost.Measure(new Size(240, 32));
+                        headerHost.Arrange(new Rect(0, 0, 240, 32));
+                        headerHost.UpdateLayout();
+                        var header = FindDescendants<WpfTextBlock>(headerHost).Single();
+                        return header.Text;
+                    }));
+        });
     }
 
     [Fact]

@@ -88,13 +88,6 @@ internal static class GallerySceneBuilders
             "Each explicit alias keeps the Wpf.Ui template and exposes its measurable interaction contract.",
             CreateProviderStyleProbeContent);
 
-    public static FrameworkElement CreatePlaceholderSections() =>
-        CreateSceneRoot(
-            "placeholder-sections",
-            "Reserved component sections",
-            "These areas intentionally remain placeholders until their dedicated backlog tasks.",
-            CreatePlaceholderContent);
-
     private static Grid CreateSceneRoot(
         string automationId,
         string title,
@@ -1409,52 +1402,6 @@ internal static class GallerySceneBuilders
         "Provider.NavigationViewItem",
         "Provider.Slider"
     ];
-
-    private static Panel CreatePlaceholderContent()
-    {
-        var content = new Grid();
-        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-
-        AddPlaceholder(content, "Palette", "Semantic colors, surfaces and status tones", 0, 0);
-        AddPlaceholder(content, "Components", "Buttons, inputs, lists and feedback", 1, 0);
-        AddPlaceholder(content, "Layout contracts", "Fixed geometry, focus and accessibility probes", 0, 1);
-        AddPlaceholder(content, "Future gallery scenes", "Reserved for later backlog tasks", 1, 1);
-        return content;
-    }
-
-    private static void AddPlaceholder(Grid parent, string title, string description, int column, int row)
-    {
-        var surface = CreateSurface();
-        surface.Margin = new Thickness(
-            column == 0 ? 0 : SectionGap / 2,
-            row == 0 ? 0 : SectionGap / 2,
-            column == 1 ? 0 : SectionGap / 2,
-            row == 1 ? 0 : SectionGap / 2);
-        surface.Child = new StackPanel
-        {
-            Children =
-            {
-                CreateSurfaceLabel(title),
-                new TextBlock
-                {
-                    Text = description,
-                    TextWrapping = TextWrapping.Wrap,
-                    Margin = new Thickness(0, 12, 0, 0)
-                }.WithResource(TextBlock.ForegroundProperty, "GallerySecondaryTextBrush"),
-                new TextBlock
-                {
-                    Text = "Placeholder · task 03",
-                    Margin = new Thickness(0, 24, 0, 0)
-                }.WithResource(TextBlock.ForegroundProperty, "GalleryTertiaryTextBrush")
-            }
-        };
-        Grid.SetColumn(surface, column);
-        Grid.SetRow(surface, row);
-        parent.Children.Add(surface);
-    }
 
     private static Border CreateSurface()
     {

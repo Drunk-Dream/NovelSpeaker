@@ -1,6 +1,8 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
 
 namespace NovelSpeaker.StyleGallery;
@@ -26,13 +28,25 @@ public sealed class GalleryWindow : Window
         UseLayoutRounding = true;
         SnapsToDevicePixels = true;
 
+        var sceneView = new ListCollectionView(GallerySceneRegistry.All.ToList());
+        sceneView.SortDescriptions.Add(
+            new SortDescription(nameof(GallerySceneDefinition.GroupOrder), ListSortDirection.Ascending));
+        sceneView.SortDescriptions.Add(
+            new SortDescription(nameof(GallerySceneDefinition.Name), ListSortDirection.Ascending));
+        sceneView.GroupDescriptions.Add(
+            new PropertyGroupDescription(nameof(GallerySceneDefinition.GroupName)));
+
         _sceneSelector = new ComboBox
         {
             Width = 240,
-            ItemsSource = GallerySceneRegistry.All,
+            ItemsSource = sceneView,
             DisplayMemberPath = nameof(GallerySceneDefinition.Name),
             SelectedIndex = 0
         };
+        _sceneSelector.GroupStyle.Add(new GroupStyle
+        {
+            HeaderTemplate = CreateSceneGroupHeaderTemplate()
+        });
         AutomationProperties.SetName(_sceneSelector, "Style Gallery scene selector");
         _sceneSelector.SelectionChanged += OnSceneSelectionChanged;
 
@@ -117,5 +131,19 @@ public sealed class GalleryWindow : Window
         {
             _sceneHost.Content = scene.Create();
         }
+    }
+
+    private static DataTemplate CreateSceneGroupHeaderTemplate()
+    {
+        var header = new FrameworkElementFactory(typeof(TextBlock));
+        header.SetValue(TextBlock.FontWeightProperty, FontWeights.SemiBold);
+        header.SetValue(TextBlock.MarginProperty, new Thickness(8, 8, 8, 4));
+        header.SetResourceReference(TextBlock.ForegroundProperty, "GallerySecondaryTextBrush");
+        header.SetBinding(TextBlock.TextProperty, new Binding(nameof(CollectionViewGroup.Name)));
+
+        return new DataTemplate
+        {
+            VisualTree = header
+        };
     }
 }

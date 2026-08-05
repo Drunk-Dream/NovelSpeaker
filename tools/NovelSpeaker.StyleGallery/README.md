@@ -2,6 +2,8 @@
 
 The Style Gallery is a WPF development and visual-review host. It consumes the production App's shared theme dictionaries and reusable component primitives together with deterministic in-memory fixture text; the production application does not reference the Gallery, and the Gallery is not part of the production publish graph.
 
+The interactive scene selector groups concrete scenes into Theme foundations, Standard controls and Component families. The former task-03 placeholder page has been removed now that each component family has a dedicated fixture.
+
 From the repository root, generate both themes and a task 7, 8, 11, 12 or 13 scene with:
 
 ```powershell
