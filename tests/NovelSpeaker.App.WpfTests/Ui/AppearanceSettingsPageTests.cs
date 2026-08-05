@@ -78,7 +78,7 @@ public sealed class AppearanceSettingsPageTests
     }
 
     [Fact]
-    public void Task14_visual_review_generates_light_dark_and_supported_dpi_screenshots()
+    public void Appearance_settings_visual_review_generates_stable_page_screenshots()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {
@@ -91,7 +91,8 @@ public sealed class AppearanceSettingsPageTests
                 LocateRepositoryRoot(),
                 "artifacts",
                 "visual-review",
-                "14");
+                "pages",
+                "appearance-settings");
             Directory.CreateDirectory(outputDirectory);
             var repositoryRoot = LocateRepositoryRoot();
             var expectedGitCommit = ReadGitCommit(repositoryRoot);
@@ -154,7 +155,7 @@ public sealed class AppearanceSettingsPageTests
             }
 
             var manifest = new AppearanceVisualReviewManifest(
-                "14",
+                "appearance-settings",
                 "NovelSpeaker.App.WpfTests",
                 gitCommit,
                 960,
@@ -174,7 +175,7 @@ public sealed class AppearanceSettingsPageTests
     {
         using var stream = File.OpenRead(Path.Combine(outputDirectory, "manifest.json"));
         return JsonSerializer.Deserialize<AppearanceVisualReviewManifest>(stream)
-            ?? throw new InvalidDataException("Task 14 visual review manifest was empty.");
+            ?? throw new InvalidDataException("Appearance settings visual review manifest was empty.");
     }
 
     private static void AssertManifestMatchesPngs(
@@ -182,7 +183,7 @@ public sealed class AppearanceSettingsPageTests
         string outputDirectory,
         string expectedGitCommit)
     {
-        Assert.Equal("14", manifest.Task);
+        Assert.Equal("appearance-settings", manifest.ArtifactId);
         Assert.Equal("NovelSpeaker.App.WpfTests", manifest.Tool);
         Assert.Equal(expectedGitCommit, manifest.GitCommit);
         Assert.Equal(960, manifest.WindowWidth);
@@ -220,7 +221,7 @@ public sealed class AppearanceSettingsPageTests
         {
             JsonSerializer.Serialize(new
             {
-                manifest.Task,
+                manifest.ArtifactId,
                 manifest.Tool,
                 manifest.GitCommit,
                 manifest.WindowWidth,
@@ -348,7 +349,7 @@ public sealed class AppearanceSettingsPageTests
         commit.All(Uri.IsHexDigit);
 
     private sealed record AppearanceVisualReviewManifest(
-        string Task,
+        string ArtifactId,
         string Tool,
         string GitCommit,
         int WindowWidth,

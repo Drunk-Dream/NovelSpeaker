@@ -92,29 +92,26 @@ public sealed class StyleGallerySceneTests
     }
 
     [Fact]
-    public void Gallery_task_defaults_to_03_and_accepts_explicit_tasks_04_through_13()
+    public void Gallery_screenshot_options_use_stable_scene_ids_and_family_outputs()
     {
         var defaultOptions = GalleryCommandLineOptions.Parse(["--screenshot"]);
-        var task04Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "04"]);
-        var task05Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "05"]);
-        var task06Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "06"]);
-        var task07Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "07"]);
-        var task08Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "08"]);
-        var task11Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "11"]);
-        var task12Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "12"]);
-        var task13Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "13"]);
+        var sceneOptions = GalleryCommandLineOptions.Parse(
+        [
+            "--screenshot",
+            "--scene",
+            "button-styles",
+            "--output",
+            Path.Combine("artifacts", "visual-review", "gallery", "buttons")
+        ]);
 
-        Assert.Equal("03", defaultOptions.Task);
-        Assert.Equal(Path.Combine("artifacts", "visual-review", "03"), defaultOptions.OutputDirectory);
-        Assert.Equal("04", task04Options.Task);
-        Assert.Equal("05", task05Options.Task);
-        Assert.Equal("06", task06Options.Task);
-        Assert.Equal("07", task07Options.Task);
-        Assert.Equal("08", task08Options.Task);
-        Assert.Equal("11", task11Options.Task);
-        Assert.Equal("12", task12Options.Task);
-        Assert.Equal("13", task13Options.Task);
-        Assert.Equal(Path.Combine("artifacts", "visual-review", "13"), task13Options.OutputDirectory);
+        Assert.Equal(
+            Path.Combine("artifacts", "visual-review", "gallery"),
+            defaultOptions.OutputDirectory);
+        Assert.Null(defaultOptions.SceneName);
+        Assert.Equal("button-styles", sceneOptions.SceneName);
+        Assert.Equal(
+            Path.Combine("artifacts", "visual-review", "gallery", "buttons"),
+            sceneOptions.OutputDirectory);
     }
 
     [Theory]
@@ -722,7 +719,7 @@ public sealed class StyleGallerySceneTests
     }
 
     [Fact]
-    public async Task Screenshot_generator_writes_explicit_task_04_to_manifest()
+    public async Task Screenshot_generator_writes_provider_scene_manifest()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {
@@ -736,8 +733,6 @@ public sealed class StyleGallerySceneTests
             var options = GalleryCommandLineOptions.Parse(
             [
                 "--screenshot",
-                "--task",
-                "04",
                 "--theme",
                 "all",
                 "--scene",
@@ -755,7 +750,6 @@ public sealed class StyleGallerySceneTests
                 await AssertManifestMatchesPngsAsync(
                     manifest,
                     output.Path,
-                    "04",
                     ["provider-style-probe"],
                     cancellation.Token);
             }
@@ -770,7 +764,7 @@ public sealed class StyleGallerySceneTests
     }
 
     [Fact]
-    public async Task Screenshot_generator_writes_explicit_task_05_palette_scene_to_manifest()
+    public async Task Screenshot_generator_writes_palette_scene_manifest()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {
@@ -784,8 +778,6 @@ public sealed class StyleGallerySceneTests
             var options = GalleryCommandLineOptions.Parse(
             [
                 "--screenshot",
-                "--task",
-                "05",
                 "--theme",
                 "all",
                 "--scene",
@@ -803,7 +795,6 @@ public sealed class StyleGallerySceneTests
                 await AssertManifestMatchesPngsAsync(
                     manifest,
                     output.Path,
-                    "05",
                     ["palette-probe"],
                     cancellation.Token);
             }
@@ -818,7 +809,7 @@ public sealed class StyleGallerySceneTests
     }
 
     [Fact]
-    public async Task Screenshot_generator_writes_explicit_task_07_button_scene_to_manifest()
+    public async Task Screenshot_generator_writes_button_scene_manifest()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {
@@ -832,8 +823,6 @@ public sealed class StyleGallerySceneTests
             var options = GalleryCommandLineOptions.Parse(
             [
                 "--screenshot",
-                "--task",
-                "07",
                 "--theme",
                 "all",
                 "--scene",
@@ -851,7 +840,6 @@ public sealed class StyleGallerySceneTests
                 await AssertManifestMatchesPngsAsync(
                     manifest,
                     output.Path,
-                    "07",
                     ["button-styles"],
                     cancellation.Token);
             }
@@ -866,7 +854,7 @@ public sealed class StyleGallerySceneTests
     }
 
     [Fact]
-    public async Task Screenshot_generator_writes_explicit_task_11_input_controls_scene_to_manifest()
+    public async Task Screenshot_generator_writes_input_controls_scene_manifest()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {
@@ -880,8 +868,6 @@ public sealed class StyleGallerySceneTests
             var options = GalleryCommandLineOptions.Parse(
             [
                 "--screenshot",
-                "--task",
-                "11",
                 "--theme",
                 "all",
                 "--scene",
@@ -899,7 +885,6 @@ public sealed class StyleGallerySceneTests
                 await AssertManifestMatchesPngsAsync(
                     manifest,
                     output.Path,
-                    "11",
                     ["input-controls"],
                     cancellation.Token);
             }
@@ -914,7 +899,7 @@ public sealed class StyleGallerySceneTests
     }
 
     [Fact]
-    public async Task Screenshot_generator_writes_explicit_task_12_list_components_scene_to_manifest()
+    public async Task Screenshot_generator_writes_list_components_scene_manifest()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {
@@ -928,8 +913,6 @@ public sealed class StyleGallerySceneTests
             var options = GalleryCommandLineOptions.Parse(
             [
                 "--screenshot",
-                "--task",
-                "12",
                 "--theme",
                 "all",
                 "--scene",
@@ -947,7 +930,6 @@ public sealed class StyleGallerySceneTests
                 await AssertManifestMatchesPngsAsync(
                     manifest,
                     output.Path,
-                    "12",
                     ["list-components"],
                     cancellation.Token);
             }
@@ -962,7 +944,7 @@ public sealed class StyleGallerySceneTests
     }
 
     [Fact]
-    public async Task Screenshot_generator_writes_explicit_task_13_navigation_feedback_scene_to_manifest()
+    public async Task Screenshot_generator_writes_navigation_feedback_scene_manifest()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {
@@ -976,8 +958,6 @@ public sealed class StyleGallerySceneTests
             var options = GalleryCommandLineOptions.Parse(
             [
                 "--screenshot",
-                "--task",
-                "13",
                 "--theme",
                 "all",
                 "--scene",
@@ -995,7 +975,6 @@ public sealed class StyleGallerySceneTests
                 await AssertManifestMatchesPngsAsync(
                     manifest,
                     output.Path,
-                    "13",
                     ["navigation-feedback"],
                     cancellation.Token);
             }
@@ -1077,7 +1056,6 @@ public sealed class StyleGallerySceneTests
         await AssertManifestMatchesPngsAsync(
             manifest,
             outputDirectory,
-            "03",
             GallerySceneRegistry.All.Select(scene => scene.Name).ToArray(),
             cancellationToken);
     }
@@ -1085,11 +1063,14 @@ public sealed class StyleGallerySceneTests
     private static async Task AssertManifestMatchesPngsAsync(
         GalleryManifest manifest,
         string outputDirectory,
-        string expectedTask,
         IReadOnlyCollection<string> expectedSceneNames,
         CancellationToken cancellationToken)
     {
-        Assert.Equal(expectedTask, manifest.Task);
+        Assert.Equal(
+            expectedSceneNames.Count == GallerySceneRegistry.All.Count
+                ? "gallery"
+                : Assert.Single(expectedSceneNames),
+            manifest.ArtifactId);
         Assert.Equal("NovelSpeaker.StyleGallery", manifest.Tool);
         Assert.Equal(GalleryRenderSettings.WindowWidth, manifest.WindowWidth);
         Assert.Equal(GalleryRenderSettings.WindowHeight, manifest.WindowHeight);

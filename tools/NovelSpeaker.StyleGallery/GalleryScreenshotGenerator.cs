@@ -63,7 +63,7 @@ public sealed class GalleryScreenshotGenerator
         }
 
         var manifest = new GalleryManifest(
-            options.Task,
+            options.SceneName ?? "gallery",
             "NovelSpeaker.StyleGallery",
             GalleryRenderSettings.WindowWidth,
             GalleryRenderSettings.WindowHeight,
@@ -94,7 +94,7 @@ public sealed class GalleryScreenshotGenerator
 }
 
 public sealed record GalleryManifest(
-    string Task,
+    string ArtifactId,
     string Tool,
     int WindowWidth,
     int WindowHeight,

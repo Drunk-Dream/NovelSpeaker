@@ -23,26 +23,28 @@ public sealed class MediaControlStyleTests
     ];
 
     [Fact]
-    public void Gallery_command_line_accepts_explicit_task_08_media_scene()
+    public void Gallery_command_line_accepts_stable_media_scene_id()
     {
         var options = GalleryCommandLineOptions.Parse(
         [
             "--screenshot",
-            "--task",
-            "08",
             "--theme",
             "all",
             "--scene",
-            "media-controls"
+            "media-controls",
+            "--output",
+            Path.Combine("artifacts", "visual-review", "gallery", "media")
         ]);
 
-        Assert.Equal("08", options.Task);
+        Assert.Equal(
+            Path.Combine("artifacts", "visual-review", "gallery", "media"),
+            options.OutputDirectory);
         Assert.Equal("media-controls", options.SceneName);
         Assert.Equal(GalleryThemeChoice.All, options.Theme);
     }
 
     [Fact]
-    public async Task Screenshot_generator_writes_explicit_task_08_media_scene_manifest()
+    public async Task Screenshot_generator_writes_media_scene_manifest()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {
@@ -56,8 +58,6 @@ public sealed class MediaControlStyleTests
             var options = GalleryCommandLineOptions.Parse(
             [
                 "--screenshot",
-                "--task",
-                "08",
                 "--theme",
                 "all",
                 "--scene",
@@ -74,7 +74,7 @@ public sealed class MediaControlStyleTests
                     options,
                     cancellation.Token);
 
-                Assert.Equal("08", manifest.Task);
+                Assert.Equal("media-controls", manifest.ArtifactId);
                 Assert.Equal(
                     ["Dark", "Light"],
                     manifest.Scenes.Select(scene => scene.Theme).Order(StringComparer.Ordinal));

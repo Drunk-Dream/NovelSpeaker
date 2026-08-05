@@ -495,7 +495,7 @@ public sealed class MiniPlayerWindowTests
     }
 
     [Fact]
-    public void Task10_visual_review_generates_light_dark_context_and_dpi_screenshots()
+    public void Mini_player_visual_review_generates_stable_window_screenshots()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {
@@ -508,7 +508,8 @@ public sealed class MiniPlayerWindowTests
                 LocateRepositoryRoot(),
                 "artifacts",
                 "visual-review",
-                "10");
+                "windows",
+                "mini-player");
             Directory.CreateDirectory(outputDirectory);
             var expectedGitCommit = ReadGitCommit(LocateRepositoryRoot());
             GenerateVisualReview(outputDirectory, expectedGitCommit);
@@ -649,7 +650,7 @@ public sealed class MiniPlayerWindowTests
             }
 
             var manifest = new MiniPlayerVisualReviewManifest(
-                "10",
+                "mini-player",
                 "NovelSpeaker.App.WpfTests",
                 gitCommit,
                 480,
@@ -671,7 +672,7 @@ public sealed class MiniPlayerWindowTests
     {
         using var stream = File.OpenRead(Path.Combine(outputDirectory, "manifest.json"));
         return JsonSerializer.Deserialize<MiniPlayerVisualReviewManifest>(stream)
-            ?? throw new InvalidDataException("Task 09 visual review manifest was empty.");
+            ?? throw new InvalidDataException("Mini player visual review manifest was empty.");
     }
 
     private static void AssertManifestMatchesPngs(
@@ -679,7 +680,7 @@ public sealed class MiniPlayerWindowTests
         string outputDirectory,
         string expectedGitCommit)
     {
-        Assert.Equal("10", manifest.Task);
+        Assert.Equal("mini-player", manifest.ArtifactId);
         Assert.Equal("NovelSpeaker.App.WpfTests", manifest.Tool);
         Assert.Equal(expectedGitCommit, manifest.GitCommit);
         Assert.True(IsValidGitCommit(manifest.GitCommit));
@@ -725,7 +726,7 @@ public sealed class MiniPlayerWindowTests
         {
             JsonSerializer.Serialize(new
             {
-                manifest.Task,
+                manifest.ArtifactId,
                 manifest.Tool,
                 manifest.GitCommit,
                 manifest.WindowWidth,
@@ -884,7 +885,7 @@ public sealed class MiniPlayerWindowTests
         FakeAppSettingsService Settings);
 
     private sealed record MiniPlayerVisualReviewManifest(
-        string Task,
+        string ArtifactId,
         string Tool,
         string GitCommit,
         int WindowWidth,
