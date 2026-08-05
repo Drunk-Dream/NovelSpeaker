@@ -43,6 +43,10 @@ public static class GallerySceneRegistry
             "Book cards, list rows, selection rows, settings rows, rule items and empty states.",
             GallerySceneBuilders.CreateListComponents),
         new GallerySceneDefinition(
+            "navigation-feedback",
+            "Navigation entries, menus, progress, transient surfaces and request states.",
+            GallerySceneBuilders.CreateNavigationFeedback),
+        new GallerySceneDefinition(
             "placeholder-sections",
             "Reserved sections for the later visual component waves.",
             GallerySceneBuilders.CreatePlaceholderSections)

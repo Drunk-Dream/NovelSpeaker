@@ -14,6 +14,7 @@
                 <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/ButtonStyles.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/SliderStyles.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/ComponentStyles.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/NavigationFeedbackStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

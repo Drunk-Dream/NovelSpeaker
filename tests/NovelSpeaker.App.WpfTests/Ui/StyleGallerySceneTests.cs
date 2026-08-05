@@ -27,7 +27,7 @@ public sealed class StyleGallerySceneTests
         var scenes = GallerySceneRegistry.All;
 
         Assert.Equal(
-            ["button-styles", "input-controls", "list-components", "media-controls", "palette-probe", "placeholder-sections", "provider-controls", "provider-style-probe", "theme-resource-probe", "token-components"],
+            ["button-styles", "input-controls", "list-components", "media-controls", "navigation-feedback", "palette-probe", "placeholder-sections", "provider-controls", "provider-style-probe", "theme-resource-probe", "token-components"],
             scenes.Select(scene => scene.Name).Order(StringComparer.Ordinal));
         Assert.All(scenes, scene =>
         {
@@ -38,7 +38,7 @@ public sealed class StyleGallerySceneTests
     }
 
     [Fact]
-    public void Gallery_task_defaults_to_03_and_accepts_explicit_tasks_04_through_11()
+    public void Gallery_task_defaults_to_03_and_accepts_explicit_tasks_04_through_13()
     {
         var defaultOptions = GalleryCommandLineOptions.Parse(["--screenshot"]);
         var task04Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "04"]);
@@ -48,6 +48,7 @@ public sealed class StyleGallerySceneTests
         var task08Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "08"]);
         var task11Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "11"]);
         var task12Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "12"]);
+        var task13Options = GalleryCommandLineOptions.Parse(["--screenshot", "--task", "13"]);
 
         Assert.Equal("03", defaultOptions.Task);
         Assert.Equal(Path.Combine("artifacts", "visual-review", "03"), defaultOptions.OutputDirectory);
@@ -58,6 +59,8 @@ public sealed class StyleGallerySceneTests
         Assert.Equal("08", task08Options.Task);
         Assert.Equal("11", task11Options.Task);
         Assert.Equal("12", task12Options.Task);
+        Assert.Equal("13", task13Options.Task);
+        Assert.Equal(Path.Combine("artifacts", "visual-review", "13"), task13Options.OutputDirectory);
     }
 
     [Theory]
@@ -892,6 +895,54 @@ public sealed class StyleGallerySceneTests
                     output.Path,
                     "12",
                     ["list-components"],
+                    cancellation.Token);
+            }
+            finally
+            {
+                if (window.IsVisible)
+                {
+                    window.Close();
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Screenshot_generator_writes_explicit_task_13_navigation_feedback_scene_to_manifest()
+    {
+        if (!VisualArtifactTestGuard.IsEnabled)
+        {
+            return;
+        }
+
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            using var output = new TemporaryOutputDirectory();
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var options = GalleryCommandLineOptions.Parse(
+            [
+                "--screenshot",
+                "--task",
+                "13",
+                "--theme",
+                "all",
+                "--scene",
+                "navigation-feedback",
+                "--output",
+                output.Path
+            ]);
+            var window = new GalleryWindow();
+            try
+            {
+                WpfWindowHost.Show(window);
+                await new GalleryScreenshotGenerator().GenerateAsync(window, options, cancellation.Token);
+                var manifest = await ReadManifestAsync(output.ManifestPath, cancellation.Token);
+
+                await AssertManifestMatchesPngsAsync(
+                    manifest,
+                    output.Path,
+                    "13",
+                    ["navigation-feedback"],
                     cancellation.Token);
             }
             finally

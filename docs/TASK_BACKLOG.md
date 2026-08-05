@@ -455,7 +455,7 @@ Working branch: experiment/visual-system-v2
 - list-components 场景覆盖长标题 CharacterEllipsis、Tooltip、AutomationName、各组件九种状态组合、Light/Dark 主题和固定 1280×820、96 DPI 截图；生成 artifacts/visual-review/12/manifest.json、list-components.light.png 和 list-components.dark.png，manifest SHA-256/尺寸/DPI 校验通过。
 - 任务 12 定向 WPF 契约和 Gallery 场景测试 28/28 通过；完整质量门禁通过：locked restore、format、Release build（0 警告/0 错误）及全量测试全部通过（Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 232），无失败/跳过。
 
-## [ ] 13（P1）：建立导航、菜单、进度与反馈组件族，仅用于 Style Gallery
+## [x] 13（P1）：建立导航、菜单、进度与反馈组件族，仅用于 Style Gallery
 
 前置：4–7、12。
 
@@ -472,6 +472,13 @@ Working branch: experiment/visual-system-v2
 - 进度与 Slider 视觉和行为不混用。
 - 生成 `artifacts/visual-review/13/`。
 - 完整质量门禁通过。
+
+结果：
+
+- 新增 Gallery-only `App.Navigation.Entry`、`App.Menu.*`、`App.Feedback.ProgressBar` 及 FlyoutSurface、DialogShell、SnackbarContent、LoadingState、ErrorState、NoResultState；标准控件继续通过 Provider 模板，未修改生产全局 `NavigationViewItem` 样式或正式页面。
+- `navigation-feedback` 场景覆盖显式 Provider 导航条目、Danger 分组与中性 Close、独立 ProgressBar/Slider、raised flyout、单决定 Dialog、非阻塞 Snackbar 和统一请求状态；Dialog fixture 的默认/取消按钮及 Escape dismissal 由契约测试固定。
+- `GalleryCommandLineOptions` 接受 `--task 13`；场景测试和契约测试覆盖 Light/Dark Measure/Arrange、Focus/Disabled、菜单分组、Provider 继承链、进度/Slider 类型边界和截图 manifest。
+- 任务 13 定向契约与 Gallery 场景测试 29/29 通过；`NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 下真实命令生成 `artifacts/visual-review/13/manifest.json`、`navigation-feedback.light.png` 和 `navigation-feedback.dark.png`，固定 1280×820、96 DPI，SHA-256/尺寸/DPI 与 manifest 一致；完整质量门禁通过：locked restore、format、Release build（0 警告/0 错误）及全量测试全部通过（Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 239），无失败/跳过。
 
 ## [ ] 14（P1）：以外观设置页作为首个正式页面试点
 

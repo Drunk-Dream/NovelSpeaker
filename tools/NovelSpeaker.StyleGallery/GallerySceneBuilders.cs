@@ -74,6 +74,13 @@ internal static class GallerySceneBuilders
             "Gallery-only BookCard, ListRow, SelectableRow, SettingsRow, RuleListItem and EmptyState components keep state ownership independent from virtualized containers.",
             GalleryListComponentScene.Create);
 
+    public static FrameworkElement CreateNavigationFeedback() =>
+        CreateSceneRoot(
+            "navigation-feedback",
+            "Navigation, menus and feedback components",
+            "Gallery-only explicit styles keep provider templates intact while making focus, dismissal, progress and request states measurable.",
+            GalleryNavigationFeedbackScene.Create);
+
     public static FrameworkElement CreateProviderStyleProbe() =>
         CreateSceneRoot(
             "provider-style-probe",
