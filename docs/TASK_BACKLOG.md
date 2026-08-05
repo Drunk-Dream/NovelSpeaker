@@ -156,7 +156,7 @@ artifacts/visual-review/windows/<window-id>/
 
 ---
 
-## [ ] 1（P0）：建立资源清单与架构守卫
+## [x] 1（P0）：建立资源清单与架构守卫
 
 前置：无。
 
@@ -178,6 +178,12 @@ artifacts/visual-review/windows/<window-id>/
 - 新增资源图/键唯一性/隐式 Style/生产 fixture 守卫测试。
 - 现有应用、Style Gallery 和全部测试项目可构建。
 - 完整质量门禁通过。
+
+结果：
+
+- 新增 VisualResourceGraphTests，扫描 App、Style Gallery 和 WPF 测试 XAML，校验正式键前缀/唯一性、正式引用闭合、生产控件 fixture 和 App 资源层级顺序；保留现有样式所有权守卫作为标准控件与 Token 的专项检查。迁移期间的旧 Shared/Theming/Components 伪控件 fixture 单独记录为 legacy debt，由任务 11 删除，不作为最终控件基线。
+- 验证通过：`dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore`（0 警告/0 错误）、`dotnet test -c Release --no-build`（Domain 2、Application 208、Infrastructure 343、Presentation 382、WPF 247），以及最新定向架构测试 19/19。
+- 本切片未改变运行时资源加载、视觉引用或截图工具，也未生成视觉产物；任务 2 继续负责目录骨架和 Legacy 迁移。
 
 ## [ ] 2（P0）：建立最终目录骨架和临时 Legacy 层
 
