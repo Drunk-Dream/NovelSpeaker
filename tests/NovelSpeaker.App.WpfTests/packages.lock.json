@@ -219,6 +219,7 @@
       "novelspeaker.stylegallery": {
         "type": "Project",
         "dependencies": {
+          "NovelSpeaker.App": "[0.4.2, )",
           "wpf-ui": "[4.3.0, )"
         }
       },

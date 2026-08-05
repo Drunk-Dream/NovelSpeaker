@@ -3,7 +3,7 @@ using System.Windows.Threading;
 
 namespace NovelSpeaker.StyleGallery;
 
-public partial class GalleryApp : Application
+public partial class GalleryApp : System.Windows.Application
 {
     public GalleryApp()
     {

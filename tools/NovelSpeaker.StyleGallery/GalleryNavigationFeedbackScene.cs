@@ -3,6 +3,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using MenuItem = System.Windows.Controls.MenuItem;
+using NovelSpeaker.App.Shared.Theming.Components;
 using WpfButton = System.Windows.Controls.Button;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 using Wpf.Ui.Controls;
@@ -15,7 +16,7 @@ internal static class GalleryNavigationFeedbackScene
         () => new ResourceDictionary
         {
             Source = new Uri(
-                "/NovelSpeaker.StyleGallery;component/Resources/NavigationFeedbackStyles.xaml",
+                "/NovelSpeaker.App;component/Shared/Theming/Resources/NavigationFeedbackStyles.xaml",
                 UriKind.RelativeOrAbsolute)
         });
 
@@ -28,7 +29,7 @@ internal static class GalleryNavigationFeedbackScene
             Focusable = false
         };
         AutomationProperties.SetAutomationId(scrollViewer, "navigation-feedback-scroll-viewer");
-        if (Application.Current?.TryFindResource("App.Feedback.SurfaceBase") is null)
+        if (System.Windows.Application.Current?.TryFindResource("App.Feedback.SurfaceBase") is null)
         {
             scrollViewer.Resources.MergedDictionaries.Add(FeedbackResources.Value);
         }
@@ -251,7 +252,7 @@ internal static class GalleryNavigationFeedbackScene
         content.Children.Add(snackbar);
 
         var states = new WrapPanel { Orientation = Orientation.Horizontal };
-        foreach (var (state, styleKey) in new (GalleryFeedbackStatusBase state, string styleKey)[]
+        foreach (var (state, styleKey) in new (FeedbackStatusBase state, string styleKey)[]
                  {
                      (new LoadingState(), "App.Feedback.Loading"),
                      (new ErrorState(), "App.Feedback.Error"),
@@ -280,7 +281,7 @@ internal static class GalleryNavigationFeedbackScene
     }
 
     private static Style FindResource(string key) =>
-        Application.Current?.TryFindResource(key) as Style
+        System.Windows.Application.Current?.TryFindResource(key) as Style
         ?? FeedbackResources.Value[key] as Style
         ?? throw new InvalidOperationException($"Gallery feedback resource '{key}' was not found.");
 
@@ -320,4 +321,14 @@ internal static class GalleryNavigationFeedbackScene
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 4)
         }.WithFeedbackResource(WpfTextBlock.ForegroundProperty, "SecondaryTextBrush");
+}
+
+internal static class GalleryFeedbackResourceExtensions
+{
+    public static T WithFeedbackResource<T>(this T element, DependencyProperty property, object resourceKey)
+        where T : FrameworkElement
+    {
+        element.SetResourceReference(property, resourceKey);
+        return element;
+    }
 }

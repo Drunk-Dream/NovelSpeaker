@@ -6,6 +6,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Xml.Linq;
+using NovelSpeaker.App.Shared.Theming.Components;
 using NovelSpeaker.StyleGallery;
 using Xunit;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
@@ -40,8 +41,10 @@ public sealed class ListComponentStyleContractTests
     {
         var path = Path.Combine(
             LocateRepositoryRoot(),
-            "tools",
-            "NovelSpeaker.StyleGallery",
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
             "Resources",
             "ComponentStyles.xaml");
         var document = XDocument.Load(path);
@@ -66,11 +69,11 @@ public sealed class ListComponentStyleContractTests
     }
 
     [Fact]
-    public void Components_own_default_content_without_gallery_content_injection()
+    public void Components_own_default_content_without_scene_content_injection()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var components = new GalleryComponentBase[]
+            var components = new AppComponentBase[]
             {
                 new BookCard(),
                 new ListRow(),
@@ -108,7 +111,7 @@ public sealed class ListComponentStyleContractTests
             });
 
             host.Window.UpdateLayout();
-            var components = FindDescendants<GalleryComponentBase>(scene)
+            var components = FindDescendants<AppComponentBase>(scene)
                 .Where(component => !AutomationProperties.GetAutomationId(component).StartsWith(
                     "virtualized-",
                     StringComparison.Ordinal))
@@ -202,7 +205,7 @@ public sealed class ListComponentStyleContractTests
             host.Window.UpdateLayout();
 
             var selected = FindComponent(
-                FindDescendants<GalleryComponentBase>(scene)
+                FindDescendants<AppComponentBase>(scene)
                     .Where(component => !AutomationProperties.GetAutomationId(component).StartsWith(
                         "virtualized-",
                         StringComparison.Ordinal) && component is BookCard),
@@ -215,7 +218,7 @@ public sealed class ListComponentStyleContractTests
             Assert.Equal(Visibility.Collapsed, selectedPlaybackMarker.Visibility);
 
             var selectedPlaying = FindComponent(
-                FindDescendants<GalleryComponentBase>(scene)
+                FindDescendants<AppComponentBase>(scene)
                     .Where(component => !AutomationProperties.GetAutomationId(component).StartsWith(
                         "virtualized-",
                         StringComparison.Ordinal) && component is BookCard),
@@ -230,7 +233,7 @@ public sealed class ListComponentStyleContractTests
                     selectedPlaying.Template.FindName("PlaybackMarker", selectedPlaying)).Visibility);
 
             var selectedHover = FindComponent(
-                FindDescendants<GalleryComponentBase>(scene)
+                FindDescendants<AppComponentBase>(scene)
                     .Where(component => !AutomationProperties.GetAutomationId(component).StartsWith(
                         "virtualized-",
                         StringComparison.Ordinal) && component is BookCard),
@@ -245,7 +248,7 @@ public sealed class ListComponentStyleContractTests
                     selectedHover.Template.FindName("SelectedMarker", selectedHover)).Visibility);
 
             var playingHover = FindComponent(
-                FindDescendants<GalleryComponentBase>(scene)
+                FindDescendants<AppComponentBase>(scene)
                     .Where(component => !AutomationProperties.GetAutomationId(component).StartsWith(
                         "virtualized-",
                         StringComparison.Ordinal) && component is BookCard),
@@ -307,8 +310,8 @@ public sealed class ListComponentStyleContractTests
         });
     }
 
-    private static GalleryComponentBase FindComponent(
-        IEnumerable<GalleryComponentBase> components,
+    private static AppComponentBase FindComponent(
+        IEnumerable<AppComponentBase> components,
         string state)
     {
         return components.Single(component =>

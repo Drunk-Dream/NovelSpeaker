@@ -5,46 +5,46 @@ using Wpf.Ui.Controls;
 using WpfButton = System.Windows.Controls.Button;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 
-namespace NovelSpeaker.StyleGallery;
+namespace NovelSpeaker.App.Shared.Theming.Components;
 
-public abstract class GalleryComponentBase : ContentControl
+public abstract class AppComponentBase : ContentControl
 {
     public static readonly DependencyProperty IsSelectedProperty =
         DependencyProperty.Register(
             nameof(IsSelected),
             typeof(bool),
-            typeof(GalleryComponentBase),
+            typeof(AppComponentBase),
             new FrameworkPropertyMetadata(false));
 
     public static readonly DependencyProperty IsCurrentPlaybackProperty =
         DependencyProperty.Register(
             nameof(IsCurrentPlayback),
             typeof(bool),
-            typeof(GalleryComponentBase),
+            typeof(AppComponentBase),
             new FrameworkPropertyMetadata(false));
 
     public static readonly DependencyProperty IsHoverPreviewProperty =
         DependencyProperty.Register(
             nameof(IsHoverPreview),
             typeof(bool),
-            typeof(GalleryComponentBase),
+            typeof(AppComponentBase),
             new FrameworkPropertyMetadata(false));
 
     public static readonly DependencyProperty IsFocusPreviewProperty =
         DependencyProperty.Register(
             nameof(IsFocusPreview),
             typeof(bool),
-            typeof(GalleryComponentBase),
+            typeof(AppComponentBase),
             new FrameworkPropertyMetadata(false));
 
     public static readonly DependencyProperty CornerRadiusProperty =
         DependencyProperty.Register(
             nameof(CornerRadius),
             typeof(CornerRadius),
-            typeof(GalleryComponentBase),
+            typeof(AppComponentBase),
             new FrameworkPropertyMetadata(new CornerRadius(10)));
 
-    protected GalleryComponentBase()
+    protected AppComponentBase()
     {
         Focusable = true;
         IsTabStop = true;
@@ -81,17 +81,18 @@ public abstract class GalleryComponentBase : ContentControl
         get => (CornerRadius)GetValue(CornerRadiusProperty);
         set => SetValue(CornerRadiusProperty, value);
     }
+
 }
 
-public sealed class BookCard : GalleryComponentBase
+public sealed class BookCard : AppComponentBase
 {
     public BookCard()
     {
-        Content = GalleryListComponentContent.CreateBookCard();
+        Content = ListComponentContent.CreateBookCard();
     }
 }
 
-public sealed class ListRow : GalleryComponentBase
+public sealed class ListRow : AppComponentBase
 {
     public ListRow()
         : this("ListRow", "章节目录 · 第 012 章")
@@ -100,11 +101,11 @@ public sealed class ListRow : GalleryComponentBase
 
     public ListRow(string title, string metadata)
     {
-        Content = GalleryListComponentContent.CreateListRow(title, metadata);
+        Content = ListComponentContent.CreateListRow(title, metadata);
     }
 }
 
-public sealed class SelectableRow : GalleryComponentBase
+public sealed class SelectableRow : AppComponentBase
 {
     public SelectableRow()
         : this("SelectableRow", "可多选的缓存章节")
@@ -113,35 +114,35 @@ public sealed class SelectableRow : GalleryComponentBase
 
     public SelectableRow(string title, string metadata)
     {
-        Content = GalleryListComponentContent.CreateListRow(title, metadata);
+        Content = ListComponentContent.CreateListRow(title, metadata);
     }
 }
 
-public sealed class SettingsRow : GalleryComponentBase
+public sealed class SettingsRow : AppComponentBase
 {
     public SettingsRow()
     {
-        Content = GalleryListComponentContent.CreateSettingsRow();
+        Content = ListComponentContent.CreateSettingsRow();
     }
 }
 
-public sealed class RuleListItem : GalleryComponentBase
+public sealed class RuleListItem : AppComponentBase
 {
     public RuleListItem()
     {
-        Content = GalleryListComponentContent.CreateRuleListItem();
+        Content = ListComponentContent.CreateRuleListItem();
     }
 }
 
-public sealed class EmptyState : GalleryComponentBase
+public sealed class EmptyState : AppComponentBase
 {
     public EmptyState()
     {
-        Content = GalleryListComponentContent.CreateEmptyState();
+        Content = ListComponentContent.CreateEmptyState();
     }
 }
 
-internal static class GalleryListComponentContent
+internal static class ListComponentContent
 {
     public static Grid CreateBookCard()
     {
@@ -307,7 +308,7 @@ internal static class GalleryListComponentContent
     }
 
     private static Style? FindApplicationStyle(string key) =>
-        Application.Current?.TryFindResource(key) as Style;
+        global::System.Windows.Application.Current?.TryFindResource(key) as Style;
 
     private static WpfTextBlock CreateText(string text, string fontSizeKey, string fontWeightKey, string foregroundKey)
     {

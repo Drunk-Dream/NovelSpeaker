@@ -193,7 +193,7 @@ Working branch: experiment/visual-system-v2
 实现：
 
 - 新增 `tools/NovelSpeaker.StyleGallery` 或等价独立 WPF 工具项目。
-- 工具只引用 UI 资源和测试数据，不读取用户数据库、设置、书籍或缓存。
+- 工具复用 App 共享主题与组件资源和测试数据，不读取用户数据库、设置、书籍或缓存。
 - 工具不注册到正式导航，不被生产 App 引用，不进入 publish 输出。
 - 提供场景注册表、浅色/深色切换、固定窗口尺寸、固定 DPI 和自动退出截图模式。
 - 初始场景至少包含 Provider 标准控件、主题资源探针和占位分区。
@@ -210,7 +210,7 @@ Working branch: experiment/visual-system-v2
 
 结果：
 
-- 独立工具 `tools/NovelSpeaker.StyleGallery` 已加入 solution；仅引用 `wpf-ui`，不引用生产 App、Application、Infrastructure 或数据层。
+- 独立工具 `tools/NovelSpeaker.StyleGallery` 已加入 solution；通过唯一的 App 项目引用复用共享主题与组件资源，不反向进入生产 App，Gallery 源码不直接引用 Application、Infrastructure 或数据层。
 - 场景注册表、Provider 标准控件、主题资源探针、占位分区、Light/Dark 资源切换、固定 1280×820/96 DPI 宿主和自动退出截图入口已完成。
 - `artifacts/visual-review/03/manifest.json` 与 6 张 PNG 已生成；PNG 为 1280×820、非空，manifest 含场景名、尺寸、DPI 和 SHA-256；连续两次运行哈希与清单一致。
 - WPF 场景、manifest 和 PNG 契约测试 5/5 通过；架构/发布边界测试通过；Style Gallery 与完整 solution Release build 均 0 警告、0 错误；`dotnet format --verify-no-changes --no-restore` 通过。
@@ -430,7 +430,7 @@ Working branch: experiment/visual-system-v2
 - `NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 下截图契约测试通过；真实命令生成 `artifacts/visual-review/11/manifest.json`、`input-controls.light.png` 和 `input-controls.dark.png`，固定 1280×820、96 DPI，SHA-256/尺寸/DPI 与 manifest 一致。
 - Slice C 实现与定向契约已完成：输入控件契约测试 8/8 通过；Style Gallery 场景测试未开启产物和开启产物均为 21/21 通过。完整质量门禁通过：locked restore、format、Release build（0 警告/0 错误）及全量测试全部通过（Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 225），无失败/跳过。
 
-## [x] 12（P1）：建立列表、卡片与设置行组件族，仅用于 Style Gallery
+## [x] 12（P1）：建立列表、卡片与设置行组件族
 
 前置：6、7、11。
 
@@ -450,12 +450,12 @@ Working branch: experiment/visual-system-v2
 
 结果：
 
-- 新增 Gallery-only BookCard、ListRow、SelectableRow、SettingsRow、RuleListItem 和 EmptyState 自有组件及显式 App.Component.* 模板；组件只拥有内部结构和最小尺寸，不声明页面列宽。
+- 新增 App 共享 BookCard、ListRow、SelectableRow、SettingsRow、RuleListItem 和 EmptyState 自有组件及显式 App.Component.* 模板；组件只拥有内部结构和最小尺寸，不声明页面列宽，Gallery 直接复用该组件与资源。
 - 组件状态由自身依赖属性表达，Selected、CurrentPlayback、Hover、Focus 和 Disabled 使用独立视觉标记；Gallery 的 ItemsControl 使用可回收 VirtualizingStackPanel 提供虚拟化，选择状态不绑定容器实例。
 - list-components 场景覆盖长标题 CharacterEllipsis、Tooltip、AutomationName、各组件九种状态组合、Light/Dark 主题和固定 1280×820、96 DPI 截图；生成 artifacts/visual-review/12/manifest.json、list-components.light.png 和 list-components.dark.png，manifest SHA-256/尺寸/DPI 校验通过。
 - 任务 12 定向 WPF 契约和 Gallery 场景测试 28/28 通过；完整质量门禁通过：locked restore、format、Release build（0 警告/0 错误）及全量测试全部通过（Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 232），无失败/跳过。
 
-## [x] 13（P1）：建立导航、菜单、进度与反馈组件族，仅用于 Style Gallery
+## [x] 13（P1）：建立导航、菜单、进度与反馈组件族
 
 前置：4–7、12。
 
@@ -475,7 +475,7 @@ Working branch: experiment/visual-system-v2
 
 结果：
 
-- 新增 Gallery-only `App.Navigation.Entry`、`App.Menu.*`、`App.Feedback.ProgressBar` 及 FlyoutSurface、DialogShell、SnackbarContent、LoadingState、ErrorState、NoResultState；标准控件继续通过 Provider 模板，未修改生产全局 `NavigationViewItem` 样式或正式页面。
+- 新增 App 共享 `App.Navigation.Entry`、`App.Menu.*`、`App.Feedback.ProgressBar` 及 FlyoutSurface、DialogShell、SnackbarContent、LoadingState、ErrorState、NoResultState；标准控件继续通过 Provider 模板，未修改生产全局 `NavigationViewItem` 样式或正式页面，Gallery 直接复用该组件与资源。
 - `navigation-feedback` 场景覆盖显式 Provider 导航条目、Danger 分组与中性 Close、独立 ProgressBar/Slider、raised flyout、单决定 Dialog、非阻塞 Snackbar 和统一请求状态；Dialog fixture 的默认/取消按钮及 Escape dismissal 由契约测试固定。
 - `GalleryCommandLineOptions` 接受 `--task 13`；场景测试和契约测试覆盖 Light/Dark Measure/Arrange、Focus/Disabled、菜单分组、Provider 继承链、进度/Slider 类型边界和截图 manifest。
 - 任务 13 定向契约与 Gallery 场景测试 29/29 通过；`NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 下真实命令生成 `artifacts/visual-review/13/manifest.json`、`navigation-feedback.light.png` 和 `navigation-feedback.dark.png`，固定 1280×820、96 DPI，SHA-256/尺寸/DPI 与 manifest 一致；完整质量门禁通过：locked restore、format、Release build（0 警告/0 错误）及全量测试全部通过（Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 239），无失败/跳过。

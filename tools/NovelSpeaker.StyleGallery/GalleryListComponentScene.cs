@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using NovelSpeaker.App.Shared.Theming.Components;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 
 namespace NovelSpeaker.StyleGallery;
@@ -12,7 +13,7 @@ internal static class GalleryListComponentScene
         () => new ResourceDictionary
         {
             Source = new Uri(
-                "/NovelSpeaker.StyleGallery;component/Resources/ComponentStyles.xaml",
+                "/NovelSpeaker.App;component/Shared/Theming/Resources/ComponentStyles.xaml",
                 UriKind.RelativeOrAbsolute)
         });
 
@@ -176,7 +177,7 @@ internal static class GalleryListComponentScene
             state);
 
     private static T Configure<T>(T component, string styleKey, string automationId, string name, string state)
-        where T : GalleryComponentBase
+        where T : AppComponentBase
     {
         component.Style = FindResource(styleKey) as Style
             ?? throw new InvalidOperationException($"Gallery component style '{styleKey}' was not found.");
@@ -193,7 +194,7 @@ internal static class GalleryListComponentScene
     }
 
     private static object? FindResource(string key) =>
-        Application.Current?.TryFindResource(key) ?? ComponentResources.Value[key];
+        System.Windows.Application.Current?.TryFindResource(key) ?? ComponentResources.Value[key];
 
     private static FrameworkElement CreateListRowColumn(string state, string automationId)
     {

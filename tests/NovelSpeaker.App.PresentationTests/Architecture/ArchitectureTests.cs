@@ -93,13 +93,19 @@ public sealed class ArchitectureTests
     }
 
     [Fact]
-    public void Style_gallery_isolated_from_production_app_and_data_layers()
+    public void Style_gallery_uses_shared_app_resources_without_reverse_dependency_or_data_layers()
     {
         var gallery = Repository.ReadProject("tools/NovelSpeaker.StyleGallery/NovelSpeaker.StyleGallery.csproj");
-        Assert.Empty(gallery.ProjectReferences);
+        AssertEqualSet(["src/NovelSpeaker.App/NovelSpeaker.App.csproj"], gallery.ProjectReferences);
         Assert.Empty(gallery.FrameworkReferences);
         AssertEqualSet(["wpf-ui"], gallery.PackageReferences);
         Assert.Equal("false", gallery.Properties["IsPackable"], ignoreCase: true);
+
+        Assert.DoesNotContain(
+            gallery.ProjectReferences,
+            reference => reference is
+                "src/NovelSpeaker.Application/NovelSpeaker.Application.csproj" or
+                "src/NovelSpeaker.Infrastructure/NovelSpeaker.Infrastructure.csproj");
 
         var app = Repository.ReadProject("src/NovelSpeaker.App/NovelSpeaker.App.csproj");
         Assert.DoesNotContain(

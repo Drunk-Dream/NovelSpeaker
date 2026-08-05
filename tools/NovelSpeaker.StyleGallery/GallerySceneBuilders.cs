@@ -71,14 +71,14 @@ internal static class GallerySceneBuilders
         CreateSceneRoot(
             "list-components",
             "List, card and settings components",
-            "Gallery-only BookCard, ListRow, SelectableRow, SettingsRow, RuleListItem and EmptyState components keep state ownership independent from virtualized containers.",
+            "Shared BookCard, ListRow, SelectableRow, SettingsRow, RuleListItem and EmptyState components keep state ownership independent from virtualized containers.",
             GalleryListComponentScene.Create);
 
     public static FrameworkElement CreateNavigationFeedback() =>
         CreateSceneRoot(
             "navigation-feedback",
             "Navigation, menus and feedback components",
-            "Gallery-only explicit styles keep provider templates intact while making focus, dismissal, progress and request states measurable.",
+            "Shared explicit styles keep provider templates intact while making focus, dismissal, progress and request states measurable.",
             GalleryNavigationFeedbackScene.Create);
 
     public static FrameworkElement CreateProviderStyleProbe() =>
@@ -926,7 +926,7 @@ internal static class GallerySceneBuilders
     }
 
     private static Style FindButtonStyle(string variant) =>
-        Application.Current?.FindResource($"App.Button.{variant}") as Style
+        System.Windows.Application.Current?.FindResource($"App.Button.{variant}") as Style
         ?? throw new InvalidOperationException($"Button style 'App.Button.{variant}' was not found.");
 
     private static readonly string[] ButtonStyleVariants =
@@ -986,7 +986,7 @@ internal static class GallerySceneBuilders
             VerticalContentAlignment = VerticalAlignment.Center,
             Padding = TokenPadding("Spacing12")
         };
-        action.Style = Application.Current?.FindResource("Provider.Button") as Style;
+        action.Style = System.Windows.Application.Current?.FindResource("Provider.Button") as Style;
         action.SetResourceReference(FrameworkElement.MinHeightProperty, "ControlMinHeightCompact");
         action.SetResourceReference(Control.BackgroundProperty, "AccentBrush");
         action.SetResourceReference(Control.ForegroundProperty, "AccentTextBrush");
@@ -1178,7 +1178,7 @@ internal static class GallerySceneBuilders
     }
 
     private static double TokenDouble(string key) =>
-        (double)(Application.Current?.FindResource(key)
+        (double)(System.Windows.Application.Current?.FindResource(key)
             ?? throw new InvalidOperationException($"Gallery token '{key}' was not found."));
 
     private static Thickness TokenPadding(string key)
@@ -1362,7 +1362,7 @@ internal static class GallerySceneBuilders
             _ => throw new InvalidOperationException($"Unknown provider bridge key '{resourceKey}'.")
         };
 
-        control.Style = Application.Current?.FindResource(resourceKey) as Style
+        control.Style = System.Windows.Application.Current?.FindResource(resourceKey) as Style
             ?? throw new InvalidOperationException($"Provider bridge resource '{resourceKey}' was not found.");
         AutomationProperties.SetName(control, resourceKey);
         control.SetResourceReference(Control.ForegroundProperty, "GalleryPrimaryTextBrush");

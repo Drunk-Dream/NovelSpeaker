@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Xml.Linq;
+using NovelSpeaker.App.Shared.Theming.Components;
 using NovelSpeaker.StyleGallery;
 using Wpf.Ui.Controls;
 using Xunit;
@@ -22,8 +23,10 @@ public sealed class NavigationFeedbackStyleContractTests
     {
         var path = Path.Combine(
             LocateRepositoryRoot(),
-            "tools",
-            "NovelSpeaker.StyleGallery",
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
             "Resources",
             "NavigationFeedbackStyles.xaml");
         var document = XDocument.Load(path);
@@ -247,7 +250,7 @@ public sealed class NavigationFeedbackStyleContractTests
             });
             host.Window.UpdateLayout();
 
-            var surfaces = FindDescendants<GalleryFeedbackSurfaceBase>(scene);
+            var surfaces = FindDescendants<FeedbackSurfaceBase>(scene);
             Assert.Equal(6, surfaces.Count);
             Assert.All(surfaces, surface =>
             {
@@ -272,7 +275,7 @@ public sealed class NavigationFeedbackStyleContractTests
                 global::System.Windows.Application.Current!.FindResource("ElevationHigh"),
                 FindDescendants<DialogShell>(scene).Single().Effect);
             Assert.All(
-                FindDescendants<GalleryFeedbackStatusBase>(scene),
+                FindDescendants<FeedbackStatusBase>(scene),
                 state => Assert.NotEmpty(FindDescendants<WpfTextBlock>(state)));
 
             var snackbarClose = FindDescendants<WpfButton>(scene).Single(button =>

@@ -7,14 +7,14 @@
             <ResourceDictionary.MergedDictionaries>
                 <ui:ThemesDictionary Theme="Light" />
                 <ui:ControlsDictionary />
-                <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/ProviderStyleBridge.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/Palettes/Palette.Light.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/DesignTokens.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/Inputs.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/ButtonStyles.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/SliderStyles.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/ComponentStyles.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.StyleGallery;component/Resources/NavigationFeedbackStyles.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Provider/ProviderStyleBridge.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Palettes/Palette.Light.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/DesignTokens.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Inputs.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ButtonStyles.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/SliderStyles.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ComponentStyles.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/NavigationFeedbackStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

@@ -188,8 +188,8 @@
           "Microsoft.Extensions.DependencyInjection": "[9.0.6, )",
           "Microsoft.Extensions.Logging": "[9.0.6, )",
           "Microsoft.Extensions.Logging.Debug": "[9.0.6, )",
-          "NovelSpeaker.Application": "[0.2.0, )",
-          "NovelSpeaker.Infrastructure": "[0.2.0, )",
+          "NovelSpeaker.Application": "[0.4.2, )",
+          "NovelSpeaker.Infrastructure": "[0.4.2, )",
           "wpf-ui": "[4.3.0, )"
         }
       },
@@ -197,7 +197,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[9.0.6, )",
-          "NovelSpeaker.Domain": "[0.2.0, )"
+          "NovelSpeaker.Domain": "[0.4.2, )"
         }
       },
       "novelspeaker.domain": {
@@ -211,8 +211,8 @@
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[9.0.6, )",
           "Microsoft.Extensions.Logging.Abstractions": "[9.0.6, )",
           "NAudio": "[2.2.1, )",
-          "NovelSpeaker.Application": "[0.2.0, )",
-          "NovelSpeaker.Domain": "[0.2.0, )",
+          "NovelSpeaker.Application": "[0.4.2, )",
+          "NovelSpeaker.Domain": "[0.4.2, )",
           "SQLitePCLRaw.bundle_winsqlite3": "[2.1.11, )"
         }
       },

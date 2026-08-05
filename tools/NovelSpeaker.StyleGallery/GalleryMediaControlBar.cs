@@ -465,11 +465,11 @@ public sealed class GalleryMediaControlBar : Border
         $"拖动预览 · {SliderProjection.TooltipText} · 仅更新 Gallery projection，不触发真实播放命令。";
 
     private static Style FindButtonStyle() =>
-        Application.Current?.FindResource("App.Button.Icon") as Style
+        System.Windows.Application.Current?.FindResource("App.Button.Icon") as Style
         ?? throw new InvalidOperationException("Button style 'App.Button.Icon' was not found.");
 
     private static Style FindSliderStyle() =>
-        Application.Current?.FindResource("App.Media.Slider") as Style
+        System.Windows.Application.Current?.FindResource("App.Media.Slider") as Style
         ?? throw new InvalidOperationException("Slider style 'App.Media.Slider' was not found.");
 
 }

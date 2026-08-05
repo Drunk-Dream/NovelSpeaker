@@ -12,23 +12,8 @@
     <ApplicationDefinition Include="App.xaml" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\NovelSpeaker.App\NovelSpeaker.App.csproj" />
     <PackageReference Include="wpf-ui" />
-  </ItemGroup>
-  <ItemGroup>
-    <Page Include="..\..\src\NovelSpeaker.App\Shared\Theming\Provider\ProviderStyleBridge.xaml"
-          Link="Resources\ProviderStyleBridge.xaml" />
-    <Page Include="..\..\src\NovelSpeaker.App\Shared\Theming\Palettes\Palette.Light.xaml"
-          Link="Resources\Palettes\Palette.Light.xaml" />
-    <Page Include="..\..\src\NovelSpeaker.App\Shared\Theming\Palettes\Palette.Dark.xaml"
-          Link="Resources\Palettes\Palette.Dark.xaml" />
-    <Page Include="..\..\src\NovelSpeaker.App\Shared\Theming\Resources\DesignTokens.xaml"
-          Link="Resources\DesignTokens.xaml" />
-    <Page Include="..\..\src\NovelSpeaker.App\Shared\Theming\Resources\Inputs.xaml"
-          Link="Resources\Inputs.xaml" />
-    <Page Include="..\..\src\NovelSpeaker.App\Shared\Theming\Resources\ButtonStyles.xaml"
-          Link="Resources\ButtonStyles.xaml" />
-    <Page Include="..\..\src\NovelSpeaker.App\Shared\Theming\Resources\SliderStyles.xaml"
-          Link="Resources\SliderStyles.xaml" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\..\src\NovelSpeaker.App\Shared\Theming\SemanticPaletteRuntime.cs"

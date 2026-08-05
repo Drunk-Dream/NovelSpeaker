@@ -6,18 +6,18 @@ using Wpf.Ui.Controls;
 using WpfButton = System.Windows.Controls.Button;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 
-namespace NovelSpeaker.StyleGallery;
+namespace NovelSpeaker.App.Shared.Theming.Components;
 
-public abstract class GalleryFeedbackSurfaceBase : ContentControl
+public abstract class FeedbackSurfaceBase : ContentControl
 {
     public static readonly DependencyProperty CornerRadiusProperty =
         DependencyProperty.Register(
             nameof(CornerRadius),
             typeof(CornerRadius),
-            typeof(GalleryFeedbackSurfaceBase),
+            typeof(FeedbackSurfaceBase),
             new FrameworkPropertyMetadata(new CornerRadius(10)));
 
-    protected GalleryFeedbackSurfaceBase()
+    protected FeedbackSurfaceBase()
     {
         Focusable = false;
         IsTabStop = false;
@@ -32,18 +32,18 @@ public abstract class GalleryFeedbackSurfaceBase : ContentControl
     }
 
     protected static Style? ApplicationStyle(string key) =>
-        Application.Current?.TryFindResource(key) as Style;
+        global::System.Windows.Application.Current?.TryFindResource(key) as Style;
 }
 
-public abstract class GalleryFeedbackStatusBase : GalleryFeedbackSurfaceBase
+public abstract class FeedbackStatusBase : FeedbackSurfaceBase
 {
-    protected GalleryFeedbackStatusBase()
+    protected FeedbackStatusBase()
     {
         Padding = new Thickness(14);
     }
 }
 
-public sealed class FlyoutSurface : GalleryFeedbackSurfaceBase
+public sealed class FlyoutSurface : FeedbackSurfaceBase
 {
     public FlyoutSurface()
     {
@@ -51,7 +51,7 @@ public sealed class FlyoutSurface : GalleryFeedbackSurfaceBase
     }
 }
 
-public sealed class DialogShell : GalleryFeedbackSurfaceBase
+public sealed class DialogShell : FeedbackSurfaceBase
 {
     private readonly WpfButton _confirmButton;
     private readonly WpfButton _cancelButton;
@@ -135,7 +135,7 @@ public sealed class DialogShell : GalleryFeedbackSurfaceBase
     }
 }
 
-public sealed class SnackbarContent : GalleryFeedbackSurfaceBase
+public sealed class SnackbarContent : FeedbackSurfaceBase
 {
     public SnackbarContent()
     {
@@ -143,7 +143,7 @@ public sealed class SnackbarContent : GalleryFeedbackSurfaceBase
     }
 }
 
-public sealed class LoadingState : GalleryFeedbackStatusBase
+public sealed class LoadingState : FeedbackStatusBase
 {
     public LoadingState()
     {
@@ -155,7 +155,7 @@ public sealed class LoadingState : GalleryFeedbackStatusBase
     }
 }
 
-public sealed class ErrorState : GalleryFeedbackStatusBase
+public sealed class ErrorState : FeedbackStatusBase
 {
     public ErrorState()
     {
@@ -167,7 +167,7 @@ public sealed class ErrorState : GalleryFeedbackStatusBase
     }
 }
 
-public sealed class NoResultState : GalleryFeedbackStatusBase
+public sealed class NoResultState : FeedbackStatusBase
 {
     public NoResultState()
     {
@@ -315,10 +315,10 @@ internal static class FeedbackContent
         }.WithFeedbackResource(WpfTextBlock.ForegroundProperty, "SecondaryTextBrush");
 
     private static Style? ApplicationStyle(string key) =>
-        Application.Current?.TryFindResource(key) as Style;
+        global::System.Windows.Application.Current?.TryFindResource(key) as Style;
 }
 
-internal static class GalleryFeedbackElementExtensions
+internal static class FeedbackElementExtensions
 {
     public static T WithFeedbackResource<T>(this T element, DependencyProperty property, object resourceKey)
         where T : FrameworkElement
