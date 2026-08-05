@@ -35,7 +35,7 @@
 4. 页面迁移任务采用纵向切片：
    - 先在正确的公共字典或自有控件中补齐该页面真实需要的能力。
    - 将同类 Style 放入既定控件族文件，不建立页面同义资源。
-   - 更新对应 Style Gallery scene 和自动契约。
+   - 更新对应稳定资源族的 Style Gallery scene 和自动契约。
    - 迁移一个正式页面。
    - 删除该页面不再使用的旧键；只有全仓零引用时才删除 Legacy 定义。
 5. 不为假想需求创建公共 Style 或控件。公共抽取至少满足以下之一：
@@ -45,7 +45,11 @@
 7. Style Gallery fixture 只能位于 `tools/NovelSpeaker.StyleGallery`，生产控件不得硬编码示例文本、命令、进度或状态。
 8. 不改变导航、播放、缓存、选择、Dirty State、持久化、确认顺序和生命周期语义。
 9. 不把用户人工视觉验收写入任务关闭条件。任务必须通过自动构建、契约、几何、可访问性、截图生成和发布检查关闭。
-10. 视觉截图用于用户后续查看。每个页面任务至少生成 Light/Dark；存在密度风险的页面还生成 100/125/150% DPI 场景。
+10. 视觉截图用于用户后续查看：
+    - Gallery 截图按稳定 `family-id` 保存，用于集中检查资源族、控件族和样式族。
+    - 正式页面和窗口截图按稳定 `page-id`/`window-id` 保存，不得使用任务编号、日期或提交号命名。
+    - 每个页面任务至少更新 Light/Dark 基线；存在密度风险的页面还更新 100/125/150% DPI 场景。
+    - 页面截图必须实例化正式 View 与确定性脱敏 fixture，不得用 Gallery 中的页面仿制品替代。
 11. 每个任务完成后：
     - 将状态改为 `[x]`。
     - 在任务末尾追加简短“结果”，记录实际文件边界、测试和生成的视觉目录。
@@ -105,6 +109,50 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 → Dialog/Flyout/Snackbar 与状态视图
 → 删除 Legacy、旧聚合字典和未使用资源
 ```
+
+## 6. 稳定视觉截图注册表
+
+视觉产物目录与 backlog 编号完全解耦。任务重排、拆分、合并或归档时，不得修改既有截图身份。
+
+Gallery 资源族目录：
+
+```text
+artifacts/visual-review/gallery/<family-id>/
+```
+
+正式页面和窗口目录：
+
+```text
+artifacts/visual-review/pages/<page-id>/
+artifacts/visual-review/windows/<window-id>/
+```
+
+截图文件使用 `<scenario-id>.<theme>.<dpi>.png`。每个目录包含自身 `manifest.json`，根目录包含汇总清单 `artifacts/visual-review/manifest.json`。
+
+当前稳定页面 ID：
+
+- `appearance-settings`
+- `settings-home`
+- `general-settings`
+- `playback-settings`
+- `import-text-settings`
+- `cache-data`
+- `diagnostics-about`
+- `library`
+- `book-details`
+- `tts-rules`
+- `chapter-rules`
+- `regex-replacement-rules`
+- `cache-management`
+- `player`
+
+当前稳定窗口 ID：
+
+- `mini-player`
+- `main-window`
+- `startup-status-window`
+
+页面特有的 Dialog、Flyout、Snackbar、空状态和错误状态写入所属页面/窗口目录中的独立 scenario。共享 Style 状态只写入对应 Gallery family，不建立 `feedback-hosts`、`task-xx` 等临时目录。
 
 ---
 
@@ -168,7 +216,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 - Palette Light/Dark 键集合完全一致。
 - 所有公共 Token 使用 `App.` 前缀且不包含页面专用名称。
 - 主题热切换、Brush DynamicResource 链路、对比度和资源实例稳定测试通过。
-- 生成 `artifacts/visual-review/resources/03-foundations/`。
+- 更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/foundations/`。
 - 完整质量门禁通过。
 
 ## [ ] 4（P1）：集中 Typography 与 Surface Style
@@ -188,7 +236,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 - Typography 和 Surface 正式键只在对应字典定义。
 - 不存在综合字典中的重复定义。
 - 文本省略、非零布局、主题切换和深浅表面识别测试通过。
-- 生成 `artifacts/visual-review/resources/04-typography-surfaces/`。
+- 分别更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/typography/` 与 `artifacts/visual-review/gallery/surfaces/`。
 - 完整质量门禁通过。
 
 ## [ ] 5（P1）：集中 Button Style 族
@@ -208,7 +256,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 - 所有 `App.Button.*` 只定义于 Buttons.xaml。
 - 鼠标点击不会留下错误的常驻键盘焦点边框，键盘导航仍可见。
 - 最小命中区、内容非零和 Automation 属性测试通过。
-- 生成 `artifacts/visual-review/resources/05-buttons/`。
+- 更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/buttons/`。
 - 完整质量门禁通过。
 
 ## [ ] 6（P1）：集中 Input Style 族
@@ -227,7 +275,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 - 所有 `App.Input.*` 只定义于 Inputs.xaml。
 - Light/Dark 热切换后 Style/Template 不漂移。
 - Measure/Arrange、Popup 资源、键盘 Focus、ReadOnly/Disabled 差异和验证状态测试通过。
-- 生成 `artifacts/visual-review/resources/06-inputs/`。
+- 更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/inputs/`。
 - 完整质量门禁通过。
 
 ## [ ] 7（P1）：集中 Selection、Navigation 与 Menu Style
@@ -248,7 +296,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 - 三个控件族的键只定义于各自字典。
 - 虚拟化回收后选择事实保持正确。
 - 键盘导航、Focus、危险项分组和关闭项中性语义测试通过。
-- 生成 `artifacts/visual-review/resources/07-selection-navigation-menu/`。
+- 分别更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/selection/`、`artifacts/visual-review/gallery/navigation/` 与 `artifacts/visual-review/gallery/menus/`。
 - 完整质量门禁通过。
 
 ## [ ] 8（P1）：集中 Progress、Media 与基础 Feedback Style
@@ -269,7 +317,8 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 - `App.Progress.*`、`App.Media.*`、`App.Feedback.*` 分别只定义于对应字典。
 - 迷你播放器 PlaybackSnapshot、上下章/段、播放暂停、拖动、音量、置顶、恢复和退出测试通过。
 - ProgressBar 与 Slider 类型边界、Tooltip 和 100/125/150% DPI 几何测试通过。
-- 生成 `artifacts/visual-review/resources/08-progress-media-feedback/` 和迷你播放器场景。
+- 分别更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/progress/`、`artifacts/visual-review/gallery/media/` 与 `artifacts/visual-review/gallery/feedback/`。
+- 使用正式迷你播放器窗口更新 `artifacts/visual-review/windows/mini-player/`，不得以 Gallery 组合样例替代窗口截图。
 - 完整质量门禁通过。
 
 ## [ ] 9（P1）：实现 Common 与 Feedback 正式自有控件
@@ -290,7 +339,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 - 默认 Style 可按类型解析，模板部件和内容槽可用。
 - 控件类不包含固定演示文案、固定命令和 Gallery AutomationId。
 - 长文本、省略、键盘 Focus、AutomationName 和非零布局测试通过。
-- 生成 `artifacts/visual-review/resources/09-common-feedback-controls/`。
+- 分别更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/page-header/`、`artifacts/visual-review/gallery/section-surface/` 与 `artifacts/visual-review/gallery/status-view/`。
 - 完整质量门禁通过。
 
 ## [ ] 10（P1）：实现 Settings 与 Forms 正式自有控件
@@ -312,7 +361,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 - 自有控件默认 Style、内容槽、DataContext 传递和命令绑定测试通过。
 - 最小宽度和 150% DPI 下标题、说明、右侧控件和错误文案不重叠。
 - SettingsGroup 无需最后一行特例即可正确绘制分隔线。
-- 生成 `artifacts/visual-review/resources/10-settings-form-controls/`。
+- 分别更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/settings-controls/` 与 `artifacts/visual-review/gallery/form-field/`。
 - 完整质量门禁通过。
 
 ## [ ] 11（P0）：重构 Style Gallery fixture 并删除伪公共组件
@@ -325,14 +374,14 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 - Gallery 直接实例化正式 Style 和正式自有控件。
 - 删除 `Shared/Theming/Components/AppComponentBase.cs`、`FeedbackSurfaceBase.cs` 及其硬编码 BookCard、SettingsRow、RuleListItem、DialogShell、FlyoutSurface、SnackbarContent 等伪公共组件。
 - 删除不再需要的 `ComponentStyles.xaml` 和 `NavigationFeedbackStyles.xaml` 正式内容；仍未迁移的旧键只能存在于 Legacy。
-- 建立 Gallery 场景注册表，确保相同控件族只在一个场景集中维护。
+- 建立稳定 Gallery 场景注册表，确保相同资源族、控件族或样式族只在一个 scene 集中维护，scene ID 不包含任务编号。
 
 自动验收：
 
 - 生产程序集不存在 Gallery fixture 内容和伪公共组件类型。
 - Gallery 全场景 Light/Dark 可重复渲染，manifest 哈希稳定。
 - Style Gallery 不进入 self-contained 发布包。
-- 生成 `artifacts/visual-review/resources/11-gallery-baseline/`。
+- 更新 `artifacts/visual-review/gallery/manifest.json`，并确认全部既有 family 目录和 scene ID 保持稳定。
 - 完整质量门禁通过。
 
 ## [ ] 12（P1）：重新迁移外观设置页
@@ -352,7 +401,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 - 页面只引用正式 `App.*` 资源和正式自有控件。
 - 主题命令、持久化、导航和热切换回归通过。
 - Light/Dark、100/125/150% DPI 截图和几何测试通过。
-- 生成 `artifacts/visual-review/pages/12-appearance/`。
+- 使用正式 `AppearanceSettingsPage` 更新 `artifacts/visual-review/pages/appearance-settings/`。
 - 完整质量门禁通过。
 
 ## [ ] 13（P1）：迁移设置首页
@@ -371,7 +420,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 
 - 所有导航项命令、AutomationName、Tab 顺序和键盘激活测试通过。
 - 最小窗口与 150% DPI 下分组和导航项不重叠。
-- 生成 `artifacts/visual-review/pages/13-settings-home/`。
+- 使用正式 `SettingsPage` 更新 `artifacts/visual-review/pages/settings-home/`。
 - 完整质量门禁通过。
 
 ## [ ] 14（P1）：迁移常规设置页
@@ -389,7 +438,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 
 - 设置绑定、即时保存、关闭/托盘偏好和导航回归通过。
 - 窄宽度与 150% DPI 下右侧控件可用。
-- 生成 `artifacts/visual-review/pages/14-general-settings/`。
+- 使用正式 `GeneralSettingsPage` 更新 `artifacts/visual-review/pages/general-settings/`。
 - 完整质量门禁通过。
 
 ## [ ] 15（P1）：迁移播放设置页
@@ -408,7 +457,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 
 - 输入校验、设置保存、配置通知和缓存批次隔离回归通过。
 - Light/Dark、长说明、错误和 150% DPI 场景通过。
-- 生成 `artifacts/visual-review/pages/15-playback-settings/`。
+- 使用正式 `PlaybackSettingsPage` 更新 `artifacts/visual-review/pages/playback-settings/`。
 - 完整质量门禁通过。
 
 ## [ ] 16（P1）：迁移导入与文本设置页
@@ -426,7 +475,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 
 - 设置校验、保存、正则替换导航和错误投影测试通过。
 - 窄宽度与 150% DPI 下字段和导航入口可用。
-- 生成 `artifacts/visual-review/pages/16-import-text/`。
+- 使用正式 `ImportTextSettingsPage` 更新 `artifacts/visual-review/pages/import-text-settings/`。
 - 完整质量门禁通过。
 
 ## [ ] 17（P1）：迁移缓存与数据页
@@ -445,7 +494,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 
 - 容量校验、确认/取消、清理、目录打开和导航测试通过。
 - 危险按钮、错误状态和 150% DPI 几何测试通过。
-- 生成 `artifacts/visual-review/pages/17-cache-data/`。
+- 使用正式 `CacheAndDataPage` 更新 `artifacts/visual-review/pages/cache-data/`。
 - 完整质量门禁通过。
 
 ## [ ] 18（P1）：迁移诊断与关于页
@@ -464,7 +513,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 
 - 目录打开、许可证、复制和脱敏测试通过。
 - 长版本号、长路径、窄宽度和 150% DPI 场景通过。
-- 生成 `artifacts/visual-review/pages/18-diagnostics-about/`。
+- 使用正式 `DiagnosticsAboutPage` 更新 `artifacts/visual-review/pages/diagnostics-about/`。
 - 完整质量门禁通过。
 
 ## [ ] 19（P1）：迁移书库与 Feature BookCard
@@ -484,7 +533,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 
 - 空书库、搜索无结果、长书名、不同书籍数量和多窗口宽度测试通过。
 - BookCard 命令、Tooltip、AutomationName 和进度显示测试通过。
-- 生成 `artifacts/visual-review/pages/19-library/`。
+- 使用正式 `LibraryPage` 更新 `artifacts/visual-review/pages/library/`。
 - 完整质量门禁通过。
 
 ## [ ] 20（P1）：迁移书籍详情与目录
@@ -503,7 +552,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 自动验收：
 
 - 虚拟化、当前章节、定位、长标题、0% 隐藏、编辑保存/取消和导航守卫测试通过。
-- 生成 `artifacts/visual-review/pages/20-book-details/`。
+- 使用正式 `BookDetailsPage` 更新 `artifacts/visual-review/pages/book-details/`。
 - 完整质量门禁通过。
 
 ## [ ] 21（P1）：建立 Rules 页面族共享视图
@@ -522,7 +571,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 
 - 共享视图不依赖具体规则 ViewModel 类型之外的 WPF 视觉返回值。
 - 虚拟化、选择、启用、当前、拖拽、键盘备用排序和菜单状态测试通过。
-- 生成 `artifacts/visual-review/resources/21-rules-shared/`。
+- 更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/rules-shared/`。
 - 完整质量门禁通过。
 
 ## [ ] 22（P1）：迁移 TTS 规则工作台
@@ -541,7 +590,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 
 - 最小工作区下关键字段有非零宽度且可滚动。
 - 试听、保存/取消、切换保护、导入导出、删除和当前规则测试通过。
-- 生成 `artifacts/visual-review/pages/22-tts-rules/`。
+- 使用正式 `TtsRulesPage` 更新 `artifacts/visual-review/pages/tts-rules/`。
 - 完整质量门禁通过。
 
 ## [ ] 23（P1）：迁移章节规则工作台
@@ -560,7 +609,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 
 - 默认规则、启用、排序、Drag/Drop、帮助、保存/取消和导航守卫测试通过。
 - 长正则、错误和最小工作区几何测试通过。
-- 生成 `artifacts/visual-review/pages/23-chapter-rules/`。
+- 使用正式 `ChapterRulesPage` 更新 `artifacts/visual-review/pages/chapter-rules/`。
 - 完整质量门禁通过。
 
 ## [ ] 24（P1）：迁移正则替换工作台
@@ -579,7 +628,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 
 - Pattern/Replacement 校验、错误投影、排序、保存/取消、导航守卫和播放刷新测试通过。
 - 长表达式、错误和最小工作区几何测试通过。
-- 生成 `artifacts/visual-review/pages/24-regex-rules/`。
+- 使用正式 `RegexReplacementRulesPage` 更新 `artifacts/visual-review/pages/regex-replacement-rules/`。
 - 完整质量门禁通过。
 
 ## [ ] 25（P1）：迁移缓存管理页
@@ -599,7 +648,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 
 - 文件管理器式选择、虚拟化回收、确认/取消、导出、清理、状态刷新和页面离开取消测试通过。
 - 0%、未计算、长章节名、空列表和 150% DPI 场景通过。
-- 生成 `artifacts/visual-review/pages/25-cache-management/`。
+- 使用正式 `CacheManagementPage` 更新 `artifacts/visual-review/pages/cache-management/`。
 - 完整质量门禁通过。
 
 ## [ ] 26（P1）：迁移播放页与 PlayerView
@@ -619,7 +668,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 
 - 播放/暂停、上下段/章、拖动、当前段居中、用户滚动暂停追随、音量、定时停止、主动缓存和页面离开测试通过。
 - 长正文、空章节、错误、最小窗口和 100/125/150% DPI 场景通过。
-- 生成 `artifacts/visual-review/pages/26-player/`。
+- 使用正式 `PlayerPage` 更新 `artifacts/visual-review/pages/player/`。
 - 完整质量门禁通过。
 
 ## [ ] 27（P1）：迁移主窗口与启动窗口
@@ -639,7 +688,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 - Window Chrome、拖动、最小化、最大化、恢复、关闭和托盘状态机测试通过。
 - Startup loading/error 状态和脱敏错误投影测试通过。
 - `960 × 640`、Light/Dark 和 125/150% DPI 下无重复外边距或核心内容遮挡。
-- 生成 `artifacts/visual-review/pages/27-shell-startup/`。
+- 分别使用正式窗口更新 `artifacts/visual-review/windows/main-window/` 与 `artifacts/visual-review/windows/startup-status-window/`。
 - 完整质量门禁通过。
 
 ## [ ] 28（P1）：统一 Dialog、Flyout、Snackbar 和状态视图
@@ -659,7 +708,8 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 - Dialog/Flyout 键盘、Escape、Focus trap、默认按钮、取消和关闭守卫测试通过。
 - Snackbar 不覆盖模态决策和关键操作。
 - 状态视图不硬编码业务文案或命令。
-- 生成 `artifacts/visual-review/pages/28-feedback-hosts/`。
+- 更新 `artifacts/visual-review/gallery/feedback/` 的共享样式场景。
+- 将每个 Dialog、Flyout、Snackbar 和状态场景写入其所属 `pages/<page-id>/` 或 `windows/<window-id>/`，不得建立跨页面的 `feedback-hosts` 截图目录。
 - 完整质量门禁通过。
 
 ## [ ] 29（P0）：删除 Legacy 与旧资源并完成发布门禁
@@ -684,5 +734,5 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 - 全部样式架构、行为、可访问性、DPI 和渲染测试通过。
 - Style Gallery、测试 fixture 和 `artifacts/visual-review` 不进入发布包。
 - 主题切换不产生旧 Style、字典或窗口事件订阅泄漏。
-- 生成最终 `artifacts/visual-review/final/manifest.json`，列出所有场景、页面、主题、DPI 和截图哈希。
+- 更新根清单 `artifacts/visual-review/manifest.json`，列出所有 Gallery family、页面、窗口、scenario、主题、DPI 和截图哈希。
 - 完整质量门禁与 self-contained 发布检查通过。
