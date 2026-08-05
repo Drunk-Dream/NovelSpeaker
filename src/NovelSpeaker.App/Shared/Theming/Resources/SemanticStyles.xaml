@@ -2,14 +2,26 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:theming="clr-namespace:NovelSpeaker.App.Shared.Theming"
                     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <!--
+        资源迁移分组（按语义目标，不表示当前可以机械替换）：
+
+        1. 新样式：当前组件体系使用的 App.Typography.*。
+        2. 已有替代、后续完成调用方迁移后可直接删除：旧排版、按钮、列表、
+           设置行、卡片/弹层和媒体 Slider 等旧资源。
+        3. 需要补充新通用样式：仍缺少稳定语义目标的启动/反馈文本、设置导航、
+           媒体进度条、播放速度值按钮和拖放状态等旧资源。
+
+        下面保持现有资源依赖顺序；各资源族前的标记说明其迁移类别。
+    -->
+
+    <!-- 2. 已有 App.Typography.PageTitle 替代；页面迁移完成后删除。 -->
     <Style x:Key="PageTitleTextBlockStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="28" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
     </Style>
 
-    <!-- Stable typography variants for future component adoption. Existing page
-         styles remain unchanged until their dedicated migration tasks. -->
+    <!-- 1. 新样式：稳定排版变体，供组件和已迁移页面使用。 -->
     <Style x:Key="App.Typography.PageTitle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource FontFamilyUi}" />
         <Setter Property="FontSize" Value="{StaticResource FontSizePageTitle}" />
@@ -60,6 +72,7 @@
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
+    <!-- 2. 已有 App.Typography.* 替代；旧页面迁移完成后删除。 -->
     <Style x:Key="SectionTitleTextBlockStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="18" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -85,12 +98,14 @@
            BasedOn="{StaticResource PrimaryTextBlockStyle}">
     </Style>
 
+    <!-- 3. 需要补充 Settings Navigation 通用组件/样式后迁移。 -->
     <Style x:Key="SettingsNavigationRowTitleTextBlockStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource StrongTextBlockStyle}">
         <Setter Property="FontSize" Value="15" />
     </Style>
 
+    <!-- 3. 需要补充 Settings Navigation 通用组件/样式后迁移。 -->
     <DataTemplate x:Key="SettingsNavigationRowContentTemplate">
         <Grid>
             <Grid.ColumnDefinitions>
@@ -156,6 +171,7 @@
         </Grid>
     </DataTemplate>
 
+    <!-- 3. 需要补充 Settings 分组表面通用样式后迁移。 -->
     <Style x:Key="SettingsGroupBorderStyle" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
@@ -171,6 +187,7 @@
         <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
     </Style>
 
+    <!-- 2. 已有 App.Component.SettingsRow 替代；设置页迁移完成后删除。 -->
     <Style x:Key="SettingsRowBorderStyle" TargetType="Border">
         <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="0,0,0,1" />
@@ -207,6 +224,7 @@
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
+    <!-- 3. 需要补充通用 Dialog/Status/Error 文本样式或组件后迁移。 -->
     <Style x:Key="DialogTitleTextBlockStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="22" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -224,6 +242,7 @@
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
+    <!-- 2. 已有 App.Component.* / App.Feedback.* 语义替代；页面结构迁移完成后删除。 -->
     <Style x:Key="CardBorderStyle" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
@@ -240,6 +259,7 @@
         <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
     </Style>
 
+    <!-- 3. 需要补充媒体进度条通用样式；不能复用任务反馈 ProgressBar。 -->
     <Style x:Key="PlaybackProgressBarStyle"
            TargetType="ProgressBar"
            BasedOn="{StaticResource {x:Type ProgressBar}}">
@@ -249,6 +269,7 @@
         <Setter Property="BorderThickness" Value="0" />
     </Style>
 
+    <!-- 2. 已有 App.Media.Slider 替代；播放器调用方迁移完成后删除。 -->
     <Style x:Key="PlaybackSliderTrackButtonStyle" TargetType="RepeatButton">
         <Setter Property="Focusable" Value="False" />
         <Setter Property="IsTabStop" Value="False" />
@@ -265,6 +286,7 @@
         </Setter>
     </Style>
 
+    <!-- 2. 上述媒体 Slider 的旧内部实现，随旧 Slider 样式一并删除。 -->
     <Style x:Key="PlaybackSliderThumbStyle" TargetType="Thumb">
         <Setter Property="Width" Value="18" />
         <Setter Property="Height" Value="18" />
@@ -280,6 +302,7 @@
         </Setter>
     </Style>
 
+    <!-- 2. 旧播放进度 Slider，已有 App.Media.Slider 语义替代。 -->
     <Style x:Key="PlaybackProgressSliderStyle"
            TargetType="Slider"
            BasedOn="{StaticResource Provider.Slider}">
@@ -314,6 +337,7 @@
         </Setter>
     </Style>
 
+    <!-- 2. 已有 App.Button.Icon 替代；旧页面迁移完成后删除模板覆盖。 -->
     <ControlTemplate x:Key="IconButtonControlTemplate" TargetType="Button">
         <Grid x:Name="RootGrid"
               Background="Transparent"
@@ -349,6 +373,7 @@
         </ControlTemplate.Triggers>
     </ControlTemplate>
 
+    <!-- 2. 已有 App.Button.Icon 替代；媒体控件迁移完成后删除。 -->
     <ControlTemplate x:Key="MediaIconButtonControlTemplate" TargetType="Button">
         <Grid x:Name="RootGrid"
               Background="Transparent"
@@ -384,6 +409,7 @@
         </ControlTemplate.Triggers>
     </ControlTemplate>
 
+    <!-- 2. 已有 App.Component.ListRow / SelectableRow / RuleListItem 替代。 -->
     <ControlTemplate x:Key="BorderlessListItemButtonControlTemplate" TargetType="Button">
         <Grid x:Name="RootGrid"
               Background="Transparent"
@@ -422,6 +448,7 @@
         </ControlTemplate.Triggers>
     </ControlTemplate>
 
+    <!-- 2. 已有 App.Button.Icon 及其页面局部尺寸/对齐替代。 -->
     <Style x:Key="BorderlessIconButtonStyle"
            TargetType="Button"
            BasedOn="{StaticResource Provider.Button}">
@@ -450,6 +477,7 @@
         <Setter Property="Height" Value="{StaticResource SecondaryIconButtonSize}" />
     </Style>
 
+    <!-- 2. 已有 App.Component.ListRow / SelectableRow / RuleListItem 替代。 -->
     <Style x:Key="BorderlessListItemButtonStyle"
            TargetType="Button"
            BasedOn="{StaticResource Provider.Button}">
@@ -464,6 +492,7 @@
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
     </Style>
 
+    <!-- 3. 需要补充 Settings Navigation 通用组件/样式后迁移。 -->
     <Style x:Key="SettingsNavigationRowButtonStyle"
            TargetType="Button"
            BasedOn="{StaticResource BorderlessListItemButtonStyle}">
@@ -473,6 +502,7 @@
         <Setter Property="ContentTemplate" Value="{StaticResource SettingsNavigationRowContentTemplate}" />
     </Style>
 
+    <!-- 2. 已有 App.Component.SelectableRow / ListRow 状态替代。 -->
     <Style x:Key="SelectedCardContainerStyle"
            TargetType="Border"
            BasedOn="{StaticResource CardBorderStyle}">
@@ -529,6 +559,7 @@
         </Style.Triggers>
     </Style>
 
+    <!-- 3. 需要补充 RuleListItem 的 DropTarget 通用状态后迁移。 -->
     <Style x:Key="DropTargetListItemContainerStyle"
            TargetType="Border"
            BasedOn="{StaticResource SelectableCardListItemContainerStyle}">
@@ -541,6 +572,7 @@
         </Style.Triggers>
     </Style>
 
+    <!-- 3. 需要补充播放速度值/胶囊按钮通用样式后迁移。 -->
     <Style x:Key="PlaybackSpeedPillButtonStyle"
            TargetType="Button"
            BasedOn="{StaticResource Provider.Button}">
@@ -558,6 +590,7 @@
            TargetType="Button"
            BasedOn="{StaticResource PlaybackSpeedPillButtonStyle}" />
 
+    <!-- 2. 已有 App.Button.Icon 替代；播放器调用方迁移完成后删除。 -->
     <Style x:Key="MediaIconButtonStyle"
            TargetType="Button"
            BasedOn="{StaticResource BorderlessIconButtonStyle}">
