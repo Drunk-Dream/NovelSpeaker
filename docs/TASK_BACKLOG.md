@@ -185,7 +185,7 @@ artifacts/visual-review/windows/<window-id>/
 - 验证通过：`dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore`（0 警告/0 错误）、`dotnet test -c Release --no-build`（Domain 2、Application 208、Infrastructure 343、Presentation 382、WPF 247），以及最新定向架构测试 19/19。
 - 本切片未改变运行时资源加载、视觉引用或截图工具，也未生成视觉产物；任务 2 继续负责目录骨架和 Legacy 迁移。
 
-## [ ] 2（P0）：建立最终目录骨架和临时 Legacy 层
+## [x] 2（P0）：建立最终目录骨架和临时 Legacy 层
 
 前置：1。
 
@@ -204,6 +204,13 @@ artifacts/visual-review/windows/<window-id>/
 - Light/Dark 热切换前后字典实例和 Style/Template 类型资源保持稳定。
 - 资源加载顺序、Legacy 单一入口和依赖方向测试通过。
 - 完整质量门禁通过。
+
+结果：
+
+- 新增 `Resources/Tokens`、`Resources/Styles`、`Resources/ControlThemes` 和 `Resources/Legacy`；DesignTokens、Typography、输入/按钮/Slider、组件/导航资源分别归入目标层，旧综合键集中到 `Legacy/LegacyStyles.xaml`，键名与样式内容保持不变。
+- App 与 Style Gallery 均固定为 Wpf.Ui → Provider → Palette → Tokens → Styles → ControlThemes → Legacy；Legacy 只通过 App 资源链最后一个入口加载，现有页面暂不迁移以保持运行时行为。
+- 新增资源骨架、Legacy 单一入口、加载顺序、主题切换实例稳定性和迁移期页面引用基线回归验证；资源迁移相关定向 WPF 测试 89/89 通过。
+- 完整质量门禁通过：`dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build src/NovelSpeaker.App/NovelSpeaker.App.csproj -c Release --no-restore`（0 警告/0 错误）、`dotnet test -c Release --no-build`（Domain 2、Application 208、Infrastructure 343、Presentation 382、WPF 258）。
 
 ## [ ] 3（P1）：重构 Palette 与基础 Token
 

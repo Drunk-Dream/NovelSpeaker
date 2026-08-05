@@ -16,7 +16,7 @@ internal static class GalleryNavigationFeedbackScene
         () => new ResourceDictionary
         {
             Source = new Uri(
-                "/NovelSpeaker.App;component/Shared/Theming/Resources/NavigationFeedbackStyles.xaml",
+                "/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/NavigationFeedbackStyles.xaml",
                 UriKind.RelativeOrAbsolute)
         });
 

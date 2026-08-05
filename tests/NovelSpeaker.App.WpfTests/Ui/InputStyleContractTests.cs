@@ -74,6 +74,7 @@ public sealed class InputStyleContractTests
             "Shared",
             "Theming",
             "Resources",
+            "Styles",
             "Inputs.xaml");
         var document = XDocument.Load(path);
         var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");

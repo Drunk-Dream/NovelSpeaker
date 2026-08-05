@@ -9,12 +9,14 @@
                 <ui:ControlsDictionary />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Provider/ProviderStyleBridge.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Palettes/Palette.Light.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/DesignTokens.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Inputs.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ButtonStyles.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/SliderStyles.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ComponentStyles.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/NavigationFeedbackStyles.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Tokens/DesignTokens.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Typography.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Inputs.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/ButtonStyles.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/SliderStyles.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/ComponentStyles.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/NavigationFeedbackStyles.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Legacy/LegacyStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

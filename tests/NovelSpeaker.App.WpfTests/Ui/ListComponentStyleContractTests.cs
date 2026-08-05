@@ -46,6 +46,7 @@ public sealed class ListComponentStyleContractTests
             "Shared",
             "Theming",
             "Resources",
+            "ControlThemes",
             "ComponentStyles.xaml");
         var document = XDocument.Load(path);
         var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");

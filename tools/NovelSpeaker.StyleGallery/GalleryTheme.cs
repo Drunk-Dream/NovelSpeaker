@@ -88,11 +88,31 @@ public static class GalleryThemeRuntime
 
         if (dictionaries.Count < 5 ||
             dictionaries[4].Source?.OriginalString?.EndsWith(
-                "Resources/DesignTokens.xaml",
+                "Resources/Tokens/DesignTokens.xaml",
                 StringComparison.Ordinal) != true)
         {
             throw new InvalidOperationException(
                 "Style Gallery DesignTokens must remain at logical dictionary position 4.");
+        }
+
+        var expectedApplicationSources = new[]
+        {
+            "Resources/Styles/Typography.xaml",
+            "Resources/Styles/Inputs.xaml",
+            "Resources/Styles/ButtonStyles.xaml",
+            "Resources/Styles/SliderStyles.xaml",
+            "Resources/ControlThemes/ComponentStyles.xaml",
+            "Resources/ControlThemes/NavigationFeedbackStyles.xaml",
+            "Resources/Legacy/LegacyStyles.xaml"
+        };
+        if (dictionaries.Count != 12 ||
+            expectedApplicationSources.Select((suffix, index) =>
+                dictionaries[index + 5].Source?.OriginalString?.EndsWith(
+                    suffix,
+                    StringComparison.OrdinalIgnoreCase) == true).Any(isMatch => !isMatch))
+        {
+            throw new InvalidOperationException(
+                "Style Gallery application resources must load Styles, ControlThemes and Legacy exactly once in order, with Legacy last.");
         }
     }
 

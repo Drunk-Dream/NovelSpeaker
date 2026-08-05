@@ -28,6 +28,18 @@ public sealed class ProviderStyleBridgeTests
         "Provider.Slider"
     ];
 
+    private static readonly string[] StableApplicationResourceKeys =
+    [
+        "App.Typography.PageTitle",
+        "App.Button.Primary",
+        "App.Input.TextBox.Standard",
+        "App.Media.Slider",
+        "App.Component.SettingsRow",
+        "App.Feedback.ProgressBar",
+        "PageTitleTextBlockStyle",
+        "IconButtonControlTemplate"
+    ];
+
     [Fact]
     public void App_loads_provider_dictionaries_then_bridge_then_application_dictionaries()
     {
@@ -36,7 +48,7 @@ public sealed class ProviderStyleBridgeTests
             var dictionaries = Assert.IsAssignableFrom<global::System.Windows.Application>(
                 global::System.Windows.Application.Current).Resources.MergedDictionaries;
 
-            Assert.Equal(11, dictionaries.Count);
+            Assert.Equal(12, dictionaries.Count);
             Assert.True(IsWpfUiThemeDictionary(dictionaries[0]));
             Assert.Contains("Wpf.Ui", dictionaries[0].Source?.OriginalString, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(
@@ -57,32 +69,36 @@ public sealed class ProviderStyleBridgeTests
                 dictionaries[3].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/DesignTokens.xaml",
+                "Shared/Theming/Resources/Tokens/DesignTokens.xaml",
                 dictionaries[4].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/Inputs.xaml",
+                "Shared/Theming/Resources/Styles/Typography.xaml",
                 dictionaries[5].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/ButtonStyles.xaml",
+                "Shared/Theming/Resources/Styles/Inputs.xaml",
                 dictionaries[6].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/SliderStyles.xaml",
+                "Shared/Theming/Resources/Styles/ButtonStyles.xaml",
                 dictionaries[7].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/ComponentStyles.xaml",
+                "Shared/Theming/Resources/Styles/SliderStyles.xaml",
                 dictionaries[8].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/NavigationFeedbackStyles.xaml",
+                "Shared/Theming/Resources/ControlThemes/ComponentStyles.xaml",
                 dictionaries[9].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/SemanticStyles.xaml",
+                "Shared/Theming/Resources/ControlThemes/NavigationFeedbackStyles.xaml",
                 dictionaries[10].Source?.OriginalString,
+                StringComparison.Ordinal);
+            Assert.EndsWith(
+                "Shared/Theming/Resources/Legacy/LegacyStyles.xaml",
+                dictionaries[11].Source?.OriginalString,
                 StringComparison.Ordinal);
         });
     }
@@ -148,6 +164,30 @@ public sealed class ProviderStyleBridgeTests
             Assert.Equal(before.ProviderDictionarySignatures, light.ProviderDictionarySignatures);
             Assert.All(
                 styles,
+                pair => Assert.Same(pair.Value, application.FindResource(pair.Key)));
+        });
+    }
+
+    [Fact]
+    public void Application_style_and_template_resources_keep_instances_across_theme_switches()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                global::System.Windows.Application.Current);
+            var before = StableApplicationResourceKeys.ToDictionary(
+                key => key,
+                key => application.FindResource(key),
+                StringComparer.Ordinal);
+
+            Assert.All(before.Values, resource => Assert.True(resource is Style or ControlTemplate));
+
+            var runtime = new WpfUiThemeRuntime();
+            runtime.ApplyDarkTheme();
+            runtime.ApplyLightTheme();
+
+            Assert.All(
+                before,
                 pair => Assert.Same(pair.Value, application.FindResource(pair.Key)));
         });
     }

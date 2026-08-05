@@ -30,7 +30,8 @@ public sealed class ThemeResourceTests
             "Shared",
             "Theming",
             "Resources",
-            "SemanticStyles.xaml");
+            "Legacy",
+            "LegacyStyles.xaml");
         var content = File.ReadAllText(path);
 
         Assert.Contains("TextFillColorPrimaryBrush", content);

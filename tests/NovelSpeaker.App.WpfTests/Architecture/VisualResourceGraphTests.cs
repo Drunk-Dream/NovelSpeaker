@@ -1,4 +1,6 @@
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using System.Text.RegularExpressions;
@@ -75,6 +77,68 @@ public sealed class VisualResourceGraphTests
         {
             Assert.True(legacy > Math.Max(styles, controlThemes));
         }
+
+        Assert.Equal(
+            1,
+            order.Count(source => VisualResourceGraphScanner.LayerOf(source) == ResourceLayer.Legacy));
+    }
+
+    [Fact]
+    public void Resource_directory_skeleton_has_one_legacy_entry_and_no_root_dictionaries()
+    {
+        var repositoryRoot = LocateRepositoryRoot();
+        var resourcesRoot = Path.Combine(
+            repositoryRoot,
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources");
+
+        foreach (var directory in new[] { "Tokens", "Styles", "ControlThemes", "Legacy" })
+        {
+            Assert.True(Directory.Exists(Path.Combine(resourcesRoot, directory)), directory);
+        }
+
+        Assert.Empty(Directory.EnumerateFiles(resourcesRoot, "*.xaml", SearchOption.TopDirectoryOnly));
+        Assert.Equal(
+            ["LegacyStyles.xaml"],
+            Directory.EnumerateFiles(
+                    Path.Combine(resourcesRoot, "Legacy"),
+                    "*.xaml",
+                    SearchOption.TopDirectoryOnly)
+                .Select(Path.GetFileName)
+                .Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void Existing_page_legacy_references_are_pinned_until_page_migration()
+    {
+        var repositoryRoot = LocateRepositoryRoot();
+        var graph = VisualResourceGraphScanner.ScanRepository(repositoryRoot);
+        var legacyKeys = graph.Definitions
+            .Where(definition => definition.Source.Contains(
+                "/Shared/Theming/Resources/Legacy/",
+                StringComparison.Ordinal))
+            .Select(definition => definition.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        var findings = VisualResourceGraphScanner.ScanPageLegacyReferences(repositoryRoot, legacyKeys);
+
+        Assert.NotEmpty(findings);
+        Assert.Equal(
+            "7FD93302438F49828570DB942475E226ECB47F544F61BB9540B28FC9D2222ED6",
+            VisualResourceGraphScanner.Fingerprint(findings));
+    }
+
+    [Fact]
+    public void New_page_legacy_reference_fixture_is_detected()
+    {
+        var findings = VisualResourceGraphScanner.ScanPageLegacyReferenceSource(
+            "fixture/NewPage.xaml",
+            "<TextBlock Style=\"{StaticResource PageTitleTextBlockStyle}\" />",
+            new HashSet<string>(["PageTitleTextBlockStyle"], StringComparer.Ordinal));
+
+        Assert.Single(findings);
     }
 
     [Fact]
@@ -550,6 +614,55 @@ internal static class VisualResourceGraphScanner
         return findings;
     }
 
+    public static IReadOnlyList<LegacyResourceReferenceFinding> ScanPageLegacyReferences(
+        string repositoryRoot,
+        IReadOnlySet<string> legacyKeys)
+    {
+        var appRoot = Path.Combine(repositoryRoot, "src", "NovelSpeaker.App");
+        var resourcesRoot = Path.Combine(
+            appRoot,
+            "Shared",
+            "Theming",
+            "Resources") + Path.DirectorySeparatorChar;
+
+        return Directory.EnumerateFiles(appRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => !path.StartsWith(resourcesRoot, StringComparison.OrdinalIgnoreCase))
+            .Where(path => !IsGeneratedPath(path))
+            .SelectMany(path => ScanPageLegacyReferenceSource(
+                ToRepositoryRelativePath(repositoryRoot, path),
+                File.ReadAllText(path),
+                legacyKeys))
+            .OrderBy(finding => finding.Source, StringComparer.Ordinal)
+            .ThenBy(finding => finding.Line)
+            .ThenBy(finding => finding.Key, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    public static IReadOnlyList<LegacyResourceReferenceFinding> ScanPageLegacyReferenceSource(
+        string source,
+        string content,
+        IReadOnlySet<string> legacyKeys)
+    {
+        return ResourceReference.Matches(content)
+            .Where(match => legacyKeys.Contains(match.Groups["key"].Value))
+            .Select(match => new LegacyResourceReferenceFinding(
+                source,
+                LineAt(content, match.Index),
+                match.Groups["key"].Value))
+            .ToArray();
+    }
+
+    public static string Fingerprint(IEnumerable<LegacyResourceReferenceFinding> findings)
+    {
+        var canonical = string.Join(
+            "\n",
+            findings
+                .OrderBy(finding => finding.Source, StringComparer.Ordinal)
+                .ThenBy(finding => finding.Key, StringComparer.Ordinal)
+                .Select(finding => $"{finding.Source}:{finding.Key}"));
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+    }
+
     public static ResourceLayer LayerOf(string source)
     {
         var normalized = source.Replace('\\', '/');
@@ -700,6 +813,8 @@ internal sealed record ResourceKeyDefinition(string Source, int Line, string Key
 internal sealed record ResourceKeyReference(string Source, int Line, string Key);
 
 internal sealed record ProductionFixtureFinding(string Rule, string Source, int Line, string Detail);
+
+internal sealed record LegacyResourceReferenceFinding(string Source, int Line, string Key);
 
 internal sealed record ResourceGraphViolation(string Rule, string Source, int Line, string Detail);
 

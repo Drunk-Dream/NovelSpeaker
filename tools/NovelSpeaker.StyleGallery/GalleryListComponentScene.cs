@@ -13,7 +13,7 @@ internal static class GalleryListComponentScene
         () => new ResourceDictionary
         {
             Source = new Uri(
-                "/NovelSpeaker.App;component/Shared/Theming/Resources/ComponentStyles.xaml",
+                "/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/ComponentStyles.xaml",
                 UriKind.RelativeOrAbsolute)
         });
 

@@ -61,7 +61,7 @@ public sealed class VisualStyleArchitectureTests
         Assert.Contains(audit.Provider, entry => entry.Provider == "Wpf.Ui" && entry.Resource == "ThemesDictionary");
         Assert.Contains(
             audit.GlobalDictionaries,
-            entry => entry.Source.EndsWith("Shared/Theming/Resources/SemanticStyles.xaml", StringComparison.Ordinal));
+            entry => entry.Source.EndsWith("Shared/Theming/Resources/Legacy/LegacyStyles.xaml", StringComparison.Ordinal));
         Assert.NotEmpty(audit.TemplateOverrides);
         Assert.NotEmpty(audit.PageLocalResources);
 
@@ -168,9 +168,10 @@ public sealed class VisualStyleArchitectureTests
             "Shared",
             "Theming",
             "Resources",
+            "Tokens",
             "DesignTokens.xaml");
         var result = VisualStyleOwnershipScanner.ScanDesignTokens(
-            "src/NovelSpeaker.App/Shared/Theming/Resources/DesignTokens.xaml",
+            "src/NovelSpeaker.App/Shared/Theming/Resources/Tokens/DesignTokens.xaml",
             XDocument.Load(designTokensPath, LoadOptions.SetLineInfo));
 
         Assert.Equal(
@@ -351,6 +352,7 @@ internal static class VisualStyleOwnershipScanner
             "Shared",
             "Theming",
             "Resources",
+            "Tokens",
             "DesignTokens.xaml");
         var designTokenResult = ScanDesignTokens(
             ToRepositoryRelativePath(repositoryRoot, designTokenPath),

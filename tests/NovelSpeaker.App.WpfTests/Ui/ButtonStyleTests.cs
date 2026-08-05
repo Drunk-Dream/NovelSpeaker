@@ -31,6 +31,7 @@ public sealed class ButtonStyleTests
             "Shared",
             "Theming",
             "Resources",
+            "Styles",
             "ButtonStyles.xaml");
         var document = XDocument.Load(path);
         var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");

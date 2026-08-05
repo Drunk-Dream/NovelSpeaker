@@ -612,7 +612,7 @@ public sealed class StyleGallerySceneTests
                 global::System.Windows.Application.Current);
             var tokenDictionary = application.Resources.MergedDictionaries.Single(dictionary =>
                 dictionary.Source?.OriginalString?.EndsWith(
-                    "Resources/DesignTokens.xaml",
+                    "Resources/Tokens/DesignTokens.xaml",
                     StringComparison.Ordinal) == true);
             var spacing = Assert.IsType<double>(application.FindResource("Spacing24"));
             var cornerRadius = Assert.IsType<CornerRadius>(application.FindResource("CornerRadiusMedium"));
@@ -647,7 +647,7 @@ public sealed class StyleGallerySceneTests
                 Assert.Equal(spacing, Assert.IsType<double>(application.FindResource("Spacing24")));
                 Assert.Same(tokenDictionary, application.Resources.MergedDictionaries.Single(dictionary =>
                     dictionary.Source?.OriginalString?.EndsWith(
-                        "Resources/DesignTokens.xaml",
+                        "Resources/Tokens/DesignTokens.xaml",
                         StringComparison.Ordinal) == true));
 
                 GalleryThemeRuntime.Apply(GalleryTheme.Dark);
