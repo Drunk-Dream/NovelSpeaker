@@ -36,7 +36,7 @@ internal static class GallerySceneBuilders
         CreateSceneRoot(
             "palette-probe",
             "Semantic palette",
-            "Every stable palette brush is shown with readable text and icon samples; only values change between themes.",
+            "Every canonical App.Brush.* key is shown with readable text and icon samples plus basic contrast pairs; only values change between themes.",
             CreatePaletteContent);
 
     public static FrameworkElement CreateTokenComponents() =>
@@ -333,43 +333,55 @@ internal static class GallerySceneBuilders
 
         var left = new StackPanel { Margin = new Thickness(0, 0, SectionGap / 2, 0) };
         var right = new StackPanel { Margin = new Thickness(SectionGap / 2, 0, 0, 0) };
-        var swatches = new[]
-        {
-            ("App.Brush.Window.Background", "App.Brush.Text.Primary", "App background"),
-            ("App.Brush.Canvas", "App.Brush.Text.Primary", "Canvas surface"),
-            ("App.Brush.Surface.Primary", "App.Brush.Text.Primary", "Primary surface"),
-            ("App.Brush.Surface.Secondary", "App.Brush.Text.Primary", "Secondary surface"),
-            ("App.Brush.Surface.Raised", "App.Brush.Text.Primary", "Raised surface"),
-            ("App.Brush.Text.Primary", "App.Brush.Surface.Primary", "Primary text"),
-            ("App.Brush.Text.Secondary", "App.Brush.Surface.Primary", "Secondary text"),
-            ("App.Brush.Text.Tertiary", "App.Brush.Surface.Primary", "Tertiary text"),
-            ("App.Brush.Border.Subtle", "App.Brush.Text.Primary", "Subtle border"),
-            ("App.Brush.Border.Strong", "App.Brush.Text.Primary", "Strong border"),
-            ("App.Brush.Accent", "App.Brush.Accent.Text", "Accent"),
-            ("App.Brush.Accent.Default", "App.Brush.Accent.Text", "Accent default"),
-            ("App.Brush.Accent.Hover", "App.Brush.Accent.Text", "Accent hover"),
-            ("App.Brush.Accent.Pressed", "App.Brush.Accent.Text", "Accent pressed"),
-            ("App.Brush.Accent.Subtle", "App.Brush.Text.Primary", "Accent subtle"),
-            ("App.Brush.Focus", "App.Brush.Accent.Text", "Accent focus ring"),
-            ("App.Brush.Accent.Text", "App.Brush.Accent", "Accent text"),
-            ("App.Brush.Danger", "App.Brush.Danger.Text", "Danger"),
-            ("App.Brush.Danger.Subtle", "App.Brush.Text.Primary", "Danger subtle"),
-            ("App.Brush.Danger.Text", "App.Brush.Danger", "Danger text"),
-            ("App.Brush.Danger.Pressed", "App.Brush.Danger.Pressed.Text", "Danger pressed"),
-            ("App.Brush.Danger.Pressed.Text", "App.Brush.Danger.Pressed", "Danger pressed text"),
-            ("App.Brush.Warning", "App.Brush.Warning.Text", "Warning"),
-            ("App.Brush.Warning.Subtle", "App.Brush.Text.Primary", "Warning subtle"),
-            ("App.Brush.Warning.Text", "App.Brush.Warning", "Warning text"),
-            ("App.Brush.Success", "App.Brush.Success.Text", "Success"),
-            ("App.Brush.Success.Subtle", "App.Brush.Text.Primary", "Success subtle"),
-            ("App.Brush.Success.Text", "App.Brush.Success", "Success text")
-        };
-
-        for (var index = 0; index < swatches.Length; index++)
-        {
-            var swatch = CreatePaletteSwatch(swatches[index].Item1, swatches[index].Item2, swatches[index].Item3);
-            (index < (swatches.Length + 1) / 2 ? left : right).Children.Add(swatch);
-        }
+        AddPaletteGroup(
+            left,
+            "表面与画布",
+            [
+                ("App.Brush.Window.Background", "App.Brush.Text.Primary", "Window background"),
+                ("App.Brush.Canvas", "App.Brush.Text.Primary", "Canvas surface"),
+                ("App.Brush.Surface.Primary", "App.Brush.Text.Primary", "Primary surface"),
+                ("App.Brush.Surface.Secondary", "App.Brush.Text.Primary", "Secondary surface"),
+                ("App.Brush.Surface.Raised", "App.Brush.Text.Primary", "Raised surface")
+            ]);
+        AddPaletteGroup(
+            left,
+            "文字与边框",
+            [
+                ("App.Brush.Text.Primary", "App.Brush.Surface.Primary", "Primary text"),
+                ("App.Brush.Text.Secondary", "App.Brush.Surface.Primary", "Secondary text"),
+                ("App.Brush.Text.Tertiary", "App.Brush.Surface.Primary", "Tertiary text"),
+                ("App.Brush.Border.Subtle", "App.Brush.Text.Primary", "Subtle border"),
+                ("App.Brush.Border.Strong", "App.Brush.Text.Primary", "Strong border")
+            ]);
+        AddPaletteGroup(
+            right,
+            "强调色",
+            [
+                ("App.Brush.Accent", "App.Brush.Accent.Text", "Accent"),
+                ("App.Brush.Accent.Default", "App.Brush.Accent.Text", "Accent default"),
+                ("App.Brush.Accent.Hover", "App.Brush.Accent.Text", "Accent hover"),
+                ("App.Brush.Accent.Pressed", "App.Brush.Accent.Text", "Accent pressed"),
+                ("App.Brush.Accent.Subtle", "App.Brush.Text.Primary", "Accent subtle"),
+                ("App.Brush.Focus", "App.Brush.Accent.Text", "Focus ring"),
+                ("App.Brush.Accent.Text", "App.Brush.Accent", "Accent text")
+            ]);
+        AddContrastGroup(right);
+        AddPaletteGroup(
+            right,
+            "状态色",
+            [
+                ("App.Brush.Danger", "App.Brush.Danger.Text", "Danger"),
+                ("App.Brush.Danger.Subtle", "App.Brush.Text.Primary", "Danger subtle"),
+                ("App.Brush.Danger.Text", "App.Brush.Danger", "Danger text"),
+                ("App.Brush.Danger.Pressed", "App.Brush.Danger.Pressed.Text", "Danger pressed"),
+                ("App.Brush.Danger.Pressed.Text", "App.Brush.Danger.Pressed", "Danger pressed text"),
+                ("App.Brush.Warning", "App.Brush.Warning.Text", "Warning"),
+                ("App.Brush.Warning.Subtle", "App.Brush.Text.Primary", "Warning subtle"),
+                ("App.Brush.Warning.Text", "App.Brush.Warning", "Warning text"),
+                ("App.Brush.Success", "App.Brush.Success.Text", "Success"),
+                ("App.Brush.Success.Subtle", "App.Brush.Text.Primary", "Success subtle"),
+                ("App.Brush.Success.Text", "App.Brush.Success", "Success text")
+            ]);
 
         columns.Children.Add(left);
         Grid.SetColumn(right, 1);
@@ -377,6 +389,96 @@ internal static class GallerySceneBuilders
         scrollViewer.Content = columns;
         container.Children.Add(scrollViewer);
         return container;
+    }
+
+    private static void AddPaletteGroup(
+        Panel panel,
+        string title,
+        IReadOnlyList<(string BackgroundKey, string ForegroundKey, string Label)> swatches)
+    {
+        panel.Children.Add(CreatePaletteGroupHeader(title));
+        foreach (var swatch in swatches)
+        {
+            panel.Children.Add(CreatePaletteSwatch(
+                swatch.BackgroundKey,
+                swatch.ForegroundKey,
+                swatch.Label));
+        }
+    }
+
+    private static void AddContrastGroup(Panel panel)
+    {
+        panel.Children.Add(CreatePaletteGroupHeader("基础对比度样例"));
+        var samples = new[]
+        {
+            ("App.Brush.Surface.Primary", "App.Brush.Text.Primary", "正文 Primary text", "14px 正文 · Primary surface"),
+            ("App.Brush.Surface.Secondary", "App.Brush.Text.Secondary", "说明 Secondary text", "13px 说明 · Secondary surface"),
+            ("App.Brush.Canvas", "App.Brush.Text.Tertiary", "弱提示 Tertiary text", "12px 弱提示 · Canvas"),
+            ("App.Brush.Accent", "App.Brush.Accent.Text", "Accent 强调文字", "强调色上的浅色文字"),
+            ("App.Brush.Danger", "App.Brush.Danger.Text", "Danger 危险文字", "危险色上的浅色文字")
+        };
+        for (var index = 0; index < samples.Length; index++)
+        {
+            panel.Children.Add(CreateContrastSample(
+                samples[index].Item1,
+                samples[index].Item2,
+                samples[index].Item3,
+                samples[index].Item4,
+                index));
+        }
+    }
+
+    private static TextBlock CreatePaletteGroupHeader(string title)
+    {
+        var header = CreateText(title, 15, FontWeights.SemiBold);
+        header.Margin = new Thickness(0, 8, 0, 8);
+        return header;
+    }
+
+    private static Border CreateContrastSample(
+        string backgroundKey,
+        string foregroundKey,
+        string title,
+        string detail,
+        int index)
+    {
+        var titleText = new TextBlock
+        {
+            Text = title,
+            FontSize = 14,
+            FontWeight = FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap
+        };
+        titleText.SetResourceReference(TextBlock.ForegroundProperty, foregroundKey);
+        var detailText = new TextBlock
+        {
+            Text = detail,
+            FontSize = 12,
+            Margin = new Thickness(0, 2, 0, 0),
+            TextWrapping = TextWrapping.Wrap
+        };
+        detailText.SetResourceReference(TextBlock.ForegroundProperty, foregroundKey);
+
+        var sample = new Border
+        {
+            MinHeight = 56,
+            Margin = new Thickness(0, 0, 0, 6),
+            Padding = new Thickness(10, 6, 10, 6),
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            Child = new StackPanel
+            {
+                Children =
+                {
+                    titleText,
+                    detailText
+                }
+            }
+        };
+        sample.SetResourceReference(Border.BackgroundProperty, backgroundKey);
+        sample.SetResourceReference(Border.BorderBrushProperty, "App.Brush.Border.Subtle");
+        AutomationProperties.SetAutomationId(sample, $"contrast-sample-{index}");
+        return sample;
     }
 
     private static FrameworkElement CreateTokenComponentsContent()
@@ -1206,9 +1308,9 @@ internal static class GallerySceneBuilders
 
         var swatch = new Border
         {
-            MinHeight = 42,
-            Margin = new Thickness(0, 0, 0, 8),
-            Padding = new Thickness(12, 8, 12, 8),
+            MinHeight = 36,
+            Margin = new Thickness(0, 0, 0, 6),
+            Padding = new Thickness(10, 6, 10, 6),
             CornerRadius = new CornerRadius(8),
             BorderThickness = new Thickness(1),
             Child = row

@@ -485,7 +485,22 @@ public sealed class StyleGallerySceneTests
                         border => AutomationProperties.GetAutomationId(border),
                         border => Assert.IsType<SolidColorBrush>(border.Background),
                         StringComparer.Ordinal);
-                Assert.Equal(28, swatches.Count);
+                var canonicalBrushKeys = NovelSpeaker.App.Shared.Theming.SemanticPaletteRuntime.Keys
+                    .Where(key => key.StartsWith("App.Brush.", StringComparison.Ordinal))
+                    .Order(StringComparer.Ordinal)
+                    .ToArray();
+                Assert.Equal(28, canonicalBrushKeys.Length);
+                Assert.Equal(
+                    canonicalBrushKeys.Select(key => $"palette-{key}").Order(StringComparer.Ordinal),
+                    swatches.Keys.Order(StringComparer.Ordinal));
+
+                var contrastSamples = FindDescendants<Border>(scene)
+                    .Where(border => AutomationProperties.GetAutomationId(border).StartsWith(
+                        "contrast-sample-",
+                        StringComparison.Ordinal))
+                    .ToArray();
+                Assert.Equal(5, contrastSamples.Length);
+                Assert.All(contrastSamples, sample => Assert.NotNull(sample.Background));
 
                 var providerStyle = Assert.IsType<Style>(application.FindResource("Provider.Button"));
                 var button = new WpfButton
