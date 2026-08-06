@@ -26,6 +26,7 @@ public sealed class ProviderStyleBridgeTests
         "Provider.CheckBox",
         "Provider.ToggleSwitch",
         "Provider.NavigationViewItem",
+        "Provider.ProgressBar",
         "Provider.Slider",
         "Provider.MenuItem"
     ];
@@ -35,9 +36,10 @@ public sealed class ProviderStyleBridgeTests
         "App.Typography.PageTitle",
         "App.Button.Primary",
         "App.Input.TextBox.Standard",
+        "App.Progress.Standard",
         "App.Media.Slider",
         "App.Component.SettingsRow",
-        "App.Feedback.ProgressBar",
+        "App.Feedback.PopupSurface",
         "PageTitleTextBlockStyle",
         "IconButtonControlTemplate"
     ];
@@ -113,19 +115,19 @@ public sealed class ProviderStyleBridgeTests
                 dictionaries[14].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Media.xaml",
+                "Shared/Theming/Resources/Styles/Progress.xaml",
                 dictionaries[15].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/SliderStyles.xaml",
+                "Shared/Theming/Resources/Styles/Media.xaml",
                 dictionaries[16].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/ControlThemes/ComponentStyles.xaml",
+                "Shared/Theming/Resources/Styles/Feedback.xaml",
                 dictionaries[17].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/ControlThemes/NavigationFeedbackStyles.xaml",
+                "Shared/Theming/Resources/ControlThemes/ComponentStyles.xaml",
                 dictionaries[18].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
@@ -280,6 +282,7 @@ public sealed class ProviderStyleBridgeTests
         "Provider.ToggleSwitch" => new ToggleSwitch { Content = "toggle", Style = style },
         "Provider.MenuItem" => new System.Windows.Controls.MenuItem { Header = "menu", Style = style },
         "Provider.NavigationViewItem" => new NavigationViewItem { Content = "navigation", Style = style },
+        "Provider.ProgressBar" => new ProgressBar { Minimum = 0, Maximum = 1, Value = 0.5, Style = style },
         "Provider.Slider" => new Slider { Minimum = 0, Maximum = 1, Value = 0.5, Style = style },
         _ => throw new ArgumentOutOfRangeException(nameof(key), key, "Unknown bridge key.")
     };

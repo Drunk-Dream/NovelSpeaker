@@ -1,0 +1,23 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Feedback styles format content; Wpf.Ui remains the owner of each host lifecycle. -->
+    <Style x:Key="App.Feedback.PopupSurface"
+           TargetType="{x:Type Border}"
+           BasedOn="{StaticResource App.Surface.Popup}" />
+
+    <Style x:Key="App.Feedback.ValidationText"
+           TargetType="{x:Type TextBlock}"
+           BasedOn="{StaticResource App.Typography.Validation}" />
+
+    <Style x:Key="App.Feedback.InlineMessage"
+           TargetType="{x:Type Border}"
+           BasedOn="{StaticResource App.Surface.Secondary}">
+        <Setter Property="Padding" Value="12,8" />
+    </Style>
+
+    <Style x:Key="App.Feedback.SnackbarBody"
+           TargetType="{x:Type Border}"
+           BasedOn="{StaticResource App.Surface.Raised}">
+        <Setter Property="Padding" Value="12,8" />
+    </Style>
+</ResourceDictionary>

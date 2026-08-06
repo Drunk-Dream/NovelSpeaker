@@ -47,8 +47,8 @@ public sealed class MiniPlayerWindowTests
                 Assert.True(window.MaxHeight >= window.MinHeight);
 
                 var surface = Assert.IsType<Border>(window.FindName("MiniPlayerSurface"));
-                Assert.Same(window.FindResource("RaisedSurfaceBrush"), surface.Background);
-                Assert.Same(window.FindResource("StrongBorderBrush"), surface.BorderBrush);
+                Assert.Same(window.FindResource("App.Brush.Surface.Raised"), surface.Background);
+                Assert.Same(window.FindResource("App.Brush.Border.Subtle"), surface.BorderBrush);
                 Assert.True(surface.BorderThickness.Left >= 0);
                 Assert.True(surface.CornerRadius.TopLeft >= 0);
                 Assert.Null(surface.Effect);
@@ -112,9 +112,9 @@ public sealed class MiniPlayerWindowTests
 
                 Assert.IsType<Grid>(window.FindName("MiniPlayerControlBar"));
                 var mediaSurface = Assert.IsType<Border>(window.FindName("MiniPlayerMediaSurface"));
-                Assert.Same(window.FindResource("SecondarySurfaceBrush"), mediaSurface.Background);
+                Assert.Same(window.FindResource("App.Brush.Surface.Secondary"), mediaSurface.Background);
                 Assert.Equal(
-                    Assert.IsType<CornerRadius>(window.FindResource("CornerRadiusMedium")),
+                    Assert.IsType<CornerRadius>(window.FindResource("App.Radius.Small")),
                     mediaSurface.CornerRadius);
                 Assert.True(mediaSurface.ClipToBounds);
                 var mediaControls = Assert.IsType<StackPanel>(window.FindName("MiniPlayerMediaControls"));

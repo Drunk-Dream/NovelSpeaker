@@ -22,10 +22,8 @@ public sealed class GalleryMediaControlBar : Border
 
         Padding = new Thickness(20);
         BorderThickness = new Thickness(1);
+        Style = FindStyle("App.Media.ControlSurface");
         SnapsToDevicePixels = true;
-        SetResourceReference(BackgroundProperty, "App.Brush.Surface.Primary");
-        SetResourceReference(BorderBrushProperty, "App.Brush.Border.Subtle");
-        SetResourceReference(CornerRadiusProperty, "App.Radius.Medium");
         AutomationProperties.SetAutomationId(this, "media-control-bar");
 
         var content = new Grid();
@@ -484,6 +482,10 @@ public sealed class GalleryMediaControlBar : Border
     private static Style FindButtonStyle(string styleKey) =>
         System.Windows.Application.Current?.FindResource(styleKey) as Style
         ?? throw new InvalidOperationException($"Button style '{styleKey}' was not found.");
+
+    private static Style FindStyle(string styleKey) =>
+        System.Windows.Application.Current?.FindResource(styleKey) as Style
+        ?? throw new InvalidOperationException($"Style '{styleKey}' was not found.");
 
     private static Style FindSliderStyle() =>
         System.Windows.Application.Current?.FindResource("App.Media.Slider") as Style

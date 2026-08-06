@@ -679,8 +679,8 @@ public sealed partial class PlayerViewTests
 
             var fillBar = Assert.IsType<ProgressBar>(view.FindName("SegmentProgressFillBar"));
             var slider = Assert.IsType<Slider>(view.FindName("SegmentProgressSlider"));
-            var accentBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.TryFindResource("AccentFillColorDefaultBrush"));
-            var trackBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.TryFindResource("LayerFillColorAltBrush"));
+            var accentBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.FindResource("App.Brush.Accent"));
+            var trackBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.FindResource("App.Brush.Surface.Secondary"));
             var fillBarForeground = Assert.IsType<SolidColorBrush>(fillBar.Foreground);
             var fillBarBackground = Assert.IsType<SolidColorBrush>(fillBar.Background);
 
@@ -787,7 +787,7 @@ public sealed partial class PlayerViewTests
             Assert.Equal(0d, volumeSlider.Minimum);
             Assert.Equal(1d, volumeSlider.Maximum);
             Assert.Equal("播放音量", AutomationProperties.GetName(volumeSlider));
-            Assert.Same(view.FindResource("PlaybackProgressSliderStyle"), volumeSlider.Style);
+            Assert.Same(view.FindResource("App.Media.Slider"), volumeSlider.Style);
             Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
                 volumePopup,
                 textBlock => textBlock.Text == "仅调整应用内播放音量，不改变系统音量。"));

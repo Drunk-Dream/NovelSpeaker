@@ -76,6 +76,13 @@ internal static class GallerySceneBuilders
             "App.Button.Icon and the Gallery-only control bar show playback, volume, window actions and deterministic slider projection.",
             CreateMediaControlsContent);
 
+    public static FrameworkElement CreateProgressStyles() =>
+        CreateSceneRoot(
+            "progress",
+            "Progress styles",
+            "ProgressBar and Slider keep separate templates, semantics and measurable bounds.",
+            GalleryProgressScene.Create);
+
     public static FrameworkElement CreateInputControls() =>
         CreateSceneRoot(
             "input-controls",
@@ -111,12 +118,12 @@ internal static class GallerySceneBuilders
             "Shared BookCard, ListRow, SelectableRow, SettingsRow, RuleListItem and EmptyState components keep state ownership independent from virtualized containers.",
             GalleryListComponentScene.Create);
 
-    public static FrameworkElement CreateNavigationFeedback() =>
+    public static FrameworkElement CreateFeedbackStyles() =>
         CreateSceneRoot(
-            "navigation-feedback",
-            "Progress and feedback components",
-            "Shared explicit styles keep provider templates intact while making progress, dismissal and request states measurable.",
-            GalleryNavigationFeedbackScene.Create);
+            "feedback",
+            "Feedback content styles",
+            "Popup, inline validation and Snackbar content styles keep Wpf.Ui hosts and lifecycles outside the resource dictionary.",
+            GalleryFeedbackScene.Create);
 
     public static FrameworkElement CreateProviderStyleProbe() =>
         CreateSceneRoot(

@@ -75,7 +75,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
             Assert.Single(allStyleDefinitions, definition => definition.key == key &&
                 definition.path.EndsWith("Menus.xaml", StringComparison.Ordinal)));
 
-        var feedbackPath = Path.Combine(
+        Assert.False(File.Exists(Path.Combine(
             repositoryRoot,
             "src",
             "NovelSpeaker.App",
@@ -83,11 +83,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
             "Theming",
             "Resources",
             "ControlThemes",
-            "NavigationFeedbackStyles.xaml");
-        Assert.DoesNotContain(
-            ReadKeys(feedbackPath),
-            key => key.StartsWith("App.Navigation.", StringComparison.Ordinal) ||
-                   key.StartsWith("App.Menu.", StringComparison.Ordinal));
+            "NavigationFeedbackStyles.xaml")));
 
         var bridgePath = Path.Combine(
             repositoryRoot,

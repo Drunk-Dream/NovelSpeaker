@@ -44,6 +44,7 @@ public static class GalleryThemeRuntime
         "Provider.ToggleSwitch",
         "Provider.MenuItem",
         "Provider.NavigationViewItem",
+        "Provider.ProgressBar",
         "Provider.Slider"
     ];
 
@@ -114,10 +115,10 @@ public static class GalleryThemeRuntime
             "Resources/Styles/Selection.xaml",
             "Resources/Styles/Navigation.xaml",
             "Resources/Styles/Menus.xaml",
+            "Resources/Styles/Progress.xaml",
             "Resources/Styles/Media.xaml",
-            "Resources/Styles/SliderStyles.xaml",
+            "Resources/Styles/Feedback.xaml",
             "Resources/ControlThemes/ComponentStyles.xaml",
-            "Resources/ControlThemes/NavigationFeedbackStyles.xaml",
             "Resources/Legacy/LegacyStyles.xaml"
         };
         if (dictionaries.Count != 20 ||

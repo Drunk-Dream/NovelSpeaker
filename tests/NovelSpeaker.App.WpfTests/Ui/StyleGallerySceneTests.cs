@@ -29,7 +29,7 @@ public sealed class StyleGallerySceneTests
         var scenes = GallerySceneRegistry.All;
 
         Assert.Equal(
-            ["button-styles", "input-controls", "list-components", "media-controls", "menus", "navigation", "navigation-feedback", "palette-probe", "provider-controls", "provider-style-probe", "selection", "surfaces", "theme-resource-probe", "token-components", "typography"],
+            ["button-styles", "feedback", "input-controls", "list-components", "media-controls", "menus", "navigation", "palette-probe", "progress", "provider-controls", "provider-style-probe", "selection", "surfaces", "theme-resource-probe", "token-components", "typography"],
             scenes.Select(scene => scene.Name).Order(StringComparer.Ordinal));
         Assert.Equal(
             ["Theme foundations", "Standard controls", "Component families"],
@@ -39,11 +39,11 @@ public sealed class StyleGallerySceneTests
             scenes.Where(scene => scene.Group == GallerySceneGroup.ThemeFoundations)
                 .Select(scene => scene.Name));
         Assert.Equal(
-            ["provider-controls", "button-styles", "input-controls", "selection", "navigation", "menus"],
+            ["provider-controls", "button-styles", "input-controls", "selection", "navigation", "menus", "progress"],
             scenes.Where(scene => scene.Group == GallerySceneGroup.StandardControls)
                 .Select(scene => scene.Name));
         Assert.Equal(
-            ["media-controls", "list-components", "navigation-feedback"],
+            ["media-controls", "list-components", "feedback"],
             scenes.Where(scene => scene.Group == GallerySceneGroup.ComponentFamilies)
                 .Select(scene => scene.Name));
         Assert.DoesNotContain(scenes, scene => scene.Name == "placeholder-sections");
@@ -68,7 +68,7 @@ public sealed class StyleGallerySceneTests
             Assert.Equal(
                 ["Theme foundations", "Standard controls", "Component families"],
                 view.Groups.Cast<CollectionViewGroup>().Select(group => group.Name));
-            Assert.Equal(15, view.Cast<GallerySceneDefinition>().Count());
+            Assert.Equal(16, view.Cast<GallerySceneDefinition>().Count());
 
             var headerTemplate = Assert.Single(selector.GroupStyle).HeaderTemplate;
             Assert.NotNull(headerTemplate);
@@ -1001,8 +1001,10 @@ public sealed class StyleGallerySceneTests
         });
     }
 
-    [Fact]
-    public async Task Screenshot_generator_writes_navigation_feedback_scene_manifest()
+    [Theory]
+    [InlineData("progress")]
+    [InlineData("feedback")]
+    public async Task Screenshot_generator_writes_progress_and_feedback_scene_manifest(string sceneName)
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {
@@ -1019,7 +1021,7 @@ public sealed class StyleGallerySceneTests
                 "--theme",
                 "all",
                 "--scene",
-                "navigation-feedback",
+                sceneName,
                 "--output",
                 output.Path
             ]);
@@ -1033,7 +1035,7 @@ public sealed class StyleGallerySceneTests
                 await AssertManifestMatchesPngsAsync(
                     manifest,
                     output.Path,
-                    ["navigation-feedback"],
+                    [sceneName],
                     cancellation.Token);
             }
             finally

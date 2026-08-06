@@ -20,10 +20,10 @@
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Selection.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Navigation.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Menus.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Progress.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Media.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/SliderStyles.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Feedback.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/ComponentStyles.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/NavigationFeedbackStyles.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Legacy/LegacyStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>

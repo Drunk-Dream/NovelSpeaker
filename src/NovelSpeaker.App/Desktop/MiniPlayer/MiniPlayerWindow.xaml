@@ -19,10 +19,10 @@
         PreviewMouseLeftButtonDown="MiniPlayerWindow_OnPreviewMouseLeftButtonDown">
     <Border x:Name="MiniPlayerSurface"
             Padding="12,6"
-            Background="{DynamicResource RaisedSurfaceBrush}"
-            BorderBrush="{DynamicResource StrongBorderBrush}"
             BorderThickness="2"
-            CornerRadius="{StaticResource CornerRadiusLarge}"
+            CornerRadius="{StaticResource App.Radius.Large}"
+            Effect="{x:Null}"
+            Style="{StaticResource App.Surface.Raised}"
             ClipToBounds="True">
         <Grid>
             <Grid.RowDefinitions>
@@ -55,7 +55,7 @@
                         <Border x:Name="MiniPlayerTopmostStateBorder"
                                 Width="32"
                                 Height="32"
-                                CornerRadius="{StaticResource IconButtonCornerRadius}">
+                                CornerRadius="{StaticResource App.Radius.Small}">
                             <Border.Style>
                                 <Style TargetType="Border">
                                     <Setter Property="Background" Value="Transparent" />
@@ -63,8 +63,8 @@
                                     <Setter Property="BorderThickness" Value="0" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsTopmost}" Value="True">
-                                            <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
-                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                            <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Default}" />
                                             <Setter Property="BorderThickness" Value="1" />
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -75,10 +75,10 @@
                                            Symbol="Pin24">
                                 <ui:SymbolIcon.Style>
                                     <Style TargetType="ui:SymbolIcon">
-                                        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsTopmost}" Value="True">
-                                                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -162,10 +162,8 @@
                     Grid.Row="3"
                     Margin="0,4,0,0"
                     Padding="4,0"
-                    Background="{DynamicResource SecondarySurfaceBrush}"
-                    BorderBrush="{DynamicResource SubtleBorderBrush}"
                     BorderThickness="1"
-                    CornerRadius="{StaticResource CornerRadiusMedium}"
+                    Style="{StaticResource App.Media.ControlSurface}"
                     ClipToBounds="True">
                 <Grid x:Name="MiniPlayerControlBar">
                     <Grid.ColumnDefinitions>
@@ -208,7 +206,7 @@
                                 AutomationProperties.Name="{Binding PlaybackActionText}">
                             <ui:SymbolIcon Width="28"
                                            Height="28"
-                                           Foreground="{DynamicResource PrimaryTextBrush}">
+                                           Foreground="{DynamicResource App.Brush.Text.Primary}">
                                 <ui:SymbolIcon.Style>
                                     <Style TargetType="ui:SymbolIcon">
                                         <Setter Property="Symbol" Value="PlayCircle24" />
@@ -278,14 +276,13 @@
                    StaysOpen="False"
                    IsOpen="{Binding IsVolumeMenuOpen, Mode=TwoWay}">
                 <Border Width="280"
-                        Padding="{StaticResource CardPadding}"
-                        Style="{StaticResource PopupSurfaceBorderStyle}">
+                        Style="{StaticResource App.Feedback.PopupSurface}">
                     <StackPanel>
                         <Grid>
-                            <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                            <TextBlock Style="{StaticResource App.Typography.SectionTitle}"
                                        Text="播放音量" />
                             <TextBlock HorizontalAlignment="Right"
-                                       Style="{StaticResource StrongTextBlockStyle}"
+                                       Style="{StaticResource App.Typography.FormLabel}"
                                        Text="{Binding VolumePercentText}" />
                         </Grid>
                         <Slider x:Name="MiniPlayerVolumeSlider"

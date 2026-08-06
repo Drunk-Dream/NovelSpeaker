@@ -19,7 +19,9 @@ public sealed class MediaControlStyleTests
 {
     private static readonly string[] MediaStyleKeys =
     [
-        "App.Media.Slider"
+        "App.Media.Button",
+        "App.Media.Slider",
+        "App.Media.ControlSurface"
     ];
 
     private static readonly string[] MediaButtonStyleKeys =
@@ -114,7 +116,7 @@ public sealed class MediaControlStyleTests
     }
 
     [Fact]
-    public void Media_slider_style_dictionary_contains_explicit_provider_based_style_without_template()
+    public void Media_style_dictionary_contains_explicit_styles_without_templates()
     {
         var path = Path.Combine(
             LocateRepositoryRoot(),
@@ -124,24 +126,29 @@ public sealed class MediaControlStyleTests
             "Theming",
             "Resources",
             "Styles",
-            "SliderStyles.xaml");
+            "Media.xaml");
         var document = XDocument.Load(path);
         var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
         var resources = document.Root?.Elements().ToArray() ?? [];
 
-        Assert.Equal(
-            MediaStyleKeys,
-            resources.Select(resource => (string?)resource.Attribute(xaml + "Key")).ToArray());
+        Assert.Equal(MediaStyleKeys, resources
+            .Select(resource => (string?)resource.Attribute(xaml + "Key"))
+            .ToArray());
         Assert.All(resources, resource =>
         {
             Assert.Equal("Style", resource.Name.LocalName);
-            Assert.Equal("{StaticResource Provider.Slider}", (string?)resource.Attribute("BasedOn"));
             Assert.DoesNotContain(
                 resource.Descendants(),
                 element => element.Name.LocalName == "ControlTemplate" ||
                            (element.Name.LocalName == "Setter" &&
                             (string?)element.Attribute("Property") == "Template"));
         });
+        Assert.Equal("Button", (string?)resources[0].Attribute("TargetType"));
+        Assert.Equal("{StaticResource App.Button.Icon}", (string?)resources[0].Attribute("BasedOn"));
+        Assert.Equal("{x:Type Slider}", (string?)resources[1].Attribute("TargetType"));
+        Assert.Equal("{StaticResource Provider.Slider}", (string?)resources[1].Attribute("BasedOn"));
+        Assert.Equal("{x:Type Border}", (string?)resources[2].Attribute("TargetType"));
+        Assert.Equal("{StaticResource App.Surface.Secondary}", (string?)resources[2].Attribute("BasedOn"));
     }
 
     [Fact]
@@ -162,8 +169,13 @@ public sealed class MediaControlStyleTests
 
         Assert.Equal(
             MediaButtonStyleKeys,
-            resources.Select(resource => (string?)resource.Attribute(xaml + "Key")).ToArray());
-        var style = Assert.Single(resources);
+            resources
+                .Where(resource =>
+                    (string?)resource.Attribute(xaml + "Key") == "App.Media.Button")
+                .Select(resource => (string?)resource.Attribute(xaml + "Key"))
+                .ToArray());
+        var style = Assert.Single(resources, resource =>
+            (string?)resource.Attribute(xaml + "Key") == "App.Media.Button");
         Assert.Equal("Style", style.Name.LocalName);
         Assert.Equal("Button", (string?)style.Attribute("TargetType"));
         Assert.Equal("{StaticResource App.Button.Icon}", (string?)style.Attribute("BasedOn"));

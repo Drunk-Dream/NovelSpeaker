@@ -352,7 +352,7 @@ artifacts/visual-review/windows/<window-id>/
 - 定向 WPF/架构测试 67/67 通过；`NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 下新场景与 navigation-feedback 截图契约通过。
 - 最终完整质量门禁通过：restore 无 lock 文件差异，format/build 通过（0 警告/0 错误），全量测试 1213/1213 通过（WPF 278）。
 
-## [ ] 8（P1）：集中 Progress、Media 与基础 Feedback Style
+## [x] 8（P1）：集中 Progress、Media 与基础 Feedback Style
 
 前置：3–7。
 
@@ -373,6 +373,14 @@ artifacts/visual-review/windows/<window-id>/
 - 分别更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/progress/`、`artifacts/visual-review/gallery/media/` 与 `artifacts/visual-review/gallery/feedback/`。
 - 使用正式迷你播放器窗口更新 `artifacts/visual-review/windows/mini-player/`，不得以 Gallery 组合样例替代窗口截图。
 - 完整质量门禁通过。
+
+结果：
+
+- 新建 `Styles/Progress.xaml` 与 `Styles/Feedback.xaml`，将可编辑位置 Slider 和媒体控制表面集中到 `Styles/Media.xaml`；ProgressBar 与 Slider 保持独立类型边界，媒体按钮继续基于 `App.Button.Icon`，统一使用 `App.Size.MediaButton` 的 48 × 48 命中区和中性状态。
+- Player 与 MiniPlayer 已迁移到新的 Media、Progress、Feedback、Surface、Typography 和语义色键；删除 `SliderStyles.xaml`、`NavigationFeedbackStyles.xaml` 及其旧公共样式引用，未改变播放命令、窗口动作或播放状态所有者。
+- Feedback 只提供 PopupSurface、InlineMessage、ValidationText、SnackbarBody 内容样式，不包含宿主控件、模板或生命周期；Gallery 新增 `progress`、`feedback` 场景并刷新 `progress/`、`media/`、`feedback/` 资源族。正式 MiniPlayer 窗口产物覆盖 Light/Dark、无上下文/长上下文和 100/125/150% DPI，共 12 张 PNG 与 manifest。
+- 定向资源、Player、MiniPlayer、Gallery 与架构测试 89/89 通过；MiniPlayer 正式窗口视觉测试 1/1，通过全套 MiniPlayer 测试 16/16。
+- 完整质量门禁通过：locked restore 无 lock 文件差异，format/build 通过（0 警告、0 错误），全量测试 1215/1215 通过（WPF 280）。
 
 ## [ ] 9（P1）：实现 Common 与 Feedback 正式自有控件
 

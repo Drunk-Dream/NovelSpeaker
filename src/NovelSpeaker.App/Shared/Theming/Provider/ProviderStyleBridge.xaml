@@ -37,6 +37,10 @@
            TargetType="{x:Type ui:NavigationViewItem}"
            BasedOn="{StaticResource NavigationViewItemDefaultStyle}" />
 
+    <Style x:Key="Provider.ProgressBar"
+           TargetType="{x:Type ProgressBar}"
+           BasedOn="{StaticResource {x:Type ProgressBar}}" />
+
     <Style x:Key="Provider.Slider"
            TargetType="{x:Type Slider}"
            BasedOn="{StaticResource {x:Type Slider}}" />

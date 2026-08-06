@@ -67,6 +67,11 @@ public static class GallerySceneRegistry
             "Explicit App.Menu surfaces, ordinary, danger and group-header items.",
             GallerySceneBuilders.CreateMenusStyles),
         new GallerySceneDefinition(
+            "progress",
+            GallerySceneGroup.StandardControls,
+            "Explicit App.Progress variants and the independent App.Media.Slider contract.",
+            GallerySceneBuilders.CreateProgressStyles),
+        new GallerySceneDefinition(
             "media-controls",
             GallerySceneGroup.ComponentFamilies,
             "Shared App.Button.Icon controls with deterministic playback and slider fixtures.",
@@ -77,10 +82,10 @@ public static class GallerySceneRegistry
             "Book cards, list rows, selection rows, settings rows, rule items and empty states.",
             GallerySceneBuilders.CreateListComponents),
         new GallerySceneDefinition(
-            "navigation-feedback",
+            "feedback",
             GallerySceneGroup.ComponentFamilies,
-            "Progress, transient surfaces and request states.",
-            GallerySceneBuilders.CreateNavigationFeedback)
+            "Popup, inline validation and Snackbar content styles.",
+            GallerySceneBuilders.CreateFeedbackStyles)
     ];
 
     public static IReadOnlyList<GallerySceneDefinition> All => RegisteredScenes;

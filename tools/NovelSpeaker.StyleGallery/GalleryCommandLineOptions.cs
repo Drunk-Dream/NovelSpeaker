@@ -49,7 +49,7 @@ public sealed record GalleryCommandLineOptions(
     }
 
     public static string UsageText =>
-        "Usage: dotnet run --project tools/NovelSpeaker.StyleGallery -- --screenshot --scene navigation-feedback --theme all --output artifacts/visual-review/gallery/navigation";
+        "Usage: dotnet run --project tools/NovelSpeaker.StyleGallery -- --screenshot --scene progress --theme all --output artifacts/visual-review/gallery/progress";
 }
 
 public enum GalleryThemeChoice

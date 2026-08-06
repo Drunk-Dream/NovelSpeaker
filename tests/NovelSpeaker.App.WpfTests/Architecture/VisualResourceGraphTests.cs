@@ -126,7 +126,7 @@ public sealed class VisualResourceGraphTests
 
         Assert.NotEmpty(findings);
         Assert.Equal(
-            "C2EAEF57FC8E2E34CF863E57A39F4E7E30C4BED4F2C0C0626A2D1DC0636E6930",
+            "447BDA777DBD855D97B356312DD9AA77D33190FFF6D9D04C5AB6E79B99C29499",
             VisualResourceGraphScanner.Fingerprint(findings));
     }
 
@@ -673,8 +673,7 @@ internal static class VisualResourceGraphScanner
         }
 
         if (normalized.Contains("/ControlThemes/", StringComparison.OrdinalIgnoreCase) ||
-            normalized.EndsWith("/ComponentStyles.xaml", StringComparison.OrdinalIgnoreCase) ||
-            normalized.EndsWith("/NavigationFeedbackStyles.xaml", StringComparison.OrdinalIgnoreCase))
+            normalized.EndsWith("/ComponentStyles.xaml", StringComparison.OrdinalIgnoreCase))
         {
             return ResourceLayer.ControlThemes;
         }
@@ -686,8 +685,7 @@ internal static class VisualResourceGraphScanner
 
         if (normalized.Contains("/Styles/", StringComparison.OrdinalIgnoreCase) ||
             normalized.EndsWith("/Buttons.xaml", StringComparison.OrdinalIgnoreCase) ||
-            normalized.EndsWith("/Inputs.xaml", StringComparison.OrdinalIgnoreCase) ||
-            normalized.EndsWith("/SliderStyles.xaml", StringComparison.OrdinalIgnoreCase))
+            normalized.EndsWith("/Inputs.xaml", StringComparison.OrdinalIgnoreCase))
         {
             return ResourceLayer.Styles;
         }
