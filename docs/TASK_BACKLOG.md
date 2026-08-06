@@ -297,7 +297,7 @@ artifacts/visual-review/windows/<window-id>/
 - `button-styles` Gallery 覆盖 8 个变体的 Default、Hover、Pressed、Keyboard Focus、Disabled，另含图标、图标 + 文本和长中文文本；已生成 `artifacts/visual-review/gallery/buttons/` 下的 Light/Dark PNG 与 manifest。
 - Button/Provider/Gallery/资源图契约定向测试 49/49 通过；最终完整质量门禁通过：restore 无 lock 文件差异，format/build 通过（0 警告/0 错误），全量测试 1203/1203 通过（WPF 268）。
 
-## [ ] 6（P1）：集中 Input Style 族
+## [x] 6（P1）：集中 Input Style 族
 
 前置：3、4。
 
@@ -315,6 +315,13 @@ artifacts/visual-review/windows/<window-id>/
 - Measure/Arrange、Popup 资源、键盘 Focus、ReadOnly/Disabled 差异和验证状态测试通过。
 - 更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/inputs/`。
 - 完整质量门禁通过。
+
+结果：
+
+- `Styles/Inputs.xaml` 收敛为设计文档规定的 10 个 `App.Input.*` 规范键（TextBox/PasswordBox/ComboBox/CheckBox/ToggleSwitch × Standard/Compact），全部通过 Provider Bridge 继承 Wpf.Ui 模板并保留 Popup、键盘、只读、禁用和验证状态；删除无生产引用的旧别名 `App.Input.Standard`/`App.Input.Compact`，契约测试同步收紧为 10 键。
+- Input/Provider/资源图/Gallery 定向测试 59/59 通过；`NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 下 `input-controls` 截图契约校验 manifest 与 PNG 尺寸/DPI/SHA-256 一致。
+- 已生成 `artifacts/visual-review/gallery/inputs/` 下的 Light/Dark PNG 与 manifest。
+- 最终完整质量门禁通过：restore 无 lock 文件差异，format/build 通过（0 警告/0 错误），全量测试 1203/1203 通过（WPF 268）。
 
 ## [ ] 7（P1）：集中 Selection、Navigation 与 Menu Style
 
