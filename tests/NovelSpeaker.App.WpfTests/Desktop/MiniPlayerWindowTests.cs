@@ -19,6 +19,7 @@ using Wpf.Ui.Appearance;
 using Xunit;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
+using WpfUiButton = Wpf.Ui.Controls.Button;
 
 namespace NovelSpeaker.App.WpfTests.Desktop;
 
@@ -83,7 +84,7 @@ public sealed class MiniPlayerWindowTests
                     SymbolRegular.ArrowMaximize24,
                     Assert.IsType<SymbolIcon>(
                         Assert.IsType<Button>(window.FindName("MiniPlayerRestoreButton")).Content).Symbol);
-                AssertControl<Button>(window, "MiniPlayerCloseButton", "退出应用");
+                AssertControl<WpfUiButton>(window, "MiniPlayerCloseButton", "退出应用");
                 AssertControl<Button>(window, "MiniPlayerTopmostButton", "置顶");
                 var topmostStateBorder = Assert.IsType<Border>(window.FindName("MiniPlayerTopmostStateBorder"));
                 Assert.Equal(Brushes.Transparent, topmostStateBorder.Background);
@@ -136,7 +137,7 @@ public sealed class MiniPlayerWindowTests
                 Assert.Same(window.FindResource("App.Button.Icon"),
                     Assert.IsType<Button>(window.FindName("MiniPlayerTopmostButton")).Style);
                 Assert.Same(window.FindResource("App.Button.DangerIcon"),
-                    Assert.IsType<Button>(window.FindName("MiniPlayerCloseButton")).Style);
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerCloseButton")).Style);
                 Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
                     volumePopup,
                     textBlock => textBlock.Text == "仅调整应用内播放音量，不改变系统音量。"));
@@ -761,7 +762,7 @@ public sealed class MiniPlayerWindowTests
         (int)Math.Round(dip * scale, MidpointRounding.AwayFromZero);
 
     private static Button FindButton(MiniPlayerWindow window, string name) =>
-        Assert.IsType<Button>(window.FindName(name));
+        Assert.IsAssignableFrom<Button>(window.FindName(name));
 
     private static Rect GetBoundsIn(FrameworkElement element, UIElement ancestor)
     {

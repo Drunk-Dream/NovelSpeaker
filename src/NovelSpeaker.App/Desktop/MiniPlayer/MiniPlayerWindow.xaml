@@ -96,16 +96,16 @@
                                        Height="20"
                                        Symbol="ArrowMaximize24" />
                     </Button>
-                    <Button x:Name="MiniPlayerCloseButton"
-                            Margin="4,0,0,0"
-                            Style="{StaticResource App.Button.DangerIcon}"
-                            Click="MiniPlayerCloseButton_OnClick"
-                            ToolTip="退出应用"
-                            AutomationProperties.Name="退出应用">
+                    <ui:Button x:Name="MiniPlayerCloseButton"
+                               Margin="4,0,0,0"
+                               Style="{StaticResource App.Button.DangerIcon}"
+                               Click="MiniPlayerCloseButton_OnClick"
+                               ToolTip="退出应用"
+                               AutomationProperties.Name="退出应用">
                         <ui:SymbolIcon Width="20"
                                        Height="20"
                                        Symbol="DismissSquare24" />
-                    </Button>
+                    </ui:Button>
                 </StackPanel>
             </Grid>
 

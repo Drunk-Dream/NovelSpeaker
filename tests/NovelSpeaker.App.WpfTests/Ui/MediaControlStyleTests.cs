@@ -309,6 +309,12 @@ public sealed class MediaControlStyleTests
                 AssertMediaGlyphForeground(bar.PauseButton, expectedPrimary);
                 AssertMediaGlyphForeground(bar.VolumeButton, expectedPrimary);
                 AssertMediaGlyphForeground(bar.NextSegmentButton, expectedPrimary);
+
+                var expectedDangerText = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("App.Brush.Danger.Text")).Color;
+                bar.CloseButton.Foreground = new SolidColorBrush(expectedDangerText);
+                window.UpdateLayout();
+                AssertMediaGlyphForeground(bar.CloseButton, expectedDangerText);
             }
             finally
             {

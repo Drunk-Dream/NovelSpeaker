@@ -387,22 +387,27 @@ public sealed class GalleryMediaControlBar : Border
         string styleKey = "App.Button.Icon")
     {
         const string foregroundKey = "App.Brush.Text.Primary";
+        var isDangerIcon = styleKey == "App.Button.DangerIcon";
         var icon = new SymbolIcon
         {
             Symbol = symbol,
             Width = iconSize,
             Height = iconSize
         };
-        icon.SetResourceReference(SymbolIcon.ForegroundProperty, foregroundKey);
-        icon.SetResourceReference(TextElement.ForegroundProperty, foregroundKey);
-        icon.Loaded += (_, _) => ApplyMediaIconGlyphForeground(icon, foregroundKey);
-        var button = new Button
+        if (!isDangerIcon)
         {
-            Style = FindButtonStyle(styleKey),
-            Content = icon,
-            ToolTip = toolTip,
-            Focusable = true
-        };
+            icon.SetResourceReference(SymbolIcon.ForegroundProperty, foregroundKey);
+            icon.SetResourceReference(TextElement.ForegroundProperty, foregroundKey);
+            icon.Loaded += (_, _) => ApplyMediaIconGlyphForeground(icon, foregroundKey);
+        }
+
+        var button = isDangerIcon
+            ? new Wpf.Ui.Controls.Button()
+            : new Button();
+        button.Style = FindButtonStyle(styleKey);
+        button.Content = icon;
+        button.ToolTip = toolTip;
+        button.Focusable = true;
         if (buttonSize is double size)
         {
             button.Width = size;

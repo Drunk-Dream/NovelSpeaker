@@ -1,10 +1,13 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Xml.Linq;
 using Xunit;
 using WpfButton = System.Windows.Controls.Button;
+using WpfUiButton = Wpf.Ui.Controls.Button;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
 
@@ -43,9 +46,14 @@ public sealed class ButtonStyleTests
         Assert.All(resources, resource =>
         {
             Assert.Equal("Style", resource.Name.LocalName);
-            Assert.Equal("Button", (string?)resource.Attribute("TargetType"));
+            var key = (string?)resource.Attribute(xaml + "Key");
             Assert.Equal(
-                "{StaticResource Provider.Button}",
+                key == "App.Button.DangerIcon" ? "{x:Type ui:Button}" : "Button",
+                (string?)resource.Attribute("TargetType"));
+            Assert.Equal(
+                key == "App.Button.DangerIcon"
+                    ? "{StaticResource Provider.UiButton}"
+                    : "{StaticResource Provider.Button}",
                 (string?)resource.Attribute("BasedOn"));
             Assert.DoesNotContain(
                 resource.Descendants(),
@@ -82,27 +90,96 @@ public sealed class ButtonStyleTests
             setters,
             setter => (string?)setter.Attribute("Property") == "Foreground" &&
                       (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Text.Primary}");
+        Assert.Contains(
+            setters,
+            setter => (string?)setter.Attribute("Property") == "MouseOverBackground" &&
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Danger}");
+        Assert.Contains(
+            setters,
+            setter => (string?)setter.Attribute("Property") == "PressedBackground" &&
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Danger.Pressed}");
 
         var triggers = style.Elements().Single(element => element.Name.LocalName == "Style.Triggers").Elements();
         var hover = triggers.Single(trigger => (string?)trigger.Attribute("Property") == "IsMouseOver");
         Assert.Contains(
             hover.Elements(),
-            setter => (string?)setter.Attribute("Property") == "Background" &&
-                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Danger}");
-        Assert.Contains(
-            hover.Elements(),
             setter => (string?)setter.Attribute("Property") == "Foreground" &&
                       (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Danger.Text}");
+        Assert.DoesNotContain(
+            hover.Elements(),
+            setter => (string?)setter.Attribute("Property") == "Background");
 
         var pressed = triggers.Single(trigger => (string?)trigger.Attribute("Property") == "IsPressed");
         Assert.Contains(
             pressed.Elements(),
-            setter => (string?)setter.Attribute("Property") == "Background" &&
-                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Danger.Pressed}");
-        Assert.Contains(
-            pressed.Elements(),
             setter => (string?)setter.Attribute("Property") == "Foreground" &&
                       (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Danger.Pressed.Text}");
+        Assert.DoesNotContain(
+            pressed.Elements(),
+            setter => (string?)setter.Attribute("Property") == "Background");
+    }
+
+    [Fact]
+    public void Danger_icon_template_renders_danger_background_when_pointer_is_over_button()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                global::System.Windows.Application.Current);
+            var button = new WpfUiButton
+            {
+                Width = 48,
+                Height = 48,
+                Content = new Border
+                {
+                    Width = 20,
+                    Height = 20
+                },
+                Style = Assert.IsType<Style>(application.FindResource("App.Button.DangerIcon"))
+            };
+            var window = new Window
+            {
+                Content = button,
+                Width = 96,
+                Height = 96,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            var originalCursor = GetCursorPosition();
+            try
+            {
+                WpfWindowHost.Show(window);
+                DoEvents();
+                window.Left = 120;
+                window.Top = 120;
+                window.Activate();
+                window.UpdateLayout();
+                DoEvents();
+
+                var expected = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("App.Brush.Danger")).Color;
+                var screenPoint = button.PointToScreen(
+                    new Point(button.ActualWidth / 2, button.ActualHeight / 2));
+                Assert.True(SetCursorPos((int)screenPoint.X, (int)screenPoint.Y));
+                Assert.True(button.CaptureMouse());
+                DoEvents();
+                window.UpdateLayout();
+
+                Assert.True(button.IsMouseOver);
+                Assert.Equal(
+                    expected,
+                    Assert.IsType<SolidColorBrush>(button.MouseOverBackground).Color);
+                Assert.Contains(
+                    FindDescendants<Border>(button),
+                    border => border.Background is SolidColorBrush brush && brush.Color == expected);
+            }
+            finally
+            {
+                Mouse.Capture(null);
+                SetCursorPos(originalCursor.X, originalCursor.Y);
+                window.Close();
+            }
+        });
     }
 
     [Fact]
@@ -113,21 +190,32 @@ public sealed class ButtonStyleTests
             var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
                 global::System.Windows.Application.Current);
             var provider = Assert.IsType<Style>(application.FindResource("Provider.Button"));
+            var providerUiButton = Assert.IsType<Style>(application.FindResource("Provider.UiButton"));
 
             var stack = new StackPanel();
             var buttons = new Dictionary<string, WpfButton>(StringComparer.Ordinal);
             foreach (var key in ButtonStyleKeys)
             {
-                var button = new WpfButton
-                {
-                    Content = new TextBlock { Text = $"{key} fixture" },
-                    Style = Assert.IsType<Style>(application.FindResource(key))
-                };
+                WpfButton button = key == "App.Button.DangerIcon"
+                    ? new WpfUiButton
+                    {
+                        Content = new TextBlock { Text = $"{key} fixture" },
+                        Style = Assert.IsType<Style>(application.FindResource(key))
+                    }
+                    : new WpfButton
+                    {
+                        Content = new TextBlock { Text = $"{key} fixture" },
+                        Style = Assert.IsType<Style>(application.FindResource(key))
+                    };
                 buttons.Add(key, button);
                 stack.Children.Add(button);
 
-                Assert.Equal(typeof(WpfButton), button.Style.TargetType);
-                Assert.Same(provider, button.Style.BasedOn);
+                Assert.Equal(
+                    key == "App.Button.DangerIcon" ? typeof(WpfUiButton) : typeof(WpfButton),
+                    button.Style.TargetType);
+                Assert.Same(
+                    key == "App.Button.DangerIcon" ? providerUiButton : provider,
+                    button.Style.BasedOn);
                 Assert.Equal(
                     ["IsEnabled", "IsMouseOver", "IsPressed"],
                     button.Style.Triggers
@@ -216,6 +304,36 @@ public sealed class ButtonStyleTests
                 Visit(VisualTreeHelper.GetChild(current, index), matches);
             }
         }
+    }
+
+    private static void DoEvents()
+    {
+        var frame = new System.Windows.Threading.DispatcherFrame();
+        System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Background,
+            new Action(() => frame.Continue = false));
+        System.Windows.Threading.Dispatcher.PushFrame(frame);
+    }
+
+    private static POINT GetCursorPosition()
+    {
+        Assert.True(GetCursorPos(out var point));
+        return point;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out POINT point);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetCursorPos(int x, int y);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int X;
+        public int Y;
     }
 
     private static string LocateRepositoryRoot()

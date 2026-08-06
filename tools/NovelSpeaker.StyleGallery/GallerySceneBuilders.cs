@@ -1442,6 +1442,7 @@ internal static class GallerySceneBuilders
         Control control = resourceKey switch
         {
             "Provider.Button" => new Button { Content = "Provider button", MinHeight = 32 },
+            "Provider.UiButton" => new Wpf.Ui.Controls.Button { Content = "Provider UI button", MinHeight = 32 },
             "Provider.TextBox" => new TextBox { Text = "Provider text", MinHeight = 32 },
             "Provider.PasswordBox" => new PasswordBox { Password = "fixture", MinHeight = 32 },
             "Provider.ComboBox" => new ComboBox
@@ -1496,6 +1497,7 @@ internal static class GallerySceneBuilders
     private static readonly string[] ProviderStyleBridgeKeys =
     [
         "Provider.Button",
+        "Provider.UiButton",
         "Provider.TextBox",
         "Provider.PasswordBox",
         "Provider.ComboBox",

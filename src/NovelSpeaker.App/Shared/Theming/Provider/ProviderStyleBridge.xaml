@@ -9,6 +9,9 @@
     <Style x:Key="Provider.Button"
            TargetType="{x:Type Button}"
            BasedOn="{StaticResource {x:Type Button}}" />
+    <Style x:Key="Provider.UiButton"
+           TargetType="{x:Type ui:Button}"
+           BasedOn="{StaticResource {x:Type ui:Button}}" />
 
     <Style x:Key="Provider.TextBox"
            TargetType="{x:Type TextBox}"

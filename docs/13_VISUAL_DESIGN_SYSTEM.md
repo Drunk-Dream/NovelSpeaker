@@ -221,6 +221,7 @@ Provider dictionaries 在应用启动时加载，并在进程生命周期内保�
 
 ```text
 Provider.Button
+Provider.UiButton
 Provider.TextBox
 Provider.PasswordBox
 Provider.ComboBox
@@ -239,6 +240,10 @@ Provider.MenuItem
 - 不被页面直接引用。
 
 NovelSpeaker 的具名 Style 通过 `BasedOn` 依赖桥接键，避免各字典分别猜测 Wpf.Ui 资源名和加载顺序。
+
+需要使用 Wpf.Ui 专属控件状态属性的样式（例如 `MouseOverBackground` 和
+`PressedBackground`）必须基于对应的 Provider bridge；标准 `Button` 的
+`Background` 状态值不会覆盖 Wpf.Ui 模板内部的状态层。
 
 ### 4.3 Dialog、Flyout 与 Snackbar
 

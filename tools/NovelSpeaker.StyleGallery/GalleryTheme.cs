@@ -36,6 +36,7 @@ public static class GalleryThemeRuntime
     private static readonly string[] ProviderBridgeKeys =
     [
         "Provider.Button",
+        "Provider.UiButton",
         "Provider.TextBox",
         "Provider.PasswordBox",
         "Provider.ComboBox",

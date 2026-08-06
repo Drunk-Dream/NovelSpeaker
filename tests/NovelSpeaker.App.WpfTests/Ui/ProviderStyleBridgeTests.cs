@@ -19,6 +19,7 @@ public sealed class ProviderStyleBridgeTests
     private static readonly string[] BridgeKeys =
     [
         "Provider.Button",
+        "Provider.UiButton",
         "Provider.TextBox",
         "Provider.PasswordBox",
         "Provider.ComboBox",
@@ -249,6 +250,7 @@ public sealed class ProviderStyleBridgeTests
     private static Control CreateControl(string key, Style style) => key switch
     {
         "Provider.Button" => new WpfButton { Content = "button", Style = style },
+        "Provider.UiButton" => new Wpf.Ui.Controls.Button { Content = "ui button", Style = style },
         "Provider.TextBox" => new WpfTextBox { Text = "text", Style = style },
         "Provider.PasswordBox" => new WpfPasswordBox { Password = "fixture", Style = style },
         "Provider.ComboBox" => new ComboBox

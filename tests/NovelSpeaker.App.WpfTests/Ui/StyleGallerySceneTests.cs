@@ -186,7 +186,8 @@ public sealed class StyleGallerySceneTests
                     "Provider.",
                     StringComparison.Ordinal))
                 .ToArray();
-            Assert.Equal(16, bridgeControls.Length);
+            Assert.Equal(18, bridgeControls.Length);
+            Assert.NotEmpty(FindDescendants<Wpf.Ui.Controls.Button>(bridgeProbe));
             Assert.All(
                 bridgeControls,
                 control => Assert.NotNull(control.Template));
