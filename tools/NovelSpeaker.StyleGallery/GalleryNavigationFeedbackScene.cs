@@ -296,9 +296,9 @@ internal static class GalleryNavigationFeedbackScene
     private static Border CreateSurface(string automationId)
     {
         var surface = new Border { BorderThickness = new Thickness(1) };
-        surface.SetResourceReference(Border.BackgroundProperty, "PrimarySurfaceBrush");
-        surface.SetResourceReference(Border.BorderBrushProperty, "SubtleBorderBrush");
-        surface.SetResourceReference(Border.CornerRadiusProperty, "CornerRadiusMedium");
+        surface.SetResourceReference(Border.BackgroundProperty, "App.Brush.Surface.Primary");
+        surface.SetResourceReference(Border.BorderBrushProperty, "App.Brush.Border.Subtle");
+        surface.SetResourceReference(Border.CornerRadiusProperty, "App.Radius.Medium");
         AutomationProperties.SetAutomationId(surface, automationId);
         return surface;
     }
@@ -311,7 +311,7 @@ internal static class GalleryNavigationFeedbackScene
             FontWeight = FontWeights.SemiBold,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 4)
-        }.WithFeedbackResource(WpfTextBlock.ForegroundProperty, "PrimaryTextBrush");
+        }.WithFeedbackResource(WpfTextBlock.ForegroundProperty, "App.Brush.Text.Primary");
 
     private static WpfTextBlock CreateBody(string text) =>
         new WpfTextBlock
@@ -320,7 +320,7 @@ internal static class GalleryNavigationFeedbackScene
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 4)
-        }.WithFeedbackResource(WpfTextBlock.ForegroundProperty, "SecondaryTextBrush");
+        }.WithFeedbackResource(WpfTextBlock.ForegroundProperty, "App.Brush.Text.Secondary");
 }
 
 internal static class GalleryFeedbackResourceExtensions

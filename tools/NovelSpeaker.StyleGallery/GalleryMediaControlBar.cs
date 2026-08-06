@@ -23,9 +23,9 @@ public sealed class GalleryMediaControlBar : Border
         Padding = new Thickness(20);
         BorderThickness = new Thickness(1);
         SnapsToDevicePixels = true;
-        SetResourceReference(BackgroundProperty, "PrimarySurfaceBrush");
-        SetResourceReference(BorderBrushProperty, "SubtleBorderBrush");
-        SetResourceReference(CornerRadiusProperty, "CornerRadiusMedium");
+        SetResourceReference(BackgroundProperty, "App.Brush.Surface.Primary");
+        SetResourceReference(BorderBrushProperty, "App.Brush.Border.Subtle");
+        SetResourceReference(CornerRadiusProperty, "App.Radius.Medium");
         AutomationProperties.SetAutomationId(this, "media-control-bar");
 
         var content = new Grid();
@@ -57,7 +57,7 @@ public sealed class GalleryMediaControlBar : Border
             TextWrapping = TextWrapping.Wrap,
             Text = FormatProjection()
         };
-        SliderProjectionText.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryTextBrush");
+        SliderProjectionText.SetResourceReference(TextBlock.ForegroundProperty, "App.Brush.Text.Secondary");
         AutomationProperties.SetAutomationId(SliderProjectionText, "media-slider-projection");
         Grid.SetRow(SliderProjectionText, 4);
         content.Children.Add(SliderProjectionText);
@@ -113,13 +113,13 @@ public sealed class GalleryMediaControlBar : Border
             Text = "MediaControlBar · Style Gallery fixture",
             FontSize = 18,
             FontWeight = FontWeights.SemiBold
-        }.WithGalleryResource(TextBlock.ForegroundProperty, "PrimaryTextBrush"));
+        }.WithGalleryResource(TextBlock.ForegroundProperty, "App.Brush.Text.Primary"));
         title.Children.Add(new TextBlock
         {
             Text = "播放上下文固定为内存 fixture；窗口动作只展示激活、Focus 和 Disabled 状态。",
             Margin = new Thickness(0, 4, 0, 0),
             TextWrapping = TextWrapping.Wrap
-        }.WithGalleryResource(TextBlock.ForegroundProperty, "SecondaryTextBrush"));
+        }.WithGalleryResource(TextBlock.ForegroundProperty, "App.Brush.Text.Secondary"));
         Grid.SetColumn(title, 0);
         row.Children.Add(title);
 
@@ -131,8 +131,8 @@ public sealed class GalleryMediaControlBar : Border
             "置顶已激活：固定窗口在其它窗口上方。此 Gallery fixture 不执行窗口命令。",
             "App.Button.Icon 置顶（已激活）",
             18);
-        PinButton.SetResourceReference(Control.BackgroundProperty, "AccentSubtleBrush");
-        PinButton.SetResourceReference(Control.BorderBrushProperty, "AccentBrush");
+        PinButton.SetResourceReference(Control.BackgroundProperty, "App.Brush.Accent.Subtle");
+        PinButton.SetResourceReference(Control.BorderBrushProperty, "App.Brush.Accent");
 
         RestoreButton = CreateButton(
             32,
@@ -180,7 +180,7 @@ public sealed class GalleryMediaControlBar : Border
             Text = "段落进度",
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 16, 0)
-        }.WithGalleryResource(TextBlock.ForegroundProperty, "SecondaryTextBrush");
+        }.WithGalleryResource(TextBlock.ForegroundProperty, "App.Brush.Text.Secondary");
         Grid.SetColumn(label, 0);
         row.Children.Add(label);
 
@@ -200,7 +200,7 @@ public sealed class GalleryMediaControlBar : Border
             VerticalAlignment = VerticalAlignment.Center,
             CornerRadius = new CornerRadius(3)
         };
-        PlayedTrack.SetResourceReference(Panel.BackgroundProperty, "AccentBrush");
+        PlayedTrack.SetResourceReference(Panel.BackgroundProperty, "App.Brush.Accent");
         AutomationProperties.SetAutomationId(PlayedTrack, "media-slider-played-track");
         Grid.SetColumn(PlayedTrack, 0);
         ProgressTrack.Children.Add(PlayedTrack);
@@ -211,7 +211,7 @@ public sealed class GalleryMediaControlBar : Border
             VerticalAlignment = VerticalAlignment.Center,
             CornerRadius = new CornerRadius(3)
         };
-        UnplayedTrack.SetResourceReference(Panel.BackgroundProperty, "SecondarySurfaceBrush");
+        UnplayedTrack.SetResourceReference(Panel.BackgroundProperty, "App.Brush.Surface.Secondary");
         AutomationProperties.SetAutomationId(UnplayedTrack, "media-slider-unplayed-track");
         Grid.SetColumn(UnplayedTrack, 1);
         ProgressTrack.Children.Add(UnplayedTrack);
@@ -256,7 +256,7 @@ public sealed class GalleryMediaControlBar : Border
             Text = SliderProjection.TooltipText,
             Margin = new Thickness(16, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center
-        }.WithGalleryResource(TextBlock.ForegroundProperty, "SecondaryTextBrush");
+        }.WithGalleryResource(TextBlock.ForegroundProperty, "App.Brush.Text.Secondary");
         AutomationProperties.SetAutomationId(position, "media-slider-position");
         Grid.SetColumn(position, 2);
         row.Children.Add(position);
@@ -361,10 +361,10 @@ public sealed class GalleryMediaControlBar : Border
             {
                 Text = "Focus preview · 长 Tooltip：置顶已激活会固定窗口在其它窗口上方；返回主窗口和关闭动作均有明确说明。",
                 TextWrapping = TextWrapping.Wrap
-            }.WithGalleryResource(TextBlock.ForegroundProperty, "PrimaryTextBrush")
+            }.WithGalleryResource(TextBlock.ForegroundProperty, "App.Brush.Text.Primary")
         };
-        preview.SetResourceReference(Border.BackgroundProperty, "AccentSubtleBrush");
-        preview.SetResourceReference(Border.BorderBrushProperty, "AccentFocusRingBrush");
+        preview.SetResourceReference(Border.BackgroundProperty, "App.Brush.Accent.Subtle");
+        preview.SetResourceReference(Border.BorderBrushProperty, "App.Brush.Focus");
         AutomationProperties.SetAutomationId(preview, "media-tooltip-preview");
         return preview;
     }
@@ -377,7 +377,7 @@ public sealed class GalleryMediaControlBar : Border
         string automationName,
         double iconSize)
     {
-        const string foregroundKey = "PrimaryTextBrush";
+        const string foregroundKey = "App.Brush.Text.Primary";
         var icon = new SymbolIcon
         {
             Symbol = symbol,

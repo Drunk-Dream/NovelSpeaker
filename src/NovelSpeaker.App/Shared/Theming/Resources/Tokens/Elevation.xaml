@@ -1,0 +1,20 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Stable elevation shadows. These resources are theme-independent and are
+         intentionally loaded once; theme changes update palette values only. -->
+    <DropShadowEffect x:Key="App.Elevation.Low"
+                      BlurRadius="10"
+                      Direction="90"
+                      Opacity="0.14"
+                      ShadowDepth="2" />
+    <DropShadowEffect x:Key="App.Elevation.Medium"
+                      BlurRadius="18"
+                      Direction="90"
+                      Opacity="0.18"
+                      ShadowDepth="4" />
+    <DropShadowEffect x:Key="App.Elevation.High"
+                      BlurRadius="26"
+                      Direction="90"
+                      Opacity="0.22"
+                      ShadowDepth="6" />
+</ResourceDictionary>

@@ -335,34 +335,34 @@ internal static class GallerySceneBuilders
         var right = new StackPanel { Margin = new Thickness(SectionGap / 2, 0, 0, 0) };
         var swatches = new[]
         {
-            ("AppBackgroundBrush", "PrimaryTextBrush", "App background"),
-            ("CanvasSurfaceBrush", "PrimaryTextBrush", "Canvas surface"),
-            ("PrimarySurfaceBrush", "PrimaryTextBrush", "Primary surface"),
-            ("SecondarySurfaceBrush", "PrimaryTextBrush", "Secondary surface"),
-            ("RaisedSurfaceBrush", "PrimaryTextBrush", "Raised surface"),
-            ("PrimaryTextBrush", "PrimarySurfaceBrush", "Primary text"),
-            ("SecondaryTextBrush", "PrimarySurfaceBrush", "Secondary text"),
-            ("TertiaryTextBrush", "PrimarySurfaceBrush", "Tertiary text"),
-            ("SubtleBorderBrush", "PrimaryTextBrush", "Subtle border"),
-            ("StrongBorderBrush", "PrimaryTextBrush", "Strong border"),
-            ("AccentBrush", "AccentTextBrush", "Accent"),
-            ("AccentDefaultBrush", "AccentTextBrush", "Accent default"),
-            ("AccentHoverBrush", "AccentTextBrush", "Accent hover"),
-            ("AccentPressedBrush", "AccentTextBrush", "Accent pressed"),
-            ("AccentSubtleBrush", "PrimaryTextBrush", "Accent subtle"),
-            ("AccentFocusRingBrush", "AccentTextBrush", "Accent focus ring"),
-            ("AccentTextBrush", "AccentBrush", "Accent text"),
-            ("DangerBrush", "DangerTextBrush", "Danger"),
-            ("DangerSubtleBrush", "PrimaryTextBrush", "Danger subtle"),
-            ("DangerTextBrush", "DangerBrush", "Danger text"),
-            ("DangerPressedBrush", "DangerPressedTextBrush", "Danger pressed"),
-            ("DangerPressedTextBrush", "DangerPressedBrush", "Danger pressed text"),
-            ("WarningBrush", "WarningTextBrush", "Warning"),
-            ("WarningSubtleBrush", "PrimaryTextBrush", "Warning subtle"),
-            ("WarningTextBrush", "WarningBrush", "Warning text"),
-            ("SuccessBrush", "SuccessTextBrush", "Success"),
-            ("SuccessSubtleBrush", "PrimaryTextBrush", "Success subtle"),
-            ("SuccessTextBrush", "SuccessBrush", "Success text")
+            ("App.Brush.Window.Background", "App.Brush.Text.Primary", "App background"),
+            ("App.Brush.Canvas", "App.Brush.Text.Primary", "Canvas surface"),
+            ("App.Brush.Surface.Primary", "App.Brush.Text.Primary", "Primary surface"),
+            ("App.Brush.Surface.Secondary", "App.Brush.Text.Primary", "Secondary surface"),
+            ("App.Brush.Surface.Raised", "App.Brush.Text.Primary", "Raised surface"),
+            ("App.Brush.Text.Primary", "App.Brush.Surface.Primary", "Primary text"),
+            ("App.Brush.Text.Secondary", "App.Brush.Surface.Primary", "Secondary text"),
+            ("App.Brush.Text.Tertiary", "App.Brush.Surface.Primary", "Tertiary text"),
+            ("App.Brush.Border.Subtle", "App.Brush.Text.Primary", "Subtle border"),
+            ("App.Brush.Border.Strong", "App.Brush.Text.Primary", "Strong border"),
+            ("App.Brush.Accent", "App.Brush.Accent.Text", "Accent"),
+            ("App.Brush.Accent.Default", "App.Brush.Accent.Text", "Accent default"),
+            ("App.Brush.Accent.Hover", "App.Brush.Accent.Text", "Accent hover"),
+            ("App.Brush.Accent.Pressed", "App.Brush.Accent.Text", "Accent pressed"),
+            ("App.Brush.Accent.Subtle", "App.Brush.Text.Primary", "Accent subtle"),
+            ("App.Brush.Focus", "App.Brush.Accent.Text", "Accent focus ring"),
+            ("App.Brush.Accent.Text", "App.Brush.Accent", "Accent text"),
+            ("App.Brush.Danger", "App.Brush.Danger.Text", "Danger"),
+            ("App.Brush.Danger.Subtle", "App.Brush.Text.Primary", "Danger subtle"),
+            ("App.Brush.Danger.Text", "App.Brush.Danger", "Danger text"),
+            ("App.Brush.Danger.Pressed", "App.Brush.Danger.Pressed.Text", "Danger pressed"),
+            ("App.Brush.Danger.Pressed.Text", "App.Brush.Danger.Pressed", "Danger pressed text"),
+            ("App.Brush.Warning", "App.Brush.Warning.Text", "Warning"),
+            ("App.Brush.Warning.Subtle", "App.Brush.Text.Primary", "Warning subtle"),
+            ("App.Brush.Warning.Text", "App.Brush.Warning", "Warning text"),
+            ("App.Brush.Success", "App.Brush.Success.Text", "Success"),
+            ("App.Brush.Success.Subtle", "App.Brush.Text.Primary", "Success subtle"),
+            ("App.Brush.Success.Text", "App.Brush.Success", "Success text")
         };
 
         for (var index = 0; index < swatches.Length; index++)
@@ -433,13 +433,13 @@ internal static class GallerySceneBuilders
                     Text = "播放 / 暂停使用统一 48 px 外部布局与 28 px icon 容器的唯一 Accent 主按钮；上一章 / 下一章使用 32 px 低权重图标，上一段 / 下一段和音量使用 36 px 中性按钮。Focus、Disabled、置顶激活和长 Tooltip 均为固定 Gallery 状态。",
                     Margin = new Thickness(0, 8, 0, 0),
                     TextWrapping = TextWrapping.Wrap
-                }.WithResource(TextBlock.ForegroundProperty, "SecondaryTextBrush"),
+                }.WithResource(TextBlock.ForegroundProperty, "App.Brush.Text.Secondary"),
                 new TextBlock
                 {
                     Text = "段落进度使用 Accent 已播放轨道和中性未播放轨道；拖动 Slider 实时更新轨道与 x / y projection fixture，不连接任何真实播放命令或音量命令。",
                     Margin = new Thickness(0, 8, 0, 0),
                     TextWrapping = TextWrapping.Wrap
-                }.WithResource(TextBlock.ForegroundProperty, "TertiaryTextBrush")
+                }.WithResource(TextBlock.ForegroundProperty, "App.Brush.Text.Tertiary")
             }
         };
         content.Children.Add(stateSurface);
@@ -761,7 +761,7 @@ internal static class GallerySceneBuilders
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(0, 0, 12, 8),
             Content = variant == "Icon"
-                ? CreateButtonIcon(SymbolRegular.Settings24, "PrimaryTextBrush")
+                ? CreateButtonIcon(SymbolRegular.Settings24, "App.Brush.Text.Primary")
                 : variant,
             ToolTip = $"{variant} · {state}"
         };
@@ -783,12 +783,12 @@ internal static class GallerySceneBuilders
 
         var backgroundKey = state switch
         {
-            "Hover" => variant is "Primary" ? "AccentHoverBrush" :
-                       variant is "Danger" ? "DangerSubtleBrush" :
-                       variant is "Secondary" ? "SecondarySurfaceBrush" : "AccentSubtleBrush",
-            "Pressed" => variant is "Primary" ? "AccentPressedBrush" :
-                         variant is "Secondary" ? "AccentSubtleBrush" :
-                         variant is "Danger" ? "DangerPressedBrush" : "SecondarySurfaceBrush",
+            "Hover" => variant is "Primary" ? "App.Brush.Accent.Hover" :
+                       variant is "Danger" ? "App.Brush.Danger.Subtle" :
+                       variant is "Secondary" ? "App.Brush.Surface.Secondary" : "App.Brush.Accent.Subtle",
+            "Pressed" => variant is "Primary" ? "App.Brush.Accent.Pressed" :
+                         variant is "Secondary" ? "App.Brush.Accent.Subtle" :
+                         variant is "Danger" ? "App.Brush.Danger.Pressed" : "App.Brush.Surface.Secondary",
             _ => null
         };
         if (backgroundKey is not null)
@@ -798,18 +798,18 @@ internal static class GallerySceneBuilders
 
         if (state == "Hover" && variant == "Danger")
         {
-            button.SetResourceReference(Control.ForegroundProperty, "PrimaryTextBrush");
+            button.SetResourceReference(Control.ForegroundProperty, "App.Brush.Text.Primary");
         }
 
         if (state == "Pressed" && variant == "Danger")
         {
-            button.SetResourceReference(Control.ForegroundProperty, "DangerPressedTextBrush");
-            button.SetResourceReference(Control.BorderBrushProperty, "DangerPressedBrush");
+            button.SetResourceReference(Control.ForegroundProperty, "App.Brush.Danger.Pressed.Text");
+            button.SetResourceReference(Control.BorderBrushProperty, "App.Brush.Danger.Pressed");
         }
 
         if (state == "Focus")
         {
-            button.SetResourceReference(Control.BorderBrushProperty, "AccentFocusRingBrush");
+            button.SetResourceReference(Control.BorderBrushProperty, "App.Brush.Focus");
         }
     }
 
@@ -819,7 +819,7 @@ internal static class GallerySceneBuilders
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var iconAndTextSymbol = CreateButtonIcon(SymbolRegular.PlayCircle24, "AccentTextBrush");
+        var iconAndTextSymbol = CreateButtonIcon(SymbolRegular.PlayCircle24, "App.Brush.Accent.Text");
         iconAndTextSymbol.Width = 20;
         iconAndTextSymbol.Height = 20;
         iconAndTextSymbol.Margin = new Thickness(0, 0, 8, 0);
@@ -837,7 +837,7 @@ internal static class GallerySceneBuilders
                     {
                         Text = "图标 + 文本",
                         VerticalAlignment = VerticalAlignment.Center
-                    }.WithResource(TextBlock.ForegroundProperty, "AccentTextBrush")
+                    }.WithResource(TextBlock.ForegroundProperty, "App.Brush.Accent.Text")
                 }
             }
         };
@@ -944,22 +944,22 @@ internal static class GallerySceneBuilders
     {
         var title = CreateTokenText(
             "PageHeader · 长标题在窄空间中保持可读并自然换行",
-            "FontSizePageTitle",
-            "FontWeightSemiBold",
-            "PrimaryTextBrush");
+            "App.Text.Size.PageTitle",
+            "App.Text.Weight.SemiBold",
+            "App.Brush.Text.Primary");
         AutomationProperties.SetAutomationId(title, "component-page-header-title");
 
         var description = CreateTokenText(
             "这是一个固定 fixture，用来验证标题、说明文字和操作入口在 Light/Dark 以及不同 DPI 下保持清晰。",
-            "FontSizeSecondary",
-            "FontWeightRegular",
-            "SecondaryTextBrush",
-            "TextLineHeightSecondary");
+            "App.Text.Size.Secondary",
+            "App.Text.Weight.Regular",
+            "App.Brush.Text.Secondary",
+            "App.Text.LineHeight.Secondary");
         AutomationProperties.SetAutomationId(description, "component-page-header-description");
 
         var copy = new StackPanel();
         copy.Children.Add(title);
-        description.Margin = new Thickness(0, TokenDouble("Spacing8"), 0, 0);
+        description.Margin = new Thickness(0, TokenDouble("App.Space.8"), 0, 0);
         copy.Children.Add(description);
 
         var icon = new SymbolIcon
@@ -967,9 +967,9 @@ internal static class GallerySceneBuilders
             Symbol = SymbolRegular.DocumentText24,
             VerticalAlignment = VerticalAlignment.Top
         };
-        icon.SetResourceReference(FrameworkElement.WidthProperty, "IconSizeLarge");
-        icon.SetResourceReference(FrameworkElement.HeightProperty, "IconSizeLarge");
-        icon.SetResourceReference(SymbolIcon.ForegroundProperty, "AccentBrush");
+        icon.SetResourceReference(FrameworkElement.WidthProperty, "App.Size.Icon.Large");
+        icon.SetResourceReference(FrameworkElement.HeightProperty, "App.Size.Icon.Large");
+        icon.SetResourceReference(SymbolIcon.ForegroundProperty, "App.Brush.Accent");
         AutomationProperties.SetAutomationId(icon, "component-page-header-icon");
 
         var action = new Button
@@ -977,19 +977,19 @@ internal static class GallerySceneBuilders
             Content = "示例动作",
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
-            Padding = TokenPadding("Spacing12")
+            Padding = TokenPadding("App.Space.12")
         };
         action.Style = System.Windows.Application.Current?.FindResource("Provider.Button") as Style;
-        action.SetResourceReference(FrameworkElement.MinHeightProperty, "ControlMinHeightCompact");
-        action.SetResourceReference(Control.BackgroundProperty, "AccentBrush");
-        action.SetResourceReference(Control.ForegroundProperty, "AccentTextBrush");
+        action.SetResourceReference(FrameworkElement.MinHeightProperty, "App.Size.Control.Compact");
+        action.SetResourceReference(Control.BackgroundProperty, "App.Brush.Accent");
+        action.SetResourceReference(Control.ForegroundProperty, "App.Brush.Accent.Text");
         AutomationProperties.SetName(action, "PageHeader sample action");
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        icon.Margin = new Thickness(0, 0, TokenDouble("Spacing12"), 0);
+        icon.Margin = new Thickness(0, 0, TokenDouble("App.Space.12"), 0);
         Grid.SetColumn(icon, 0);
         Grid.SetColumn(copy, 1);
         Grid.SetColumn(action, 2);
@@ -998,7 +998,7 @@ internal static class GallerySceneBuilders
         grid.Children.Add(action);
 
         var surface = CreateComponentSurface("component-page-header");
-        surface.Padding = TokenPadding("Spacing24");
+        surface.Padding = TokenPadding("App.Space.24");
         surface.Child = grid;
         return surface;
     }
@@ -1007,34 +1007,34 @@ internal static class GallerySceneBuilders
     {
         var title = CreateTokenText(
             "SectionSurface · 主要内容",
-            "FontSizeSectionTitle",
-            "FontWeightSemiBold",
-            "PrimaryTextBrush");
+            "App.Text.Size.SectionTitle",
+            "App.Text.Weight.SemiBold",
+            "App.Brush.Text.Primary");
         AutomationProperties.SetAutomationId(title, "component-section-surface-title");
 
         var body = CreateTokenText(
             "表面组件通过层级、留白和轻微抬升建立分组，不引入页面列宽、规则列表宽度或补偿性 Padding。长文本 fixture 也应保持可见。",
-            "FontSizeBody",
-            "FontWeightRegular",
-            "PrimaryTextBrush",
-            "TextLineHeightBody");
+            "App.Text.Size.Body",
+            "App.Text.Weight.Regular",
+            "App.Brush.Text.Primary",
+            "App.Text.LineHeight.Body");
         AutomationProperties.SetAutomationId(body, "component-section-surface-body");
-        body.Margin = new Thickness(0, TokenDouble("Spacing12"), 0, 0);
+        body.Margin = new Thickness(0, TokenDouble("App.Space.12"), 0, 0);
 
         var hint = new Border
         {
-            Padding = TokenPadding("Spacing8"),
+            Padding = TokenPadding("App.Space.8"),
             HorizontalAlignment = HorizontalAlignment.Left,
             Child = CreateTokenText(
-                "ElevationLow · PrimarySurface",
-                "FontSizeCaption",
-                "FontWeightRegular",
-                "SecondaryTextBrush")
+                "App.Elevation.Low · PrimarySurface",
+                "App.Text.Size.Caption",
+                "App.Text.Weight.Regular",
+                "App.Brush.Text.Secondary")
         };
-        hint.SetResourceReference(Border.BackgroundProperty, "SecondarySurfaceBrush");
-        hint.SetResourceReference(Border.BorderBrushProperty, "SubtleBorderBrush");
-        hint.SetResourceReference(Border.CornerRadiusProperty, "CornerRadiusSmall");
-        hint.Margin = new Thickness(0, TokenDouble("Spacing16"), 0, 0);
+        hint.SetResourceReference(Border.BackgroundProperty, "App.Brush.Surface.Secondary");
+        hint.SetResourceReference(Border.BorderBrushProperty, "App.Brush.Border.Subtle");
+        hint.SetResourceReference(Border.CornerRadiusProperty, "App.Radius.Small");
+        hint.Margin = new Thickness(0, TokenDouble("App.Space.16"), 0, 0);
         AutomationProperties.SetAutomationId(hint, "component-section-surface-hint");
 
         var content = new StackPanel();
@@ -1043,8 +1043,8 @@ internal static class GallerySceneBuilders
         content.Children.Add(hint);
 
         var surface = CreateComponentSurface("component-section-surface");
-        surface.Padding = TokenPadding("Spacing20");
-        surface.SetResourceReference(UIElement.EffectProperty, "ElevationLow");
+        surface.Padding = TokenPadding("App.Space.20");
+        surface.SetResourceReference(UIElement.EffectProperty, "App.Elevation.Low");
         surface.Child = content;
         return surface;
     }
@@ -1054,33 +1054,33 @@ internal static class GallerySceneBuilders
         var content = new StackPanel();
         content.Children.Add(CreateTokenText(
             "StatusView · 可读状态",
-            "FontSizeSectionTitle",
-            "FontWeightSemiBold",
-            "PrimaryTextBrush"));
+            "App.Text.Size.SectionTitle",
+            "App.Text.Weight.SemiBold",
+            "App.Brush.Text.Primary"));
         content.Children.Add(CreateStatusRow(
             "component-status-view-success",
             SymbolRegular.CheckmarkCircle24,
             "已完成",
-            "SuccessSubtleBrush",
-            "SuccessBrush",
+            "App.Brush.Success.Subtle",
+            "App.Brush.Success",
             "当前章节的示例音频已准备就绪。"));
         content.Children.Add(CreateStatusRow(
             "component-status-view-warning",
             SymbolRegular.Warning24,
             "需要注意",
-            "WarningSubtleBrush",
-            "WarningBrush",
+            "App.Brush.Warning.Subtle",
+            "App.Brush.Warning",
             "部分内容仍在等待处理，状态文字不能只依赖颜色表达。"));
         content.Children.Add(CreateStatusRow(
             "component-status-view-error",
             SymbolRegular.DismissCircle24,
             "无法完成请求",
-            "DangerSubtleBrush",
-            "DangerBrush",
+            "App.Brush.Danger.Subtle",
+            "App.Brush.Danger",
             "这是用于布局契约的长错误说明：错误摘要保持简洁，详细文字可以换行并在 100%、125% 和 150% DPI 下完整显示。"));
 
         var surface = CreateComponentSurface("component-status-view");
-        surface.Padding = TokenPadding("Spacing20");
+        surface.Padding = TokenPadding("App.Space.20");
         surface.Child = content;
         return surface;
     }
@@ -1094,20 +1094,20 @@ internal static class GallerySceneBuilders
         string description)
     {
         var icon = new SymbolIcon { Symbol = symbol, VerticalAlignment = VerticalAlignment.Top };
-        icon.SetResourceReference(FrameworkElement.WidthProperty, "IconSizeMedium");
-        icon.SetResourceReference(FrameworkElement.HeightProperty, "IconSizeMedium");
+        icon.SetResourceReference(FrameworkElement.WidthProperty, "App.Size.Icon.Standard");
+        icon.SetResourceReference(FrameworkElement.HeightProperty, "App.Size.Icon.Standard");
         icon.SetResourceReference(SymbolIcon.ForegroundProperty, accentKey);
-        icon.Margin = new Thickness(0, 2, TokenDouble("Spacing12"), 0);
+        icon.Margin = new Thickness(0, 2, TokenDouble("App.Space.12"), 0);
 
         var copy = new StackPanel();
-        copy.Children.Add(CreateTokenText(title, "FontSizeItemTitle", "FontWeightSemiBold", accentKey));
+        copy.Children.Add(CreateTokenText(title, "App.Text.Size.ItemTitle", "App.Text.Weight.SemiBold", accentKey));
         var details = CreateTokenText(
             description,
-            "FontSizeSecondary",
-            "FontWeightRegular",
-            "SecondaryTextBrush",
-            "TextLineHeightSecondary");
-        details.Margin = new Thickness(0, TokenDouble("Spacing4"), 0, 0);
+            "App.Text.Size.Secondary",
+            "App.Text.Weight.Regular",
+            "App.Brush.Text.Secondary",
+            "App.Text.LineHeight.Secondary");
+        details.Margin = new Thickness(0, TokenDouble("App.Space.4"), 0, 0);
         AutomationProperties.SetAutomationId(details, $"{automationId}-description");
         copy.Children.Add(details);
 
@@ -1121,12 +1121,12 @@ internal static class GallerySceneBuilders
 
         var surface = new Border
         {
-            Padding = TokenPadding("Spacing12"),
+            Padding = TokenPadding("App.Space.12"),
             Child = row
         };
         surface.SetResourceReference(Border.BackgroundProperty, backgroundKey);
-        surface.SetResourceReference(Border.CornerRadiusProperty, "CornerRadiusSmall");
-        surface.Margin = new Thickness(0, TokenDouble("Spacing12"), 0, 0);
+        surface.SetResourceReference(Border.CornerRadiusProperty, "App.Radius.Small");
+        surface.Margin = new Thickness(0, TokenDouble("App.Space.12"), 0, 0);
         AutomationProperties.SetAutomationId(surface, automationId);
         return surface;
     }
@@ -1138,10 +1138,10 @@ internal static class GallerySceneBuilders
             BorderThickness = new Thickness(1),
             SnapsToDevicePixels = true
         };
-        surface.SetResourceReference(Border.BackgroundProperty, "PrimarySurfaceBrush");
-        surface.SetResourceReference(Border.BorderBrushProperty, "SubtleBorderBrush");
-        surface.SetResourceReference(Border.CornerRadiusProperty, "CornerRadiusMedium");
-        surface.Margin = new Thickness(0, 0, 0, TokenDouble("Spacing16"));
+        surface.SetResourceReference(Border.BackgroundProperty, "App.Brush.Surface.Primary");
+        surface.SetResourceReference(Border.BorderBrushProperty, "App.Brush.Border.Subtle");
+        surface.SetResourceReference(Border.CornerRadiusProperty, "App.Radius.Medium");
+        surface.Margin = new Thickness(0, 0, 0, TokenDouble("App.Space.16"));
         AutomationProperties.SetAutomationId(surface, automationId);
         return surface;
     }
@@ -1158,7 +1158,7 @@ internal static class GallerySceneBuilders
             Text = text,
             TextWrapping = TextWrapping.Wrap
         };
-        block.SetResourceReference(TextBlock.FontFamilyProperty, "FontFamilyUi");
+        block.SetResourceReference(TextBlock.FontFamilyProperty, "App.Text.Family.Ui");
         block.SetResourceReference(TextBlock.FontSizeProperty, fontSizeKey);
         block.SetResourceReference(TextBlock.FontWeightProperty, fontWeightKey);
         block.SetResourceReference(TextBlock.ForegroundProperty, foregroundKey);
@@ -1214,7 +1214,7 @@ internal static class GallerySceneBuilders
             Child = row
         };
         swatch.SetResourceReference(Border.BackgroundProperty, backgroundKey);
-        swatch.SetResourceReference(Border.BorderBrushProperty, "SubtleBorderBrush");
+        swatch.SetResourceReference(Border.BorderBrushProperty, "App.Brush.Border.Subtle");
         AutomationProperties.SetAutomationId(swatch, $"palette-{backgroundKey}");
         return swatch;
     }
@@ -1474,7 +1474,7 @@ internal static class GallerySceneBuilders
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 6, 0, 0),
                 FontSize = 12
-            }.WithResource(TextBlock.ForegroundProperty, "DangerBrush");
+            }.WithResource(TextBlock.ForegroundProperty, "App.Brush.Danger");
             AutomationProperties.SetAutomationId(
                 error,
                 $"{AutomationProperties.GetAutomationId(control)}-error");

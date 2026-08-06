@@ -1,0 +1,20 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- Stable typography ruler. These resources are theme-independent and are
+         intentionally loaded once; theme changes update palette values only. -->
+    <FontFamily x:Key="App.Text.Family.Ui">Segoe UI Variable Text, Microsoft YaHei UI, Segoe UI, sans-serif</FontFamily>
+
+    <sys:Double x:Key="App.Text.Size.PageTitle">24</sys:Double>
+    <sys:Double x:Key="App.Text.Size.SectionTitle">18</sys:Double>
+    <sys:Double x:Key="App.Text.Size.ItemTitle">16</sys:Double>
+    <sys:Double x:Key="App.Text.Size.Body">14</sys:Double>
+    <sys:Double x:Key="App.Text.Size.Secondary">13</sys:Double>
+    <sys:Double x:Key="App.Text.Size.Caption">12</sys:Double>
+
+    <FontWeight x:Key="App.Text.Weight.Regular">Regular</FontWeight>
+    <FontWeight x:Key="App.Text.Weight.SemiBold">SemiBold</FontWeight>
+
+    <sys:Double x:Key="App.Text.LineHeight.Body">22</sys:Double>
+    <sys:Double x:Key="App.Text.LineHeight.Secondary">20</sys:Double>
+</ResourceDictionary>

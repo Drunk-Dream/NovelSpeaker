@@ -60,21 +60,21 @@ internal static class GalleryListComponentScene
                 {
                     CreateText(
                         "List and card components",
-                        "FontSizeSectionTitle",
-                        "FontWeightSemiBold",
-                        "PrimaryTextBrush"),
+                        "App.Text.Size.SectionTitle",
+                        "App.Text.Weight.SemiBold",
+                        "App.Brush.Text.Primary"),
                     CreateText(
                         "每个组件拥有自己的内部结构、最小尺寸和可访问语义；选中、当前播放、Hover、Focus 与 Disabled 是独立状态。列表容器只负责虚拟化。",
-                        "FontSizeSecondary",
-                        "FontWeightRegular",
-                        "SecondaryTextBrush")
+                        "App.Text.Size.Secondary",
+                        "App.Text.Weight.Regular",
+                        "App.Brush.Text.Secondary")
                 }
             }
         };
-        surface.SetResourceReference(Border.BackgroundProperty, "PrimarySurfaceBrush");
-        surface.SetResourceReference(Border.BorderBrushProperty, "SubtleBorderBrush");
+        surface.SetResourceReference(Border.BackgroundProperty, "App.Brush.Surface.Primary");
+        surface.SetResourceReference(Border.BorderBrushProperty, "App.Brush.Border.Subtle");
         surface.BorderThickness = new Thickness(1);
-        surface.SetResourceReference(Border.CornerRadiusProperty, "CornerRadiusMedium");
+        surface.SetResourceReference(Border.CornerRadiusProperty, "App.Radius.Medium");
         AutomationProperties.SetAutomationId(surface, "list-components-intro");
         return surface;
     }
@@ -96,7 +96,7 @@ internal static class GalleryListComponentScene
         content.Children.Add(grid);
 
         var emptyStates = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
-        emptyStates.Children.Add(CreateText("EmptyState", "FontSizeItemTitle", "FontWeightSemiBold", "PrimaryTextBrush"));
+        emptyStates.Children.Add(CreateText("EmptyState", "App.Text.Size.ItemTitle", "App.Text.Weight.SemiBold", "App.Brush.Text.Primary"));
         foreach (var state in ComponentStates)
         {
             emptyStates.Children.Add(CreateEmptyState(state, $"empty-state-{state}"));
@@ -118,7 +118,7 @@ internal static class GalleryListComponentScene
         {
             Margin = new Thickness(column == 0 ? 0 : 8, 0, column == 2 ? 0 : 8, 0)
         };
-        columnPanel.Children.Add(CreateText(title, "FontSizeItemTitle", "FontWeightSemiBold", "PrimaryTextBrush"));
+        columnPanel.Children.Add(CreateText(title, "App.Text.Size.ItemTitle", "App.Text.Weight.SemiBold", "App.Brush.Text.Primary"));
         foreach (var state in ComponentStates)
         {
             columnPanel.Children.Add(factory(state, $"{idPrefix}-{state}"));
@@ -249,12 +249,12 @@ internal static class GalleryListComponentScene
         {
             Children =
             {
-                CreateText("Virtualized selection host", "FontSizeItemTitle", "FontWeightSemiBold", "PrimaryTextBrush"),
+                CreateText("Virtualized selection host", "App.Text.Size.ItemTitle", "App.Text.Weight.SemiBold", "App.Brush.Text.Primary"),
                 CreateText(
                     "ItemsControl 只提供虚拟化；下面第 03 行仍保留自身 IsSelected 状态，容器不拥有选择模型。",
-                    "FontSizeSecondary",
-                    "FontWeightRegular",
-                    "SecondaryTextBrush"),
+                    "App.Text.Size.Secondary",
+                    "App.Text.Weight.Regular",
+                    "App.Brush.Text.Secondary"),
                 list
             }
         };
@@ -264,9 +264,9 @@ internal static class GalleryListComponentScene
     private static Border CreateSurface(string automationId)
     {
         var surface = new Border { BorderThickness = new Thickness(1) };
-        surface.SetResourceReference(Border.BackgroundProperty, "PrimarySurfaceBrush");
-        surface.SetResourceReference(Border.BorderBrushProperty, "SubtleBorderBrush");
-        surface.SetResourceReference(Border.CornerRadiusProperty, "CornerRadiusMedium");
+        surface.SetResourceReference(Border.BackgroundProperty, "App.Brush.Surface.Primary");
+        surface.SetResourceReference(Border.BorderBrushProperty, "App.Brush.Border.Subtle");
+        surface.SetResourceReference(Border.CornerRadiusProperty, "App.Radius.Medium");
         AutomationProperties.SetAutomationId(surface, automationId);
         return surface;
     }
@@ -279,7 +279,7 @@ internal static class GalleryListComponentScene
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 4)
         };
-        block.SetResourceReference(WpfTextBlock.FontFamilyProperty, "FontFamilyUi");
+        block.SetResourceReference(WpfTextBlock.FontFamilyProperty, "App.Text.Family.Ui");
         block.SetResourceReference(WpfTextBlock.FontSizeProperty, fontSizeKey);
         block.SetResourceReference(WpfTextBlock.FontWeightProperty, fontWeightKey);
         block.SetResourceReference(WpfTextBlock.ForegroundProperty, foregroundKey);

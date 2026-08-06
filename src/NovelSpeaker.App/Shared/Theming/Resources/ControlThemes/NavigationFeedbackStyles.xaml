@@ -8,21 +8,21 @@
            BasedOn="{StaticResource Provider.NavigationViewItem}">
         <Setter Property="Margin" Value="4,2" />
         <Setter Property="Padding" Value="12,8" />
-        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{DynamicResource SecondarySurfaceBrush}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
             </Trigger>
             <Trigger Property="IsActive" Value="True">
-                <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
-                <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Text}" />
             </Trigger>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource AccentFocusRingBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Opacity" Value="{DynamicResource DisabledControlOpacity}" />
+                <Setter Property="Opacity" Value="{DynamicResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -36,7 +36,7 @@
            TargetType="{x:Type MenuItem}"
            BasedOn="{StaticResource Provider.MenuItem}">
         <Setter Property="Padding" Value="12,7" />
-        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     </Style>
@@ -44,7 +44,7 @@
     <Style x:Key="App.Menu.DangerItem"
            TargetType="{x:Type MenuItem}"
            BasedOn="{StaticResource App.Menu.Item}">
-        <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger}" />
         <Setter Property="Tag" Value="Danger" />
     </Style>
 
@@ -53,7 +53,7 @@
            BasedOn="{StaticResource App.Menu.Item}">
         <Setter Property="IsEnabled" Value="False" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Secondary}" />
     </Style>
 
     <Style x:Key="App.Feedback.ProgressBar"
@@ -62,16 +62,16 @@
         <Setter Property="Height" Value="6" />
         <Setter Property="MinHeight" Value="6" />
         <Setter Property="MinWidth" Value="280" />
-        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
-        <Setter Property="Background" Value="{DynamicResource SecondarySurfaceBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
     </Style>
 
     <Style x:Key="App.Feedback.SurfaceBase"
            TargetType="{x:Type component:FeedbackSurfaceBase}">
-        <Setter Property="Background" Value="{DynamicResource PrimarySurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
         <Setter Property="Padding" Value="16" />
         <Setter Property="Focusable" Value="False" />
         <Setter Property="IsTabStop" Value="False" />
@@ -92,7 +92,7 @@
                                               VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
                         </Border>
                         <Border x:Name="FocusRing"
-                                BorderBrush="{DynamicResource AccentFocusRingBrush}"
+                                BorderBrush="{DynamicResource App.Brush.Focus}"
                                 BorderThickness="2"
                                 CornerRadius="{TemplateBinding CornerRadius}"
                                 Visibility="Collapsed"
@@ -108,10 +108,10 @@
         </Setter>
         <Style.Triggers>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource AccentFocusRingBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Opacity" Value="{DynamicResource DisabledControlOpacity}" />
+                <Setter Property="Opacity" Value="{DynamicResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -123,8 +123,8 @@
         <Setter Property="Width" Value="260" />
         <Setter Property="MinHeight" Value="130" />
         <Setter Property="CornerRadius" Value="12" />
-        <Setter Property="Background" Value="{DynamicResource RaisedSurfaceBrush}" />
-        <Setter Property="Effect" Value="{DynamicResource ElevationMedium}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Raised}" />
+        <Setter Property="Effect" Value="{DynamicResource App.Elevation.Medium}" />
     </Style>
 
     <Style x:Key="App.Feedback.DialogShell"
@@ -134,24 +134,24 @@
         <Setter Property="Width" Value="300" />
         <Setter Property="MinHeight" Value="160" />
         <Setter Property="CornerRadius" Value="14" />
-        <Setter Property="Background" Value="{DynamicResource RaisedSurfaceBrush}" />
-        <Setter Property="Effect" Value="{DynamicResource ElevationHigh}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Raised}" />
+        <Setter Property="Effect" Value="{DynamicResource App.Elevation.High}" />
     </Style>
 
     <Style x:Key="App.Menu.Surface" TargetType="{x:Type Menu}">
-        <Setter Property="Background" Value="{DynamicResource RaisedSurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Raised}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="4" />
-        <Setter Property="Effect" Value="{DynamicResource ElevationMedium}" />
+        <Setter Property="Effect" Value="{DynamicResource App.Elevation.Medium}" />
     </Style>
 
     <Style x:Key="App.Menu.ContextSurface" TargetType="{x:Type ContextMenu}">
-        <Setter Property="Background" Value="{DynamicResource RaisedSurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Raised}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="4" />
-        <Setter Property="Effect" Value="{DynamicResource ElevationMedium}" />
+        <Setter Property="Effect" Value="{DynamicResource App.Elevation.Medium}" />
     </Style>
 
     <Style x:Key="App.Feedback.SnackbarContent"
@@ -160,7 +160,7 @@
         <Setter Property="MinWidth" Value="520" />
         <Setter Property="MinHeight" Value="52" />
         <Setter Property="CornerRadius" Value="10" />
-        <Setter Property="Background" Value="{DynamicResource PrimarySurfaceBrush}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
     </Style>
 
     <Style x:Key="App.Feedback.StatusBase"
@@ -174,18 +174,18 @@
     <Style x:Key="App.Feedback.Loading"
            TargetType="{x:Type component:LoadingState}"
            BasedOn="{StaticResource App.Feedback.StatusBase}">
-        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent}" />
     </Style>
 
     <Style x:Key="App.Feedback.Error"
            TargetType="{x:Type component:ErrorState}"
            BasedOn="{StaticResource App.Feedback.StatusBase}">
-        <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
     </Style>
 
     <Style x:Key="App.Feedback.NoResult"
            TargetType="{x:Type component:NoResultState}"
            BasedOn="{StaticResource App.Feedback.StatusBase}">
-        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
     </Style>
 </ResourceDictionary>

@@ -8,10 +8,10 @@
     -->
     <Style x:Key="App.Component.Base"
            TargetType="{x:Type component:AppComponentBase}">
-        <Setter Property="Background" Value="{DynamicResource PrimarySurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
         <Setter Property="Padding" Value="12" />
         <Setter Property="Focusable" Value="True" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -36,12 +36,12 @@
                                 Width="3"
                                 HorizontalAlignment="Left"
                                 VerticalAlignment="Stretch"
-                                Background="{DynamicResource AccentBrush}"
+                                Background="{DynamicResource App.Brush.Accent}"
                                 CornerRadius="2"
                                 Visibility="Collapsed"
                                 IsHitTestVisible="False" />
                         <Border x:Name="HoverMarker"
-                                BorderBrush="{DynamicResource StrongBorderBrush}"
+                                BorderBrush="{DynamicResource App.Brush.Border.Strong}"
                                 BorderThickness="1"
                                 CornerRadius="{TemplateBinding CornerRadius}"
                                 Visibility="Collapsed"
@@ -50,12 +50,12 @@
                                 Width="3"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Stretch"
-                                Background="{DynamicResource SuccessBrush}"
+                                Background="{DynamicResource App.Brush.Success}"
                                 CornerRadius="2"
                                 Visibility="Collapsed"
                                 IsHitTestVisible="False" />
                         <Border x:Name="FocusMarker"
-                                BorderBrush="{DynamicResource AccentFocusRingBrush}"
+                                BorderBrush="{DynamicResource App.Brush.Focus}"
                                 BorderThickness="2"
                                 CornerRadius="{TemplateBinding CornerRadius}"
                                 Visibility="Collapsed"
@@ -63,20 +63,20 @@
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource SecondarySurfaceBrush}" />
+                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
                             <Setter TargetName="HoverMarker" Property="Visibility" Value="Visible" />
                         </Trigger>
                         <Trigger Property="IsHoverPreview" Value="True">
-                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource SecondarySurfaceBrush}" />
+                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
                             <Setter TargetName="HoverMarker" Property="Visibility" Value="Visible" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
-                            <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                            <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource App.Brush.Accent}" />
                             <Setter TargetName="SelectedMarker" Property="Visibility" Value="Visible" />
                         </Trigger>
                         <Trigger Property="IsCurrentPlayback" Value="True">
-                            <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource App.Brush.Accent}" />
                             <Setter TargetName="PlaybackMarker" Property="Visibility" Value="Visible" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
@@ -86,7 +86,7 @@
                             <Setter TargetName="FocusMarker" Property="Visibility" Value="Visible" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="{DynamicResource DisabledControlOpacity}" />
+                            <Setter Property="Opacity" Value="{DynamicResource App.Opacity.Disabled}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

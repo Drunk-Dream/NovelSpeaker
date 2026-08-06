@@ -48,7 +48,7 @@ public sealed class ProviderStyleBridgeTests
             var dictionaries = Assert.IsAssignableFrom<global::System.Windows.Application>(
                 global::System.Windows.Application.Current).Resources.MergedDictionaries;
 
-            Assert.Equal(12, dictionaries.Count);
+            Assert.Equal(15, dictionaries.Count);
             Assert.True(IsWpfUiThemeDictionary(dictionaries[0]));
             Assert.Contains("Wpf.Ui", dictionaries[0].Source?.OriginalString, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(
@@ -68,37 +68,47 @@ public sealed class ProviderStyleBridgeTests
                 "Shared/Theming/Palettes/Palette.Light.xaml",
                 dictionaries[3].Source?.OriginalString,
                 StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Tokens/DesignTokens.xaml",
-                dictionaries[4].Source?.OriginalString,
-                StringComparison.Ordinal);
+            foreach (var (suffix, index) in new[]
+                     {
+                         ("Shared/Theming/Resources/Tokens/Metrics.xaml", 4),
+                         ("Shared/Theming/Resources/Tokens/TypographyTokens.xaml", 5),
+                         ("Shared/Theming/Resources/Tokens/Motion.xaml", 6),
+                         ("Shared/Theming/Resources/Tokens/Elevation.xaml", 7)
+                     })
+            {
+                Assert.EndsWith(
+                    suffix,
+                    dictionaries[index].Source?.OriginalString,
+                    StringComparison.Ordinal);
+            }
+
             Assert.EndsWith(
                 "Shared/Theming/Resources/Styles/Typography.xaml",
-                dictionaries[5].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Inputs.xaml",
-                dictionaries[6].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/ButtonStyles.xaml",
-                dictionaries[7].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/SliderStyles.xaml",
                 dictionaries[8].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/ControlThemes/ComponentStyles.xaml",
+                "Shared/Theming/Resources/Styles/Inputs.xaml",
                 dictionaries[9].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/ControlThemes/NavigationFeedbackStyles.xaml",
+                "Shared/Theming/Resources/Styles/ButtonStyles.xaml",
                 dictionaries[10].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/Legacy/LegacyStyles.xaml",
+                "Shared/Theming/Resources/Styles/SliderStyles.xaml",
                 dictionaries[11].Source?.OriginalString,
+                StringComparison.Ordinal);
+            Assert.EndsWith(
+                "Shared/Theming/Resources/ControlThemes/ComponentStyles.xaml",
+                dictionaries[12].Source?.OriginalString,
+                StringComparison.Ordinal);
+            Assert.EndsWith(
+                "Shared/Theming/Resources/ControlThemes/NavigationFeedbackStyles.xaml",
+                dictionaries[13].Source?.OriginalString,
+                StringComparison.Ordinal);
+            Assert.EndsWith(
+                "Shared/Theming/Resources/Legacy/LegacyStyles.xaml",
+                dictionaries[14].Source?.OriginalString,
                 StringComparison.Ordinal);
         });
     }

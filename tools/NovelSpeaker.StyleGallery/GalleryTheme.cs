@@ -86,13 +86,21 @@ public static class GalleryThemeRuntime
                 "Style Gallery semantic palette must remain at logical dictionary position 3.");
         }
 
-        if (dictionaries.Count < 5 ||
-            dictionaries[4].Source?.OriginalString?.EndsWith(
-                "Resources/Tokens/DesignTokens.xaml",
-                StringComparison.Ordinal) != true)
+        var expectedTokenSources = new[]
+        {
+            "Resources/Tokens/Metrics.xaml",
+            "Resources/Tokens/TypographyTokens.xaml",
+            "Resources/Tokens/Motion.xaml",
+            "Resources/Tokens/Elevation.xaml"
+        };
+        if (dictionaries.Count < 8 ||
+            expectedTokenSources.Select((suffix, index) =>
+                dictionaries[index + 4].Source?.OriginalString?.EndsWith(
+                    suffix,
+                    StringComparison.OrdinalIgnoreCase) == true).Any(isMatch => !isMatch))
         {
             throw new InvalidOperationException(
-                "Style Gallery DesignTokens must remain at logical dictionary position 4.");
+                "Style Gallery token dictionaries must remain at logical dictionary positions 4-7 in order.");
         }
 
         var expectedApplicationSources = new[]
@@ -105,9 +113,9 @@ public static class GalleryThemeRuntime
             "Resources/ControlThemes/NavigationFeedbackStyles.xaml",
             "Resources/Legacy/LegacyStyles.xaml"
         };
-        if (dictionaries.Count != 12 ||
+        if (dictionaries.Count != 15 ||
             expectedApplicationSources.Select((suffix, index) =>
-                dictionaries[index + 5].Source?.OriginalString?.EndsWith(
+                dictionaries[index + 8].Source?.OriginalString?.EndsWith(
                     suffix,
                     StringComparison.OrdinalIgnoreCase) == true).Any(isMatch => !isMatch))
         {
@@ -163,15 +171,15 @@ public static class GalleryThemeRuntime
     {
         foreach (var (alias, paletteKey) in new[]
                  {
-                     ("GalleryCanvasBackgroundBrush", "CanvasSurfaceBrush"),
-                     ("GallerySurfaceBrush", "PrimarySurfaceBrush"),
-                     ("GalleryMutedSurfaceBrush", "SecondarySurfaceBrush"),
-                     ("GalleryPrimaryTextBrush", "PrimaryTextBrush"),
-                     ("GallerySecondaryTextBrush", "SecondaryTextBrush"),
-                     ("GalleryTertiaryTextBrush", "TertiaryTextBrush"),
-                     ("GalleryBorderBrush", "SubtleBorderBrush"),
-                     ("GalleryAccentBrush", "AccentBrush"),
-                     ("GalleryOnAccentTextBrush", "AccentTextBrush")
+                     ("GalleryCanvasBackgroundBrush", "App.Brush.Canvas"),
+                     ("GallerySurfaceBrush", "App.Brush.Surface.Primary"),
+                     ("GalleryMutedSurfaceBrush", "App.Brush.Surface.Secondary"),
+                     ("GalleryPrimaryTextBrush", "App.Brush.Text.Primary"),
+                     ("GallerySecondaryTextBrush", "App.Brush.Text.Secondary"),
+                     ("GalleryTertiaryTextBrush", "App.Brush.Text.Tertiary"),
+                     ("GalleryBorderBrush", "App.Brush.Border.Subtle"),
+                     ("GalleryAccentBrush", "App.Brush.Accent"),
+                     ("GalleryOnAccentTextBrush", "App.Brush.Accent.Text")
                  })
         {
             application.Resources[alias] = application.FindResource(paletteKey);

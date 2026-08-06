@@ -2,52 +2,52 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!-- Stable typography variants owned by the shared explicit style layer. -->
     <Style x:Key="App.Typography.PageTitle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource FontFamilyUi}" />
-        <Setter Property="FontSize" Value="{StaticResource FontSizePageTitle}" />
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightSemiBold}" />
-        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.PageTitle}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.SemiBold}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
     <Style x:Key="App.Typography.SectionTitle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource FontFamilyUi}" />
-        <Setter Property="FontSize" Value="{StaticResource FontSizeSectionTitle}" />
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightSemiBold}" />
-        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.SectionTitle}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.SemiBold}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
     <Style x:Key="App.Typography.ItemTitle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource FontFamilyUi}" />
-        <Setter Property="FontSize" Value="{StaticResource FontSizeItemTitle}" />
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightSemiBold}" />
-        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.ItemTitle}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.SemiBold}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
     <Style x:Key="App.Typography.Body" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource FontFamilyUi}" />
-        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightRegular}" />
-        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
-        <Setter Property="LineHeight" Value="{StaticResource TextLineHeightBody}" />
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Body}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="LineHeight" Value="{StaticResource App.Text.LineHeight.Body}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
     <Style x:Key="App.Typography.Secondary" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource FontFamilyUi}" />
-        <Setter Property="FontSize" Value="{StaticResource FontSizeSecondary}" />
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightRegular}" />
-        <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
-        <Setter Property="LineHeight" Value="{StaticResource TextLineHeightSecondary}" />
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Secondary}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Secondary}" />
+        <Setter Property="LineHeight" Value="{StaticResource App.Text.LineHeight.Secondary}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
     <Style x:Key="App.Typography.Caption" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource FontFamilyUi}" />
-        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}" />
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightRegular}" />
-        <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Caption}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 </ResourceDictionary>

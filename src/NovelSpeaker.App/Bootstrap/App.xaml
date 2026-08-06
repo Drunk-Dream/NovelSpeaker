@@ -9,7 +9,10 @@
                 <ui:ControlsDictionary />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Provider/ProviderStyleBridge.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Palettes/Palette.Light.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Tokens/DesignTokens.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Tokens/Metrics.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Tokens/TypographyTokens.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Tokens/Motion.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Tokens/Elevation.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Typography.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Inputs.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/ButtonStyles.xaml" />

@@ -10,36 +10,36 @@
     <Style x:Key="App.Input.TextBox.Standard"
            TargetType="{x:Type TextBox}"
            BasedOn="{StaticResource Provider.TextBox}">
-        <Setter Property="FontFamily" Value="{StaticResource FontFamilyUi}" />
-        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightRegular}" />
-        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
-        <Setter Property="Background" Value="{DynamicResource PrimarySurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Body}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="12,8" />
-        <Setter Property="MinHeight" Value="{StaticResource ControlMinHeightStandard}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
-        <Setter Property="SelectionTextBrush" Value="{DynamicResource AccentTextBrush}" />
-        <Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource App.Brush.Accent}" />
+        <Setter Property="SelectionTextBrush" Value="{DynamicResource App.Brush.Accent.Text}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource App.Brush.Accent}" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource StrongBorderBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Strong}" />
             </Trigger>
             <Trigger Property="IsReadOnly" Value="True">
-                <Setter Property="Background" Value="{DynamicResource SecondarySurfaceBrush}" />
-                <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Secondary}" />
             </Trigger>
             <Trigger Property="Validation.HasError" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}" />
-                <Setter Property="Background" Value="{DynamicResource DangerSubtleBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Danger.Subtle}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Background" Value="{DynamicResource SecondarySurfaceBrush}" />
-                <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
-                <Setter Property="Opacity" Value="{StaticResource DisabledControlOpacity}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -48,7 +48,7 @@
            TargetType="{x:Type TextBox}"
            BasedOn="{StaticResource App.Input.TextBox.Standard}">
         <Setter Property="Padding" Value="10,4" />
-        <Setter Property="MinHeight" Value="{StaticResource ControlMinHeightCompact}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
     </Style>
 
     <!-- The short names in the visual design document remain the default TextBox
@@ -63,29 +63,29 @@
     <Style x:Key="App.Input.PasswordBox.Standard"
            TargetType="{x:Type PasswordBox}"
            BasedOn="{StaticResource Provider.PasswordBox}">
-        <Setter Property="FontFamily" Value="{StaticResource FontFamilyUi}" />
-        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightRegular}" />
-        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
-        <Setter Property="Background" Value="{DynamicResource PrimarySurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Body}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="12,8" />
-        <Setter Property="MinHeight" Value="{StaticResource ControlMinHeightStandard}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource StrongBorderBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Strong}" />
             </Trigger>
             <Trigger Property="Validation.HasError" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}" />
-                <Setter Property="Background" Value="{DynamicResource DangerSubtleBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Danger.Subtle}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Background" Value="{DynamicResource SecondarySurfaceBrush}" />
-                <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
-                <Setter Property="Opacity" Value="{StaticResource DisabledControlOpacity}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -94,38 +94,38 @@
            TargetType="{x:Type PasswordBox}"
            BasedOn="{StaticResource App.Input.PasswordBox.Standard}">
         <Setter Property="Padding" Value="10,4" />
-        <Setter Property="MinHeight" Value="{StaticResource ControlMinHeightCompact}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
     </Style>
 
     <Style x:Key="App.Input.ComboBox.Standard"
            TargetType="{x:Type ComboBox}"
            BasedOn="{StaticResource Provider.ComboBox}">
-        <Setter Property="FontFamily" Value="{StaticResource FontFamilyUi}" />
-        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightRegular}" />
-        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
-        <Setter Property="Background" Value="{DynamicResource PrimarySurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Body}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="12,8" />
-        <Setter Property="MinHeight" Value="{StaticResource ControlMinHeightStandard}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource StrongBorderBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Strong}" />
             </Trigger>
             <Trigger Property="IsDropDownOpen" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource AccentFocusRingBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
             </Trigger>
             <Trigger Property="Validation.HasError" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}" />
-                <Setter Property="Background" Value="{DynamicResource DangerSubtleBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Danger.Subtle}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Background" Value="{DynamicResource SecondarySurfaceBrush}" />
-                <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
-                <Setter Property="Opacity" Value="{StaticResource DisabledControlOpacity}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -134,30 +134,30 @@
            TargetType="{x:Type ComboBox}"
            BasedOn="{StaticResource App.Input.ComboBox.Standard}">
         <Setter Property="Padding" Value="10,4" />
-        <Setter Property="MinHeight" Value="{StaticResource ControlMinHeightCompact}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
     </Style>
 
     <Style x:Key="App.Input.CheckBox.Standard"
            TargetType="{x:Type CheckBox}"
            BasedOn="{StaticResource Provider.CheckBox}">
-        <Setter Property="FontFamily" Value="{StaticResource FontFamilyUi}" />
-        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightRegular}" />
-        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
-        <Setter Property="MinHeight" Value="{StaticResource ControlMinHeightStandard}" />
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Body}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
         <Setter Property="Padding" Value="0,2" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
             </Trigger>
             <Trigger Property="Validation.HasError" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
-                <Setter Property="Opacity" Value="{StaticResource DisabledControlOpacity}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -165,44 +165,44 @@
     <Style x:Key="App.Input.CheckBox.Compact"
            TargetType="{x:Type CheckBox}"
            BasedOn="{StaticResource App.Input.CheckBox.Standard}">
-        <Setter Property="MinHeight" Value="{StaticResource ControlMinHeightCompact}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
         <Setter Property="Padding" Value="0" />
     </Style>
 
     <Style x:Key="App.Input.ToggleSwitch.Standard"
            TargetType="{x:Type ui:ToggleSwitch}"
            BasedOn="{StaticResource Provider.ToggleSwitch}">
-        <Setter Property="FontFamily" Value="{StaticResource FontFamilyUi}" />
-        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightRegular}" />
-        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
-        <Setter Property="Background" Value="{DynamicResource SecondarySurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Body}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="MinHeight" Value="{StaticResource ControlMinHeightStandard}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
         <Setter Property="MinWidth" Value="96" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Style.Triggers>
             <Trigger Property="IsChecked" Value="True">
-                <Setter Property="Background" Value="{DynamicResource AccentDefaultBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource AccentDefaultBrush}" />
-                <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Default}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Default}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
             </Trigger>
             <MultiTrigger>
                 <MultiTrigger.Conditions>
                     <Condition Property="IsMouseOver" Value="True" />
                     <Condition Property="IsChecked" Value="False" />
                 </MultiTrigger.Conditions>
-                <Setter Property="BorderBrush" Value="{DynamicResource StrongBorderBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Strong}" />
             </MultiTrigger>
             <Trigger Property="Validation.HasError" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
-                <Setter Property="Opacity" Value="{StaticResource DisabledControlOpacity}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -210,7 +210,7 @@
     <Style x:Key="App.Input.ToggleSwitch.Compact"
            TargetType="{x:Type ui:ToggleSwitch}"
            BasedOn="{StaticResource App.Input.ToggleSwitch.Standard}">
-        <Setter Property="MinHeight" Value="{StaticResource ControlMinHeightCompact}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
         <Setter Property="MinWidth" Value="80" />
     </Style>
 </ResourceDictionary>

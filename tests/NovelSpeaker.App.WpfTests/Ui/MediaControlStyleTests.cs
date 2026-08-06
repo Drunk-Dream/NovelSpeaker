@@ -262,7 +262,7 @@ public sealed class MediaControlStyleTests
                 var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
                     global::System.Windows.Application.Current);
                 var expectedPrimary = Assert.IsType<SolidColorBrush>(
-                    application.FindResource("PrimaryTextBrush")).Color;
+                    application.FindResource("App.Brush.Text.Primary")).Color;
 
                 AssertMediaGlyphForeground(bar.PlayButton, expectedPrimary);
                 AssertMediaGlyphForeground(bar.PauseButton, expectedPrimary);
@@ -294,9 +294,9 @@ public sealed class MediaControlStyleTests
                 var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
                     global::System.Windows.Application.Current);
                 var expectedAccent = Assert.IsType<SolidColorBrush>(
-                    application.FindResource("AccentBrush")).Color;
+                    application.FindResource("App.Brush.Accent")).Color;
                 var expectedNeutral = Assert.IsType<SolidColorBrush>(
-                    application.FindResource("SecondarySurfaceBrush")).Color;
+                    application.FindResource("App.Brush.Surface.Secondary")).Color;
                 var played = FindDescendants<Border>(bar).Single(border =>
                     AutomationProperties.GetAutomationId(border) == "media-slider-played-track");
                 var unplayed = FindDescendants<Border>(bar).Single(border =>

@@ -70,19 +70,19 @@ public sealed class SemanticPaletteTests
                     SemanticPaletteRuntime.Keys,
                     key => Assert.IsType<SolidColorBrush>(application.FindResource(key)));
 
-                AssertContrast(application, "PrimaryTextBrush", "AppBackgroundBrush", 4.5);
-                AssertContrast(application, "PrimaryTextBrush", "CanvasSurfaceBrush", 4.5);
-                AssertContrast(application, "PrimaryTextBrush", "PrimarySurfaceBrush", 4.5);
-                AssertContrast(application, "PrimaryTextBrush", "SecondarySurfaceBrush", 4.5);
-                AssertContrast(application, "PrimaryTextBrush", "RaisedSurfaceBrush", 4.5);
-                AssertContrast(application, "SecondaryTextBrush", "PrimarySurfaceBrush", 4.5);
-                AssertContrast(application, "SecondaryTextBrush", "SecondarySurfaceBrush", 4.5);
-                AssertContrast(application, "TertiaryTextBrush", "PrimarySurfaceBrush", 3.0);
-                AssertContrast(application, "AccentTextBrush", "AccentBrush", 4.4);
-                AssertContrast(application, "DangerTextBrush", "DangerBrush", 4.5);
-                AssertContrast(application, "DangerPressedTextBrush", "DangerPressedBrush", 4.5);
-                AssertContrast(application, "WarningTextBrush", "WarningBrush", 4.5);
-                AssertContrast(application, "SuccessTextBrush", "SuccessBrush", 4.5);
+                AssertContrast(application, "App.Brush.Text.Primary", "App.Brush.Window.Background", 4.5);
+                AssertContrast(application, "App.Brush.Text.Primary", "App.Brush.Canvas", 4.5);
+                AssertContrast(application, "App.Brush.Text.Primary", "App.Brush.Surface.Primary", 4.5);
+                AssertContrast(application, "App.Brush.Text.Primary", "App.Brush.Surface.Secondary", 4.5);
+                AssertContrast(application, "App.Brush.Text.Primary", "App.Brush.Surface.Raised", 4.5);
+                AssertContrast(application, "App.Brush.Text.Secondary", "App.Brush.Surface.Primary", 4.5);
+                AssertContrast(application, "App.Brush.Text.Secondary", "App.Brush.Surface.Secondary", 4.5);
+                AssertContrast(application, "App.Brush.Text.Tertiary", "App.Brush.Surface.Primary", 3.0);
+                AssertContrast(application, "App.Brush.Accent.Text", "App.Brush.Accent", 4.4);
+                AssertContrast(application, "App.Brush.Danger.Text", "App.Brush.Danger", 4.5);
+                AssertContrast(application, "App.Brush.Danger.Pressed.Text", "App.Brush.Danger.Pressed", 4.5);
+                AssertContrast(application, "App.Brush.Warning.Text", "App.Brush.Warning", 4.5);
+                AssertContrast(application, "App.Brush.Success.Text", "App.Brush.Success", 4.5);
             }
         });
     }

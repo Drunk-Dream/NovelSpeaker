@@ -306,9 +306,9 @@ public sealed class StyleGallerySceneTests
                 var iconAndTextSymbol = FindDescendants<SymbolIcon>(iconAndText).Single();
 
                 var expectedIconBrush = Assert.IsType<SolidColorBrush>(
-                    application.FindResource("PrimaryTextBrush"));
+                    application.FindResource("App.Brush.Text.Primary"));
                 var expectedPrimaryBrush = Assert.IsType<SolidColorBrush>(
-                    application.FindResource("AccentTextBrush"));
+                    application.FindResource("App.Brush.Accent.Text"));
                 Assert.Equal(expectedIconBrush.Color, Assert.IsType<SolidColorBrush>(icon.Foreground).Color);
                 Assert.Equal(
                     expectedPrimaryBrush.Color,
@@ -380,9 +380,9 @@ public sealed class StyleGallerySceneTests
                 var foreground = Assert.IsType<SolidColorBrush>(pressed.Foreground);
                 var background = Assert.IsType<SolidColorBrush>(pressed.Background);
                 var expectedForeground = Assert.IsType<SolidColorBrush>(
-                    application.FindResource("DangerPressedTextBrush"));
+                    application.FindResource("App.Brush.Danger.Pressed.Text"));
                 var expectedBackground = Assert.IsType<SolidColorBrush>(
-                    application.FindResource("DangerPressedBrush"));
+                    application.FindResource("App.Brush.Danger.Pressed"));
 
                 Assert.Equal(expectedForeground.Color, foreground.Color);
                 Assert.Equal(expectedBackground.Color, background.Color);
@@ -609,11 +609,11 @@ public sealed class StyleGallerySceneTests
                 global::System.Windows.Application.Current);
             var tokenDictionary = application.Resources.MergedDictionaries.Single(dictionary =>
                 dictionary.Source?.OriginalString?.EndsWith(
-                    "Resources/Tokens/DesignTokens.xaml",
+                    "Resources/Tokens/Metrics.xaml",
                     StringComparison.Ordinal) == true);
-            var spacing = Assert.IsType<double>(application.FindResource("Spacing24"));
-            var cornerRadius = Assert.IsType<CornerRadius>(application.FindResource("CornerRadiusMedium"));
-            var shadow = Assert.IsType<DropShadowEffect>(application.FindResource("ElevationLow"));
+            var spacing = Assert.IsType<double>(application.FindResource("App.Space.24"));
+            var cornerRadius = Assert.IsType<CornerRadius>(application.FindResource("App.Radius.Medium"));
+            var shadow = Assert.IsType<DropShadowEffect>(application.FindResource("App.Elevation.Low"));
             var scene = GallerySceneRegistry.Build("token-components");
             var host = new Window
             {
@@ -641,15 +641,15 @@ public sealed class StyleGallerySceneTests
                     AutomationProperties.GetAutomationId(border) == "component-page-header");
                 var lightBackground = Assert.IsType<SolidColorBrush>(pageHeader.Background);
                 var lightColor = lightBackground.Color;
-                Assert.Equal(spacing, Assert.IsType<double>(application.FindResource("Spacing24")));
+                Assert.Equal(spacing, Assert.IsType<double>(application.FindResource("App.Space.24")));
                 Assert.Same(tokenDictionary, application.Resources.MergedDictionaries.Single(dictionary =>
                     dictionary.Source?.OriginalString?.EndsWith(
-                        "Resources/Tokens/DesignTokens.xaml",
+                        "Resources/Tokens/Metrics.xaml",
                         StringComparison.Ordinal) == true));
 
                 GalleryThemeRuntime.Apply(GalleryTheme.Dark);
                 host.UpdateLayout();
-                Assert.Same(shadow, application.FindResource("ElevationLow"));
+                Assert.Same(shadow, application.FindResource("App.Elevation.Low"));
                 Assert.NotEqual(lightColor, Assert.IsType<SolidColorBrush>(pageHeader.Background).Color);
                 GalleryThemeRuntime.Apply(GalleryTheme.Light);
             }

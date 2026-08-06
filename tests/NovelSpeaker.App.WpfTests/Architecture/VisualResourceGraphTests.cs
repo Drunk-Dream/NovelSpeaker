@@ -126,7 +126,7 @@ public sealed class VisualResourceGraphTests
 
         Assert.NotEmpty(findings);
         Assert.Equal(
-            "7FD93302438F49828570DB942475E226ECB47F544F61BB9540B28FC9D2222ED6",
+            "CDCA07786035983771D1F19015EDE88ED9AE69B4078427E2625CAAE3A3DFFF6B",
             VisualResourceGraphScanner.Fingerprint(findings));
     }
 
@@ -679,8 +679,7 @@ internal static class VisualResourceGraphScanner
             return ResourceLayer.ControlThemes;
         }
 
-        if (normalized.Contains("/Tokens/", StringComparison.OrdinalIgnoreCase) ||
-            normalized.EndsWith("/DesignTokens.xaml", StringComparison.OrdinalIgnoreCase))
+        if (normalized.Contains("/Tokens/", StringComparison.OrdinalIgnoreCase))
         {
             return ResourceLayer.Tokens;
         }
@@ -710,8 +709,7 @@ internal static class VisualResourceGraphScanner
             return false;
         }
 
-        return !normalized.Contains("/Legacy/", StringComparison.OrdinalIgnoreCase) &&
-               !normalized.EndsWith("/DesignTokens.xaml", StringComparison.OrdinalIgnoreCase);
+        return !normalized.Contains("/Legacy/", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsFormalDefinition(ResourceGraphDocument document, string key) =>

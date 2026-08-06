@@ -371,10 +371,10 @@ public sealed class InputStyleContractTests
 
                 foreach (var key in new[]
                          {
-                             "PrimarySurfaceBrush",
-                             "PrimaryTextBrush",
-                             "SubtleBorderBrush",
-                             "AccentFocusRingBrush"
+                             "App.Brush.Surface.Primary",
+                             "App.Brush.Text.Primary",
+                             "App.Brush.Border.Subtle",
+                             "App.Brush.Focus"
                          })
                 {
                     Assert.IsType<SolidColorBrush>(combo.FindResource(key));
@@ -383,7 +383,7 @@ public sealed class InputStyleContractTests
 
                 Assert.IsType<SolidColorBrush>(combo.Background);
                 Assert.IsType<SolidColorBrush>(combo.Foreground);
-                Assert.NotNull(item.FindResource("PrimaryTextBrush"));
+                Assert.NotNull(item.FindResource("App.Brush.Text.Primary"));
             }
             finally
             {

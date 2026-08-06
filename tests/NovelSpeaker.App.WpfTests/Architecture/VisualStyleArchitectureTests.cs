@@ -14,41 +14,42 @@ public sealed class VisualStyleArchitectureTests
 {
     private static readonly string[] StableDesignTokenKeys =
     [
-        "Spacing4",
-        "Spacing8",
-        "Spacing12",
-        "Spacing16",
-        "Spacing20",
-        "Spacing24",
-        "Spacing32",
-        "Spacing40",
-        "Spacing48",
-        "CornerRadiusSmall",
-        "CornerRadiusMedium",
-        "CornerRadiusLarge",
-        "IconSizeSmall",
-        "IconSizeMedium",
-        "IconSizeLarge",
-        "IconSizeTouch",
-        "ControlMinHeightCompact",
-        "ControlMinHeightStandard",
-        "FontFamilyUi",
-        "FontSizePageTitle",
-        "FontSizeSectionTitle",
-        "FontSizeItemTitle",
-        "FontSizeBody",
-        "FontSizeSecondary",
-        "FontSizeCaption",
-        "FontWeightRegular",
-        "FontWeightSemiBold",
-        "TextLineHeightBody",
-        "TextLineHeightSecondary",
-        "MotionDurationFast",
-        "MotionDurationStandard",
-        "MotionDurationSlow",
-        "ElevationLow",
-        "ElevationMedium",
-        "ElevationHigh"
+        "App.Space.4",
+        "App.Space.8",
+        "App.Space.12",
+        "App.Space.16",
+        "App.Space.20",
+        "App.Space.24",
+        "App.Space.32",
+        "App.Space.40",
+        "App.Space.48",
+        "App.Radius.Small",
+        "App.Radius.Medium",
+        "App.Radius.Large",
+        "App.Size.Icon.Small",
+        "App.Size.Icon.Standard",
+        "App.Size.Icon.Large",
+        "App.Size.Icon.Touch",
+        "App.Size.Control.Compact",
+        "App.Size.Control.Standard",
+        "App.Opacity.Disabled",
+        "App.Text.Family.Ui",
+        "App.Text.Size.PageTitle",
+        "App.Text.Size.SectionTitle",
+        "App.Text.Size.ItemTitle",
+        "App.Text.Size.Body",
+        "App.Text.Size.Secondary",
+        "App.Text.Size.Caption",
+        "App.Text.Weight.Regular",
+        "App.Text.Weight.SemiBold",
+        "App.Text.LineHeight.Body",
+        "App.Text.LineHeight.Secondary",
+        "App.Motion.Fast",
+        "App.Motion.Standard",
+        "App.Motion.Slow",
+        "App.Elevation.Low",
+        "App.Elevation.Medium",
+        "App.Elevation.High"
     ];
 
     [Fact]
@@ -161,24 +162,33 @@ public sealed class VisualStyleArchitectureTests
     public void Stable_design_tokens_have_cross_component_names_and_gallery_does_not_use_page_geometry()
     {
         var repositoryRoot = LocateRepositoryRoot();
-        var designTokensPath = Path.Combine(
+        var tokensDirectory = Path.Combine(
             repositoryRoot,
             "src",
             "NovelSpeaker.App",
             "Shared",
             "Theming",
             "Resources",
-            "Tokens",
-            "DesignTokens.xaml");
-        var result = VisualStyleOwnershipScanner.ScanDesignTokens(
-            "src/NovelSpeaker.App/Shared/Theming/Resources/Tokens/DesignTokens.xaml",
-            XDocument.Load(designTokensPath, LoadOptions.SetLineInfo));
+            "Tokens");
+        var tokenFiles = Directory
+            .EnumerateFiles(tokensDirectory, "*.xaml", SearchOption.TopDirectoryOnly)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var designTokens = tokenFiles
+            .SelectMany(path => VisualStyleOwnershipScanner.ScanDesignTokens(
+                Path.GetRelativePath(repositoryRoot, path).Replace(Path.DirectorySeparatorChar, '/'),
+                XDocument.Load(path, LoadOptions.SetLineInfo)).DesignTokens)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
 
         Assert.Equal(
             StableDesignTokenKeys.Order(StringComparer.Ordinal),
             StableDesignTokenKeys
-                .Where(result.DesignTokens.Contains)
+                .Where(designTokens.Contains)
                 .Order(StringComparer.Ordinal));
+        Assert.Equal(
+            StableDesignTokenKeys.Length,
+            StableDesignTokenKeys.Count(designTokens.Contains));
         Assert.DoesNotContain(
             StableDesignTokenKeys,
             key => key.Contains("PagePadding", StringComparison.Ordinal) ||
@@ -347,17 +357,20 @@ internal static class VisualStyleOwnershipScanner
             violations.AddRange(result.Violations);
         }
 
-        var designTokenPath = Path.Combine(
+        var tokensDirectory = Path.Combine(
             appRoot,
             "Shared",
             "Theming",
             "Resources",
-            "Tokens",
-            "DesignTokens.xaml");
-        var designTokenResult = ScanDesignTokens(
-            ToRepositoryRelativePath(repositoryRoot, designTokenPath),
-            XDocument.Load(designTokenPath, LoadOptions.SetLineInfo));
-        violations.AddRange(designTokenResult.Violations);
+            "Tokens");
+        var designTokenResults = Directory
+            .EnumerateFiles(tokensDirectory, "*.xaml", SearchOption.TopDirectoryOnly)
+            .Order(StringComparer.Ordinal)
+            .Select(path => ScanDesignTokens(
+                ToRepositoryRelativePath(repositoryRoot, path),
+                XDocument.Load(path, LoadOptions.SetLineInfo)))
+            .ToArray();
+        violations.AddRange(designTokenResults.SelectMany(result => result.Violations));
 
         var themeRuntimeViolations = new List<RuntimeFinding>();
         var themingRoot = Path.Combine(appRoot, "Shared", "Theming");
@@ -396,8 +409,12 @@ internal static class VisualStyleOwnershipScanner
                 .ThenBy(entry => entry.Line)
                 .ThenBy(entry => entry.Kind, StringComparer.Ordinal)
                 .ToArray(),
-            designTokenResult.DesignTokens,
-            designTokenResult.ForbiddenDesignTokens,
+            designTokenResults.SelectMany(result => result.DesignTokens)
+                .Order(StringComparer.Ordinal)
+                .ToArray(),
+            designTokenResults.SelectMany(result => result.ForbiddenDesignTokens)
+                .OrderBy(token => token.Key, StringComparer.Ordinal)
+                .ToArray(),
             themeRuntimeViolations.OrderBy(entry => entry.Source, StringComparer.Ordinal)
                 .ThenBy(entry => entry.Line)
                 .ToArray(),

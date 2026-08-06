@@ -133,10 +133,10 @@ public sealed class NavigationFeedbackStyleContractTests
             Assert.IsType<Separator>(contextMenu.Items[2]);
             Assert.IsType<Separator>(contextMenu.Items[4]);
             Assert.Same(
-                global::System.Windows.Application.Current!.FindResource("ElevationMedium"),
+                global::System.Windows.Application.Current!.FindResource("App.Elevation.Medium"),
                 contextMenu.Effect);
             Assert.Equal(
-                global::System.Windows.Application.Current!.FindResource("RaisedSurfaceBrush"),
+                global::System.Windows.Application.Current!.FindResource("App.Brush.Surface.Raised"),
                 contextMenu.Background);
 
             var progress = FindDescendants<ProgressBar>(scene).Single(control =>
@@ -151,10 +151,10 @@ public sealed class NavigationFeedbackStyleContractTests
 
             var visualMenu = FindDescendants<Menu>(scene).Single();
             Assert.Same(
-                global::System.Windows.Application.Current!.FindResource("ElevationMedium"),
+                global::System.Windows.Application.Current!.FindResource("App.Elevation.Medium"),
                 visualMenu.Effect);
             Assert.Equal(
-                global::System.Windows.Application.Current!.FindResource("RaisedSurfaceBrush"),
+                global::System.Windows.Application.Current!.FindResource("App.Brush.Surface.Raised"),
                 visualMenu.Background);
         });
     }
@@ -270,10 +270,10 @@ public sealed class NavigationFeedbackStyleContractTests
             Assert.NotNull(FindDescendants<FlyoutSurface>(scene).Single().Effect);
             Assert.NotNull(FindDescendants<DialogShell>(scene).Single().Effect);
             Assert.Same(
-                global::System.Windows.Application.Current!.FindResource("ElevationMedium"),
+                global::System.Windows.Application.Current!.FindResource("App.Elevation.Medium"),
                 FindDescendants<FlyoutSurface>(scene).Single().Effect);
             Assert.Same(
-                global::System.Windows.Application.Current!.FindResource("ElevationHigh"),
+                global::System.Windows.Application.Current!.FindResource("App.Elevation.High"),
                 FindDescendants<DialogShell>(scene).Single().Effect);
             Assert.All(
                 FindDescendants<FeedbackStatusBase>(scene),

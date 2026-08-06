@@ -1,5 +1,42 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Canonical semantic palette. Formal styles and new components reference only
+         these App.Brush.* keys; the palette is the single theme-switching surface. -->
+    <SolidColorBrush x:Key="App.Brush.Window.Background" Color="#101218" />
+    <SolidColorBrush x:Key="App.Brush.Canvas" Color="#15181F" />
+    <SolidColorBrush x:Key="App.Brush.Surface.Primary" Color="#1B1F27" />
+    <SolidColorBrush x:Key="App.Brush.Surface.Secondary" Color="#232832" />
+    <SolidColorBrush x:Key="App.Brush.Surface.Raised" Color="#272C36" />
+
+    <SolidColorBrush x:Key="App.Brush.Text.Primary" Color="#F2F4F8" />
+    <SolidColorBrush x:Key="App.Brush.Text.Secondary" Color="#AEB5C1" />
+    <SolidColorBrush x:Key="App.Brush.Text.Tertiary" Color="#7F8794" />
+    <SolidColorBrush x:Key="App.Brush.Border.Subtle" Color="#3A414D" />
+    <SolidColorBrush x:Key="App.Brush.Border.Strong" Color="#59616F" />
+
+    <SolidColorBrush x:Key="App.Brush.Accent" Color="#7C8CFF" />
+    <SolidColorBrush x:Key="App.Brush.Accent.Default" Color="#7C8CFF" />
+    <SolidColorBrush x:Key="App.Brush.Accent.Hover" Color="#95A1FF" />
+    <SolidColorBrush x:Key="App.Brush.Accent.Pressed" Color="#6677EE" />
+    <SolidColorBrush x:Key="App.Brush.Accent.Subtle" Color="#2C3150" />
+    <SolidColorBrush x:Key="App.Brush.Accent.Text" Color="#101218" />
+    <SolidColorBrush x:Key="App.Brush.Focus" Color="#AAB3FF" />
+
+    <SolidColorBrush x:Key="App.Brush.Danger" Color="#FF7A86" />
+    <SolidColorBrush x:Key="App.Brush.Danger.Subtle" Color="#4A2028" />
+    <SolidColorBrush x:Key="App.Brush.Danger.Text" Color="#160B0D" />
+    <SolidColorBrush x:Key="App.Brush.Danger.Pressed" Color="#B83E4B" />
+    <SolidColorBrush x:Key="App.Brush.Danger.Pressed.Text" Color="#F2F4F8" />
+    <SolidColorBrush x:Key="App.Brush.Warning" Color="#F2B84B" />
+    <SolidColorBrush x:Key="App.Brush.Warning.Subtle" Color="#493819" />
+    <SolidColorBrush x:Key="App.Brush.Warning.Text" Color="#171005" />
+    <SolidColorBrush x:Key="App.Brush.Success" Color="#66C99A" />
+    <SolidColorBrush x:Key="App.Brush.Success.Subtle" Color="#1B3D30" />
+    <SolidColorBrush x:Key="App.Brush.Success.Text" Color="#08140E" />
+
+    <!-- Migration-compat keys. Pages that have not been migrated yet still reference
+         these names; they must remain in this theme-switching dictionary so hot theme
+         switching keeps updating them. Remove each key when its last page migrates. -->
     <SolidColorBrush x:Key="AppBackgroundBrush" Color="#101218" />
     <SolidColorBrush x:Key="CanvasSurfaceBrush" Color="#15181F" />
     <SolidColorBrush x:Key="PrimarySurfaceBrush" Color="#1B1F27" />
