@@ -212,7 +212,7 @@ artifacts/visual-review/windows/<window-id>/
 - 新增资源骨架、Legacy 单一入口、加载顺序、主题切换实例稳定性和迁移期页面引用基线回归验证；资源迁移相关定向 WPF 测试 89/89 通过。
 - 完整质量门禁通过：`dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build src/NovelSpeaker.App/NovelSpeaker.App.csproj -c Release --no-restore`（0 警告/0 错误）、`dotnet test -c Release --no-build`（Domain 2、Application 208、Infrastructure 343、Presentation 382、WPF 258）。
 
-## [ ] 3（P1）：重构 Palette 与基础 Token
+## [x] 3（P1）：重构 Palette 与基础 Token
 
 前置：2。
 
@@ -231,6 +231,15 @@ artifacts/visual-review/windows/<window-id>/
 - 主题热切换、Brush DynamicResource 链路、对比度和资源实例稳定测试通过。
 - 更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/foundations/`。
 - 完整质量门禁通过。
+
+结果：
+
+- Palette 统一为 28 个 `App.Brush.*` 语义键（表面/文字/边框/强调/状态），Light/Dark 键集合与 `SemanticPaletteRuntime.Keys` 完全一致；未迁移页面仍直接引用的旧 Brush 键作为迁移期兼容键保留在同一主题切换字典中（保证热切换仍更新），页面迁移完成时逐个删除。
+- DesignTokens 拆分为 `Tokens/Metrics.xaml`、`Tokens/TypographyTokens.xaml`、`Tokens/Motion.xaml`、`Tokens/Elevation.xaml`，间距/圆角/图标尺寸/控件最小尺寸/排版标尺/动效/阴影/禁用透明度全部使用 `App.` 前缀；`PagePadding`、`SettingsRowControlWidth` 等页面或组件族几何键移入 `Legacy/LegacyStyles.xaml`（旧页面仍引用），零引用旧键（`ItemSpacing`、`DialogCornerRadius`、`Cover*`、`AnimFast/AnimNormal`）删除。
+- 正式样式字典、Style Gallery 与 GalleryThemeRuntime 全部迁移到新键；Theme runtime 仍只更新 Wpf.Ui theme 与 Palette，不替换 Style/ControlTheme 字典。
+- Palette Gallery scene 按表面/文字/边框/强调/状态分组覆盖全部语义 Brush，并新增 5 组基础对比度样例；已生成 `artifacts/visual-review/gallery/foundations/palette-probe.{light,dark}.png` 与 `manifest.json`。
+- 新增/更新资源契约测试：Token 键集合与 `App.` 前缀、Legacy 页面引用指纹、Palette 键集合/对比度/热切换、Gallery scene 28 swatch + 5 contrast 契约；资源迁移相关定向测试 107/107 通过。
+- 完整质量门禁通过：`dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore`（0 警告/0 错误）、`dotnet test -c Release --no-build`（Domain 2、Application 208、Infrastructure 343、Presentation 382、WPF 258）。
 
 ## [ ] 4（P1）：集中 Typography 与 Surface Style
 
