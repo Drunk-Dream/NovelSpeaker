@@ -28,7 +28,6 @@ Accent 只用于：
 
 - 当前选中或激活状态。
 - 页面唯一主操作。
-- 播放/暂停等核心媒体操作。
 - 当前进度。
 - 键盘焦点。
 
@@ -81,6 +80,10 @@ App.Brush.Focus
 App.Brush.Success
 App.Brush.Warning
 App.Brush.Danger
+App.Brush.Danger.Subtle
+App.Brush.Danger.Text
+App.Brush.Danger.Pressed
+App.Brush.Danger.Pressed.Text
 ```
 
 页面不得直接引用 Wpf.Ui 的主题色来表达 NovelSpeaker 业务语义，也不得写业务无关的十六进制颜色。
@@ -390,6 +393,8 @@ App.Button.ToolbarValue
 App.Button.Floating
 ```
 
+`App.Button.DangerIcon` 的默认图标和背景保持中性；Hover 时背景进入 `App.Brush.Danger`，Pressed 时进入 `App.Brush.Danger.Pressed` 并切换到可读的危险文本色。它表达危险动作，而不是让危险色常驻。
+
 媒体按钮从 Button 基础变体派生，不在 Media 字典复制完整 Button 模板。
 
 ### 7.5 Input
@@ -438,11 +443,11 @@ App.Progress.Standard
 App.Progress.Compact
 App.Media.Slider
 App.Media.Button
-App.Media.Button.Primary
 App.Media.ControlSurface
 ```
 
 ProgressBar 与 Slider 保持不同控件语义和测试，不共用模板。
+播放页和迷你播放器的媒体按钮使用统一尺寸和中性状态；播放/暂停不建立独立的 Accent 主按钮变体。
 
 ### 7.9 Feedback
 
@@ -470,7 +475,11 @@ App.Feedback.SnackbarBody
 | Secondary Text | `#626A77` | `#AEB5C1` | 元数据和说明 |
 | Tertiary Text | `#8A919D` | `#7F8794` | 占位和弱提示 |
 | Accent | `#5B6FD8` | `#7C8CFF` | 主操作、当前状态、进度 |
-| Danger | `#C83C4A` | `#FF7A86` | 不可逆操作和错误 |
+| Danger | `#C83C4A` | `#FF7A86` | 危险操作的 Hover 背景和错误 |
+| Danger Subtle | `#FBE6E9` | `#4A2028` | 低强调危险状态 |
+| Danger Text | `#FFFFFF` | `#160B0D` | 文字或图标位于 Danger 背景上 |
+| Danger Pressed | `#A82F3D` | `#B83E4B` | 危险操作的 Pressed 背景 |
+| Danger Pressed Text | `#FFFFFF` | `#F2F4F8` | 文字或图标位于 Danger Pressed 背景上 |
 | Warning | `#A66A00` | `#F2B84B` | 风险提示 |
 | Success | `#2E7D5B` | `#66C99A` | 完成和健康状态 |
 
@@ -500,7 +509,7 @@ Accent 至少提供 Default、Hover、Pressed、Subtle 和 Focus。浅色 Accent
 |---|---:|
 | 紧凑图标按钮 | 不小于 `32 × 32` |
 | 普通工具按钮 | `36–40` 高 |
-| 主媒体按钮 | `44–52` |
+| 媒体按钮命中区 | `48 × 48` |
 | 列表行 | `48–56` 高 |
 | 设置导航行 | `52–60` 高 |
 | 输入控件圆角 | `6–8` |
@@ -669,7 +678,8 @@ sans-serif
 ### 12.3 播放页
 
 - 正文为视觉中心，章节侧栏和媒体控制保持克制。
-- 播放/暂停是唯一 Accent 主媒体按钮。
+- 播放/暂停、上一段/下一段、上一章/下一章和音量使用统一 `48 × 48` 的中性媒体按钮。
+- 播放/暂停不通过 Accent 背景或更大的按钮制造额外层级；媒体语义由图标、位置和 Tooltip 表达。
 - 语速、定时停止、缓存等低频控制使用 Flyout。
 - 当前段使用轻微 AccentSubtle，不使用高饱和背景。
 
@@ -700,9 +710,9 @@ sans-serif
 - 宽度 `440–500 px`，高度固定为 `150 px`。
 - Raised Surface 背景，外轮廓清晰，右侧边缘只调整宽度。
 - 章节标题一行省略，书名与段落信息使用 Secondary Text。
-- 五个媒体按钮和音量按钮使用统一命中区。
-- 播放/暂停保持最高视觉权重。
-- 关闭按钮使用 DangerIcon，并明确表示退出应用。
+- 五个媒体按钮和音量按钮使用统一 `48 × 48` 命中区及中性状态。
+- 播放/暂停不单独使用 Accent 背景或更大按钮。
+- 关闭按钮仍使用 DangerIcon 表达退出应用，但默认保持中性；鼠标悬浮时背景变为 Danger 色，按下时使用 Pressed Danger 状态。
 - 不显示封面、作者、缓存、规则或语速。
 
 ## 13. Style Gallery 与视觉工具

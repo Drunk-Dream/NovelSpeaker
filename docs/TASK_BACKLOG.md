@@ -329,9 +329,9 @@ artifacts/visual-review/windows/<window-id>/
 
 - 建立 `Styles/Progress.xaml`、`Styles/Media.xaml` 和 `Styles/Feedback.xaml`。
 - ProgressBar 与 Slider 保持独立模板和行为合同。
-- Media Button 基于 `App.Button.*`，Media Surface 基于 `App.Surface.*`。
+- Media Button 基于 `App.Button.Icon`，Media Surface 基于 `App.Surface.*`；播放页与迷你播放器的媒体按钮统一为 `48 × 48` 命中区和中性状态，不建立 Accent 主媒体按钮变体。
 - Feedback 只定义 Popup/InlineMessage/Validation/Snackbar 内容样式，不建立宿主控件。
-- 将迷你播放器迁移到新 Media、Progress、Surface 和 Typography 键，删除其对旧公共样式键的引用；不改变布局、尺寸、窗口动作和媒体命令。
+- 将播放页和迷你播放器迁移到新 Media、Progress、Surface 和 Typography 键，删除其对旧公共样式键的引用；不改变布局、窗口动作和媒体命令。
 - Gallery 覆盖媒体按钮、音量、段落 Slider、进度、验证和轻量反馈内容。
 
 自动验收：
@@ -681,7 +681,7 @@ artifacts/visual-review/windows/<window-id>/
 
 - 使用正式 PageHeader、SectionSurface、Typography、Surface、Button、Media、Progress、Selection、Feedback 和 AppStatusView 迁移 `PlayerPage` 与 Feature 所有的 `PlayerView`。
 - 正文、章节侧栏、媒体控制条、Flyout 内容和页面 Padding 由 Playback Feature 拥有。
-- 播放/暂停是唯一 Accent 主媒体操作。
+- 播放页和迷你播放器的媒体按钮使用统一尺寸和中性状态；播放/暂停不建立 Accent 主媒体操作层级。
 - 保持 PlaybackSnapshot、播放状态机、上下章/段、拖动、音量、定时停止、主动缓存、滚动追随和快捷键语义。
 - 当前段使用统一轻量状态，不使用高饱和背景。
 - 删除两个视图全部 Legacy 键引用。
