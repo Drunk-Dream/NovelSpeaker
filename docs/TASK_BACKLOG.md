@@ -382,7 +382,7 @@ artifacts/visual-review/windows/<window-id>/
 - 定向资源、Player、MiniPlayer、Gallery 与架构测试 89/89 通过；MiniPlayer 正式窗口视觉测试 1/1，通过全套 MiniPlayer 测试 16/16。
 - 完整质量门禁通过：locked restore 无 lock 文件差异，format/build 通过（0 警告、0 错误），全量测试 1215/1215 通过（WPF 280）。
 
-## [ ] 9（P1）：实现 Common 与 Feedback 正式自有控件
+## [x] 9（P1）：实现 Common 与 Feedback 正式自有控件
 
 前置：4、5、8。
 
@@ -402,6 +402,12 @@ artifacts/visual-review/windows/<window-id>/
 - 长文本、省略、键盘 Focus、AutomationName 和非零布局测试通过。
 - 分别更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/page-header/`、`artifacts/visual-review/gallery/section-surface/` 与 `artifacts/visual-review/gallery/status-view/`。
 - 完整质量门禁通过。
+
+结果：
+
+- 新增 `AppPageHeader`、`AppSectionSurface` 和 `AppStatusView` 正式自有控件，分别集中于 `ControlThemes/Common.xaml` 与 `ControlThemes/Feedback.xaml` 的隐式默认模板；控件只拥有内容槽和视觉状态，不包含页面文案、命令或 Gallery fixture。
+- Gallery 新增稳定 `page-header`、`section-surface`、`status-view` 场景，覆盖返回/无返回、长标题与操作区、内容与 Footer 槽，以及 Loading/Empty/NoResult/Error 和操作按钮；已生成对应 family 目录的 Light/Dark PNG 与 manifest。
+- 新增 Common/Feedback WPF 内容槽、模板、状态、Automation、Focus、DPI 布局和 Gallery fixture 契约测试；资源顺序、资源图、Style Gallery 相关定向测试 56/56 通过，format verify 通过。
 
 ## [ ] 10（P1）：实现 Settings 与 Forms 正式自有控件
 

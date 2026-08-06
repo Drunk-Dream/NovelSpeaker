@@ -85,7 +85,22 @@ public static class GallerySceneRegistry
             "feedback",
             GallerySceneGroup.ComponentFamilies,
             "Popup, inline validation and Snackbar content styles.",
-            GallerySceneBuilders.CreateFeedbackStyles)
+            GallerySceneBuilders.CreateFeedbackStyles),
+        new GallerySceneDefinition(
+            "page-header",
+            GallerySceneGroup.ComponentFamilies,
+            "Formal AppPageHeader fixtures with and without back navigation, long text and actions.",
+            GalleryCommonControlScenes.CreatePageHeader),
+        new GallerySceneDefinition(
+            "section-surface",
+            GallerySceneGroup.ComponentFamilies,
+            "Formal AppSectionSurface fixtures with content and footer slots.",
+            GalleryCommonControlScenes.CreateSectionSurface),
+        new GallerySceneDefinition(
+            "status-view",
+            GallerySceneGroup.ComponentFamilies,
+            "Formal AppStatusView fixtures for loading, empty, no-result and error states.",
+            GalleryCommonControlScenes.CreateStatusView)
     ];
 
     public static IReadOnlyList<GallerySceneDefinition> All => RegisteredScenes;
