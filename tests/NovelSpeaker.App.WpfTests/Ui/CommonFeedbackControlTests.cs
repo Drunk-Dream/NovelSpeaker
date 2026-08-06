@@ -92,6 +92,7 @@ public sealed class CommonFeedbackControlTests
             var emptyDescriptionPageHeader = new AppPageHeader
             {
                 Title = "无说明页面",
+                Height = 80,
                 Description = string.Empty
             };
             var nullDescriptionPageHeader = new AppPageHeader
@@ -169,6 +170,14 @@ public sealed class CommonFeedbackControlTests
                 Visibility.Collapsed,
                 Assert.IsType<WpfTextBlock>(
                     emptyDescriptionPageHeader.Template!.FindName("DescriptionPresenter", emptyDescriptionPageHeader)).Visibility);
+            Assert.Equal(
+                VerticalAlignment.Center,
+                Assert.IsType<Grid>(
+                    emptyDescriptionPageHeader.Template.FindName("TitleLayout", emptyDescriptionPageHeader)).VerticalAlignment);
+            Assert.Equal(
+                VerticalAlignment.Center,
+                Assert.IsType<WpfButton>(
+                    emptyDescriptionPageHeader.Template.FindName("BackButton", emptyDescriptionPageHeader)).VerticalAlignment);
             Assert.Equal(
                 Visibility.Collapsed,
                 Assert.IsType<WpfTextBlock>(
@@ -306,6 +315,14 @@ public sealed class CommonFeedbackControlTests
                 Visibility.Collapsed,
                 Assert.IsType<WpfTextBlock>(
                     emptyDescription.Template!.FindName("DescriptionPresenter", emptyDescription)).Visibility);
+            Assert.Equal(
+                VerticalAlignment.Center,
+                Assert.IsType<StackPanel>(
+                    emptyDescription.Template.FindName("CopyPresenter", emptyDescription)).VerticalAlignment);
+            Assert.Equal(
+                VerticalAlignment.Center,
+                Assert.IsType<Border>(
+                    emptyDescription.Template.FindName("IconSurface", emptyDescription)).VerticalAlignment);
         });
     }
 

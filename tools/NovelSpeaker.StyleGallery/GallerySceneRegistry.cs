@@ -100,7 +100,17 @@ public static class GallerySceneRegistry
             "status-view",
             GallerySceneGroup.ComponentFamilies,
             "Formal AppStatusView fixtures for loading, empty, no-result and error states.",
-            GalleryCommonControlScenes.CreateStatusView)
+            GalleryCommonControlScenes.CreateStatusView),
+        new GallerySceneDefinition(
+            "settings-controls",
+            GallerySceneGroup.ComponentFamilies,
+            "Formal settings group, row and navigation-row fixtures across standard content types and narrow widths.",
+            GallerySettingsFormScenes.CreateSettingsControls),
+        new GallerySceneDefinition(
+            "form-field",
+            GallerySceneGroup.ComponentFamilies,
+            "Formal form-field fixtures for required, read-only, long-description and error states.",
+            GallerySettingsFormScenes.CreateFormField)
     ];
 
     public static IReadOnlyList<GallerySceneDefinition> All => RegisteredScenes;

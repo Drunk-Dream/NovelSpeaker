@@ -23,14 +23,17 @@
                                     Margin="0,0,12,0"
                                     Padding="8"
                                     Background="{DynamicResource App.Brush.Accent.Subtle}"
-                                    CornerRadius="{StaticResource App.Radius.Small}">
+                                    CornerRadius="{StaticResource App.Radius.Small}"
+                                    VerticalAlignment="Center">
                                 <ui:SymbolIcon x:Name="IconPresenter"
                                                Symbol="{TemplateBinding Icon}"
                                                Foreground="{DynamicResource App.Brush.Accent}"
                                                Width="24"
                                                Height="24" />
                             </Border>
-                            <StackPanel Grid.Column="1">
+                            <StackPanel x:Name="CopyPresenter"
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center">
                                 <TextBlock x:Name="TitlePresenter"
                                            Text="{TemplateBinding Title}"
                                            Style="{StaticResource App.Typography.ItemTitle}"

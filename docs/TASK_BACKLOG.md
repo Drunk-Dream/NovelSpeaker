@@ -409,7 +409,7 @@ artifacts/visual-review/windows/<window-id>/
 - Gallery 新增稳定 `page-header`、`section-surface`、`status-view` 场景，覆盖返回/无返回、长标题与操作区、内容与 Footer 槽，以及 Loading/Empty/NoResult/Error 和操作按钮；已生成对应 family 目录的 Light/Dark PNG 与 manifest。
 - 新增 Common/Feedback WPF 内容槽、模板、状态、Automation、Focus、DPI 布局和 Gallery fixture 契约测试；资源顺序、资源图、Style Gallery 相关定向测试 56/56 通过，format verify 通过。
 
-## [ ] 10（P1）：实现 Settings 与 Forms 正式自有控件
+## [x] 10（P1）：实现 Settings 与 Forms 正式自有控件
 
 前置：4–6、9。
 
@@ -430,6 +430,12 @@ artifacts/visual-review/windows/<window-id>/
 - SettingsGroup 无需最后一行特例即可正确绘制分隔线。
 - 分别更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/settings-controls/` 与 `artifacts/visual-review/gallery/form-field/`。
 - 完整质量门禁通过。
+
+结果：
+
+- 新增 `AppSettingsGroup`、`AppSettingsRow`、`AppSettingsNavigationRow` 和 `AppFormField`，分别集中于 `ControlThemes/Settings.xaml` 与 `ControlThemes/Forms.xaml`；分组模板统一拥有行分隔线、表面和首尾圆角，设置行不设置全局右侧宽度并在窄宽度切换为纵向布局，表单字段只投影标签、说明、必填标记、内容槽和错误文案。
+- Gallery 新增稳定 `settings-controls` 与 `form-field` 场景，覆盖 ToggleSwitch、ComboBox、TextBox、Button、只读值、导航行、长说明、错误和窄宽度；Light/Dark PNG 与 manifest 仅生成在本地 `artifacts/`，未加入 Git。
+- Common、Settings、Feedback 相关正式控件在辅助文案为空时保持主文案/图标/操作区的垂直居中，并由契约测试固定该行为；新增 Settings/Form WPF 默认 Style、内容槽、DataContext、命令绑定、分隔线、错误投影、窄宽度、560/561 边界、100/125/150% 等效缩放和 Gallery 场景契约测试；切片定向测试 50/50 通过，构建 0 警告、0 错误。
 
 ## [ ] 11（P0）：重构 Style Gallery fixture 并删除伪公共组件
 

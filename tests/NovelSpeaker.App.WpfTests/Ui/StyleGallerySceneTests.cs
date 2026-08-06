@@ -29,7 +29,7 @@ public sealed class StyleGallerySceneTests
         var scenes = GallerySceneRegistry.All;
 
         Assert.Equal(
-            ["button-styles", "feedback", "input-controls", "list-components", "media-controls", "menus", "navigation", "page-header", "palette-probe", "progress", "provider-controls", "provider-style-probe", "section-surface", "selection", "status-view", "surfaces", "theme-resource-probe", "token-components", "typography"],
+            ["button-styles", "feedback", "form-field", "input-controls", "list-components", "media-controls", "menus", "navigation", "page-header", "palette-probe", "progress", "provider-controls", "provider-style-probe", "section-surface", "selection", "settings-controls", "status-view", "surfaces", "theme-resource-probe", "token-components", "typography"],
             scenes.Select(scene => scene.Name).Order(StringComparer.Ordinal));
         Assert.Equal(
             ["Theme foundations", "Standard controls", "Component families"],
@@ -43,7 +43,7 @@ public sealed class StyleGallerySceneTests
             scenes.Where(scene => scene.Group == GallerySceneGroup.StandardControls)
                 .Select(scene => scene.Name));
         Assert.Equal(
-            ["media-controls", "list-components", "feedback", "page-header", "section-surface", "status-view"],
+            ["media-controls", "list-components", "feedback", "page-header", "section-surface", "status-view", "settings-controls", "form-field"],
             scenes.Where(scene => scene.Group == GallerySceneGroup.ComponentFamilies)
                 .Select(scene => scene.Name));
         Assert.DoesNotContain(scenes, scene => scene.Name == "placeholder-sections");
@@ -68,7 +68,7 @@ public sealed class StyleGallerySceneTests
             Assert.Equal(
                 ["Theme foundations", "Standard controls", "Component families"],
                 view.Groups.Cast<CollectionViewGroup>().Select(group => group.Name));
-            Assert.Equal(19, view.Cast<GallerySceneDefinition>().Count());
+            Assert.Equal(21, view.Cast<GallerySceneDefinition>().Count());
 
             var headerTemplate = Assert.Single(selector.GroupStyle).HeaderTemplate;
             Assert.NotNull(headerTemplate);
