@@ -54,7 +54,7 @@ internal static class GallerySelectionScene
         {
             Children =
             {
-                CreateTitle("Selection container states"),
+                CreateTitle("状态矩阵与数据事实"),
                 CreateBody(
                     "App.Selection 样式只表达容器状态：默认、Hover、键盘 Focus、Disabled、Selected、Current、MultiSelect 与 DropTarget。状态事实来自数据项或列表选择模型，虚拟化回收容器不会保存业务事实。"),
                 CreateBody(
@@ -70,10 +70,11 @@ internal static class GallerySelectionScene
         surface.Padding = new Thickness(16);
 
         var table = new Grid();
-        table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
-        foreach (var _ in SelectionStyleVariants)
+        AutomationProperties.SetAutomationId(table, "selection-state-matrix-grid");
+        table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
+        foreach (var _ in SelectionPreviewStates)
         {
-            table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
+            table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         }
 
         table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -207,12 +208,16 @@ internal static class GallerySelectionScene
         title.SetValue(WpfTextBlock.FontWeightProperty, FontWeights.SemiBold);
         title.SetValue(WpfTextBlock.TextWrappingProperty, TextWrapping.Wrap);
         title.SetValue(WpfTextBlock.MarginProperty, new Thickness(0, 0, 0, 2));
+        title.SetResourceReference(WpfTextBlock.FontFamilyProperty, "App.Text.Family.Ui");
+        title.SetResourceReference(WpfTextBlock.ForegroundProperty, "App.Brush.Text.Primary");
         stack.AppendChild(title);
 
         var metadata = new FrameworkElementFactory(typeof(WpfTextBlock));
         metadata.SetBinding(WpfTextBlock.TextProperty, new Binding(nameof(SelectionFixtureItem.Metadata)));
         metadata.SetValue(WpfTextBlock.FontSizeProperty, 12.0);
         metadata.SetValue(WpfTextBlock.TextWrappingProperty, TextWrapping.Wrap);
+        metadata.SetResourceReference(WpfTextBlock.FontFamilyProperty, "App.Text.Family.Ui");
+        metadata.SetResourceReference(WpfTextBlock.ForegroundProperty, "App.Brush.Text.Secondary");
         stack.AppendChild(metadata);
 
         border.AppendChild(stack);
@@ -223,7 +228,7 @@ internal static class GallerySelectionScene
     private static Border CreateSelectionPreview(string variant, string state)
     {
         var item = new SelectionFixtureItem(
-            $"{variant} {state}",
+            state,
             "容器状态 fixture",
             $"selection-{variant.ToLowerInvariant()}-{state.ToLowerInvariant()}",
             $"App.Selection.{variant} {state}");
@@ -301,7 +306,8 @@ internal static class GallerySelectionScene
         {
             Style = FindResource(styleKey),
             DataContext = item,
-            MinWidth = 160
+            MinWidth = 0,
+            Margin = new Thickness(0, 0, 8, 8)
         };
         var content = new StackPanel();
         content.Children.Add(CreateText(item.Title, 14, FontWeights.SemiBold));

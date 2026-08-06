@@ -11,6 +11,7 @@ using Wpf.Ui.Controls;
 using Xunit;
 using WpfButton = System.Windows.Controls.Button;
 using WpfMenuItem = System.Windows.Controls.MenuItem;
+using WpfTextBlock = System.Windows.Controls.TextBlock;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
 
@@ -155,6 +156,17 @@ public sealed class SelectionNavigationMenuStyleContractTests
             {
                 host.Window.UpdateLayout();
                 var rows = FindMatrixRows(scene).ToArray();
+                var matrix = FindDescendants<Grid>(scene).Single(grid =>
+                    AutomationProperties.GetAutomationId(grid) == "selection-state-matrix-grid");
+                Assert.Equal(SelectionPreviewStates.Length + 1, matrix.ColumnDefinitions.Count);
+                Assert.All(
+                    matrix.ColumnDefinitions.Skip(1),
+                    column => Assert.True(column.ActualWidth > 0));
+                Assert.All(rows, row =>
+                {
+                    Assert.True(row.ActualWidth > 0);
+                    Assert.True(row.ActualHeight > 0);
+                });
                 var expectedIds = SelectionStyleVariants
                     .SelectMany(variant => SelectionPreviewStates.Select(state =>
                         $"selection-{variant}-{state}"))
@@ -196,6 +208,46 @@ public sealed class SelectionNavigationMenuStyleContractTests
                 Assert.Contains(
                     FindDescendants<Border>(scene),
                     row => AutomationProperties.GetAutomationId(row) == "selection-virtualized-row-03");
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
+    public void Selection_virtualized_row_text_uses_theme_semantic_brushes(GalleryTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(theme);
+            var scene = GallerySceneRegistry.Build("selection");
+            using var host = WpfWindowHost.Show(new Window
+            {
+                Content = scene,
+                Width = GalleryRenderSettings.WindowWidth,
+                Height = GalleryRenderSettings.WindowHeight,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            });
+
+            try
+            {
+                host.Window.UpdateLayout();
+                var row = GetRow(FindVirtualizedRows(scene), "selection-virtualized-row-01");
+                var textBlocks = FindDescendants<WpfTextBlock>(row).ToArray();
+
+                Assert.Equal(2, textBlocks.Length);
+                Assert.Equal(
+                    BrushColor("App.Brush.Text.Primary"),
+                    ColorOf(textBlocks[0].Foreground));
+                Assert.Equal(
+                    BrushColor("App.Brush.Text.Secondary"),
+                    ColorOf(textBlocks[1].Foreground));
             }
             finally
             {
