@@ -26,7 +26,8 @@ public sealed class ProviderStyleBridgeTests
         "Provider.CheckBox",
         "Provider.ToggleSwitch",
         "Provider.NavigationViewItem",
-        "Provider.Slider"
+        "Provider.Slider",
+        "Provider.MenuItem"
     ];
 
     private static readonly string[] StableApplicationResourceKeys =
@@ -49,7 +50,7 @@ public sealed class ProviderStyleBridgeTests
             var dictionaries = Assert.IsAssignableFrom<global::System.Windows.Application>(
                 global::System.Windows.Application.Current).Resources.MergedDictionaries;
 
-            Assert.Equal(17, dictionaries.Count);
+            Assert.Equal(20, dictionaries.Count);
             Assert.True(IsWpfUiThemeDictionary(dictionaries[0]));
             Assert.Contains("Wpf.Ui", dictionaries[0].Source?.OriginalString, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(
@@ -100,24 +101,36 @@ public sealed class ProviderStyleBridgeTests
                 dictionaries[11].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Media.xaml",
+                "Shared/Theming/Resources/Styles/Selection.xaml",
                 dictionaries[12].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/SliderStyles.xaml",
+                "Shared/Theming/Resources/Styles/Navigation.xaml",
                 dictionaries[13].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/ControlThemes/ComponentStyles.xaml",
+                "Shared/Theming/Resources/Styles/Menus.xaml",
                 dictionaries[14].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/ControlThemes/NavigationFeedbackStyles.xaml",
+                "Shared/Theming/Resources/Styles/Media.xaml",
                 dictionaries[15].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/Legacy/LegacyStyles.xaml",
+                "Shared/Theming/Resources/Styles/SliderStyles.xaml",
                 dictionaries[16].Source?.OriginalString,
+                StringComparison.Ordinal);
+            Assert.EndsWith(
+                "Shared/Theming/Resources/ControlThemes/ComponentStyles.xaml",
+                dictionaries[17].Source?.OriginalString,
+                StringComparison.Ordinal);
+            Assert.EndsWith(
+                "Shared/Theming/Resources/ControlThemes/NavigationFeedbackStyles.xaml",
+                dictionaries[18].Source?.OriginalString,
+                StringComparison.Ordinal);
+            Assert.EndsWith(
+                "Shared/Theming/Resources/Legacy/LegacyStyles.xaml",
+                dictionaries[19].Source?.OriginalString,
                 StringComparison.Ordinal);
         });
     }
@@ -265,6 +278,7 @@ public sealed class ProviderStyleBridgeTests
         },
         "Provider.CheckBox" => new CheckBox { Content = "check", Style = style },
         "Provider.ToggleSwitch" => new ToggleSwitch { Content = "toggle", Style = style },
+        "Provider.MenuItem" => new System.Windows.Controls.MenuItem { Header = "menu", Style = style },
         "Provider.NavigationViewItem" => new NavigationViewItem { Content = "navigation", Style = style },
         "Provider.Slider" => new Slider { Minimum = 0, Maximum = 1, Value = 0.5, Style = style },
         _ => throw new ArgumentOutOfRangeException(nameof(key), key, "Unknown bridge key.")

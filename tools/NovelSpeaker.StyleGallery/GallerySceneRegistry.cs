@@ -52,6 +52,21 @@ public static class GallerySceneRegistry
             "Explicit App.Input TextBox, PasswordBox, ComboBox, CheckBox and ToggleSwitch fixtures.",
             GallerySceneBuilders.CreateInputControls),
         new GallerySceneDefinition(
+            "selection",
+            GallerySceneGroup.StandardControls,
+            "Explicit App.Selection container states and virtualized recycling facts.",
+            GallerySceneBuilders.CreateSelectionStyles),
+        new GallerySceneDefinition(
+            "navigation",
+            GallerySceneGroup.StandardControls,
+            "Explicit App.Navigation entry and settings entry styles.",
+            GallerySceneBuilders.CreateNavigationStyles),
+        new GallerySceneDefinition(
+            "menus",
+            GallerySceneGroup.StandardControls,
+            "Explicit App.Menu surfaces, ordinary, danger and group-header items.",
+            GallerySceneBuilders.CreateMenusStyles),
+        new GallerySceneDefinition(
             "media-controls",
             GallerySceneGroup.ComponentFamilies,
             "Shared App.Button.Icon controls with deterministic playback and slider fixtures.",
@@ -64,7 +79,7 @@ public static class GallerySceneRegistry
         new GallerySceneDefinition(
             "navigation-feedback",
             GallerySceneGroup.ComponentFamilies,
-            "Navigation entries, menus, progress, transient surfaces and request states.",
+            "Progress, transient surfaces and request states.",
             GallerySceneBuilders.CreateNavigationFeedback)
     ];
 

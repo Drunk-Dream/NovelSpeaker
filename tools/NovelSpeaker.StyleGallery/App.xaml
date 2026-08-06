@@ -17,6 +17,9 @@
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Surfaces.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Inputs.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Buttons.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Selection.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Navigation.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Menus.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Media.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/SliderStyles.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/ComponentStyles.xaml" />

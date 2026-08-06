@@ -29,7 +29,7 @@ public sealed class StyleGallerySceneTests
         var scenes = GallerySceneRegistry.All;
 
         Assert.Equal(
-            ["button-styles", "input-controls", "list-components", "media-controls", "navigation-feedback", "palette-probe", "provider-controls", "provider-style-probe", "surfaces", "theme-resource-probe", "token-components", "typography"],
+            ["button-styles", "input-controls", "list-components", "media-controls", "menus", "navigation", "navigation-feedback", "palette-probe", "provider-controls", "provider-style-probe", "selection", "surfaces", "theme-resource-probe", "token-components", "typography"],
             scenes.Select(scene => scene.Name).Order(StringComparer.Ordinal));
         Assert.Equal(
             ["Theme foundations", "Standard controls", "Component families"],
@@ -39,7 +39,7 @@ public sealed class StyleGallerySceneTests
             scenes.Where(scene => scene.Group == GallerySceneGroup.ThemeFoundations)
                 .Select(scene => scene.Name));
         Assert.Equal(
-            ["provider-controls", "button-styles", "input-controls"],
+            ["provider-controls", "button-styles", "input-controls", "selection", "navigation", "menus"],
             scenes.Where(scene => scene.Group == GallerySceneGroup.StandardControls)
                 .Select(scene => scene.Name));
         Assert.Equal(
@@ -68,7 +68,7 @@ public sealed class StyleGallerySceneTests
             Assert.Equal(
                 ["Theme foundations", "Standard controls", "Component families"],
                 view.Groups.Cast<CollectionViewGroup>().Select(group => group.Name));
-            Assert.Equal(12, view.Cast<GallerySceneDefinition>().Count());
+            Assert.Equal(15, view.Cast<GallerySceneDefinition>().Count());
 
             var headerTemplate = Assert.Single(selector.GroupStyle).HeaderTemplate;
             Assert.NotNull(headerTemplate);
@@ -1034,6 +1034,54 @@ public sealed class StyleGallerySceneTests
                     manifest,
                     output.Path,
                     ["navigation-feedback"],
+                    cancellation.Token);
+            }
+            finally
+            {
+                if (window.IsVisible)
+                {
+                    window.Close();
+                }
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData("selection")]
+    [InlineData("navigation")]
+    [InlineData("menus")]
+    public async Task Screenshot_generator_writes_standard_control_family_scene_manifest(string sceneName)
+    {
+        if (!VisualArtifactTestGuard.IsEnabled)
+        {
+            return;
+        }
+
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            using var output = new TemporaryOutputDirectory();
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var options = GalleryCommandLineOptions.Parse(
+            [
+                "--screenshot",
+                "--theme",
+                "all",
+                "--scene",
+                sceneName,
+                "--output",
+                output.Path
+            ]);
+            var window = new GalleryWindow();
+            try
+            {
+                WpfWindowHost.Show(window);
+                await new GalleryScreenshotGenerator().GenerateAsync(window, options, cancellation.Token);
+                var manifest = await ReadManifestAsync(output.ManifestPath, cancellation.Token);
+
+                await AssertManifestMatchesPngsAsync(
+                    manifest,
+                    output.Path,
+                    [sceneName],
                     cancellation.Token);
             }
             finally

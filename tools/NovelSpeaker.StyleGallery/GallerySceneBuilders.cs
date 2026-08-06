@@ -83,6 +83,27 @@ internal static class GallerySceneBuilders
             "Explicit App.Input variants cover content, density, selection, disabled, read-only and visible validation states without replacing Provider templates.",
             CreateInputControlsContent);
 
+    public static FrameworkElement CreateSelectionStyles() =>
+        CreateSceneRoot(
+            "selection",
+            "Selection container states",
+            "App.Selection styles express list container state from data facts; recycled virtualized containers keep following the data.",
+            GallerySelectionScene.Create);
+
+    public static FrameworkElement CreateNavigationStyles() =>
+        CreateSceneRoot(
+            "navigation",
+            "Navigation entry styles",
+            "App.Navigation.Entry extends the provider navigation item; App.Navigation.SettingsEntry is the full-width settings navigation row.",
+            GalleryNavigationScene.Create);
+
+    public static FrameworkElement CreateMenusStyles() =>
+        CreateSceneRoot(
+            "menus",
+            "Menu and context menu styles",
+            "App.Menu surfaces keep Raised elevation while items stay neutral, grouped or danger without copying the MenuItem template.",
+            GalleryMenusScene.Create);
+
     public static FrameworkElement CreateListComponents() =>
         CreateSceneRoot(
             "list-components",
@@ -93,8 +114,8 @@ internal static class GallerySceneBuilders
     public static FrameworkElement CreateNavigationFeedback() =>
         CreateSceneRoot(
             "navigation-feedback",
-            "Navigation, menus and feedback components",
-            "Shared explicit styles keep provider templates intact while making focus, dismissal, progress and request states measurable.",
+            "Progress and feedback components",
+            "Shared explicit styles keep provider templates intact while making progress, dismissal and request states measurable.",
             GalleryNavigationFeedbackScene.Create);
 
     public static FrameworkElement CreateProviderStyleProbe() =>

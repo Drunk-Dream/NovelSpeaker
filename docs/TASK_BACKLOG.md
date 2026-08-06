@@ -323,7 +323,7 @@ artifacts/visual-review/windows/<window-id>/
 - 已生成 `artifacts/visual-review/gallery/inputs/` 下的 Light/Dark PNG 与 manifest。
 - 最终完整质量门禁通过：restore 无 lock 文件差异，format/build 通过（0 警告/0 错误），全量测试 1203/1203 通过（WPF 268）。
 
-## [ ] 7（P1）：集中 Selection、Navigation 与 Menu Style
+## [x] 7（P1）：集中 Selection、Navigation 与 Menu Style
 
 前置：3–6。
 
@@ -343,6 +343,14 @@ artifacts/visual-review/windows/<window-id>/
 - 键盘导航、Focus、危险项分组和关闭项中性语义测试通过。
 - 分别更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/selection/`、`artifacts/visual-review/gallery/navigation/` 与 `artifacts/visual-review/gallery/menus/`。
 - 完整质量门禁通过。
+
+结果：
+
+- 新建 `Styles/Selection.xaml`（5 个 `App.Selection.*` 容器状态样式）、`Styles/Navigation.xaml`（`App.Navigation.Entry` 与 `App.Navigation.SettingsEntry`）和 `Styles/Menus.xaml`（5 个 `App.Menu.*`）；Navigation/Menu 键从 `NavigationFeedbackStyles.xaml` 迁出，`Provider.MenuItem` 移入 `ProviderStyleBridge.xaml`，App 与 Style Gallery 资源链同步增加三个字典。
+- Selection 样式只表达容器状态：Selected/Current/MultiSelect/DropTarget 通过数据事实绑定（`IsSelected`/`IsCurrent`/`IsSelectedForActiveCache`/`IsDropTarget`），Hover 状态层与状态边框可组合，不替换标准列表容器模板，也不在回收容器上保存业务事实；契约测试用虚拟化回收 ListBox 验证滚动回收后状态仍跟随数据。
+- Gallery 新增稳定场景 `selection`、`navigation`、`menus`，`navigation-feedback` 裁剪为 Progress/Feedback；已生成对应 `artifacts/visual-review/gallery/` 下的 Light/Dark PNG 与 manifest。新增字典所有权、Provider 链、键盘 Focus、危险项分组与中性 Close 等契约测试；ProviderStyleBridge 契约为 10 键、资源链 20 个字典，StyleGalleryScene 注册表为 15 个场景。
+- 定向 WPF/架构测试 67/67 通过；`NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 下新场景与 navigation-feedback 截图契约通过。
+- 最终完整质量门禁通过：restore 无 lock 文件差异，format/build 通过（0 警告/0 错误），全量测试 1213/1213 通过（WPF 278）。
 
 ## [ ] 8（P1）：集中 Progress、Media 与基础 Feedback Style
 

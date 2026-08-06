@@ -2,7 +2,6 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
-using MenuItem = System.Windows.Controls.MenuItem;
 using NovelSpeaker.App.Shared.Theming.Components;
 using WpfButton = System.Windows.Controls.Button;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
@@ -37,167 +36,23 @@ internal static class GalleryNavigationFeedbackScene
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        var navigation = CreateNavigationSurface();
-        Grid.SetColumn(navigation, 0);
-        Grid.SetRow(navigation, 0);
-        grid.Children.Add(navigation);
-
-        var menu = CreateMenuSurface();
-        Grid.SetColumn(menu, 1);
-        Grid.SetRow(menu, 0);
-        grid.Children.Add(menu);
 
         var progress = CreateProgressSurface();
         Grid.SetColumn(progress, 0);
-        Grid.SetRow(progress, 1);
         grid.Children.Add(progress);
 
         var feedback = CreateFeedbackSurface();
         Grid.SetColumn(feedback, 1);
-        Grid.SetRow(feedback, 1);
         grid.Children.Add(feedback);
 
         scrollViewer.Content = grid;
         return scrollViewer;
     }
 
-    private static Border CreateNavigationSurface()
-    {
-        var surface = CreateSurface("feedback-navigation-surface");
-        surface.Margin = new Thickness(0, 0, 8, 8);
-        surface.Padding = new Thickness(12);
-        var content = new StackPanel();
-        content.Children.Add(CreateTitle("Navigation Entry"));
-        content.Children.Add(CreateBody("显式 App.Navigation.Entry 扩展 Provider.NavigationViewItem；选中、Hover、Focus 和 Disabled 保持可见。"));
-
-        var navigation = new NavigationView
-        {
-            Height = 198,
-            IsPaneOpen = true,
-            IsPaneToggleVisible = true,
-            IsBackButtonVisible = NavigationViewBackButtonVisible.Collapsed,
-            PaneDisplayMode = NavigationViewPaneDisplayMode.Left,
-            OpenPaneLength = 218,
-            CompactPaneLength = 218,
-            Margin = new Thickness(0, 10, 0, 0)
-        };
-        AutomationProperties.SetAutomationId(navigation, "feedback-navigation-view");
-        foreach (var (label, symbol, selected, enabled) in new[]
-                 {
-                     ("书库", SymbolRegular.Library24, true, true),
-                     ("播放队列", SymbolRegular.PlayCircle24, false, true),
-                     ("设置", SymbolRegular.Settings24, false, true),
-                     ("暂不可用", SymbolRegular.Warning24, false, false)
-                 })
-        {
-            var item = new NavigationViewItem
-            {
-                Content = label,
-                Icon = new SymbolIcon { Symbol = symbol, Width = 20, Height = 20 },
-                IsActive = selected,
-                IsEnabled = enabled,
-                Style = FindResource("App.Navigation.Entry")
-            };
-            AutomationProperties.SetAutomationId(item, $"navigation-entry-{label}");
-            AutomationProperties.SetName(item, $"导航：{label}");
-            navigation.MenuItems.Add(item);
-        }
-        var firstItem = navigation.MenuItems.OfType<NavigationViewItem>().First();
-        SetSelectedItem(navigation, firstItem);
-        navigation.Loaded += (_, _) =>
-        {
-            navigation.IsPaneOpen = true;
-            SetSelectedItem(navigation, firstItem);
-        };
-
-        content.Children.Add(navigation);
-        surface.Child = content;
-        return surface;
-    }
-
-    private static Border CreateMenuSurface()
-    {
-        var surface = CreateSurface("feedback-menu-surface");
-        surface.Margin = new Thickness(8, 0, 0, 8);
-        surface.Padding = new Thickness(12);
-        var content = new StackPanel();
-        content.Children.Add(CreateTitle("ContextMenu / MenuItem"));
-        content.Children.Add(CreateBody("Danger 操作独立分组；Close 保持默认中性菜单样式。"));
-
-        var anchor = new WpfButton
-        {
-            Content = "右键打开 ContextMenu",
-            Style = FindResource("App.Button.Secondary"),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 8, 0, 10)
-        };
-        AutomationProperties.SetAutomationId(anchor, "feedback-context-anchor");
-        AutomationProperties.SetName(anchor, "打开示例 ContextMenu");
-        anchor.ContextMenu = CreateContextMenu();
-        content.Children.Add(anchor);
-
-        var visualMenu = new Menu
-        {
-            Style = FindResource("App.Menu.Surface")
-        };
-        AutomationProperties.SetAutomationId(visualMenu, "feedback-inline-menu");
-        foreach (var item in CreateMenuItems())
-        {
-            visualMenu.Items.Add(item);
-        }
-        content.Children.Add(visualMenu);
-        surface.Child = content;
-        return surface;
-    }
-
-    private static ContextMenu CreateContextMenu()
-    {
-        var menu = new ContextMenu
-        {
-            Style = FindResource("App.Menu.ContextSurface")
-        };
-        AutomationProperties.SetAutomationId(menu, "feedback-context-menu");
-        foreach (var item in CreateMenuItems())
-        {
-            menu.Items.Add(item);
-        }
-
-        return menu;
-    }
-
-    private static IReadOnlyList<FrameworkElement> CreateMenuItems() =>
-    [
-        new MenuItem
-        {
-            Header = "书籍操作",
-            Style = FindResource("App.Menu.GroupHeader")
-        },
-        new MenuItem
-        {
-            Header = "打开详情",
-            Style = FindResource("App.Menu.Item")
-        },
-        new Separator(),
-        new MenuItem
-        {
-            Header = "删除书籍",
-            Style = FindResource("App.Menu.DangerItem")
-        },
-        new Separator(),
-        new MenuItem
-        {
-            Header = "Close",
-            Style = FindResource("App.Menu.Item")
-        }
-    ];
-
     private static Border CreateProgressSurface()
     {
         var surface = CreateSurface("feedback-progress-surface");
-        surface.Margin = new Thickness(0, 8, 8, 8);
+        surface.Margin = new Thickness(0, 0, 8, 0);
         surface.Padding = new Thickness(16);
         var content = new StackPanel();
         content.Children.Add(CreateTitle("Progress 与 Slider"));
@@ -232,7 +87,7 @@ internal static class GalleryNavigationFeedbackScene
     private static Border CreateFeedbackSurface()
     {
         var surface = CreateSurface("feedback-components-surface");
-        surface.Margin = new Thickness(8, 8, 0, 8);
+        surface.Margin = new Thickness(8, 0, 0, 0);
         surface.Padding = new Thickness(12);
         var content = new StackPanel();
         content.Children.Add(CreateTitle("Flyout、Dialog、Snackbar 与状态"));
@@ -284,14 +139,6 @@ internal static class GalleryNavigationFeedbackScene
         System.Windows.Application.Current?.TryFindResource(key) as Style
         ?? FeedbackResources.Value[key] as Style
         ?? throw new InvalidOperationException($"Gallery feedback resource '{key}' was not found.");
-
-    private static void SetSelectedItem(NavigationView navigation, object item)
-    {
-        typeof(NavigationView)
-            .GetProperty(nameof(NavigationView.SelectedItem))?
-            .GetSetMethod(nonPublic: true)?
-            .Invoke(navigation, [item]);
-    }
 
     private static Border CreateSurface(string automationId)
     {

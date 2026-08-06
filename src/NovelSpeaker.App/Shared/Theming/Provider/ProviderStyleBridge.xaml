@@ -40,4 +40,8 @@
     <Style x:Key="Provider.Slider"
            TargetType="{x:Type Slider}"
            BasedOn="{StaticResource {x:Type Slider}}" />
+
+    <Style x:Key="Provider.MenuItem"
+           TargetType="{x:Type MenuItem}"
+           BasedOn="{StaticResource {x:Type MenuItem}}" />
 </ResourceDictionary>

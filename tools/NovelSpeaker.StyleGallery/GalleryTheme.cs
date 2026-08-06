@@ -42,6 +42,7 @@ public static class GalleryThemeRuntime
         "Provider.ComboBox",
         "Provider.CheckBox",
         "Provider.ToggleSwitch",
+        "Provider.MenuItem",
         "Provider.NavigationViewItem",
         "Provider.Slider"
     ];
@@ -110,13 +111,16 @@ public static class GalleryThemeRuntime
             "Resources/Styles/Surfaces.xaml",
             "Resources/Styles/Inputs.xaml",
             "Resources/Styles/Buttons.xaml",
+            "Resources/Styles/Selection.xaml",
+            "Resources/Styles/Navigation.xaml",
+            "Resources/Styles/Menus.xaml",
             "Resources/Styles/Media.xaml",
             "Resources/Styles/SliderStyles.xaml",
             "Resources/ControlThemes/ComponentStyles.xaml",
             "Resources/ControlThemes/NavigationFeedbackStyles.xaml",
             "Resources/Legacy/LegacyStyles.xaml"
         };
-        if (dictionaries.Count != 17 ||
+        if (dictionaries.Count != 20 ||
             expectedApplicationSources.Select((suffix, index) =>
                 dictionaries[index + 8].Source?.OriginalString?.EndsWith(
                     suffix,

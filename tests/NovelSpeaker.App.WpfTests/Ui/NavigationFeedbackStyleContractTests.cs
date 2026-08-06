@@ -7,10 +7,8 @@ using System.Windows.Media;
 using System.Xml.Linq;
 using NovelSpeaker.App.Shared.Theming.Components;
 using NovelSpeaker.StyleGallery;
-using Wpf.Ui.Controls;
 using Xunit;
 using WpfButton = System.Windows.Controls.Button;
-using WpfMenuItem = System.Windows.Controls.MenuItem;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -19,7 +17,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed class NavigationFeedbackStyleContractTests
 {
     [Fact]
-    public void Navigation_feedback_resources_are_explicit_named_styles_and_keep_navigation_provider_based()
+    public void Feedback_resources_are_explicit_named_styles_in_the_control_theme_dictionary()
     {
         var path = Path.Combine(
             LocateRepositoryRoot(),
@@ -39,17 +37,10 @@ public sealed class NavigationFeedbackStyleContractTests
 
         Assert.Equal(
             [
-                "App.Navigation.Entry",
-                "Provider.MenuItem",
-                "App.Menu.Item",
-                "App.Menu.DangerItem",
-                "App.Menu.GroupHeader",
                 "App.Feedback.ProgressBar",
                 "App.Feedback.SurfaceBase",
                 "App.Feedback.FlyoutSurface",
                 "App.Feedback.DialogShell",
-                "App.Menu.Surface",
-                "App.Menu.ContextSurface",
                 "App.Feedback.SnackbarContent",
                 "App.Feedback.StatusBase",
                 "App.Feedback.Loading",
@@ -59,17 +50,6 @@ public sealed class NavigationFeedbackStyleContractTests
             keys);
         Assert.All(resources, resource => Assert.Equal("Style", resource.Name.LocalName));
         Assert.DoesNotContain(resources, resource => resource.Attribute(xaml + "Key") is null);
-
-        var navigation = resources.Single(resource =>
-            (string?)resource.Attribute(xaml + "Key") == "App.Navigation.Entry");
-        Assert.Equal(
-            "{StaticResource Provider.NavigationViewItem}",
-            (string?)navigation.Attribute("BasedOn"));
-        var menu = resources.Single(resource =>
-            (string?)resource.Attribute(xaml + "Key") == "App.Menu.Item");
-        Assert.Equal(
-            "{StaticResource Provider.MenuItem}",
-            (string?)menu.Attribute("BasedOn"));
         Assert.DoesNotContain(
             resources.SelectMany(resource => resource.Descendants()),
             element => element.Name.LocalName == "Style" && element.Attribute(xaml + "Key") is null);
@@ -78,7 +58,7 @@ public sealed class NavigationFeedbackStyleContractTests
     [Theory]
     [InlineData(GalleryTheme.Light)]
     [InlineData(GalleryTheme.Dark)]
-    public void Navigation_feedback_gallery_contains_provider_navigation_menu_grouping_and_distinct_progress_controls(
+    public void Navigation_feedback_gallery_keeps_progress_and_slider_type_boundaries(
         GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
@@ -96,48 +76,7 @@ public sealed class NavigationFeedbackStyleContractTests
             });
             host.Window.UpdateLayout();
 
-            var navigation = FindDescendants<NavigationView>(scene).Single();
-            Assert.True(navigation.IsPaneOpen);
-            var navigationItems = navigation.MenuItems.OfType<NavigationViewItem>().ToArray();
-            Assert.Equal(4, navigationItems.Length);
-            Assert.All(navigationItems, item =>
-            {
-                Assert.Same(
-                    global::System.Windows.Application.Current!.FindResource("Provider.NavigationViewItem"),
-                    item.Style?.BasedOn);
-                Assert.NotNull(item.Template);
-                Assert.False(string.IsNullOrWhiteSpace(AutomationProperties.GetName(item)));
-                Assert.True(item.ActualWidth > 0);
-                Assert.True(item.ActualHeight > 0);
-            });
-            Assert.Single(navigationItems, item => item.IsActive);
-            Assert.Same(navigationItems.Single(item => item.IsActive), navigation.SelectedItem);
-            Assert.Contains(
-                FindDescendants<WpfTextBlock>(navigationItems[0]),
-                block => block.Text == navigationItems[0].Content as string &&
-                         block.Visibility == Visibility.Visible);
-            Assert.Contains(navigationItems, item => !item.IsEnabled && item.Opacity < 1);
-            Assert.True(navigationItems[1].Focus());
-            Assert.True(navigationItems[1].IsKeyboardFocusWithin);
-
-            var anchor = FindDescendants<WpfButton>(scene).Single(button =>
-                AutomationProperties.GetAutomationId(button) == "feedback-context-anchor");
-            var contextMenu = anchor.ContextMenu;
-            Assert.NotNull(contextMenu);
-            var contextItems = contextMenu.Items.OfType<WpfMenuItem>().ToArray();
-            Assert.Equal(4, contextItems.Length);
-            Assert.Equal("书籍操作", contextItems[0].Header);
-            Assert.Equal("Danger", contextItems[2].Tag);
-            Assert.Equal("Close", contextItems[3].Header);
-            Assert.NotSame(contextItems[2].Style, contextItems[3].Style);
-            Assert.IsType<Separator>(contextMenu.Items[2]);
-            Assert.IsType<Separator>(contextMenu.Items[4]);
-            Assert.Same(
-                global::System.Windows.Application.Current!.FindResource("App.Elevation.Medium"),
-                contextMenu.Effect);
-            Assert.Equal(
-                global::System.Windows.Application.Current!.FindResource("App.Brush.Surface.Raised"),
-                contextMenu.Background);
+            Assert.Empty(FindDescendants<Menu>(scene));
 
             var progress = FindDescendants<ProgressBar>(scene).Single(control =>
                 AutomationProperties.GetAutomationId(control) == "feedback-progress");
@@ -148,14 +87,6 @@ public sealed class NavigationFeedbackStyleContractTests
             Assert.Equal(typeof(Slider), slider.Style?.TargetType);
             Assert.True(progress.ActualHeight >= progress.MinHeight);
             Assert.True(slider.ActualHeight > 0);
-
-            var visualMenu = FindDescendants<Menu>(scene).Single();
-            Assert.Same(
-                global::System.Windows.Application.Current!.FindResource("App.Elevation.Medium"),
-                visualMenu.Effect);
-            Assert.Equal(
-                global::System.Windows.Application.Current!.FindResource("App.Brush.Surface.Raised"),
-                visualMenu.Background);
         });
     }
 
