@@ -107,6 +107,7 @@ public static class GalleryThemeRuntime
         var expectedApplicationSources = new[]
         {
             "Resources/Styles/Typography.xaml",
+            "Resources/Styles/Surfaces.xaml",
             "Resources/Styles/Inputs.xaml",
             "Resources/Styles/ButtonStyles.xaml",
             "Resources/Styles/Media.xaml",
@@ -115,7 +116,7 @@ public static class GalleryThemeRuntime
             "Resources/ControlThemes/NavigationFeedbackStyles.xaml",
             "Resources/Legacy/LegacyStyles.xaml"
         };
-        if (dictionaries.Count != 16 ||
+        if (dictionaries.Count != 17 ||
             expectedApplicationSources.Select((suffix, index) =>
                 dictionaries[index + 8].Source?.OriginalString?.EndsWith(
                     suffix,

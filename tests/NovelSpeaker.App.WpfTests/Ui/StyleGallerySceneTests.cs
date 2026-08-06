@@ -29,13 +29,13 @@ public sealed class StyleGallerySceneTests
         var scenes = GallerySceneRegistry.All;
 
         Assert.Equal(
-            ["button-styles", "input-controls", "list-components", "media-controls", "navigation-feedback", "palette-probe", "provider-controls", "provider-style-probe", "theme-resource-probe", "token-components"],
+            ["button-styles", "input-controls", "list-components", "media-controls", "navigation-feedback", "palette-probe", "provider-controls", "provider-style-probe", "surfaces", "theme-resource-probe", "token-components", "typography"],
             scenes.Select(scene => scene.Name).Order(StringComparer.Ordinal));
         Assert.Equal(
             ["Theme foundations", "Standard controls", "Component families"],
             scenes.Select(scene => scene.GroupName).Distinct(StringComparer.Ordinal));
         Assert.Equal(
-            ["provider-style-probe", "theme-resource-probe", "palette-probe", "token-components"],
+            ["provider-style-probe", "theme-resource-probe", "palette-probe", "token-components", "typography", "surfaces"],
             scenes.Where(scene => scene.Group == GallerySceneGroup.ThemeFoundations)
                 .Select(scene => scene.Name));
         Assert.Equal(
@@ -68,7 +68,7 @@ public sealed class StyleGallerySceneTests
             Assert.Equal(
                 ["Theme foundations", "Standard controls", "Component families"],
                 view.Groups.Cast<CollectionViewGroup>().Select(group => group.Name));
-            Assert.Equal(10, view.Cast<GallerySceneDefinition>().Count());
+            Assert.Equal(12, view.Cast<GallerySceneDefinition>().Count());
 
             var headerTemplate = Assert.Single(selector.GroupStyle).HeaderTemplate;
             Assert.NotNull(headerTemplate);

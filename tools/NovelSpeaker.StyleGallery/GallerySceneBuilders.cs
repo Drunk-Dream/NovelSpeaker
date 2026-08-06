@@ -46,6 +46,20 @@ internal static class GallerySceneBuilders
             "PageHeader, SectionSurface and StatusView use the shared token contract and dynamic semantic palette.",
             CreateTokenComponentsContent);
 
+    public static FrameworkElement CreateTypographyStyles() =>
+        CreateSceneRoot(
+            "typography",
+            "Typography styles",
+            "App.Typography roles keep long Chinese and English content readable while preserving disabled and validation states.",
+            CreateTypographyStylesContent);
+
+    public static FrameworkElement CreateSurfaceStyles() =>
+        CreateSceneRoot(
+            "surfaces",
+            "Surface styles",
+            "App.Surface styles own only visual grouping and keep the visible hierarchy to at most three nested levels.",
+            CreateSurfaceStylesContent);
+
     public static FrameworkElement CreateButtonStyles() =>
         CreateSceneRoot(
             "button-styles",
@@ -494,6 +508,192 @@ internal static class GallerySceneBuilders
         content.Children.Add(CreateStatusViewSample());
         scrollViewer.Content = content;
         return scrollViewer;
+    }
+
+    private static FrameworkElement CreateTypographyStylesContent()
+    {
+        var scrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+
+        var columns = new Grid();
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var primary = CreateStyledGallerySurface("typography-primary-surface", "App.Surface.Card");
+        primary.Margin = new Thickness(0, 0, SectionGap / 2, 0);
+        var primaryContent = new StackPanel();
+        primaryContent.Children.Add(CreateSurfaceLabel("中文与英文排版角色"));
+        AddTypographyFixture(
+            primaryContent,
+            "App.Typography.PageTitle",
+            "typography-page-title",
+            "长标题：这是一个用于检查换行和字号层级的中文页面标题，同时包含 Long English heading content.");
+        AddTypographyFixture(
+            primaryContent,
+            "App.Typography.SectionTitle",
+            "typography-section-title",
+            "Section title · 章节与设置分组标题保持清晰的层级关系");
+        AddTypographyFixture(
+            primaryContent,
+            "App.Typography.ItemTitle",
+            "typography-item-title",
+            "Item title · 当前章节和书籍条目的简短标题");
+        AddTypographyFixture(
+            primaryContent,
+            "App.Typography.Body",
+            "typography-body",
+            "正文：这段长中文和 English body copy 用来检查行高、换行以及在浅色和深色主题下的可读性，不应因为固定窗口而被裁剪。");
+        AddTypographyFixture(
+            primaryContent,
+            "App.Typography.Secondary",
+            "typography-secondary",
+            "Secondary text · 用于说明、元数据和辅助提示的较弱层级。");
+        AddTypographyFixture(
+            primaryContent,
+            "App.Typography.Caption",
+            "typography-caption",
+            "Caption · 12px 辅助说明");
+        primary.Child = primaryContent;
+        Grid.SetColumn(primary, 0);
+        columns.Children.Add(primary);
+
+        var states = CreateStyledGallerySurface("typography-state-surface", "App.Surface.Secondary");
+        states.Margin = new Thickness(SectionGap / 2, 0, 0, 0);
+        var stateContent = new StackPanel();
+        stateContent.Children.Add(CreateSurfaceLabel("表单与状态文字"));
+        AddTypographyFixture(
+            stateContent,
+            "App.Typography.FormLabel",
+            "typography-form-label",
+            "Form label · 章节名称");
+        AddTypographyFixture(
+            stateContent,
+            "App.Typography.Validation",
+            "typography-validation",
+            "Validation · 请输入有效的章节名称和作者信息后再继续。");
+        AddTypographyFixture(
+            stateContent,
+            "App.Typography.Body",
+            "typography-disabled",
+            "Disabled · 当前导入任务尚未完成，暂时不能编辑。",
+            isEnabled: false);
+        AddTypographyFixture(
+            stateContent,
+            "App.Typography.Secondary",
+            "typography-disabled-secondary",
+            "Disabled secondary · 这条说明也必须保留稳定的布局尺寸。",
+            isEnabled: false);
+        states.Child = stateContent;
+        Grid.SetColumn(states, 1);
+        columns.Children.Add(states);
+
+        scrollViewer.Content = columns;
+        return scrollViewer;
+    }
+
+    private static FrameworkElement CreateSurfaceStylesContent()
+    {
+        var scrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+        var content = new StackPanel();
+        content.Children.Add(CreateSurfaceHierarchy());
+
+        var variants = new Grid { Margin = new Thickness(0, 0, 0, 16) };
+        variants.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        variants.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        variants.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        variants.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        variants.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var keys = new[]
+        {
+            ("App.Surface.Canvas", "surface-canvas", "Canvas · 窗口中的页面画布"),
+            ("App.Surface.Card", "surface-card", "Card · 普通静态卡片"),
+            ("App.Surface.Secondary", "surface-secondary", "Secondary · 次级控制条"),
+            ("App.Surface.Raised", "surface-raised", "Raised · 轻抬升表面"),
+            ("App.Surface.Popup", "surface-popup", "Popup · 临时浮层"),
+            ("App.Surface.DialogContent", "surface-dialog-content", "DialogContent · 对话框内容")
+        };
+        for (var index = 0; index < keys.Length; index++)
+        {
+            var (styleKey, automationId, label) = keys[index];
+            var surface = CreateStyledGallerySurface(automationId, styleKey);
+            surface.Margin = new Thickness(
+                index % 2 == 0 ? 0 : SectionGap / 2,
+                index < 2 ? 0 : SectionGap / 2,
+                index % 2 == 0 ? SectionGap / 2 : 0,
+                0);
+            surface.MinHeight = 86;
+            surface.Child = new TextBlock
+            {
+                Text = label,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center
+            }.WithResource(TextBlock.StyleProperty, "App.Typography.Body");
+            Grid.SetRow(surface, index / 2);
+            Grid.SetColumn(surface, index % 2);
+            variants.Children.Add(surface);
+        }
+
+        content.Children.Add(variants);
+        scrollViewer.Content = content;
+        return scrollViewer;
+    }
+
+    private static Border CreateSurfaceHierarchy()
+    {
+        var canvas = CreateStyledGallerySurface("surface-nested-level-1", "App.Surface.Canvas");
+        canvas.MinHeight = 180;
+        var section = CreateStyledGallerySurface("surface-nested-level-2", "App.Surface.Section");
+        section.MinHeight = 140;
+        var raised = CreateStyledGallerySurface("surface-nested-level-3", "App.Surface.Raised");
+        raised.MinHeight = 100;
+        raised.Child = new StackPanel
+        {
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = "最多三级可见表面 · Canvas → Section → Raised",
+                    TextWrapping = TextWrapping.Wrap
+                }.WithResource(TextBlock.StyleProperty, "App.Typography.SectionTitle"),
+                new TextBlock
+                {
+                    Text = "表面只表达层级和留白，内容、操作和页面布局仍由 Gallery fixture 拥有。",
+                    Margin = new Thickness(0, 8, 0, 0),
+                    TextWrapping = TextWrapping.Wrap
+                }.WithResource(TextBlock.StyleProperty, "App.Typography.Body")
+            }
+        };
+        section.Child = raised;
+        canvas.Child = section;
+        return canvas;
+    }
+
+    private static void AddTypographyFixture(
+        Panel panel,
+        string styleKey,
+        string automationId,
+        string text,
+        bool isEnabled = true)
+    {
+        var block = new TextBlock
+        {
+            Text = text,
+            IsEnabled = isEnabled,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 12, 0, 0)
+        };
+        block.SetResourceReference(TextBlock.StyleProperty, styleKey);
+        AutomationProperties.SetAutomationId(block, automationId);
+        AutomationProperties.SetName(block, styleKey);
+        panel.Children.Add(block);
     }
 
     private static FrameworkElement CreateButtonStylesContent()
@@ -1245,6 +1445,18 @@ internal static class GallerySceneBuilders
         surface.SetResourceReference(Border.CornerRadiusProperty, "App.Radius.Medium");
         surface.Margin = new Thickness(0, 0, 0, TokenDouble("App.Space.16"));
         AutomationProperties.SetAutomationId(surface, automationId);
+        return surface;
+    }
+
+    private static Border CreateStyledGallerySurface(string automationId, string styleKey)
+    {
+        var surface = new Border
+        {
+            SnapsToDevicePixels = true
+        };
+        surface.SetResourceReference(FrameworkElement.StyleProperty, styleKey);
+        AutomationProperties.SetAutomationId(surface, automationId);
+        AutomationProperties.SetName(surface, styleKey);
         return surface;
     }
 

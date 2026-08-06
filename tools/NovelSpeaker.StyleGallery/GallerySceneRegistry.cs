@@ -27,6 +27,16 @@ public static class GallerySceneRegistry
             "Stable token-based PageHeader, SectionSurface and StatusView samples.",
             GallerySceneBuilders.CreateTokenComponents),
         new GallerySceneDefinition(
+            "typography",
+            GallerySceneGroup.ThemeFoundations,
+            "Typography roles with long Chinese and English text plus disabled and validation states.",
+            GallerySceneBuilders.CreateTypographyStyles),
+        new GallerySceneDefinition(
+            "surfaces",
+            GallerySceneGroup.ThemeFoundations,
+            "Surface hierarchy, nested depth and raised transient surfaces across themes.",
+            GallerySceneBuilders.CreateSurfaceStyles),
+        new GallerySceneDefinition(
             "provider-controls",
             GallerySceneGroup.StandardControls,
             "Wpf.Ui provider-backed standard controls and interaction states.",

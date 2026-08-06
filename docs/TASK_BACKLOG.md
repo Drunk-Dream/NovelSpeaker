@@ -241,7 +241,7 @@ artifacts/visual-review/windows/<window-id>/
 - 新增/更新资源契约测试：Token 键集合与 `App.` 前缀、Legacy 页面引用指纹、Palette 键集合/对比度/热切换、Gallery scene 28 swatch + 5 contrast 契约；资源迁移相关定向测试 107/107 通过。
 - 完整质量门禁通过：`dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore`（0 警告/0 错误）、`dotnet test -c Release --no-build`（Domain 2、Application 208、Infrastructure 343、Presentation 382、WPF 258）。
 
-## [ ] 4（P1）：集中 Typography 与 Surface Style
+## [x] 4（P1）：集中 Typography 与 Surface Style
 
 前置：3。
 
@@ -260,6 +260,14 @@ artifacts/visual-review/windows/<window-id>/
 - 文本省略、非零布局、主题切换和深浅表面识别测试通过。
 - 分别更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/typography/` 与 `artifacts/visual-review/gallery/surfaces/`。
 - 完整质量门禁通过。
+
+结果：
+
+- `Styles/Typography.xaml` 集中维护 8 个 `App.Typography.*` 角色，使用共享排版 Token、语义文字 Brush、自动换行和统一 Disabled 投影；新增 `Styles/Surfaces.xaml` 集中维护 7 个 `App.Surface.*` 表面，仅负责背景、边界、圆角、Padding 和 Effect。
+- 应用与 Style Gallery 的加载顺序固定为 Typography → Surface → 标准控件族；资源图契约阻止重复定义、未解析引用和 Surface 混入业务内容。
+- Gallery 新增稳定场景 `typography` 与 `surfaces`，覆盖长中文/英文、禁用、验证文字、浅深主题、6 个 Surface 变体和最多三级嵌套；已生成 `artifacts/visual-review/gallery/typography/` 与 `artifacts/visual-review/gallery/surfaces/` 下的 Light/Dark PNG 与 manifest。
+- 新增 Typography/Surface WPF 契约与布局/主题切换测试；定向资源测试 35/35 通过。
+- `dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore`（0 警告/0 错误）和切片定向 WPF 测试 35/35 通过；全量测试中仍有任务开始前已存在的 `VisualResourceGraphTests.Existing_page_legacy_references_are_pinned_until_page_migration` 指纹基线失败（本切片未修改页面 XAML，按审查意见未改写该无关基线）。
 
 ## [ ] 5（P1）：集中 Button Style 族
 
