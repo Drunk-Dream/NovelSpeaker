@@ -51,15 +51,6 @@
         <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
     </Style>
 
-    <!-- The short names in the visual design document remain the default TextBox
-         entry points; type-specific keys make the other controls unambiguous. -->
-    <Style x:Key="App.Input.Standard"
-           TargetType="{x:Type TextBox}"
-           BasedOn="{StaticResource App.Input.TextBox.Standard}" />
-    <Style x:Key="App.Input.Compact"
-           TargetType="{x:Type TextBox}"
-           BasedOn="{StaticResource App.Input.TextBox.Compact}" />
-
     <Style x:Key="App.Input.PasswordBox.Standard"
            TargetType="{x:Type PasswordBox}"
            BasedOn="{StaticResource Provider.PasswordBox}">

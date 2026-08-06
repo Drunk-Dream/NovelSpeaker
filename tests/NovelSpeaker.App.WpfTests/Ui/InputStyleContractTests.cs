@@ -22,8 +22,6 @@ public sealed class InputStyleContractTests
     [
         new("App.Input.TextBox.Standard", "{x:Type TextBox}", typeof(WpfTextBox), "Provider.TextBox"),
         new("App.Input.TextBox.Compact", "{x:Type TextBox}", typeof(WpfTextBox), "Provider.TextBox"),
-        new("App.Input.Standard", "{x:Type TextBox}", typeof(WpfTextBox), "Provider.TextBox"),
-        new("App.Input.Compact", "{x:Type TextBox}", typeof(WpfTextBox), "Provider.TextBox"),
         new("App.Input.PasswordBox.Standard", "{x:Type PasswordBox}", typeof(WpfPasswordBox), "Provider.PasswordBox"),
         new("App.Input.PasswordBox.Compact", "{x:Type PasswordBox}", typeof(WpfPasswordBox), "Provider.PasswordBox"),
         new("App.Input.ComboBox.Standard", "{x:Type ComboBox}", typeof(WpfComboBox), "Provider.ComboBox"),
