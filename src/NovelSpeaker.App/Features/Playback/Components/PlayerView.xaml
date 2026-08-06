@@ -812,7 +812,7 @@
                                    HorizontalAlignment="Center">
                             <Button x:Name="PreviousChapterButton"
                                     Margin="0,0,12,0"
-                                    Style="{StaticResource MediaIconButtonStyle}"
+                                    Style="{StaticResource App.Media.Button}"
                                     IsEnabled="{Binding CanGoToPreviousChapter}"
                                     Command="{Binding PreviousChapterCommand}"
                                     ToolTip="上一章"
@@ -821,7 +821,7 @@
                             </Button>
                             <Button x:Name="PreviousSegmentButton"
                                     Margin="0,0,12,0"
-                                    Style="{StaticResource MediaIconButtonStyle}"
+                                    Style="{StaticResource App.Media.Button}"
                                     IsEnabled="{Binding CanGoToPreviousSegment}"
                                     Command="{Binding PreviousSegmentCommand}"
                                     ToolTip="上一段"
@@ -830,36 +830,30 @@
                             </Button>
                             <Button x:Name="PrimaryPlaybackButton"
                                     Margin="0,0,12,0"
-                                    Style="{StaticResource PrimaryPlaybackIconButtonStyle}"
+                                    Style="{StaticResource App.Media.Button}"
                                     IsEnabled="{Binding CanTogglePlayPause}"
                                     Command="{Binding TogglePlayPauseCommand}"
                                     ToolTip="{Binding PrimaryActionText}"
                                     AutomationProperties.Name="{Binding PrimaryActionText}">
-                                <Border Width="48"
-                                        Height="48"
-                                        Background="{DynamicResource AccentFillColorDefaultBrush}"
-                                        CornerRadius="999">
-                                    <ui:SymbolIcon HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   FontSize="24"
-                                                   Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}">
-                                        <ui:SymbolIcon.Style>
-                                            <Style TargetType="ui:SymbolIcon">
-                                                <Setter Property="Symbol" Value="PlayCircle24" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding DataContext.PrimaryAction, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                 Value="{x:Static presentation:PlaybackPrimaryAction.Pause}">
-                                                        <Setter Property="Symbol" Value="PauseCircle24" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ui:SymbolIcon.Style>
-                                    </ui:SymbolIcon>
-                                </Border>
+                                <ui:SymbolIcon Width="28"
+                                               Height="28"
+                                               Foreground="{DynamicResource App.Brush.Text.Primary}">
+                                    <ui:SymbolIcon.Style>
+                                        <Style TargetType="ui:SymbolIcon">
+                                            <Setter Property="Symbol" Value="PlayCircle24" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DataContext.PrimaryAction, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                             Value="{x:Static presentation:PlaybackPrimaryAction.Pause}">
+                                                    <Setter Property="Symbol" Value="PauseCircle24" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ui:SymbolIcon.Style>
+                                </ui:SymbolIcon>
                             </Button>
                             <Button x:Name="NextSegmentButton"
                                     Margin="0,0,12,0"
-                                    Style="{StaticResource MediaIconButtonStyle}"
+                                    Style="{StaticResource App.Media.Button}"
                                     IsEnabled="{Binding CanGoToNextSegment}"
                                     Command="{Binding NextSegmentCommand}"
                                     ToolTip="下一段"
@@ -867,7 +861,7 @@
                                 <ui:SymbolIcon Symbol="ArrowNext24" />
                             </Button>
                             <Button x:Name="NextChapterButton"
-                                    Style="{StaticResource MediaIconButtonStyle}"
+                                    Style="{StaticResource App.Media.Button}"
                                     IsEnabled="{Binding CanGoToNextChapter}"
                                     Command="{Binding NextChapterCommand}"
                                     ToolTip="下一章"
@@ -879,7 +873,7 @@
                                 Grid.Column="2"
                                 Margin="12,0,0,0"
                                 HorizontalAlignment="Right"
-                                Style="{StaticResource MediaIconButtonStyle}"
+                                Style="{StaticResource App.Media.Button}"
                                 Command="{Binding ToggleVolumeMenuCommand}"
                                 ToolTip="播放音量"
                                 AutomationProperties.Name="{Binding VolumeButtonAutomationName, FallbackValue=播放音量}">

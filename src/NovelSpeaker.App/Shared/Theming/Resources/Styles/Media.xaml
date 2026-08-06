@@ -1,0 +1,15 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        Media controls reuse the common icon-button template and interaction
+        states. This style owns only the shared media hit area.
+    -->
+    <Style x:Key="App.Media.Button"
+           TargetType="Button"
+           BasedOn="{StaticResource App.Button.Icon}">
+        <Setter Property="Width" Value="{StaticResource App.Size.MediaButton}" />
+        <Setter Property="Height" Value="{StaticResource App.Size.MediaButton}" />
+        <Setter Property="MinWidth" Value="{StaticResource App.Size.MediaButton}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.MediaButton}" />
+    </Style>
+</ResourceDictionary>

@@ -21,6 +21,7 @@
     <sys:Double x:Key="App.Size.Icon.Standard">20</sys:Double>
     <sys:Double x:Key="App.Size.Icon.Large">24</sys:Double>
     <sys:Double x:Key="App.Size.Icon.Touch">32</sys:Double>
+    <sys:Double x:Key="App.Size.MediaButton">48</sys:Double>
 
     <sys:Double x:Key="App.Size.Control.Compact">32</sys:Double>
     <sys:Double x:Key="App.Size.Control.Standard">40</sys:Double>

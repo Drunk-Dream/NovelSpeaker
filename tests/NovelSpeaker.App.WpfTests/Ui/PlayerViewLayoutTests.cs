@@ -763,6 +763,24 @@ public sealed partial class PlayerViewTests
             Assert.Equal(2, Grid.GetColumn(volumeButton));
             Assert.Equal(HorizontalAlignment.Right, volumeButton.HorizontalAlignment);
 
+            var mediaButtonStyle = view.FindResource("App.Media.Button");
+            var mediaButtons = new[]
+            {
+                Assert.IsType<Button>(view.FindName("PreviousChapterButton")),
+                Assert.IsType<Button>(view.FindName("PreviousSegmentButton")),
+                Assert.IsType<Button>(view.FindName("PrimaryPlaybackButton")),
+                Assert.IsType<Button>(view.FindName("NextSegmentButton")),
+                Assert.IsType<Button>(view.FindName("NextChapterButton")),
+                volumeButton
+            };
+            Assert.All(mediaButtons, button =>
+            {
+                Assert.Same(mediaButtonStyle, button.Style);
+                Assert.Equal(48, button.Width);
+                Assert.Equal(48, button.Height);
+                Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(button.Background).Color);
+            });
+
             var volumePopup = Assert.IsType<Popup>(view.FindName("VolumeMenuPopup"));
             var volumeSlider = Assert.IsType<Slider>(view.FindName("VolumeSlider"));
             Assert.False(volumePopup.IsOpen);

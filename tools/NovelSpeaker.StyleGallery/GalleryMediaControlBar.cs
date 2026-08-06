@@ -146,8 +146,9 @@ public sealed class GalleryMediaControlBar : Border
             "media-window-close",
             SymbolRegular.DismissSquare24,
             "关闭媒体窗口：此 Gallery fixture 只展示窗口动作 Tooltip，不关闭真实窗口。",
-            "App.Button.Icon 关闭",
-            18);
+            "App.Button.DangerIcon 关闭",
+            18,
+            "App.Button.DangerIcon");
         DisabledWindowActionButton = CreateButton(
             32,
             "media-window-disabled",
@@ -283,54 +284,61 @@ public sealed class GalleryMediaControlBar : Border
         };
 
         PreviousChapterButton = CreateButton(
-            32,
+            null,
             "media-chapter-previous",
             SymbolRegular.ChevronDoubleLeft20,
             "上一章：跳转到上一章的第一段。",
-            "App.Button.Icon 上一章",
-            16);
+            "App.Media.Button 上一章",
+            20,
+            "App.Media.Button");
         PreviousSegmentButton = CreateButton(
-            36,
+            null,
             "media-segment-previous",
             SymbolRegular.ChevronLeft20,
             "上一段：跳转到当前章节的上一段。",
-            "App.Button.Icon 上一段",
-            18);
+            "App.Media.Button 上一段",
+            20,
+            "App.Media.Button");
         PlayButton = CreateButton(
-            48,
+            null,
             "media-primary-play",
             SymbolRegular.PlayCircle24,
             "播放：开始读取当前段。此 Gallery fixture 不执行播放命令。",
-            "App.Button.Icon 播放",
-            28);
+            "App.Media.Button 播放",
+            28,
+            "App.Media.Button");
         PauseButton = CreateButton(
-            48,
+            null,
             "media-primary-pause",
             SymbolRegular.PauseCircle24,
             "暂停：暂停当前段。此 Gallery fixture 不执行播放命令。",
-            "App.Button.Icon 暂停（Focus preview）",
-            28);
+            "App.Media.Button 暂停（Focus preview）",
+            28,
+            "App.Media.Button");
         NextSegmentButton = CreateButton(
-            36,
+            null,
             "media-segment-next",
             SymbolRegular.ChevronRight20,
             "下一段：跳转到当前章节的下一段。",
-            "App.Button.Icon 下一段",
-            18);
+            "App.Media.Button 下一段",
+            20,
+            "App.Media.Button");
         NextChapterButton = CreateButton(
-            32,
+            null,
             "media-chapter-next",
             SymbolRegular.ChevronDoubleRight20,
             "下一章：跳转到下一章的第一段。",
-            "App.Button.Icon 下一章",
-            16);
+            "App.Media.Button 下一章",
+            20,
+            "App.Media.Button");
         VolumeButton = CreateButton(
-            36,
+            null,
             "media-volume",
             SymbolRegular.Speaker224,
             "音量：调整播放音量。此 Gallery fixture 不执行真实音量命令。",
-            "App.Button.Icon 音量",
-            20);
+            "App.Media.Button 音量",
+            20,
+            "App.Media.Button");
 
         foreach (var button in new[]
                  {
@@ -370,12 +378,13 @@ public sealed class GalleryMediaControlBar : Border
     }
 
     private Button CreateButton(
-        double buttonSize,
+        double? buttonSize,
         string automationId,
         SymbolRegular symbol,
         string toolTip,
         string automationName,
-        double iconSize)
+        double iconSize,
+        string styleKey = "App.Button.Icon")
     {
         const string foregroundKey = "App.Brush.Text.Primary";
         var icon = new SymbolIcon
@@ -389,15 +398,18 @@ public sealed class GalleryMediaControlBar : Border
         icon.Loaded += (_, _) => ApplyMediaIconGlyphForeground(icon, foregroundKey);
         var button = new Button
         {
-            Style = FindButtonStyle(),
-            Width = buttonSize,
-            Height = buttonSize,
-            MinWidth = buttonSize,
-            MinHeight = buttonSize,
+            Style = FindButtonStyle(styleKey),
             Content = icon,
             ToolTip = toolTip,
             Focusable = true
         };
+        if (buttonSize is double size)
+        {
+            button.Width = size;
+            button.Height = size;
+            button.MinWidth = size;
+            button.MinHeight = size;
+        }
         ToolTipService.SetShowOnDisabled(button, true);
         AutomationProperties.SetAutomationId(button, automationId);
         AutomationProperties.SetName(button, automationName);
@@ -464,9 +476,9 @@ public sealed class GalleryMediaControlBar : Border
     private string FormatProjection() =>
         $"拖动预览 · {SliderProjection.TooltipText} · 仅更新 Gallery projection，不触发真实播放命令。";
 
-    private static Style FindButtonStyle() =>
-        System.Windows.Application.Current?.FindResource("App.Button.Icon") as Style
-        ?? throw new InvalidOperationException("Button style 'App.Button.Icon' was not found.");
+    private static Style FindButtonStyle(string styleKey) =>
+        System.Windows.Application.Current?.FindResource(styleKey) as Style
+        ?? throw new InvalidOperationException($"Button style '{styleKey}' was not found.");
 
     private static Style FindSliderStyle() =>
         System.Windows.Application.Current?.FindResource("App.Media.Slider") as Style

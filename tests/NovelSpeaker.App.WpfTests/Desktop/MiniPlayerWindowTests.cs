@@ -121,14 +121,18 @@ public sealed class MiniPlayerWindowTests
                 Assert.Equal(HorizontalAlignment.Center, mediaControls.HorizontalAlignment);
                 Assert.Equal(2, Grid.GetColumn(volumeButton));
                 Assert.Equal(HorizontalAlignment.Right, volumeButton.HorizontalAlignment);
-                Assert.Same(window.FindResource("App.Button.Icon"), playbackButton.Style);
-                Assert.Same(window.FindResource("App.Button.Icon"),
+                Assert.Same(window.FindResource("App.Media.Button"), playbackButton.Style);
+                Assert.Same(window.FindResource("App.Media.Button"),
                     Assert.IsType<Button>(window.FindName("MiniPlayerPreviousSegmentButton")).Style);
-                Assert.Same(window.FindResource("App.Button.Icon"),
+                Assert.Same(window.FindResource("App.Media.Button"),
                     Assert.IsType<Button>(window.FindName("MiniPlayerPreviousChapterButton")).Style);
                 Assert.Same(window.FindResource("App.Button.Icon"),
                     Assert.IsType<Button>(window.FindName("MiniPlayerRestoreButton")).Style);
-                Assert.Same(window.FindResource("App.Button.Icon"), volumeButton.Style);
+                Assert.Same(window.FindResource("App.Media.Button"),
+                    Assert.IsType<Button>(window.FindName("MiniPlayerNextSegmentButton")).Style);
+                Assert.Same(window.FindResource("App.Media.Button"),
+                    Assert.IsType<Button>(window.FindName("MiniPlayerNextChapterButton")).Style);
+                Assert.Same(window.FindResource("App.Media.Button"), volumeButton.Style);
                 Assert.Same(window.FindResource("App.Button.Icon"),
                     Assert.IsType<Button>(window.FindName("MiniPlayerTopmostButton")).Style);
                 Assert.Same(window.FindResource("App.Button.DangerIcon"),

@@ -56,6 +56,56 @@ public sealed class ButtonStyleTests
     }
 
     [Fact]
+    public void Danger_icon_style_is_neutral_until_hover_and_pressed_danger_states()
+    {
+        var path = Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "Styles",
+            "ButtonStyles.xaml");
+        var document = XDocument.Load(path);
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var style = document.Root?.Elements()
+            .Single(resource => (string?)resource.Attribute(xaml + "Key") == "App.Button.DangerIcon");
+
+        Assert.NotNull(style);
+        var setters = style!.Elements().Where(element => element.Name.LocalName == "Setter").ToArray();
+        Assert.Contains(
+            setters,
+            setter => (string?)setter.Attribute("Property") == "Background" &&
+                      (string?)setter.Attribute("Value") == "Transparent");
+        Assert.Contains(
+            setters,
+            setter => (string?)setter.Attribute("Property") == "Foreground" &&
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Text.Primary}");
+
+        var triggers = style.Elements().Single(element => element.Name.LocalName == "Style.Triggers").Elements();
+        var hover = triggers.Single(trigger => (string?)trigger.Attribute("Property") == "IsMouseOver");
+        Assert.Contains(
+            hover.Elements(),
+            setter => (string?)setter.Attribute("Property") == "Background" &&
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Danger}");
+        Assert.Contains(
+            hover.Elements(),
+            setter => (string?)setter.Attribute("Property") == "Foreground" &&
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Danger.Text}");
+
+        var pressed = triggers.Single(trigger => (string?)trigger.Attribute("Property") == "IsPressed");
+        Assert.Contains(
+            pressed.Elements(),
+            setter => (string?)setter.Attribute("Property") == "Background" &&
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Danger.Pressed}");
+        Assert.Contains(
+            pressed.Elements(),
+            setter => (string?)setter.Attribute("Property") == "Foreground" &&
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Danger.Pressed.Text}");
+    }
+
+    [Fact]
     public void Named_button_styles_keep_provider_templates_and_have_all_interaction_state_triggers()
     {
         WpfTestHost.RunInSta(() =>

@@ -108,12 +108,13 @@ public static class GalleryThemeRuntime
             "Resources/Styles/Typography.xaml",
             "Resources/Styles/Inputs.xaml",
             "Resources/Styles/ButtonStyles.xaml",
+            "Resources/Styles/Media.xaml",
             "Resources/Styles/SliderStyles.xaml",
             "Resources/ControlThemes/ComponentStyles.xaml",
             "Resources/ControlThemes/NavigationFeedbackStyles.xaml",
             "Resources/Legacy/LegacyStyles.xaml"
         };
-        if (dictionaries.Count != 15 ||
+        if (dictionaries.Count != 16 ||
             expectedApplicationSources.Select((suffix, index) =>
                 dictionaries[index + 8].Source?.OriginalString?.EndsWith(
                     suffix,

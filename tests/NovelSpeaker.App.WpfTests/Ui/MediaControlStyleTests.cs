@@ -22,6 +22,11 @@ public sealed class MediaControlStyleTests
         "App.Media.Slider"
     ];
 
+    private static readonly string[] MediaButtonStyleKeys =
+    [
+        "App.Media.Button"
+    ];
+
     [Fact]
     public void Gallery_command_line_accepts_stable_media_scene_id()
     {
@@ -137,6 +142,42 @@ public sealed class MediaControlStyleTests
                            (element.Name.LocalName == "Setter" &&
                             (string?)element.Attribute("Property") == "Template"));
         });
+    }
+
+    [Fact]
+    public void Media_button_style_dictionary_contains_icon_based_style_without_template()
+    {
+        var path = Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "Styles",
+            "Media.xaml");
+        var document = XDocument.Load(path);
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var resources = document.Root?.Elements().ToArray() ?? [];
+
+        Assert.Equal(
+            MediaButtonStyleKeys,
+            resources.Select(resource => (string?)resource.Attribute(xaml + "Key")).ToArray());
+        var style = Assert.Single(resources);
+        Assert.Equal("Style", style.Name.LocalName);
+        Assert.Equal("Button", (string?)style.Attribute("TargetType"));
+        Assert.Equal("{StaticResource App.Button.Icon}", (string?)style.Attribute("BasedOn"));
+        Assert.DoesNotContain(
+            style.Descendants(),
+            element => element.Name.LocalName == "ControlTemplate" ||
+                       (element.Name.LocalName == "Setter" &&
+                        (string?)element.Attribute("Property") == "Template"));
+        Assert.Equal(
+            ["Width", "Height", "MinWidth", "MinHeight"],
+                style.Elements()
+                .Where(element => element.Name.LocalName == "Setter")
+                .Select(element => element.Attribute("Property")?.Value ?? string.Empty)
+                .ToArray());
     }
 
     [Fact]
@@ -387,9 +428,22 @@ public sealed class MediaControlStyleTests
                 Assert.True(bar.ActualWidth > 0);
                 Assert.True(bar.ActualHeight > 0);
                 Assert.True(bar.ProgressSlider.ActualWidth >= 280);
-                Assert.True(bar.PlayButton.ActualWidth >= 48);
-                Assert.True(bar.PreviousSegmentButton.ActualWidth >= 36);
-                Assert.True(bar.PreviousChapterButton.ActualWidth >= 32);
+                var mediaButtons = new[]
+                {
+                    bar.PreviousChapterButton,
+                    bar.PreviousSegmentButton,
+                    bar.PlayButton,
+                    bar.PauseButton,
+                    bar.NextSegmentButton,
+                    bar.NextChapterButton,
+                    bar.VolumeButton
+                };
+                Assert.All(mediaButtons, button =>
+                {
+                    Assert.Same(window.FindResource("App.Media.Button"), button.Style);
+                    Assert.Equal(48, button.ActualWidth);
+                    Assert.Equal(48, button.ActualHeight);
+                });
                 Assert.DoesNotContain(
                     new[] { bar.ActualWidth, bar.ActualHeight, bar.ProgressSlider.ActualWidth },
                     double.IsNaN);

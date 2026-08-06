@@ -30,6 +30,7 @@ public sealed class VisualStyleArchitectureTests
         "App.Size.Icon.Standard",
         "App.Size.Icon.Large",
         "App.Size.Icon.Touch",
+        "App.Size.MediaButton",
         "App.Size.Control.Compact",
         "App.Size.Control.Standard",
         "App.Opacity.Disabled",
