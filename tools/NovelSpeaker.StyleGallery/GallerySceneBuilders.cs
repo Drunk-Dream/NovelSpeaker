@@ -5,11 +5,13 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Media;
+using System.Windows.Markup;
 using Button = System.Windows.Controls.Button;
 using CheckBox = System.Windows.Controls.CheckBox;
 using PasswordBox = System.Windows.Controls.PasswordBox;
 using TextBlock = System.Windows.Controls.TextBlock;
 using TextBox = System.Windows.Controls.TextBox;
+using WpfUiButton = Wpf.Ui.Controls.Button;
 using Wpf.Ui.Controls;
 
 namespace NovelSpeaker.StyleGallery;
@@ -1057,16 +1059,25 @@ internal static class GallerySceneBuilders
 
     private static Button CreateButtonPreview(string variant, string state)
     {
-        var button = new Button
-        {
-            Style = FindButtonStyle(variant),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 0, 12, 8),
-            Content = variant == "Icon"
-                ? CreateButtonIcon(SymbolRegular.Settings24, "App.Brush.Text.Primary")
-                : variant,
-            ToolTip = $"{variant} · {state}"
-        };
+        Button button = variant == "DangerIcon"
+            ? new WpfUiButton
+            {
+                Style = FindButtonStyle(variant),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 0, 12, 8),
+                Content = CreateButtonIcon(SymbolRegular.Delete24, "App.Brush.Text.Primary"),
+                ToolTip = $"{variant} · {state}"
+            }
+            : new Button
+            {
+                Style = FindButtonStyle(variant),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 0, 12, 8),
+                Content = variant == "Icon"
+                    ? CreateButtonIcon(SymbolRegular.Settings24, "App.Brush.Text.Primary")
+                    : variant,
+                ToolTip = $"{variant} · {state}"
+            };
         AutomationProperties.SetAutomationId(
             button,
             $"button-{variant.ToLowerInvariant()}-{state.ToLowerInvariant()}");
@@ -1077,43 +1088,102 @@ internal static class GallerySceneBuilders
 
     private static void ApplyButtonPreviewState(Button button, string variant, string state)
     {
+        // Gallery fixtures use an attached visual-state trigger so every row
+        // can display a stable state at once without pretending to own input
+        // devices or copying the provider's Button template.
+        button.SetValue(GalleryVisualStateProperty, state);
+        var baseStyle = button.Style
+            ?? throw new InvalidOperationException($"Button style was not resolved for '{variant}'.");
+        var previewStyle = new Style(baseStyle.TargetType, baseStyle);
+        var stateTrigger = new Trigger
+        {
+            Property = GalleryVisualStateProperty,
+            Value = state
+        };
+
         if (state == "Disabled")
         {
             button.IsEnabled = false;
-            return;
         }
 
-        var backgroundKey = state switch
+        switch (state)
         {
-            "Hover" => variant is "Primary" ? "App.Brush.Accent.Hover" :
-                       variant is "Danger" ? "App.Brush.Danger.Subtle" :
-                       variant is "Secondary" ? "App.Brush.Surface.Secondary" : "App.Brush.Accent.Subtle",
-            "Pressed" => variant is "Primary" ? "App.Brush.Accent.Pressed" :
-                         variant is "Secondary" ? "App.Brush.Accent.Subtle" :
-                         variant is "Danger" ? "App.Brush.Danger.Pressed" : "App.Brush.Surface.Secondary",
-            _ => null
-        };
-        if (backgroundKey is not null)
-        {
-            button.SetResourceReference(Control.BackgroundProperty, backgroundKey);
+            case "Hover":
+                stateTrigger.Setters.Add(new Setter(
+                    Control.BackgroundProperty,
+                    FindBrush(variant is "Primary"
+                        ? "App.Brush.Accent.Hover"
+                        : variant == "DangerIcon"
+                            ? "App.Brush.Danger"
+                            : variant == "Danger"
+                            ? "App.Brush.Danger.Subtle"
+                            : variant is "Secondary"
+                                ? "App.Brush.Surface.Secondary"
+                                : "App.Brush.Accent.Subtle")));
+                if (variant is "Danger" or "DangerIcon")
+                {
+                    stateTrigger.Setters.Add(new Setter(
+                        Control.ForegroundProperty,
+                        FindBrush(variant == "DangerIcon"
+                            ? "App.Brush.Danger.Text"
+                            : "App.Brush.Text.Primary")));
+                }
+
+                break;
+            case "Pressed":
+                stateTrigger.Setters.Add(new Setter(
+                    Control.BackgroundProperty,
+                    FindBrush(variant is "Primary"
+                        ? "App.Brush.Accent.Pressed"
+                        : variant is "Secondary"
+                            ? "App.Brush.Accent.Subtle"
+                            : variant is "Danger" or "DangerIcon"
+                                ? "App.Brush.Danger.Pressed"
+                                : "App.Brush.Surface.Secondary")));
+                if (variant is "Danger" or "DangerIcon")
+                {
+                    stateTrigger.Setters.Add(new Setter(
+                        Control.ForegroundProperty,
+                        FindBrush("App.Brush.Danger.Pressed.Text")));
+                    stateTrigger.Setters.Add(new Setter(
+                        Control.BorderBrushProperty,
+                        FindBrush("App.Brush.Danger.Pressed")));
+                }
+
+                break;
+            case "Focus":
+                stateTrigger.Setters.Add(new Setter(
+                    Control.BackgroundProperty,
+                    FindBrush("App.Brush.Accent.Subtle")));
+                stateTrigger.Setters.Add(new Setter(
+                    Control.BorderBrushProperty,
+                    FindBrush("App.Brush.Focus")));
+                if (variant is "Primary" or "Danger" or "DangerIcon")
+                {
+                    stateTrigger.Setters.Add(new Setter(
+                        Control.ForegroundProperty,
+                        FindBrush("App.Brush.Text.Primary")));
+                }
+                break;
         }
 
-        if (state == "Hover" && variant == "Danger")
+        if (state != "Default" && state != "Disabled")
         {
-            button.SetResourceReference(Control.ForegroundProperty, "App.Brush.Text.Primary");
+            previewStyle.Triggers.Add(stateTrigger);
         }
 
-        if (state == "Pressed" && variant == "Danger")
-        {
-            button.SetResourceReference(Control.ForegroundProperty, "App.Brush.Danger.Pressed.Text");
-            button.SetResourceReference(Control.BorderBrushProperty, "App.Brush.Danger.Pressed");
-        }
-
-        if (state == "Focus")
-        {
-            button.SetResourceReference(Control.BorderBrushProperty, "App.Brush.Focus");
-        }
+        button.Style = previewStyle;
     }
+
+    private static DynamicResourceExtension FindBrush(string key) =>
+        new DynamicResourceExtension(key);
+
+    private static readonly DependencyProperty GalleryVisualStateProperty =
+        DependencyProperty.RegisterAttached(
+            "GalleryVisualState",
+            typeof(string),
+            typeof(GallerySceneBuilders),
+            new FrameworkPropertyMetadata("Default"));
 
     private static Border CreateButtonContentSamples()
     {
@@ -1230,7 +1300,10 @@ internal static class GallerySceneBuilders
         "Secondary",
         "Subtle",
         "Icon",
-        "Danger"
+        "Danger",
+        "DangerIcon",
+        "ToolbarValue",
+        "Floating"
     ];
 
     private static readonly string[] ButtonPreviewStates =

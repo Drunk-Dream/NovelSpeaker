@@ -20,8 +20,10 @@ public sealed class ButtonStyleTests
         "App.Button.Secondary",
         "App.Button.Subtle",
         "App.Button.Icon",
+        "App.Button.Danger",
         "App.Button.DangerIcon",
-        "App.Button.Danger"
+        "App.Button.ToolbarValue",
+        "App.Button.Floating"
     ];
 
     [Fact]
@@ -35,7 +37,7 @@ public sealed class ButtonStyleTests
             "Theming",
             "Resources",
             "Styles",
-            "ButtonStyles.xaml");
+            "Buttons.xaml");
         var document = XDocument.Load(path);
         var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
         var resources = document.Root?.Elements().ToArray() ?? [];
@@ -74,7 +76,7 @@ public sealed class ButtonStyleTests
             "Theming",
             "Resources",
             "Styles",
-            "ButtonStyles.xaml");
+            "Buttons.xaml");
         var document = XDocument.Load(path);
         var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
         var style = document.Root?.Elements()
@@ -180,6 +182,41 @@ public sealed class ButtonStyleTests
                 window.Close();
             }
         });
+    }
+
+    [Fact]
+    public void Icon_button_style_has_shared_hit_area_and_disabled_tooltip_contract()
+    {
+        var path = Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "Styles",
+            "Buttons.xaml");
+        var document = XDocument.Load(path);
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var style = document.Root?.Elements()
+            .Single(resource => (string?)resource.Attribute(xaml + "Key") == "App.Button.Icon");
+
+        Assert.NotNull(style);
+        var setters = style!.Elements().Where(element => element.Name.LocalName == "Setter").ToArray();
+        Assert.All(
+            new[] { "Width", "Height", "MinWidth", "MinHeight" },
+            property => Assert.Contains(
+                setters,
+                setter => (string?)setter.Attribute("Property") == property &&
+                          (string?)setter.Attribute("Value") == "{StaticResource App.Size.Icon.Touch}"));
+        Assert.Contains(
+            setters,
+            setter => (string?)setter.Attribute("Property") == "ToolTipService.ShowOnDisabled" &&
+                      (string?)setter.Attribute("Value") == "True");
+        Assert.DoesNotContain(
+            setters,
+            setter => (string?)setter.Attribute("Property") == "FocusVisualStyle" &&
+                      (string?)setter.Attribute("Value") == "{x:Null}");
     }
 
     [Fact]

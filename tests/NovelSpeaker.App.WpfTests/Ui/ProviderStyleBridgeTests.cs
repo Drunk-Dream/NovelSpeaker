@@ -96,7 +96,7 @@ public sealed class ProviderStyleBridgeTests
                 dictionaries[10].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/ButtonStyles.xaml",
+                "Shared/Theming/Resources/Styles/Buttons.xaml",
                 dictionaries[11].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(

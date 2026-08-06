@@ -228,7 +228,7 @@ public sealed class StyleGallerySceneTests
                         "button-",
                         StringComparison.Ordinal))
                     .ToArray();
-                Assert.Equal(27, buttons.Length);
+                Assert.Equal(42, buttons.Length);
                 Assert.All(
                     buttons,
                     button =>
@@ -240,7 +240,17 @@ public sealed class StyleGallerySceneTests
                         Assert.True(button.IsEnabled || button.Opacity < 1);
                     });
 
-                foreach (var variant in new[] { "primary", "secondary", "subtle", "icon", "danger" })
+                foreach (var variant in new[]
+                         {
+                             "primary",
+                             "secondary",
+                             "subtle",
+                             "icon",
+                             "danger",
+                             "dangericon",
+                             "toolbarvalue",
+                             "floating"
+                         })
                 {
                     var stateButtons = buttons
                         .Where(button =>
@@ -384,12 +394,24 @@ public sealed class StyleGallerySceneTests
                     application.FindResource("App.Brush.Danger.Pressed.Text"));
                 var expectedBackground = Assert.IsType<SolidColorBrush>(
                     application.FindResource("App.Brush.Danger.Pressed"));
+                var dangerIconHover = FindDescendants<WpfButton>(scene).Single(button =>
+                    AutomationProperties.GetAutomationId(button) == "button-dangericon-hover");
+                var expectedDangerIconHoverBackground = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("App.Brush.Danger"));
+                var expectedDangerIconHoverForeground = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("App.Brush.Danger.Text"));
 
                 Assert.Equal(expectedForeground.Color, foreground.Color);
                 Assert.Equal(expectedBackground.Color, background.Color);
                 Assert.True(
                     ContrastRatio(foreground.Color, background.Color) >= 4.5,
                     $"Danger Pressed contrast was {ContrastRatio(foreground.Color, background.Color):0.00}:1.");
+                Assert.Equal(
+                    expectedDangerIconHoverBackground.Color,
+                    Assert.IsType<SolidColorBrush>(dangerIconHover.Background).Color);
+                Assert.Equal(
+                    expectedDangerIconHoverForeground.Color,
+                    Assert.IsType<SolidColorBrush>(dangerIconHover.Foreground).Color);
             }
             finally
             {
@@ -429,6 +451,19 @@ public sealed class StyleGallerySceneTests
                 var lightBackground = Assert.IsType<SolidColorBrush>(
                     FindDescendants<WpfButton>(scene).Single(button =>
                         AutomationProperties.GetAutomationId(button) == "button-primary-default").Background);
+                var dynamicStateIds = new[]
+                {
+                    "button-primary-hover",
+                    "button-primary-pressed",
+                    "button-primary-focus",
+                    "button-dangericon-hover"
+                };
+                var lightStateColors = dynamicStateIds.ToDictionary(
+                    automationId => automationId,
+                    automationId => Assert.IsType<SolidColorBrush>(
+                        FindDescendants<WpfButton>(scene).Single(button =>
+                            AutomationProperties.GetAutomationId(button) == automationId).Background).Color,
+                    StringComparer.Ordinal);
 
                 GalleryThemeRuntime.Apply(GalleryTheme.Dark);
                 host.UpdateLayout();
@@ -446,6 +481,13 @@ public sealed class StyleGallerySceneTests
                     Assert.IsType<SolidColorBrush>(
                         FindDescendants<WpfButton>(scene).Single(button =>
                             AutomationProperties.GetAutomationId(button) == "button-primary-default").Background).Color);
+                Assert.All(
+                    lightStateColors,
+                    pair => Assert.NotEqual(
+                        pair.Value,
+                        Assert.IsType<SolidColorBrush>(
+                            FindDescendants<WpfButton>(scene).Single(button =>
+                                AutomationProperties.GetAutomationId(button) == pair.Key).Background).Color));
             }
             finally
             {

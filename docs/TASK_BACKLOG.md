@@ -269,7 +269,7 @@ artifacts/visual-review/windows/<window-id>/
 - 新增 Typography/Surface WPF 契约与布局/主题切换测试；定向资源测试 35/35 通过。
 - `dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore`（0 警告/0 错误）和切片定向 WPF 测试 35/35 通过；经用户授权，在切片提交后仅刷新 `VisualResourceGraphTests` 的 Legacy 引用指纹基线，未修改页面 XAML。
 
-## [ ] 5（P1）：集中 Button Style 族
+## [x] 5（P1）：集中 Button Style 族
 
 前置：3、4。
 
@@ -288,6 +288,14 @@ artifacts/visual-review/windows/<window-id>/
 - 最小命中区、内容非零和 Automation 属性测试通过。
 - 更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/buttons/`。
 - 完整质量门禁通过。
+
+结果：
+
+- `Styles/Buttons.xaml` 集中维护 8 个 `App.Button.*` 角色；全部通过 Provider Bridge 继承 Wpf.Ui Button 基础 Style，不声明完整 `ControlTemplate`。ToolbarValue 使用紧凑控件尺寸，Floating 使用 Raised 表面和低层级 Effect，DangerIcon 保持中性默认态并通过 Provider.UiButton 投影危险 Hover/Pressed 状态。
+- Icon Button 统一 32 px 最小命中区、Provider Focus 行为和禁用 Tooltip 展示；Gallery fixture 为图标按钮补齐 Tooltip 与 AutomationProperties.Name，避免以视觉图标替代可访问名称。
+- `Media.xaml` 继续仅通过 `BasedOn="{StaticResource App.Button.Icon}"` 扩展媒体命中区，没有复制 Button 基础逻辑；资源加载、资源图层和 Provider Bridge 契约同步切换到 `Buttons.xaml`。
+- `button-styles` Gallery 覆盖 8 个变体的 Default、Hover、Pressed、Keyboard Focus、Disabled，另含图标、图标 + 文本和长中文文本；已生成 `artifacts/visual-review/gallery/buttons/` 下的 Light/Dark PNG 与 manifest。
+- Button/Provider/Gallery/资源图契约定向测试 49/49 通过；最终完整质量门禁通过：restore 无 lock 文件差异，format/build 通过（0 警告/0 错误），全量测试 1203/1203 通过（WPF 268）。
 
 ## [ ] 6（P1）：集中 Input Style 族
 

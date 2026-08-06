@@ -685,7 +685,7 @@ internal static class VisualResourceGraphScanner
         }
 
         if (normalized.Contains("/Styles/", StringComparison.OrdinalIgnoreCase) ||
-            normalized.EndsWith("/ButtonStyles.xaml", StringComparison.OrdinalIgnoreCase) ||
+            normalized.EndsWith("/Buttons.xaml", StringComparison.OrdinalIgnoreCase) ||
             normalized.EndsWith("/Inputs.xaml", StringComparison.OrdinalIgnoreCase) ||
             normalized.EndsWith("/SliderStyles.xaml", StringComparison.OrdinalIgnoreCase))
         {

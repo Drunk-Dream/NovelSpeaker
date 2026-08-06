@@ -109,7 +109,7 @@ public static class GalleryThemeRuntime
             "Resources/Styles/Typography.xaml",
             "Resources/Styles/Surfaces.xaml",
             "Resources/Styles/Inputs.xaml",
-            "Resources/Styles/ButtonStyles.xaml",
+            "Resources/Styles/Buttons.xaml",
             "Resources/Styles/Media.xaml",
             "Resources/Styles/SliderStyles.xaml",
             "Resources/ControlThemes/ComponentStyles.xaml",
