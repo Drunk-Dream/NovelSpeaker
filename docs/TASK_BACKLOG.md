@@ -267,7 +267,7 @@ artifacts/visual-review/windows/<window-id>/
 - 应用与 Style Gallery 的加载顺序固定为 Typography → Surface → 标准控件族；资源图契约阻止重复定义、未解析引用和 Surface 混入业务内容。
 - Gallery 新增稳定场景 `typography` 与 `surfaces`，覆盖长中文/英文、禁用、验证文字、浅深主题、6 个 Surface 变体和最多三级嵌套；已生成 `artifacts/visual-review/gallery/typography/` 与 `artifacts/visual-review/gallery/surfaces/` 下的 Light/Dark PNG 与 manifest。
 - 新增 Typography/Surface WPF 契约与布局/主题切换测试；定向资源测试 35/35 通过。
-- `dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore`（0 警告/0 错误）和切片定向 WPF 测试 35/35 通过；全量测试中仍有任务开始前已存在的 `VisualResourceGraphTests.Existing_page_legacy_references_are_pinned_until_page_migration` 指纹基线失败（本切片未修改页面 XAML，按审查意见未改写该无关基线）。
+- `dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore`（0 警告/0 错误）和切片定向 WPF 测试 35/35 通过；经用户授权，在切片提交后仅刷新 `VisualResourceGraphTests` 的 Legacy 引用指纹基线，未修改页面 XAML。
 
 ## [ ] 5（P1）：集中 Button Style 族
 
