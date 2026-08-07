@@ -11,6 +11,13 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed class SemanticPaletteTests
 {
+    private static readonly IReadOnlyDictionary<string, string> ProjectionKeys =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["NavigationViewContentBackground"] = "App.Brush.Canvas",
+            ["NavigationViewContentGridBorderBrush"] = "App.Brush.Border.Subtle"
+        };
+
     [Fact]
     public void Light_and_dark_palette_dictionaries_have_the_same_brush_contract()
     {
@@ -45,6 +52,14 @@ public sealed class SemanticPaletteTests
             Assert.NotNull(resource.Key);
             Assert.Equal("SolidColorBrush", resource.Type);
         });
+        foreach (var (projectionKey, canonicalKey) in ProjectionKeys)
+        {
+            var resource = dictionaries[0].Single(element =>
+                (string?)element.Attribute(xamlNamespace + "Key") == projectionKey);
+            Assert.Equal(
+                $"{{Binding Color, Source={{StaticResource {canonicalKey}}}}}",
+                resource.Attribute("Color")?.Value);
+        }
     }
 
     [Fact]
@@ -69,6 +84,12 @@ public sealed class SemanticPaletteTests
                 Assert.All(
                     SemanticPaletteRuntime.Keys,
                     key => Assert.IsType<SolidColorBrush>(application.FindResource(key)));
+                Assert.Same(
+                    application.FindResource("App.Brush.Canvas"),
+                    application.FindResource("NavigationViewContentBackground"));
+                Assert.Same(
+                    application.FindResource("App.Brush.Border.Subtle"),
+                    application.FindResource("NavigationViewContentGridBorderBrush"));
 
                 AssertContrast(application, "App.Brush.Text.Primary", "App.Brush.Window.Background", 4.5);
                 AssertContrast(application, "App.Brush.Text.Primary", "App.Brush.Canvas", 4.5);

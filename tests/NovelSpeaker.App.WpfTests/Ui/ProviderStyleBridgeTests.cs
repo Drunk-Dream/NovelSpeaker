@@ -23,6 +23,7 @@ public sealed class ProviderStyleBridgeTests
         "Provider.TextBox",
         "Provider.PasswordBox",
         "Provider.ComboBox",
+        "Provider.ComboBoxItem",
         "Provider.CheckBox",
         "Provider.ToggleSwitch",
         "Provider.NavigationViewItem",
@@ -289,6 +290,7 @@ public sealed class ProviderStyleBridgeTests
             SelectedIndex = 0,
             Style = style
         },
+        "Provider.ComboBoxItem" => new ComboBoxItem { Content = "Provider combo item", Style = style },
         "Provider.CheckBox" => new CheckBox { Content = "check", Style = style },
         "Provider.ToggleSwitch" => new ToggleSwitch { Content = "toggle", Style = style },
         "Provider.MenuItem" => new System.Windows.Controls.MenuItem { Header = "menu", Style = style },

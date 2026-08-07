@@ -12,6 +12,7 @@ using System.Xml.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
+using Wpf.Ui.Appearance;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -112,7 +113,7 @@ public sealed class AppearanceSettingsPageTests
 
         Assert.Equal("Page", pageElement.Name.LocalName);
         Assert.Equal(
-            "{DynamicResource App.Brush.Canvas}",
+            "Transparent",
             pageElement.Attribute("Background")?.Value);
         Assert.DoesNotContain(
             source,
@@ -131,8 +132,7 @@ public sealed class AppearanceSettingsPageTests
                 using var host = new WpfControlHost(page);
                 host.MeasureArrange(new Size(1200, 900));
 
-                var canvasBrush = (Brush)page.FindResource("App.Brush.Canvas");
-                Assert.Same(canvasBrush, page.Background);
+                Assert.Equal(Brushes.Transparent, page.Background);
 
                 var rootGrid = Assert.IsType<Grid>(page.Content);
                 Assert.Equal(new Thickness(24), rootGrid.Margin);
@@ -192,6 +192,39 @@ public sealed class AppearanceSettingsPageTests
         });
     }
 
+    [Theory]
+    [InlineData(ApplicationTheme.Dark)]
+    [InlineData(ApplicationTheme.Light)]
+    public void Appearance_page_constructs_after_runtime_theme_switch(ApplicationTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var themeRuntime = new WpfUiThemeRuntime();
+            if (theme == ApplicationTheme.Dark)
+            {
+                themeRuntime.ApplyDarkTheme();
+            }
+            else
+            {
+                themeRuntime.ApplyLightTheme();
+            }
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var page = provider.GetRequiredService<AppearanceSettingsPage>();
+                using var host = new WpfControlHost(page);
+                host.MeasureArrange(new Size(1200, 900));
+                Assert.True(page.ActualWidth > 0);
+                Assert.True(page.ActualHeight > 0);
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                themeRuntime.ApplyLightTheme();
+            }
+        });
+    }
+
     [Fact]
     public void Appearance_settings_visual_review_generates_stable_page_screenshots()
     {
@@ -241,15 +274,15 @@ public sealed class AppearanceSettingsPageTests
                 try
                 {
                     var page = provider.GetRequiredService<AppearanceSettingsPage>();
-                    using var host = new WpfControlHost(page);
                     var size = new Size(960, 640);
+                    using var host = new WpfControlHost(page);
                     host.MeasureArrange(size);
                     Assert.True(page.ActualWidth > 0);
                     Assert.True(page.ActualHeight > 0);
 
                     foreach (var scale in new[] { 1d, 1.25d, 1.5d })
                     {
-                        var png = EncodePng(host.Render(size, 96 * scale));
+                        var png = EncodePng(RenderWithShellCanvas(host.Render(size, 96 * scale), size, 96 * scale));
                         var frame = DecodePng(png);
                         var fileName = $"appearance-settings.{themeName}.{scale * 100:0}.png";
                         File.WriteAllBytes(Path.Combine(outputDirectory, fileName), png);
@@ -284,6 +317,49 @@ public sealed class AppearanceSettingsPageTests
         {
             themeRuntime.ApplyLightTheme();
         }
+    }
+
+    private static BitmapSource RenderWithShellCanvas(BitmapSource page, Size size, double dpi)
+    {
+        var shell = new Border
+        {
+            Width = size.Width,
+            Height = size.Height,
+            BorderThickness = new Thickness(1),
+            CornerRadius = (CornerRadius)global::System.Windows.Application.Current!.FindResource("App.Radius.Large")
+        };
+        shell.SetResourceReference(Border.BackgroundProperty, "NavigationViewContentBackground");
+        shell.SetResourceReference(Border.BorderBrushProperty, "NavigationViewContentGridBorderBrush");
+        shell.Measure(size);
+        shell.Arrange(new Rect(new Point(), size));
+        shell.UpdateLayout();
+
+        var pixels = (int)Math.Round(size.Width * dpi / 96d);
+        var shellBitmap = new RenderTargetBitmap(
+            pixels,
+            (int)Math.Round(size.Height * dpi / 96d),
+            dpi,
+            dpi,
+            PixelFormats.Pbgra32);
+        shellBitmap.Render(shell);
+
+        var compositeVisual = new DrawingVisual();
+        using (var drawingContext = compositeVisual.RenderOpen())
+        {
+            var bounds = new Rect(new Point(), size);
+            drawingContext.DrawImage(shellBitmap, bounds);
+            drawingContext.DrawImage(page, bounds);
+        }
+
+        var composite = new RenderTargetBitmap(
+            pixels,
+            (int)Math.Round(size.Height * dpi / 96d),
+            dpi,
+            dpi,
+            PixelFormats.Pbgra32);
+        composite.Render(compositeVisual);
+        composite.Freeze();
+        return composite;
     }
 
     private static AppearanceVisualReviewManifest ReadManifest(string outputDirectory)

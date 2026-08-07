@@ -34,6 +34,13 @@
     <SolidColorBrush x:Key="App.Brush.Success.Subtle" Color="#E2F3EC" />
     <SolidColorBrush x:Key="App.Brush.Success.Text" Color="#FFFFFF" />
 
+    <!-- Provider projection keys are required by Wpf.Ui's NavigationView
+         template, but deliberately reuse the canonical semantic brushes. -->
+    <SolidColorBrush x:Key="NavigationViewContentBackground"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Canvas}}" />
+    <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Border.Subtle}}" />
+
     <!-- Migration-compat keys. Pages that have not been migrated yet still reference
          these names; they must remain in this theme-switching dictionary so hot theme
          switching keeps updating them. Remove each key when its last page migrates. -->

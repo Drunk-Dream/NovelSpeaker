@@ -11,6 +11,13 @@ namespace NovelSpeaker.App.Shared.Theming;
 /// </summary>
 internal static class SemanticPaletteRuntime
 {
+    private static readonly IReadOnlyDictionary<string, string> ProjectionAliases =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["NavigationViewContentBackground"] = "App.Brush.Canvas",
+            ["NavigationViewContentGridBorderBrush"] = "App.Brush.Border.Subtle"
+        };
+
     internal static readonly IReadOnlyList<string> Keys =
     [
         "App.Brush.Window.Background",
@@ -41,6 +48,9 @@ internal static class SemanticPaletteRuntime
         "App.Brush.Success",
         "App.Brush.Success.Subtle",
         "App.Brush.Success.Text",
+        // Provider projections used by the NavigationView shell content host.
+        "NavigationViewContentBackground",
+        "NavigationViewContentGridBorderBrush",
         // Migration-compat keys kept for pages that have not been migrated yet.
         "AppBackgroundBrush",
         "CanvasSurfaceBrush",
@@ -90,7 +100,8 @@ internal static class SemanticPaletteRuntime
         var expectedKeys = Keys.Order(StringComparer.Ordinal).ToArray();
         if (!expectedKeys.SequenceEqual(paletteKeys, StringComparer.Ordinal))
         {
-            throw new InvalidOperationException("Semantic palette keys do not match the stable palette contract.");
+            throw new InvalidOperationException(
+                $"Semantic palette keys do not match the stable palette contract. Expected: {string.Join(",", expectedKeys)}; actual: {string.Join(",", paletteKeys)}.");
         }
 
         foreach (var key in Keys)
@@ -101,15 +112,28 @@ internal static class SemanticPaletteRuntime
             }
 
             var targetDictionary = FindResourceDictionary(application, key);
-            if (targetDictionary?[key] is SolidColorBrush targetBrush && !targetBrush.IsFrozen)
-            {
-                targetBrush.Color = sourceBrush.Color;
-                continue;
-            }
-
             if (targetDictionary is null)
             {
                 throw new InvalidOperationException($"Semantic palette resource '{key}' is not loaded.");
+            }
+
+            if (ProjectionAliases.TryGetValue(key, out var canonicalKey))
+            {
+                var canonicalDictionary = FindResourceDictionary(application, canonicalKey);
+                if (canonicalDictionary?[canonicalKey] is not SolidColorBrush canonicalBrush)
+                {
+                    throw new InvalidOperationException(
+                        $"Canonical semantic palette resource '{canonicalKey}' is not loaded.");
+                }
+
+                targetDictionary[key] = canonicalBrush;
+                continue;
+            }
+
+            if (targetDictionary[key] is SolidColorBrush targetBrush && !targetBrush.IsFrozen)
+            {
+                targetBrush.Color = sourceBrush.Color;
+                continue;
             }
 
             targetDictionary[key] = new SolidColorBrush(sourceBrush.Color);

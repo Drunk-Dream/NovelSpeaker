@@ -41,8 +41,7 @@ public sealed class SettingsPageViewTests
 
                 var rootGrid = Assert.IsType<Grid>(page.Content);
                 Assert.Equal(new Thickness(24), rootGrid.Margin);
-                var canvasBrush = Assert.IsAssignableFrom<Brush>(page.FindResource("App.Brush.Canvas"));
-                Assert.Same(canvasBrush, page.Background);
+                Assert.Equal(Brushes.Transparent, page.Background);
 
                 var groups = VisualTreeTestHelper.FindDescendants<AppSettingsGroup>(page).ToArray();
                 Assert.Equal(3, groups.Length);
@@ -278,15 +277,15 @@ public sealed class SettingsPageViewTests
                 try
                 {
                     var page = provider.GetRequiredService<SettingsPage>();
-                    using var host = new WpfControlHost(page);
                     var size = new Size(960, 640);
+                    using var host = new WpfControlHost(page);
                     host.MeasureArrange(size);
                     Assert.True(page.ActualWidth > 0);
                     Assert.True(page.ActualHeight > 0);
 
                     foreach (var scale in new[] { 1d, 1.25d, 1.5d })
                     {
-                        var png = EncodePng(host.Render(size, 96 * scale));
+                        var png = EncodePng(RenderWithShellCanvas(host.Render(size, 96 * scale), size, 96 * scale));
                         var frame = DecodePng(png);
                         var fileName = $"settings-home.{themeName}.{scale * 100:0}.png";
                         File.WriteAllBytes(Path.Combine(outputDirectory, fileName), png);
@@ -321,6 +320,49 @@ public sealed class SettingsPageViewTests
         {
             themeRuntime.ApplyLightTheme();
         }
+    }
+
+    private static BitmapSource RenderWithShellCanvas(BitmapSource page, Size size, double dpi)
+    {
+        var shell = new Border
+        {
+            Width = size.Width,
+            Height = size.Height,
+            BorderThickness = new Thickness(1),
+            CornerRadius = (CornerRadius)global::System.Windows.Application.Current!.FindResource("App.Radius.Large")
+        };
+        shell.SetResourceReference(Border.BackgroundProperty, "NavigationViewContentBackground");
+        shell.SetResourceReference(Border.BorderBrushProperty, "NavigationViewContentGridBorderBrush");
+        shell.Measure(size);
+        shell.Arrange(new Rect(new Point(), size));
+        shell.UpdateLayout();
+
+        var pixels = (int)Math.Round(size.Width * dpi / 96d);
+        var shellBitmap = new RenderTargetBitmap(
+            pixels,
+            (int)Math.Round(size.Height * dpi / 96d),
+            dpi,
+            dpi,
+            PixelFormats.Pbgra32);
+        shellBitmap.Render(shell);
+
+        var compositeVisual = new DrawingVisual();
+        using (var drawingContext = compositeVisual.RenderOpen())
+        {
+            var bounds = new Rect(new Point(), size);
+            drawingContext.DrawImage(shellBitmap, bounds);
+            drawingContext.DrawImage(page, bounds);
+        }
+
+        var composite = new RenderTargetBitmap(
+            pixels,
+            (int)Math.Round(size.Height * dpi / 96d),
+            dpi,
+            dpi,
+            PixelFormats.Pbgra32);
+        composite.Render(compositeVisual);
+        composite.Freeze();
+        return composite;
     }
 
     private static SettingsVisualReviewManifest ReadManifest(string outputDirectory)

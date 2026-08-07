@@ -1,10 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
+using NovelSpeaker.App.Features.Appearance;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.ActiveCache;
@@ -273,6 +276,94 @@ public sealed class MainWindowNavigationTests
     }
 
     [Fact]
+    public async Task Real_navigation_to_appearance_settings_page_does_not_raise_dispatcher_exception()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var themeRuntime = new WpfUiThemeRuntime();
+            themeRuntime.ApplySystemTheme();
+            var provider = WpfTestHost.BuildServiceProvider();
+            var window = provider.GetRequiredService<MainWindow>();
+            Exception? dispatcherException = null;
+            DispatcherUnhandledExceptionEventHandler handler = (_, args) =>
+            {
+                dispatcherException = args.Exception;
+                args.Handled = true;
+            };
+
+            window.Dispatcher.UnhandledException += handler;
+            try
+            {
+                WpfWindowHost.Show(window);
+                window.UpdateLayout();
+                await DrainDispatcherAsync(window.Dispatcher);
+
+                var navigator = provider.GetRequiredService<IAppNavigator>();
+                Assert.True(await navigator.NavigateAsync(AppRoutes.Settings, CancellationToken.None));
+                await DrainDispatcherAsync(window.Dispatcher);
+
+                var settingsPage = Assert.IsType<SettingsPage>(
+                    VisualTreeTestHelper.FindDescendant<SettingsPage>(GetNavigationView(window)));
+                var appearanceRow = Assert.Single(
+                    VisualTreeTestHelper.FindDescendants<AppSettingsNavigationRow>(settingsPage),
+                    row => row.Title == "外观");
+                InvokeClick(appearanceRow);
+                await DrainDispatcherAsync(window.Dispatcher);
+
+                Assert.Null(dispatcherException);
+                Assert.IsType<AppearanceSettingsPage>(
+                    VisualTreeTestHelper.FindDescendant<AppearanceSettingsPage>(GetNavigationView(window)));
+                Assert.Equal(
+                    AppRouteId.AppearanceSettings,
+                    provider.GetRequiredService<IShellNavigationAdapter>().CurrentRouteId);
+            }
+            finally
+            {
+                window.Dispatcher.UnhandledException -= handler;
+                window.Close();
+                await DrainDispatcherAsync(window.Dispatcher);
+                await provider.DisposeAsync();
+                themeRuntime.ApplyLightTheme();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Navigation_content_host_uses_semantic_canvas_border_and_rounds_its_top_left_corner()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            var window = provider.GetRequiredService<MainWindow>();
+            try
+            {
+                WpfWindowHost.Show(window);
+                window.UpdateLayout();
+
+                var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                    global::System.Windows.Application.Current);
+                var canvas = Assert.IsType<SolidColorBrush>(application.FindResource("App.Brush.Canvas"));
+                var borderBrush = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("App.Brush.Border.Subtle"));
+                var navigationView = GetNavigationView(window);
+                var presenter = Assert.IsType<NavigationViewContentPresenter>(
+                    VisualTreeTestHelper.FindDescendant<NavigationViewContentPresenter>(navigationView));
+
+                var contentHost = Assert.IsType<Border>(FindVisualAncestor<Border>(presenter));
+                Assert.Equal(canvas.Color, Assert.IsType<SolidColorBrush>(contentHost.Background).Color);
+                Assert.Equal(borderBrush.Color, Assert.IsType<SolidColorBrush>(contentHost.BorderBrush).Color);
+                Assert.True(contentHost.CornerRadius.TopLeft > 0);
+            }
+            finally
+            {
+                window.Close();
+                await DrainDispatcherAsync(window.Dispatcher);
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
     public async Task Primary_navigation_switch_keeps_only_one_active_menu_item()
     {
         await WpfTestHost.RunInStaAsync(async () =>
@@ -318,6 +409,22 @@ public sealed class MainWindowNavigationTests
     {
         var property = typeof(MainWindow).GetProperty("NavigationViewControl", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         return Assert.IsType<NavigationView>(property?.GetValue(window));
+    }
+
+    private static T? FindVisualAncestor<T>(DependencyObject element)
+        where T : DependencyObject
+    {
+        for (var current = VisualTreeHelper.GetParent(element);
+             current is not null;
+             current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is T match)
+            {
+                return match;
+            }
+        }
+
+        return null;
     }
 
     private static MainWindow CreateWindow(
@@ -405,9 +512,9 @@ public sealed class MainWindowNavigationTests
             ],
             null);
 
-    private static void InvokeClick(NavigationViewItem item)
+    private static void InvokeClick(FrameworkElement item)
     {
-        var onClick = typeof(NavigationViewItem).GetMethod("OnClick", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        var onClick = item.GetType().GetMethod("OnClick", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         Assert.NotNull(onClick);
         onClick!.Invoke(item, []);
     }

@@ -24,6 +24,9 @@
     <Style x:Key="Provider.ComboBox"
            TargetType="{x:Type ComboBox}"
            BasedOn="{StaticResource {x:Type ComboBox}}" />
+    <Style x:Key="Provider.ComboBoxItem"
+           TargetType="{x:Type ComboBoxItem}"
+           BasedOn="{StaticResource {x:Type ComboBoxItem}}" />
 
     <Style x:Key="Provider.CheckBox"
            TargetType="{x:Type CheckBox}"

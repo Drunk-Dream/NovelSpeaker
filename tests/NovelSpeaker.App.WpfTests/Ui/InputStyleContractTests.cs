@@ -1,9 +1,14 @@
+using System.ComponentModel;
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Xml.Linq;
 using NovelSpeaker.StyleGallery;
 using Wpf.Ui.Controls;
@@ -12,6 +17,7 @@ using WpfComboBox = System.Windows.Controls.ComboBox;
 using WpfPasswordBox = System.Windows.Controls.PasswordBox;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 using WpfTextBox = System.Windows.Controls.TextBox;
+using Rectangle = System.Windows.Shapes.Rectangle;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
 
@@ -24,6 +30,7 @@ public sealed class InputStyleContractTests
         new("App.Input.TextBox.Compact", "{x:Type TextBox}", typeof(WpfTextBox), "Provider.TextBox"),
         new("App.Input.PasswordBox.Standard", "{x:Type PasswordBox}", typeof(WpfPasswordBox), "Provider.PasswordBox"),
         new("App.Input.PasswordBox.Compact", "{x:Type PasswordBox}", typeof(WpfPasswordBox), "Provider.PasswordBox"),
+        new("App.Input.ComboBox.Item", "{x:Type ComboBoxItem}", typeof(ComboBoxItem), "Provider.ComboBoxItem"),
         new("App.Input.ComboBox.Standard", "{x:Type ComboBox}", typeof(WpfComboBox), "Provider.ComboBox"),
         new("App.Input.ComboBox.Compact", "{x:Type ComboBox}", typeof(WpfComboBox), "Provider.ComboBox"),
         new("App.Input.CheckBox.Standard", "{x:Type CheckBox}", typeof(CheckBox), "Provider.CheckBox"),
@@ -184,6 +191,11 @@ public sealed class InputStyleContractTests
                 Assert.Equal(3, controls.OfType<WpfComboBox>().Count());
                 Assert.Equal(4, controls.OfType<CheckBox>().Count());
                 Assert.Equal(5, controls.OfType<ToggleSwitch>().Count());
+
+                var popupPreview = Assert.Single(
+                    FindDescendants<Border>(scene),
+                    border => AutomationProperties.GetAutomationId(border) == "input-combobox-popup-preview");
+                Assert.Equal(3, FindDescendants<ComboBoxItem>(popupPreview).Count);
 
                 var emptyTextBox = GetControl<WpfTextBox>(controls, "input-textbox-empty-standard");
                 Assert.Empty(emptyTextBox.Text);
@@ -436,6 +448,15 @@ public sealed class InputStyleContractTests
                     Assert.True(
                         combo.ActualWidth - toggleBounds.Right <= 2.0,
                         $"{AutomationProperties.GetAutomationId(combo)} toggle did not reach the right edge.");
+
+                    if (combo == combos.First())
+                    {
+                        combo.IsDropDownOpen = false;
+                        InvokeButtonClick(toggle);
+                        Assert.True(combo.IsDropDownOpen);
+                        InvokeButtonClick(toggle);
+                        Assert.False(combo.IsDropDownOpen);
+                    }
                 }
             }
             finally
@@ -565,6 +586,196 @@ public sealed class InputStyleContractTests
     [Theory]
     [InlineData(GalleryTheme.Light)]
     [InlineData(GalleryTheme.Dark)]
+    public void ComboBox_popup_and_item_states_follow_the_family_visual_contract(GalleryTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(theme);
+            var scene = GallerySceneRegistry.Build("input-controls");
+            using var host = WpfWindowHost.Show(new Window
+            {
+                Content = scene,
+                Width = GalleryRenderSettings.WindowWidth,
+                Height = GalleryRenderSettings.WindowHeight,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            });
+
+            try
+            {
+                host.Window.UpdateLayout();
+                var combo = GetControl<WpfComboBox>(FindInputControls(scene), "input-combobox-options-standard");
+                var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                    global::System.Windows.Application.Current);
+                combo.ApplyTemplate();
+                var popup = Assert.IsType<Popup>(FindComboBoxPopup(combo));
+                Assert.Equal(4d, popup.VerticalOffset);
+                combo.IsDropDownOpen = true;
+                host.Window.UpdateLayout();
+                Assert.True(popup.IsOpen);
+
+                var popupSurface = Assert.Single(
+                    FindDescendants<Border>(Assert.IsAssignableFrom<DependencyObject>(popup.Child)),
+                    border => ReferenceEquals(
+                                  border.Background,
+                                  application.FindResource("App.Brush.Surface.Raised")) &&
+                              ReferenceEquals(
+                                  border.BorderBrush,
+                                  application.FindResource("App.Brush.Border.Subtle")));
+                Assert.Equal(
+                    (CornerRadius)application.FindResource("App.Radius.Medium"),
+                    popupSurface.CornerRadius);
+                var popupEffect = Assert.IsType<DropShadowEffect>(
+                    Assert.IsType<EffectThicknessDecorator>(popup.Child).Effect);
+                var expectedEffect = Assert.IsType<DropShadowEffect>(
+                    application.FindResource("App.Elevation.Medium"));
+                Assert.Equal(expectedEffect.BlurRadius, popupEffect.BlurRadius);
+                Assert.Equal(expectedEffect.Direction, popupEffect.Direction);
+                Assert.Equal(expectedEffect.Opacity, popupEffect.Opacity);
+                Assert.Equal(expectedEffect.ShadowDepth, popupEffect.ShadowDepth);
+
+                var item = Assert.IsType<ComboBoxItem>(combo.ItemContainerGenerator.ContainerFromIndex(0));
+                item.ApplyTemplate();
+                var contentBorder = Assert.IsType<Border>(item.Template!.FindName("ContentBorder", item));
+                var activeRectangle = Assert.IsType<Rectangle>(item.Template.FindName("ActiveRectangle", item));
+                Assert.Equal(
+                    (CornerRadius)application.FindResource("App.Radius.Small"),
+                    contentBorder.CornerRadius);
+
+                item.IsSelected = false;
+                item.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0)
+                {
+                    RoutedEvent = Mouse.MouseLeaveEvent
+                });
+                host.Window.UpdateLayout();
+                Assert.Equal(
+                    Colors.Transparent,
+                    Assert.IsType<SolidColorBrush>(contentBorder.Background).Color);
+                Assert.Equal(Visibility.Collapsed, activeRectangle.Visibility);
+
+                item.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0)
+                {
+                    RoutedEvent = Mouse.MouseEnterEvent
+                });
+                host.Window.UpdateLayout();
+                Assert.Equal(
+                    ((SolidColorBrush)application.FindResource("App.Brush.Surface.Secondary")).Color,
+                    Assert.IsType<SolidColorBrush>(contentBorder.Background).Color);
+
+                item.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0)
+                {
+                    RoutedEvent = Mouse.MouseLeaveEvent
+                });
+                item.IsSelected = true;
+                host.Window.UpdateLayout();
+                Assert.Equal(
+                    ((SolidColorBrush)application.FindResource("App.Brush.Accent.Subtle")).Color,
+                    Assert.IsType<SolidColorBrush>(contentBorder.Background).Color);
+                Assert.Equal(Visibility.Visible, activeRectangle.Visibility);
+
+                item.IsSelected = false;
+                item.IsEnabled = false;
+                host.Window.UpdateLayout();
+                Assert.Equal(
+                    ((SolidColorBrush)application.FindResource("App.Brush.Text.Tertiary")).Color,
+                    ((SolidColorBrush)item.Foreground).Color);
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
+    public void ComboBox_template_preserves_editable_focus_and_keyboard_semantics(GalleryTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(theme);
+            var scene = GallerySceneRegistry.Build("input-controls");
+            using var host = WpfWindowHost.Show(new Window
+            {
+                Content = scene,
+                Width = GalleryRenderSettings.WindowWidth,
+                Height = GalleryRenderSettings.WindowHeight,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            });
+
+            try
+            {
+                host.Window.UpdateLayout();
+                var combo = GetControl<WpfComboBox>(FindInputControls(scene), "input-combobox-options-standard");
+                combo.IsDropDownOpen = false;
+                combo.IsEditable = true;
+                combo.ApplyTemplate();
+                host.Window.UpdateLayout();
+
+                var editableTextBox = Assert.IsType<WpfTextBox>(combo.Template!.FindName("PART_EditableTextBox", combo));
+                var contentPresenter = Assert.IsType<ContentPresenter>(
+                    combo.Template.FindName("PART_ContentPresenter", combo));
+                var toggle = Assert.IsType<ToggleButton>(combo.Template.FindName("ToggleButton", combo));
+                Assert.Equal(Visibility.Visible, editableTextBox.Visibility);
+                Assert.Equal(Visibility.Hidden, contentPresenter.Visibility);
+                Assert.False(toggle.Focusable);
+
+                var editableSource = new EditableComboBoxSource();
+                BindingOperations.SetBinding(
+                    combo,
+                    ComboBox.TextProperty,
+                    new Binding(nameof(EditableComboBoxSource.Text))
+                    {
+                        Mode = BindingMode.TwoWay,
+                        Source = editableSource,
+                        UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+                    });
+                editableTextBox.Text = "自定义输入";
+                Assert.Equal("自定义输入", combo.Text);
+                Assert.Equal("自定义输入", editableSource.Text);
+                editableSource.Text = "外部更新";
+                Assert.Equal("外部更新", editableTextBox.Text);
+
+                combo.IsEditable = false;
+                combo.ApplyTemplate();
+                host.Window.UpdateLayout();
+                Assert.Equal(Visibility.Collapsed, editableTextBox.Visibility);
+                Assert.Equal(Visibility.Visible, contentPresenter.Visibility);
+
+                Assert.True(combo.Focus());
+                Assert.True(combo.IsKeyboardFocusWithin);
+                Assert.Equal(
+                    ((SolidColorBrush)global::System.Windows.Application.Current.FindResource("App.Brush.Focus")).Color,
+                    ((SolidColorBrush)combo.BorderBrush).Color);
+
+                combo.SelectedIndex = 0;
+                combo.IsDropDownOpen = true;
+                var firstItem = Assert.IsType<ComboBoxItem>(combo.ItemContainerGenerator.ContainerFromIndex(0));
+                var secondItem = Assert.IsType<ComboBoxItem>(combo.ItemContainerGenerator.ContainerFromIndex(1));
+                Assert.True(firstItem.Focus());
+                RaiseKey(firstItem, Key.Down);
+                Assert.True(secondItem.IsKeyboardFocusWithin);
+                RaiseKey(secondItem, Key.Enter);
+                Assert.Equal(1, combo.SelectedIndex);
+                Assert.False(combo.IsDropDownOpen);
+                combo.IsDropDownOpen = true;
+                RaiseKey(combo, Key.Escape);
+                Assert.False(combo.IsDropDownOpen);
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
     public void ComboBox_disabled_string_item_keeps_state_foreground_without_double_opacity(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
@@ -677,6 +888,28 @@ public sealed class InputStyleContractTests
 
     private static bool IsFiniteAndPositive(double value) => double.IsFinite(value) && value > 0;
 
+    private static void RaiseKey(UIElement target, Key key)
+    {
+        var args = new KeyEventArgs(
+            Keyboard.PrimaryDevice,
+            PresentationSource.FromVisual(target),
+            0,
+            key)
+        {
+            RoutedEvent = Keyboard.KeyDownEvent
+        };
+        InputManager.Current.ProcessInput(args);
+    }
+
+    private static void InvokeButtonClick(ButtonBase button)
+    {
+        var onClick = typeof(ButtonBase).GetMethod(
+            "OnClick",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(onClick);
+        onClick!.Invoke(button, []);
+    }
+
     private static string LocateRepositoryRoot()
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);
@@ -706,4 +939,26 @@ public sealed class InputStyleContractTests
         Style? Style,
         ControlTemplate? Template,
         IReadOnlyDictionary<string, Color> Colors);
+
+    private sealed class EditableComboBoxSource : INotifyPropertyChanged
+    {
+        private string _text = string.Empty;
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public string Text
+        {
+            get => _text;
+            set
+            {
+                if (string.Equals(_text, value, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _text = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Text)));
+            }
+        }
+    }
 }

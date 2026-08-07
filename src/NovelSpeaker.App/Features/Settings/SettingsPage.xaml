@@ -3,7 +3,7 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:commonControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Common"
       xmlns:settingsControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Settings"
-      Background="{DynamicResource App.Brush.Canvas}">
+      Background="Transparent">
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
