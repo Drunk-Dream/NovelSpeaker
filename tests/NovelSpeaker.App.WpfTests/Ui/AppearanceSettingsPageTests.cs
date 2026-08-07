@@ -6,7 +6,9 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Xml.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
@@ -87,6 +89,54 @@ public sealed class AppearanceSettingsPageTests
                 Assert.Contains(rowText, textBlock =>
                     textBlock.Text == "跟随系统，或固定使用浅色、深色主题。" &&
                     ReferenceEquals(textBlock.Style, page.FindResource("App.Typography.Secondary")));
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
+    public void Appearance_page_owns_canvas_background_without_window_shell_ring()
+    {
+        var xamlPath = Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Features",
+            "Appearance",
+            "AppearanceSettingsPage.xaml");
+        var source = File.ReadAllText(xamlPath);
+        var pageElement = XDocument.Load(xamlPath).Root!;
+
+        Assert.Equal("Page", pageElement.Name.LocalName);
+        Assert.Equal(
+            "{DynamicResource App.Brush.Canvas}",
+            pageElement.Attribute("Background")?.Value);
+        Assert.DoesNotContain(
+            source,
+            "App.Brush.Window.Background",
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            pageElement.Descendants(),
+            element => element.Attribute("Background") is not null);
+
+        WpfTestHost.RunInSta(() =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var page = provider.GetRequiredService<AppearanceSettingsPage>();
+                using var host = new WpfControlHost(page);
+                host.MeasureArrange(new Size(1200, 900));
+
+                var canvasBrush = (Brush)page.FindResource("App.Brush.Canvas");
+                Assert.Same(canvasBrush, page.Background);
+
+                var rootGrid = Assert.IsType<Grid>(page.Content);
+                Assert.Equal(new Thickness(24), rootGrid.Margin);
+                Assert.Null(rootGrid.Background);
             }
             finally
             {
