@@ -26,8 +26,14 @@
 
 ## 2. 通用布局
 
+- 所有正式设置页从 Page 根区域开始完整使用 `App.Brush.Canvas`；`App.Brush.Window.Background` 只属于 Window/Shell，不得在页面 Padding 周围露出一圈更深或更浅的壳层背景。
+- 页面 Padding 是 Canvas 上的布局留白，不通过带 Margin 的内部 Canvas 面板模拟页面背景。
 - 二级页面本身不再分过多视觉小组；相关设置用轻量分组面板组织。
+- 设置分组默认依靠 Primary Surface、圆角和留白形成边界，不绘制完整外框；特殊描边只能作为有真实调用点的显式变体。
+- 分组 Header 保留，但视觉权重低于设置行标题，并与设置行标题保持左侧基线对齐。
 - 设置行左侧为标题和必要说明，右侧为 Switch、ComboBox、NumberBox 等控件。
+- 设置行自身拥有纵向 Padding；分组 ItemContainer 不再叠加额外上下 Padding，避免单行分组过高。
+- Group 负责主要横向内容 Padding，Row 不再重复同等横向缩进。
 - 设置改变后按字段语义即时保存或显式保存，不让多个页面各自实现不同防抖逻辑。
 - 三级页面使用明确返回入口，并继续经过统一导航 guard。
 
@@ -162,6 +168,9 @@
 
 - 跟随系统 / 浅色 / 深色。
 - 主题切换即时生效并持久化。
+- 页面根背景使用 Canvas，不在 24 px 页面 Padding 外露出 Window Background。
+- “主题”分组使用优化后的 SettingsGroup/SettingsRow：无默认完整描边、中等密度、Group Header 弱于 Row Title，并保持统一左侧基线。
+- 页面当前横向宽度策略保持不变，不新增统一 `MaxWidth`。
 - 不为每个页面提供独立颜色配置。
 
 全局视觉组件应引用 Design Token/semantic style，避免页面内复制 hover、圆角或 disabled 样式。

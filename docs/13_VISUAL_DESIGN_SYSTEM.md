@@ -88,6 +88,8 @@ App.Brush.Danger.Pressed.Text
 
 页面不得直接引用 Wpf.Ui 的主题色来表达 NovelSpeaker 业务语义，也不得写业务无关的十六进制颜色。
 
+`App.Brush.Window.Background` 只属于 Window/Shell 壳层；正式 `Page` 的根内容区域统一使用 `App.Brush.Canvas`。页面内部 Padding 只是 Canvas 上的布局留白，不得通过在 Page 外层绘制 Window Background、再在带 Margin 的子容器绘制 Canvas 来形成第二圈页面背景。
+
 ### 3.2 Token
 
 Token 是跨窗口稳定的标尺或效果，不包含控件结构。
@@ -363,6 +365,7 @@ Global resources → Feature components → Pages
 ```text
 App.Typography.PageTitle
 App.Typography.SectionTitle
+App.Typography.GroupTitle
 App.Typography.ItemTitle
 App.Typography.Body
 App.Typography.Secondary
@@ -499,6 +502,13 @@ Accent 至少提供 Default、Hover、Pressed、Subtle 和 Focus。浅色 Accent
 3. Primary/Secondary Surface。
 4. Raised Surface。
 
+所有权规则：
+
+- Window Background 只由 Window/Shell 使用，用于窗口壳层、导航壳层或窗口边缘区域。
+- 正式 Page 从根节点开始覆盖完整 Canvas；页面 Padding、滚动留白和内容间距仍位于同一 Canvas 上。
+- 页面不得为了制造层级而在 Canvas 外再露出一圈 Window Background。
+- Primary/Secondary Surface 只用于 Canvas 内部真实需要分组的内容块。
+
 规则：
 
 - 普通静态卡片默认不带阴影。
@@ -539,6 +549,7 @@ sans-serif
 |---|---:|---|
 | Page Title | `24` | SemiBold |
 | Section Title | `18` | SemiBold |
+| Group Title | `13–14` | SemiBold，低于设置行标题的视觉权重 |
 | Item Title | `15–16` | SemiBold |
 | Body | `14` | Regular |
 | Secondary | `12–13` | Regular |
@@ -586,7 +597,11 @@ sans-serif
 职责：
 
 - 提供 Header、Description、Items 和 Footer 槽。
-- 分隔线由 Group 模板拥有。
+- 默认使用 Primary Surface 与圆角形成分组，不绘制完整外框；只有出现真实、稳定的强调边界需求时才允许新增显式具名变体。
+- Group 统一拥有外部内容 Padding；设置行不再重复承担同等横向缩进。
+- 分隔线由 Group 模板拥有，并直接位于相邻设置行之间；ItemContainer 不再增加额外纵向 Padding。
+- Header 使用低于设置行标题的 `App.Typography.GroupTitle` 视觉层级，不使用页面级 `SectionTitle`。
+- Header 与设置行标题保持稳定左侧基线，避免二次缩进。
 - 页面不再通过 `SettingsLastRow...` 之类样式手动区分最后一行。
 
 ### 9.4 AppSettingsRow
@@ -597,6 +612,8 @@ sans-serif
 
 - 提供 Title、Description 和 Value/Content 槽。
 - 支持 ToggleSwitch、ComboBox、TextBox、Button 和只读值。
+- 设置行是行级纵向密度的唯一 owner；Group 的 ItemContainer 不再叠加上下 Padding。
+- 默认横向 Padding 为 0 或仅保留最小必要值，使设置行标题与 Group Header 对齐；不得再形成 Group Padding + Row Padding 的双重缩进。
 - 只规定最小高度和内部布局，不规定页面统一右侧固定宽度。
 - 窄宽度下允许右侧内容换行或转为纵向布局。
 
@@ -699,9 +716,14 @@ sans-serif
 ### 12.5 设置页
 
 - 设置入口使用 `图标 + 标题 + Chevron` 整行导航。
-- 二级页使用 Setting Group 和 Settings Row。
+- 所有正式设置页根区域完整使用 Canvas；Window Background 不在页面 Padding 周围形成可见外圈。
+- 二级页使用 Settings Group 和 Settings Row。
+- Settings Group 默认依靠 Primary Surface、圆角和留白分组，不绘制完整边框。
+- Group Header 保留结构意义但弱于设置行标题；Header 与设置行标题保持统一左侧基线。
+- 行级纵向密度由 Settings Row 单独拥有，不通过 Group ItemContainer 再叠加上下 Padding。
 - 普通布尔项使用 ToggleSwitch，枚举项使用 ComboBox。
 - 危险数据操作独立位于页面底部。
+- 页面内容宽度继续由各页面拥有；本轮视觉规范不新增统一 `MaxWidth`，也不改变既有设置页的横向铺展策略。
 
 ### 12.6 缓存管理
 
