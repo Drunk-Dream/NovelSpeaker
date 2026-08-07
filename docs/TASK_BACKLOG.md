@@ -459,7 +459,7 @@ artifacts/visual-review/windows/<window-id>/
 
 结果：删除 `AppComponentBase`、`FeedbackSurfaceBase`、`ComponentStyles.xaml` 及其生产/Gallery 引用；外观页改用 `AppSettingsRow`，Gallery 的 `list-components` 与 `feedback` 场景只组合正式控件和资源，示例内容全部留在 fixture。资源合并字典收敛为 23 个，生产控制源和伪组件目录无 fixture 内容，既有 scene ID 与 Gallery family 输出目录保持不变；Light/Dark 全场景 manifest 已在本地 `artifacts/visual-review/gallery/manifest.json` 重生成并完成重复渲染校验。最终完整门禁通过：Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 294；`artifacts/` 未加入 Git。
 
-## [ ] 12（P1）：重新迁移外观设置页
+## [x] 12（P1）：重新迁移外观设置页
 
 前置：10、11。
 
@@ -478,6 +478,8 @@ artifacts/visual-review/windows/<window-id>/
 - Light/Dark、100/125/150% DPI 截图和几何测试通过。
 - 使用正式 `AppearanceSettingsPage` 更新 `artifacts/visual-review/pages/appearance-settings/`。
 - 完整质量门禁通过。
+
+结果：`AppearanceSettingsPage` 改用 `AppPageHeader`、`AppSettingsGroup`、`AppSettingsRow`、Typography 与 `App.Input.ComboBox.Standard`；页面自带 24 Padding 与滚动，删除 `PagePadding`、`SectionSpacing`、`AppBackgroundBrush`、`CanvasSurfaceBrush` 等 Legacy/兼容键引用。保留主题 ComboBox 双向绑定、返回命令与即时生效/持久化语义；新增正式控件契约和窄/宽几何非重叠测试，Legacy 页面引用固定指纹同步更新。Light/Dark 100/125/150% 截图与 manifest 已在本地 `artifacts/visual-review/pages/appearance-settings/` 重生成并完成重复渲染校验；`artifacts/` 未加入 Git。
 
 ## [ ] 13（P1）：迁移设置首页
 

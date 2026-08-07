@@ -8,6 +8,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media.Imaging;
 using Microsoft.Extensions.DependencyInjection;
+using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
 using Xunit;
 
@@ -17,7 +18,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed class AppearanceSettingsPageTests
 {
     [Fact]
-    public void Appearance_page_uses_shared_button_input_typography_and_settings_row_resources()
+    public void Appearance_page_uses_formal_header_group_row_and_input_resources()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -28,17 +29,37 @@ public sealed class AppearanceSettingsPageTests
                 using var host = new WpfControlHost(page);
                 host.MeasureArrange(new Size(1200, 900));
 
-                var backButton = Assert.IsType<Button>(page.FindName("BackButton"));
-                Assert.Same(page.FindResource("App.Button.Icon"), backButton.Style);
-                Assert.Equal("返回", backButton.ToolTip);
-                Assert.Equal("返回", AutomationProperties.GetName(backButton));
+                var header = Assert.IsType<AppPageHeader>(page.FindName("PageHeader"));
+                Assert.Same(page.FindResource(typeof(AppPageHeader)), header.Style);
+                Assert.Equal("外观", header.Title);
+                var backCommandBinding = Assert.IsType<Binding>(
+                    BindingOperations.GetBinding(header, AppPageHeader.BackCommandProperty));
+                Assert.Equal(nameof(AppearanceSettingsViewModel.BackCommand), backCommandBinding.Path.Path);
 
-                var pageTitle = Assert.IsType<TextBlock>(page.FindName("PageTitle"));
+                var backButton = Assert.Single(
+                    VisualTreeTestHelper.FindDescendants<Button>(header),
+                    candidate => AutomationProperties.GetName(candidate) == "返回");
+                Assert.Equal("返回", backButton.ToolTip);
+                Assert.Same(page.FindResource("App.Button.Icon"), backButton.Style);
+
+                var pageTitle = Assert.Single(
+                    VisualTreeTestHelper.FindDescendants<TextBlock>(header),
+                    textBlock => textBlock.Text == "外观");
                 Assert.Same(page.FindResource("App.Typography.PageTitle"), pageTitle.Style);
-                Assert.Equal("外观", pageTitle.Text);
+
+                var group = Assert.IsType<AppSettingsGroup>(page.FindName("ThemeGroup"));
+                Assert.Same(page.FindResource(typeof(AppSettingsGroup)), group.Style);
+                Assert.Equal("主题", group.Header);
+                Assert.Single(group.Items);
+                var itemContainer = Assert.IsType<ContentControl>(
+                    group.ItemContainerGenerator.ContainerFromIndex(0));
+                Assert.False(itemContainer.Focusable);
+                Assert.False(itemContainer.IsTabStop);
 
                 var row = Assert.IsType<AppSettingsRow>(page.FindName("ThemeSettingRow"));
                 Assert.Same(page.FindResource(typeof(AppSettingsRow)), row.Style);
+                Assert.Equal("应用主题", row.Title);
+                Assert.Equal("跟随系统，或固定使用浅色、深色主题。", row.Description);
                 Assert.Equal("应用主题设置", AutomationProperties.GetName(row));
                 Assert.False(row.Focusable);
                 Assert.False(row.IsTabStop);
@@ -47,6 +68,7 @@ public sealed class AppearanceSettingsPageTests
                 Assert.Same(page.FindResource("App.Input.ComboBox.Standard"), comboBox.Style);
                 Assert.Equal("应用主题", AutomationProperties.GetName(comboBox));
                 Assert.Equal(3, comboBox.Items.Count);
+                Assert.Same(comboBox, row.Value);
 
                 var itemsSourceBinding = Assert.IsType<Binding>(
                     BindingOperations.GetBinding(comboBox, ItemsControl.ItemsSourceProperty));
@@ -65,6 +87,53 @@ public sealed class AppearanceSettingsPageTests
                 Assert.Contains(rowText, textBlock =>
                     textBlock.Text == "跟随系统，或固定使用浅色、深色主题。" &&
                     ReferenceEquals(textBlock.Style, page.FindResource("App.Typography.Secondary")));
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
+    public void Appearance_page_keeps_theme_row_non_overlapping_at_narrow_and_wide_widths()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var page = provider.GetRequiredService<AppearanceSettingsPage>();
+                using var host = new WpfControlHost(page);
+
+                var row = Assert.IsType<AppSettingsRow>(page.FindName("ThemeSettingRow"));
+                var comboBox = Assert.IsType<ComboBox>(page.FindName("ThemeComboBox"));
+
+                host.MeasureArrange(new Size(520, 900));
+                Assert.True(row.IsNarrowLayout);
+                Assert.True(row.ActualWidth > 0);
+                Assert.True(row.ActualHeight >= 60);
+                Assert.True(comboBox.ActualWidth >= 180);
+
+                var title = Assert.Single(
+                    VisualTreeTestHelper.FindDescendants<TextBlock>(row),
+                    textBlock => textBlock.Text == "应用主题");
+                var titleBounds = title.TransformToAncestor(row)
+                    .TransformBounds(new Rect(new Point(), title.RenderSize));
+                var valueBounds = comboBox.TransformToAncestor(row)
+                    .TransformBounds(new Rect(new Point(), comboBox.RenderSize));
+                Assert.True(titleBounds.Bottom <= valueBounds.Top);
+
+                host.MeasureArrange(new Size(1200, 900));
+                Assert.False(row.IsNarrowLayout);
+                Assert.True(row.ActualWidth > 0);
+                Assert.True(comboBox.ActualWidth >= 180);
+
+                var wideTitleBounds = title.TransformToAncestor(row)
+                    .TransformBounds(new Rect(new Point(), title.RenderSize));
+                var wideValueBounds = comboBox.TransformToAncestor(row)
+                    .TransformBounds(new Rect(new Point(), comboBox.RenderSize));
+                Assert.True(wideTitleBounds.Right <= wideValueBounds.Left);
             }
             finally
             {
