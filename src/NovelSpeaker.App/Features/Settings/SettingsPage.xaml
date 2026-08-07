@@ -1,40 +1,43 @@
 <Page x:Class="NovelSpeaker.App.Features.Settings.SettingsPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="{StaticResource PagePadding}">
-            <TextBlock Style="{StaticResource PageTitleTextBlockStyle}"
-                       Text="设置" />
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:commonControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Common"
+      xmlns:settingsControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Settings"
+      Background="{DynamicResource App.Brush.Canvas}">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-            <ItemsControl Margin="{StaticResource SectionSpacing}"
-                          ItemsSource="{Binding Groups}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border Tag="SettingsGroupSeparator"
-                                Margin="0,0,0,16"
-                                Style="{StaticResource SettingsGroupBorderStyle}">
-                            <StackPanel>
-                                <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
-                                           Text="{Binding Title}" />
-                                <ItemsControl Margin="0,8,0,0"
-                                              ItemsSource="{Binding Items}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Button Style="{StaticResource SettingsNavigationRowButtonStyle}"
-                                                    Command="{Binding Command}"
-                                                    Content="{Binding Title}"
-                                                    Tag="{Binding Icon}"
-                                                    ToolTip="{Binding Title}"
-                                                    AutomationProperties.Name="{Binding Title}" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </StackPanel>
-    </ScrollViewer>
+        <commonControls:AppPageHeader x:Name="PageHeader"
+                                      Title="设置" />
+
+        <ScrollViewer Grid.Row="1"
+                      Margin="0,20,0,0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <ItemsControl ItemsSource="{Binding Groups}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <settingsControls:AppSettingsGroup Header="{Binding Title}"
+                                                               ItemsSource="{Binding Items}"
+                                                               Margin="0,0,0,16">
+                                <settingsControls:AppSettingsGroup.ItemTemplate>
+                                    <DataTemplate>
+                                        <settingsControls:AppSettingsNavigationRow
+                                            Icon="{Binding Icon}"
+                                            Title="{Binding Title}"
+                                            Command="{Binding Command}"
+                                            ToolTip="{Binding Title}" />
+                                    </DataTemplate>
+                                </settingsControls:AppSettingsGroup.ItemTemplate>
+                            </settingsControls:AppSettingsGroup>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
 </Page>

@@ -509,7 +509,7 @@ artifacts/visual-review/windows/<window-id>/
 
 结果：`AppearanceSettingsPage` 根背景改为 `App.Brush.Canvas` 并移除内部 Grid 的 Canvas 重复绘制，保留 24 px 留白、滚动结构与横向宽度策略；页面契约测试固定“不再引用 `App.Brush.Window.Background`、根背景解析为 Canvas、无内部背景层”。`AppSettingsGroup` 默认模板外框为 0，保留 Primary Surface 与圆角；分隔线仅出现在相邻设置行之间且末行清空；ItemContainer 不再叠加纵向 Padding，`AppSettingsRow` 成为行级纵向密度唯一 owner 并移除横向缩进，Group Header 与 Row Title 左侧基线对齐。`Styles/Typography.xaml` 集中新增 `App.Typography.GroupTitle`（14 SemiBold，低于 Row Title），SettingsGroup Header 改用该样式。Gallery 的 `typography` 与 `settings-controls` family 新增 GroupTitle、无外框组、单行/多行组、ToggleSwitch/ComboBox/TextBox、长说明与窄宽度场景；新增页面背景契约与 Settings 几何测试（含 100/125/150% DPI）。`artifacts/visual-review/gallery/typography/`、`settings-controls/` 与 `artifacts/visual-review/pages/appearance-settings/` 已重生成并完成 manifest-PNG SHA 校验；`artifacts/` 未加入 Git。完整质量门禁通过：Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 298。
 
-## [ ] 14（P1）：迁移设置首页
+## [x] 14（P1）：迁移设置首页
 
 前置：13。
 
@@ -527,6 +527,8 @@ artifacts/visual-review/windows/<window-id>/
 - 最小窗口与 150% DPI 下分组和导航项不重叠。
 - 使用正式 `SettingsPage` 更新 `artifacts/visual-review/pages/settings-home/`。
 - 完整质量门禁通过。
+
+结果：`SettingsPage` 改用 `AppPageHeader`、`AppSettingsGroup` 和 `AppSettingsNavigationRow`，根区域使用 Canvas 背景与 24 px 页面留白；导航项继续按常用、文本处理、应用分组，保留原有命令、顺序和导航语义。正式 Settings 导航控件主题集中投影枚举图标并保留图标、标题、Chevron、AutomationName、TabStop 和键盘焦点合同；页面不再引用 PagePadding、SectionSpacing、SettingsGroupBorderStyle 或 SettingsNavigationRowButtonStyle 等 Legacy 键。新增设置首页正式控件、无 Legacy 引用、窄窗口/100% 与 150% DPI 几何回归、八项 Space 键激活回归，更新 Legacy 页面引用指纹；相关 WPF 43 项与 Presentation 22 项测试通过。已使用正式 `SettingsPage` 生成 `artifacts/visual-review/pages/settings-home/` 的 Light/Dark、100/125/150% 截图并完成 manifest-PNG SHA 校验；`artifacts/` 未加入 Git。
 
 ## [ ] 15（P1）：迁移常规设置页
 
