@@ -186,7 +186,7 @@ public sealed class StyleGallerySceneTests
                     "Provider.",
                     StringComparison.Ordinal))
                 .ToArray();
-            Assert.Equal(18, bridgeControls.Length);
+            Assert.Equal(20, bridgeControls.Length);
             Assert.NotEmpty(FindDescendants<Wpf.Ui.Controls.Button>(bridgeProbe));
             Assert.All(
                 bridgeControls,
@@ -945,6 +945,7 @@ public sealed class StyleGallerySceneTests
                     output.Path,
                     ["input-controls"],
                     cancellation.Token);
+                await AssertInputPopupPreviewIsRenderedAsync(output.Path, cancellation.Token);
             }
             finally
             {
@@ -1235,6 +1236,58 @@ public sealed class StyleGallerySceneTests
             .Select(scene => $"{scene.Theme}|{scene.Scene}|{scene.Width}x{scene.Height}|{scene.Dpi}")
             .Order(StringComparer.Ordinal)
             .ToArray();
+
+    private static async Task AssertInputPopupPreviewIsRenderedAsync(
+        string outputDirectory,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+            {
+                GalleryThemeRuntime.Apply(theme);
+                var expected = Assert.IsType<SolidColorBrush>(
+                    global::System.Windows.Application.Current!.FindResource("App.Brush.Accent.Subtle")).Color;
+                var png = await File.ReadAllBytesAsync(
+                    Path.Combine(outputDirectory, $"input-controls.{theme}.png"),
+                    cancellationToken);
+                await using var stream = new MemoryStream(png, writable: false);
+                var frame = Assert.Single(
+                    BitmapDecoder.Create(
+                        stream,
+                        BitmapCreateOptions.PreservePixelFormat,
+                        BitmapCacheOption.OnLoad).Frames);
+                var stride = frame.PixelWidth * 4;
+                var pixels = new byte[stride * frame.PixelHeight];
+                frame.CopyPixels(pixels, stride, 0);
+
+                var accentPixels = 0;
+                for (var y = 180; y < Math.Min(frame.PixelHeight, 330); y++)
+                {
+                    for (var x = 640; x < Math.Min(frame.PixelWidth, 1240); x++)
+                    {
+                        var offset = y * stride + x * 4;
+                        if (pixels[offset] == expected.B &&
+                            pixels[offset + 1] == expected.G &&
+                            pixels[offset + 2] == expected.R &&
+                            pixels[offset + 3] == expected.A)
+                        {
+                            accentPixels++;
+                        }
+                    }
+
+                }
+                Assert.True(
+                    accentPixels > 100,
+                    $"Input-controls {theme} screenshot did not contain the selected in-tree Popup item; Accent.Subtle pixels: {accentPixels}.");
+            }
+        }
+        finally
+        {
+            GalleryThemeRuntime.Apply(GalleryTheme.Light);
+        }
+
+    }
 
     private sealed class TemporaryOutputDirectory : IDisposable
     {

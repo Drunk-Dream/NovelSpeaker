@@ -40,6 +40,7 @@ public static class GalleryThemeRuntime
         "Provider.TextBox",
         "Provider.PasswordBox",
         "Provider.ComboBox",
+        "Provider.ComboBoxItem",
         "Provider.CheckBox",
         "Provider.ToggleSwitch",
         "Provider.MenuItem",

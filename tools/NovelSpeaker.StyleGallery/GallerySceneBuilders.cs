@@ -6,6 +6,7 @@ using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Markup;
+using System.Reflection;
 using Button = System.Windows.Controls.Button;
 using CheckBox = System.Windows.Controls.CheckBox;
 using PasswordBox = System.Windows.Controls.PasswordBox;
@@ -87,7 +88,7 @@ internal static class GallerySceneBuilders
         CreateSceneRoot(
             "input-controls",
             "Input and selection controls",
-            "Explicit App.Input variants cover content, density, selection, disabled, read-only and visible validation states without replacing Provider templates.",
+            "Explicit App.Input variants cover content, density, popup item states, disabled, read-only and visible validation states; ComboBox is the approved family-level template exception.",
             CreateInputControlsContent);
 
     public static FrameworkElement CreateSelectionStyles() =>
@@ -892,6 +893,7 @@ internal static class GallerySceneBuilders
             "有声书章节与正文同步",
             "未选择来源"
         };
+        selections.Children.Add(CreateComboBoxPopupPreview(comboItems));
         selections.Children.Add(CreateInputField(
             "Dropdown items · ComboBox.Standard",
             CreateInputControl(
@@ -899,7 +901,8 @@ internal static class GallerySceneBuilders
                 {
                     ItemsSource = comboItems,
                     SelectedIndex = 0,
-                    MaxDropDownHeight = 180
+                    MaxDropDownHeight = 180,
+                    IsDropDownOpen = true
                 },
                 "App.Input.ComboBox.Standard",
                 "input-combobox-options-standard",
@@ -928,6 +931,8 @@ internal static class GallerySceneBuilders
                 "App.Input.ComboBox.Compact",
                 "input-combobox-disabled-compact",
                 "ComboBox disabled option")));
+
+        selections.Children.Add(CreateComboBoxItemStates());
 
         selections.Children.Add(CreateInputField(
             "Checked · CheckBox.Standard",
@@ -1781,6 +1786,7 @@ internal static class GallerySceneBuilders
                 SelectedIndex = 0,
                 MinHeight = 32
             },
+            "Provider.ComboBoxItem" => new ComboBoxItem { Content = "Provider combo item", MinHeight = 32 },
             "Provider.CheckBox" => new CheckBox { Content = "Provider check", IsChecked = true },
             "Provider.ToggleSwitch" => new ToggleSwitch { Content = "Provider toggle", IsChecked = true },
             "Provider.NavigationViewItem" => new NavigationViewItem { Content = "Provider navigation" },
@@ -1831,6 +1837,7 @@ internal static class GallerySceneBuilders
         "Provider.TextBox",
         "Provider.PasswordBox",
         "Provider.ComboBox",
+        "Provider.ComboBoxItem",
         "Provider.CheckBox",
         "Provider.ToggleSwitch",
         "Provider.NavigationViewItem",
@@ -1888,6 +1895,105 @@ internal static class GallerySceneBuilders
         AutomationProperties.SetAutomationId(control, automationId);
         AutomationProperties.SetName(control, automationName);
         return control;
+    }
+
+    private static Border CreateComboBoxItemStates()
+    {
+        var stateRow = new StackPanel { Orientation = Orientation.Horizontal };
+        foreach (var item in new[]
+                 {
+                     new ComboBoxItem { Content = "Normal item" },
+                     new ComboBoxItem { Content = "Hover item" },
+                     new ComboBoxItem { Content = "Selected item", IsSelected = true },
+                     new ComboBoxItem { Content = "Disabled item", IsEnabled = false }
+                 })
+        {
+            item.Style = (Style)System.Windows.Application.Current!.FindResource("App.Input.ComboBox.Item");
+            if (item.Content is "Hover item")
+            {
+                SetComboBoxItemHighlighted(item, true);
+            }
+            item.Width = 126;
+            item.Height = 40;
+            item.Margin = new Thickness(0, 0, 8, 0);
+            stateRow.Children.Add(item);
+        }
+
+        var field = new Border { Margin = new Thickness(0, 16, 0, 0) };
+        var stack = new StackPanel();
+        stack.Children.Add(new TextBlock
+        {
+            Text = "ComboBoxItem states",
+            Margin = new Thickness(0, 0, 0, 6)
+        }.WithResource(TextBlock.ForegroundProperty, "GallerySecondaryTextBrush"));
+        stack.Children.Add(stateRow);
+        field.Child = stack;
+        return field;
+    }
+
+    private static Border CreateComboBoxPopupPreview(IReadOnlyList<string> items)
+    {
+        var previewSurface = new Border
+        {
+            Padding = new Thickness(0, 4, 0, 6),
+            BorderThickness = new Thickness(1),
+            CornerRadius = (CornerRadius)System.Windows.Application.Current!.FindResource("App.Radius.Medium")
+        };
+        previewSurface.SetResourceReference(Border.BackgroundProperty, "App.Brush.Surface.Raised");
+        previewSurface.SetResourceReference(Border.BorderBrushProperty, "App.Brush.Border.Subtle");
+        previewSurface.SetResourceReference(Border.EffectProperty, "App.Elevation.Medium");
+
+        var itemPanel = new StackPanel();
+        foreach (var (itemText, index) in items.Take(3).Select((text, index) => (text, index)))
+        {
+            var item = new ComboBoxItem
+            {
+                Content = itemText,
+                Height = 34,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                Style = (Style)System.Windows.Application.Current.FindResource("App.Input.ComboBox.Item")
+            };
+            if (index == 1)
+            {
+                SetComboBoxItemHighlighted(item, true);
+            }
+            if (index == 2)
+            {
+                item.IsSelected = true;
+            }
+
+            itemPanel.Children.Add(item);
+        }
+
+        previewSurface.Child = itemPanel;
+        var field = new Border
+        {
+            Margin = new Thickness(0, 14, 0, 0),
+            Child = new StackPanel
+            {
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = "Open Popup · ComboBox.Standard",
+                        Margin = new Thickness(0, 0, 0, 6)
+                    }.WithResource(TextBlock.ForegroundProperty, "GallerySecondaryTextBrush"),
+                    previewSurface
+                }
+            }
+        };
+        AutomationProperties.SetAutomationId(field, "input-combobox-popup-preview");
+        return field;
+    }
+
+    private static void SetComboBoxItemHighlighted(ComboBoxItem item, bool value)
+    {
+        var property = typeof(ComboBoxItem).GetProperty(
+            nameof(ComboBoxItem.IsHighlighted),
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        var setter = property?.GetSetMethod(nonPublic: true)
+            ?? throw new InvalidOperationException("ComboBoxItem.IsHighlighted cannot be controlled by the Gallery fixture.");
+        setter.Invoke(item, [value]);
     }
 
     private static Border CreateInputField(string label, Control control, string? errorMessage = null)
