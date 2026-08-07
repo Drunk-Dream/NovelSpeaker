@@ -91,6 +91,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 → Button/Input/Selection/Navigation/Menu/Progress/Media/Feedback
 → 正式公共控件与 Gallery fixture 重构
 → 外观设置
+→ 设置页 Canvas 层级与公共 Settings 组件视觉优化
 → 设置首页
 → 常规设置
 → 播放设置
@@ -481,9 +482,34 @@ artifacts/visual-review/windows/<window-id>/
 
 结果：`AppearanceSettingsPage` 改用 `AppPageHeader`、`AppSettingsGroup`、`AppSettingsRow`、Typography 与 `App.Input.ComboBox.Standard`；页面自带 24 Padding 与滚动，删除 `PagePadding`、`SectionSpacing`、`AppBackgroundBrush`、`CanvasSurfaceBrush` 等 Legacy/兼容键引用。保留主题 ComboBox 双向绑定、返回命令与即时生效/持久化语义；新增正式控件契约和窄/宽几何非重叠测试，Legacy 页面引用固定指纹同步更新。Light/Dark 100/125/150% 截图与 manifest 已在本地 `artifacts/visual-review/pages/appearance-settings/` 重生成并完成重复渲染校验；`artifacts/` 未加入 Git。
 
-## [ ] 13（P1）：迁移设置首页
+## [ ] 13（P1）：优化设置页 Canvas 层级与公共 Settings 组件视觉
 
 前置：12。
+
+实现：
+
+- 修正正式页面的背景所有权：`App.Brush.Window.Background` 只属于 Window/Shell，已迁移的正式 Page 根区域完整使用 `App.Brush.Canvas`；页面 Padding 只是 Canvas 上的留白，不再使用“Page=Window Background + 带 Margin 子容器=Canvas”的双层背景结构。
+- 修正 `AppearanceSettingsPage` 当前外围色环：Page 根背景直接使用 Canvas，移除内部 Grid 对 Canvas 的重复绘制；保留现有 24 px 页面 Padding、滚动结构和横向宽度策略，不新增统一 `MaxWidth`。
+- 优化 `AppSettingsGroup` 默认模板：继续使用 Primary Surface 和圆角分组，但默认不绘制完整外框；只有未来出现真实调用点时才允许增加显式具名描边变体，本任务不预建无调用点变体。
+- 在 `Styles/Typography.xaml` 增加并集中维护 `App.Typography.GroupTitle`，用于设置分组 Header；其视觉权重低于 `AppSettingsRow` 标题，且不复用页面级 `SectionTitle`。
+- 优化 Settings 密度所有权：Group 保留主要内容 Padding；ItemContainer 不再增加额外上下 Padding；`AppSettingsRow` 成为行级纵向 Padding 的唯一 owner，并移除与 Group 重复的横向缩进，使 Group Header 与 Row Title 左侧基线对齐。
+- 保持 SettingsGroup 的行分隔线所有权、首尾边界判定、SettingsRow 的窄宽度纵向布局、DataContext、命令、Focus 和 Automation 合同不变。
+- 将相近视觉能力继续集中在既有资源族中，不为本次修正建立页面专属 Style 文件：Typography 变化写入 `Typography.xaml`，Settings 控件变化写入 `ControlThemes/Settings.xaml`。
+- 更新 Gallery 的稳定 `typography` 与 `settings-controls` family，展示 GroupTitle、无外框 SettingsGroup、单行/多行组、不同右侧控件、长说明和窄宽度场景。
+
+自动验收：
+
+- 静态资源/页面契约确认 `AppearanceSettingsPage` 不再引用 `App.Brush.Window.Background`，Page 根背景解析为 `App.Brush.Canvas`，且不存在仅为露出外围色环而设置的内部 Canvas 背景层。
+- `AppSettingsGroup` 默认模板外框为 0，Primary Surface 与圆角仍存在；分隔线只出现在相邻设置行之间，最后一行无多余分隔线。
+- `App.Typography.GroupTitle` 只定义于 `Styles/Typography.xaml`，视觉权重低于 Row Title，并进入现有 Typography Gallery family。
+- Settings 几何测试覆盖单行/多行、长说明、ToggleSwitch、ComboBox、TextBox、窄宽度以及 100/125/150% DPI，验证不存在 Group ItemContainer + Row 的双重纵向 Padding，Header 与 Row Title 左侧基线一致，右侧控件不重叠。
+- 外观页主题选择、即时生效、持久化、返回导航和 Light/Dark 热切换行为回归通过。
+- 更新 `artifacts/visual-review/gallery/typography/`、`artifacts/visual-review/gallery/settings-controls/`，并使用正式 `AppearanceSettingsPage` 重生成 `artifacts/visual-review/pages/appearance-settings/` 的 Light/Dark、100/125/150% DPI 截图与 manifest。
+- 完整质量门禁通过。
+
+## [ ] 14（P1）：迁移设置首页
+
+前置：13。
 
 实现：
 
@@ -500,9 +526,9 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `SettingsPage` 更新 `artifacts/visual-review/pages/settings-home/`。
 - 完整质量门禁通过。
 
-## [ ] 14（P1）：迁移常规设置页
+## [ ] 15（P1）：迁移常规设置页
 
-前置：13。
+前置：14。
 
 实现：
 
@@ -518,9 +544,9 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `GeneralSettingsPage` 更新 `artifacts/visual-review/pages/general-settings/`。
 - 完整质量门禁通过。
 
-## [ ] 15（P1）：迁移播放设置页
+## [ ] 16（P1）：迁移播放设置页
 
-前置：14。
+前置：15。
 
 实现：
 
@@ -537,9 +563,9 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `PlaybackSettingsPage` 更新 `artifacts/visual-review/pages/playback-settings/`。
 - 完整质量门禁通过。
 
-## [ ] 16（P1）：迁移导入与文本设置页
+## [ ] 17（P1）：迁移导入与文本设置页
 
-前置：15。
+前置：16。
 
 实现：
 
@@ -555,9 +581,9 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `ImportTextSettingsPage` 更新 `artifacts/visual-review/pages/import-text-settings/`。
 - 完整质量门禁通过。
 
-## [ ] 17（P1）：迁移缓存与数据页
+## [ ] 18（P1）：迁移缓存与数据页
 
-前置：16。
+前置：17。
 
 实现：
 
@@ -574,9 +600,9 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `CacheAndDataPage` 更新 `artifacts/visual-review/pages/cache-data/`。
 - 完整质量门禁通过。
 
-## [ ] 18（P1）：迁移诊断与关于页
+## [ ] 19（P1）：迁移诊断与关于页
 
-前置：17。
+前置：18。
 
 实现：
 
@@ -593,9 +619,9 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `DiagnosticsAboutPage` 更新 `artifacts/visual-review/pages/diagnostics-about/`。
 - 完整质量门禁通过。
 
-## [ ] 19（P1）：迁移书库与 Feature BookCard
+## [ ] 20（P1）：迁移书库与 Feature BookCard
 
-前置：18。
+前置：19。
 
 实现：
 
@@ -613,9 +639,9 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `LibraryPage` 更新 `artifacts/visual-review/pages/library/`。
 - 完整质量门禁通过。
 
-## [ ] 20（P1）：迁移书籍详情与目录
+## [ ] 21（P1）：迁移书籍详情与目录
 
-前置：19。
+前置：20。
 
 实现：
 
@@ -632,9 +658,9 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `BookDetailsPage` 更新 `artifacts/visual-review/pages/book-details/`。
 - 完整质量门禁通过。
 
-## [ ] 21（P1）：建立 Rules 页面族共享视图
+## [ ] 22（P1）：建立 Rules 页面族共享视图
 
-前置：20。
+前置：21。
 
 实现：
 
@@ -651,9 +677,9 @@ artifacts/visual-review/windows/<window-id>/
 - 更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/rules-shared/`。
 - 完整质量门禁通过。
 
-## [ ] 22（P1）：迁移 TTS 规则工作台
+## [ ] 23（P1）：迁移 TTS 规则工作台
 
-前置：21。
+前置：22。
 
 实现：
 
@@ -670,13 +696,13 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `TtsRulesPage` 更新 `artifacts/visual-review/pages/tts-rules/`。
 - 完整质量门禁通过。
 
-## [ ] 23（P1）：迁移章节规则工作台
+## [ ] 24（P1）：迁移章节规则工作台
 
-前置：22。
+前置：23。
 
 实现：
 
-- 使用与任务 22 相同的公共边界迁移 `ChapterRulesPage`。
+- 使用与任务 23 相同的公共边界迁移 `ChapterRulesPage`。
 - 页面保留自身字段、帮助、默认规则导入/恢复和布局。
 - 内置规则可删除性由能力字段决定，不新增标签。
 - 排序以拖拽为主，菜单上移/下移作为键盘和备用入口。
@@ -689,13 +715,13 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `ChapterRulesPage` 更新 `artifacts/visual-review/pages/chapter-rules/`。
 - 完整质量门禁通过。
 
-## [ ] 24（P1）：迁移正则替换工作台
+## [ ] 25（P1）：迁移正则替换工作台
 
-前置：23。
+前置：24。
 
 实现：
 
-- 使用与任务 22 相同的公共边界迁移 `RegexReplacementRulesPage`。
+- 使用与任务 23 相同的公共边界迁移 `RegexReplacementRulesPage`。
 - 页面保留名称、Pattern、Replacement、作用目标、帮助和自身布局。
 - 错误统一通过 AppFormField/Feedback 投影。
 - 保持启用、排序、删除、保存/取消、Dirty State 和播放刷新语义。
@@ -708,9 +734,9 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `RegexReplacementRulesPage` 更新 `artifacts/visual-review/pages/regex-replacement-rules/`。
 - 完整质量门禁通过。
 
-## [ ] 25（P1）：迁移缓存管理页
+## [ ] 26（P1）：迁移缓存管理页
 
-前置：17、20、24。
+前置：18、21、25。
 
 实现：
 
@@ -728,9 +754,9 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `CacheManagementPage` 更新 `artifacts/visual-review/pages/cache-management/`。
 - 完整质量门禁通过。
 
-## [ ] 26（P1）：迁移播放页与 PlayerView
+## [ ] 27（P1）：迁移播放页与 PlayerView
 
-前置：8、20、25。
+前置：8、21、26。
 
 实现：
 
@@ -748,15 +774,15 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `PlayerPage` 更新 `artifacts/visual-review/pages/player/`。
 - 完整质量门禁通过。
 
-## [ ] 27（P1）：迁移主窗口与启动窗口
+## [ ] 28（P1）：迁移主窗口与启动窗口
 
-前置：12–26。
+前置：12–27。
 
 实现：
 
 - 迁移 `MainWindow` 的 Window Chrome、一级导航、内容宿主和全局运行时入口。
 - 迁移 `StartupStatusWindow` 到正式 Typography、Surface、Progress、Feedback 和 AppStatusView。
-- Shell 只拥有标题栏、导航和内容边界，不向页面重复注入 Padding/FrameMargin。
+- Shell 只拥有标题栏、导航、内容边界和 Window Background，不向页面重复注入 Padding/FrameMargin；正式 Page 自身从根区域覆盖 Canvas。
 - 保持最小化、最大化、恢复、关闭到托盘、真正退出、未保存导航守卫、播放和主动缓存入口语义。
 - 删除两个窗口全部 Legacy 键引用。
 
@@ -768,9 +794,9 @@ artifacts/visual-review/windows/<window-id>/
 - 分别使用正式窗口更新 `artifacts/visual-review/windows/main-window/` 与 `artifacts/visual-review/windows/startup-status-window/`。
 - 完整质量门禁通过。
 
-## [ ] 28（P1）：统一 Dialog、Flyout、Snackbar 和状态视图
+## [ ] 29（P1）：统一 Dialog、Flyout、Snackbar 和状态视图
 
-前置：9、12–27。
+前置：9、12–28。
 
 实现：
 
@@ -789,16 +815,16 @@ artifacts/visual-review/windows/<window-id>/
 - 将每个 Dialog、Flyout、Snackbar 和状态场景写入其所属 `pages/<page-id>/` 或 `windows/<window-id>/`，不得建立跨页面的 `feedback-hosts` 截图目录。
 - 完整质量门禁通过。
 
-## [ ] 29（P0）：删除 Legacy 与旧资源并完成发布门禁
+## [ ] 30（P0）：删除 Legacy 与旧资源并完成发布门禁
 
-前置：1–28。
+前置：1–29。
 
 实现：
 
 - 确认正式页面、窗口、Style Gallery 和测试不再引用 Legacy 键。
 - 删除 `Resources/Legacy`、旧 `SemanticStyles.xaml`、旧聚合字典、旧 alias、零引用 Token/Style/ControlTheme 和临时迁移测试。
 - 删除所有 `PagePadding`、`SettingsRowControlWidth` 等全局页面几何键；页面值保留在唯一布局 owner。
-- 扫描硬编码主题色、禁止隐式 Style、全局模板覆盖、运行时 Style 写入、重复资源键和生产 fixture。
+- 扫描硬编码主题色、禁止隐式 Style、全局模板覆盖、运行时 Style 写入、重复资源键和生产 fixture；同时验证正式 Page 根区域统一使用 Canvas，页面不再引用 Window Background 形成外围壳层。
 - 对全部 Gallery 场景和关键页面执行 Light/Dark、100/125/150% DPI、文本缩放和减少动画测试。
 - 补齐 Tooltip、AutomationName、Tab 顺序、Focus 可见性和颜色非唯一状态信号。
 - 执行 self-contained `win-x64` publish 和发布内容检查。
