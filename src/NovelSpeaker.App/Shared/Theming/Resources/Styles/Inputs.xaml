@@ -1,11 +1,19 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib"
                     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
     <!--
         These are explicit input-family variants. The Provider.* aliases own the
         Wpf.Ui templates and interaction states; this dictionary only supplies
         stable density, palette, alignment and validation/read-only semantics.
-        In particular, no ItemContainerStyle, Popup or Template is replaced here.
+        In particular, no ItemContainerStyle, Popup or ControlTemplate is replaced here.
+
+        ComboBox intentionally preserves the provider template's stretch content
+        alignment. Wpf.Ui uses HorizontalContentAlignment to size the inner grid
+        that contains the selected content, chevron and full-surface ToggleButton;
+        changing it to Left collapses the hit target and leaves unused space on the
+        right side of a wide ComboBox. Pure string items use a local data template
+        so constrained selected text trims on one line without moving the chevron.
     -->
     <Style x:Key="App.Input.TextBox.Standard"
            TargetType="{x:Type TextBox}"
@@ -91,6 +99,20 @@
     <Style x:Key="App.Input.ComboBox.Standard"
            TargetType="{x:Type ComboBox}"
            BasedOn="{StaticResource Provider.ComboBox}">
+        <Style.Resources>
+            <DataTemplate DataType="{x:Type sys:String}">
+                <TextBlock HorizontalAlignment="Stretch"
+                           VerticalAlignment="Center"
+                           Text="{Binding}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                            <Setter Property="TextWrapping" Value="NoWrap" />
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </DataTemplate>
+        </Style.Resources>
         <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
         <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Body}" />
         <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
@@ -100,7 +122,7 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="12,8" />
         <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
-        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
@@ -124,6 +146,20 @@
     <Style x:Key="App.Input.ComboBox.Compact"
            TargetType="{x:Type ComboBox}"
            BasedOn="{StaticResource App.Input.ComboBox.Standard}">
+        <Style.Resources>
+            <DataTemplate DataType="{x:Type sys:String}">
+                <TextBlock HorizontalAlignment="Stretch"
+                           VerticalAlignment="Center"
+                           Text="{Binding}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                            <Setter Property="TextWrapping" Value="NoWrap" />
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </DataTemplate>
+        </Style.Resources>
         <Setter Property="Padding" Value="10,4" />
         <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
     </Style>

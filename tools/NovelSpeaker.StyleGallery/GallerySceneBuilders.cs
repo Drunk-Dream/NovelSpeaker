@@ -916,6 +916,18 @@ internal static class GallerySceneBuilders
                 "App.Input.ComboBox.Compact",
                 "input-combobox-long-compact",
                 "ComboBox long selected item")));
+        selections.Children.Add(CreateInputField(
+            "Disabled · ComboBox.Compact",
+            CreateInputControl(
+                new ComboBox
+                {
+                    ItemsSource = comboItems,
+                    SelectedIndex = 0,
+                    IsEnabled = false
+                },
+                "App.Input.ComboBox.Compact",
+                "input-combobox-disabled-compact",
+                "ComboBox disabled option")));
 
         selections.Children.Add(CreateInputField(
             "Checked · CheckBox.Standard",

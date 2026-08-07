@@ -137,6 +137,7 @@
 - 共享样式不得替换标准控件完整模板，除非位于受控局部组件并由专项测试证明状态、内容对齐、Focus、Disabled 和主题切换语义完整。
 - Design Token 只包含跨组件稳定值；架构测试阻止页面列宽、设置控件宽度、工作台分栏等页面几何进入全局令牌。
 - Style Gallery 自动覆盖浅色/深色下的 Default、Hover、Pressed、Focus、Disabled、Selected 和 Error 场景。
+- ComboBox 视觉/交互回归以稳定的 `inputs` Gallery family 为入口：宽控件保持左侧文案、右侧 Chevron 和全表面点击命中；Popup 宽度不小于闭合态控件；纯字符串长选中项单行省略且不得挤压或移动 Chevron；对象项/自定义模板在存在长文本时提供等价截断。
 - 自动截图工具在固定 DPI、窗口尺寸和测试数据下生成 PNG 与 manifest；任务验收只要求可重复生成、尺寸正确、场景完整和无渲染异常，不以主观审美作为自动关闭条件。
 - 几何测试只固定最小点击区域、非零可用宽度、关键内容可见和不重叠等下限，不冻结尚可调整的精确 Padding、Margin、Width 或 Height。
 - 迷你播放器覆盖隐藏/恢复、置顶、段落进度、Tooltip、拖动边界、长标题和主题热切换。

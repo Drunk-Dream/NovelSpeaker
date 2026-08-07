@@ -43,6 +43,7 @@ public sealed class InputStyleContractTests
         new("input-password-disabled-compact", "PasswordBox disabled password"),
         new("input-combobox-options-standard", "ComboBox dropdown options"),
         new("input-combobox-long-compact", "ComboBox long selected item"),
+        new("input-combobox-disabled-compact", "ComboBox disabled option"),
         new("input-checkbox-checked-standard", "CheckBox checked read chapter title"),
         new("input-checkbox-unchecked-standard", "CheckBox unchecked read footnotes"),
         new("input-checkbox-disabled-compact", "CheckBox disabled option"),
@@ -180,7 +181,7 @@ public sealed class InputStyleContractTests
 
                 Assert.Equal(5, controls.OfType<WpfTextBox>().Count());
                 Assert.Equal(2, controls.OfType<WpfPasswordBox>().Count());
-                Assert.Equal(2, controls.OfType<WpfComboBox>().Count());
+                Assert.Equal(3, controls.OfType<WpfComboBox>().Count());
                 Assert.Equal(4, controls.OfType<CheckBox>().Count());
                 Assert.Equal(5, controls.OfType<ToggleSwitch>().Count());
 
@@ -197,6 +198,7 @@ public sealed class InputStyleContractTests
 
                 Assert.Equal(0, GetControl<WpfComboBox>(controls, "input-combobox-options-standard").SelectedIndex);
                 Assert.Equal(1, GetControl<WpfComboBox>(controls, "input-combobox-long-compact").SelectedIndex);
+                Assert.False(GetControl<WpfComboBox>(controls, "input-combobox-disabled-compact").IsEnabled);
 
                 Assert.True(GetControl<CheckBox>(controls, "input-checkbox-checked-standard").IsChecked is true);
                 Assert.True(GetControl<CheckBox>(controls, "input-checkbox-unchecked-standard").IsChecked is false);
@@ -386,6 +388,216 @@ public sealed class InputStyleContractTests
             finally
             {
                 combo.IsDropDownOpen = false;
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
+    public void ComboBox_styles_keep_stretch_alignment_and_full_surface_toggle_target(GalleryTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(theme);
+            var scene = GallerySceneRegistry.Build("input-controls");
+            using var host = WpfWindowHost.Show(new Window
+            {
+                Content = scene,
+                Width = GalleryRenderSettings.WindowWidth,
+                Height = GalleryRenderSettings.WindowHeight,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            });
+
+            try
+            {
+                host.Window.UpdateLayout();
+                var combos = FindInputControls(scene).OfType<WpfComboBox>();
+                Assert.Equal(3, combos.Count());
+                foreach (var combo in combos)
+                {
+                    combo.ApplyTemplate();
+                    Assert.Equal(HorizontalAlignment.Stretch, combo.HorizontalContentAlignment);
+                    Assert.True(IsFiniteAndPositive(combo.ActualWidth));
+
+                    var toggle = Assert.Single(FindDescendants<ToggleButton>(combo));
+                    Assert.True(
+                        toggle.ActualWidth >= combo.ActualWidth - 2.0,
+                        $"{AutomationProperties.GetAutomationId(combo)} toggle surface was smaller than the control.");
+                    Assert.True(
+                        toggle.ActualHeight >= combo.ActualHeight - 8.0,
+                        $"{AutomationProperties.GetAutomationId(combo)} toggle surface was shorter than the control.");
+
+                    var toggleBounds = toggle.TransformToAncestor(combo)
+                        .TransformBounds(new Rect(new Point(), toggle.RenderSize));
+                    Assert.True(
+                        combo.ActualWidth - toggleBounds.Right <= 2.0,
+                        $"{AutomationProperties.GetAutomationId(combo)} toggle did not reach the right edge.");
+                }
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
+    public void ComboBox_long_string_item_trims_on_one_line_without_moving_the_chevron(GalleryTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(theme);
+            var scene = GallerySceneRegistry.Build("input-controls");
+            using var host = WpfWindowHost.Show(new Window
+            {
+                Content = scene,
+                Width = GalleryRenderSettings.WindowWidth,
+                Height = GalleryRenderSettings.WindowHeight,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            });
+
+            try
+            {
+                host.Window.UpdateLayout();
+                var combo = GetControl<WpfComboBox>(FindInputControls(scene), "input-combobox-long-compact");
+                combo.ApplyTemplate();
+
+                var text = Assert.Single(
+                    FindDescendants<WpfTextBlock>(combo),
+                    block => block.Text.Contains("长中文选项", StringComparison.Ordinal));
+                Assert.Equal(TextWrapping.NoWrap, text.TextWrapping);
+                Assert.Equal(TextTrimming.CharacterEllipsis, text.TextTrimming);
+                Assert.Equal(HorizontalAlignment.Stretch, text.HorizontalAlignment);
+                Assert.Equal(VerticalAlignment.Center, text.VerticalAlignment);
+                Assert.True(IsFiniteAndPositive(text.ActualWidth));
+                Assert.True(
+                    text.ActualHeight <= combo.ActualHeight,
+                    $"{AutomationProperties.GetAutomationId(combo)} long selected item wrapped to more than one line.");
+
+                var textBounds = text.TransformToAncestor(combo)
+                    .TransformBounds(new Rect(new Point(), text.RenderSize));
+                Assert.True(
+                    textBounds.Right <= combo.ActualWidth - 1.0,
+                    $"{AutomationProperties.GetAutomationId(combo)} long selected item overflowed the closed control.");
+
+                var chevron = Assert.Single(FindDescendants<SymbolIcon>(combo));
+                var chevronBounds = chevron.TransformToAncestor(combo)
+                    .TransformBounds(new Rect(new Point(), chevron.RenderSize));
+                Assert.True(
+                    textBounds.Right <= chevronBounds.Left,
+                    $"{AutomationProperties.GetAutomationId(combo)} selected text overlapped the chevron area.");
+
+                var reference = GetControl<WpfComboBox>(FindInputControls(scene), "input-combobox-options-standard");
+                reference.ApplyTemplate();
+                var referenceChevron = Assert.Single(FindDescendants<SymbolIcon>(reference));
+                var referenceBounds = referenceChevron.TransformToAncestor(reference)
+                    .TransformBounds(new Rect(new Point(), referenceChevron.RenderSize));
+                Assert.True(
+                    Math.Abs(chevronBounds.Right - referenceBounds.Right) <= 0.5,
+                    $"{AutomationProperties.GetAutomationId(combo)} long item moved the chevron.");
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
+    public void ComboBox_popup_is_never_narrower_than_the_closed_control(GalleryTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(theme);
+            var scene = GallerySceneRegistry.Build("input-controls");
+            using var host = WpfWindowHost.Show(new Window
+            {
+                Content = scene,
+                Width = GalleryRenderSettings.WindowWidth,
+                Height = GalleryRenderSettings.WindowHeight,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            });
+
+            var combo = GetControl<WpfComboBox>(FindInputControls(scene), "input-combobox-options-standard");
+            try
+            {
+                host.Window.UpdateLayout();
+                combo.ApplyTemplate();
+                var closedWidth = combo.ActualWidth;
+                Assert.True(IsFiniteAndPositive(closedWidth));
+
+                var popup = Assert.IsType<Popup>(FindComboBoxPopup(combo));
+                combo.IsDropDownOpen = true;
+                host.Window.UpdateLayout();
+
+                Assert.True(popup.IsOpen);
+                var popupChild = Assert.IsAssignableFrom<FrameworkElement>(popup.Child);
+                Assert.True(
+                    IsFiniteAndPositive(popupChild.ActualWidth) &&
+                    popupChild.ActualWidth >= closedWidth - 0.5,
+                    $"ComboBox popup content ({popupChild.ActualWidth:F1}) was narrower than the closed control ({closedWidth:F1}).");
+                var firstItem = Assert.IsType<ComboBoxItem>(combo.ItemContainerGenerator.ContainerFromIndex(0));
+                Assert.True(
+                    IsFiniteAndPositive(firstItem.ActualWidth) &&
+                    firstItem.ActualWidth >= closedWidth - 2.0,
+                    $"ComboBox popup items ({firstItem.ActualWidth:F1}) were narrower than the closed control ({closedWidth:F1}).");
+            }
+            finally
+            {
+                combo.IsDropDownOpen = false;
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
+    public void ComboBox_disabled_string_item_keeps_state_foreground_without_double_opacity(GalleryTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(theme);
+            var scene = GallerySceneRegistry.Build("input-controls");
+            using var host = WpfWindowHost.Show(new Window
+            {
+                Content = scene,
+                Width = GalleryRenderSettings.WindowWidth,
+                Height = GalleryRenderSettings.WindowHeight,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            });
+
+            try
+            {
+                host.Window.UpdateLayout();
+                var combo = GetControl<WpfComboBox>(FindInputControls(scene), "input-combobox-disabled-compact");
+                combo.ApplyTemplate();
+                Assert.False(combo.IsEnabled);
+
+                var text = Assert.Single(
+                    FindDescendants<WpfTextBlock>(combo),
+                    block => block.Text == "普通章节");
+                Assert.Equal(1.0, text.Opacity);
+                Assert.Equal(
+                    ((SolidColorBrush)combo.Foreground).Color,
+                    ((SolidColorBrush)text.Foreground).Color);
+            }
+            finally
+            {
                 GalleryThemeRuntime.Apply(GalleryTheme.Light);
             }
         });

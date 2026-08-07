@@ -215,7 +215,7 @@ Wpf.Ui 持有：
 - NavigationView、ToggleSwitch、ComboBox、CheckBox、ContentDialog、Snackbar 和 FluentWindow 的基础交互。
 - Fluent 主题资源和标准 Visual State。
 
-Provider dictionaries 在应用启动时加载，并在进程生命周期内保持稳定。NovelSpeaker 不复制其完整模板，也不通过主题切换代码重新插入标准控件 Style。
+Provider dictionaries 在应用启动时加载，并在进程生命周期内保持稳定。NovelSpeaker 不复制其完整模板，也不通过主题切换代码重新插入标准控件 Style。应用级 Style 可以覆盖字体、颜色、尺寸、Padding、对齐等模板输入属性，但不得无意改变 Provider 模板用于布局或命中测试的关键语义。以 Wpf.Ui `ComboBox` 为例，其内部选中内容、Chevron 与覆盖整块表面的 ToggleButton 依赖 `HorizontalContentAlignment=Stretch`，因此 `App.Input.ComboBox.*` 必须保留这一 Stretch 语义。
 
 ### 4.2 Provider Style Bridge
 
@@ -419,6 +419,16 @@ App.Input.CheckBox.Compact
 App.Input.ToggleSwitch.Standard
 App.Input.ToggleSwitch.Compact
 ```
+
+`App.Input.ComboBox.Standard` 与 `App.Input.ComboBox.Compact` 的闭合态遵循以下统一契约：
+
+- 整个控件表面都是同一个点击/按压目标，不得只允许选中文案和 Chevron 附近响应。
+- 选中文案占据左侧可用空间并左对齐，Chevron 固定靠右；控件变宽时，新增空间进入文案与 Chevron 之间，而不是留在 Chevron 右侧。
+- Hover、Pressed/Open、Focus、Disabled 与 Validation 反馈作用于整个控件表面，Chevron 不形成独立按钮底色。
+- Popup 最小宽度不得小于闭合态 ComboBox；选项内容更长时允许 Provider Popup 在合理范围内自然扩展，不强制压缩到闭合态宽度。
+- 纯字符串选项在闭合态空间不足时保持单行，并使用 `CharacterEllipsis`；Chevron 的位置不得随文案长度变化。该行为由 `Inputs.xaml` 中 ComboBox Style 自身的局部 `String` DataTemplate 提供，不建立页面专属模板。
+- 使用对象项、`DisplayMemberPath` 或自定义 `ItemTemplate` 的页面，若显示文本可能超长，则对应显示模板必须提供等价的单行截断；不得为此复制整套 Provider `ControlTemplate`。
+- `App.Input.ComboBox.*` 必须保持 `HorizontalContentAlignment=Stretch`。将其改为 `Left` 会使 Provider 内部布局按内容宽度收缩，造成 Chevron 靠近文案、右侧出现无效空白以及空白区域无法点击。
 
 ### 7.6 Selection 与列表容器
 
