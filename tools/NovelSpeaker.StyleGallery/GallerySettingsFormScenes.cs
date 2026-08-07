@@ -18,7 +18,7 @@ internal static class GallerySettingsFormScenes
         CreateSceneRoot(
             "settings-controls",
             "Settings controls",
-            "Formal settings controls own row structure, separators, adaptive content and navigation focus without owning page layout.",
+            "Formal settings groups use Primary Surface and row separators without a full outline; rows own vertical density and keep header alignment.",
             CreateSettingsContent());
 
     public static FrameworkElement CreateFormField() =>
@@ -37,8 +37,7 @@ internal static class GallerySettingsFormScenes
         var primaryGroup = new AppSettingsGroup
         {
             Header = "常用设置",
-            Description = "不同类型的右侧内容共享同一行结构，说明文字可在较窄宽度下换行。",
-            Margin = new Thickness(0, 0, 8, 0)
+            Description = "不同类型的右侧内容共享同一行结构，说明文字可在较窄宽度下换行。"
         };
         primaryGroup.WithAutomation("settings-controls-primary", "常用设置");
         primaryGroup.Items.Add(CreateSettingsRow(
@@ -71,7 +70,29 @@ internal static class GallerySettingsFormScenes
                 Text = "{{name}} · {{author}}",
                 Style = FindStyle("App.Input.TextBox.Standard")
             }));
-        content.Children.Add(primaryGroup);
+        var primaryStack = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
+        primaryStack.Children.Add(primaryGroup);
+
+        var singleRowGroup = new AppSettingsGroup
+        {
+            Header = "单行分组",
+            Description = "单行分组保持同一表面与无外框规则，行分隔线只在多行组内出现。",
+            Margin = new Thickness(0, 16, 0, 0)
+        };
+        singleRowGroup.WithAutomation("settings-controls-single-row", "单行分组");
+        singleRowGroup.Items.Add(CreateSettingsRow(
+            "settings-controls-single-row-toggle",
+            "启动时检查更新",
+            "开关位于右侧，标题与分组 Header 保持统一左侧基线。",
+            new ToggleSwitch
+            {
+                IsChecked = false,
+                OnContent = "开启",
+                OffContent = "关闭",
+                Style = FindStyle("App.Input.ToggleSwitch.Standard")
+            }));
+        primaryStack.Children.Add(singleRowGroup);
+        content.Children.Add(primaryStack);
 
         var secondaryStack = new StackPanel { Margin = new Thickness(8, 0, 0, 0) };
         var secondaryGroup = new AppSettingsGroup

@@ -17,6 +17,7 @@ public sealed class TypographySurfaceStyleTests
     [
         "App.Typography.PageTitle",
         "App.Typography.SectionTitle",
+        "App.Typography.GroupTitle",
         "App.Typography.ItemTitle",
         "App.Typography.Body",
         "App.Typography.Secondary",
@@ -130,9 +131,19 @@ public sealed class TypographySurfaceStyleTests
                     "typography-",
                     StringComparison.Ordinal))
                 .ToArray();
-            Assert.Equal(10, blocks.Length);
+            Assert.Equal(11, blocks.Length);
             Assert.Contains(blocks, block => block.Text.Contains("Long English heading", StringComparison.Ordinal));
             Assert.Contains(blocks, block => block.Text.Contains("长中文", StringComparison.Ordinal));
+            var groupTitle = blocks.Single(block =>
+                AutomationProperties.GetAutomationId(block) == "typography-group-title");
+            var itemTitle = blocks.Single(block =>
+                AutomationProperties.GetAutomationId(block) == "typography-item-title");
+            Assert.Equal(
+                groupTitle.Style,
+                scene.FindResource("App.Typography.GroupTitle"));
+            Assert.True(
+                groupTitle.FontSize < itemTitle.FontSize,
+                "GroupTitle must stay visually lighter than the settings row title.");
             Assert.All(blocks, block =>
             {
                 Assert.NotNull(block.Style);

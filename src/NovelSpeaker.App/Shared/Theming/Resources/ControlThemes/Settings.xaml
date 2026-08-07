@@ -24,7 +24,6 @@
                         <Setter.Value>
                             <ControlTemplate TargetType="ContentControl">
                                 <Border x:Name="ItemSurface"
-                                        Padding="0,12"
                                         BorderBrush="{DynamicResource App.Brush.Border.Subtle}"
                                         BorderThickness="0,0,0,1">
                                     <ContentPresenter Content="{TemplateBinding Content}"
@@ -49,7 +48,7 @@
                 <ControlTemplate TargetType="{x:Type controls:AppSettingsGroup}">
                     <Border Background="{DynamicResource App.Brush.Surface.Primary}"
                             BorderBrush="{DynamicResource App.Brush.Border.Subtle}"
-                            BorderThickness="1"
+                            BorderThickness="0"
                             CornerRadius="{StaticResource App.Radius.Medium}"
                             Padding="20">
                         <Grid SnapsToDevicePixels="True">
@@ -62,7 +61,7 @@
 
                             <TextBlock x:Name="HeaderPresenter"
                                        Text="{TemplateBinding Header}"
-                                       Style="{StaticResource App.Typography.SectionTitle}"
+                                       Style="{StaticResource App.Typography.GroupTitle}"
                                        AutomationProperties.Name="{TemplateBinding Header}" />
                             <TextBlock x:Name="DescriptionPresenter"
                                        Grid.Row="1"
@@ -104,7 +103,7 @@
     <Style TargetType="{x:Type controls:AppSettingsRow}">
         <Setter Property="Focusable" Value="False" />
         <Setter Property="MinHeight" Value="60" />
-        <Setter Property="Padding" Value="12,10" />
+        <Setter Property="Padding" Value="0,10" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Template">

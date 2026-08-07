@@ -27,6 +27,19 @@
         </Style.Triggers>
     </Style>
 
+    <Style x:Key="App.Typography.GroupTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Body}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.SemiBold}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="App.Typography.ItemTitle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
         <Setter Property="FontSize" Value="{StaticResource App.Text.Size.ItemTitle}" />

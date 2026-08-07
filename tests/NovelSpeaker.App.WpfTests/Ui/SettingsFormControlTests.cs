@@ -384,6 +384,220 @@ public sealed class SettingsFormControlTests
         });
     }
 
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
+    public void Settings_group_geometry_keeps_baseline_and_controls_at_supported_dpi_scales(GalleryTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(theme);
+
+            foreach (var scale in new[] { 1d, 1.25d, 1.5d })
+            {
+                var toggle = new ToggleSwitch
+                {
+                    IsChecked = true,
+                    Style = FindStyle("App.Input.ToggleSwitch.Standard")
+                };
+                var comboBox = new ComboBox
+                {
+                    ItemsSource = new[] { "跟随系统", "浅色", "深色" },
+                    SelectedIndex = 0,
+                    Style = FindStyle("App.Input.ComboBox.Standard")
+                };
+                var textBox = new WpfTextBox
+                {
+                    Text = "模板值",
+                    Style = FindStyle("App.Input.TextBox.Standard")
+                };
+                var narrowTextBox = new WpfTextBox
+                {
+                    Text = "自适应",
+                    Style = FindStyle("App.Input.TextBox.Compact")
+                };
+
+                var mainGroup = new AppSettingsGroup
+                {
+                    Header = "常用设置",
+                    Description = "这是一个较长的分组说明，用于验证分组 Header 与行标题保持同一左侧基线。",
+                    Width = 1000,
+                    HorizontalAlignment = HorizontalAlignment.Left
+                };
+                mainGroup.Items.Add(new AppSettingsRow
+                {
+                    Title = "朗读章节标题",
+                    Description = "开启后每章正文前先朗读章节标题。",
+                    Content = toggle
+                });
+                mainGroup.Items.Add(new AppSettingsRow
+                {
+                    Title = "应用主题",
+                    Description = "选择跟随系统或固定主题。",
+                    Content = comboBox
+                });
+                mainGroup.Items.Add(new AppSettingsRow
+                {
+                    Title = "书名模板",
+                    Description = "这是一段特别长的设置行说明，用于验证说明文字在较窄宽度下换行后仍然不会与右侧输入控件重叠，也不会因为多行而丢失行级密度。说明需要跨越至少两行才能覆盖多行场景，因此这里继续补充更多文字来确保在 100%、125% 和 150% DPI 下都能稳定地验证垂直间距与右侧控件边界。",
+                    Content = textBox
+                });
+
+                var singleRowGroup = new AppSettingsGroup
+                {
+                    Header = "单行分组",
+                    Width = 1000,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Margin = new Thickness(0, 16, 0, 0)
+                };
+                singleRowGroup.Items.Add(new AppSettingsRow
+                {
+                    Title = "启动时检查更新",
+                    Content = new ToggleSwitch
+                    {
+                        Style = FindStyle("App.Input.ToggleSwitch.Standard")
+                    }
+                });
+
+                var narrowGroup = new AppSettingsGroup
+                {
+                    Header = "窄宽度",
+                    Width = 360,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Margin = new Thickness(0, 16, 0, 0)
+                };
+                var narrowRow = new AppSettingsRow
+                {
+                    Title = "一段较长的设置标题会自然换行",
+                    Description = "说明文字在 100%、125% 和 150% DPI 下均保留可读间距。",
+                    Content = narrowTextBox
+                };
+                narrowGroup.Items.Add(narrowRow);
+
+                var root = new StackPanel
+                {
+                    LayoutTransform = new ScaleTransform(scale, scale)
+                };
+                root.Children.Add(mainGroup);
+                root.Children.Add(singleRowGroup);
+                root.Children.Add(narrowGroup);
+
+                using var host = WpfWindowHost.Show(new Window
+                {
+                    Content = root,
+                    Width = 1700,
+                    Height = 1400,
+                    ShowInTaskbar = false,
+                    WindowStyle = WindowStyle.ToolWindow
+                });
+                host.Window.UpdateLayout();
+
+                var groupSurface = Assert.IsType<Border>(VisualTreeHelper.GetChild(mainGroup, 0));
+                Assert.Equal(new Thickness(0), groupSurface.BorderThickness);
+                Assert.Same(mainGroup.FindResource("App.Brush.Surface.Primary"), groupSurface.Background);
+                Assert.Equal(
+                    (CornerRadius)mainGroup.FindResource("App.Radius.Medium"),
+                    groupSurface.CornerRadius);
+                Assert.Equal(new Thickness(20), groupSurface.Padding);
+
+                var header = Assert.IsType<WpfTextBlock>(
+                    mainGroup.Template!.FindName("HeaderPresenter", mainGroup));
+                Assert.Same(mainGroup.FindResource("App.Typography.GroupTitle"), header.Style);
+
+                var containers = Enumerable.Range(0, mainGroup.Items.Count)
+                    .Select(index => Assert.IsType<ContentControl>(
+                        mainGroup.ItemContainerGenerator.ContainerFromIndex(index)))
+                    .ToArray();
+                Assert.Equal(3, containers.Length);
+                foreach (var container in containers)
+                {
+                    var itemSurface = Assert.IsType<Border>(
+                        container.Template!.FindName("ItemSurface", container));
+                    Assert.Equal(new Thickness(0), itemSurface.Padding);
+                }
+
+                var separatorBottoms = containers
+                    .Select(container => Assert.IsType<Border>(
+                            container.Template!.FindName("ItemSurface", container))
+                        .BorderThickness.Bottom)
+                    .ToArray();
+                Assert.True(separatorBottoms[0] > 0);
+                Assert.True(separatorBottoms[1] > 0);
+                Assert.Equal(0, separatorBottoms[2]);
+
+                var firstRow = Assert.IsType<AppSettingsRow>(containers[0].Content);
+                var inlineBorder = Assert.IsType<Border>(
+                    firstRow.Template!.FindName("InlineLayoutBorder", firstRow));
+                Assert.Equal(0, inlineBorder.Padding.Left);
+                Assert.Equal(0, inlineBorder.Padding.Right);
+                Assert.True(inlineBorder.Padding.Top > 0);
+                Assert.True(inlineBorder.Padding.Bottom > 0);
+
+                var headerBounds = header.TransformToAncestor(mainGroup)
+                    .TransformBounds(new Rect(header.RenderSize));
+                var firstTitle = Assert.IsType<WpfTextBlock>(
+                    firstRow.Template.FindName("TitlePresenter", firstRow));
+                var firstTitleBounds = firstTitle.TransformToAncestor(mainGroup)
+                    .TransformBounds(new Rect(firstTitle.RenderSize));
+                Assert.InRange(
+                    Math.Abs(headerBounds.Left - firstTitleBounds.Left),
+                    0,
+                    1);
+
+                AssertGroupRowDoesNotOverlap(mainGroup, containers[0], toggle);
+                AssertGroupRowDoesNotOverlap(mainGroup, containers[1], comboBox);
+                AssertGroupRowDoesNotOverlap(mainGroup, containers[2], textBox);
+                Assert.True(
+                    Assert.IsType<AppSettingsRow>(containers[2].Content).ActualHeight >
+                    Assert.IsType<AppSettingsRow>(containers[0].Content).ActualHeight,
+                    "The long-description row should render taller than the single-line row.");
+
+                var singleContainer = Assert.IsType<ContentControl>(
+                    singleRowGroup.ItemContainerGenerator.ContainerFromIndex(0));
+                Assert.Equal(
+                    0,
+                    Assert.IsType<Border>(
+                        singleContainer.Template!.FindName("ItemSurface", singleContainer))
+                        .BorderThickness.Bottom);
+
+                Assert.True(narrowRow.IsNarrowLayout);
+                var narrowTitle = Assert.IsType<WpfTextBlock>(
+                    narrowRow.Template!.FindName("TitlePresenter", narrowRow));
+                var narrowTitleBounds = narrowTitle.TransformToAncestor(narrowRow)
+                    .TransformBounds(new Rect(new Point(), narrowTitle.RenderSize));
+                var narrowValueBounds = narrowTextBox.TransformToAncestor(narrowRow)
+                    .TransformBounds(new Rect(new Point(), narrowTextBox.RenderSize));
+                Assert.True(narrowTitleBounds.Bottom <= narrowValueBounds.Top);
+            }
+        });
+    }
+
+    private static void AssertGroupRowDoesNotOverlap(
+        AppSettingsGroup group,
+        ContentControl container,
+        FrameworkElement value)
+    {
+        var row = Assert.IsType<AppSettingsRow>(container.Content);
+        var title = Assert.IsType<WpfTextBlock>(
+            row.Template!.FindName("TitlePresenter", row));
+        Assert.True(row.ActualWidth > 0);
+        Assert.True(row.ActualHeight > 0);
+        Assert.True(group.ActualWidth > 0);
+        Assert.False(row.IsNarrowLayout);
+
+        var titleBounds = title.TransformToAncestor(row)
+            .TransformBounds(new Rect(new Point(), title.RenderSize));
+        var valueBounds = value.TransformToAncestor(row)
+            .TransformBounds(new Rect(new Point(), value.RenderSize));
+        Assert.True(
+            titleBounds.Right <= valueBounds.Left,
+            "The row title must not overlap the right-side control.");
+    }
+
+    private static Style FindStyle(string key) =>
+        (Style)global::System.Windows.Application.Current!.FindResource(key);
+
     private static string LocateRepositoryRoot()
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

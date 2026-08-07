@@ -568,6 +568,11 @@ internal static class GallerySceneBuilders
             "Section title · 章节与设置分组标题保持清晰的层级关系");
         AddTypographyFixture(
             primaryContent,
+            "App.Typography.GroupTitle",
+            "typography-group-title",
+            "Group title · 设置分组标题弱于设置行标题，并保持与行标题统一的左侧基线");
+        AddTypographyFixture(
+            primaryContent,
             "App.Typography.ItemTitle",
             "typography-item-title",
             "Item title · 当前章节和书籍条目的简短标题");
