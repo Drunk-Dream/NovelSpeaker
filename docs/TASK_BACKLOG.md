@@ -482,7 +482,7 @@ artifacts/visual-review/windows/<window-id>/
 
 结果：`AppearanceSettingsPage` 改用 `AppPageHeader`、`AppSettingsGroup`、`AppSettingsRow`、Typography 与 `App.Input.ComboBox.Standard`；页面自带 24 Padding 与滚动，删除 `PagePadding`、`SectionSpacing`、`AppBackgroundBrush`、`CanvasSurfaceBrush` 等 Legacy/兼容键引用。保留主题 ComboBox 双向绑定、返回命令与即时生效/持久化语义；新增正式控件契约和窄/宽几何非重叠测试，Legacy 页面引用固定指纹同步更新。Light/Dark 100/125/150% 截图与 manifest 已在本地 `artifacts/visual-review/pages/appearance-settings/` 重生成并完成重复渲染校验；`artifacts/` 未加入 Git。
 
-## [ ] 13（P1）：优化设置页 Canvas 层级与公共 Settings 组件视觉
+## [x] 13（P1）：优化设置页 Canvas 层级与公共 Settings 组件视觉
 
 前置：12。
 
@@ -506,6 +506,8 @@ artifacts/visual-review/windows/<window-id>/
 - 外观页主题选择、即时生效、持久化、返回导航和 Light/Dark 热切换行为回归通过。
 - 更新 `artifacts/visual-review/gallery/typography/`、`artifacts/visual-review/gallery/settings-controls/`，并使用正式 `AppearanceSettingsPage` 重生成 `artifacts/visual-review/pages/appearance-settings/` 的 Light/Dark、100/125/150% DPI 截图与 manifest。
 - 完整质量门禁通过。
+
+结果：`AppearanceSettingsPage` 根背景改为 `App.Brush.Canvas` 并移除内部 Grid 的 Canvas 重复绘制，保留 24 px 留白、滚动结构与横向宽度策略；页面契约测试固定“不再引用 `App.Brush.Window.Background`、根背景解析为 Canvas、无内部背景层”。`AppSettingsGroup` 默认模板外框为 0，保留 Primary Surface 与圆角；分隔线仅出现在相邻设置行之间且末行清空；ItemContainer 不再叠加纵向 Padding，`AppSettingsRow` 成为行级纵向密度唯一 owner 并移除横向缩进，Group Header 与 Row Title 左侧基线对齐。`Styles/Typography.xaml` 集中新增 `App.Typography.GroupTitle`（14 SemiBold，低于 Row Title），SettingsGroup Header 改用该样式。Gallery 的 `typography` 与 `settings-controls` family 新增 GroupTitle、无外框组、单行/多行组、ToggleSwitch/ComboBox/TextBox、长说明与窄宽度场景；新增页面背景契约与 Settings 几何测试（含 100/125/150% DPI）。`artifacts/visual-review/gallery/typography/`、`settings-controls/` 与 `artifacts/visual-review/pages/appearance-settings/` 已重生成并完成 manifest-PNG SHA 校验；`artifacts/` 未加入 Git。完整质量门禁通过：Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 298。
 
 ## [ ] 14（P1）：迁移设置首页
 
