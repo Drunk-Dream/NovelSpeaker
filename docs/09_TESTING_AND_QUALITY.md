@@ -134,10 +134,11 @@
 - 应用级资源不得出现接管标准 WPF/Wpf.Ui 控件的 NovelSpeaker 隐式样式；允许项必须有最小局部作用域和明确白名单。
 - Wpf.Ui provider dictionaries、Provider Style Bridge、NovelSpeaker palette/tokens 和具名样式的加载顺序由资源契约测试固定。
 - 主题切换不得在运行时代码中重新插入 Style 或 ControlTemplate；已打开窗口和 Style Gallery 场景使用 `DynamicResource` 更新颜色。
-- 共享样式不得替换标准控件完整模板，除非位于受控局部组件并由专项测试证明状态、内容对齐、Focus、Disabled 和主题切换语义完整。
+- 共享样式默认不得替换标准控件完整模板；经视觉系统明确批准的控件族级模板例外必须集中在对应资源族中，并由专项测试证明状态、内容对齐、键盘/鼠标命中、Focus、Disabled、Editable、Popup 和主题切换语义完整。页面级模板覆盖仍禁止。
 - Design Token 只包含跨组件稳定值；架构测试阻止页面列宽、设置控件宽度、工作台分栏等页面几何进入全局令牌。
 - Style Gallery 自动覆盖浅色/深色下的 Default、Hover、Pressed、Focus、Disabled、Selected 和 Error 场景。
-- ComboBox 视觉/交互回归以稳定的 `inputs` Gallery family 为入口：宽控件保持左侧文案、右侧 Chevron 和全表面点击命中；Popup 宽度不小于闭合态控件；纯字符串长选中项单行省略且不得挤压或移动 Chevron；对象项/自定义模板在存在长文本时提供等价截断。
+- ComboBox 视觉/交互回归以稳定的 `inputs` Gallery family 为入口：宽控件保持左侧文案、右侧 Chevron 和全表面点击命中；Popup 使用 Raised Surface、Subtle Border、Medium Radius、Medium Elevation，并与闭合态保持约 4 px 间隔；Popup 宽度不小于闭合态控件；Normal/Hover/Selected/Disabled Item 分别验证透明、Secondary、Accent.Subtle + 左侧 Accent 状态条、Tertiary 文本；纯字符串长选中项单行省略且不得挤压或移动 Chevron；对象项/自定义模板在存在长文本时提供等价截断。
+- Shell 视觉契约测试固定内容背景所有权：`NavigationView` 内容宿主跟随 `App.Brush.Canvas` 与边界语义并保留非零左上圆角，已迁移正式 Page 根背景保持透明；Light/Dark 热切换后 Provider 投影键必须与应用 Palette 同步，页面不得用不透明根背景重新遮住 Shell 圆角。
 - 自动截图工具在固定 DPI、窗口尺寸和测试数据下生成 PNG 与 manifest；任务验收只要求可重复生成、尺寸正确、场景完整和无渲染异常，不以主观审美作为自动关闭条件。
 - 几何测试只固定最小点击区域、非零可用宽度、关键内容可见和不重叠等下限，不冻结尚可调整的精确 Padding、Margin、Width 或 Height。
 - 迷你播放器覆盖隐藏/恢复、置顶、段落进度、Tooltip、拖动边界、长标题和主题热切换。

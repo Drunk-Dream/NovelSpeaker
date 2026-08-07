@@ -93,6 +93,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 → 外观设置
 → 设置页 Canvas 层级与公共 Settings 组件视觉优化
 → 设置首页
+→ Shell 圆角与 ComboBox Popup 视觉修正确认
 → 常规设置
 → 播放设置
 → 导入与文本
@@ -530,9 +531,64 @@ artifacts/visual-review/windows/<window-id>/
 
 结果：`SettingsPage` 改用 `AppPageHeader`、`AppSettingsGroup` 和 `AppSettingsNavigationRow`，根区域使用 Canvas 背景与 24 px 页面留白；导航项继续按常用、文本处理、应用分组，保留原有命令、顺序和导航语义。正式 Settings 导航控件主题集中投影枚举图标并保留图标、标题、Chevron、AutomationName、TabStop 和键盘焦点合同；页面不再引用 PagePadding、SectionSpacing、SettingsGroupBorderStyle 或 SettingsNavigationRowButtonStyle 等 Legacy 键。新增设置首页正式控件、无 Legacy 引用、窄窗口/100% 与 150% DPI 几何回归、八项 Space 键激活回归，更新 Legacy 页面引用指纹；相关 WPF 43 项与 Presentation 22 项测试通过。已使用正式 `SettingsPage` 生成 `artifacts/visual-review/pages/settings-home/` 的 Light/Dark、100/125/150% 截图并完成 manifest-PNG SHA 校验；`artifacts/` 未加入 Git。
 
-## [ ] 15（P1）：迁移常规设置页
+## [x] 14A（P0）：验证并提交 Shell 圆角与 ComboBox Popup 视觉修正
 
 前置：14。
+
+背景：
+
+- 本任务开始前源码与设计文档已经直接应用一轮视觉修正，不再重新设计方案。
+- Shell 内容背景所有权已调整为：`NavigationView` 内容宿主拥有 Canvas、边界和左上圆角；已迁移正式 Page 根节点透明，避免不透明 Page 背景遮住 Shell 圆角。
+- ComboBox family 已在 `Inputs.xaml` 中接管经批准的局部模板：闭合态保持左文案、右 Chevron 和全表面命中；Popup 使用 Raised Surface、Subtle Border、Medium Radius、Medium Elevation、约 4 px 间隔；Item 使用统一 Hover/Selected/Disabled 状态。
+- `Palette.Light.xaml` / `Palette.Dark.xaml` 已投影 Provider 所需 `NavigationViewContentBackground`、`NavigationViewContentGridBorderBrush`，并由 `SemanticPaletteRuntime` 纳入稳定主题键；两者复用现有 `App.Brush.Canvas` 与 `App.Brush.Border.Subtle`，不新增业务语义颜色。
+
+实现：
+
+- 审核上述直接修改与 `docs/13_VISUAL_DESIGN_SYSTEM.md`、`docs/06_UI_AND_USER_FLOWS.md`、`docs/09_TESTING_AND_QUALITY.md` 的最终合同一致；只修复测试、Gallery fixture、截图工具或实现缺陷，不扩大本任务视觉范围。
+- 更新现有资源契约测试，使 Provider Bridge 接受 `Provider.ComboBoxItem`，Palette 稳定键接受 NavigationView 内容宿主投影；删除或改写仍要求“正式 Page 根背景必须为 Canvas”的旧断言。
+- 为 Shell 内容边界增加自动合同：
+  - 已迁移的 `AppearanceSettingsPage` 与 `SettingsPage` 根背景保持透明。
+  - `NavigationViewContentBackground` 在 Light/Dark 分别与应用 Canvas 语义保持同步，`NavigationViewContentGridBorderBrush` 与应用边界语义同步。
+  - 主窗口 `NavigationView` 内容宿主的左上圆角保持非零，页面不得通过不透明根背景遮挡该边界。
+- 为 ComboBox family 补齐专项测试：
+  - Standard/Compact 保持 `HorizontalContentAlignment=Stretch`、左侧选中文案、右侧 Chevron 和覆盖整块表面的 ToggleButton 命中结构。
+  - Popup `VerticalOffset` 约 4 px，背景为 `App.Brush.Surface.Raised`，边界为 `App.Brush.Border.Subtle`，圆角使用 `App.Radius.Medium`，Effect 使用 `App.Elevation.Medium`，最小宽度不小于闭合态。
+  - `App.Input.ComboBox.Item` 的 Normal/Hover/Selected/Disabled 状态分别符合透明、Secondary、Accent.Subtle + 左侧 Accent 状态条、Tertiary 文本合同，Item 圆角使用 `App.Radius.Small`。
+  - 纯字符串长选中项单行省略且不挤压 Chevron；对象项/自定义模板继续由调用方承担等价截断。
+  - 键盘展开、上下选择、Enter/Escape、Focus、Disabled、Editable（若现有产品调用支持）和主题热切换行为不因局部模板接管而回归。
+- 更新稳定 `inputs` Gallery family，至少覆盖 Standard、Compact、宽控件、长文本、Disabled、Open Popup、Hover Item 和 Selected Item；不得新建按任务号命名的 Gallery scene。
+- 重新生成并校验以下稳定视觉产物：
+  - `artifacts/visual-review/gallery/inputs/`：Light/Dark，包含展开 Popup 的确定性场景。
+  - `artifacts/visual-review/pages/appearance-settings/`：Light/Dark、100/125/150% DPI。
+  - `artifacts/visual-review/pages/settings-home/`：Light/Dark、100/125/150% DPI。
+  - 若现有截图工具已经有稳定 `main-window` window-id，则同步更新 `artifacts/visual-review/windows/main-window/`；若尚未建立该稳定入口，不为本任务临时创建任务号截图目录，以自动 Shell 几何合同覆盖圆角验证，并在结果中记录原因。
+- 运行定向测试后执行完整质量门禁；不得以用户人工视觉验收作为任务关闭条件。
+
+提交：
+
+- 用户已明确授权本任务创建 Git 提交。完成实现与自动验收后，按可回溯性拆分原子提交，不把全部变化机械压成一个大提交。
+- 源码与直接耦合测试应在同一原子提交中；设计文档/测试合同可单独提交；任务完成状态与最终结果记录最后提交。
+- 使用 Conventional Commits。建议提交边界可为：
+  1. `fix(ui): restore shell rounding and theme combo box popup`（源码 + 直接耦合测试）。
+  2. `test(ui): refresh stable visual review coverage`（Gallery/截图生成器与测试；`artifacts/` 若按仓库规则忽略则不得强制提交）。
+  3. `docs(ui): record shell and combo box visual contracts`（文档与 backlog 结果）。
+- 若实际修改边界更适合拆为更多小提交，可调整，但不得把无关后续页面迁移混入本任务。
+
+自动验收：
+
+- Shell 资源/页面合同、ComboBox 模板/Item 状态、键盘交互、主题热切换与 Provider Bridge/Palette 精确键测试全部通过。
+- `inputs` Gallery family 与两个已迁移设置页面的稳定截图成功重生成，manifest 与 PNG 校验通过；不存在以 `14A`、日期或提交号命名的视觉目录。
+- 完整质量门禁通过。
+- 工作树只剩仓库策略允许忽略的本地视觉产物或明确记录的无关预存改动；本任务修改已按上述原子边界提交。
+- 将本任务状态改为 `[x]`，末尾追加“结果”，记录测试数量、截图目录、提交哈希和任何未生成 `main-window` 截图的原因。
+
+结果：保留 `NavigationViewContentBackground` 与 `NavigationViewContentGridBorderBrush` 两个 Provider 适配投影键，但未新增业务语义颜色；Light/Dark Palette 通过现有 `App.Brush.Canvas` 与 `App.Brush.Border.Subtle` 的 Color 绑定定义投影，运行时再映射到 canonical Brush。Shell 内容宿主的 Canvas、边界和左上圆角合同已固定，`AppearanceSettingsPage`、`SettingsPage` 根节点保持透明。ComboBox 控件族模板补齐 Popup、Item 状态、键盘、Focus、Disabled、Editable 文本双向同步和主题热切换合同；Gallery Hover fixture 使用实际 `IsHighlighted` 状态，不再直接伪造背景。
+
+自动验收证据：真实 `MainWindow` 在启动类 System 主题下从 SettingsPage 点击“外观”进入 AppearanceSettingsPage，并捕获 DispatcherUnhandledException；Release/Debug 均通过。完整门禁通过：Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 319，共 1,254 项测试；锁定还原无 packages.lock.json 变化，format、Release build 均通过。稳定产物已重生成并校验：`artifacts/visual-review/gallery/`（21 scenes × Light/Dark）、`artifacts/visual-review/gallery/inputs/`、`artifacts/visual-review/pages/appearance-settings/`、`artifacts/visual-review/pages/settings-home/`；所有 manifest 的 PNG 尺寸与 SHA 校验通过。仓库没有既有稳定 `main-window` window-id，因此未创建临时窗口截图目录，Shell 圆角由自动 WPF 几何合同覆盖。原子提交：`5ef1b06`（源码与直接测试）、`25e28a4`（Gallery 与视觉测试）；本条文档记录随独立 Conventional Commit 提交。
+
+## [ ] 15（P1）：迁移常规设置页
+
+前置：14A。
 
 实现：
 

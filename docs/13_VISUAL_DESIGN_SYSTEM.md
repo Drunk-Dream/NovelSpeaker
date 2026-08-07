@@ -88,7 +88,7 @@ App.Brush.Danger.Pressed.Text
 
 页面不得直接引用 Wpf.Ui 的主题色来表达 NovelSpeaker 业务语义，也不得写业务无关的十六进制颜色。
 
-`App.Brush.Window.Background` 只属于 Window/Shell 壳层；正式 `Page` 的根内容区域统一使用 `App.Brush.Canvas`。页面内部 Padding 只是 Canvas 上的布局留白，不得通过在 Page 外层绘制 Window Background、再在带 Margin 的子容器绘制 Canvas 来形成第二圈页面背景。
+`App.Brush.Window.Background` 只属于 Window/Shell 壳层。主窗口中的 `NavigationView` 内容宿主拥有 `App.Brush.Canvas`、Shell 内容边界和左上圆角；正式 `Page` 根节点保持透明，只拥有页面 Padding、滚动和内容布局。页面不得再绘制一块不透明 Canvas 覆盖 Shell 内容宿主，否则会遮住 Shell 的圆角边界。`NavigationViewContentBackground` 与 `NavigationViewContentGridBorderBrush` 是 Provider 模板所需的适配投影键，分别跟随 `App.Brush.Canvas` 与应用边界语义，并由主题 Palette 保持 Light/Dark 同步；它们不是新增业务语义色：Palette 通过现有语义 Brush 的 `Color` 绑定定义投影，运行时再将投影解析为对应的 canonical Brush。正式页面不得直接引用这些 Provider 键。
 
 ### 3.2 Token
 
@@ -215,7 +215,11 @@ Wpf.Ui 持有：
 - NavigationView、ToggleSwitch、ComboBox、CheckBox、ContentDialog、Snackbar 和 FluentWindow 的基础交互。
 - Fluent 主题资源和标准 Visual State。
 
-Provider dictionaries 在应用启动时加载，并在进程生命周期内保持稳定。NovelSpeaker 不复制其完整模板，也不通过主题切换代码重新插入标准控件 Style。应用级 Style 可以覆盖字体、颜色、尺寸、Padding、对齐等模板输入属性，但不得无意改变 Provider 模板用于布局或命中测试的关键语义。以 Wpf.Ui `ComboBox` 为例，其内部选中内容、Chevron 与覆盖整块表面的 ToggleButton 依赖 `HorizontalContentAlignment=Stretch`，因此 `App.Input.ComboBox.*` 必须保留这一 Stretch 语义。
+Provider dictionaries 在应用启动时加载，并在进程生命周期内保持稳定。默认情况下 NovelSpeaker 不复制标准控件完整模板，也不通过主题切换代码重新插入标准控件 Style。应用级 Style 优先通过字体、颜色、尺寸、Padding、对齐等模板输入属性完成定制，并保留 Provider 的交互与可访问性语义。
+
+允许存在**受控的控件族级模板例外**：当已确认的应用交互/视觉合同无法通过 Provider 暴露的 Style 输入属性完成，且为整个稳定控件族接管一个局部模板比新增包装控件更简单时，可以在该控件族所属资源字典中维护经过裁剪的应用模板。例外必须保留键盘、Focus、Disabled、Editable、滚动、Popup 定位等原有行为，并由专项契约测试覆盖；不得把模板复制到页面资源中。
+
+当前 `ComboBox` 是这一例外。`Inputs.xaml` 的 `App.Input.ComboBox.Standard` / `Compact` 维护基于 Wpf.Ui 4.3.0 结构适配的闭合态与 Popup 模板，以统一全表面命中、左右布局、Raised Popup、圆角、间距和选中状态；仍复用 Provider 的基础交互辅助资源。`NavigationView` 不属于该例外：Shell 保留 Provider 内容宿主模板和其左上圆角，页面通过透明根背景避免遮挡。无论是否使用控件族模板，`App.Input.ComboBox.*` 都必须保留 `HorizontalContentAlignment=Stretch` 语义。
 
 ### 4.2 Provider Style Bridge
 
@@ -227,6 +231,7 @@ Provider.UiButton
 Provider.TextBox
 Provider.PasswordBox
 Provider.ComboBox
+Provider.ComboBoxItem
 Provider.CheckBox
 Provider.ToggleSwitch
 Provider.NavigationItem
@@ -414,21 +419,25 @@ App.Input.PasswordBox.Standard
 App.Input.PasswordBox.Compact
 App.Input.ComboBox.Standard
 App.Input.ComboBox.Compact
+App.Input.ComboBox.Item
 App.Input.CheckBox.Standard
 App.Input.CheckBox.Compact
 App.Input.ToggleSwitch.Standard
 App.Input.ToggleSwitch.Compact
 ```
 
-`App.Input.ComboBox.Standard` 与 `App.Input.ComboBox.Compact` 的闭合态遵循以下统一契约：
+`App.Input.ComboBox.Standard` 与 `App.Input.ComboBox.Compact` 遵循以下统一契约：
 
 - 整个控件表面都是同一个点击/按压目标，不得只允许选中文案和 Chevron 附近响应。
 - 选中文案占据左侧可用空间并左对齐，Chevron 固定靠右；控件变宽时，新增空间进入文案与 Chevron 之间，而不是留在 Chevron 右侧。
 - Hover、Pressed/Open、Focus、Disabled 与 Validation 反馈作用于整个控件表面，Chevron 不形成独立按钮底色。
-- Popup 最小宽度不得小于闭合态 ComboBox；选项内容更长时允许 Provider Popup 在合理范围内自然扩展，不强制压缩到闭合态宽度。
+- Popup 是 ComboBox 控件族的一部分，统一使用 `App.Brush.Surface.Raised`、`App.Brush.Border.Subtle`、1 px 边界、`App.Radius.Medium` 和 `App.Elevation.Medium`；闭合态与 Popup 之间保留约 4 px 视觉间隔。
+- Popup 最小宽度不得小于闭合态 ComboBox；选项内容更长时允许 Popup 在合理范围内自然扩展，不强制压缩到闭合态宽度。
+- `App.Input.ComboBox.Item` 的 Normal 背景透明，Hover 使用 `App.Brush.Surface.Secondary`，Selected 使用弱 `App.Brush.Accent.Subtle` 背景并保留左侧 `App.Brush.Accent.Default` 状态条，Disabled 文本使用 `App.Brush.Text.Tertiary`；Item 使用 `App.Radius.Small`。
 - 纯字符串选项在闭合态空间不足时保持单行，并使用 `CharacterEllipsis`；Chevron 的位置不得随文案长度变化。该行为由 `Inputs.xaml` 中 ComboBox Style 自身的局部 `String` DataTemplate 提供，不建立页面专属模板。
-- 使用对象项、`DisplayMemberPath` 或自定义 `ItemTemplate` 的页面，若显示文本可能超长，则对应显示模板必须提供等价的单行截断；不得为此复制整套 Provider `ControlTemplate`。
+- 使用对象项、`DisplayMemberPath` 或自定义 `ItemTemplate` 的页面，若显示文本可能超长，则对应显示模板必须提供等价的单行截断；不得为此复制 ComboBox 控件族模板。
 - `App.Input.ComboBox.*` 必须保持 `HorizontalContentAlignment=Stretch`。将其改为 `Left` 会使 Provider 内部布局按内容宽度收缩，造成 Chevron 靠近文案、右侧出现无效空白以及空白区域无法点击。
+- 页面不得覆盖 ComboBox Popup Palette、Popup CornerRadius、ItemContainerStyle 或 Selection 状态；新的 ComboBox 视觉能力必须回到 `Inputs.xaml` 的同一控件族中维护。
 
 ### 7.6 Selection 与列表容器
 
@@ -515,8 +524,8 @@ Accent 至少提供 Default、Hover、Pressed、Subtle 和 Focus。浅色 Accent
 所有权规则：
 
 - Window Background 只由 Window/Shell 使用，用于窗口壳层、导航壳层或窗口边缘区域。
-- 正式 Page 从根节点开始覆盖完整 Canvas；页面 Padding、滚动留白和内容间距仍位于同一 Canvas 上。
-- 页面不得为了制造层级而在 Canvas 外再露出一圈 Window Background。
+- 主窗口 `NavigationView` 内容宿主拥有完整 Canvas、Shell 内容边界和左上圆角；正式 Page 根节点透明，页面 Padding、滚动留白和内容间距位于该 Canvas 上。
+- 页面不得通过不透明根背景覆盖 Shell 内容边界，也不得为了制造层级在 Canvas 外再露出一圈 Window Background。
 - Primary/Secondary Surface 只用于 Canvas 内部真实需要分组的内容块。
 
 规则：
@@ -726,7 +735,7 @@ sans-serif
 ### 12.5 设置页
 
 - 设置入口使用 `图标 + 标题 + Chevron` 整行导航。
-- 所有正式设置页根区域完整使用 Canvas；Window Background 不在页面 Padding 周围形成可见外圈。
+- 所有正式设置页根节点保持透明；Canvas 由 Shell 的 `NavigationView` 内容宿主统一提供，因此页面 Padding 周围既不会出现 Window Background 色环，也不会遮住 Shell 左上圆角。
 - 二级页使用 Settings Group 和 Settings Row。
 - Settings Group 默认依靠 Primary Surface、圆角和留白分组，不绘制完整边框。
 - Group Header 保留结构意义但弱于设置行标题；Header 与设置行标题保持统一左侧基线。

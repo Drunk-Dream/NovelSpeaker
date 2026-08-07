@@ -36,8 +36,8 @@ NovelSpeaker 的通用视觉由语义 palette、有限的稳定 Design Token、�
 
 ### 布局所有权
 
-- Shell 只拥有标题栏、一级导航、内容宿主边界和 Window Background。
-- 正式 Page 的根内容区域统一覆盖 Canvas；页面 Padding 只是 Canvas 上的布局留白，不允许通过外层 Window Background + 内层带 Margin Canvas 形成第二圈页面背景。
+- Shell 拥有标题栏、一级导航、Window Background，以及 `NavigationView` 内容宿主的 Canvas、边界和左上圆角。
+- 正式 Page 根节点保持透明；页面 Padding 只是 Shell Canvas 上的布局留白。页面不得绘制不透明根 Canvas 遮住内容宿主圆角，也不允许通过外层 Window Background + 内层带 Margin Canvas 形成第二圈页面背景。
 - 页面拥有页面内部边距、分栏和内容滚动结构。
 - 复合组件拥有自身内部间距和最小尺寸。
 - 同一段空白、宽度或对齐只允许一个 owner，避免 Shell、NavigationView、页面和组件重复叠加。
