@@ -437,7 +437,7 @@ artifacts/visual-review/windows/<window-id>/
 - Gallery 新增稳定 `settings-controls` 与 `form-field` 场景，覆盖 ToggleSwitch、ComboBox、TextBox、Button、只读值、导航行、长说明、错误和窄宽度；Light/Dark PNG 与 manifest 仅生成在本地 `artifacts/`，未加入 Git。
 - Common、Settings、Feedback 相关正式控件在辅助文案为空时保持主文案/图标/操作区的垂直居中，并由契约测试固定该行为；新增 Settings/Form WPF 默认 Style、内容槽、DataContext、命令绑定、分隔线、错误投影、窄宽度、560/561 边界、100/125/150% 等效缩放和 Gallery 场景契约测试；切片定向测试 50/50 通过，构建 0 警告、0 错误。
 
-## [ ] 11（P0）：重构 Style Gallery fixture 并删除伪公共组件
+## [x] 11（P0）：重构 Style Gallery fixture 并删除伪公共组件
 
 前置：3–10。
 
@@ -456,6 +456,8 @@ artifacts/visual-review/windows/<window-id>/
 - Style Gallery 不进入 self-contained 发布包。
 - 更新 `artifacts/visual-review/gallery/manifest.json`，并确认全部既有 family 目录和 scene ID 保持稳定。
 - 完整质量门禁通过。
+
+结果：删除 `AppComponentBase`、`FeedbackSurfaceBase`、`ComponentStyles.xaml` 及其生产/Gallery 引用；外观页改用 `AppSettingsRow`，Gallery 的 `list-components` 与 `feedback` 场景只组合正式控件和资源，示例内容全部留在 fixture。资源合并字典收敛为 23 个，生产控制源和伪组件目录无 fixture 内容，既有 scene ID 与 Gallery family 输出目录保持不变；Light/Dark 全场景 manifest 已在本地 `artifacts/visual-review/gallery/manifest.json` 重生成并完成重复渲染校验。最终完整门禁通过：Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 294；`artifacts/` 未加入 Git。
 
 ## [ ] 12（P1）：重新迁移外观设置页
 

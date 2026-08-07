@@ -8,7 +8,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media.Imaging;
 using Microsoft.Extensions.DependencyInjection;
-using NovelSpeaker.App.Shared.Theming.Components;
+using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -37,18 +37,14 @@ public sealed class AppearanceSettingsPageTests
                 Assert.Same(page.FindResource("App.Typography.PageTitle"), pageTitle.Style);
                 Assert.Equal("外观", pageTitle.Text);
 
-                var row = Assert.IsType<SettingsRow>(page.FindName("ThemeSettingRow"));
-                Assert.Same(page.FindResource("App.Component.SettingsRow"), row.Style);
+                var row = Assert.IsType<AppSettingsRow>(page.FindName("ThemeSettingRow"));
+                Assert.Same(page.FindResource(typeof(AppSettingsRow)), row.Style);
                 Assert.Equal("应用主题设置", AutomationProperties.GetName(row));
                 Assert.False(row.Focusable);
                 Assert.False(row.IsTabStop);
 
-                var rowGrid = Assert.IsType<Grid>(row.Content);
-                Assert.Equal(2, rowGrid.ColumnDefinitions.Count);
-
                 var comboBox = Assert.IsType<ComboBox>(page.FindName("ThemeComboBox"));
                 Assert.Same(page.FindResource("App.Input.ComboBox.Standard"), comboBox.Style);
-                Assert.Equal(1, Grid.GetColumn(comboBox));
                 Assert.Equal("应用主题", AutomationProperties.GetName(comboBox));
                 Assert.Equal(3, comboBox.Items.Count);
 

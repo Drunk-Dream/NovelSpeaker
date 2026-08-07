@@ -114,8 +114,8 @@ internal static class GallerySceneBuilders
     public static FrameworkElement CreateListComponents() =>
         CreateSceneRoot(
             "list-components",
-            "List, card and settings components",
-            "Shared BookCard, ListRow, SelectableRow, SettingsRow, RuleListItem and EmptyState components keep state ownership independent from virtualized containers.",
+            "List, card and settings fixtures",
+            "Gallery fixture 直接组合正式选择样式、Settings 控件和状态控件；示例内容与状态不进入生产程序集。",
             GalleryListComponentScene.Create);
 
     public static FrameworkElement CreateFeedbackStyles() =>

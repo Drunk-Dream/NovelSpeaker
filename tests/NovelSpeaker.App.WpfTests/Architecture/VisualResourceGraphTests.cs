@@ -24,10 +24,8 @@ public sealed class VisualResourceGraphTests
             path => path.EndsWith("tools/NovelSpeaker.StyleGallery/App.xaml", StringComparison.Ordinal));
         Assert.Contains(graph.Definitions, definition => definition.Key.StartsWith("App.", StringComparison.Ordinal));
         Assert.Contains(graph.Definitions, definition => definition.Key.StartsWith("Provider.", StringComparison.Ordinal));
-        Assert.NotEmpty(graph.LegacyFixtureFindings);
-        Assert.All(
-            graph.LegacyFixtureFindings,
-            finding => Assert.Contains("Shared/Theming/Components", finding.Source, StringComparison.Ordinal));
+        Assert.Empty(graph.LegacyFixtureFindings);
+        Assert.Empty(graph.ProductionFixtureFindings);
         Assert.Empty(graph.Violations);
 
         var duplicateKeys = graph.Definitions
@@ -126,7 +124,7 @@ public sealed class VisualResourceGraphTests
 
         Assert.NotEmpty(findings);
         Assert.Equal(
-            "447BDA777DBD855D97B356312DD9AA77D33190FFF6D9D04C5AB6E79B99C29499",
+            "10F83F713423ABE8C5B637ADDF12A384096330B2B78190451E3805D714CC91AE",
             VisualResourceGraphScanner.Fingerprint(findings));
     }
 
@@ -672,8 +670,7 @@ internal static class VisualResourceGraphScanner
             return ResourceLayer.Legacy;
         }
 
-        if (normalized.Contains("/ControlThemes/", StringComparison.OrdinalIgnoreCase) ||
-            normalized.EndsWith("/ComponentStyles.xaml", StringComparison.OrdinalIgnoreCase))
+        if (normalized.Contains("/ControlThemes/", StringComparison.OrdinalIgnoreCase))
         {
             return ResourceLayer.ControlThemes;
         }
