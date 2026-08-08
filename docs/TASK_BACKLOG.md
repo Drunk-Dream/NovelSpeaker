@@ -607,7 +607,7 @@ artifacts/visual-review/windows/<window-id>/
 
 结果：`GeneralSettingsPage` 迁移为正式 `AppPageHeader`、`AppSettingsGroup`、`AppSettingsRow` 与 `App.Input.ComboBox.Standard`/`App.Input.ToggleSwitch.Standard` 结构；页面根背景透明、保持 24 px 留白、关闭主窗口三选项与启动后最小化到托盘设置语义不变，设置仍经 ViewModel 即时持久化。按用户要求“启动后最小化到托盘”由 CheckBox 改为 ToggleSwitch，`docs/07_SETTINGS_PAGES.md` 的常规页条目同步更新。页面不再引用任何 Legacy 键（`PagePadding`、`BackIconButtonStyle`、`SettingsRow*` 等），资源图 legacy 引用指纹随迁移重定。新增 `GeneralSettingsPageTests` 契约覆盖正式结构、绑定、AutomationName、Canvas 背景、窄宽度/150% DPI 不重叠与主题热切换；`SettingsSubpageViewTests` 移除该页的旧行断言。稳定视觉产物已生成并校验：`artifacts/visual-review/pages/general-settings/` 共 6 张 Light/Dark × 100/125/150% 截图与 manifest；`artifacts/` 按仓库规则不入 Git。完整门禁通过：Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 327，共 1,262 项测试。任务未获用户提交授权，工作树改动未提交，提交哈希待后续授权。
 
-## [ ] 15A（P1）：将已迁移设置子页面改为扁平列表
+## [x] 15A（P1）：将已迁移设置子页面改为扁平列表
 
 前置：15。
 
@@ -636,6 +636,8 @@ artifacts/visual-review/windows/<window-id>/
   - `artifacts/visual-review/pages/general-settings/`
   的 Light/Dark、100/125/150% DPI 截图与 manifest；不得建立 `15A` 命名的视觉目录。
 - 完整质量门禁通过。
+
+结果：`AppearanceSettingsPage` 移除 `ThemeGroup`/“主题”分组，`GeneralSettingsPage` 移除“关闭主窗口时”“启动”两个 `AppSettingsGroup`，两页均改为 `AppPageHeader` 下直接排列 `AppSettingsRow` 的单一扁平列表；ComboBox/ToggleSwitch 绑定、AutomationName、返回导航与即时持久化语义不变，常规页两行保持原业务顺序并沿用 16 px 稳定间距。`ControlThemes/Settings.xaml` 仅做一处最小通用修正：`AppSettingsRow` 共享样式补齐 `IsTabStop=False`（此前独立于 Group 使用时依赖页面逐行显式设置）。`SettingsPage` 首页分组保持现状。契约更新：外观/常规页测试改为断言无 `AppSettingsGroup`、无 `App.Typography.GroupTitle` 分组 Header，并固定行直接位于扁平列表；常规页 DPI 覆盖补 100/125/150%；`settings-controls` Gallery family 新增 standalone/flat rows 稳定场景（宽 ComboBox/ToggleSwitch 行 + 360 px 窄行）并保留首页 Group 场景，新增 Light/Dark × 100/125/150% DPI 几何、Focus/Tab/Automation 与无 Group 祖先契约测试。视觉产物已重生成并校验：`artifacts/visual-review/gallery/settings-controls/`、`artifacts/visual-review/pages/appearance-settings/`、`artifacts/visual-review/pages/general-settings/`（Light/Dark × 100/125/150%，manifest 与 PNG SHA/尺寸校验通过）；不存在以 `15A` 命名的视觉目录。完整质量门禁通过：Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 330，共 1,265 项测试；锁定还原无 packages.lock.json 变化，format 与 Release build（0 警告/0 错误）通过。任务未获用户提交授权，工作树改动未提交，提交哈希待后续授权。
 
 
 ## [ ] 16（P1）：迁移播放设置页
