@@ -24,7 +24,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed class GeneralSettingsPageTests
 {
     [Fact]
-    public void General_settings_page_uses_formal_header_group_row_and_input_resources()
+    public void General_settings_page_uses_formal_header_and_flat_setting_rows_without_groups()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -53,17 +53,10 @@ public sealed class GeneralSettingsPageTests
                     textBlock => textBlock.Text == "常规");
                 Assert.Same(page.FindResource("App.Typography.PageTitle"), pageTitle.Style);
 
-                var closeBehaviorGroup = Assert.IsType<AppSettingsGroup>(page.FindName("CloseBehaviorGroup"));
-                Assert.Same(page.FindResource(typeof(AppSettingsGroup)), closeBehaviorGroup.Style);
-                Assert.Equal("关闭主窗口时", closeBehaviorGroup.Header);
-                Assert.Single(closeBehaviorGroup.Items);
-                AssertCloseBehaviorItemContainer(closeBehaviorGroup, page);
-
-                var startupGroup = Assert.IsType<AppSettingsGroup>(page.FindName("StartupGroup"));
-                Assert.Same(page.FindResource(typeof(AppSettingsGroup)), startupGroup.Style);
-                Assert.Equal("启动", startupGroup.Header);
-                Assert.Single(startupGroup.Items);
-                AssertStartupItemContainer(startupGroup, page);
+                Assert.Empty(VisualTreeTestHelper.FindDescendants<AppSettingsGroup>(page));
+                Assert.DoesNotContain(
+                    VisualTreeTestHelper.FindDescendants<TextBlock>(page),
+                    textBlock => ReferenceEquals(textBlock.Style, page.FindResource("App.Typography.GroupTitle")));
 
                 var closeBehaviorRow = Assert.IsType<AppSettingsRow>(page.FindName("CloseBehaviorRow"));
                 Assert.Same(page.FindResource(typeof(AppSettingsRow)), closeBehaviorRow.Style);
@@ -108,6 +101,12 @@ public sealed class GeneralSettingsPageTests
                 Assert.Equal(nameof(GeneralSettingsViewModel.StartMinimizedToTray), isCheckedBinding.Path.Path);
                 Assert.Equal(BindingMode.TwoWay, isCheckedBinding.Mode);
 
+                var flatList = Assert.IsType<StackPanel>(closeBehaviorRow.Parent);
+                Assert.Equal(2, flatList.Children.Count);
+                Assert.Same(closeBehaviorRow, flatList.Children[0]);
+                Assert.Same(startMinimizedRow, flatList.Children[1]);
+                Assert.Equal(new Thickness(0, 16, 0, 0), startMinimizedRow.Margin);
+
                 var closeRowText = VisualTreeTestHelper.FindDescendants<TextBlock>(closeBehaviorRow).ToArray();
                 Assert.Contains(closeRowText, textBlock =>
                     textBlock.Text == "关闭行为" &&
@@ -151,6 +150,14 @@ public sealed class GeneralSettingsPageTests
         Assert.DoesNotContain(
             source,
             "App.Brush.Window.Background",
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            source,
+            "AppSettingsGroup",
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            source,
+            "Header=\"",
             StringComparison.Ordinal);
         Assert.DoesNotContain(
             pageElement.Descendants(),
@@ -241,6 +248,7 @@ public sealed class GeneralSettingsPageTests
 
     [Theory]
     [InlineData(1d)]
+    [InlineData(1.25d)]
     [InlineData(1.5d)]
     public void General_settings_rows_do_not_overlap_at_supported_dpi(double scale)
     {
@@ -353,24 +361,6 @@ public sealed class GeneralSettingsPageTests
             AssertManifestMatchesPngs(secondManifest, outputDirectory, expectedGitCommit);
             Assert.Equal(firstSnapshot, CreateSnapshot(secondManifest));
         });
-    }
-
-    private static void AssertCloseBehaviorItemContainer(AppSettingsGroup group, FrameworkElement page)
-    {
-        var itemContainer = Assert.IsType<ContentControl>(
-            group.ItemContainerGenerator.ContainerFromIndex(0));
-        Assert.False(itemContainer.Focusable);
-        Assert.False(itemContainer.IsTabStop);
-        Assert.Same(page.FindResource(typeof(AppSettingsRow)), Assert.IsType<AppSettingsRow>(itemContainer.Content).Style);
-    }
-
-    private static void AssertStartupItemContainer(AppSettingsGroup group, FrameworkElement page)
-    {
-        var itemContainer = Assert.IsType<ContentControl>(
-            group.ItemContainerGenerator.ContainerFromIndex(0));
-        Assert.False(itemContainer.Focusable);
-        Assert.False(itemContainer.IsTabStop);
-        Assert.Same(page.FindResource(typeof(AppSettingsRow)), Assert.IsType<AppSettingsRow>(itemContainer.Content).Style);
     }
 
     private static void AssertControlBelowTitle(

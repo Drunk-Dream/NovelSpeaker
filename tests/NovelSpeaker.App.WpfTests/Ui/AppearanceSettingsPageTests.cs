@@ -21,7 +21,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed class AppearanceSettingsPageTests
 {
     [Fact]
-    public void Appearance_page_uses_formal_header_group_row_and_input_resources()
+    public void Appearance_page_uses_formal_header_and_flat_setting_row_without_group()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -50,14 +50,10 @@ public sealed class AppearanceSettingsPageTests
                     textBlock => textBlock.Text == "外观");
                 Assert.Same(page.FindResource("App.Typography.PageTitle"), pageTitle.Style);
 
-                var group = Assert.IsType<AppSettingsGroup>(page.FindName("ThemeGroup"));
-                Assert.Same(page.FindResource(typeof(AppSettingsGroup)), group.Style);
-                Assert.Equal("主题", group.Header);
-                Assert.Single(group.Items);
-                var itemContainer = Assert.IsType<ContentControl>(
-                    group.ItemContainerGenerator.ContainerFromIndex(0));
-                Assert.False(itemContainer.Focusable);
-                Assert.False(itemContainer.IsTabStop);
+                Assert.Empty(VisualTreeTestHelper.FindDescendants<AppSettingsGroup>(page));
+                Assert.DoesNotContain(
+                    VisualTreeTestHelper.FindDescendants<TextBlock>(page),
+                    textBlock => ReferenceEquals(textBlock.Style, page.FindResource("App.Typography.GroupTitle")));
 
                 var row = Assert.IsType<AppSettingsRow>(page.FindName("ThemeSettingRow"));
                 Assert.Same(page.FindResource(typeof(AppSettingsRow)), row.Style);
@@ -66,6 +62,8 @@ public sealed class AppearanceSettingsPageTests
                 Assert.Equal("应用主题设置", AutomationProperties.GetName(row));
                 Assert.False(row.Focusable);
                 Assert.False(row.IsTabStop);
+                var flatList = Assert.IsType<StackPanel>(row.Parent);
+                Assert.Same(row, Assert.Single(flatList.Children));
 
                 var comboBox = Assert.IsType<ComboBox>(page.FindName("ThemeComboBox"));
                 Assert.Same(page.FindResource("App.Input.ComboBox.Standard"), comboBox.Style);
@@ -118,6 +116,10 @@ public sealed class AppearanceSettingsPageTests
         Assert.DoesNotContain(
             source,
             "App.Brush.Window.Background",
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            source,
+            "AppSettingsGroup",
             StringComparison.Ordinal);
         Assert.DoesNotContain(
             pageElement.Descendants(),

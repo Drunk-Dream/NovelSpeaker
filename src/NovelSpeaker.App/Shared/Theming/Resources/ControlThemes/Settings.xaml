@@ -155,6 +155,7 @@
 
     <Style TargetType="{x:Type controls:AppSettingsRow}">
         <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
         <Setter Property="MinHeight" Value="60" />
         <Setter Property="Padding" Value="0,10" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />

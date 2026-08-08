@@ -19,22 +19,19 @@
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
-                <settingsControls:AppSettingsGroup x:Name="ThemeGroup"
-                                                   Header="主题">
-                    <settingsControls:AppSettingsRow x:Name="ThemeSettingRow"
-                                                     Title="应用主题"
-                                                     Description="跟随系统，或固定使用浅色、深色主题。"
-                                                     Focusable="False"
-                                                     IsTabStop="False"
-                                                     AutomationProperties.Name="应用主题设置">
-                        <ComboBox x:Name="ThemeComboBox"
-                                  MinWidth="180"
-                                  Style="{StaticResource App.Input.ComboBox.Standard}"
-                                  ItemsSource="{Binding AvailableThemes, Mode=OneWay}"
-                                  SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
-                                  AutomationProperties.Name="应用主题" />
-                    </settingsControls:AppSettingsRow>
-                </settingsControls:AppSettingsGroup>
+                <settingsControls:AppSettingsRow x:Name="ThemeSettingRow"
+                                                 Title="应用主题"
+                                                 Description="跟随系统，或固定使用浅色、深色主题。"
+                                                 Focusable="False"
+                                                 IsTabStop="False"
+                                                 AutomationProperties.Name="应用主题设置">
+                    <ComboBox x:Name="ThemeComboBox"
+                              MinWidth="180"
+                              Style="{StaticResource App.Input.ComboBox.Standard}"
+                              ItemsSource="{Binding AvailableThemes, Mode=OneWay}"
+                              SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
+                              AutomationProperties.Name="应用主题" />
+                </settingsControls:AppSettingsRow>
             </StackPanel>
         </ScrollViewer>
     </Grid>

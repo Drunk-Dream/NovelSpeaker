@@ -20,39 +20,33 @@
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
-                <settingsControls:AppSettingsGroup x:Name="CloseBehaviorGroup"
-                                                   Header="关闭主窗口时">
-                    <settingsControls:AppSettingsRow x:Name="CloseBehaviorRow"
-                                                     Title="关闭行为"
-                                                     Description="选择隐藏到托盘、退出应用或每次询问。"
-                                                     Focusable="False"
-                                                     IsTabStop="False"
-                                                     AutomationProperties.Name="关闭主窗口时">
-                        <ComboBox x:Name="CloseBehaviorComboBox"
-                                  MinWidth="180"
-                                  Style="{StaticResource App.Input.ComboBox.Standard}"
-                                  ItemsSource="{Binding CloseBehaviorOptions, Mode=OneWay}"
-                                  SelectedItem="{Binding SelectedCloseBehavior, Mode=TwoWay}"
-                                  DisplayMemberPath="DisplayName"
-                                  AutomationProperties.Name="关闭主窗口时" />
-                    </settingsControls:AppSettingsRow>
-                </settingsControls:AppSettingsGroup>
+                <settingsControls:AppSettingsRow x:Name="CloseBehaviorRow"
+                                                 Title="关闭行为"
+                                                 Description="选择隐藏到托盘、退出应用或每次询问。"
+                                                 Focusable="False"
+                                                 IsTabStop="False"
+                                                 AutomationProperties.Name="关闭主窗口时">
+                    <ComboBox x:Name="CloseBehaviorComboBox"
+                              MinWidth="180"
+                              Style="{StaticResource App.Input.ComboBox.Standard}"
+                              ItemsSource="{Binding CloseBehaviorOptions, Mode=OneWay}"
+                              SelectedItem="{Binding SelectedCloseBehavior, Mode=TwoWay}"
+                              DisplayMemberPath="DisplayName"
+                              AutomationProperties.Name="关闭主窗口时" />
+                </settingsControls:AppSettingsRow>
 
-                <settingsControls:AppSettingsGroup x:Name="StartupGroup"
-                                                   Header="启动"
-                                                   Margin="0,16,0,0">
-                    <settingsControls:AppSettingsRow x:Name="StartMinimizedRow"
-                                                     Title="启动后最小化到托盘"
-                                                     Description="应用仍会完成初始化和后台任务启动。"
-                                                     Focusable="False"
-                                                     IsTabStop="False"
-                                                     AutomationProperties.Name="启动后最小化到托盘">
-                        <ui:ToggleSwitch x:Name="StartMinimizedToggleSwitch"
-                                         Style="{StaticResource App.Input.ToggleSwitch.Standard}"
-                                         IsChecked="{Binding StartMinimizedToTray, Mode=TwoWay}"
-                                         AutomationProperties.Name="启动后最小化到托盘" />
-                    </settingsControls:AppSettingsRow>
-                </settingsControls:AppSettingsGroup>
+                <settingsControls:AppSettingsRow x:Name="StartMinimizedRow"
+                                                 Margin="0,16,0,0"
+                                                 Title="启动后最小化到托盘"
+                                                 Description="应用仍会完成初始化和后台任务启动。"
+                                                 Focusable="False"
+                                                 IsTabStop="False"
+                                                 AutomationProperties.Name="启动后最小化到托盘">
+                    <ui:ToggleSwitch x:Name="StartMinimizedToggleSwitch"
+                                     Style="{StaticResource App.Input.ToggleSwitch.Standard}"
+                                     IsChecked="{Binding StartMinimizedToTray, Mode=TwoWay}"
+                                     AutomationProperties.Name="启动后最小化到托盘" />
+                </settingsControls:AppSettingsRow>
             </StackPanel>
         </ScrollViewer>
     </Grid>
