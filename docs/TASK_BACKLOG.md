@@ -586,7 +586,7 @@ artifacts/visual-review/windows/<window-id>/
 
 自动验收证据：真实 `MainWindow` 在启动类 System 主题下从 SettingsPage 点击“外观”进入 AppearanceSettingsPage，并捕获 DispatcherUnhandledException；Release/Debug 均通过。完整门禁通过：Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 319，共 1,254 项测试；锁定还原无 packages.lock.json 变化，format、Release build 均通过。稳定产物已重生成并校验：`artifacts/visual-review/gallery/`（21 scenes × Light/Dark）、`artifacts/visual-review/gallery/inputs/`、`artifacts/visual-review/pages/appearance-settings/`、`artifacts/visual-review/pages/settings-home/`；所有 manifest 的 PNG 尺寸与 SHA 校验通过。仓库没有既有稳定 `main-window` window-id，因此未创建临时窗口截图目录，Shell 圆角由自动 WPF 几何合同覆盖。原子提交：`5ef1b06`（源码与直接测试）、`25e28a4`（Gallery 与视觉测试）；本条文档记录随独立 Conventional Commit 提交。
 
-## [ ] 15（P1）：迁移常规设置页
+## [x] 15（P1）：迁移常规设置页
 
 前置：14A。
 
@@ -603,6 +603,8 @@ artifacts/visual-review/windows/<window-id>/
 - 窄宽度与 150% DPI 下右侧控件可用。
 - 使用正式 `GeneralSettingsPage` 更新 `artifacts/visual-review/pages/general-settings/`。
 - 完整质量门禁通过。
+
+结果：`GeneralSettingsPage` 迁移为正式 `AppPageHeader`、`AppSettingsGroup`、`AppSettingsRow` 与 `App.Input.ComboBox.Standard`/`App.Input.ToggleSwitch.Standard` 结构；页面根背景透明、保持 24 px 留白、关闭主窗口三选项与启动后最小化到托盘设置语义不变，设置仍经 ViewModel 即时持久化。按用户要求“启动后最小化到托盘”由 CheckBox 改为 ToggleSwitch，`docs/07_SETTINGS_PAGES.md` 的常规页条目同步更新。页面不再引用任何 Legacy 键（`PagePadding`、`BackIconButtonStyle`、`SettingsRow*` 等），资源图 legacy 引用指纹随迁移重定。新增 `GeneralSettingsPageTests` 契约覆盖正式结构、绑定、AutomationName、Canvas 背景、窄宽度/150% DPI 不重叠与主题热切换；`SettingsSubpageViewTests` 移除该页的旧行断言。稳定视觉产物已生成并校验：`artifacts/visual-review/pages/general-settings/` 共 6 张 Light/Dark × 100/125/150% 截图与 manifest；`artifacts/` 按仓库规则不入 Git。完整门禁通过：Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 327，共 1,262 项测试。任务未获用户提交授权，工作树改动未提交，提交哈希待后续授权。
 
 ## [ ] 16（P1）：迁移播放设置页
 
