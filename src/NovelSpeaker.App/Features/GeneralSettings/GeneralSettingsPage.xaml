@@ -19,12 +19,11 @@
                       Margin="0,20,0,0"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
-            <StackPanel>
+            <settingsControls:AppSettingsList x:Name="SettingsList"
+                                              AutomationProperties.Name="常规设置">
                 <settingsControls:AppSettingsRow x:Name="CloseBehaviorRow"
                                                  Title="关闭行为"
                                                  Description="选择隐藏到托盘、退出应用或每次询问。"
-                                                 Focusable="False"
-                                                 IsTabStop="False"
                                                  AutomationProperties.Name="关闭主窗口时">
                     <ComboBox x:Name="CloseBehaviorComboBox"
                               MinWidth="180"
@@ -36,18 +35,15 @@
                 </settingsControls:AppSettingsRow>
 
                 <settingsControls:AppSettingsRow x:Name="StartMinimizedRow"
-                                                 Margin="0,16,0,0"
                                                  Title="启动后最小化到托盘"
                                                  Description="应用仍会完成初始化和后台任务启动。"
-                                                 Focusable="False"
-                                                 IsTabStop="False"
                                                  AutomationProperties.Name="启动后最小化到托盘">
                     <ui:ToggleSwitch x:Name="StartMinimizedToggleSwitch"
                                      Style="{StaticResource App.Input.ToggleSwitch.Standard}"
                                      IsChecked="{Binding StartMinimizedToTray, Mode=TwoWay}"
                                      AutomationProperties.Name="启动后最小化到托盘" />
                 </settingsControls:AppSettingsRow>
-            </StackPanel>
+            </settingsControls:AppSettingsList>
         </ScrollViewer>
     </Grid>
 </Page>

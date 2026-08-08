@@ -104,7 +104,7 @@ public static class GallerySceneRegistry
         new GallerySceneDefinition(
             "settings-controls",
             GallerySceneGroup.ComponentFamilies,
-            "Formal settings home groups plus standalone flat subpage rows and navigation-row fixtures across standard content types and narrow widths.",
+            "Formal settings home groups plus headerless SettingsList subpage surfaces and navigation-row fixtures across standard content types and narrow widths.",
             GallerySettingsFormScenes.CreateSettingsControls),
         new GallerySceneDefinition(
             "form-field",

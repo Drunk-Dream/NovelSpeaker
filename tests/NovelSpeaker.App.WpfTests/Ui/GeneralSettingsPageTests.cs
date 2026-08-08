@@ -24,7 +24,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed class GeneralSettingsPageTests
 {
     [Fact]
-    public void General_settings_page_uses_formal_header_and_flat_setting_rows_without_groups()
+    public void General_settings_page_uses_headerless_settings_list_without_groups()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -101,11 +101,13 @@ public sealed class GeneralSettingsPageTests
                 Assert.Equal(nameof(GeneralSettingsViewModel.StartMinimizedToTray), isCheckedBinding.Path.Path);
                 Assert.Equal(BindingMode.TwoWay, isCheckedBinding.Mode);
 
-                var flatList = Assert.IsType<StackPanel>(closeBehaviorRow.Parent);
-                Assert.Equal(2, flatList.Children.Count);
-                Assert.Same(closeBehaviorRow, flatList.Children[0]);
-                Assert.Same(startMinimizedRow, flatList.Children[1]);
-                Assert.Equal(new Thickness(0, 16, 0, 0), startMinimizedRow.Margin);
+                var settingsList = Assert.IsType<AppSettingsList>(page.FindName("SettingsList"));
+                Assert.Same(page.FindResource(typeof(AppSettingsList)), settingsList.Style);
+                Assert.Equal(2, settingsList.Items.Count);
+                Assert.Same(closeBehaviorRow, settingsList.Items[0]);
+                Assert.Same(startMinimizedRow, settingsList.Items[1]);
+                Assert.Equal(new Thickness(0), startMinimizedRow.Margin);
+                Assert.Equal("常规设置", AutomationProperties.GetName(settingsList));
 
                 var closeRowText = VisualTreeTestHelper.FindDescendants<TextBlock>(closeBehaviorRow).ToArray();
                 Assert.Contains(closeRowText, textBlock =>
@@ -154,6 +156,10 @@ public sealed class GeneralSettingsPageTests
         Assert.DoesNotContain(
             source,
             "AppSettingsGroup",
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "AppSettingsList",
+            source,
             StringComparison.Ordinal);
         Assert.DoesNotContain(
             source,

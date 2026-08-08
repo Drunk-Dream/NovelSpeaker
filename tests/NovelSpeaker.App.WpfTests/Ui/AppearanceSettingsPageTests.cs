@@ -21,7 +21,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed class AppearanceSettingsPageTests
 {
     [Fact]
-    public void Appearance_page_uses_formal_header_and_flat_setting_row_without_group()
+    public void Appearance_page_uses_headerless_settings_list_without_group()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -62,8 +62,10 @@ public sealed class AppearanceSettingsPageTests
                 Assert.Equal("应用主题设置", AutomationProperties.GetName(row));
                 Assert.False(row.Focusable);
                 Assert.False(row.IsTabStop);
-                var flatList = Assert.IsType<StackPanel>(row.Parent);
-                Assert.Same(row, Assert.Single(flatList.Children));
+                var settingsList = Assert.IsType<AppSettingsList>(page.FindName("SettingsList"));
+                Assert.Same(page.FindResource(typeof(AppSettingsList)), settingsList.Style);
+                Assert.Same(row, Assert.Single(settingsList.Items));
+                Assert.Equal("外观设置", AutomationProperties.GetName(settingsList));
 
                 var comboBox = Assert.IsType<ComboBox>(page.FindName("ThemeComboBox"));
                 Assert.Same(page.FindResource("App.Input.ComboBox.Standard"), comboBox.Style);
@@ -120,6 +122,10 @@ public sealed class AppearanceSettingsPageTests
         Assert.DoesNotContain(
             source,
             "AppSettingsGroup",
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "AppSettingsList",
+            source,
             StringComparison.Ordinal);
         Assert.DoesNotContain(
             pageElement.Descendants(),

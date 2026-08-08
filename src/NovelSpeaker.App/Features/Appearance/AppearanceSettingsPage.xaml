@@ -18,12 +18,11 @@
                       Margin="0,20,0,0"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
-            <StackPanel>
+            <settingsControls:AppSettingsList x:Name="SettingsList"
+                                              AutomationProperties.Name="外观设置">
                 <settingsControls:AppSettingsRow x:Name="ThemeSettingRow"
                                                  Title="应用主题"
                                                  Description="跟随系统，或固定使用浅色、深色主题。"
-                                                 Focusable="False"
-                                                 IsTabStop="False"
                                                  AutomationProperties.Name="应用主题设置">
                     <ComboBox x:Name="ThemeComboBox"
                               MinWidth="180"
@@ -32,7 +31,7 @@
                               SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
                               AutomationProperties.Name="应用主题" />
                 </settingsControls:AppSettingsRow>
-            </StackPanel>
+            </settingsControls:AppSettingsList>
         </ScrollViewer>
     </Grid>
 </Page>

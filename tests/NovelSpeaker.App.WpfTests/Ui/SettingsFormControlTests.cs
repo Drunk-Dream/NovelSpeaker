@@ -46,14 +46,21 @@ public sealed class SettingsFormControlTests
         var styles = settings.Root!.Elements().Concat(forms.Root!.Elements())
             .Where(element => element.Name.LocalName == "Style")
             .ToArray();
+        var implicitStyles = styles
+            .Where(style => style.Attribute(xaml + "Key") is null)
+            .ToArray();
 
-        Assert.Equal(4, styles.Length);
-        Assert.All(styles, style =>
+        Assert.Equal(6, styles.Length);
+        Assert.Equal(5, implicitStyles.Length);
+        Assert.All(implicitStyles, style =>
         {
-            Assert.Null(style.Attribute(xaml + "Key"));
             Assert.NotNull(style.Attribute("TargetType"));
             Assert.Contains(style.Descendants(), element => element.Name.LocalName == "ControlTemplate");
         });
+        var listSurfaceStyle = Assert.Single(
+            styles,
+            style => (string?)style.Attribute(xaml + "Key") == "App.Settings.ListSurface");
+        Assert.Equal("Border", listSurfaceStyle.Attribute("TargetType")?.Value);
         Assert.DoesNotContain(
             settings.Descendants().Concat(forms.Descendants()),
             element => element.Name.LocalName == "Setter" &&
@@ -328,6 +335,9 @@ public sealed class SettingsFormControlTests
             formHost.Window.UpdateLayout();
 
             Assert.NotEmpty(VisualTreeTestHelper.FindDescendants<AppSettingsGroup>(settingsScene));
+            Assert.Contains(
+                VisualTreeTestHelper.FindDescendants<AppSettingsList>(settingsScene),
+                list => list.GetType() == typeof(AppSettingsList));
             Assert.NotEmpty(VisualTreeTestHelper.FindDescendants<AppSettingsRow>(settingsScene));
             Assert.NotEmpty(VisualTreeTestHelper.FindDescendants<AppSettingsNavigationRow>(settingsScene));
             Assert.True(VisualTreeTestHelper.FindDescendants<ToggleSwitch>(settingsScene).Count() > 0);
@@ -387,7 +397,7 @@ public sealed class SettingsFormControlTests
     [Theory]
     [InlineData(GalleryTheme.Light)]
     [InlineData(GalleryTheme.Dark)]
-    public void Settings_gallery_pairs_home_groups_with_standalone_flat_rows(GalleryTheme theme)
+    public void Settings_gallery_pairs_home_groups_with_headerless_settings_lists(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -428,14 +438,36 @@ public sealed class SettingsFormControlTests
                     Assert.True(row.ActualHeight >= 60);
                 });
 
-                var flatList = VisualTreeTestHelper.FindDescendants<StackPanel>(scene)
-                    .Single(panel => AutomationProperties.GetAutomationId(panel) == "settings-controls-flat-list");
+                var flatList = VisualTreeTestHelper.FindDescendants<AppSettingsList>(scene)
+                    .Single(list =>
+                        list.GetType() == typeof(AppSettingsList) &&
+                        AutomationProperties.GetAutomationId(list) == "settings-controls-flat-list");
                 Assert.Empty(VisualTreeTestHelper.FindDescendants<AppSettingsGroup>(flatList));
                 Assert.DoesNotContain(
                     VisualTreeTestHelper.FindDescendants<WpfTextBlock>(flatList),
                     textBlock => ReferenceEquals(
                         textBlock.Style,
                         scene.FindResource("App.Typography.GroupTitle")));
+                var listSurface = Assert.IsType<Border>(VisualTreeHelper.GetChild(flatList, 0));
+                Assert.Same(flatList.FindResource("App.Brush.Surface.Primary"), listSurface.Background);
+                Assert.Equal(
+                    (CornerRadius)flatList.FindResource("App.Radius.Medium"),
+                    listSurface.CornerRadius);
+                Assert.Equal(new Thickness(20), listSurface.Padding);
+                var flatContainers = Enumerable.Range(0, flatList.Items.Count)
+                    .Select(index => Assert.IsType<ContentControl>(
+                        flatList.ItemContainerGenerator.ContainerFromIndex(index)))
+                    .ToArray();
+                Assert.Equal(2, flatContainers.Length);
+                Assert.True(
+                    Assert.IsType<Border>(
+                        flatContainers[0].Template!.FindName("ItemSurface", flatContainers[0]))
+                    .BorderThickness.Bottom > 0);
+                Assert.Equal(
+                    0,
+                    Assert.IsType<Border>(
+                        flatContainers[1].Template!.FindName("ItemSurface", flatContainers[1]))
+                    .BorderThickness.Bottom);
 
                 var wideComboRow = flatRows.Single(row =>
                     AutomationProperties.GetAutomationId(row) == "settings-controls-flat-combo");
@@ -457,8 +489,55 @@ public sealed class SettingsFormControlTests
                 Assert.True(narrowRow.IsNarrowLayout);
                 AssertControlBelowTitle(
                     narrowRow,
-                    "一段较长的扁平设置标题会自然换行",
+                    "一段较长的设置标题会自然换行",
                     VisualTreeTestHelper.FindDescendants<WpfTextBox>(narrowRow).Single());
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
+    public void Settings_list_and_group_share_surface_and_item_container_contract(GalleryTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(theme);
+
+            var list = new AppSettingsList { Width = 900 };
+            list.Items.Add(new AppSettingsRow { Title = "第一项", Description = "说明" });
+            list.Items.Add(new AppSettingsRow { Title = "第二项", Description = "说明" });
+            var group = new AppSettingsGroup { Width = 900, Header = "分组" };
+            group.Items.Add(new AppSettingsRow { Title = "第一项", Description = "说明" });
+            group.Items.Add(new AppSettingsRow { Title = "第二项", Description = "说明" });
+
+            using var host = WpfWindowHost.Show(new Window
+            {
+                Content = new StackPanel { Children = { list, group } },
+                Width = 1000,
+                Height = 600,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            });
+            host.Window.UpdateLayout();
+
+            Assert.Same(list.FindResource(typeof(AppSettingsList)), list.Style);
+            Assert.Same(group.FindResource(typeof(AppSettingsGroup)), group.Style);
+            var listSurface = Assert.IsType<Border>(VisualTreeHelper.GetChild(list, 0));
+            var groupSurface = Assert.IsType<Border>(VisualTreeHelper.GetChild(group, 0));
+            Assert.Same(list.FindResource("App.Brush.Surface.Primary"), listSurface.Background);
+            Assert.Same(group.FindResource("App.Brush.Surface.Primary"), groupSurface.Background);
+            Assert.Equal(listSurface.CornerRadius, groupSurface.CornerRadius);
+            Assert.Equal(listSurface.Padding, groupSurface.Padding);
+            Assert.Equal(new Thickness(20), listSurface.Padding);
+
+            foreach (var owner in new AppSettingsList[] { list, group })
+            {
+                var first = Assert.IsType<ContentControl>(owner.ItemContainerGenerator.ContainerFromIndex(0));
+                var last = Assert.IsType<ContentControl>(owner.ItemContainerGenerator.ContainerFromIndex(1));
+                Assert.True(Assert.IsType<Border>(first.Template!.FindName("ItemSurface", first)).BorderThickness.Bottom > 0);
+                Assert.Equal(0, Assert.IsType<Border>(last.Template!.FindName("ItemSurface", last)).BorderThickness.Bottom);
             }
         });
     }

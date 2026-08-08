@@ -55,7 +55,16 @@
         </ui:SymbolIcon>
     </DataTemplate>
 
-    <Style TargetType="{x:Type controls:AppSettingsGroup}">
+    <Style x:Key="App.Settings.ListSurface"
+           TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="{StaticResource App.Radius.Medium}" />
+        <Setter Property="Padding" Value="20" />
+    </Style>
+
+    <Style TargetType="{x:Type controls:AppSettingsList}">
         <Setter Property="Focusable" Value="False" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Stretch" />
@@ -86,7 +95,7 @@
                                                       VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
                                 </Border>
                                 <ControlTemplate.Triggers>
-                                    <Trigger Property="controls:AppSettingsGroup.IsLastItem" Value="True">
+                                    <Trigger Property="controls:AppSettingsList.IsLastItem" Value="True">
                                         <Setter TargetName="ItemSurface" Property="BorderThickness" Value="0" />
                                     </Trigger>
                                 </ControlTemplate.Triggers>
@@ -98,12 +107,21 @@
         </Setter>
         <Setter Property="Template">
             <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:AppSettingsList}">
+                    <Border Style="{StaticResource App.Settings.ListSurface}">
+                        <ItemsPresenter />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="{x:Type controls:AppSettingsGroup}"
+           BasedOn="{StaticResource {x:Type controls:AppSettingsList}}">
+        <Setter Property="Template">
+            <Setter.Value>
                 <ControlTemplate TargetType="{x:Type controls:AppSettingsGroup}">
-                    <Border Background="{DynamicResource App.Brush.Surface.Primary}"
-                            BorderBrush="{DynamicResource App.Brush.Border.Subtle}"
-                            BorderThickness="0"
-                            CornerRadius="{StaticResource App.Radius.Medium}"
-                            Padding="20">
+                    <Border Style="{StaticResource App.Settings.ListSurface}">
                         <Grid SnapsToDevicePixels="True">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />

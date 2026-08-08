@@ -18,7 +18,7 @@ internal static class GallerySettingsFormScenes
         CreateSceneRoot(
             "settings-controls",
             "Settings controls",
-            "Settings home groups keep Primary Surface and row separators while standalone flat subpage rows share the same row contract without group wrappers.",
+            "Settings home groups add category headers, while settings subpages use the same Primary Surface, radius, padding and separators through a headerless SettingsList.",
             CreateSettingsContent());
 
     public static FrameworkElement CreateFormField() =>
@@ -150,49 +150,50 @@ internal static class GallerySettingsFormScenes
         content.Children.Add(secondaryStack);
         Grid.SetColumn(secondaryStack, 1);
 
-        var flatList = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
-        flatList.WithAutomation("settings-controls-flat-list", "扁平设置行");
-        flatList.Children.Add(CreateSettingsRow(
+        var subpageLists = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
+        var flatList = new AppSettingsList();
+        flatList.WithAutomation("settings-controls-flat-list", "无标题设置列表");
+        flatList.Items.Add(CreateSettingsRow(
             "settings-controls-flat-combo",
             "应用主题",
-            "子页面中设置行直接位于扁平列表，不再显示“主题”分组标题。",
+            "子页面保留与设置首页一致的列表 Surface，但不显示“主题”等分组标题。",
             new WpfComboBox
             {
                 ItemsSource = new[] { "跟随系统", "浅色", "深色" },
                 SelectedIndex = 0,
                 Style = FindStyle("App.Input.ComboBox.Standard")
             }));
-        flatList.Children.Add(CreateSettingsRow(
+        flatList.Items.Add(CreateSettingsRow(
             "settings-controls-flat-toggle",
             "启动后最小化到托盘",
-            "ToggleSwitch 与标题共享同一行几何，行与行之间只保留稳定间距。",
+            "无标签 ToggleSwitch 按可见开关本体收缩，并由设置行右侧 ValuePresenter 对齐。",
             new ToggleSwitch
             {
                 IsChecked = true,
-                OnContent = "开启",
-                OffContent = "关闭",
                 Style = FindStyle("App.Input.ToggleSwitch.Standard")
             }));
-        var narrowFlatRows = new StackPanel
+        subpageLists.Children.Add(flatList);
+
+        var narrowFlatList = new AppSettingsList
         {
             Width = 360,
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(0, 16, 0, 0)
         };
-        narrowFlatRows.WithAutomation("settings-controls-flat-narrow-list", "窄扁平设置行");
-        narrowFlatRows.Children.Add(CreateSettingsRow(
+        narrowFlatList.WithAutomation("settings-controls-flat-narrow-list", "窄无标题设置列表");
+        narrowFlatList.Items.Add(CreateSettingsRow(
             "settings-controls-flat-narrow",
-            "一段较长的扁平设置标题会自然换行",
-            "独立行在窄宽度与 100/125/150% DPI 下仍与右侧控件保持垂直排列。",
+            "一段较长的设置标题会自然换行",
+            "SettingsList 在窄宽度与 100/125/150% DPI 下仍保留 Surface、圆角、分隔与纵向布局。",
             new WpfTextBox
             {
                 Text = "自适应",
                 Style = FindStyle("App.Input.TextBox.Compact")
             }));
-        flatList.Children.Add(narrowFlatRows);
-        content.Children.Add(flatList);
-        Grid.SetRow(flatList, 1);
-        Grid.SetColumnSpan(flatList, 2);
+        subpageLists.Children.Add(narrowFlatList);
+        content.Children.Add(subpageLists);
+        Grid.SetRow(subpageLists, 1);
+        Grid.SetColumnSpan(subpageLists, 2);
         return content;
     }
 
