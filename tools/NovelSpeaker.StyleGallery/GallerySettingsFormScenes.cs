@@ -18,7 +18,7 @@ internal static class GallerySettingsFormScenes
         CreateSceneRoot(
             "settings-controls",
             "Settings controls",
-            "Formal settings groups use Primary Surface and row separators without a full outline; rows own vertical density and keep header alignment.",
+            "Settings home groups keep Primary Surface and row separators while standalone flat subpage rows share the same row contract without group wrappers.",
             CreateSettingsContent());
 
     public static FrameworkElement CreateFormField() =>
@@ -33,6 +33,8 @@ internal static class GallerySettingsFormScenes
         var content = new Grid();
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         var primaryGroup = new AppSettingsGroup
         {
@@ -147,6 +149,50 @@ internal static class GallerySettingsFormScenes
         secondaryStack.Children.Add(narrowGroup);
         content.Children.Add(secondaryStack);
         Grid.SetColumn(secondaryStack, 1);
+
+        var flatList = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
+        flatList.WithAutomation("settings-controls-flat-list", "扁平设置行");
+        flatList.Children.Add(CreateSettingsRow(
+            "settings-controls-flat-combo",
+            "应用主题",
+            "子页面中设置行直接位于扁平列表，不再显示“主题”分组标题。",
+            new WpfComboBox
+            {
+                ItemsSource = new[] { "跟随系统", "浅色", "深色" },
+                SelectedIndex = 0,
+                Style = FindStyle("App.Input.ComboBox.Standard")
+            }));
+        flatList.Children.Add(CreateSettingsRow(
+            "settings-controls-flat-toggle",
+            "启动后最小化到托盘",
+            "ToggleSwitch 与标题共享同一行几何，行与行之间只保留稳定间距。",
+            new ToggleSwitch
+            {
+                IsChecked = true,
+                OnContent = "开启",
+                OffContent = "关闭",
+                Style = FindStyle("App.Input.ToggleSwitch.Standard")
+            }));
+        var narrowFlatRows = new StackPanel
+        {
+            Width = 360,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 16, 0, 0)
+        };
+        narrowFlatRows.WithAutomation("settings-controls-flat-narrow-list", "窄扁平设置行");
+        narrowFlatRows.Children.Add(CreateSettingsRow(
+            "settings-controls-flat-narrow",
+            "一段较长的扁平设置标题会自然换行",
+            "独立行在窄宽度与 100/125/150% DPI 下仍与右侧控件保持垂直排列。",
+            new WpfTextBox
+            {
+                Text = "自适应",
+                Style = FindStyle("App.Input.TextBox.Compact")
+            }));
+        flatList.Children.Add(narrowFlatRows);
+        content.Children.Add(flatList);
+        Grid.SetRow(flatList, 1);
+        Grid.SetColumnSpan(flatList, 2);
         return content;
     }
 

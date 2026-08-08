@@ -387,6 +387,85 @@ public sealed class SettingsFormControlTests
     [Theory]
     [InlineData(GalleryTheme.Light)]
     [InlineData(GalleryTheme.Dark)]
+    public void Settings_gallery_pairs_home_groups_with_standalone_flat_rows(GalleryTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(theme);
+
+            foreach (var scale in new[] { 1d, 1.25d, 1.5d })
+            {
+                var scene = GallerySceneRegistry.Build("settings-controls");
+                scene.LayoutTransform = new ScaleTransform(scale, scale);
+                using var host = WpfWindowHost.Show(new Window
+                {
+                    Content = scene,
+                    Width = GalleryRenderSettings.WindowWidth,
+                    Height = GalleryRenderSettings.WindowHeight,
+                    ShowInTaskbar = false,
+                    WindowStyle = WindowStyle.ToolWindow
+                });
+                host.Window.UpdateLayout();
+
+                Assert.Equal(
+                    4,
+                    VisualTreeTestHelper.FindDescendants<AppSettingsGroup>(scene).ToArray().Length);
+
+                var flatRows = VisualTreeTestHelper.FindDescendants<AppSettingsRow>(scene)
+                    .Where(row => AutomationProperties.GetAutomationId(row)?.StartsWith(
+                        "settings-controls-flat-",
+                        StringComparison.Ordinal) == true)
+                    .ToArray();
+                Assert.Equal(3, flatRows.Length);
+                Assert.All(flatRows, row =>
+                {
+                    Assert.False(HasGroupAncestor(row));
+                    Assert.False(row.Focusable);
+                    Assert.False(row.IsTabStop);
+                    Assert.Equal(row.Title, AutomationProperties.GetName(row));
+                    Assert.True(row.ActualWidth > 0);
+                    Assert.True(row.ActualHeight >= 60);
+                });
+
+                var flatList = VisualTreeTestHelper.FindDescendants<StackPanel>(scene)
+                    .Single(panel => AutomationProperties.GetAutomationId(panel) == "settings-controls-flat-list");
+                Assert.Empty(VisualTreeTestHelper.FindDescendants<AppSettingsGroup>(flatList));
+                Assert.DoesNotContain(
+                    VisualTreeTestHelper.FindDescendants<WpfTextBlock>(flatList),
+                    textBlock => ReferenceEquals(
+                        textBlock.Style,
+                        scene.FindResource("App.Typography.GroupTitle")));
+
+                var wideComboRow = flatRows.Single(row =>
+                    AutomationProperties.GetAutomationId(row) == "settings-controls-flat-combo");
+                var wideToggleRow = flatRows.Single(row =>
+                    AutomationProperties.GetAutomationId(row) == "settings-controls-flat-toggle");
+                Assert.False(wideComboRow.IsNarrowLayout);
+                Assert.False(wideToggleRow.IsNarrowLayout);
+                AssertControlDoesNotOverlapTitle(
+                    wideComboRow,
+                    "应用主题",
+                    VisualTreeTestHelper.FindDescendants<ComboBox>(wideComboRow).Single());
+                AssertControlDoesNotOverlapTitle(
+                    wideToggleRow,
+                    "启动后最小化到托盘",
+                    VisualTreeTestHelper.FindDescendants<ToggleSwitch>(wideToggleRow).Single());
+
+                var narrowRow = flatRows.Single(row =>
+                    AutomationProperties.GetAutomationId(row) == "settings-controls-flat-narrow");
+                Assert.True(narrowRow.IsNarrowLayout);
+                AssertControlBelowTitle(
+                    narrowRow,
+                    "一段较长的扁平设置标题会自然换行",
+                    VisualTreeTestHelper.FindDescendants<WpfTextBox>(narrowRow).Single());
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
     public void Settings_group_geometry_keeps_baseline_and_controls_at_supported_dpi_scales(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
@@ -593,6 +672,60 @@ public sealed class SettingsFormControlTests
         Assert.True(
             titleBounds.Right <= valueBounds.Left,
             "The row title must not overlap the right-side control.");
+    }
+
+    private static void AssertControlDoesNotOverlapTitle(
+        AppSettingsRow row,
+        string title,
+        FrameworkElement value)
+    {
+        var titleBlock = Assert.IsType<WpfTextBlock>(
+            row.Template!.FindName("TitlePresenter", row));
+        Assert.Equal(title, titleBlock.Text);
+        Assert.True(row.ActualWidth > 0);
+        Assert.True(row.ActualHeight > 0);
+
+        var titleBounds = titleBlock.TransformToAncestor(row)
+            .TransformBounds(new Rect(new Point(), titleBlock.RenderSize));
+        var valueBounds = value.TransformToAncestor(row)
+            .TransformBounds(new Rect(new Point(), value.RenderSize));
+        Assert.True(titleBounds.Right <= valueBounds.Left);
+        Assert.True(valueBounds.Right <= row.ActualWidth);
+    }
+
+    private static void AssertControlBelowTitle(
+        AppSettingsRow row,
+        string title,
+        FrameworkElement value)
+    {
+        var titleBlock = Assert.IsType<WpfTextBlock>(
+            row.Template!.FindName("TitlePresenter", row));
+        Assert.Equal(title, titleBlock.Text);
+        Assert.True(row.ActualWidth > 0);
+        Assert.True(row.ActualHeight > 0);
+
+        var titleBounds = titleBlock.TransformToAncestor(row)
+            .TransformBounds(new Rect(new Point(), titleBlock.RenderSize));
+        var valueBounds = value.TransformToAncestor(row)
+            .TransformBounds(new Rect(new Point(), value.RenderSize));
+        Assert.True(titleBounds.Bottom <= valueBounds.Top);
+        Assert.True(valueBounds.Right <= row.ActualWidth);
+    }
+
+    private static bool HasGroupAncestor(DependencyObject element)
+    {
+        var current = LogicalTreeHelper.GetParent(element);
+        while (current is not null)
+        {
+            if (current is AppSettingsGroup)
+            {
+                return true;
+            }
+
+            current = LogicalTreeHelper.GetParent(current);
+        }
+
+        return false;
     }
 
     private static Style FindStyle(string key) =>
