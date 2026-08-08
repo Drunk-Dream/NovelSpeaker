@@ -24,16 +24,17 @@
 
 所有入口使用 `icon + 标题 + Chevron` 的无边框导航行；整行 hover 使用圆角状态层。
 
+设置首页是设置体系中保留视觉分组的页面：使用 `AppSettingsGroup` 按“常用 / 文本处理 / 应用”等导航类别组织入口。该分组只服务于首页的信息架构，不下放到具体设置子页面。
+
 ## 2. 通用布局
 
-- 所有正式设置页从 Page 根区域开始完整使用 `App.Brush.Canvas`；`App.Brush.Window.Background` 只属于 Window/Shell，不得在页面 Padding 周围露出一圈更深或更浅的壳层背景。
-- 页面 Padding 是 Canvas 上的布局留白，不通过带 Margin 的内部 Canvas 面板模拟页面背景。
-- 二级页面本身不再分过多视觉小组；相关设置用轻量分组面板组织。
-- 设置分组默认依靠 Primary Surface、圆角和留白形成边界，不绘制完整外框；特殊描边只能作为有真实调用点的显式变体。
-- 分组 Header 保留，但视觉权重低于设置行标题，并与设置行标题保持左侧基线对齐。
-- 设置行左侧为标题和必要说明，右侧为 Switch、ComboBox、NumberBox 等控件。
-- 设置行自身拥有纵向 Padding；分组 ItemContainer 不再叠加额外上下 Padding，避免单行分组过高。
-- Group 负责主要横向内容 Padding，Row 不再重复同等横向缩进。
+- 所有正式设置页根节点保持透明；`App.Brush.Canvas` 由 Shell 的 `NavigationView` 内容宿主统一提供，`App.Brush.Window.Background` 只属于 Window/Shell。页面不得重新绘制不透明根背景，从而避免 Padding 周围出现壳层色环或遮挡 Shell 左上圆角。
+- 页面 Padding 是 Shell Canvas 上的布局留白，不通过带 Margin 的内部 Canvas 面板模拟页面背景。
+- **设置首页保留分组，设置子页面不再分组。** `SettingsPage` 可使用 `AppSettingsGroup` 组织导航类别；Appearance、General、Playback、Import/Text、Cache/Data、Diagnostics/About 等具体设置子页面不得再用 Group Header、分组卡片或多个 Section Surface 划分普通设置项。
+- 设置子页面在 `AppPageHeader` 下直接以单一扁平列表展示全部设置项。普通设置使用 `AppSettingsRow`，需要进入三级页面的项目可在同一列表中使用 `AppSettingsNavigationRow`；顺序本身表达逻辑关系，不再增加“主题”“启动”等重复分组标题。
+- 设置行左侧为标题和必要说明，右侧为 Switch、ComboBox、NumberBox 等控件。`AppSettingsRow` 必须能够脱离 `AppSettingsGroup` 独立使用。
+- 扁平列表的纵向密度由 Row 与列表宿主共同控制，只使用稳定的行间距或必要分隔线；不得为了获得圆角背景重新套一层 `AppSettingsGroup`。
+- 危险操作仍通过危险按钮样式、说明文案和确认流程表达风险，不通过恢复分组卡片来表达。
 - 设置改变后按字段语义即时保存或显式保存，不让多个页面各自实现不同防抖逻辑。
 - 三级页面使用明确返回入口，并继续经过统一导航 guard。
 
@@ -168,8 +169,8 @@
 
 - 跟随系统 / 浅色 / 深色。
 - 主题切换即时生效并持久化。
-- 页面根背景使用 Canvas，不在 24 px 页面 Padding 外露出 Window Background。
-- “主题”分组使用优化后的 SettingsGroup/SettingsRow：无默认完整描边、中等密度、Group Header 弱于 Row Title，并保持统一左侧基线。
+- 页面根节点保持透明，由 Shell 内容宿主提供 Canvas；24 px 页面 Padding 周围不得露出 Window Background，也不得遮挡 Shell 左上圆角。
+- 页面只展示“应用主题”这一设置行，不再显示“主题”分组标题或外围分组卡片；主题 ComboBox 直接位于扁平设置列表中。
 - 页面当前横向宽度策略保持不变，不新增统一 `MaxWidth`。
 - 不为每个页面提供独立颜色配置。
 

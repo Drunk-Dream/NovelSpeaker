@@ -611,11 +611,12 @@ sans-serif
 
 ### 9.3 AppSettingsGroup
 
-组织一组设置项，并统一处理分组表面、行分隔线和首尾圆角。
+组织设置首页等确实需要分类的信息集合，并统一处理分组表面、行分隔线和首尾圆角。**普通设置子页面不使用该控件。**
 
 职责：
 
 - 提供 Header、Description、Items 和 Footer 槽。
+- 设置体系中的主要正式调用点是 `SettingsPage` 首页，用于“常用 / 文本处理 / 应用”等导航类别；不得因为子页面有多个设置项就机械套用 Group。
 - 默认使用 Primary Surface 与圆角形成分组，不绘制完整外框；只有出现真实、稳定的强调边界需求时才允许新增显式具名变体。
 - Group 统一拥有外部内容 Padding；设置行不再重复承担同等横向缩进。
 - 分隔线由 Group 模板拥有，并直接位于相邻设置行之间；ItemContainer 不再增加额外纵向 Padding。
@@ -625,14 +626,14 @@ sans-serif
 
 ### 9.4 AppSettingsRow
 
-封装设置标题、说明和右侧值/控件区域。
+封装设置标题、说明和右侧值/控件区域。它既可以作为需要分组场景中的 Item，也必须支持在设置子页面的扁平列表中独立使用。
 
 职责：
 
 - 提供 Title、Description 和 Value/Content 槽。
 - 支持 ToggleSwitch、ComboBox、TextBox、Button 和只读值。
 - 设置行是行级纵向密度的唯一 owner；Group 的 ItemContainer 不再叠加上下 Padding。
-- 默认横向 Padding 为 0 或仅保留最小必要值，使设置行标题与 Group Header 对齐；不得再形成 Group Padding + Row Padding 的双重缩进。
+- 默认横向 Padding 为 0 或仅保留最小必要值；在扁平子页面中直接与页面内容基线对齐，在确有 Group 的场景中不得形成 Group Padding + Row Padding 的双重缩进。
 - 只规定最小高度和内部布局，不规定页面统一右侧固定宽度。
 - 窄宽度下允许右侧内容换行或转为纵向布局。
 
@@ -688,11 +689,11 @@ sans-serif
 | StartupStatusWindow | Typography、Surface、Progress、Feedback | AppStatusView | 启动阶段文本与状态切换 |
 | MainWindow | Navigation、Button、Surface、Menu | 无强制页面壳控件 | Window Chrome、一级导航、内容宿主、托盘入口 |
 | Settings 首页 | Typography、Navigation、Surface | AppPageHeader、AppSettingsGroup、AppSettingsNavigationRow | 导航项集合和页面 Padding |
-| 各设置子页 | Typography、Input、Button、Feedback | AppPageHeader、AppSettingsGroup、AppSettingsRow | 设置绑定、保存时机、危险操作区 |
+| 各设置子页 | Typography、Input、Button、Feedback | AppPageHeader、AppSettingsRow；需要三级入口时可用 AppSettingsNavigationRow | 扁平设置列表、设置绑定、保存时机、危险操作语义 |
 | Library | Typography、Button、Surface、Progress | AppPageHeader、AppStatusView | BookCardView、自适应网格、搜索与排序 |
 | Book Details | Typography、Input、Selection、Progress | AppPageHeader、AppSectionSurface、AppStatusView | 摘要、编辑区、目录模板、虚拟化与定位 |
 | TTS/Chapter/Regex Rules | Typography、Input、Selection、Menu、Feedback | AppPageHeader、AppSectionSurface、AppFormField、AppStatusView | Rules 共享列表项、各自字段、分栏和 Dirty State |
-| Cache And Data | Typography、Input、Button、Feedback | AppPageHeader、AppSettingsGroup、AppSettingsRow | 数据操作、确认和路径信息 |
+| Cache And Data | Typography、Input、Button、Feedback | AppPageHeader、AppSettingsRow、AppSettingsNavigationRow | 扁平设置列表、数据操作、确认和路径信息 |
 | Cache Management | Typography、Selection、Progress、Menu、Feedback | AppPageHeader、AppSectionSurface、AppStatusView | 单书分栏、章节项、多选工具栏和后台状态 |
 | Player | Typography、Surface、Button、Media、Progress、Feedback | AppPageHeader、AppSectionSurface、AppStatusView | PlayerView、正文、侧栏、滚动追随和 Flyout 内容 |
 | Mini Player | Typography、Surface、Button、Media | 无强制复合控件 | 固定横向布局、窗口动作和尺寸约束 |
@@ -734,14 +735,13 @@ sans-serif
 
 ### 12.5 设置页
 
-- 设置入口使用 `图标 + 标题 + Chevron` 整行导航。
+- 设置首页入口使用 `图标 + 标题 + Chevron` 整行导航，并保留 `AppSettingsGroup` 对“常用 / 文本处理 / 应用”等导航类别的分组。
 - 所有正式设置页根节点保持透明；Canvas 由 Shell 的 `NavigationView` 内容宿主统一提供，因此页面 Padding 周围既不会出现 Window Background 色环，也不会遮住 Shell 左上圆角。
-- 二级页使用 Settings Group 和 Settings Row。
-- Settings Group 默认依靠 Primary Surface、圆角和留白分组，不绘制完整边框。
-- Group Header 保留结构意义但弱于设置行标题；Header 与设置行标题保持统一左侧基线。
-- 行级纵向密度由 Settings Row 单独拥有，不通过 Group ItemContainer 再叠加上下 Padding。
+- **除设置首页外，具体设置子页面统一采用扁平列表，不显示分组 Header，不使用 `AppSettingsGroup` 包裹普通设置项，也不为每个逻辑类别绘制独立圆角卡片。**
+- 子页面在 `AppPageHeader` 下直接排列 `AppSettingsRow`；存在三级入口时可在同一列表中排列 `AppSettingsNavigationRow`。标题、说明和控件本身提供足够语义，不再重复显示“主题”“启动”等上层分类标题。
+- `AppSettingsRow` 的独立布局、窄宽度适配、Focus/Automation 与纵向密度不得依赖 Group 容器。行之间只使用稳定间距或必要分隔线，不通过重新引入 Surface 分组表达层次。
 - 普通布尔项使用 ToggleSwitch，枚举项使用 ComboBox。
-- 危险数据操作独立位于页面底部。
+- 危险数据操作通过危险按钮样式、说明与确认流程表达风险；即使位于页面底部，也不因此恢复普通 Settings Group。
 - 页面内容宽度继续由各页面拥有；本轮视觉规范不新增统一 `MaxWidth`，也不改变既有设置页的横向铺展策略。
 
 ### 12.6 缓存管理

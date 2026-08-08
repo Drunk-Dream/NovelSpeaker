@@ -95,6 +95,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 → 设置首页
 → Shell 圆角与 ComboBox Popup 视觉修正确认
 → 常规设置
+→ 已迁移设置子页扁平化修正
 → 播放设置
 → 导入与文本
 → 缓存与数据
@@ -606,13 +607,44 @@ artifacts/visual-review/windows/<window-id>/
 
 结果：`GeneralSettingsPage` 迁移为正式 `AppPageHeader`、`AppSettingsGroup`、`AppSettingsRow` 与 `App.Input.ComboBox.Standard`/`App.Input.ToggleSwitch.Standard` 结构；页面根背景透明、保持 24 px 留白、关闭主窗口三选项与启动后最小化到托盘设置语义不变，设置仍经 ViewModel 即时持久化。按用户要求“启动后最小化到托盘”由 CheckBox 改为 ToggleSwitch，`docs/07_SETTINGS_PAGES.md` 的常规页条目同步更新。页面不再引用任何 Legacy 键（`PagePadding`、`BackIconButtonStyle`、`SettingsRow*` 等），资源图 legacy 引用指纹随迁移重定。新增 `GeneralSettingsPageTests` 契约覆盖正式结构、绑定、AutomationName、Canvas 背景、窄宽度/150% DPI 不重叠与主题热切换；`SettingsSubpageViewTests` 移除该页的旧行断言。稳定视觉产物已生成并校验：`artifacts/visual-review/pages/general-settings/` 共 6 张 Light/Dark × 100/125/150% 截图与 manifest；`artifacts/` 按仓库规则不入 Git。完整门禁通过：Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 327，共 1,262 项测试。任务未获用户提交授权，工作树改动未提交，提交哈希待后续授权。
 
-## [ ] 16（P1）：迁移播放设置页
+## [ ] 15A（P1）：将已迁移设置子页面改为扁平列表
 
 前置：15。
 
+背景：
+
+- 最终设置视觉规则调整为：只有 `SettingsPage` 首页按导航类别保留 `AppSettingsGroup`；具体设置子页面不再显示“主题”“关闭主窗口时”“启动”等分组 Header，也不再为普通设置类别绘制独立圆角分组卡片。
+- 已迁移的 `AppearanceSettingsPage` 与 `GeneralSettingsPage` 仍使用了 `AppSettingsGroup`，需要在继续迁移其它设置子页面前先纠正，以免旧模式扩散。
+
 实现：
 
-- 使用正式 PageHeader、SettingsGroup、SettingsRow、Input 和 Feedback 资源迁移 `PlaybackSettingsPage`。
+- 调整 `AppearanceSettingsPage`：移除 `ThemeGroup`/“主题”分组层，保留 `AppPageHeader` 与“应用主题” `AppSettingsRow`，主题 ComboBox、即时生效、持久化、返回导航和 AutomationName 语义不变。
+- 调整 `GeneralSettingsPage`：移除“关闭主窗口时”“启动”两个 `AppSettingsGroup` 及重复 Group Header，将“关闭行为”“启动后最小化到托盘”按现有业务顺序直接排列为一个扁平设置列表；ComboBox/ToggleSwitch 绑定和即时持久化语义不变。
+- `SettingsPage` 首页保持现状，继续使用 `AppSettingsGroup` 对导航入口分类；不得把本任务误扩展为取消首页分组。
+- 确认 `AppSettingsRow` 在不处于 `AppSettingsGroup` 时仍具有正确的宽/窄布局、纵向密度、右侧控件对齐、Focus、Automation 和整行几何；如公共模板存在对 Group 的隐式依赖，只在 `ControlThemes/Settings.xaml` 中做最小通用修正，不增加页面专属 Style。
+- 子页面行之间只使用现有稳定间距或必要分隔线，不新增分组 Header、Primary Surface 卡片或用 `AppSectionSurface` 伪装新的分组。
+- 更新 `settings-controls` Gallery family，加入“standalone/flat settings rows”稳定场景，并保留首页 Group 场景，从 Gallery 上同时可检查“首页分组”和“子页扁平列表”两种明确用途。
+- 更新现有静态资源/视觉树契约，明确 `AppearanceSettingsPage`、`GeneralSettingsPage` 不再含 `AppSettingsGroup`，而 `SettingsPage` 仍含分组。
+
+自动验收：
+
+- 外观页与常规页的设置绑定、即时保存、返回导航、主题热切换、关闭/托盘偏好全部回归通过。
+- XAML/视觉树合同确认两个设置子页面无 `AppSettingsGroup`、无旧分组 Header；设置首页的 `AppSettingsGroup` 分类仍存在。
+- 独立 `AppSettingsRow` 在宽/窄窗口、长说明、ComboBox/ToggleSwitch 与 100/125/150% DPI 下不重叠，右侧控件可点击，Tab/Automation 行为不退化。
+- 更新 `artifacts/visual-review/gallery/settings-controls/`，并使用正式 View 重新生成：
+  - `artifacts/visual-review/pages/appearance-settings/`
+  - `artifacts/visual-review/pages/general-settings/`
+  的 Light/Dark、100/125/150% DPI 截图与 manifest；不得建立 `15A` 命名的视觉目录。
+- 完整质量门禁通过。
+
+
+## [ ] 16（P1）：迁移播放设置页
+
+前置：15A。
+
+实现：
+
+- 使用正式 PageHeader、SettingsRow、Input 和 Feedback 资源迁移 `PlaybackSettingsPage`；设置项直接组成单一扁平列表，不使用 SettingsGroup 或分类 Header。
 - 覆盖默认语速、预取数量和朗读章节标题。
 - 错误信息使用 FormField 或 Feedback Style，不复制局部错误文本样式。
 - 保持即时保存、朗读清单按需重算和主动缓存批次快照语义。
@@ -631,7 +663,7 @@ artifacts/visual-review/windows/<window-id>/
 
 实现：
 
-- 使用正式 PageHeader、SettingsGroup、SettingsRow、SettingsNavigationRow、Input 和 Feedback 资源迁移 `ImportTextSettingsPage`。
+- 使用正式 PageHeader、SettingsRow、SettingsNavigationRow、Input 和 Feedback 资源迁移 `ImportTextSettingsPage`；普通设置与三级入口按业务顺序进入同一扁平列表，不使用 SettingsGroup 或分类 Header。
 - 覆盖长段落切分、阈值、文件名提取设置和正则替换三级入口。
 - 保持即时保存、校验和导航语义。
 - 删除该页全部 Legacy 键引用。
@@ -649,7 +681,7 @@ artifacts/visual-review/windows/<window-id>/
 
 实现：
 
-- 使用正式 PageHeader、SettingsGroup、SettingsRow、SettingsNavigationRow、Button 和 Feedback 资源迁移 `CacheAndDataPage`。
+- 使用正式 PageHeader、SettingsRow、SettingsNavigationRow、Button 和 Feedback 资源迁移 `CacheAndDataPage`；设置、只读信息和导航入口采用扁平列表，不使用 SettingsGroup 或分类 Header。
 - 显示缓存占用、容量上限、使用率、LRU 说明、应用数据目录、清理全部缓存和缓存管理入口。
 - 危险操作保持独立区域和确认流程。
 - 保持容量调低后的确认、LRU 清理、保护 registry 和朗读清单同步回收语义。
@@ -668,7 +700,7 @@ artifacts/visual-review/windows/<window-id>/
 
 实现：
 
-- 使用正式 PageHeader、SettingsGroup、SettingsRow、Button、Typography 和 Feedback 资源迁移 `DiagnosticsAboutPage`。
+- 使用正式 PageHeader、SettingsRow、Button、Typography 和 Feedback 资源迁移 `DiagnosticsAboutPage`；版本、目录、诊断摘要与操作按扁平列表组织，不使用 SettingsGroup 或分类 Header。
 - 覆盖版本、目录入口、数据库 schema、安全诊断摘要、许可证和复制脱敏诊断信息。
 - 只读值使用 SettingsRow 内容槽，不建立专用 Value TextBlock 旧样式。
 - 保持日志与诊断脱敏边界。
