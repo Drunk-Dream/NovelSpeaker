@@ -247,7 +247,7 @@ public sealed class InputStyleContractTests
     [Theory]
     [InlineData(GalleryTheme.Light)]
     [InlineData(GalleryTheme.Dark)]
-    public void Every_input_control_has_nonzero_layout_and_unlabeled_toggles_keep_their_minimum_width(GalleryTheme theme)
+    public void Every_input_control_has_nonzero_layout_and_toggle_width_follows_content(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -275,19 +275,92 @@ public sealed class InputStyleContractTests
                         $"{AutomationProperties.GetAutomationId(control)} height was not usable.");
                 });
 
-                foreach (var toggle in controls.OfType<ToggleSwitch>())
-                {
-                    Assert.True(toggle.MinWidth > 0);
-                    Assert.True(
-                        toggle.ActualWidth + 0.01 >= toggle.MinWidth,
-                        $"{AutomationProperties.GetAutomationId(toggle)} collapsed below its minimum width.");
-                }
+                var labeled = GetControl<ToggleSwitch>(controls, "input-toggle-labeled-on-standard");
+                var unlabeled = GetControl<ToggleSwitch>(controls, "input-toggle-unlabeled-on-compact");
+                var trackWidth = Assert.IsType<double>(
+                    global::System.Windows.Application.Current.FindResource("App.Input.ToggleSwitch.TrackWidth"));
+                Assert.InRange(Math.Abs(unlabeled.ActualWidth - trackWidth), 0, 0.5);
+                Assert.True(
+                    unlabeled.ActualWidth < labeled.ActualWidth,
+                    "An unlabeled ToggleSwitch should use the visible switch-track width instead of reserving provider label space.");
             }
             finally
             {
                 GalleryThemeRuntime.Apply(GalleryTheme.Light);
             }
         });
+    }
+
+    [Fact]
+    public void ToggleSwitch_application_style_only_constrains_truly_unlabeled_switches()
+    {
+        var path = Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "Styles",
+            "Inputs.xaml");
+        var document = XDocument.Load(path);
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+
+        var trackWidth = document.Root?
+            .Elements()
+            .Single(element => (string?)element.Attribute(xaml + "Key") == "App.Input.ToggleSwitch.TrackWidth");
+        Assert.NotNull(trackWidth);
+        Assert.Equal("40", trackWidth!.Value);
+
+        var standard = document.Root?
+            .Elements()
+            .Single(element =>
+                element.Name.LocalName == "Style" &&
+                (string?)element.Attribute(xaml + "Key") == "App.Input.ToggleSwitch.Standard");
+        Assert.NotNull(standard);
+
+        Assert.DoesNotContain(
+            standard!.Elements().Where(element => element.Name.LocalName == "Setter"),
+            setter => string.Equals((string?)setter.Attribute("Property"), "Width", StringComparison.Ordinal) ||
+                      string.Equals((string?)setter.Attribute("Property"), "MinWidth", StringComparison.Ordinal));
+
+        var widthTriggers = standard
+            .Descendants()
+            .Where(element => element.Name.LocalName == "MultiTrigger")
+            .Where(trigger => trigger
+                .Elements()
+                .Where(element => element.Name.LocalName == "Setter")
+                .Any(setter => string.Equals((string?)setter.Attribute("Property"), "Width", StringComparison.Ordinal)))
+            .ToArray();
+        Assert.Equal(2, widthTriggers.Length);
+        Assert.All(widthTriggers, trigger =>
+        {
+            var conditions = trigger
+                .Descendants()
+                .Where(element => element.Name.LocalName == "Condition")
+                .Select(condition => (string?)condition.Attribute("Property"))
+                .ToArray();
+            Assert.Equal(new[] { "Content", "OnContent", "OffContent" }, conditions);
+
+            var setter = trigger
+                .Elements()
+                .Single(element => element.Name.LocalName == "Setter" &&
+                                   (string?)element.Attribute("Property") == "Width");
+            Assert.Equal(
+                "{StaticResource App.Input.ToggleSwitch.TrackWidth}",
+                (string?)setter.Attribute("Value"));
+        });
+
+        var compact = document.Root?
+            .Elements()
+            .Single(element =>
+                element.Name.LocalName == "Style" &&
+                (string?)element.Attribute(xaml + "Key") == "App.Input.ToggleSwitch.Compact");
+        Assert.NotNull(compact);
+        Assert.DoesNotContain(
+            compact!.Descendants().Where(element => element.Name.LocalName == "Setter"),
+            setter => string.Equals((string?)setter.Attribute("Property"), "Width", StringComparison.Ordinal) ||
+                      string.Equals((string?)setter.Attribute("Property"), "MinWidth", StringComparison.Ordinal));
     }
 
     [Fact]

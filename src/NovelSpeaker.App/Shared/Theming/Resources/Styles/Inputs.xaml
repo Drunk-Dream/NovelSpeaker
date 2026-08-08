@@ -16,7 +16,15 @@
         NovelSpeaker palette, radius and elevation semantics. Pure string items use
         a local data template so constrained selected text trims on one line without
         moving the chevron.
+
+        Wpf.Ui 4.3.0 ToggleSwitch keeps an Auto switch column plus a star-sized
+        content column whose transparent root remains hit-testable even when all
+        label content is absent. The app keeps the provider template and only
+        constrains truly unlabeled switches to the provider's 40 px track width.
+        Labeled switches remain content-sized.
     -->
+
+    <sys:Double x:Key="App.Input.ToggleSwitch.TrackWidth">40</sys:Double>
     <Style x:Key="App.Input.TextBox.Standard"
            TargetType="{x:Type TextBox}"
            BasedOn="{StaticResource Provider.TextBox}">
@@ -447,11 +455,26 @@
         <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
-        <Setter Property="MinWidth" Value="96" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Style.Triggers>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="Content" Value="{x:Null}" />
+                    <Condition Property="OnContent" Value="{x:Null}" />
+                    <Condition Property="OffContent" Value="{x:Null}" />
+                </MultiTrigger.Conditions>
+                <Setter Property="Width" Value="{StaticResource App.Input.ToggleSwitch.TrackWidth}" />
+            </MultiTrigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="Content" Value="" />
+                    <Condition Property="OnContent" Value="" />
+                    <Condition Property="OffContent" Value="" />
+                </MultiTrigger.Conditions>
+                <Setter Property="Width" Value="{StaticResource App.Input.ToggleSwitch.TrackWidth}" />
+            </MultiTrigger>
             <Trigger Property="IsChecked" Value="True">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Default}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Default}" />
@@ -478,6 +501,5 @@
            TargetType="{x:Type ui:ToggleSwitch}"
            BasedOn="{StaticResource App.Input.ToggleSwitch.Standard}">
         <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
-        <Setter Property="MinWidth" Value="80" />
     </Style>
 </ResourceDictionary>
