@@ -220,6 +220,7 @@ Provider dictionaries 在应用启动时加载，并在进程生命周期内保�
 允许存在**受控的控件族级模板例外**：当已确认的应用交互/视觉合同无法通过 Provider 暴露的 Style 输入属性完成，且为整个稳定控件族接管一个局部模板比新增包装控件更简单时，可以在该控件族所属资源字典中维护经过裁剪的应用模板。例外必须保留键盘、Focus、Disabled、Editable、滚动、Popup 定位等原有行为，并由专项契约测试覆盖；不得把模板复制到页面资源中。
 
 当前 `ComboBox` 是这一例外。`Inputs.xaml` 的 `App.Input.ComboBox.Standard` / `Compact` 维护基于 Wpf.Ui 4.3.0 结构适配的闭合态与 Popup 模板，以统一全表面命中、左右布局、Raised Popup、圆角、间距和选中状态；仍复用 Provider 的基础交互辅助资源。`NavigationView` 不属于该例外：Shell 保留 Provider 内容宿主模板和其左上圆角，页面通过透明根背景避免遮挡。无论是否使用控件族模板，`App.Input.ComboBox.*` 都必须保留 `HorizontalContentAlignment=Stretch` 语义。
+`ToggleSwitch` 也不接管 Provider 模板。对于 Wpf.Ui 4.3.0 无标签模板仍保留 `*` Content 列的问题，应用只在三个内容属性全部为空时通过 Style Trigger 将 Width 收敛到 Provider 当前 40 px 可见轨道；一旦存在任何标签内容，Width 回到 `Auto`。如果未来 Provider 改变模板或轨道宽度，升级审计必须同步复核这一局部兼容约束。
 
 ### 4.2 Provider Style Bridge
 
@@ -276,6 +277,7 @@ src/NovelSpeaker.App/Shared/
 │     │  ├─ AppPageHeader.cs
 │     │  └─ AppSectionSurface.cs
 │     ├─ Settings/
+│     │  ├─ AppSettingsList.cs
 │     │  ├─ AppSettingsGroup.cs
 │     │  ├─ AppSettingsRow.cs
 │     │  └─ AppSettingsNavigationRow.cs
@@ -438,6 +440,14 @@ App.Input.ToggleSwitch.Compact
 - 使用对象项、`DisplayMemberPath` 或自定义 `ItemTemplate` 的页面，若显示文本可能超长，则对应显示模板必须提供等价的单行截断；不得为此复制 ComboBox 控件族模板。
 - `App.Input.ComboBox.*` 必须保持 `HorizontalContentAlignment=Stretch`。将其改为 `Left` 会使 Provider 内部布局按内容宽度收缩，造成 Chevron 靠近文案、右侧出现无效空白以及空白区域无法点击。
 - 页面不得覆盖 ComboBox Popup Palette、Popup CornerRadius、ItemContainerStyle 或 Selection 状态；新的 ComboBox 视觉能力必须回到 `Inputs.xaml` 的同一控件族中维护。
+
+`App.Input.ToggleSwitch.Standard` 与 `App.Input.ToggleSwitch.Compact` 遵循以下尺寸与布局契约：
+
+- ToggleSwitch 是内容驱动的状态控件，不是字段型控件；应用级 Style 不设置全局固定 `Width` 或大于 Provider 模板本体需求的 `MinWidth`。Wpf.Ui 4.3.0 模板内部存在 `Auto` 开关列与 `*` Content 列，透明根 Grid 会让无标签场景仍可能保留不可见横向 HitTest 区域，因此 `Inputs.xaml` 在 `Content`、`OnContent`、`OffContent` 全部为空时，条件式将控件宽度收敛到与 Provider 可见轨道一致的 40 px。该约束只修正纯开关几何，不改变 Provider 模板所有权。
+- 带 `Content`、`OnContent` 或 `OffContent` 的 ToggleSwitch 仍使用同一 Standard/Compact Style，条件宽度约束不生效，由 Provider 模板按“开关本体 + Content”自然计算宽度；不得仅因是否带标签而派生 `SwitchOnly`、`WithContent` 等重复视觉变体。
+- Standard/Compact 可以继续通过 `MinHeight` 维持一致的纵向可操作尺寸；纯开关的横向 Focus/HitTest 边界必须贴合 40 px 可见轨道，带标签时再随真实内容扩展，不以 Gallery 对齐或页面排版为理由人为拉宽。
+- ToggleSwitch 自身不强制 `HorizontalAlignment=Right`。控件负责自身 DesiredSize，`AppSettingsRow`、表单、Dialog 等宿主负责决定其 Left/Center/Right 布局；设置项右侧纯开关由 ValuePresenter 右对齐后，应以开关可见本体的右边缘与其他字段的右边缘对齐。
+- Input family 的宽度所有权按交互语义区分：ComboBox、TextBox、PasswordBox 等字段型控件可以由页面/表单提供明确宽度或合理 MinWidth；ToggleSwitch、CheckBox 等内容型状态控件默认内容自适应；Icon Button 等固定点击目标由对应控件族定义方形尺寸。不得仅为“看起来整齐”向内容型控件加入无语义的横向空白命中区域。
 
 ### 7.6 Selection 与列表容器
 
@@ -609,35 +619,45 @@ sans-serif
 - 不承担页面级 Grid、分栏或滚动。
 - 不允许在其内部再次机械嵌套同等级 Section Surface。
 
-### 9.3 AppSettingsGroup
+### 9.3 AppSettingsList
 
-组织设置首页等确实需要分类的信息集合，并统一处理分组表面、行分隔线和首尾圆角。**普通设置子页面不使用该控件。**
+设置子页面使用的无标题设置列表表面。它负责保留与设置首页一致的列表视觉，但不表达分类语义。
 
 职责：
 
-- 提供 Header、Description、Items 和 Footer 槽。
+- 提供 Items 槽，不提供 Header、Description 或 Footer。
+- 默认使用 Primary Surface、`App.Radius.Medium`、统一 20 px 内容 Padding 和相邻条目之间的 Subtle Divider。
+- 最后一项不绘制底部分隔线；首尾边界由列表容器统一处理，页面不得再使用 `SettingsLastRow...` 一类样式。
+- 所有普通设置子页面只使用一个 `AppSettingsList` 承载页面主要设置项；单项页面同样使用该 Surface，不退化为裸 `AppSettingsRow`。
+- 不提供整行 Hover/Pressed。普通 `AppSettingsRow` 的可操作目标仍是右侧真实控件；需要整行导航时使用 `AppSettingsNavigationRow`。
+- 不负责页面 Padding、ScrollViewer、MaxWidth、保存时机或业务分组。
+
+### 9.4 AppSettingsGroup
+
+组织设置首页等确实需要分类的信息集合。`AppSettingsGroup` 继承 `AppSettingsList` 的列表容器行为，并在同一 Surface 之上增加分组 Header/Description/Footer。**普通设置子页面不使用该控件。**
+
+职责：
+
+- 与 `AppSettingsList` 共享 Primary Surface、圆角、20 px Padding、ItemContainer 和行分隔线规则，不复制另一套列表视觉。
+- 额外提供 Header、Description 和 Footer 槽。
 - 设置体系中的主要正式调用点是 `SettingsPage` 首页，用于“常用 / 文本处理 / 应用”等导航类别；不得因为子页面有多个设置项就机械套用 Group。
-- 默认使用 Primary Surface 与圆角形成分组，不绘制完整外框；只有出现真实、稳定的强调边界需求时才允许新增显式具名变体。
-- Group 统一拥有外部内容 Padding；设置行不再重复承担同等横向缩进。
-- 分隔线由 Group 模板拥有，并直接位于相邻设置行之间；ItemContainer 不再增加额外纵向 Padding。
 - Header 使用低于设置行标题的 `App.Typography.GroupTitle` 视觉层级，不使用页面级 `SectionTitle`。
-- Header 与设置行标题保持稳定左侧基线，避免二次缩进。
-- 页面不再通过 `SettingsLastRow...` 之类样式手动区分最后一行。
+- Header 与设置行标题保持稳定左侧基线；Items 区与 Header 之间保留稳定间距。
 
-### 9.4 AppSettingsRow
+### 9.5 AppSettingsRow
 
-封装设置标题、说明和右侧值/控件区域。它既可以作为需要分组场景中的 Item，也必须支持在设置子页面的扁平列表中独立使用。
+封装设置标题、说明和右侧值/控件区域。它是 `AppSettingsList` 与 `AppSettingsGroup` 的行内容，不自行拥有外层卡片 Surface。
 
 职责：
 
 - 提供 Title、Description 和 Value/Content 槽。
 - 支持 ToggleSwitch、ComboBox、TextBox、Button 和只读值。
-- 设置行是行级纵向密度的唯一 owner；Group 的 ItemContainer 不再叠加上下 Padding。
-- 默认横向 Padding 为 0 或仅保留最小必要值；在扁平子页面中直接与页面内容基线对齐，在确有 Group 的场景中不得形成 Group Padding + Row Padding 的双重缩进。
+- 设置行是行级纵向密度的唯一 owner；列表 ItemContainer 不叠加上下 Padding。
+- 默认横向 Padding 为 0 或仅保留最小必要值；列表 Surface 的 20 px Padding 负责统一左右基线。
 - 只规定最小高度和内部布局，不规定页面统一右侧固定宽度。
 - 窄宽度下允许右侧内容换行或转为纵向布局。
 
-### 9.5 AppSettingsNavigationRow
+### 9.6 AppSettingsNavigationRow
 
 用于设置首页和二/三级入口。
 
@@ -647,7 +667,7 @@ sans-serif
 - 整行可点击并具备键盘 Focus。
 - Hover、Pressed、Disabled 和 Focus 由控件模板统一处理。
 
-### 9.6 AppFormField
+### 9.7 AppFormField
 
 统一规则编辑和其它表单中的 Label、说明、输入区域和错误信息。
 
@@ -658,7 +678,7 @@ sans-serif
 - 不决定输入控件类型和页面列宽。
 - 字段自身不保存业务值，不包含验证逻辑。
 
-### 9.7 AppStatusView
+### 9.8 AppStatusView
 
 统一加载、空状态、无结果、错误和轻量成功提示。
 
@@ -689,11 +709,11 @@ sans-serif
 | StartupStatusWindow | Typography、Surface、Progress、Feedback | AppStatusView | 启动阶段文本与状态切换 |
 | MainWindow | Navigation、Button、Surface、Menu | 无强制页面壳控件 | Window Chrome、一级导航、内容宿主、托盘入口 |
 | Settings 首页 | Typography、Navigation、Surface | AppPageHeader、AppSettingsGroup、AppSettingsNavigationRow | 导航项集合和页面 Padding |
-| 各设置子页 | Typography、Input、Button、Feedback | AppPageHeader、AppSettingsRow；需要三级入口时可用 AppSettingsNavigationRow | 扁平设置列表、设置绑定、保存时机、危险操作语义 |
+| 各设置子页 | Typography、Input、Button、Feedback | AppPageHeader、AppSettingsList、AppSettingsRow；需要三级入口时可用 AppSettingsNavigationRow | 无标题列表 Surface、设置绑定、保存时机、危险操作语义 |
 | Library | Typography、Button、Surface、Progress | AppPageHeader、AppStatusView | BookCardView、自适应网格、搜索与排序 |
 | Book Details | Typography、Input、Selection、Progress | AppPageHeader、AppSectionSurface、AppStatusView | 摘要、编辑区、目录模板、虚拟化与定位 |
 | TTS/Chapter/Regex Rules | Typography、Input、Selection、Menu、Feedback | AppPageHeader、AppSectionSurface、AppFormField、AppStatusView | Rules 共享列表项、各自字段、分栏和 Dirty State |
-| Cache And Data | Typography、Input、Button、Feedback | AppPageHeader、AppSettingsRow、AppSettingsNavigationRow | 扁平设置列表、数据操作、确认和路径信息 |
+| Cache And Data | Typography、Input、Button、Feedback | AppPageHeader、AppSettingsList、AppSettingsRow、AppSettingsNavigationRow | 无标题列表 Surface、数据操作、确认和路径信息 |
 | Cache Management | Typography、Selection、Progress、Menu、Feedback | AppPageHeader、AppSectionSurface、AppStatusView | 单书分栏、章节项、多选工具栏和后台状态 |
 | Player | Typography、Surface、Button、Media、Progress、Feedback | AppPageHeader、AppSectionSurface、AppStatusView | PlayerView、正文、侧栏、滚动追随和 Flyout 内容 |
 | Mini Player | Typography、Surface、Button、Media | 无强制复合控件 | 固定横向布局、窗口动作和尺寸约束 |
@@ -737,9 +757,9 @@ sans-serif
 
 - 设置首页入口使用 `图标 + 标题 + Chevron` 整行导航，并保留 `AppSettingsGroup` 对“常用 / 文本处理 / 应用”等导航类别的分组。
 - 所有正式设置页根节点保持透明；Canvas 由 Shell 的 `NavigationView` 内容宿主统一提供，因此页面 Padding 周围既不会出现 Window Background 色环，也不会遮住 Shell 左上圆角。
-- **除设置首页外，具体设置子页面统一采用扁平列表，不显示分组 Header，不使用 `AppSettingsGroup` 包裹普通设置项，也不为每个逻辑类别绘制独立圆角卡片。**
-- 子页面在 `AppPageHeader` 下直接排列 `AppSettingsRow`；存在三级入口时可在同一列表中排列 `AppSettingsNavigationRow`。标题、说明和控件本身提供足够语义，不再重复显示“主题”“启动”等上层分类标题。
-- `AppSettingsRow` 的独立布局、窄宽度适配、Focus/Automation 与纵向密度不得依赖 Group 容器。行之间只使用稳定间距或必要分隔线，不通过重新引入 Surface 分组表达层次。
+- **除设置首页外，具体设置子页面统一使用一个无 Header 的 `AppSettingsList`：保留设置首页同源的 Primary Surface、圆角、Padding 和行分隔线，但不显示分组 Header，也不按逻辑类别拆成多个卡片。**
+- 子页面在 `AppPageHeader` 下放置单一 `AppSettingsList`，其中排列 `AppSettingsRow`；存在三级入口时可在同一列表中排列 `AppSettingsNavigationRow`。标题、说明和控件本身提供足够语义，不再重复显示“主题”“启动”等上层分类标题。
+- `AppSettingsRow` 的独立布局、窄宽度适配、Focus/Automation 与纵向密度不得依赖 Group Header；Surface、圆角、统一 Padding 和 Divider 由 `AppSettingsList`/`AppSettingsGroup` 的共同列表合同提供，Row 自身不画外层卡片。
 - 普通布尔项使用 ToggleSwitch，枚举项使用 ComboBox。
 - 危险数据操作通过危险按钮样式、说明与确认流程表达风险；即使位于页面底部，也不因此恢复普通 Settings Group。
 - 页面内容宽度继续由各页面拥有；本轮视觉规范不新增统一 `MaxWidth`，也不改变既有设置页的横向铺展策略。

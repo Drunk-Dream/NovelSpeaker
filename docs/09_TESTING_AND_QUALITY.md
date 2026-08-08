@@ -139,8 +139,10 @@
 - Style Gallery 自动覆盖浅色/深色下的 Default、Hover、Pressed、Focus、Disabled、Selected 和 Error 场景。
 - ComboBox 视觉/交互回归以稳定的 `inputs` Gallery family 为入口：宽控件保持左侧文案、右侧 Chevron 和全表面点击命中；Popup 使用 Raised Surface、Subtle Border、Medium Radius、Medium Elevation，并与闭合态保持约 4 px 间隔；Popup 宽度不小于闭合态控件；Normal/Hover/Selected/Disabled Item 分别验证透明、Secondary、Accent.Subtle + 左侧 Accent 状态条、Tertiary 文本；纯字符串长选中项单行省略且不得挤压或移动 Chevron；对象项/自定义模板在存在长文本时提供等价截断。
 - Shell 视觉契约测试固定内容背景所有权：`NavigationView` 内容宿主跟随 `App.Brush.Canvas` 与边界语义并保留非零左上圆角，已迁移正式 Page 根背景保持透明；Light/Dark 热切换后 Provider 投影键必须与应用 Palette 同步，页面不得用不透明根背景重新遮住 Shell 圆角。
-- 设置页面结构契约区分首页与子页面：`SettingsPage` 首页继续允许并要求按导航类别使用 `AppSettingsGroup`；具体设置子页面不得包含 `AppSettingsGroup` 或重复分类 Header，设置项以 `AppSettingsRow`/`AppSettingsNavigationRow` 的单一扁平列表呈现。已迁移的 Appearance/General 与后续 Playback/ImportText/CacheData/Diagnostics 页面均由静态 XAML 契约或视觉树测试固定这一边界。
-- 设置子页面几何测试必须覆盖 `AppSettingsRow` 脱离 Group 的独立布局：宽/窄窗口、长说明、ToggleSwitch/ComboBox/TextBox/导航行以及 100/125/150% DPI 下均不得依赖 Group Padding、ItemContainer 或 Group Header 才能获得正确对齐和命中区域。
+- 设置页面结构契约区分首页与子页面：`SettingsPage` 首页继续允许并要求按导航类别使用 `AppSettingsGroup`；具体设置子页面不得包含 `AppSettingsGroup` 或重复分类 Header，而必须以单一无 Header `AppSettingsList` 承载 `AppSettingsRow`/`AppSettingsNavigationRow`。已迁移的 Appearance/General 与后续 Playback/ImportText/CacheData/Diagnostics 页面均由静态 XAML 契约或视觉树测试固定这一边界。
+- `AppSettingsList` 与 `AppSettingsGroup` 必须共享同一列表 Surface/ItemContainer 合同：Primary Surface、Medium Radius、统一内容 Padding、相邻行 Subtle Divider、最后一行无 Divider；Group 只额外增加 Header/Description/Footer。单项子页面也必须保留 List Surface，普通 Row 不得自行绘制卡片。
+- 设置子页面几何测试必须覆盖 `AppSettingsList` 中的 `AppSettingsRow`：宽/窄窗口、长说明、ToggleSwitch/ComboBox/TextBox/导航行以及 100/125/150% DPI 下均不得依赖 Group Header 才能获得正确对齐和命中区域；普通 Row 不出现整行 Hover/Pressed，整行交互只属于 `AppSettingsNavigationRow`。
+- ToggleSwitch 几何/命中契约必须同时覆盖无标签与带标签、Standard/Compact、键盘 Focus、Light/Dark：不得通过全局 `Width`/大 `MinWidth` 做视觉对齐；针对 Wpf.Ui 4.3.0 无标签模板仍保留星号 Content 列的行为，`Content`/`OnContent`/`OffContent` 全空时允许且要求条件式把 ActualWidth 收敛到 40 px 可见轨道，Focus 边界和鼠标命中区域不得继续向右延伸；任一标签内容存在时条件约束必须解除并随内容自然扩展。设置页只验证 ValuePresenter 的右对齐结果，不通过拉宽 ToggleSwitch 本体实现列对齐。
 - 自动截图工具在固定 DPI、窗口尺寸和测试数据下生成 PNG 与 manifest；任务验收只要求可重复生成、尺寸正确、场景完整和无渲染异常，不以主观审美作为自动关闭条件。
 - 几何测试只固定最小点击区域、非零可用宽度、关键内容可见和不重叠等下限，不冻结尚可调整的精确 Padding、Margin、Width 或 Height。
 - 迷你播放器覆盖隐藏/恢复、置顶、段落进度、Tooltip、拖动边界、长标题和主题热切换。

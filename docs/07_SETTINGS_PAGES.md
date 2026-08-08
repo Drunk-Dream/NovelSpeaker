@@ -31,9 +31,9 @@
 - 所有正式设置页根节点保持透明；`App.Brush.Canvas` 由 Shell 的 `NavigationView` 内容宿主统一提供，`App.Brush.Window.Background` 只属于 Window/Shell。页面不得重新绘制不透明根背景，从而避免 Padding 周围出现壳层色环或遮挡 Shell 左上圆角。
 - 页面 Padding 是 Shell Canvas 上的布局留白，不通过带 Margin 的内部 Canvas 面板模拟页面背景。
 - **设置首页保留分组，设置子页面不再分组。** `SettingsPage` 可使用 `AppSettingsGroup` 组织导航类别；Appearance、General、Playback、Import/Text、Cache/Data、Diagnostics/About 等具体设置子页面不得再用 Group Header、分组卡片或多个 Section Surface 划分普通设置项。
-- 设置子页面在 `AppPageHeader` 下直接以单一扁平列表展示全部设置项。普通设置使用 `AppSettingsRow`，需要进入三级页面的项目可在同一列表中使用 `AppSettingsNavigationRow`；顺序本身表达逻辑关系，不再增加“主题”“启动”等重复分组标题。
-- 设置行左侧为标题和必要说明，右侧为 Switch、ComboBox、NumberBox 等控件。`AppSettingsRow` 必须能够脱离 `AppSettingsGroup` 独立使用。
-- 扁平列表的纵向密度由 Row 与列表宿主共同控制，只使用稳定的行间距或必要分隔线；不得为了获得圆角背景重新套一层 `AppSettingsGroup`。
+- 设置子页面在 `AppPageHeader` 下使用单一 `AppSettingsList` 展示全部设置项。该容器没有组标题，但保留与首页列表相同来源的 Primary Surface、圆角、20 px 内容 Padding 和相邻行分隔线。普通设置使用 `AppSettingsRow`，需要进入三级页面的项目可在同一列表中使用 `AppSettingsNavigationRow`；顺序本身表达逻辑关系，不再增加“主题”“启动”等重复分组标题。
+- 设置行左侧为标题和必要说明，右侧为 Switch、ComboBox、NumberBox 等控件。`AppSettingsRow` 作为 `AppSettingsList`/`AppSettingsGroup` 的行内容，不自行绘制外层 Surface。
+- `AppSettingsList` 与 `AppSettingsGroup` 共享列表 Surface、圆角、Padding、ItemContainer 和 Divider 规则；子页面不得为了视觉效果重新套 `AppSettingsGroup`，也不得把每一行做成独立卡片。单设置项页面同样保留一个 `AppSettingsList` Surface。
 - 危险操作仍通过危险按钮样式、说明文案和确认流程表达风险，不通过恢复分组卡片来表达。
 - 设置改变后按字段语义即时保存或显式保存，不让多个页面各自实现不同防抖逻辑。
 - 三级页面使用明确返回入口，并继续经过统一导航 guard。
@@ -170,7 +170,7 @@
 - 跟随系统 / 浅色 / 深色。
 - 主题切换即时生效并持久化。
 - 页面根节点保持透明，由 Shell 内容宿主提供 Canvas；24 px 页面 Padding 周围不得露出 Window Background，也不得遮挡 Shell 左上圆角。
-- 页面只展示“应用主题”这一设置行，不再显示“主题”分组标题或外围分组卡片；主题 ComboBox 直接位于扁平设置列表中。
+- 页面只展示“应用主题”这一设置行，不再显示“主题”分组标题；该单项仍置于无 Header 的 `AppSettingsList` Surface 中，主题 ComboBox 位于行右侧。
 - 页面当前横向宽度策略保持不变，不新增统一 `MaxWidth`。
 - 不为每个页面提供独立颜色配置。
 

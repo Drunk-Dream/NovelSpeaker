@@ -639,6 +639,8 @@ artifacts/visual-review/windows/<window-id>/
 
 结果：`AppearanceSettingsPage` 移除 `ThemeGroup`/“主题”分组，`GeneralSettingsPage` 移除“关闭主窗口时”“启动”两个 `AppSettingsGroup`，两页均改为 `AppPageHeader` 下直接排列 `AppSettingsRow` 的单一扁平列表；ComboBox/ToggleSwitch 绑定、AutomationName、返回导航与即时持久化语义不变，常规页两行保持原业务顺序并沿用 16 px 稳定间距。`ControlThemes/Settings.xaml` 仅做一处最小通用修正：`AppSettingsRow` 共享样式补齐 `IsTabStop=False`（此前独立于 Group 使用时依赖页面逐行显式设置）。`SettingsPage` 首页分组保持现状。契约更新：外观/常规页测试改为断言无 `AppSettingsGroup`、无 `App.Typography.GroupTitle` 分组 Header，并固定行直接位于扁平列表；常规页 DPI 覆盖补 100/125/150%；`settings-controls` Gallery family 新增 standalone/flat rows 稳定场景（宽 ComboBox/ToggleSwitch 行 + 360 px 窄行）并保留首页 Group 场景，新增 Light/Dark × 100/125/150% DPI 几何、Focus/Tab/Automation 与无 Group 祖先契约测试。视觉产物已重生成并校验：`artifacts/visual-review/gallery/settings-controls/`、`artifacts/visual-review/pages/appearance-settings/`、`artifacts/visual-review/pages/general-settings/`（Light/Dark × 100/125/150%，manifest 与 PNG SHA/尺寸校验通过）；不存在以 `15A` 命名的视觉目录。完整质量门禁通过：Domain 2、Application 208、Presentation 382、Infrastructure 343、WPF 330，共 1,265 项测试；锁定还原无 packages.lock.json 变化，format 与 Release build（0 警告/0 错误）通过。任务未获用户提交授权，工作树改动未提交，提交哈希待后续授权。
 
+后续直接视觉修正：子页面“无分组”只取消分类 Header，不取消列表 Surface。新增 `AppSettingsList` 作为无 Header 的设置列表容器，与 `AppSettingsGroup` 共享 Primary Surface、Medium Radius、20 px Padding、ItemContainer 和相邻行 Divider；`AppSettingsGroup` 改为在该基础上增加 Header/Description/Footer。`AppearanceSettingsPage` 与 `GeneralSettingsPage` 已改为单一 `AppSettingsList`，普通 Row 不提供整行 Hover/Pressed。同期修正 `App.Input.ToggleSwitch.Standard/Compact`，删除人为 `MinWidth`，无标签开关按可见本体收缩，避免不可见横向 Focus/HitTest 空白。该直接修正不新增任务编号。
+
 
 ## [ ] 16（P1）：迁移播放设置页
 
@@ -646,7 +648,7 @@ artifacts/visual-review/windows/<window-id>/
 
 实现：
 
-- 使用正式 PageHeader、SettingsRow、Input 和 Feedback 资源迁移 `PlaybackSettingsPage`；设置项直接组成单一扁平列表，不使用 SettingsGroup 或分类 Header。
+- 使用正式 PageHeader、SettingsList、SettingsRow、Input 和 Feedback 资源迁移 `PlaybackSettingsPage`；设置项进入单一无 Header `AppSettingsList`，不使用 SettingsGroup 或分类 Header。
 - 覆盖默认语速、预取数量和朗读章节标题。
 - 错误信息使用 FormField 或 Feedback Style，不复制局部错误文本样式。
 - 保持即时保存、朗读清单按需重算和主动缓存批次快照语义。
@@ -665,7 +667,7 @@ artifacts/visual-review/windows/<window-id>/
 
 实现：
 
-- 使用正式 PageHeader、SettingsRow、SettingsNavigationRow、Input 和 Feedback 资源迁移 `ImportTextSettingsPage`；普通设置与三级入口按业务顺序进入同一扁平列表，不使用 SettingsGroup 或分类 Header。
+- 使用正式 PageHeader、SettingsList、SettingsRow、SettingsNavigationRow、Input 和 Feedback 资源迁移 `ImportTextSettingsPage`；普通设置与三级入口按业务顺序进入同一无 Header `AppSettingsList`，不使用 SettingsGroup 或分类 Header。
 - 覆盖长段落切分、阈值、文件名提取设置和正则替换三级入口。
 - 保持即时保存、校验和导航语义。
 - 删除该页全部 Legacy 键引用。
@@ -683,7 +685,7 @@ artifacts/visual-review/windows/<window-id>/
 
 实现：
 
-- 使用正式 PageHeader、SettingsRow、SettingsNavigationRow、Button 和 Feedback 资源迁移 `CacheAndDataPage`；设置、只读信息和导航入口采用扁平列表，不使用 SettingsGroup 或分类 Header。
+- 使用正式 PageHeader、SettingsList、SettingsRow、SettingsNavigationRow、Button 和 Feedback 资源迁移 `CacheAndDataPage`；设置、只读信息和导航入口采用单一无 Header `AppSettingsList`，不使用 SettingsGroup 或分类 Header。
 - 显示缓存占用、容量上限、使用率、LRU 说明、应用数据目录、清理全部缓存和缓存管理入口。
 - 危险操作保持独立区域和确认流程。
 - 保持容量调低后的确认、LRU 清理、保护 registry 和朗读清单同步回收语义。
@@ -702,7 +704,7 @@ artifacts/visual-review/windows/<window-id>/
 
 实现：
 
-- 使用正式 PageHeader、SettingsRow、Button、Typography 和 Feedback 资源迁移 `DiagnosticsAboutPage`；版本、目录、诊断摘要与操作按扁平列表组织，不使用 SettingsGroup 或分类 Header。
+- 使用正式 PageHeader、SettingsList、SettingsRow、Button、Typography 和 Feedback 资源迁移 `DiagnosticsAboutPage`；版本、目录、诊断摘要与操作按单一无 Header `AppSettingsList` 组织，不使用 SettingsGroup 或分类 Header。
 - 覆盖版本、目录入口、数据库 schema、安全诊断摘要、许可证和复制脱敏诊断信息。
 - 只读值使用 SettingsRow 内容槽，不建立专用 Value TextBlock 旧样式。
 - 保持日志与诊断脱敏边界。
