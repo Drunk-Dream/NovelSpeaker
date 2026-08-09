@@ -152,10 +152,12 @@ public sealed class BookDetailsPageTests
 
             var firstItem = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(0));
             var secondItem = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(1));
-            var firstCard = Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(firstItem, static border => border.Child is Button));
+            var firstCard = Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(
+                firstItem,
+                border => ReferenceEquals(border.Style, page.FindResource("App.Selection.CurrentItem"))));
             var firstTitle = VisualTreeTestHelper.FindDescendant<TextBlock>(firstItem, static text => text.Text.StartsWith("第一章", StringComparison.Ordinal));
-            var firstButton = VisualTreeTestHelper.FindDescendant<Button>(firstItem);
-            var secondButton = VisualTreeTestHelper.FindDescendant<Button>(secondItem);
+            var firstButton = VisualTreeTestHelper.FindDescendant<Button>(firstItem, static button => AutomationProperties.GetName(button).StartsWith("第 1 章", StringComparison.Ordinal));
+            var secondButton = VisualTreeTestHelper.FindDescendant<Button>(secondItem, static button => AutomationProperties.GetName(button).StartsWith("第 2 章", StringComparison.Ordinal));
 
             Assert.NotNull(firstTitle);
             Assert.NotNull(firstButton);
@@ -174,6 +176,20 @@ public sealed class BookDetailsPageTests
                 secondItem,
                 static textBlock => string.Equals(textBlock.Text, "25%", StringComparison.Ordinal) &&
                                     textBlock.Visibility == Visibility.Visible));
+            var secondTitle = VisualTreeTestHelper.FindDescendant<TextBlock>(
+                secondItem,
+                static textBlock => string.Equals(textBlock.Text, "第二章 当前章节标题", StringComparison.Ordinal));
+            var secondPercentage = VisualTreeTestHelper.FindDescendant<TextBlock>(
+                secondItem,
+                static textBlock => string.Equals(textBlock.Text, "25%", StringComparison.Ordinal));
+            Assert.NotNull(secondTitle);
+            Assert.NotNull(secondPercentage);
+            var itemBounds = GetBoundsRelativeToRoot(secondItem, page);
+            var titleBounds = GetBoundsRelativeToRoot(secondTitle!, page);
+            var percentageBounds = GetBoundsRelativeToRoot(secondPercentage!, page);
+            Assert.InRange(titleBounds.Left - itemBounds.Left, 40d, 100d);
+            Assert.InRange(itemBounds.Right - percentageBounds.Right, 12d, 20d);
+            Assert.True(titleBounds.Right < percentageBounds.Left);
             Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
                 firstItem,
                 static textBlock => textBlock.Text.EndsWith('%') &&
@@ -199,7 +215,9 @@ public sealed class BookDetailsPageTests
             var list = Assert.IsType<ListBox>(page.FindName("ChaptersListBox"));
             var currentContainer = Assert.IsType<ListBoxItem>(list.ItemContainerGenerator.ContainerFromIndex(1));
             var currentBorder = Assert.IsType<Border>(
-                VisualTreeTestHelper.FindDescendant<Border>(currentContainer, border => border.Child is Button));
+                VisualTreeTestHelper.FindDescendant<Border>(
+                    currentContainer,
+                    border => ReferenceEquals(border.Style, page.FindResource("App.Selection.CurrentItem"))));
 
             Assert.Same(page.FindResource("App.Selection.CurrentItem"), currentBorder.Style);
             Assert.True(((BookDetailsChapterItemViewModel)currentContainer.DataContext).IsCurrent);

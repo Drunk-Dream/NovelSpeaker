@@ -241,16 +241,20 @@
                                         <Border MinHeight="0"
                                                 Padding="0"
                                                 Style="{StaticResource App.Selection.CurrentItem}">
-                                            <Button Margin="0"
-                                                    Padding="14,12"
-                                                    HorizontalAlignment="Stretch"
-                                                    VerticalAlignment="Stretch"
-                                                    Style="{StaticResource App.Button.Subtle}"
-                                                    ToolTip="{Binding TitleToolTip}"
-                                                    AutomationProperties.Name="{Binding AutomationName}"
-                                                    Command="{Binding DataContext.SelectChapterCommand, ElementName=RootLayout}"
-                                                    CommandParameter="{Binding}">
-                                                <Grid>
+                                            <Grid>
+                                                <Button Margin="0"
+                                                        Padding="0"
+                                                        HorizontalAlignment="Stretch"
+                                                        VerticalAlignment="Stretch"
+                                                        Background="Transparent"
+                                                        Style="{StaticResource App.Button.Subtle}"
+                                                        ToolTip="{Binding TitleToolTip}"
+                                                        AutomationProperties.Name="{Binding AutomationName}"
+                                                        Command="{Binding DataContext.SelectChapterCommand, ElementName=RootLayout}"
+                                                        CommandParameter="{Binding}" />
+
+                                                <Grid Margin="14,12"
+                                                      IsHitTestVisible="False">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="12" />
@@ -278,7 +282,7 @@
                                                                Text="{Binding CachePercentageText}"
                                                                Visibility="{Binding IsCachePercentageVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                                 </Grid>
-                                            </Button>
+                                            </Grid>
                                         </Border>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
