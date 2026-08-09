@@ -4,6 +4,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Xml.Linq;
 using Microsoft.Extensions.DependencyInjection;
+using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
@@ -21,17 +22,14 @@ public sealed class SettingsSubpageViewTests
             var provider = WpfTestHost.BuildServiceProvider();
             try
             {
-                AssertRows(
-                    provider.GetRequiredService<DiagnosticsAboutPage>(),
-                    "AppNameItemBorder",
-                    "AppVersionItemBorder",
-                    "DescriptionItemBorder",
-                    "DatabaseSchemaVersionItemBorder",
-                    "AppDataDirectoryItemBorder",
-                    "LogsDirectoryItemBorder",
-                    "LogLevelItemBorder",
-                    "DiagnosticsSummaryItemBorder",
-                    "ThirdPartyNoticesItemBorder");
+                var page = provider.GetRequiredService<DiagnosticsAboutPage>();
+                page.Measure(new Size(1200, 900));
+                page.Arrange(new Rect(0, 0, 1200, 900));
+                page.UpdateLayout();
+
+                var settingsList = Assert.IsType<AppSettingsList>(page.FindName("SettingsList"));
+                Assert.Equal(9, settingsList.Items.Count);
+                Assert.All(settingsList.Items.Cast<object>(), item => Assert.IsType<AppSettingsRow>(item));
             }
             finally
             {
@@ -74,6 +72,7 @@ public sealed class SettingsSubpageViewTests
                     "启动后最小化到托盘");
                 AssertAutomationNames(
                     provider.GetRequiredService<DiagnosticsAboutPage>(),
+                    "打开应用数据目录",
                     "日志级别",
                     "打开日志目录",
                     "复制脱敏诊断摘要",
@@ -100,9 +99,10 @@ public sealed class SettingsSubpageViewTests
                     SymbolRegular.FolderOpen24,
                     "App.Button.Icon");
                 var diagnosticsPage = provider.GetRequiredService<DiagnosticsAboutPage>();
-                AssertIconTool(diagnosticsPage, "打开日志目录", SymbolRegular.FolderOpen24);
-                AssertIconTool(diagnosticsPage, "复制脱敏诊断摘要", SymbolRegular.DocumentCopy24);
-                AssertIconTool(diagnosticsPage, "打开第三方许可证", SymbolRegular.DocumentText24);
+                AssertIconTool(diagnosticsPage, "打开应用数据目录", SymbolRegular.FolderOpen24, "App.Button.Icon");
+                AssertIconTool(diagnosticsPage, "打开日志目录", SymbolRegular.FolderOpen24, "App.Button.Icon");
+                AssertIconTool(diagnosticsPage, "复制脱敏诊断摘要", SymbolRegular.DocumentCopy24, "App.Button.Icon");
+                AssertIconTool(diagnosticsPage, "打开第三方许可证", SymbolRegular.DocumentText24, "App.Button.Icon");
             }
             finally
             {
@@ -112,7 +112,7 @@ public sealed class SettingsSubpageViewTests
     }
 
     [Fact]
-    public void Diagnostics_title_and_value_rows_center_text_vertically()
+    public void Diagnostics_read_only_values_use_settings_row_content_slots()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -124,11 +124,11 @@ public sealed class SettingsSubpageViewTests
                 page.Arrange(new Rect(0, 0, 1200, 900));
                 page.UpdateLayout();
 
-                var row = Assert.IsType<Border>(page.FindName("AppNameItemBorder"));
-                var textBlocks = VisualTreeTestHelper.FindDescendants<TextBlock>(row).ToArray();
+                var row = Assert.IsType<AppSettingsRow>(page.FindName("AppNameRow"));
+                var value = Assert.IsType<TextBlock>(page.FindName("AppNameValue"));
 
-                Assert.Equal(2, textBlocks.Length);
-                Assert.All(textBlocks, textBlock => Assert.Equal(VerticalAlignment.Center, textBlock.VerticalAlignment));
+                Assert.Same(value, row.Value);
+                Assert.Same(page.FindResource("App.Typography.Body"), value.Style);
             }
             finally
             {

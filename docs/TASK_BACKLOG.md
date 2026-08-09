@@ -705,7 +705,7 @@ artifacts/visual-review/windows/<window-id>/
 
 结果：`CacheAndDataPage` 改用透明页面根、`AppPageHeader`、单一无 Header 的 `AppSettingsList`、四个 `AppSettingsRow` 和末尾 `AppSettingsNavigationRow`；缓存总览使用正式 Typography/Progress/Button/Feedback 资源，缓存上限输入使用正式 TextBox/ComboBox 资源，该页 Legacy 键引用清零。按用户确认删除独立“缓存策略”条目，将 LRU 说明并入缓存上限行；应用数据目录改为独立文件夹图标入口，清理全部缓存改用 `Delete24` 与 `App.Button.DangerIcon`，并保留 Tooltip、AutomationName、命令禁用及确认流程。容量校验、调低确认/取消、LRU 清理、保护 registry、朗读清单回收、目录打开与缓存管理导航语义保持不变。新增正式结构、业务顺序、图标与绑定、Legacy 清零、错误状态、宽/窄布局及 100/125/150% DPI 回归，并更新 Legacy 页面引用指纹。`artifacts/visual-review/pages/cache-data/` 已生成 Light/Dark × 默认/长说明/校验错误/加载错误的 10 张 PNG 与 manifest，重复生成哈希一致；`artifacts/` 按仓库规则不入 Git。定向 Presentation 44 项、WPF 22 项和显式视觉生成测试通过；锁定还原、format、Release build（0 警告/0 错误）与完整测试门禁通过：Domain 2、Application 208、Presentation 383、Infrastructure 343、WPF 355，共 1,291 项测试。
 
-## [ ] 19（P1）：迁移诊断与关于页
+## [x] 19（P1）：迁移诊断与关于页
 
 前置：18。
 

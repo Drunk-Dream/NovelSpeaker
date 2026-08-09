@@ -128,8 +128,13 @@ public sealed class VisualResourceGraphTests
             finding => finding.Source.EndsWith(
                 "/Features/Cache/CacheAndDataPage.xaml",
                 StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            findings,
+            finding => finding.Source.EndsWith(
+                "/Features/Diagnostics/DiagnosticsAboutPage.xaml",
+                StringComparison.Ordinal));
         Assert.Equal(
-            "4F9657F6D13723530E7870CDB7E41E04B723423A634A5C924BBA0FAF41E209BD",
+            "7D220AA6FFB6557CFDAEDC033F9DCFBA77F1031148AF00BB306CF42069B7675B",
             VisualResourceGraphScanner.Fingerprint(findings));
     }
 

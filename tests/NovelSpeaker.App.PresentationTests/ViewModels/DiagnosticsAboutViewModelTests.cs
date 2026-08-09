@@ -53,6 +53,19 @@ public sealed class DiagnosticsAboutViewModelTests
     }
 
     [Fact]
+    public async Task OpenAppDataDirectoryCommand_opens_directory()
+    {
+        var diagnostics = new FakeDiagnosticsService();
+        var viewModel = CreateViewModel(
+            diagnostics,
+            new FakeAppSettingsService(AppSettings.Default));
+
+        await viewModel.OpenAppDataDirectoryCommand.ExecuteAsync(null);
+
+        Assert.True(diagnostics.AppDataDirectoryOpened);
+    }
+
+    [Fact]
     public async Task CopyRedactedSummaryCommand_copies_service_summary_and_notifies_user()
     {
         var clipboard = new FakeClipboardService();
@@ -86,6 +99,7 @@ public sealed class DiagnosticsAboutViewModelTests
     private sealed class FakeDiagnosticsService : IAppDiagnosticsService
     {
         public Exception? OpenException { get; set; }
+        public bool AppDataDirectoryOpened { get; private set; }
 
         public Task<AppDiagnosticsSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
         {
@@ -127,6 +141,7 @@ public sealed class DiagnosticsAboutViewModelTests
                 throw OpenException;
             }
 
+            AppDataDirectoryOpened = true;
             return Task.CompletedTask;
         }
     }
