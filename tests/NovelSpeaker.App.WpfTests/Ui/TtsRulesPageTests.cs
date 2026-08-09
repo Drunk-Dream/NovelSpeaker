@@ -4,6 +4,9 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using NovelSpeaker.App.Shared.Presentation.Controls.Common;
+using NovelSpeaker.App.Shared.Presentation.Controls.Forms;
+using NovelSpeaker.App.Shared.Presentation.Rules;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
@@ -43,7 +46,9 @@ public sealed partial class TtsRulesPageTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var leftScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("RulesListScrollViewer"));
+            var rulesList = Assert.IsType<ListBox>(view.FindName("RulesList"));
+            var leftScrollViewer = Assert.IsAssignableFrom<ScrollViewer>(
+                VisualTreeTestHelper.FindDescendant<ScrollViewer>(rulesList));
             var rightScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("RuleEditorScrollViewer"));
 
             Assert.True(leftScrollViewer.ScrollableHeight > 0);
@@ -74,17 +79,17 @@ public sealed partial class TtsRulesPageTests
             view.Arrange(new Rect(0, 0, 960, 680));
             view.UpdateLayout();
 
-            var button = VisualTreeTestHelper.FindDescendant<Button>(
+            var item = VisualTreeTestHelper.FindDescendant<RuleListItemView>(
                 view,
                 candidate => AutomationProperties.GetName(candidate) == targetRule.AutomationName);
 
-            Assert.NotNull(button);
-            Assert.Equal("当前规则，已禁用，已选中", AutomationProperties.GetName(button!));
+            Assert.NotNull(item);
+            Assert.Equal("当前规则，已禁用，已选中", AutomationProperties.GetName(item!));
         });
     }
 
     [Fact]
-    public void TtsRulesPage_card_contains_summary_enabled_and_more_actions_without_current_action()
+    public void TtsRulesPage_uses_shared_rule_item_with_context_actions_without_current_action()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -108,30 +113,36 @@ public sealed partial class TtsRulesPageTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            Assert.NotNull(VisualTreeTestHelper.FindDescendant<TextBlock>(
+            var item = Assert.IsType<RuleListItemView>(VisualTreeTestHelper.FindDescendant<RuleListItemView>(
                 view,
-                candidate => candidate.Text == rule.RequestSummary));
-            Assert.NotNull(VisualTreeTestHelper.FindDescendant<Button>(
-                view,
-                candidate => AutomationProperties.GetName(candidate) == "切换规则启用状态：备用规则"));
-            Assert.Null(VisualTreeTestHelper.FindDescendant<Button>(
-                view,
-                candidate => Equals(candidate.Content, "设为当前")));
-            var moreButton = VisualTreeTestHelper.FindDescendant<Button>(
-                view,
-                candidate => AutomationProperties.GetName(candidate) == "更多操作：备用规则");
-            Assert.NotNull(moreButton);
+                candidate => ReferenceEquals(candidate.CommandParameter, rule)));
+
+            Assert.Equal(rule.Name, item.Title);
+            Assert.Equal(rule.RequestSummary, item.Summary);
+            Assert.True(item.IsRuleEnabled);
+            Assert.True(item.IsSelected);
+            Assert.False(item.IsSortable);
+            item.ContextMenu!.PlacementTarget = item;
+            item.ContextMenu.IsOpen = true;
+            var visibleHeaders = item.ContextMenu.Items
+                .OfType<MenuItem>()
+                .Where(menuItem => menuItem.Visibility == Visibility.Visible)
+                .Select(menuItem => (string)menuItem.Header)
+                .ToArray();
             Assert.Equal(
-                ["导出", "复制到剪贴板", "删除"],
-                moreButton!.ContextMenu!.Items
-                    .Cast<MenuItem>()
-                    .Select(item => (string)item.Header)
-                    .ToArray());
+                ["导出到文件", "复制到剪切板", "删除"],
+                visibleHeaders);
+            Assert.DoesNotContain(
+                VisualTreeTestHelper.FindDescendants<FrameworkElement>(view),
+                candidate => AutomationProperties.GetName(candidate).Contains("设为当前", StringComparison.Ordinal));
+            Assert.DoesNotContain(
+                VisualTreeTestHelper.FindDescendants<Button>(view),
+                candidate => AutomationProperties.GetName(candidate).Contains("更多操作", StringComparison.Ordinal));
         });
     }
 
     [Fact]
-    public void TtsRulesPage_uses_the_shared_container_for_a_full_card_selection_surface()
+    public void TtsRulesPage_uses_formal_workbench_controls()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -154,19 +165,15 @@ public sealed partial class TtsRulesPageTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var card = Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(
+            var header = Assert.IsType<AppPageHeader>(view.FindName("PageHeader"));
+            Assert.Equal("TTS 规则", header.Title);
+            Assert.NotNull(header.Actions);
+            Assert.IsType<AppSectionSurface>(view.FindName("RulesSurface"));
+            Assert.IsType<AppSectionSurface>(view.FindName("EditorSurface"));
+            Assert.NotEmpty(VisualTreeTestHelper.FindDescendants<AppFormField>(view));
+            Assert.NotNull(VisualTreeTestHelper.FindDescendant<RuleListItemView>(
                 view,
-                candidate => ReferenceEquals(candidate.DataContext, rule) &&
-                             AutomationProperties.GetName(candidate) == rule.AutomationName));
-            var selectionButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(
-                card,
-                candidate => AutomationProperties.GetName(candidate) == rule.AutomationName));
-
-            Assert.Same(view.FindResource("SelectableCardListItemContainerStyle"), card.Style);
-            Assert.Equal(new Thickness(1), card.BorderThickness);
-            Assert.NotEqual(Brushes.Transparent, card.BorderBrush);
-            Assert.InRange(Math.Abs(selectionButton.ActualWidth - card.ActualWidth), 0d, 2d);
-            Assert.InRange(Math.Abs(selectionButton.ActualHeight - card.ActualHeight), 0d, 2d);
+                candidate => ReferenceEquals(candidate.CommandParameter, rule)));
         });
     }
 
@@ -236,8 +243,9 @@ public sealed partial class TtsRulesPageTests
             view.UpdateLayout();
 
             AssertToolbarIcon(view, "新建规则", SymbolRegular.DocumentAdd24);
-            AssertToolbarIcon(view, "导入文件", SymbolRegular.ArrowImport24);
-            AssertToolbarIcon(view, "从剪贴板", SymbolRegular.ClipboardPaste24);
+            AssertToolbarIcon(view, "从文件导入", SymbolRegular.ArrowImport24);
+            AssertToolbarIcon(view, "从剪切板导入", SymbolRegular.ClipboardPaste24);
+            AssertToolbarIcon(view, "规则编写帮助", SymbolRegular.QuestionCircle24);
         });
     }
 
@@ -275,7 +283,7 @@ public sealed partial class TtsRulesPageTests
             Assert.Equal(Visibility.Visible, helpDrawer.Visibility);
             Assert.Equal(Visibility.Visible, ((UIElement)helpDrawer.Parent).Visibility);
             Assert.NotEqual(Brushes.Transparent, helpDrawer.Background);
-            Assert.Equal(1d, dismissOverlay.Opacity);
+            Assert.Equal(0.45d, dismissOverlay.Opacity);
 
             context.IsHelpDrawerOpen = false;
             view.UpdateLayout();
@@ -332,7 +340,9 @@ public sealed partial class TtsRulesPageTests
             view.Arrange(new Rect(0, 0, 900, 640));
             view.UpdateLayout();
 
-            var leftScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("RulesListScrollViewer"));
+            var rulesList = Assert.IsType<ListBox>(view.FindName("RulesList"));
+            var leftScrollViewer = Assert.IsAssignableFrom<ScrollViewer>(
+                VisualTreeTestHelper.FindDescendant<ScrollViewer>(rulesList));
             var rightScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("RuleEditorScrollViewer"));
 
             Assert.True(leftScrollViewer.ActualWidth > 0);
@@ -386,9 +396,10 @@ public sealed partial class TtsRulesPageTests
             getView.Arrange(new Rect(0, 0, 1280, 760));
             getView.UpdateLayout();
 
-            var hiddenRequestBodyLabel = VisualTreeTestHelper.FindDescendant<TextBlock>(getView, candidate => candidate.Text == "请求体");
-            Assert.NotNull(hiddenRequestBodyLabel);
-            Assert.Equal(Visibility.Collapsed, ((FrameworkElement)hiddenRequestBodyLabel!.Parent).Visibility);
+            var hiddenRequestBodyField = Assert.Single(VisualTreeTestHelper.FindDescendants<AppFormField>(
+                getView,
+                candidate => candidate.Label == "请求体"));
+            Assert.Equal(Visibility.Collapsed, hiddenRequestBodyField.Visibility);
 
             var postView = new TtsRulesPage
             {
@@ -403,9 +414,10 @@ public sealed partial class TtsRulesPageTests
             postView.Arrange(new Rect(0, 0, 1280, 760));
             postView.UpdateLayout();
 
-            var visibleRequestBodyLabel = VisualTreeTestHelper.FindDescendant<TextBlock>(postView, candidate => candidate.Text == "请求体");
-            Assert.NotNull(visibleRequestBodyLabel);
-            Assert.Equal(Visibility.Visible, ((FrameworkElement)visibleRequestBodyLabel!.Parent).Visibility);
+            var visibleRequestBodyField = Assert.Single(VisualTreeTestHelper.FindDescendants<AppFormField>(
+                postView,
+                candidate => candidate.Label == "请求体"));
+            Assert.Equal(Visibility.Visible, visibleRequestBodyField.Visibility);
         });
     }
 

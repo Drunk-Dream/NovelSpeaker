@@ -1,5 +1,4 @@
 using System.Windows;
-using System.Windows.Controls;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
 using Wpf.Ui.Abstractions.Controls;
@@ -70,56 +69,6 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
     private async void ImportRulesFromClipboardButton_OnClick(object sender, RoutedEventArgs e)
     {
         await RunEventOperationAsync("从剪贴板导入失败", ViewModel.ImportRulesFromClipboardAsync);
-    }
-
-    private void RuleMoreButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button button ||
-            button.ContextMenu is null ||
-            button.DataContext is not TtsRuleListItemViewModel rule)
-        {
-            return;
-        }
-
-        button.ContextMenu.DataContext = rule;
-        button.ContextMenu.PlacementTarget = button;
-        button.ContextMenu.IsOpen = true;
-    }
-
-    private async void ExportRuleMenuItem_OnClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem { DataContext: TtsRuleListItemViewModel rule })
-        {
-            return;
-        }
-
-        await RunEventOperationAsync(
-            "导出规则失败",
-            cancellationToken => ViewModel.ExportRuleAsync(rule, cancellationToken));
-    }
-
-    private async void CopyRuleMenuItem_OnClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem { DataContext: TtsRuleListItemViewModel rule })
-        {
-            return;
-        }
-
-        await RunEventOperationAsync(
-            "复制规则失败",
-            cancellationToken => ViewModel.CopyRuleAsync(rule, cancellationToken));
-    }
-
-    private async void DeleteRuleMenuItem_OnClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem { DataContext: TtsRuleListItemViewModel rule })
-        {
-            return;
-        }
-
-        await RunEventOperationAsync(
-            "删除规则失败",
-            cancellationToken => ViewModel.DeleteRuleFromListAsync(rule, cancellationToken));
     }
 
     private Task RunEventOperationAsync(
