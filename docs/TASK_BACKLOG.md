@@ -724,7 +724,7 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `DiagnosticsAboutPage` 更新 `artifacts/visual-review/pages/diagnostics-about/`。
 - 完整质量门禁通过。
 
-## [ ] 20（P1）：迁移书库与 Feature BookCard
+## [x] 20（P1）：迁移书库与 Feature BookCard
 
 前置：19。
 

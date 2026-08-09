@@ -3,35 +3,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:NovelSpeaker.App.Shared.Presentation.Books"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-             x:Name="Root">
-    <Border Padding="14"
-            CornerRadius="{StaticResource CardCornerRadius}">
-        <Border.Style>
-            <Style TargetType="Border"
-                   BasedOn="{StaticResource CardBorderStyle}">
-                <Setter Property="BorderThickness"
-                        Value="1"/>
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding IsMouseOver, ElementName=Root}"
-                                 Value="True">
-                        <Setter Property="BorderBrush"
-                                Value="{DynamicResource AccentFillColorDefaultBrush}"/>
-                        <Setter Property="BorderThickness"
-                                Value="1.5"/>
-                    </DataTrigger>
-                    <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=Root}"
-                                 Value="True">
-                        <Setter Property="BorderBrush"
-                                Value="{DynamicResource AccentFillColorDefaultBrush}"/>
-                        <Setter Property="BorderThickness"
-                                Value="1.5"/>
-                    </DataTrigger>
-                </Style.Triggers>
-            </Style>
-        </Border.Style>
+             x:Name="Root"
+             Background="Transparent">
+    <Border x:Name="CardSurface"
+            Style="{StaticResource App.Selection.CardItem}">
         <Grid>
-            <Button Padding="0"
-                    Style="{StaticResource BorderlessListItemButtonStyle}"
+            <Button x:Name="OpenBookButton"
+                    Padding="0"
+                    Style="{StaticResource App.Button.Subtle}"
                     AutomationProperties.Name="{Binding Item.AutomationName, ElementName=Root}"
                     Command="{Binding OpenBookCommand, ElementName=Root}"
                     CommandParameter="{Binding Item, ElementName=Root}"
@@ -50,49 +29,48 @@
                     <StackPanel Grid.Column="1"
                                 Margin="16,0,42,0"
                                 VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource StrongTextBlockStyle}"
+                        <TextBlock Style="{StaticResource App.Typography.ItemTitle}"
                                    FontSize="17"
                                    Text="{Binding Item.Title, ElementName=Root}"
                                    ToolTip="{Binding Item.TitleToolTip, ElementName=Root}"
                                    TextTrimming="CharacterEllipsis"
                                    TextWrapping="NoWrap" />
                         <TextBlock Margin="0,6,0,0"
-                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                   Style="{StaticResource App.Typography.Secondary}"
                                    Text="{Binding Item.DisplayAuthor, ElementName=Root}"
-                                   TextTrimming="CharacterEllipsis" />
+                                   ToolTip="{Binding Item.DisplayAuthor, ElementName=Root}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" />
                         <TextBlock Margin="0,10,0,0"
-                                   Style="{StaticResource PrimaryTextBlockStyle}"
+                                   Style="{StaticResource App.Typography.Body}"
                                    Text="{Binding Item.CurrentChapterTitle, ElementName=Root}"
                                    ToolTip="{Binding Item.CurrentChapterToolTip, ElementName=Root}"
                                    TextTrimming="CharacterEllipsis"
                                    TextWrapping="NoWrap" />
                         <TextBlock Margin="0,6,0,0"
-                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                   Style="{StaticResource App.Typography.Secondary}"
                                    Text="{Binding Item.RemainingChapterText, ElementName=Root}" />
-                        <ProgressBar Margin="0,12,0,0"
-                                     Style="{StaticResource PlaybackProgressBarStyle}"
+                        <ProgressBar x:Name="ReadingProgressBar"
+                                     Margin="0,12,0,0"
+                                     Style="{StaticResource App.Progress.Compact}"
                                      Maximum="1"
-                                     Value="{Binding Item.ProgressRatio, ElementName=Root, Mode=OneWay}" />
+                                     Value="{Binding Item.ProgressRatio, ElementName=Root, Mode=OneWay}"
+                                     AutomationProperties.Name="{Binding Item.ProgressAutomationText, ElementName=Root}" />
                     </StackPanel>
                 </Grid>
             </Button>
 
             <Button x:Name="MoreButton"
-                    Width="34"
-                    Height="34"
-                    Margin="0,0,0,0"
-                    Padding="0"
-                    AutomationProperties.Name="{Binding Item.MoreActionsAutomationName, ElementName=Root}"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Top"
+                    AutomationProperties.Name="{Binding Item.MoreActionsAutomationName, ElementName=Root}"
                     Click="MoreButton_OnClick"
                     ToolTip="更多操作">
                 <Button.Style>
                     <Style TargetType="Button"
-                           BasedOn="{StaticResource BorderlessIconButtonStyle}">
+                           BasedOn="{StaticResource App.Button.Icon}">
                         <Setter Property="Opacity" Value="0" />
                         <Setter Property="IsHitTestVisible" Value="False" />
-                        <Setter Property="Margin" Value="0,2,2,0" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsMouseOver, ElementName=Root}" Value="True">
                                 <Setter Property="Opacity" Value="1" />
@@ -106,17 +84,20 @@
                     </Style>
                 </Button.Style>
                 <Button.ContextMenu>
-                    <ContextMenu>
-                        <MenuItem Command="{Binding OpenBookDetailsCommand}"
+                    <ContextMenu Style="{StaticResource App.Menu.ContextSurface}">
+                        <MenuItem Style="{StaticResource App.Menu.Item}"
+                                  Command="{Binding OpenBookDetailsCommand}"
                                   CommandParameter="{Binding Item}"
                                   Header="书籍详情" />
-                        <MenuItem Command="{Binding DeleteBookCommand}"
+                        <Separator />
+                        <MenuItem Style="{StaticResource App.Menu.DangerItem}"
+                                  Command="{Binding DeleteBookCommand}"
                                   CommandParameter="{Binding Item}"
                                   Header="删除书籍"
                                   IsEnabled="{Binding Item.CanDelete}" />
                     </ContextMenu>
                 </Button.ContextMenu>
-                <ui:SymbolIcon Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                <ui:SymbolIcon Foreground="{DynamicResource App.Brush.Text.Secondary}"
                                Symbol="MoreHorizontal24" />
             </Button>
         </Grid>

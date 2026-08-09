@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Input;
 using NovelSpeaker.App.Features.Library;
 using Xunit;
 
@@ -50,15 +52,103 @@ public sealed class BookCardViewTests
                 var moreButton = Assert.IsType<Button>(view.FindName("MoreButton"));
 
                 Assert.NotNull(openButton);
+                Assert.Same(view.FindResource("App.Button.Subtle"), openButton.Style);
+                Assert.Same(item, openButton.CommandParameter);
                 Assert.Equal(item.MoreActionsAutomationName, AutomationProperties.GetName(moreButton));
                 Assert.Equal("更多操作", moreButton.ToolTip);
+                Assert.Same(view.FindResource("App.Button.Icon"), moreButton.Style.BasedOn);
                 Assert.True(moreButton.TransformToAncestor(view).Transform(new Point(0, 0)).X >= 0);
+
+                var surface = Assert.IsType<Border>(view.FindName("CardSurface"));
+                Assert.Same(view.FindResource("App.Selection.CardItem"), surface.Style);
+                var progress = Assert.IsType<ProgressBar>(view.FindName("ReadingProgressBar"));
+                Assert.Same(view.FindResource("App.Progress.Compact"), progress.Style);
+                Assert.Equal(item.ProgressRatio, progress.Value);
+                Assert.Equal(item.ProgressAutomationText, AutomationProperties.GetName(progress));
+
+                var menu = Assert.IsType<ContextMenu>(moreButton.ContextMenu);
+                Assert.Same(view.FindResource("App.Menu.ContextSurface"), menu.Style);
+                var menuItems = menu.Items.OfType<MenuItem>().ToArray();
+                Assert.Equal(2, menuItems.Length);
+                Assert.Same(view.FindResource("App.Menu.Item"), menuItems[0].Style);
+                Assert.Same(view.FindResource("App.Menu.DangerItem"), menuItems[1].Style);
+                Assert.Equal("书籍详情", menuItems[0].Header);
+                Assert.Equal("删除书籍", menuItems[1].Header);
             }
             finally
             {
                 window.Close();
             }
         });
+    }
+
+    [Fact]
+    public void BookCardView_preserves_commands_tooltips_and_long_title_trimming()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var title = "一部拥有非常非常长标题并用于验证省略显示和完整提示信息的小说";
+            var item = new LibraryBookItemViewModel(
+                "book-long",
+                title,
+                "一位名字也很长的示例作者",
+                "第一百二十三章 这同样是一个很长的当前章节标题",
+                "剩余 99 章",
+                0.42,
+                true,
+                null,
+                new BookCoverGenerator().Generate(title),
+                canDelete: true);
+            var open = new TestCommand();
+            var details = new TestCommand();
+            var delete = new TestCommand();
+            var view = new BookCardView
+            {
+                Width = 360,
+                Item = item,
+                OpenBookCommand = open,
+                OpenBookDetailsCommand = details,
+                DeleteBookCommand = delete
+            };
+            using var host = new WpfControlHost(view);
+            host.MeasureArrange(new Size(360, 176));
+
+            var openButton = Assert.IsType<Button>(view.FindName("OpenBookButton"));
+            Assert.Same(open, openButton.Command);
+            Assert.Same(item, openButton.CommandParameter);
+            Assert.Same(details, view.OpenBookDetailsCommand);
+            Assert.Same(delete, view.DeleteBookCommand);
+            var titleText = VisualTreeTestHelper.FindDescendants<TextBlock>(view)
+                .Single(text => text.Text == title);
+            Assert.Equal(TextTrimming.CharacterEllipsis, titleText.TextTrimming);
+            Assert.Equal(title, titleText.ToolTip);
+            Assert.Equal(item.AutomationName, AutomationProperties.GetName(openButton));
+
+            var moreButton = Assert.IsType<Button>(view.FindName("MoreButton"));
+            moreButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var menu = Assert.IsType<ContextMenu>(moreButton.ContextMenu);
+            Assert.Same(view, menu.DataContext);
+            var items = menu.Items.OfType<MenuItem>().ToArray();
+            Assert.Equal(
+                nameof(BookCardView.OpenBookDetailsCommand),
+                Assert.IsType<Binding>(BindingOperations.GetBinding(items[0], MenuItem.CommandProperty)).Path.Path);
+            Assert.Equal(
+                nameof(BookCardView.DeleteBookCommand),
+                Assert.IsType<Binding>(BindingOperations.GetBinding(items[1], MenuItem.CommandProperty)).Path.Path);
+            Assert.Equal(
+                nameof(BookCardView.Item),
+                Assert.IsType<Binding>(BindingOperations.GetBinding(items[0], MenuItem.CommandParameterProperty)).Path.Path);
+            Assert.Equal(
+                nameof(BookCardView.Item),
+                Assert.IsType<Binding>(BindingOperations.GetBinding(items[1], MenuItem.CommandParameterProperty)).Path.Path);
+        });
+    }
+
+    private sealed class TestCommand : ICommand
+    {
+        public event EventHandler? CanExecuteChanged { add { } remove { } }
+        public bool CanExecute(object? parameter) => true;
+        public void Execute(object? parameter) { }
     }
 
 }
