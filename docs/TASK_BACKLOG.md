@@ -856,7 +856,7 @@ artifacts/visual-review/windows/<window-id>/
 
 结果：`ChapterRulesPage` 已迁移为透明页面根、无辅助说明的 `AppPageHeader.Actions`、按 `2:3` 比例分栏的两个 `AppSectionSurface`、正式 `AppFormField`/Input/Button/Feedback 资源与虚拟化共享 `RuleListItemView`。页首提供新建、文件导入、剪切板导入、默认规则导入、恢复默认规则和帮助，单规则菜单提供文件导出、复制到剪切板、上移、下移及按能力删除；旧拖动手柄、`⋮` 菜单、页面私有拖放/菜单桥接和全部 Legacy 键引用已删除。共享整卡长按拖动会按插入线的目标前/目标后语义保存顺序，并沿用边缘自动滚动；默认规则、合并导入、启用即时保存、初始空编辑区、显式取消、Dirty 导航守卫与帮助语义保持不变。新增/更新页面正式结构、深色图标、菜单能力、错误投影、最小工作区、虚拟化、拖放插入位置和资源图测试。正式页面脱敏 fixture 已在 `artifacts/visual-review/pages/chapter-rules/` 生成空状态/编辑状态 × Light/Dark × 100%/150% 的 8 张 PNG 与 manifest，重复渲染校验通过；`artifacts/` 按仓库规则不加入 Git。完整质量门禁通过：locked restore 无依赖变化，format、Release build（0 警告/0 错误）和完整测试通过。
 
-## [ ] 26（P1）：迁移正则替换工作台
+## [x] 26（P1）：迁移正则替换工作台
 
 前置：25。
 
@@ -876,6 +876,8 @@ artifacts/visual-review/windows/<window-id>/
 - 长表达式、错误、最小工作区、插入线和列表边缘自动滚动几何测试通过。
 - 使用正式 `RegexReplacementRulesPage` 更新 `artifacts/visual-review/pages/regex-replacement-rules/`。
 - 完整质量门禁通过。
+
+结果：`RegexReplacementRulesPage` 已迁移为透明页面根、无辅助说明的 `AppPageHeader.Actions`、按 `2:3` 比例分栏的两个 `AppSectionSurface`、正式 `AppFormField`/Input/Button/Feedback 资源与虚拟化共享 `RuleListItemView`。页首只提供新建、文件导入、剪切板导入和帮助，单规则菜单提供文件导出、复制到剪切板、上移、下移和删除；旧拖动手柄、`⋮` 菜单、页面私有拖放/菜单桥接和全部 Legacy 键引用已删除。共享规则卡片新增可选运行时错误投影并使用正式 Inline Feedback；名称和 Pattern 校验分别进入对应 `AppFormField`，空 Replacement 继续作为合法删除匹配内容语义。共享整卡长按拖动按插入线目标前/目标后保存排序并沿用边缘自动滚动；初始空编辑区、启用即时保存、显式取消、Dirty 导航守卫、合并导入和播放刷新语义保持不变。新增/更新页面结构、深色图标、菜单能力、错误投影、长表达式、最小工作区、虚拟化、拖放插入位置、空 Replacement、播放刷新和资源图测试。正式页面脱敏 fixture 已在 `artifacts/visual-review/pages/regex-replacement-rules/` 生成空状态/编辑状态/错误状态 × Light/Dark × 100%/150% 的 12 张 PNG 与 manifest，重复渲染校验通过；`artifacts/` 按仓库规则不加入 Git。完整质量门禁通过：locked restore 无依赖变化，format、Release build（0 警告/0 错误）和完整测试通过。
 
 ## [ ] 27（P1）：迁移缓存管理页
 

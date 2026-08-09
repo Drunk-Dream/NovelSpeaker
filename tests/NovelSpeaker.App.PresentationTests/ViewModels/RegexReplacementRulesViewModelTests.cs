@@ -125,6 +125,38 @@ public sealed class RegexReplacementRulesViewModelTests
     }
 
     [Fact]
+    public async Task Validation_projects_name_and_pattern_errors_to_their_form_fields()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Save);
+        await LoadAndSelectFirstAsync(fixture);
+
+        fixture.ViewModel.DraftName = string.Empty;
+
+        Assert.Equal("规则名称不能为空。", fixture.ViewModel.NameValidationMessage);
+        Assert.Empty(fixture.ViewModel.PatternValidationMessage);
+
+        fixture.ViewModel.DraftName = "有效名称";
+        fixture.ViewModel.DraftPattern = "[";
+
+        Assert.Empty(fixture.ViewModel.NameValidationMessage);
+        Assert.NotEmpty(fixture.ViewModel.PatternValidationMessage);
+        Assert.False(fixture.ViewModel.CanSave);
+    }
+
+    [Fact]
+    public async Task Empty_replacement_is_valid_for_removing_matching_text()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Save);
+        await LoadAndSelectFirstAsync(fixture);
+
+        fixture.ViewModel.DraftReplacement = string.Empty;
+
+        Assert.Empty(fixture.ViewModel.NameValidationMessage);
+        Assert.Empty(fixture.ViewModel.PatternValidationMessage);
+        Assert.True(fixture.ViewModel.CanSave);
+    }
+
+    [Fact]
     public async Task SelectRuleAsync_save_failure_keeps_current_draft_and_blocks_leave()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
@@ -249,6 +281,29 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal(1, fixture.Playback.RegexRefreshCount);
     }
 
+    [Theory]
+    [InlineData(RuleDropPlacement.Before, 2, 0, 1)]
+    [InlineData(RuleDropPlacement.After, 0, 2, 1)]
+    public async Task ReorderRuleCommand_honors_insertion_line_and_refreshes_playback(
+        RuleDropPlacement placement,
+        int firstIndex,
+        int secondIndex,
+        int thirdIndex)
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Save, ruleCount: 3);
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        var original = fixture.ViewModel.Rules.Select(rule => rule.Id).ToArray();
+        var source = fixture.ViewModel.Rules[2];
+        var target = fixture.ViewModel.Rules[0];
+
+        await fixture.ViewModel.ReorderRuleCommand.ExecuteAsync(new RuleReorderRequest(source, target, placement));
+
+        Assert.Equal(
+            [original[firstIndex], original[secondIndex], original[thirdIndex]],
+            fixture.Workspace.OrderedRuleIds);
+        Assert.Equal(1, fixture.Playback.RegexRefreshCount);
+    }
+
     [Fact]
     public async Task DeleteRuleFromListAsync_deletes_the_menu_target_without_closing_another_editor()
     {
@@ -338,13 +393,26 @@ public sealed class RegexReplacementRulesViewModelTests
         await import;
     }
 
-    private static TestFixture CreateFixture(UnsavedChangesDecision decision)
+    private static TestFixture CreateFixture(UnsavedChangesDecision decision, int ruleCount = 2)
     {
         var firstRuleId = Guid.NewGuid();
         var secondRuleId = Guid.NewGuid();
-        var workspace = new FakeRegexReplacementRuleWorkspaceService(
-            new RegexReplacementRuleEditorModel(firstRuleId, "规则一", "一", "甲", RegexReplacementScope.Both),
-            new RegexReplacementRuleEditorModel(secondRuleId, "规则二", "二", "乙", RegexReplacementScope.Display));
+        var editors = new List<RegexReplacementRuleEditorModel>
+        {
+            new(firstRuleId, "规则一", "一", "甲", RegexReplacementScope.Both),
+            new(secondRuleId, "规则二", "二", "乙", RegexReplacementScope.Display)
+        };
+        if (ruleCount >= 3)
+        {
+            editors.Add(new RegexReplacementRuleEditorModel(
+                Guid.NewGuid(),
+                "规则三",
+                "三",
+                "丙",
+                RegexReplacementScope.Speech));
+        }
+
+        var workspace = new FakeRegexReplacementRuleWorkspaceService(editors.ToArray());
         var feedback = new FakeFeedbackService();
         var playback = new FakePlaybackCoordinator();
         var documents = new FakeRuleDocumentInteraction();

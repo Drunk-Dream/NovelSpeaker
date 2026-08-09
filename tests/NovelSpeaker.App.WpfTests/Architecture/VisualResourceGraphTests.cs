@@ -158,8 +158,13 @@ public sealed class VisualResourceGraphTests
             finding => finding.Source.EndsWith(
                 "/Features/ChapterRules/ChapterRulesPage.xaml",
                 StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            findings,
+            finding => finding.Source.EndsWith(
+                "/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml",
+                StringComparison.Ordinal));
         Assert.Equal(
-            "FA1E1986742C8D89E9BFFEA1548981B9520BC7702675ECACE7071073874B2C3E",
+            "3A5CB61F099481A3B95ECDF3A63398ED2606C40FADBF43622EF53D32ACF6CCCA",
             VisualResourceGraphScanner.Fingerprint(findings));
     }
 

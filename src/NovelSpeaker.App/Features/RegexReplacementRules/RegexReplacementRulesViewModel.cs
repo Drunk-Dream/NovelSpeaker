@@ -57,6 +57,14 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     public bool IsEditingNewRule => _editorSession.IsNew;
     public bool HasUnsavedChanges => _editorSession.IsDirty;
     public Array Scopes => Enum.GetValues(typeof(RegexReplacementScope));
+    public string NameValidationMessage =>
+        string.Equals(ValidationMessage, "规则名称不能为空。", StringComparison.Ordinal)
+            ? ValidationMessage
+            : string.Empty;
+    public string PatternValidationMessage =>
+        string.IsNullOrEmpty(NameValidationMessage)
+            ? ValidationMessage
+            : string.Empty;
     public bool CanSave => HasEditor && HasUnsavedChanges && !IsBusy && string.IsNullOrEmpty(ValidationMessage);
     public bool CanCancel => HasEditor && !IsBusy;
 
@@ -206,7 +214,32 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
 
     public async Task ReorderByDropAsync(RegexReplacementRuleListItemViewModel? source, RegexReplacementRuleListItemViewModel? target, CancellationToken cancellationToken)
     {
-        if (source is null || target is null || source.Id == target.Id || IsBusy)
+        await ReorderRuleCoreAsync(source, target, RuleDropPlacement.Before, cancellationToken);
+    }
+
+    [RelayCommand]
+    private async Task ReorderRuleAsync(RuleReorderRequest? request, CancellationToken cancellationToken)
+    {
+        if (request?.Source is not RegexReplacementRuleListItemViewModel source ||
+            request.Target is not RegexReplacementRuleListItemViewModel target)
+        {
+            return;
+        }
+
+        await ReorderRuleCoreAsync(source, target, request.Placement, cancellationToken);
+    }
+
+    private async Task ReorderRuleCoreAsync(
+        RegexReplacementRuleListItemViewModel? source,
+        RegexReplacementRuleListItemViewModel? target,
+        RuleDropPlacement placement,
+        CancellationToken cancellationToken)
+    {
+        if (source is null ||
+            target is null ||
+            placement == RuleDropPlacement.None ||
+            source.Id == target.Id ||
+            IsBusy)
         {
             ClearDragTarget();
             return;
@@ -221,7 +254,9 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
             return;
         }
         ids.RemoveAt(sourceIndex);
-        ids.Insert(targetIndex, source.Id);
+        targetIndex = ids.IndexOf(target.Id);
+        var insertionIndex = placement == RuleDropPlacement.After ? targetIndex + 1 : targetIndex;
+        ids.Insert(insertionIndex, source.Id);
         await SaveOrderAsync(ids, cancellationToken);
     }
 
@@ -267,10 +302,23 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
         finally { IsBusy = false; NotifyCommandState(); }
     }
 
+    [RelayCommand]
+    private Task DeleteRuleAsync(
+        RegexReplacementRuleListItemViewModel? rule,
+        CancellationToken cancellationToken) =>
+        rule is null
+            ? Task.CompletedTask
+            : DeleteRuleFromListAsync(rule, cancellationToken);
+
     partial void OnDraftNameChanged(string value) => Changed();
     partial void OnDraftPatternChanged(string value) => Changed();
     partial void OnDraftReplacementChanged(string value) => Changed();
     partial void OnDraftScopeChanged(RegexReplacementScope value) => Changed();
+    partial void OnValidationMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(NameValidationMessage));
+        OnPropertyChanged(nameof(PatternValidationMessage));
+    }
     partial void OnIsBusyChanged(bool value)
     {
         UpdateRuleItemStates();

@@ -171,6 +171,38 @@ public sealed class RuleListItemViewTests
     }
 
     [Fact]
+    public void Optional_runtime_error_uses_formal_inline_feedback_without_changing_card_commands()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var selected = new RecordingCommand();
+            var view = new RuleListItemView
+            {
+                Title = "错误规则",
+                Summary = "[",
+                HasError = true,
+                ErrorMessage = "正则表达式无效",
+                SelectCommand = selected,
+                CommandParameter = "rule-id",
+                Width = 360
+            };
+            using var host = Show(view);
+
+            var message = Assert.Single(
+                VisualTreeTestHelper.FindDescendants<TextBlock>(view),
+                textBlock => textBlock.Text == "正则表达式无效");
+            var feedback = Assert.IsType<Border>(message.Parent);
+            Assert.Equal(Visibility.Visible, feedback.Visibility);
+            Assert.Same(view.FindResource("App.Feedback.InlineMessage"), feedback.Style.BasedOn);
+
+            view.HasError = false;
+            host.Window.UpdateLayout();
+            Assert.Equal(Visibility.Collapsed, feedback.Visibility);
+            Assert.Empty(selected.Parameters);
+        });
+    }
+
+    [Fact]
     public void Reorder_command_runs_only_for_a_valid_drop_commit()
     {
         WpfTestHost.RunInSta(() =>
@@ -254,6 +286,35 @@ public sealed class RuleListItemViewTests
             Assert.True(toggle.IsEnabled);
             provider.Toggle();
             Assert.Equal(["rule-id"], command.Parameters);
+        });
+    }
+
+    [Fact]
+    public void Toggle_capability_disables_input_without_changing_projected_state()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var command = new RecordingCommand();
+            var view = new RuleListItemView
+            {
+                Title = "忙碌中的规则",
+                IsRuleEnabled = true,
+                CanToggle = false,
+                ToggleEnabledCommand = command,
+                CommandParameter = "rule-id",
+                Width = 360
+            };
+            using var host = Show(view);
+            var toggle = Assert.Single(VisualTreeTestHelper.FindDescendants<RuleToggleSwitch>(view));
+
+            Assert.False(toggle.IsEnabled);
+            Assert.True(toggle.IsChecked);
+            Assert.Empty(command.Parameters);
+
+            view.CanToggle = true;
+            host.Window.UpdateLayout();
+            Assert.True(toggle.IsEnabled);
+            Assert.True(toggle.IsChecked);
         });
     }
 

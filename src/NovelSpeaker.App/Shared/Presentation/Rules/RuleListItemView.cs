@@ -42,6 +42,18 @@ public sealed class RuleListItemView : Control
         typeof(RuleListItemView),
         new FrameworkPropertyMetadata(string.Empty));
 
+    public static readonly DependencyProperty ErrorMessageProperty = DependencyProperty.Register(
+        nameof(ErrorMessage),
+        typeof(string),
+        typeof(RuleListItemView),
+        new FrameworkPropertyMetadata(string.Empty));
+
+    public static readonly DependencyProperty HasErrorProperty = DependencyProperty.Register(
+        nameof(HasError),
+        typeof(bool),
+        typeof(RuleListItemView),
+        new FrameworkPropertyMetadata(false));
+
     public static readonly DependencyProperty IsRuleEnabledProperty = DependencyProperty.Register(
         nameof(IsRuleEnabled),
         typeof(bool),
@@ -53,6 +65,12 @@ public sealed class RuleListItemView : Control
         typeof(bool),
         typeof(RuleListItemView),
         new FrameworkPropertyMetadata(false));
+
+    public static readonly DependencyProperty CanToggleProperty = DependencyProperty.Register(
+        nameof(CanToggle),
+        typeof(bool),
+        typeof(RuleListItemView),
+        new FrameworkPropertyMetadata(true));
 
     public static readonly DependencyProperty IsSortableProperty = DependencyProperty.Register(
         nameof(IsSortable),
@@ -105,6 +123,18 @@ public sealed class RuleListItemView : Control
         set => SetValue(SummaryProperty, value);
     }
 
+    public string ErrorMessage
+    {
+        get => (string)GetValue(ErrorMessageProperty);
+        set => SetValue(ErrorMessageProperty, value);
+    }
+
+    public bool HasError
+    {
+        get => (bool)GetValue(HasErrorProperty);
+        set => SetValue(HasErrorProperty, value);
+    }
+
     public bool IsRuleEnabled
     {
         get => (bool)GetValue(IsRuleEnabledProperty);
@@ -115,6 +145,12 @@ public sealed class RuleListItemView : Control
     {
         get => (bool)GetValue(IsSelectedProperty);
         set => SetValue(IsSelectedProperty, value);
+    }
+
+    public bool CanToggle
+    {
+        get => (bool)GetValue(CanToggleProperty);
+        set => SetValue(CanToggleProperty, value);
     }
 
     public bool IsSortable
