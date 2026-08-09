@@ -331,6 +331,12 @@ public sealed class RegexReplacementRulesViewModelTests
             return Task.FromResult(rules);
         }
 
+        public Task<string?> ExportRuleJsonAsync(Guid ruleId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<RuleJsonImportResult> ImportJsonAsync(string json, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<RegexReplacementRuleEditorModel?> GetEditorAsync(Guid ruleId, CancellationToken cancellationToken)
         {
             return Task.FromResult<RegexReplacementRuleEditorModel?>(_editors.GetValueOrDefault(ruleId));

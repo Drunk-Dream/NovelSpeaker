@@ -13,6 +13,7 @@ internal static class TtsRuleJsonSerializer
         writer.WriteStartObject();
         writer.WriteString("name", rule.Name);
         writer.WriteString("url", rule.Url);
+        writer.WriteBoolean("isEnabled", rule.IsEnabled);
         if (!string.IsNullOrWhiteSpace(rule.ContentType))
         {
             writer.WriteString("contentType", rule.ContentType);

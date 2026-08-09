@@ -122,6 +122,48 @@ public sealed class ChapterRuleWorkspaceServiceTests
         Assert.Equal(70, persisted.SortOrder);
     }
 
+    [Fact]
+    public async Task Json_export_and_array_import_preserve_state_ignore_ids_and_append_in_source_order()
+    {
+        var repository = new FakeChapterRuleRepository(
+        [
+            new ChapterRule("custom:existing", "同名", "^旧$", 40, false, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
+        ]);
+        var service = new ChapterRuleWorkspaceService(repository, new FakeChapterRuleManagementService(), TimeProvider.System);
+
+        var exported = await service.ExportRuleJsonAsync("custom:existing", CancellationToken.None);
+        var result = await service.ImportJsonAsync(
+            """
+            [
+              {"id":"custom:existing","name":"同名","pattern":"^旧$","isEnabled":false},
+              {"id":"custom:existing","name":"同名","pattern":"^新一$","isEnabled":true},
+              {"name":"第二条","pattern":"^新二$","isEnabled":false}
+            ]
+            """,
+            CancellationToken.None);
+
+        Assert.Equal("""{"name":"同名","pattern":"^旧$","isEnabled":false}""", exported);
+        Assert.Equal(new RuleJsonImportResult(2, 1, 3), result);
+        var ordered = repository.Rules.OrderBy(rule => rule.SortOrder).ToArray();
+        Assert.Equal(["custom:existing", ordered[1].Id, ordered[2].Id], ordered.Select(rule => rule.Id));
+        Assert.All(ordered.Skip(1), rule => Assert.StartsWith("custom:", rule.Id, StringComparison.Ordinal));
+        Assert.Equal(["^旧$", "^新一$", "^新二$"], ordered.Select(rule => rule.Pattern));
+        Assert.Equal([false, true, false], ordered.Select(rule => rule.IsEnabled));
+    }
+
+    [Fact]
+    public async Task Json_import_validates_entire_source_before_writing()
+    {
+        var repository = new FakeChapterRuleRepository([]);
+        var service = new ChapterRuleWorkspaceService(repository, new FakeChapterRuleManagementService(), TimeProvider.System);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ImportJsonAsync(
+            """[{"name":"有效","pattern":"^ok$"},{"name":"无效","pattern":"["}]""",
+            CancellationToken.None));
+
+        Assert.Empty(repository.Rules);
+    }
+
     private sealed class FakeChapterRuleRepository : IChapterRuleRepository
     {
         public FakeChapterRuleRepository(IReadOnlyList<ChapterRule> rules)

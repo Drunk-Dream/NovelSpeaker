@@ -620,6 +620,12 @@ public sealed class ChapterRulesViewModelTests
             return Task.FromResult<IReadOnlyList<ChapterRuleListItem>>(_rules.OrderBy(rule => rule.SortOrder).ToArray());
         }
 
+        public Task<string?> ExportRuleJsonAsync(string ruleId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<RuleJsonImportResult> ImportJsonAsync(string json, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<ChapterRuleEditorModel?> GetEditorAsync(string ruleId, CancellationToken cancellationToken)
         {
             EditorsById.TryGetValue(ruleId, out var editor);

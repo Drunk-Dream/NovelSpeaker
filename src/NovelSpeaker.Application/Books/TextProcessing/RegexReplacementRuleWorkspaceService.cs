@@ -1,3 +1,5 @@
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Application.Books.RuleEditing;
 
@@ -85,6 +87,49 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
         return _repository.UpdateEnabledAsync(ruleId, isEnabled, cancellationToken);
     }
 
+    public async Task<string?> ExportRuleJsonAsync(Guid ruleId, CancellationToken cancellationToken)
+    {
+        var rule = (await _repository.GetAllAsync(cancellationToken)).FirstOrDefault(item => item.Id == ruleId);
+        return rule is null ? null : SerializePortableRule(rule);
+    }
+
+    public async Task<RuleJsonImportResult> ImportJsonAsync(
+        string json,
+        CancellationToken cancellationToken)
+    {
+        var candidates = ParsePortableRules(json);
+        var existing = (await _repository.GetAllAsync(cancellationToken)).ToList();
+        var imported = 0;
+        var skipped = 0;
+
+        foreach (var candidate in candidates)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (existing.Any(rule => PortableFieldsEqual(rule, candidate)))
+            {
+                skipped++;
+                continue;
+            }
+
+            var now = _timeProvider.GetUtcNow();
+            var rule = new RegexReplacementRule(
+                Guid.NewGuid(),
+                candidate.Name,
+                candidate.IsEnabled,
+                GetNextSortOrder(existing),
+                candidate.Pattern,
+                candidate.Replacement,
+                candidate.Scope,
+                now,
+                now);
+            await _repository.SaveAsync(rule, cancellationToken);
+            existing.Add(rule);
+            imported++;
+        }
+
+        return new RuleJsonImportResult(imported, skipped, candidates.Count);
+    }
+
     public async Task SaveOrderAsync(
         IReadOnlyList<Guid> orderedRuleIds,
         CancellationToken cancellationToken)
@@ -133,4 +178,116 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
     {
         return rules.Count == 0 ? SortOrderStep : rules.Max(item => item.SortOrder) + SortOrderStep;
     }
+
+    private static IReadOnlyList<PortableRegexReplacementRule> ParsePortableRules(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            throw new InvalidOperationException("规则 JSON 不能为空。");
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            var elements = document.RootElement.ValueKind switch
+            {
+                JsonValueKind.Object => [document.RootElement.Clone()],
+                JsonValueKind.Array => document.RootElement.EnumerateArray().Select(element => element.Clone()).ToArray(),
+                _ => throw new InvalidOperationException("规则 JSON 必须是单条对象或对象数组。")
+            };
+            return elements.Select(ParsePortableRule).ToArray();
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidOperationException("规则 JSON 格式无效。", exception);
+        }
+    }
+
+    private static PortableRegexReplacementRule ParsePortableRule(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidOperationException("规则数组只能包含对象。");
+        }
+
+        var name = RulePatternValidation.NormalizeRequired(ReadRequiredString(element, "name"), "规则名称");
+        var pattern = RulePatternValidation.NormalizeRequired(ReadRequiredString(element, "pattern"), "正则表达式");
+        RulePatternValidation.Validate(pattern, RuleTimeout);
+        var replacement = ReadOptionalString(element, "replacement") ?? string.Empty;
+        var scopeText = ReadRequiredString(element, "scope");
+        if (!Enum.TryParse<RegexReplacementScope>(scopeText, true, out var scope) ||
+            !Enum.IsDefined(scope))
+        {
+            throw new InvalidOperationException("字段 scope 必须是 Display、Speech 或 Both。");
+        }
+
+        return new PortableRegexReplacementRule(
+            name,
+            pattern,
+            replacement,
+            scope,
+            ReadBoolean(element, "isEnabled", true));
+    }
+
+    private static string SerializePortableRule(RegexReplacementRule rule)
+    {
+        using var stream = new MemoryStream();
+        using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions
+        {
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        });
+        writer.WriteStartObject();
+        writer.WriteString("name", rule.Name);
+        writer.WriteString("pattern", rule.Pattern);
+        writer.WriteString("replacement", rule.Replacement);
+        writer.WriteString("scope", rule.Scope.ToString());
+        writer.WriteBoolean("isEnabled", rule.IsEnabled);
+        writer.WriteEndObject();
+        writer.Flush();
+        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static bool PortableFieldsEqual(
+        RegexReplacementRule rule,
+        PortableRegexReplacementRule candidate) =>
+        string.Equals(rule.Name, candidate.Name, StringComparison.Ordinal) &&
+        string.Equals(rule.Pattern, candidate.Pattern, StringComparison.Ordinal) &&
+        string.Equals(rule.Replacement, candidate.Replacement, StringComparison.Ordinal) &&
+        rule.Scope == candidate.Scope &&
+        rule.IsEnabled == candidate.IsEnabled;
+
+    private static string ReadRequiredString(JsonElement element, string propertyName) =>
+        ReadOptionalString(element, propertyName) ?? string.Empty;
+
+    private static string? ReadOptionalString(JsonElement element, string propertyName)
+    {
+        var property = element.EnumerateObject().FirstOrDefault(candidate =>
+            candidate.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase));
+        return property.Value.ValueKind switch
+        {
+            JsonValueKind.String => property.Value.GetString(),
+            JsonValueKind.Undefined or JsonValueKind.Null => null,
+            _ => throw new InvalidOperationException($"字段 {propertyName} 必须是字符串。")
+        };
+    }
+
+    private static bool ReadBoolean(JsonElement element, string propertyName, bool defaultValue)
+    {
+        var property = element.EnumerateObject().FirstOrDefault(candidate =>
+            candidate.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase));
+        return property.Value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Undefined => defaultValue,
+            _ => throw new InvalidOperationException($"字段 {propertyName} 必须是布尔值。")
+        };
+    }
+
+    private sealed record PortableRegexReplacementRule(
+        string Name,
+        string Pattern,
+        string Replacement,
+        RegexReplacementScope Scope,
+        bool IsEnabled);
 }

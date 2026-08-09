@@ -672,6 +672,7 @@ public sealed class TtsRulesViewModelTests
             canImport ? TtsRuleCompatibilityStatus.Compatible : TtsRuleCompatibilityStatus.NeedsManualAdjustment,
             [],
             canImport,
+            canImport,
             false,
             false,
             statusMessage,
