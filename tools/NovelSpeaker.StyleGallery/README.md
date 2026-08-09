@@ -24,4 +24,10 @@ dotnet run --project tools/NovelSpeaker.StyleGallery/NovelSpeaker.StyleGallery.c
 dotnet run --project tools/NovelSpeaker.StyleGallery/NovelSpeaker.StyleGallery.csproj -c Release -- --screenshot --scene progress --theme all --output artifacts/visual-review/gallery/progress
 ```
 
+Rules shared list items:
+
+```powershell
+dotnet run --project tools/NovelSpeaker.StyleGallery/NovelSpeaker.StyleGallery.csproj -c Release -- --screenshot --scene rules-shared --theme all --output artifacts/visual-review/gallery/rules-shared
+```
+
 The command exits after writing `manifest.json` and one PNG per selected scene/theme. `--scene` accepts a stable scene ID from `GallerySceneRegistry`; omitting it renders all registered scenes. The progress fixture keeps ProgressBar and Slider type boundaries measurable, the media fixture covers playback, volume, window actions and deterministic slider projection, and the feedback fixture covers Popup, InlineMessage, Validation and Snackbar content styles without creating host controls. The manifest records the stable artifact ID, scene, theme, fixed size, 96 DPI and SHA-256 for every PNG.

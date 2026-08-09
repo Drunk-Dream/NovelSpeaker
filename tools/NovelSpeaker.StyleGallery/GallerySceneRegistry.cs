@@ -82,6 +82,11 @@ public static class GallerySceneRegistry
             "Book cards, list rows, selection rows, settings rows, rule items and empty states.",
             GallerySceneBuilders.CreateListComponents),
         new GallerySceneDefinition(
+            "rules-shared",
+            GallerySceneGroup.ComponentFamilies,
+            "Formal shared rule list items across TTS, chapter and regex fixture states.",
+            GalleryRulesSharedScene.Create),
+        new GallerySceneDefinition(
             "feedback",
             GallerySceneGroup.ComponentFamilies,
             "Popup, inline validation and Snackbar content styles.",

@@ -788,7 +788,7 @@ artifacts/visual-review/windows/<window-id>/
 - TTS 导出与导入的 `IsEnabled` 对称性测试通过；导入、新建和重新启用均不改变当前播放规则。
 - 完整质量门禁通过。
 
-## [ ] 23（P1）：建立 Rules 页面族共享视图
+## [x] 23（P1）：建立 Rules 页面族共享视图
 
 前置：22。
 
