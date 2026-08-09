@@ -22,11 +22,6 @@ public sealed class SettingsSubpageViewTests
             try
             {
                 AssertRows(
-                    provider.GetRequiredService<CacheAndDataPage>(),
-                    "CacheOverviewItemBorder",
-                    "CacheLimitItemBorder",
-                    "CachePolicyItemBorder");
-                AssertRows(
                     provider.GetRequiredService<DiagnosticsAboutPage>(),
                     "AppNameItemBorder",
                     "AppVersionItemBorder",
@@ -102,7 +97,8 @@ public sealed class SettingsSubpageViewTests
                 AssertIconTool(
                     provider.GetRequiredService<CacheAndDataPage>(),
                     "打开应用数据目录",
-                    SymbolRegular.FolderOpen24);
+                    SymbolRegular.FolderOpen24,
+                    "App.Button.Icon");
                 var diagnosticsPage = provider.GetRequiredService<DiagnosticsAboutPage>();
                 AssertIconTool(diagnosticsPage, "打开日志目录", SymbolRegular.FolderOpen24);
                 AssertIconTool(diagnosticsPage, "复制脱敏诊断摘要", SymbolRegular.DocumentCopy24);
@@ -217,7 +213,8 @@ public sealed class SettingsSubpageViewTests
     private static void AssertIconTool(
         FrameworkElement page,
         string accessibleName,
-        SymbolRegular expectedSymbol)
+        SymbolRegular expectedSymbol,
+        string styleKey = "SecondaryIconButtonStyle")
     {
         page.Measure(new Size(1200, 900));
         page.Arrange(new Rect(0, 0, 1200, 900));
@@ -229,7 +226,7 @@ public sealed class SettingsSubpageViewTests
 
         Assert.Equal(accessibleName, button.ToolTip);
         Assert.Equal(expectedSymbol, Assert.IsType<SymbolIcon>(button.Content).Symbol);
-        Assert.Same(page.FindResource("SecondaryIconButtonStyle"), button.Style);
+        Assert.Same(page.FindResource(styleKey), button.Style);
     }
 
     private static string GetRepositoryRoot()

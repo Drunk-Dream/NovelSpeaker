@@ -123,8 +123,13 @@ public sealed class VisualResourceGraphTests
         var findings = VisualResourceGraphScanner.ScanPageLegacyReferences(repositoryRoot, legacyKeys);
 
         Assert.NotEmpty(findings);
+        Assert.DoesNotContain(
+            findings,
+            finding => finding.Source.EndsWith(
+                "/Features/Cache/CacheAndDataPage.xaml",
+                StringComparison.Ordinal));
         Assert.Equal(
-            "617EAD45B1684D20DC03E6705532F4C1CFCC476E608C3B1A4914AD63C3719B31",
+            "4F9657F6D13723530E7870CDB7E41E04B723423A634A5C924BBA0FAF41E209BD",
             VisualResourceGraphScanner.Fingerprint(findings));
     }
 

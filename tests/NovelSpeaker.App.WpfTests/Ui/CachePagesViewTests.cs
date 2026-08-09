@@ -58,12 +58,13 @@ public sealed class CachePagesViewTests
                 var clearAllButton = Assert.Single(
                     buttons,
                     button => AutomationProperties.GetName(button) == "清理全部缓存");
-                var cacheManagementButton = Assert.IsType<Button>(page.FindName("OpenCacheManagementButton"));
-                var settingsRows = Assert.IsType<StackPanel>(
-                    System.Windows.Media.VisualTreeHelper.GetParent(cacheManagementButton));
-                Assert.Equal("清理全部缓存", clearAllButton.Content);
+                var cacheManagementButton = Assert.IsType<NovelSpeaker.App.Shared.Presentation.Controls.Settings.AppSettingsNavigationRow>(
+                    page.FindName("OpenCacheManagementRow"));
+                var settingsRows = Assert.IsType<NovelSpeaker.App.Shared.Presentation.Controls.Settings.AppSettingsList>(
+                    page.FindName("SettingsList"));
+                Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(clearAllButton.Content);
                 Assert.Equal("清理全部缓存", clearAllButton.ToolTip);
-                Assert.Equal(settingsRows.Children.Count - 1, settingsRows.Children.IndexOf(cacheManagementButton));
+                Assert.Equal(settingsRows.Items.Count - 1, settingsRows.Items.IndexOf(cacheManagementButton));
             }
             finally
             {

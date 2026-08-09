@@ -762,6 +762,7 @@ sans-serif
 - `AppSettingsRow` 的独立布局、窄宽度适配、Focus/Automation 与纵向密度不得依赖 Group Header；Surface、圆角、统一 Padding 和 Divider 由 `AppSettingsList`/`AppSettingsGroup` 的共同列表合同提供，Row 自身不画外层卡片。
 - 普通布尔项使用 ToggleSwitch，枚举项使用 ComboBox。
 - 危险数据操作通过危险按钮样式、说明与确认流程表达风险；即使位于页面底部，也不因此恢复普通 Settings Group。
+- 缓存与数据页把 LRU 说明归入容量上限行；应用数据目录使用文件夹图标按钮，清理全部缓存使用带 Tooltip 和可访问名称的 DangerIcon，缓存管理继续使用整行导航。
 - 页面内容宽度继续由各页面拥有；本轮视觉规范不新增统一 `MaxWidth`，也不改变既有设置页的横向铺展策略。
 
 ### 12.6 缓存管理

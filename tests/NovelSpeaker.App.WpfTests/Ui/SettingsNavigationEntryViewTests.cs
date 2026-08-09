@@ -1,9 +1,7 @@
 using System.Windows;
 using System.Windows.Automation;
-using System.Windows.Controls;
 using Microsoft.Extensions.DependencyInjection;
-using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
-using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
+using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -21,7 +19,7 @@ public sealed class SettingsNavigationEntryViewTests
             {
                 AssertNavigationEntry(
                     provider.GetRequiredService<CacheAndDataPage>(),
-                    "OpenCacheManagementButton",
+                    "OpenCacheManagementRow",
                     "缓存管理");
             }
             finally
@@ -40,20 +38,10 @@ public sealed class SettingsNavigationEntryViewTests
         page.Arrange(new Rect(0, 0, 1200, 800));
         page.UpdateLayout();
 
-        var button = Assert.IsType<Button>(page.FindName(buttonName));
-        var expectedStyle = Assert.IsType<Style>(page.FindResource("SettingsNavigationRowButtonStyle"));
-
-        Assert.Same(expectedStyle, button.Style);
-        Assert.Equal(title, button.Content);
-        Assert.Equal(title, AutomationProperties.GetName(button));
-        Assert.Equal(title, button.ToolTip);
-
-        var icons = VisualTreeTestHelper.FindDescendants<SymbolIcon>(button).ToArray();
-        Assert.Equal(2, icons.Length);
-        Assert.Equal(SymbolRegular.ChevronRight24, icons[1].Symbol);
-
-        Assert.Single(
-            VisualTreeTestHelper.FindDescendants<TextBlock>(button),
-            textBlock => textBlock.Text == title);
+        var row = Assert.IsType<AppSettingsNavigationRow>(page.FindName(buttonName));
+        Assert.Same(page.FindResource(typeof(AppSettingsNavigationRow)), row.Style);
+        Assert.Equal(title, row.Title);
+        Assert.Equal(title, row.ToolTip);
+        Assert.Equal(title, AutomationProperties.GetName(row));
     }
 }

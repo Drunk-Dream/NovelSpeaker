@@ -683,14 +683,15 @@ artifacts/visual-review/windows/<window-id>/
 
 结果：`ImportTextSettingsPage` 改用透明页面根、`AppPageHeader` 和单一无 Header 的 `AppSettingsList`，按“拆分长段落、长段落阈值、文件名提取模板、正则替换”业务顺序组合正式 `AppSettingsRow` 与 `AppSettingsNavigationRow`；TextBox、ToggleSwitch 和阈值错误分别使用正式 Input/Feedback Style，页面 Legacy 键引用清零。模板/阈值 500 ms 防抖即时保存、回车/失焦提交、拆分开关即时保存及正则替换三级导航语义保持不变。新增页面结构、业务顺序、绑定、Automation、Tab/Focus、Legacy 清零、宽/窄布局、错误投影、Light/Dark 与 100/125/150% DPI 回归，并补充非整数阈值拒绝和正则路由测试；`artifacts/visual-review/pages/import-text-settings/` 已生成 Light/Dark × 默认/长说明/错误 × 100/150% DPI 的 10 张 PNG 与 manifest，重复生成哈希一致，`artifacts/` 仍未加入 Git。定向 Presentation 6 项、WPF/资源图 29 项和显式视觉生成测试通过；锁定还原、format、Release build（0 警告/0 错误）与完整测试门禁通过。
 
-## [ ] 18（P1）：迁移缓存与数据页
+## [x] 18（P1）：迁移缓存与数据页
 
 前置：17。
 
 实现：
 
 - 使用正式 PageHeader、SettingsList、SettingsRow、SettingsNavigationRow、Button 和 Feedback 资源迁移 `CacheAndDataPage`；设置、只读信息和导航入口采用单一无 Header `AppSettingsList`，不使用 SettingsGroup 或分类 Header。
-- 显示缓存占用、容量上限、使用率、LRU 说明、应用数据目录、清理全部缓存和缓存管理入口。
+- 显示缓存占用、容量上限、使用率、随容量上限展示的 LRU 说明、应用数据目录、清理全部缓存和缓存管理入口；不保留独立“缓存策略”条目。
+- 应用数据目录使用文件夹图标按钮；清理全部缓存使用删除图标和 DangerIcon 资源，并保留 Tooltip、可访问名称和确认流程。
 - 危险操作保持独立区域和确认流程。
 - 保持容量调低后的确认、LRU 清理、保护 registry 和朗读清单同步回收语义。
 - 删除该页全部 Legacy 键引用。
@@ -701,6 +702,8 @@ artifacts/visual-review/windows/<window-id>/
 - 危险按钮、错误状态和 150% DPI 几何测试通过。
 - 使用正式 `CacheAndDataPage` 更新 `artifacts/visual-review/pages/cache-data/`。
 - 完整质量门禁通过。
+
+结果：`CacheAndDataPage` 改用透明页面根、`AppPageHeader`、单一无 Header 的 `AppSettingsList`、四个 `AppSettingsRow` 和末尾 `AppSettingsNavigationRow`；缓存总览使用正式 Typography/Progress/Button/Feedback 资源，缓存上限输入使用正式 TextBox/ComboBox 资源，该页 Legacy 键引用清零。按用户确认删除独立“缓存策略”条目，将 LRU 说明并入缓存上限行；应用数据目录改为独立文件夹图标入口，清理全部缓存改用 `Delete24` 与 `App.Button.DangerIcon`，并保留 Tooltip、AutomationName、命令禁用及确认流程。容量校验、调低确认/取消、LRU 清理、保护 registry、朗读清单回收、目录打开与缓存管理导航语义保持不变。新增正式结构、业务顺序、图标与绑定、Legacy 清零、错误状态、宽/窄布局及 100/125/150% DPI 回归，并更新 Legacy 页面引用指纹。`artifacts/visual-review/pages/cache-data/` 已生成 Light/Dark × 默认/长说明/校验错误/加载错误的 10 张 PNG 与 manifest，重复生成哈希一致；`artifacts/` 按仓库规则不入 Git。定向 Presentation 44 项、WPF 22 项和显式视觉生成测试通过；锁定还原、format、Release build（0 警告/0 错误）与完整测试门禁通过：Domain 2、Application 208、Presentation 383、Infrastructure 343、WPF 355，共 1,291 项测试。
 
 ## [ ] 19（P1）：迁移诊断与关于页
 

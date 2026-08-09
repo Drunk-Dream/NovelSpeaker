@@ -96,7 +96,7 @@ public sealed class ThemeResourceTests
     }
 
     [Fact]
-    public void Cache_cleanup_buttons_use_short_action_except_explicit_clear_all_danger_action()
+    public void Cache_cleanup_text_buttons_use_short_action_labels()
     {
         var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");
         var cleanupLabels = Directory
@@ -109,8 +109,8 @@ public sealed class ThemeResourceTests
             .Where(static content => content?.Contains("清理", StringComparison.Ordinal) == true)
             .ToArray();
 
-        Assert.All(cleanupLabels, static label => Assert.True(label is "清理" or "清理全部缓存"));
-        Assert.Single(cleanupLabels, static label => label == "清理全部缓存");
+        Assert.NotEmpty(cleanupLabels);
+        Assert.All(cleanupLabels, static label => Assert.Equal("清理", label));
     }
 
     [Fact]
