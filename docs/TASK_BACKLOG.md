@@ -789,6 +789,7 @@ artifacts/visual-review/windows/<window-id>/
 实现：
 
 - 使用正式 PageHeader、SectionSurface、AppFormField、Input、Button、Menu、Feedback 和 Rules 共享列表项迁移 `TtsRulesPage`。
+- 新建、导入和帮助等顶部操作放入 `AppPageHeader.Actions`，与标题平齐，不保留 Header 下方的并行工具栏。
 - 页面拥有真实双栏比例、字段布局和滚动。
 - 保持试听、当前规则、启用、排序、导入、导出、删除、Dirty State 和导航守卫语义。
 - 未修改时取消/保存禁用；试听针对当前编辑副本。
@@ -808,6 +809,7 @@ artifacts/visual-review/windows/<window-id>/
 实现：
 
 - 使用与任务 23 相同的公共边界迁移 `ChapterRulesPage`。
+- 新建、导入默认规则和恢复默认规则等顶部操作放入 `AppPageHeader.Actions`。
 - 页面保留自身字段、帮助、默认规则导入/恢复和布局。
 - 内置规则可删除性由能力字段决定，不新增标签。
 - 排序以拖拽为主，菜单上移/下移作为键盘和备用入口。
@@ -827,6 +829,7 @@ artifacts/visual-review/windows/<window-id>/
 实现：
 
 - 使用与任务 23 相同的公共边界迁移 `RegexReplacementRulesPage`。
+- 新建规则等顶部操作放入 `AppPageHeader.Actions`。
 - 页面保留名称、Pattern、Replacement、作用目标、帮助和自身布局。
 - 错误统一通过 AppFormField/Feedback 投影。
 - 保持启用、排序、删除、保存/取消、Dirty State 和播放刷新语义。
