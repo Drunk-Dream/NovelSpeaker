@@ -10,6 +10,22 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class RegexReplacementRulesViewModelTests
 {
+    [Fact]
+    public async Task LoadAsync_leaves_editor_closed_until_a_rule_is_clicked()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Discard);
+
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+
+        Assert.False(fixture.ViewModel.HasEditor);
+        Assert.Null(fixture.ViewModel.SelectedRuleId);
+
+        await fixture.ViewModel.SelectRuleCommand.ExecuteAsync(fixture.ViewModel.Rules[0]);
+
+        Assert.True(fixture.ViewModel.HasEditor);
+        Assert.Equal(fixture.FirstRuleId, fixture.ViewModel.SelectedRuleId);
+    }
+
     [Theory]
     [InlineData(UnsavedChangesDecision.Save, true)]
     [InlineData(UnsavedChangesDecision.Discard, true)]
@@ -19,7 +35,7 @@ public sealed class RegexReplacementRulesViewModelTests
         bool expectedCanLeave)
     {
         var fixture = CreateFixture(decision);
-        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectFirstAsync(fixture);
         fixture.ViewModel.DraftName = "已修改";
 
         var canLeave = await fixture.ViewModel.ConfirmLeaveAsync(CancellationToken.None);
@@ -36,7 +52,7 @@ public sealed class RegexReplacementRulesViewModelTests
         int expectedSaveCount)
     {
         var fixture = CreateFixture(decision);
-        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectFirstAsync(fixture);
         fixture.ViewModel.DraftPattern = "已修改";
 
         await fixture.ViewModel.SelectRuleCommand.ExecuteAsync(fixture.ViewModel.Rules[1]);
@@ -50,7 +66,7 @@ public sealed class RegexReplacementRulesViewModelTests
     public async Task SelectRuleAsync_cancel_keeps_current_draft_and_selection()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Cancel);
-        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectFirstAsync(fixture);
         fixture.ViewModel.DraftPattern = "已修改";
 
         await fixture.ViewModel.SelectRuleCommand.ExecuteAsync(fixture.ViewModel.Rules[1]);
@@ -62,10 +78,10 @@ public sealed class RegexReplacementRulesViewModelTests
     }
 
     [Fact]
-    public async Task NewRuleAsync_tracks_dirty_and_cancel_restores_fallback_selection()
+    public async Task NewRuleAsync_tracks_dirty_and_cancel_closes_editor()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Discard);
-        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectFirstAsync(fixture);
 
         await fixture.ViewModel.NewRuleCommand.ExecuteAsync(null);
 
@@ -78,18 +94,18 @@ public sealed class RegexReplacementRulesViewModelTests
 
         Assert.False(fixture.ViewModel.IsEditingNewRule);
         Assert.False(fixture.ViewModel.HasUnsavedChanges);
-        Assert.Equal(fixture.FirstRuleId, fixture.ViewModel.SelectedRuleId);
-        Assert.Equal("规则一", fixture.ViewModel.DraftName);
+        Assert.False(fixture.ViewModel.HasEditor);
+        Assert.Null(fixture.ViewModel.SelectedRuleId);
     }
 
     [Fact]
     public async Task Editor_actions_are_disabled_until_the_draft_changes()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Discard);
-        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectFirstAsync(fixture);
 
         Assert.False(fixture.ViewModel.HasUnsavedChanges);
-        Assert.False(fixture.ViewModel.CanCancel);
+        Assert.True(fixture.ViewModel.CanCancel);
         Assert.False(fixture.ViewModel.CanSave);
 
         fixture.ViewModel.DraftReplacement = "新替换";
@@ -100,6 +116,7 @@ public sealed class RegexReplacementRulesViewModelTests
 
         await fixture.ViewModel.CancelCommand.ExecuteAsync(null);
 
+        Assert.False(fixture.ViewModel.HasEditor);
         Assert.False(fixture.ViewModel.HasUnsavedChanges);
         Assert.False(fixture.ViewModel.CanCancel);
         Assert.False(fixture.ViewModel.CanSave);
@@ -110,7 +127,7 @@ public sealed class RegexReplacementRulesViewModelTests
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
         fixture.Workspace.SaveException = new InvalidOperationException("save failed");
-        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectFirstAsync(fixture);
         fixture.ViewModel.DraftPattern = "已修改";
 
         await fixture.ViewModel.SelectRuleCommand.ExecuteAsync(fixture.ViewModel.Rules[1]);
@@ -126,7 +143,7 @@ public sealed class RegexReplacementRulesViewModelTests
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
         fixture.Workspace.SaveException = new OperationCanceledException();
-        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectFirstAsync(fixture);
         fixture.ViewModel.DraftPattern = "已修改";
 
         await Assert.ThrowsAsync<OperationCanceledException>(
@@ -141,7 +158,7 @@ public sealed class RegexReplacementRulesViewModelTests
     public async Task SaveAsync_refreshes_playback_when_execution_fields_change()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
-        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectFirstAsync(fixture);
         fixture.ViewModel.DraftReplacement = "新替换";
 
         await fixture.ViewModel.SaveCommand.ExecuteAsync(null);
@@ -153,7 +170,7 @@ public sealed class RegexReplacementRulesViewModelTests
     public async Task SaveAsync_does_not_refresh_playback_when_only_name_changes()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
-        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectFirstAsync(fixture);
         fixture.ViewModel.DraftName = "新名称";
 
         await fixture.ViewModel.SaveCommand.ExecuteAsync(null);
@@ -235,7 +252,7 @@ public sealed class RegexReplacementRulesViewModelTests
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
         fixture.Feedback.DeletionDecision = AppConfirmationDecision.Confirm;
-        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectFirstAsync(fixture);
 
         await fixture.ViewModel.DeleteRuleFromListAsync(
             fixture.ViewModel.Rules[1],
@@ -264,6 +281,12 @@ public sealed class RegexReplacementRulesViewModelTests
             new FakeDialogService(decision),
             new FakeNavigationService());
         return new TestFixture(viewModel, workspace, feedback, playback, firstRuleId, secondRuleId);
+    }
+
+    private static async Task LoadAndSelectFirstAsync(TestFixture fixture)
+    {
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        await fixture.ViewModel.SelectRuleCommand.ExecuteAsync(fixture.ViewModel.Rules[0]);
     }
 
     private sealed record TestFixture(

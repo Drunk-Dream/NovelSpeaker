@@ -79,12 +79,12 @@ public sealed partial class TtsRulesPageTests
                 candidate => AutomationProperties.GetName(candidate) == targetRule.AutomationName);
 
             Assert.NotNull(button);
-            Assert.Equal("当前规则，已禁用，当前规则，已选中", AutomationProperties.GetName(button!));
+            Assert.Equal("当前规则，已禁用，已选中", AutomationProperties.GetName(button!));
         });
     }
 
     [Fact]
-    public void TtsRulesPage_card_contains_summary_enabled_current_and_more_actions()
+    public void TtsRulesPage_card_contains_summary_enabled_and_more_actions_without_current_action()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -114,7 +114,7 @@ public sealed partial class TtsRulesPageTests
             Assert.NotNull(VisualTreeTestHelper.FindDescendant<Button>(
                 view,
                 candidate => AutomationProperties.GetName(candidate) == "切换规则启用状态：备用规则"));
-            Assert.NotNull(VisualTreeTestHelper.FindDescendant<Button>(
+            Assert.Null(VisualTreeTestHelper.FindDescendant<Button>(
                 view,
                 candidate => Equals(candidate.Content, "设为当前")));
             var moreButton = VisualTreeTestHelper.FindDescendant<Button>(

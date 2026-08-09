@@ -51,6 +51,7 @@ internal sealed class PlayerRulesAndSpeedController : IDisposable
     {
         var rules = await _ruleQueries.GetRulesAsync(cancellationToken);
         return rules
+            .Where(static rule => rule.IsEnabled)
             .Select(rule => new PlayerRuleItemViewModel(rule.Id, rule.Name, rule.IsEnabled, rule.IsSelected))
             .ToArray();
     }

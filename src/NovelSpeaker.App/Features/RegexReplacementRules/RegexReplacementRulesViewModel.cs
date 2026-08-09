@@ -53,9 +53,9 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     public bool HasUnsavedChanges => _editorSession.IsDirty;
     public Array Scopes => Enum.GetValues(typeof(RegexReplacementScope));
     public bool CanSave => HasEditor && HasUnsavedChanges && !IsBusy && string.IsNullOrEmpty(ValidationMessage);
-    public bool CanCancel => HasEditor && HasUnsavedChanges && !IsBusy;
+    public bool CanCancel => HasEditor && !IsBusy;
 
-    public async Task LoadAsync(CancellationToken cancellationToken) => await RefreshAsync(SelectedRuleId, !HasEditor, cancellationToken);
+    public async Task LoadAsync(CancellationToken cancellationToken) => await RefreshAsync(SelectedRuleId, false, cancellationToken);
 
     public void HandleNavigatedFrom()
     {
@@ -171,10 +171,11 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task CancelAsync(CancellationToken cancellationToken)
+    private Task CancelAsync(CancellationToken cancellationToken)
     {
-        if (!HasEditor) return;
-        await DiscardDraftAsync(cancellationToken);
+        if (!HasEditor) return Task.CompletedTask;
+        CloseEditor();
+        return Task.CompletedTask;
     }
 
     public async Task DeleteRuleFromListAsync(

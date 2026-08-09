@@ -39,11 +39,28 @@ public sealed class PlayerRulesAndSpeedControllerTests
         Assert.Contains("1 到 20", error);
     }
 
-    private static PlayerRulesAndSpeedController CreateController()
+    [Fact]
+    public async Task LoadRulesAsync_projects_only_enabled_rules()
+    {
+        using var controller = CreateController(new StubRuleQueries
+        {
+            Rules =
+            [
+                new TtsRuleSummary(1, "启用规则", true, true, null),
+                new TtsRuleSummary(2, "禁用规则", false, false, null)
+            ]
+        });
+
+        var rules = await controller.LoadRulesAsync(CancellationToken.None);
+
+        Assert.Collection(rules, rule => Assert.Equal(1, rule.Id));
+    }
+
+    private static PlayerRulesAndSpeedController CreateController(StubRuleQueries? queries = null)
     {
         return new PlayerRulesAndSpeedController(
             new StubPlaybackSession(),
-            new StubRuleQueries(),
+            queries ?? new StubRuleQueries(),
             new StubSettingsService(),
             new StubFeedbackService(),
             TimeProvider.System);
@@ -83,9 +100,11 @@ public sealed class PlayerRulesAndSpeedControllerTests
 
     private sealed class StubRuleQueries : ITtsRuleQueries
     {
+        public IReadOnlyList<TtsRuleSummary> Rules { get; init; } = [];
+
         public Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken)
         {
-            return Task.FromResult<IReadOnlyList<TtsRuleSummary>>([]);
+            return Task.FromResult(Rules);
         }
 
         public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken)

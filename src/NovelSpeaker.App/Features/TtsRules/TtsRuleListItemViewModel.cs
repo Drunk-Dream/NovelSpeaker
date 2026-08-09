@@ -36,7 +36,8 @@ public sealed partial class TtsRuleListItemViewModel : ObservableObject
 
     public string RequestSummary { get; }
 
-    public bool IsEnabled { get; }
+    [ObservableProperty]
+    private bool isEnabled;
 
     public bool IsCurrent { get; }
 
@@ -44,5 +45,5 @@ public sealed partial class TtsRuleListItemViewModel : ObservableObject
     private bool isSelected;
 
     public string AutomationName =>
-        $"{Name}，{(IsEnabled ? "已启用" : "已禁用")}{(IsCurrent ? "，当前规则" : string.Empty)}{(IsSelected ? "，已选中" : string.Empty)}";
+        $"{Name}，{(IsEnabled ? "已启用" : "已禁用")}{(IsSelected ? "，已选中" : string.Empty)}";
 }

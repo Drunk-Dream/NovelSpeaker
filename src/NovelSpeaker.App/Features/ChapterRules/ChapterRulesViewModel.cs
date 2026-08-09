@@ -73,13 +73,13 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
 
     public bool CanSaveDraft => HasEditor && HasUnsavedChanges && !IsBusy && !HasValidationErrors;
 
-    public bool CanCancelEditing => HasEditor && HasUnsavedChanges && !IsBusy;
+    public bool CanCancelEditing => HasEditor && !IsBusy;
 
     public string? CurrentRuleId => IsEditingNewRule ? null : _editorSession.EditorId;
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        await RefreshRulesAsync(HighlightedRuleId, openEditorIfNeeded: !HasEditor, cancellationToken);
+        await RefreshRulesAsync(HighlightedRuleId, openEditorIfNeeded: false, cancellationToken);
     }
 
     public void HandleNavigatedFrom()
@@ -188,31 +188,15 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task CancelEditingAsync(CancellationToken cancellationToken)
+    private Task CancelEditingAsync(CancellationToken cancellationToken)
     {
         if (!HasEditor)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        if (IsEditingNewRule)
-        {
-            if (!string.IsNullOrWhiteSpace(_editorSession.FallbackId))
-            {
-                await OpenSavedRuleAsync(_editorSession.FallbackId, cancellationToken);
-            }
-            else
-            {
-                CloseEditor();
-            }
-
-            return;
-        }
-
-        if (_editorSession.Baseline is not null)
-        {
-            OpenEditor(_editorSession.Baseline, false, _editorSession.FallbackId);
-        }
+        CloseEditor();
+        return Task.CompletedTask;
     }
 
     public async Task DeleteRuleFromListAsync(

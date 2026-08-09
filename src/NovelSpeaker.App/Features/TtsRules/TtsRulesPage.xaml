@@ -162,7 +162,6 @@
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
 
                                                 <Button VerticalAlignment="Center"
@@ -185,30 +184,6 @@
                                                 </Button>
 
                                                 <Button Grid.Column="2"
-                                                        Margin="8,0,4,0"
-                                                        Padding="8,4"
-                                                        Command="{Binding DataContext.SetCurrentRuleCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                        CommandParameter="{Binding}"
-                                                        AutomationProperties.Name="{Binding Name, StringFormat=设为当前规则：{0}}">
-                                                    <Button.Style>
-                                                        <Style TargetType="Button"
-                                                               BasedOn="{StaticResource BorderlessListItemButtonStyle}">
-                                                            <Setter Property="Content" Value="设为当前" />
-                                                            <Setter Property="IsEnabled" Value="True" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                                                    <Setter Property="IsEnabled" Value="False" />
-                                                                </DataTrigger>
-                                                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                                                    <Setter Property="Content" Value="当前规则" />
-                                                                    <Setter Property="IsEnabled" Value="False" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Button.Style>
-                                                </Button>
-
-                                                <Button Grid.Column="3"
                                                         Style="{StaticResource BorderlessIconButtonStyle}"
                                                         Click="RuleMoreButton_OnClick"
                                                         ToolTip="更多操作"
@@ -455,7 +430,7 @@
                                 <TextBlock Style="{StaticResource StrongTextBlockStyle}" Text="从零开始" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource SecondaryTextBlockStyle}"
-                                           Text="先新建规则，填写名称和服务商提供的完整 HTTP/HTTPS 地址；再选择 GET 或 POST，填入服务要求的参数，保存后点击“试听”。试听成功后再设为当前规则。"
+                                           Text="先新建规则，填写名称和服务商提供的完整 HTTP/HTTPS 地址；再选择 GET 或 POST，填入服务要求的参数，保存后点击“试听”。试听成功后可在播放页切换当前规则。"
                                            TextWrapping="Wrap" />
 
                                 <TextBlock Margin="0,18,0,0"

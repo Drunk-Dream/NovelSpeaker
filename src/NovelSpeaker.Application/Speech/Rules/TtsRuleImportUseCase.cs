@@ -1,4 +1,3 @@
-using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Speech;
 
 namespace NovelSpeaker.Application.Speech.Rules;
@@ -6,8 +5,6 @@ namespace NovelSpeaker.Application.Speech.Rules;
 internal sealed class TtsRuleImportUseCase(
     ITtsRuleRepository repository,
     ITtsRuleSourceAdapter sourceAdapter,
-    IAppSettingsService settingsService,
-    ITtsRuleSelectionUseCase selection,
     TimeProvider timeProvider) : ITtsRuleImportUseCase
 {
     public async Task<TtsRuleImportPreview> CreateImportPreviewAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken)
@@ -38,7 +35,6 @@ internal sealed class TtsRuleImportUseCase(
         var skipped = 0;
         var failed = 0;
         long? first = null;
-        long? firstEnabled = null;
         foreach (var item in preview.Items)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -60,17 +56,7 @@ internal sealed class TtsRuleImportUseCase(
             rule = rule with { Id = id };
             existing.Add(rule);
             first ??= id;
-            if (rule.IsEnabled)
-            {
-                firstEnabled ??= id;
-            }
-
             imported++;
-        }
-
-        if (firstEnabled is not null && settingsService.Current.SelectedTtsRuleId is null)
-        {
-            await selection.SelectRuleAsync(firstEnabled.Value, cancellationToken);
         }
 
         return new TtsRuleImportResult(imported, skipped, preview.Items.Count) { FailedCount = failed, FirstImportedRuleId = first };

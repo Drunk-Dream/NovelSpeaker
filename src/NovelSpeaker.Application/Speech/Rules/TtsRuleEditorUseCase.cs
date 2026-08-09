@@ -1,12 +1,9 @@
-using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Speech;
 
 namespace NovelSpeaker.Application.Speech.Rules;
 
 internal sealed class TtsRuleEditorUseCase(
     ITtsRuleRepository repository,
-    IAppSettingsService settingsService,
-    ITtsRuleSelectionUseCase selection,
     TimeProvider timeProvider) : ITtsRuleEditorUseCase
 {
     public async Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken)
@@ -35,16 +32,26 @@ internal sealed class TtsRuleEditorUseCase(
         var existing = validation.NormalizedModel.Id is > 0
             ? await repository.GetByIdAsync(validation.NormalizedModel.Id.Value, cancellationToken)
             : null;
-        var rule = TtsRuleModelMapper.BuildRule(validation.NormalizedModel, existing, timeProvider.GetUtcNow());
+        var model = existing is null
+            ? validation.NormalizedModel
+            : validation.NormalizedModel with { IsEnabled = existing.IsEnabled };
+        var rule = TtsRuleModelMapper.BuildRule(model, existing, timeProvider.GetUtcNow());
         rule = TtsRuleModelMapper.EnsureUniqueName(rule, await repository.GetAllAsync(cancellationToken), existing?.Id);
         var id = await repository.SaveAsync(rule, cancellationToken);
         var saved = await repository.GetByIdAsync(id, cancellationToken) ?? rule with { Id = id };
-        if (existing is null && saved.IsEnabled && settingsService.Current.SelectedTtsRuleId is null)
-        {
-            await selection.SelectRuleAsync(saved.Id, cancellationToken);
-            saved = await repository.GetByIdAsync(id, cancellationToken) ?? saved;
-        }
         return saved;
+    }
+
+    public async Task SetRuleEnabledAsync(
+        long ruleId,
+        bool isEnabled,
+        CancellationToken cancellationToken)
+    {
+        var rule = await repository.GetByIdAsync(ruleId, cancellationToken)
+            ?? throw new InvalidOperationException("未找到要更新的规则。");
+        await repository.SaveAsync(
+            rule with { IsEnabled = isEnabled, UpdatedAt = timeProvider.GetUtcNow() },
+            cancellationToken);
     }
 
     public async Task<TtsRuleDraftPreparationResult> PrepareDraftAsync(

@@ -13,7 +13,7 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Speech;
 public sealed class TtsRuleUseCaseTests
 {
     [Fact]
-    public async Task Import_skips_exact_duplicate_renames_same_name_and_selects_first_enabled_rule()
+    public async Task Import_skips_exact_duplicate_renames_same_name_and_does_not_select_imported_rule()
     {
         var existing = Rule(1, "同名", "https://example.com/old");
         var repository = new FakeRepository([existing]);
@@ -31,7 +31,7 @@ public sealed class TtsRuleUseCaseTests
         Assert.Equal(1, result.SkippedCount);
         Assert.Equal(1, result.FailedCount);
         Assert.Contains(repository.Rules, rule => rule.Name == "同名 (2)");
-        Assert.Equal(result.FirstImportedRuleId, provider.GetRequiredService<IAppSettingsService>().Current.SelectedTtsRuleId);
+        Assert.Null(provider.GetRequiredService<IAppSettingsService>().Current.SelectedTtsRuleId);
     }
 
     [Fact]
@@ -48,6 +48,28 @@ public sealed class TtsRuleUseCaseTests
         var saved = await editorUseCase.SaveEditorAsync(changed, CancellationToken.None);
         Assert.Equal("修改后", saved.Name);
         Assert.Equal("https://example.com/changed", saved.Url);
+    }
+
+    [Fact]
+    public async Task Editor_save_preserves_latest_enabled_state_and_new_rule_does_not_become_current()
+    {
+        var existing = Rule(4, "原规则", "https://example.com/original");
+        var repository = new FakeRepository([existing]);
+        using var provider = CreateProvider(repository, new FakeSourceAdapter(new([], null)), AppSettings.Default);
+        var editorUseCase = provider.GetRequiredService<ITtsRuleEditorUseCase>();
+        var staleDraft = await editorUseCase.GetEditorAsync(4, CancellationToken.None);
+        repository.Rules[0] = existing with { IsEnabled = false };
+
+        var saved = await editorUseCase.SaveEditorAsync(staleDraft! with { Name = "已修改" }, CancellationToken.None);
+        await editorUseCase.SetRuleEnabledAsync(4, true, CancellationToken.None);
+        var created = await editorUseCase.SaveEditorAsync(
+            new TtsRuleEditorModel(null, "新规则", true, "https://example.com/new", null, null, null, [], new("GET", null)),
+            CancellationToken.None);
+
+        Assert.False(saved.IsEnabled);
+        Assert.True(repository.Rules.Single(rule => rule.Id == 4).IsEnabled);
+        Assert.True(created.IsEnabled);
+        Assert.Null(provider.GetRequiredService<IAppSettingsService>().Current.SelectedTtsRuleId);
     }
 
     [Theory]
