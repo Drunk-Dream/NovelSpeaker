@@ -19,58 +19,57 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <commonControls:AppPageHeader x:Name="PageHeader"
-                                      Title="书库" />
+                                      Title="书库">
+            <commonControls:AppPageHeader.Actions>
+                <WrapPanel x:Name="LibraryToolbar"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center"
+                           ItemHeight="40">
+                    <Grid Width="260"
+                          Margin="0,0,12,0">
+                        <TextBox x:Name="SearchTextBox"
+                                 Padding="12,8,36,8"
+                                 Style="{StaticResource App.Input.TextBox.Standard}"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.Name="搜索书库" />
+                        <Button x:Name="ClearSearchButton"
+                                Margin="0,0,6,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource App.Button.Icon}"
+                                AutomationProperties.Name="清空搜索"
+                                Command="{Binding ClearSearchCommand}"
+                                ToolTip="清空搜索"
+                                Visibility="{Binding HasSearchText, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ui:SymbolIcon Symbol="Dismiss24" />
+                        </Button>
+                    </Grid>
+                    <ComboBox x:Name="SortComboBox"
+                              Width="160"
+                              Margin="0,0,12,0"
+                              Style="{StaticResource App.Input.ComboBox.Standard}"
+                              DisplayMemberPath="DisplayName"
+                              ItemsSource="{Binding AvailableSortOptions}"
+                              SelectedValue="{Binding SelectedSortMode}"
+                              SelectedValuePath="Mode"
+                              AutomationProperties.Name="书库排序" />
+                    <Button x:Name="ToolbarImportButton"
+                            Style="{StaticResource App.Button.Icon}"
+                            Click="ImportButton_OnClick"
+                            ToolTip="导入小说"
+                            AutomationProperties.Name="导入小说">
+                        <ui:SymbolIcon Symbol="ArrowImport24" />
+                    </Button>
+                </WrapPanel>
+            </commonControls:AppPageHeader.Actions>
+        </commonControls:AppPageHeader>
 
-        <WrapPanel x:Name="LibraryToolbar"
-                   Grid.Row="1"
-                   Margin="0,20,0,0"
-                   HorizontalAlignment="Right"
-                   ItemHeight="40">
-            <Grid Width="260"
-                  Margin="0,0,12,8">
-                <TextBox x:Name="SearchTextBox"
-                         Padding="12,8,36,8"
-                         Style="{StaticResource App.Input.TextBox.Standard}"
-                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                         AutomationProperties.Name="搜索书库" />
-                <Button x:Name="ClearSearchButton"
-                        Margin="0,0,6,0"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Center"
-                        Style="{StaticResource App.Button.Icon}"
-                        AutomationProperties.Name="清空搜索"
-                        Command="{Binding ClearSearchCommand}"
-                        ToolTip="清空搜索"
-                        Visibility="{Binding HasSearchText, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <ui:SymbolIcon Symbol="Dismiss24" />
-                </Button>
-            </Grid>
-            <ComboBox x:Name="SortComboBox"
-                      Width="160"
-                      Margin="0,0,12,8"
-                      Style="{StaticResource App.Input.ComboBox.Standard}"
-                      DisplayMemberPath="DisplayName"
-                      ItemsSource="{Binding AvailableSortOptions}"
-                      SelectedValue="{Binding SelectedSortMode}"
-                      SelectedValuePath="Mode"
-                      AutomationProperties.Name="书库排序" />
-            <Button x:Name="ToolbarImportButton"
-                    Margin="0,0,0,8"
-                    Style="{StaticResource App.Button.Icon}"
-                    Click="ImportButton_OnClick"
-                    ToolTip="导入小说"
-                    AutomationProperties.Name="导入小说">
-                <ui:SymbolIcon Symbol="ArrowImport24" />
-            </Button>
-        </WrapPanel>
-
-        <StackPanel Grid.Row="2"
-                    Margin="0,2,0,0">
+        <StackPanel Grid.Row="1"
+                    Margin="0,20,0,0">
             <TextBlock Style="{StaticResource App.Typography.Secondary}"
                        Text="{Binding LibrarySummaryText}" />
             <Border Margin="0,6,0,0">
@@ -105,7 +104,7 @@
             </Border>
         </StackPanel>
 
-        <Grid Grid.Row="3"
+        <Grid Grid.Row="2"
               Margin="0,12,0,0">
             <ScrollViewer x:Name="BooksScrollViewer"
                           VerticalScrollBarVisibility="Auto"

@@ -6,11 +6,15 @@
              x:Name="Root"
              Background="Transparent">
     <Border x:Name="CardSurface"
+            Padding="0"
             Style="{StaticResource App.Selection.CardItem}">
         <Grid>
             <Button x:Name="OpenBookButton"
-                    Padding="0"
+                    Padding="16"
+                    Background="Transparent"
                     Style="{StaticResource App.Button.Subtle}"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
                     AutomationProperties.Name="{Binding Item.AutomationName, ElementName=Root}"
                     Command="{Binding OpenBookCommand, ElementName=Root}"
                     CommandParameter="{Binding Item, ElementName=Root}"

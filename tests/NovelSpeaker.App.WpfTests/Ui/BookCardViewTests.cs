@@ -55,6 +55,7 @@ public sealed class BookCardViewTests
 
                 Assert.NotNull(openButton);
                 Assert.Same(view.FindResource("App.Button.Subtle"), openButton.Style);
+                Assert.Equal(Brushes.Transparent, openButton.Background);
                 Assert.Same(item, openButton.CommandParameter);
                 Assert.Equal(item.MoreActionsAutomationName, AutomationProperties.GetName(moreButton));
                 Assert.Equal("更多操作", moreButton.ToolTip);
@@ -63,6 +64,9 @@ public sealed class BookCardViewTests
 
                 var surface = Assert.IsType<Border>(view.FindName("CardSurface"));
                 Assert.Same(view.FindResource("App.Selection.CardItem"), surface.Style);
+                Assert.Equal(new Thickness(0), surface.Padding);
+                Assert.InRange(Math.Abs(openButton.ActualWidth - surface.ActualWidth), 0d, 2.1d);
+                Assert.InRange(Math.Abs(openButton.ActualHeight - surface.ActualHeight), 0d, 2.1d);
                 var progress = Assert.IsType<ProgressBar>(view.FindName("ReadingProgressBar"));
                 Assert.Same(view.FindResource("App.Progress.Compact"), progress.Style);
                 Assert.Equal(item.ProgressRatio, progress.Value);

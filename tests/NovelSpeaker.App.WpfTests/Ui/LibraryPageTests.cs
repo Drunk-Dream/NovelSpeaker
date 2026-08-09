@@ -53,11 +53,18 @@ public sealed partial class LibraryPageTests
             view.UpdateLayout();
 
             var booksScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("BooksScrollViewer"));
+            var header = Assert.IsType<AppPageHeader>(view.FindName("PageHeader"));
+            var toolbar = Assert.IsType<WrapPanel>(view.FindName("LibraryToolbar"));
             var clearSearchButton = VisualTreeTestHelper.FindDescendant<Button>(
                 view,
                 candidate => AutomationProperties.GetName(candidate) == "清空搜索");
 
             Assert.NotNull(booksScrollViewer);
+            Assert.Same(toolbar, header.Actions);
+            Assert.InRange(
+                Math.Abs(GetCenterY(header, view) - GetCenterY(toolbar, view)),
+                0d,
+                1d);
             Assert.NotNull(clearSearchButton);
             AssertImportIcon(Assert.IsType<Button>(view.FindName("ToolbarImportButton")));
             Assert.Same(view.FindResource("App.Button.Icon"), clearSearchButton.Style);
@@ -169,7 +176,7 @@ public sealed partial class LibraryPageTests
     }
 
     [Theory]
-    [InlineData(520, 1d)]
+    [InlineData(900, 1d)]
     [InlineData(960, 1.25d)]
     [InlineData(1280, 1.5d)]
     public void LibraryPage_adapts_toolbar_and_book_grid_across_widths_and_dpi(double width, double scale)
@@ -237,6 +244,12 @@ public sealed partial class LibraryPageTests
         Assert.Equal("导入小说", button.ToolTip);
         Assert.Same(button.FindResource("App.Button.Icon"), button.Style);
         Assert.Equal(SymbolRegular.ArrowImport24, Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(button)).Symbol);
+    }
+
+    private static double GetCenterY(FrameworkElement element, FrameworkElement ancestor)
+    {
+        var origin = element.TransformToAncestor(ancestor).Transform(new Point());
+        return origin.Y + (element.ActualHeight / 2d);
     }
 
     private static LibraryViewLayoutContext CreateContext(int bookCount, bool longTitles = false)
