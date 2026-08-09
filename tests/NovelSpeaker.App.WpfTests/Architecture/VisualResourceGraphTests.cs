@@ -149,7 +149,7 @@ public sealed class VisualResourceGraphTests
                 "/Features/BookDetails/BookDetailsPage.xaml",
                 StringComparison.Ordinal));
         Assert.Equal(
-            "950B224324EE697F0A4BF58B18B03EDFFD0B167F97E6654B86022AB603452787",
+            "6857BD06B5BBEACC651DF6218B2C990BDD9A6545B91A9F30BCFF3FFFD0424F58",
             VisualResourceGraphScanner.Fingerprint(findings));
     }
 

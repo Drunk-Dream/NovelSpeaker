@@ -764,7 +764,7 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `BookDetailsPage` 更新 `artifacts/visual-review/pages/book-details/`。
 - 完整质量门禁通过。
 
-## [ ] 22（P0）：统一 Rules 管理交互与 TTS 当前规则语义
+## [x] 22（P0）：统一 Rules 管理交互与 TTS 当前规则语义
 
 前置：21。
 
