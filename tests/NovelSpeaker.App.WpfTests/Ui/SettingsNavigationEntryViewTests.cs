@@ -20,10 +20,6 @@ public sealed class SettingsNavigationEntryViewTests
             try
             {
                 AssertNavigationEntry(
-                    provider.GetRequiredService<ImportTextSettingsPage>(),
-                    "OpenRegexReplacementRulesButton",
-                    "正则替换");
-                AssertNavigationEntry(
                     provider.GetRequiredService<CacheAndDataPage>(),
                     "OpenCacheManagementButton",
                     "缓存管理");

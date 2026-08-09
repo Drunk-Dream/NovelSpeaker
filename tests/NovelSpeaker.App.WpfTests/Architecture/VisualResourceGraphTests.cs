@@ -124,7 +124,7 @@ public sealed class VisualResourceGraphTests
 
         Assert.NotEmpty(findings);
         Assert.Equal(
-            "F26ABC6EE362ACAC154331CF370B39F813F4F722FE997F230FD595B3BAA7307E",
+            "617EAD45B1684D20DC03E6705532F4C1CFCC476E608C3B1A4914AD63C3719B31",
             VisualResourceGraphScanner.Fingerprint(findings));
     }
 

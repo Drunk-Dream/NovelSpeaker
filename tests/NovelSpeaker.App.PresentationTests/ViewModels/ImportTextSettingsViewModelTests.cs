@@ -39,6 +39,20 @@ public sealed class ImportTextSettingsViewModelTests
     }
 
     [Fact]
+    public async Task CommitLongParagraphThresholdAsync_rejects_non_integer_input()
+    {
+        var service = new FakeAppSettingsService(AppSettings.Default);
+        var viewModel = CreateViewModel(service);
+        await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.LongParagraphThresholdText = "invalid";
+
+        await viewModel.CommitLongParagraphThresholdAsync(CancellationToken.None);
+
+        Assert.Equal("请输入整数。", viewModel.LongParagraphThresholdErrorText);
+        Assert.Equal(AppSettings.Default.LongParagraphThreshold, service.CurrentSettings.LongParagraphThreshold);
+    }
+
+    [Fact]
     public async Task EnableLongParagraphSplitting_change_saves_immediately()
     {
         var service = new FakeAppSettingsService(AppSettings.Default);
@@ -67,6 +81,21 @@ public sealed class ImportTextSettingsViewModelTests
 
         Assert.Equal("{author}-{title}", service.CurrentSettings.BookFileNameTemplate);
         Assert.Equal("{author}-{title}", viewModel.BookFileNameTemplateText);
+    }
+
+    [Fact]
+    public void OpenRegexReplacementRulesCommand_navigates_to_regex_replacement_page()
+    {
+        var service = new FakeAppSettingsService(AppSettings.Default);
+        var navigation = new FakeNavigationService();
+        var viewModel = new ImportTextSettingsViewModel(
+            service,
+            navigation,
+            new FakeFeedbackService());
+
+        viewModel.OpenRegexReplacementRulesCommand.Execute(null);
+
+        Assert.Equal(typeof(RegexReplacementRulesPage), navigation.LastNavigationPageType);
     }
 
     private static ImportTextSettingsViewModel CreateViewModel(
@@ -118,14 +147,21 @@ public sealed class ImportTextSettingsViewModelTests
 
     private sealed class FakeNavigationService : ITestNavigationService
     {
+        public Type? LastNavigationPageType { get; private set; }
+
         public INavigationView GetNavigationControl() => throw new NotSupportedException();
         public bool GoBack() => false;
-        public bool Navigate(Type pageType) => true;
-        public bool Navigate(Type pageType, object? dataContext) => true;
+        public bool Navigate(Type pageType)
+        {
+            LastNavigationPageType = pageType;
+            return true;
+        }
+
+        public bool Navigate(Type pageType, object? dataContext) => Navigate(pageType);
         public bool Navigate(string pageIdOrTargetTag) => true;
         public bool Navigate(string pageIdOrTargetTag, object? dataContext) => true;
-        public bool NavigateWithHierarchy(Type pageType) => true;
-        public bool NavigateWithHierarchy(Type pageType, object? dataContext) => true;
+        public bool NavigateWithHierarchy(Type pageType) => Navigate(pageType);
+        public bool NavigateWithHierarchy(Type pageType, object? dataContext) => Navigate(pageType);
         public void SetNavigationControl(INavigationView navigation) { }
     }
 }

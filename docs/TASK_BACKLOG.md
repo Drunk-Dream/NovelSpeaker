@@ -663,7 +663,7 @@ artifacts/visual-review/windows/<window-id>/
 
 结果：`PlaybackSettingsPage` 改用透明页面根、`AppPageHeader`、单一无 Header 的 `AppSettingsList`、`AppSettingsRow`、正式 TextBox/ToggleSwitch Input Style 与 Validation Feedback Style，覆盖默认语速、播放预取数量和朗读章节标题；移除该页重复的 TTS 规则入口及其无调用命令，TTS 规则继续由设置首页直接导航。回车/失焦提交、500 ms 即时保存、播放中变速、设置通知、朗读清单按需重算与主动缓存批次快照边界保持不变。新增页面结构、绑定、Automation、Legacy 清零、宽/窄布局、长说明、错误投影、Light/Dark 与 100/125/150% DPI 回归，并新增可复用的正式页面视觉产物测试工具；`artifacts/visual-review/pages/playback-settings/` 已生成 Light/Dark × 默认/长说明/错误 × 100/150% DPI 的 10 张 PNG 与 manifest，重复生成哈希一致，`artifacts/` 仍未加入 Git。定向 Presentation 8 项、WPF/资源图 28 项和显式视觉生成测试通过；锁定还原、format、Release build（0 警告/0 错误）与完整测试门禁通过。
 
-## [ ] 17（P1）：迁移导入与文本设置页
+## [x] 17（P1）：迁移导入与文本设置页
 
 前置：16。
 
@@ -680,6 +680,8 @@ artifacts/visual-review/windows/<window-id>/
 - 窄宽度与 150% DPI 下字段和导航入口可用。
 - 使用正式 `ImportTextSettingsPage` 更新 `artifacts/visual-review/pages/import-text-settings/`。
 - 完整质量门禁通过。
+
+结果：`ImportTextSettingsPage` 改用透明页面根、`AppPageHeader` 和单一无 Header 的 `AppSettingsList`，按“拆分长段落、长段落阈值、文件名提取模板、正则替换”业务顺序组合正式 `AppSettingsRow` 与 `AppSettingsNavigationRow`；TextBox、ToggleSwitch 和阈值错误分别使用正式 Input/Feedback Style，页面 Legacy 键引用清零。模板/阈值 500 ms 防抖即时保存、回车/失焦提交、拆分开关即时保存及正则替换三级导航语义保持不变。新增页面结构、业务顺序、绑定、Automation、Tab/Focus、Legacy 清零、宽/窄布局、错误投影、Light/Dark 与 100/125/150% DPI 回归，并补充非整数阈值拒绝和正则路由测试；`artifacts/visual-review/pages/import-text-settings/` 已生成 Light/Dark × 默认/长说明/错误 × 100/150% DPI 的 10 张 PNG 与 manifest，重复生成哈希一致，`artifacts/` 仍未加入 Git。定向 Presentation 6 项、WPF/资源图 29 项和显式视觉生成测试通过；锁定还原、format、Release build（0 警告/0 错误）与完整测试门禁通过。
 
 ## [ ] 18（P1）：迁移缓存与数据页
 

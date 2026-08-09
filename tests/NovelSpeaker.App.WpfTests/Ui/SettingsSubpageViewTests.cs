@@ -22,11 +22,6 @@ public sealed class SettingsSubpageViewTests
             try
             {
                 AssertRows(
-                    provider.GetRequiredService<ImportTextSettingsPage>(),
-                    "BookFileNameTemplateItemBorder",
-                    "EnableLongParagraphSplittingItemBorder",
-                    "LongParagraphThresholdItemBorder");
-                AssertRows(
                     provider.GetRequiredService<CacheAndDataPage>(),
                     "CacheOverviewItemBorder",
                     "CacheLimitItemBorder",
