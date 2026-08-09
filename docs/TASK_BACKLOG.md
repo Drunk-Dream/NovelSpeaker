@@ -744,7 +744,7 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `LibraryPage` 更新 `artifacts/visual-review/pages/library/`。
 - 完整质量门禁通过。
 
-## [ ] 21（P1）：迁移书籍详情与目录
+## [x] 21（P1）：迁移书籍详情与目录
 
 前置：20。
 
