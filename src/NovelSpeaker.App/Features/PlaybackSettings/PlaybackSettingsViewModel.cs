@@ -1,5 +1,4 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Feedback;
@@ -15,7 +14,6 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
 
     private readonly IAppSettingsService _settingsService;
     private readonly IPlaybackSession _playbackCoordinator;
-    private readonly IAppNavigator _navigator;
     private readonly TimeProvider _timeProvider;
     private bool _isLoading;
     private CancellationTokenSource? _defaultSpeakSpeedDebounceCts;
@@ -34,7 +32,6 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
     {
         _settingsService = settingsService;
         _playbackCoordinator = playbackCoordinator;
-        _navigator = navigator;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -78,12 +75,6 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
         CancelPendingSave(ref _defaultSpeakSpeedDebounceCts);
         CancelPendingSave(ref _prefetchCountDebounceCts);
         base.Deactivate();
-    }
-
-    [RelayCommand]
-    private Task OpenTtsRulesAsync(CancellationToken cancellationToken)
-    {
-        return _navigator.NavigateAsync(AppRoutes.TtsRules, cancellationToken);
     }
 
     public async Task CommitDefaultSpeakSpeedAsync(CancellationToken cancellationToken)

@@ -84,7 +84,8 @@ public sealed class TestCleanupArchitectureTests
             "WpfControlHost.cs",
             "WpfWindowHost.cs",
             "WpfFailureDiagnostics.cs",
-            "VisualTreeTestHelper.cs"
+            "VisualTreeTestHelper.cs",
+            "PageVisualReviewHarness.cs"
         };
 
         Assert.Equal(

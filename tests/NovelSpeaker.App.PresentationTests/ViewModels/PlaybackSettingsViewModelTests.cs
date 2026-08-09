@@ -178,17 +178,6 @@ public sealed class PlaybackSettingsViewModelTests
         Assert.Equal(AppSettings.DefaultPrefetchCountValue, service.CurrentSettings.PrefetchCount);
     }
 
-    [Fact]
-    public void OpenTtsRulesCommand_navigates_to_tts_rules_page()
-    {
-        var navigationService = new FakeNavigationService();
-        var viewModel = CreateViewModel(new FakeAppSettingsService(AppSettings.Default), navigationService);
-
-        viewModel.OpenTtsRulesCommand.Execute(null);
-
-        Assert.Equal(typeof(TtsRulesPage), navigationService.LastNavigationPageType);
-    }
-
     private static PlaybackSettingsViewModel CreateViewModel(
         FakeAppSettingsService settingsService,
         FakeNavigationService? navigationService = null,

@@ -20,10 +20,6 @@ public sealed class SettingsNavigationEntryViewTests
             try
             {
                 AssertNavigationEntry(
-                    provider.GetRequiredService<PlaybackSettingsPage>(),
-                    "OpenTtsRulesButton",
-                    "TTS 规则");
-                AssertNavigationEntry(
                     provider.GetRequiredService<ImportTextSettingsPage>(),
                     "OpenRegexReplacementRulesButton",
                     "正则替换");

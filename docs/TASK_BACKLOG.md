@@ -642,7 +642,7 @@ artifacts/visual-review/windows/<window-id>/
 后续直接视觉修正：子页面“无分组”只取消分类 Header，不取消列表 Surface。新增 `AppSettingsList` 作为无 Header 的设置列表容器，与 `AppSettingsGroup` 共享 Primary Surface、Medium Radius、20 px Padding、ItemContainer 和相邻行 Divider；`AppSettingsGroup` 改为在该基础上增加 Header/Description/Footer。`AppearanceSettingsPage` 与 `GeneralSettingsPage` 已改为单一 `AppSettingsList`，普通 Row 不提供整行 Hover/Pressed。同期修正 `App.Input.ToggleSwitch.Standard/Compact`，删除人为 `MinWidth`，无标签开关按可见本体收缩，避免不可见横向 Focus/HitTest 空白。该直接修正不新增任务编号。
 
 
-## [ ] 16（P1）：迁移播放设置页
+## [x] 16（P1）：迁移播放设置页
 
 前置：15A。
 
@@ -660,6 +660,8 @@ artifacts/visual-review/windows/<window-id>/
 - Light/Dark、长说明、错误和 150% DPI 场景通过。
 - 使用正式 `PlaybackSettingsPage` 更新 `artifacts/visual-review/pages/playback-settings/`。
 - 完整质量门禁通过。
+
+结果：`PlaybackSettingsPage` 改用透明页面根、`AppPageHeader`、单一无 Header 的 `AppSettingsList`、`AppSettingsRow`、正式 TextBox/ToggleSwitch Input Style 与 Validation Feedback Style，覆盖默认语速、播放预取数量和朗读章节标题；移除该页重复的 TTS 规则入口及其无调用命令，TTS 规则继续由设置首页直接导航。回车/失焦提交、500 ms 即时保存、播放中变速、设置通知、朗读清单按需重算与主动缓存批次快照边界保持不变。新增页面结构、绑定、Automation、Legacy 清零、宽/窄布局、长说明、错误投影、Light/Dark 与 100/125/150% DPI 回归，并新增可复用的正式页面视觉产物测试工具；`artifacts/visual-review/pages/playback-settings/` 已生成 Light/Dark × 默认/长说明/错误 × 100/150% DPI 的 10 张 PNG 与 manifest，重复生成哈希一致，`artifacts/` 仍未加入 Git。定向 Presentation 8 项、WPF/资源图 28 项和显式视觉生成测试通过；锁定还原、format、Release build（0 警告/0 错误）与完整测试门禁通过。
 
 ## [ ] 17（P1）：迁移导入与文本设置页
 
