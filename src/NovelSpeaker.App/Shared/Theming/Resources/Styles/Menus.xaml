@@ -2,10 +2,12 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!--
         Menu styles own the menu and context-menu surfaces plus the ordinary,
-        danger and group-header items. Provider.MenuItem supplies the stable
-        WPF MenuItem base through the Provider Style Bridge.
+        danger and group-header items. Provider.Menu, Provider.ContextMenu and
+        Provider.MenuItem supply stable WPF bases through the Provider Style Bridge.
     -->
-    <Style x:Key="App.Menu.Surface" TargetType="{x:Type Menu}">
+    <Style x:Key="App.Menu.Surface"
+           TargetType="{x:Type Menu}"
+           BasedOn="{StaticResource Provider.Menu}">
         <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Raised}" />
         <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="BorderThickness" Value="1" />
@@ -13,7 +15,9 @@
         <Setter Property="Effect" Value="{DynamicResource App.Elevation.Medium}" />
     </Style>
 
-    <Style x:Key="App.Menu.ContextSurface" TargetType="{x:Type ContextMenu}">
+    <Style x:Key="App.Menu.ContextSurface"
+           TargetType="{x:Type ContextMenu}"
+           BasedOn="{StaticResource Provider.ContextMenu}">
         <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Raised}" />
         <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="BorderThickness" Value="1" />

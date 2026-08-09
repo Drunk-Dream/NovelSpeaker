@@ -3,6 +3,8 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
 using NovelSpeaker.App.Features.Library;
 using Xunit;
 
@@ -74,6 +76,20 @@ public sealed class BookCardViewTests
                 Assert.Same(view.FindResource("App.Menu.DangerItem"), menuItems[1].Style);
                 Assert.Equal("书籍详情", menuItems[0].Header);
                 Assert.Equal("删除书籍", menuItems[1].Header);
+
+                moreButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                menu.ApplyTemplate();
+                menu.UpdateLayout();
+
+                Assert.True(menu.IsOpen);
+                Assert.True(menu.ActualWidth >= 100d);
+                Assert.All(menuItems, item => Assert.True(item.ActualHeight >= 24d));
+                var raisedSurface = Assert.IsAssignableFrom<Brush>(view.FindResource("App.Brush.Surface.Raised"));
+                Assert.Contains(
+                    VisualTreeTestHelper.FindDescendants<Border>(menu),
+                    border => ReferenceEquals(border.Background, raisedSurface));
+                menu.IsOpen = false;
             }
             finally
             {

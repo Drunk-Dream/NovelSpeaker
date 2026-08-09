@@ -43,6 +43,8 @@ public static class GalleryThemeRuntime
         "Provider.ComboBoxItem",
         "Provider.CheckBox",
         "Provider.ToggleSwitch",
+        "Provider.Menu",
+        "Provider.ContextMenu",
         "Provider.MenuItem",
         "Provider.NavigationViewItem",
         "Provider.ProgressBar",

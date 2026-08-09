@@ -29,6 +29,8 @@ public sealed class ProviderStyleBridgeTests
         "Provider.NavigationViewItem",
         "Provider.ProgressBar",
         "Provider.Slider",
+        "Provider.Menu",
+        "Provider.ContextMenu",
         "Provider.MenuItem"
     ];
 
@@ -293,6 +295,8 @@ public sealed class ProviderStyleBridgeTests
         "Provider.ComboBoxItem" => new ComboBoxItem { Content = "Provider combo item", Style = style },
         "Provider.CheckBox" => new CheckBox { Content = "check", Style = style },
         "Provider.ToggleSwitch" => new ToggleSwitch { Content = "toggle", Style = style },
+        "Provider.Menu" => new System.Windows.Controls.Menu { Style = style },
+        "Provider.ContextMenu" => new ContextMenu { Style = style },
         "Provider.MenuItem" => new System.Windows.Controls.MenuItem { Header = "menu", Style = style },
         "Provider.NavigationViewItem" => new NavigationViewItem { Content = "navigation", Style = style },
         "Provider.ProgressBar" => new ProgressBar { Minimum = 0, Maximum = 1, Value = 0.5, Style = style },

@@ -48,6 +48,14 @@
            TargetType="{x:Type Slider}"
            BasedOn="{StaticResource {x:Type Slider}}" />
 
+    <Style x:Key="Provider.Menu"
+           TargetType="{x:Type Menu}"
+           BasedOn="{StaticResource {x:Type Menu}}" />
+
+    <Style x:Key="Provider.ContextMenu"
+           TargetType="{x:Type ContextMenu}"
+           BasedOn="{StaticResource {x:Type ContextMenu}}" />
+
     <Style x:Key="Provider.MenuItem"
            TargetType="{x:Type MenuItem}"
            BasedOn="{StaticResource {x:Type MenuItem}}" />

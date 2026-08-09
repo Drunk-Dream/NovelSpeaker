@@ -93,7 +93,10 @@ public sealed class SelectionNavigationMenuStyleContractTests
             "Theming",
             "Provider",
             "ProviderStyleBridge.xaml");
-        Assert.Contains("Provider.MenuItem", ReadKeys(bridgePath));
+        var bridgeKeys = ReadKeys(bridgePath);
+        Assert.Contains("Provider.Menu", bridgeKeys);
+        Assert.Contains("Provider.ContextMenu", bridgeKeys);
+        Assert.Contains("Provider.MenuItem", bridgeKeys);
     }
 
     [Fact]
@@ -106,6 +109,8 @@ public sealed class SelectionNavigationMenuStyleContractTests
 
             AssertChainContains(application, "App.Navigation.Entry", "Provider.NavigationViewItem");
             AssertChainContains(application, "App.Navigation.SettingsEntry", "Provider.Button");
+            AssertChainContains(application, "App.Menu.Surface", "Provider.Menu");
+            AssertChainContains(application, "App.Menu.ContextSurface", "Provider.ContextMenu");
             AssertChainContains(application, "App.Menu.Item", "Provider.MenuItem");
             AssertChainContains(application, "App.Menu.DangerItem", "Provider.MenuItem");
             AssertChainContains(application, "App.Menu.GroupHeader", "Provider.MenuItem");
