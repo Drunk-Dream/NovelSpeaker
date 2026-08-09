@@ -37,13 +37,28 @@
                            Text="正则替换" />
             </StackPanel>
 
-            <Button Grid.Column="1"
-                    Style="{StaticResource SecondaryIconButtonStyle}"
-                    Command="{Binding NewRuleCommand}"
-                    ToolTip="新建规则"
-                    AutomationProperties.Name="新建规则">
-                <ui:SymbolIcon Symbol="DocumentAdd24" />
-            </Button>
+            <WrapPanel Grid.Column="1">
+                <Button Margin="0,0,12,0"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
+                        Command="{Binding NewRuleCommand}"
+                        ToolTip="新建规则"
+                        AutomationProperties.Name="新建规则">
+                    <ui:SymbolIcon Symbol="DocumentAdd24" />
+                </Button>
+                <Button Margin="0,0,12,0"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
+                        Click="ImportRuleFileButton_OnClick"
+                        ToolTip="导入文件"
+                        AutomationProperties.Name="导入文件">
+                    <ui:SymbolIcon Symbol="ArrowImport24" />
+                </Button>
+                <Button Style="{StaticResource SecondaryIconButtonStyle}"
+                        Click="ImportRulesFromClipboardButton_OnClick"
+                        ToolTip="从剪贴板导入"
+                        AutomationProperties.Name="从剪贴板导入">
+                    <ui:SymbolIcon Symbol="ClipboardPaste24" />
+                </Button>
+            </WrapPanel>
         </Grid>
 
         <Grid Grid.Row="1"
@@ -191,6 +206,11 @@
                                                     <ui:SymbolIcon Symbol="MoreHorizontal24" />
                                                     <Button.ContextMenu>
                                                         <ContextMenu>
+                                                            <MenuItem Header="导出到文件"
+                                                                      Click="ExportRuleMenuItem_OnClick" />
+                                                            <MenuItem Header="复制到剪贴板"
+                                                                      Click="CopyRuleMenuItem_OnClick" />
+                                                            <Separator />
                                                             <MenuItem Header="上移"
                                                                       IsEnabled="{Binding CanMoveUp}"
                                                                       Click="MoveRuleUpMenuItem_OnClick" />

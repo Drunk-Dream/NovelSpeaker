@@ -7,6 +7,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Features.RuleEditing;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Dialogs;
+using NovelSpeaker.App.Shared.Presentation.Rules;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.Domain.Books;
 
@@ -20,7 +21,9 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     private readonly IAppFeedbackService _feedback;
     private readonly IAppDialogService _dialogs;
     private readonly IAppNavigator _navigator;
+    private readonly IRuleDocumentInteraction _ruleDocuments;
     private readonly EditorSession<Guid?, RegexReplacementRuleEditorModel> _editorSession = new(EditorsEqual);
+    private int _importOperationActive;
     private bool _loading;
 
     public RegexReplacementRulesViewModel(
@@ -28,13 +31,15 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
         IPlaybackRegexReplacementRefresher playback,
         IAppFeedbackService feedback,
         IAppDialogService dialogs,
-        IAppNavigator navigator)
+        IAppNavigator navigator,
+        IRuleDocumentInteraction ruleDocuments)
     {
         _workspace = workspace;
         _playback = playback;
         _feedback = feedback;
         _dialogs = dialogs;
         _navigator = navigator;
+        _ruleDocuments = ruleDocuments;
     }
 
     public ObservableCollection<RegexReplacementRuleListItemViewModel> Rules { get; } = [];
@@ -94,6 +99,62 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     {
         if (!await ConfirmLeaveAsync(cancellationToken)) return;
         Open(new RegexReplacementRuleEditorModel(null, "新建规则", string.Empty, string.Empty, RegexReplacementScope.Both), true, SelectedRuleId);
+    }
+
+    public Task ImportRuleFileAsync(CancellationToken cancellationToken) =>
+        ImportDocumentAsync(() => _ruleDocuments.PickImportAsync(cancellationToken), "正则替换规则导入失败", cancellationToken);
+
+    public Task ImportRulesFromClipboardAsync(CancellationToken cancellationToken) =>
+        ImportDocumentAsync(
+            () => _ruleDocuments.ReadClipboardAsync(cancellationToken),
+            "从剪贴板导入正则替换规则失败",
+            cancellationToken,
+            warnWhenMissing: true);
+
+    [RelayCommand]
+    public async Task ExportRuleAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken)
+    {
+        if (rule is null) return;
+        try
+        {
+            var json = await _workspace.ExportRuleJsonAsync(rule.Id, cancellationToken);
+            if (json is null)
+            {
+                _feedback.ShowWarning("导出失败", "未找到要导出的正则替换规则。");
+                return;
+            }
+
+            if (await _ruleDocuments.ExportAsync("regex-replacement-rule.json", json, cancellationToken))
+            {
+                _feedback.ShowSuccess("正则替换规则已导出", rule.Name);
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _feedback.ShowProjectedNotification("正则替换规则导出失败", _feedback.Project(exception));
+        }
+    }
+
+    [RelayCommand]
+    public async Task CopyRuleAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken)
+    {
+        if (rule is null) return;
+        try
+        {
+            var json = await _workspace.ExportRuleJsonAsync(rule.Id, cancellationToken);
+            if (json is null)
+            {
+                _feedback.ShowWarning("复制失败", "未找到要复制的正则替换规则。");
+                return;
+            }
+
+            await _ruleDocuments.CopyAsync(json, cancellationToken);
+            _feedback.ShowSuccess("正则替换规则已复制", rule.Name);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _feedback.ShowProjectedNotification("正则替换规则复制失败", _feedback.Project(exception));
+        }
     }
 
     [RelayCommand]
@@ -187,6 +248,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
         if (!await ConfirmLeaveAsync(cancellationToken)) return;
         var item = Rules.FirstOrDefault(candidate => candidate.Id == rule.Id);
         if (item is null || await _feedback.ConfirmDeletionAsync("删除正则替换规则", $"将删除规则“{item.Name}”。此操作不可撤销。", cancellationToken) != AppConfirmationDecision.Confirm) return;
+        if (IsBusy) return;
 
         var deletingOpenEditor = !IsEditingNewRule && SelectedRuleId == item.Id;
         var preferredRuleId = deletingOpenEditor ? GetAdjacentRuleId(item.Id) : SelectedRuleId;
@@ -297,6 +359,72 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
             ClearDragTarget();
             IsBusy = false;
             NotifyCommandState();
+        }
+    }
+
+    private async Task ImportDocumentAsync(
+        Func<Task<RuleImportDocument?>> readDocument,
+        string failureTitle,
+        CancellationToken cancellationToken,
+        bool warnWhenMissing = false)
+    {
+        if (Interlocked.CompareExchange(ref _importOperationActive, 1, 0) != 0)
+        {
+            return;
+        }
+
+        var ownsBusy = false;
+        try
+        {
+            var document = await readDocument();
+            if (document is null)
+            {
+                if (warnWhenMissing)
+                {
+                    _feedback.ShowWarning("无法导入", "剪贴板中没有可导入的文本内容。");
+                }
+
+                return;
+            }
+
+            if (IsBusy)
+            {
+                return;
+            }
+
+            if (!await ConfirmLeaveAsync(cancellationToken))
+            {
+                return;
+            }
+
+            if (IsBusy)
+            {
+                return;
+            }
+
+            IsBusy = true;
+            ownsBusy = true;
+            NotifyCommandState();
+            var result = await _workspace.ImportJsonAsync(document.Json, cancellationToken);
+            await RefreshAsync(SelectedRuleId, false, cancellationToken);
+            await _playback.RefreshRegexReplacementAsync(cancellationToken);
+            _feedback.ShowSuccess(
+                "正则替换规则导入完成",
+                $"{document.SourceDescription}：新增 {result.ImportedCount} 条，跳过重复 {result.SkippedCount} 条。");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _feedback.ShowProjectedNotification(failureTitle, _feedback.Project(exception));
+        }
+        finally
+        {
+            if (ownsBusy)
+            {
+                IsBusy = false;
+                NotifyCommandState();
+            }
+
+            Volatile.Write(ref _importOperationActive, 0);
         }
     }
 

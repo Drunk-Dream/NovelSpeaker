@@ -77,8 +77,6 @@ public sealed class RulePageNavigationGuardTests
             new TtsRulesPage(
                 viewModel,
                 guard,
-                provider.GetRequiredService<IPresentationFileDialogService>(),
-                provider.GetRequiredService<IPresentationClipboard>(),
                 provider.GetRequiredService<PageEventOperationRunner>()),
             viewModel);
     }

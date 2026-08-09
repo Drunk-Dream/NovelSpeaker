@@ -56,6 +56,22 @@ public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, I
         return Task.CompletedTask;
     }
 
+    private async void ImportRuleFileButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        await _eventOperations.RunAsync(
+            _activation,
+            "导入正则替换规则失败",
+            ViewModel.ImportRuleFileAsync);
+    }
+
+    private async void ImportRulesFromClipboardButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        await _eventOperations.RunAsync(
+            _activation,
+            "从剪贴板导入正则替换规则失败",
+            ViewModel.ImportRulesFromClipboardAsync);
+    }
+
     private void DragHandle_OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         _dragStartPoint = e.GetPosition(this);
@@ -145,6 +161,32 @@ public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, I
             _activation,
             "调整替换规则顺序失败",
             cancellationToken => ViewModel.MoveRuleUpFromListAsync(rule, cancellationToken));
+    }
+
+    private async void ExportRuleMenuItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem { DataContext: RegexReplacementRuleListItemViewModel rule })
+        {
+            return;
+        }
+
+        await _eventOperations.RunAsync(
+            _activation,
+            "导出正则替换规则失败",
+            cancellationToken => ViewModel.ExportRuleAsync(rule, cancellationToken));
+    }
+
+    private async void CopyRuleMenuItem_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem { DataContext: RegexReplacementRuleListItemViewModel rule })
+        {
+            return;
+        }
+
+        await _eventOperations.RunAsync(
+            _activation,
+            "复制正则替换规则失败",
+            cancellationToken => ViewModel.CopyRuleAsync(rule, cancellationToken));
     }
 
     private async void MoveRuleDownMenuItem_OnClick(object sender, RoutedEventArgs e)

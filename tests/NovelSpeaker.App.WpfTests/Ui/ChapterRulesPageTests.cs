@@ -233,10 +233,11 @@ public sealed partial class ChapterRulesPageTests
                 view,
                 candidate => AutomationProperties.GetName(candidate) == "更多操作：规则一"));
             var customItems = customMore.ContextMenu!.Items.OfType<MenuItem>().ToArray();
-            Assert.Equal(["上移", "下移", "删除"], customItems.Select(item => item.Header));
+            Assert.Equal(["导出到文件", "复制到剪贴板", "上移", "下移", "删除"], customItems.Select(item => item.Header));
             Assert.Equal(
                 ["CanMoveUp", "CanMoveDown", "CanDeleteAction"],
                 customItems
+                    .Skip(2)
                     .Select(item => System.Windows.Data.BindingOperations
                         .GetBinding(item, MenuItem.IsEnabledProperty)!.Path.Path!)
                     .ToArray());

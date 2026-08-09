@@ -58,14 +58,14 @@
                 </Button>
                 <Button Margin="0,0,12,0"
                         Style="{StaticResource SecondaryIconButtonStyle}"
-                        Click="ImportFromFileButton_OnClick"
+                        Click="ImportRuleFileButton_OnClick"
                         ToolTip="导入文件"
                         AutomationProperties.Name="导入文件">
                     <ui:SymbolIcon Symbol="ArrowImport24" />
                 </Button>
                 <Button Margin="0,0,12,0"
                         Style="{StaticResource SecondaryIconButtonStyle}"
-                        Click="ImportFromClipboardButton_OnClick"
+                        Click="ImportRulesFromClipboardButton_OnClick"
                         ToolTip="从剪贴板"
                         AutomationProperties.Name="从剪贴板">
                     <ui:SymbolIcon Symbol="ClipboardPaste24" />
@@ -193,6 +193,8 @@
                                                         <ContextMenu>
                                                             <MenuItem Header="导出"
                                                                       Click="ExportRuleMenuItem_OnClick" />
+                                                            <MenuItem Header="复制到剪贴板"
+                                                                      Click="CopyRuleMenuItem_OnClick" />
                                                             <MenuItem Header="删除"
                                                                       Click="DeleteRuleMenuItem_OnClick" />
                                                         </ContextMenu>

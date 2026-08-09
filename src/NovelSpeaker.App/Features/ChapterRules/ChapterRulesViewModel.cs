@@ -7,6 +7,7 @@ using NovelSpeaker.App.Features.RuleEditing;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Presentation;
+using NovelSpeaker.App.Shared.Presentation.Rules;
 using NovelSpeaker.App.Shell.Navigation;
 
 namespace NovelSpeaker.App.Features.ChapterRules;
@@ -20,19 +21,23 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     private readonly IAppFeedbackService _feedbackService;
     private readonly IAppDialogService _dialogService;
     private readonly IAppNavigator _navigator;
+    private readonly IRuleDocumentInteraction _ruleDocuments;
     private readonly EditorSession<string?, ChapterRuleEditorModel> _editorSession = new(EditorsEqual);
+    private int _importOperationActive;
     private bool _suppressDraftStateUpdates;
 
     public ChapterRulesViewModel(
         IChapterRuleWorkspaceService workspaceService,
         IAppFeedbackService feedbackService,
         IAppDialogService dialogService,
-        IAppNavigator navigator)
+        IAppNavigator navigator,
+        IRuleDocumentInteraction ruleDocuments)
     {
         _workspaceService = workspaceService;
         _feedbackService = feedbackService;
         _dialogService = dialogService;
         _navigator = navigator;
+        _ruleDocuments = ruleDocuments;
     }
 
     public ObservableCollection<ChapterRuleListItemViewModel> Rules { get; } = [];
@@ -160,6 +165,73 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         OpenEditor(CreateEmptyEditor(), true, HighlightedRuleId);
     }
 
+    public Task ImportRuleFileAsync(CancellationToken cancellationToken) =>
+        ImportDocumentAsync(
+            () => _ruleDocuments.PickImportAsync(cancellationToken),
+            "章节规则导入失败",
+            cancellationToken);
+
+    public Task ImportRulesFromClipboardAsync(CancellationToken cancellationToken) =>
+        ImportDocumentAsync(
+            () => _ruleDocuments.ReadClipboardAsync(cancellationToken),
+            "从剪贴板导入章节规则失败",
+            cancellationToken,
+            warnWhenMissing: true);
+
+    [RelayCommand]
+    public async Task ExportRuleAsync(ChapterRuleListItemViewModel? rule, CancellationToken cancellationToken)
+    {
+        if (rule is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var json = await _workspaceService.ExportRuleJsonAsync(rule.Id, cancellationToken);
+            if (json is null)
+            {
+                _feedbackService.ShowWarning("导出失败", "未找到要导出的章节规则。");
+                return;
+            }
+
+            if (await _ruleDocuments.ExportAsync("chapter-rule.json", json, cancellationToken))
+            {
+                _feedbackService.ShowSuccess("章节规则已导出", $"已导出规则：{rule.Name}。");
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            HandleProjectedError("章节规则导出失败", exception);
+        }
+    }
+
+    [RelayCommand]
+    public async Task CopyRuleAsync(ChapterRuleListItemViewModel? rule, CancellationToken cancellationToken)
+    {
+        if (rule is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var json = await _workspaceService.ExportRuleJsonAsync(rule.Id, cancellationToken);
+            if (json is null)
+            {
+                _feedbackService.ShowWarning("复制失败", "未找到要复制的章节规则。");
+                return;
+            }
+
+            await _ruleDocuments.CopyAsync(json, cancellationToken);
+            _feedbackService.ShowSuccess("章节规则已复制", $"已复制规则：{rule.Name}。");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            HandleProjectedError("章节规则复制失败", exception);
+        }
+    }
+
     [RelayCommand]
     private async Task SelectRuleAsync(ChapterRuleListItemViewModel? rule, CancellationToken cancellationToken)
     {
@@ -226,6 +298,11 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             $"将删除章节规则“{currentRule.Name}”。此操作不可撤销。",
             cancellationToken);
         if (confirmed != AppConfirmationDecision.Confirm)
+        {
+            return;
+        }
+
+        if (IsBusy)
         {
             return;
         }
@@ -418,6 +495,11 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
 
     private async Task ApplyDefaultsAsync(ChapterRuleDefaultsMode mode, CancellationToken cancellationToken)
     {
+        if (IsBusy)
+        {
+            return;
+        }
+
         var preferredRuleId = CurrentRuleId;
 
         try
@@ -438,6 +520,69 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         finally
         {
             SetBusy(false);
+        }
+    }
+
+    private async Task ImportDocumentAsync(
+        Func<Task<RuleImportDocument?>> readDocument,
+        string failureTitle,
+        CancellationToken cancellationToken,
+        bool warnWhenMissing = false)
+    {
+        if (Interlocked.CompareExchange(ref _importOperationActive, 1, 0) != 0)
+        {
+            return;
+        }
+
+        var ownsBusy = false;
+        try
+        {
+            var document = await readDocument();
+            if (document is null)
+            {
+                if (warnWhenMissing)
+                {
+                    _feedbackService.ShowWarning("无法导入", "剪贴板中没有可导入的文本内容。");
+                }
+
+                return;
+            }
+
+            if (IsBusy)
+            {
+                return;
+            }
+
+            if (!await ConfirmLeaveAsync(cancellationToken))
+            {
+                return;
+            }
+
+            if (IsBusy)
+            {
+                return;
+            }
+
+            SetBusy(true);
+            ownsBusy = true;
+            var result = await _workspaceService.ImportJsonAsync(document.Json, cancellationToken);
+            await RefreshRulesAsync(HighlightedRuleId, openEditorIfNeeded: false, cancellationToken);
+            _feedbackService.ShowSuccess(
+                "章节规则导入完成",
+                $"{document.SourceDescription}：新增 {result.ImportedCount} 条，跳过重复 {result.SkippedCount} 条。");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            HandleProjectedError(failureTitle, exception);
+        }
+        finally
+        {
+            if (ownsBusy)
+            {
+                SetBusy(false);
+            }
+
+            Volatile.Write(ref _importOperationActive, 0);
         }
     }
 
@@ -590,7 +735,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
 
     private async Task<ChapterRuleEditorModel?> SaveDraftCoreAsync(CancellationToken cancellationToken)
     {
-        if (!HasEditor)
+        if (!HasEditor || IsBusy)
         {
             return null;
         }

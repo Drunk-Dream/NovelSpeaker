@@ -57,6 +57,20 @@
                 </Button>
                 <Button Margin="0,0,12,0"
                         Style="{StaticResource SecondaryIconButtonStyle}"
+                        Click="ImportRuleFileButton_OnClick"
+                        ToolTip="导入文件"
+                        AutomationProperties.Name="导入文件">
+                    <ui:SymbolIcon Symbol="ArrowImport24" />
+                </Button>
+                <Button Margin="0,0,12,0"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
+                        Click="ImportRulesFromClipboardButton_OnClick"
+                        ToolTip="从剪贴板导入"
+                        AutomationProperties.Name="从剪贴板导入">
+                    <ui:SymbolIcon Symbol="ClipboardPaste24" />
+                </Button>
+                <Button Margin="0,0,12,0"
+                        Style="{StaticResource SecondaryIconButtonStyle}"
                         Command="{Binding ImportDefaultsCommand}"
                         ToolTip="导入默认规则"
                         AutomationProperties.Name="导入默认规则">
@@ -192,6 +206,11 @@
                                                     <ui:SymbolIcon Symbol="MoreHorizontal24" />
                                                     <Button.ContextMenu>
                                                         <ContextMenu>
+                                                            <MenuItem Header="导出到文件"
+                                                                      Click="ExportRuleMenuItem_OnClick" />
+                                                            <MenuItem Header="复制到剪贴板"
+                                                                      Click="CopyRuleMenuItem_OnClick" />
+                                                            <Separator />
                                                             <MenuItem Header="上移"
                                                                       IsEnabled="{Binding CanMoveUp}"
                                                                       Click="MoveRuleUpMenuItem_OnClick" />

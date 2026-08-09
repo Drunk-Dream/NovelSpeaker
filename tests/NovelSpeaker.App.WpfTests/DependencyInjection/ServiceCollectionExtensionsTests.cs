@@ -26,6 +26,7 @@ using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.App.Shared.Presentation.Platform;
+using NovelSpeaker.App.Shared.Presentation.Rules;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using NovelSpeaker.Infrastructure.Diagnostics;
 using NovelSpeaker.Infrastructure.Playback;
@@ -86,6 +87,8 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAppFeedbackService>(provider.GetRequiredService<IAppFeedbackService>());
                 Assert.IsAssignableFrom<IPresentationFileDialogService>(
                     provider.GetRequiredService<IPresentationFileDialogService>());
+                Assert.IsAssignableFrom<IRuleDocumentInteraction>(
+                    provider.GetRequiredService<IRuleDocumentInteraction>());
                 Assert.IsAssignableFrom<IPresentationLauncher>(
                     provider.GetRequiredService<IPresentationLauncher>());
                 Assert.IsAssignableFrom<IAppDiagnosticsService>(provider.GetRequiredService<IAppDiagnosticsService>());

@@ -158,7 +158,7 @@ public sealed class RegexReplacementRulesPageTests
                 candidate => AutomationProperties.GetName(candidate) == "更多操作：空白清理"));
             var menu = Assert.IsType<ContextMenu>(moreButton.ContextMenu);
             Assert.Equal(
-                ["上移", "下移", "删除"],
+                ["导出到文件", "复制到剪贴板", "上移", "下移", "删除"],
                 menu.Items.OfType<MenuItem>().Select(item => item.Header).ToArray());
             Assert.NotNull(VisualTreeTestHelper.FindDescendant<Button>(
                 view,

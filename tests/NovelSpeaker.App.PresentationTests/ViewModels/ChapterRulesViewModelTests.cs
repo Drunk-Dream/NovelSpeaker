@@ -1,5 +1,7 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.PresentationTests.TestDoubles;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
 using Wpf.Ui.Controls;
@@ -572,17 +574,114 @@ public sealed class ChapterRulesViewModelTests
         Assert.False(viewModel.HasUnsavedChanges);
     }
 
+    [Fact]
+    public async Task Shared_document_commands_import_export_and_copy_rule()
+    {
+        var workspace = new FakeChapterRuleWorkspaceService(
+        [
+            new ChapterRuleListItem("custom:one", "规则", "^一$", true, 10, false, true)
+        ]);
+        var documents = new FakeRuleDocumentInteraction
+        {
+            ClipboardDocument = new RuleImportDocument("[{\"name\":\"导入\",\"pattern\":\"^二$\"}]", "剪贴板")
+        };
+        var viewModel = CreateViewModel(workspaceService: workspace, ruleDocuments: documents);
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        await viewModel.ImportRulesFromClipboardAsync(CancellationToken.None);
+        await viewModel.ExportRuleAsync(viewModel.Rules.Single(), CancellationToken.None);
+        await viewModel.CopyRuleAsync(viewModel.Rules.Single(), CancellationToken.None);
+
+        Assert.Equal(documents.ClipboardDocument.Json, workspace.LastImportedJson);
+        Assert.Equal("chapter-rule.json", documents.ExportedFileName);
+        Assert.Equal(workspace.ExportedJson, documents.ExportedJson);
+        Assert.Equal(workspace.ExportedJson, documents.CopiedJson);
+        Assert.False(viewModel.HasEditor);
+    }
+
+    [Fact]
+    public async Task Missing_import_sources_preserve_dirty_draft_and_imports_do_not_overlap()
+    {
+        var workspace = new FakeChapterRuleWorkspaceService(
+        [
+            new ChapterRuleListItem("custom:one", "规则", "^一$", true, 10, false, true)
+        ])
+        {
+            EditorsById =
+            {
+                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则", "^一$", false, true)
+            }
+        };
+        var documents = new FakeRuleDocumentInteraction();
+        var viewModel = CreateViewModel(workspaceService: workspace, ruleDocuments: documents);
+        await LoadAndSelectAsync(viewModel, "custom:one");
+        viewModel.DraftName = "未保存名称";
+
+        await viewModel.ImportRuleFileAsync(CancellationToken.None);
+        await viewModel.ImportRulesFromClipboardAsync(CancellationToken.None);
+
+        Assert.True(viewModel.HasUnsavedChanges);
+        Assert.Equal("未保存名称", viewModel.DraftName);
+
+        var gate = new TaskCompletionSource<RuleImportDocument?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        documents.FileDocumentGate = gate;
+        var fileImport = viewModel.ImportRuleFileAsync(CancellationToken.None);
+        await viewModel.ImportRulesFromClipboardAsync(CancellationToken.None);
+        Assert.Equal(2, documents.FileReadCount);
+        Assert.Equal(1, documents.ClipboardReadCount);
+        gate.SetResult(null);
+        await fileImport;
+    }
+
+    [Fact]
+    public async Task Import_and_rule_mutations_share_busy_ownership()
+    {
+        var workspace = new FakeChapterRuleWorkspaceService(
+        [
+            new ChapterRuleListItem("custom:one", "规则", "^一$", false, 10, false, true)
+        ])
+        {
+            SetEnabledGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var documents = new FakeRuleDocumentInteraction
+        {
+            FileDocument = new RuleImportDocument("[]", "rules.json")
+        };
+        var viewModel = CreateViewModel(workspaceService: workspace, ruleDocuments: documents);
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        var toggle = viewModel.ToggleRuleEnabledCommand.ExecuteAsync(viewModel.Rules.Single());
+        await workspace.SetEnabledEntered.Task;
+        await viewModel.ImportRuleFileAsync(CancellationToken.None);
+        Assert.Equal(0, workspace.ImportCallCount);
+        Assert.True(viewModel.IsBusy);
+        workspace.SetEnabledGate.SetResult();
+        await toggle;
+
+        workspace.ImportGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var import = viewModel.ImportRuleFileAsync(CancellationToken.None);
+        await workspace.ImportEntered.Task;
+        var enabledCalls = workspace.SetEnabledCallCount;
+        await viewModel.ToggleRuleEnabledCommand.ExecuteAsync(viewModel.Rules.Single());
+        Assert.Equal(enabledCalls, workspace.SetEnabledCallCount);
+        Assert.True(viewModel.IsBusy);
+        workspace.ImportGate.SetResult();
+        await import;
+    }
+
     private static ChapterRulesViewModel CreateViewModel(
         FakeChapterRuleWorkspaceService? workspaceService = null,
         FakeFeedbackService? feedbackService = null,
         FakeAppDialogService? dialogService = null,
-        FakeNavigationService? navigationService = null)
+        FakeNavigationService? navigationService = null,
+        IRuleDocumentInteraction? ruleDocuments = null)
     {
         return new ChapterRulesViewModel(
             workspaceService ?? new FakeChapterRuleWorkspaceService([]),
             feedbackService ?? new FakeFeedbackService(),
             dialogService ?? new FakeAppDialogService(),
-            navigationService ?? new FakeNavigationService());
+            navigationService ?? new FakeNavigationService(),
+            ruleDocuments ?? new FakeRuleDocumentInteraction());
     }
 
     private static async Task LoadAndSelectAsync(ChapterRulesViewModel viewModel, string ruleId)
@@ -605,6 +704,18 @@ public sealed class ChapterRulesViewModelTests
 
         public Exception? SetRuleEnabledException { get; set; }
 
+        public TaskCompletionSource? SetEnabledGate { get; set; }
+
+        public TaskCompletionSource SetEnabledEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int SetEnabledCallCount { get; private set; }
+
+        public TaskCompletionSource? ImportGate { get; set; }
+
+        public TaskCompletionSource ImportEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int ImportCallCount { get; private set; }
+
         public Exception? SaveOrderException { get; set; }
 
         public bool ThrowOnDelete { get; set; }
@@ -612,6 +723,10 @@ public sealed class ChapterRulesViewModelTests
         public Exception? SaveException { get; set; }
 
         public int SaveEditorCallCount { get; private set; }
+
+        public string? LastImportedJson { get; private set; }
+
+        public string ExportedJson { get; set; } = """{"name":"规则"}""";
 
         public List<ChapterRuleDefaultsMode> AppliedDefaultModes { get; } = [];
 
@@ -621,10 +736,20 @@ public sealed class ChapterRulesViewModelTests
         }
 
         public Task<string?> ExportRuleJsonAsync(string ruleId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            Task.FromResult<string?>(ExportedJson);
 
-        public Task<RuleJsonImportResult> ImportJsonAsync(string json, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+        public async Task<RuleJsonImportResult> ImportJsonAsync(string json, CancellationToken cancellationToken)
+        {
+            ImportCallCount++;
+            ImportEntered.TrySetResult();
+            if (ImportGate is not null)
+            {
+                await ImportGate.Task.WaitAsync(cancellationToken);
+            }
+
+            LastImportedJson = json;
+            return new RuleJsonImportResult(1, 0, 1);
+        }
 
         public Task<ChapterRuleEditorModel?> GetEditorAsync(string ruleId, CancellationToken cancellationToken)
         {
@@ -682,8 +807,15 @@ public sealed class ChapterRulesViewModelTests
             return Task.CompletedTask;
         }
 
-        public Task SetRuleEnabledAsync(string ruleId, bool isEnabled, CancellationToken cancellationToken)
+        public async Task SetRuleEnabledAsync(string ruleId, bool isEnabled, CancellationToken cancellationToken)
         {
+            SetEnabledCallCount++;
+            SetEnabledEntered.TrySetResult();
+            if (SetEnabledGate is not null)
+            {
+                await SetEnabledGate.Task.WaitAsync(cancellationToken);
+            }
+
             if (SetRuleEnabledException is not null)
             {
                 throw SetRuleEnabledException;
@@ -693,7 +825,6 @@ public sealed class ChapterRulesViewModelTests
             var index = _rules.IndexOf(rule);
             _rules[index] = rule with { IsEnabled = isEnabled };
 
-            return Task.CompletedTask;
         }
 
         public Task SaveOrderAsync(IReadOnlyList<string> orderedRuleIds, CancellationToken cancellationToken)

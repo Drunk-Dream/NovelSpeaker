@@ -122,7 +122,7 @@ public sealed partial class TtsRulesPageTests
                 candidate => AutomationProperties.GetName(candidate) == "更多操作：备用规则");
             Assert.NotNull(moreButton);
             Assert.Equal(
-                ["导出", "删除"],
+                ["导出", "复制到剪贴板", "删除"],
                 moreButton!.ContextMenu!.Items
                     .Cast<MenuItem>()
                     .Select(item => (string)item.Header)

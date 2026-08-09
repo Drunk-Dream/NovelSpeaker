@@ -1,8 +1,9 @@
-using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.PresentationTests.TestDoubles;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.TestKit.Speech;
@@ -213,51 +214,25 @@ public sealed class TtsRulesViewModelTests
             }
         };
         var feedback = new FakeFeedbackService();
-        var viewModel = CreateViewModel(useCases: useCases, feedbackService: feedback);
+        var documents = new FakeRuleDocumentInteraction
+        {
+            ClipboardDocument = new RuleImportDocument(
+                """{"name":"新导入规则","url":"https://example.com/imported"}""",
+                "剪贴板")
+        };
+        var viewModel = CreateViewModel(
+            useCases: useCases,
+            feedbackService: feedback,
+            ruleDocuments: documents);
 
         await viewModel.LoadAsync(CancellationToken.None);
-        await viewModel.ImportJsonTextAsync("""{"name":"新导入规则","url":"https://example.com/imported"}""", "剪贴板", CancellationToken.None);
+        await viewModel.ImportRulesFromClipboardAsync(CancellationToken.None);
 
         Assert.Equal(2, viewModel.Rules.Count);
         Assert.Null(viewModel.HighlightedRuleId);
         Assert.False(viewModel.HasEditor);
-        Assert.Equal("规则导入完成", feedback.LastTitle);
+        Assert.Equal("部分规则导入失败", feedback.LastTitle);
         Assert.Contains("新增 1 条", feedback.LastMessage);
-    }
-
-    [Fact]
-    public async Task ImportFromFileAsync_reads_through_cancellable_document_port()
-    {
-        var useCases = new TtsRuleUseCaseStub([], null)
-        {
-            RulesAfterImport = [new TtsRuleSummary(2, "文件规则", true, false, null)],
-            ImportResult = new TtsRuleImportResult(1, 0, 0)
-        };
-        var fileOperations = new FakeUserDocumentFileOperations
-        {
-            Metadata = new UserDocumentFileMetadata("rules.json", "rules.json", ".json", 42),
-            ReadText = """{"name":"文件规则"}"""
-        };
-        using var cancellation = new CancellationTokenSource();
-        var viewModel = CreateViewModel(useCases: useCases, fileOperations: fileOperations);
-
-        await viewModel.ImportFromFileAsync("rules.json", cancellation.Token);
-
-        Assert.Equal("rules.json", fileOperations.LastReadPath);
-        Assert.Equal(cancellation.Token, fileOperations.LastCancellationToken);
-    }
-
-    [Fact]
-    public async Task ImportFromFileAsync_propagates_document_read_cancellation()
-    {
-        var fileOperations = new FakeUserDocumentFileOperations
-        {
-            ReadException = new OperationCanceledException()
-        };
-        var viewModel = CreateViewModel(fileOperations: fileOperations);
-
-        await Assert.ThrowsAsync<OperationCanceledException>(
-            () => viewModel.ImportFromFileAsync("rules.json", CancellationToken.None));
     }
 
     [Fact]
@@ -274,9 +249,16 @@ public sealed class TtsRulesViewModelTests
             ImportResult = new TtsRuleImportResult(1, 0, 2) { FailedCount = 1 }
         };
         var feedback = new FakeFeedbackService();
-        var viewModel = CreateViewModel(useCases: useCases, feedbackService: feedback);
+        var documents = new FakeRuleDocumentInteraction
+        {
+            ClipboardDocument = new RuleImportDocument("[]", "剪贴板")
+        };
+        var viewModel = CreateViewModel(
+            useCases: useCases,
+            feedbackService: feedback,
+            ruleDocuments: documents);
 
-        await viewModel.ImportJsonTextAsync("[]", "剪贴板", CancellationToken.None);
+        await viewModel.ImportRulesFromClipboardAsync(CancellationToken.None);
 
         Assert.Equal("部分规则不兼容", feedback.LastTitle);
         Assert.Contains("当前版本不支持 Cookie/LoginInfo", feedback.LastMessage);
@@ -564,33 +546,114 @@ public sealed class TtsRulesViewModelTests
     }
 
     [Fact]
-    public async Task ExportRuleToFileAsync_exports_persisted_card_rule()
+    public async Task Shared_document_commands_import_export_and_copy_persisted_rule()
     {
         var useCases = new TtsRuleUseCaseStub(
-            [new TtsRuleSummary(3, "导出规则", true, false, null)],
-            CreateEditor(3, "导出规则", true))
+            [new TtsRuleSummary(3, "规则", true, false, null)],
+            CreateEditor(3, "规则", true))
         {
-            ExportedRuleJson = """{"name":"导出规则"}"""
+            ExportedRuleJson = """{"name":"规则","isEnabled":true}""",
+            ImportResult = new TtsRuleImportResult(0, 1, 1)
         };
-        var feedback = new FakeFeedbackService();
-        var fileOperations = new FakeUserDocumentFileOperations();
-        var viewModel = CreateViewModel(
-            useCases: useCases,
-            feedbackService: feedback,
-            fileOperations: fileOperations);
+        var documents = new FakeRuleDocumentInteraction
+        {
+            FileDocument = new RuleImportDocument("[]", "rules.json")
+        };
+        var viewModel = CreateViewModel(useCases: useCases, ruleDocuments: documents);
         await viewModel.LoadAsync(CancellationToken.None);
-        using var cancellation = new CancellationTokenSource();
 
-        await viewModel.ExportRuleToFileAsync(
-            viewModel.Rules.Single(),
-            "export.json",
-            cancellation.Token);
+        await viewModel.ImportRuleFileAsync(CancellationToken.None);
+        await viewModel.ExportRuleAsync(viewModel.Rules.Single(), CancellationToken.None);
+        await viewModel.CopyRuleAsync(viewModel.Rules.Single(), CancellationToken.None);
 
-        Assert.Equal("export.json", fileOperations.LastWritePath);
-        Assert.Equal("""{"name":"导出规则"}""", fileOperations.LastWrittenText);
-        Assert.Equal(cancellation.Token, fileOperations.LastCancellationToken);
-        Assert.Equal(3, useCases.LastExportedRuleId);
-        Assert.Equal("规则已导出", feedback.LastTitle);
+        Assert.Equal("tts-rule.json", documents.ExportedFileName);
+        Assert.Equal(useCases.ExportedRuleJson, documents.ExportedJson);
+        Assert.Equal(useCases.ExportedRuleJson, documents.CopiedJson);
+        Assert.False(viewModel.HasEditor);
+    }
+
+    [Fact]
+    public async Task Missing_import_sources_preserve_dirty_draft()
+    {
+        var useCases = new TtsRuleUseCaseStub(
+            [new TtsRuleSummary(3, "规则", true, false, null)],
+            CreateEditor(3, "规则", true));
+        var documents = new FakeRuleDocumentInteraction();
+        var viewModel = CreateViewModel(useCases: useCases, ruleDocuments: documents);
+        await LoadAndSelectAsync(viewModel, 3);
+        viewModel.DraftName = "未保存名称";
+
+        await viewModel.ImportRuleFileAsync(CancellationToken.None);
+        await viewModel.ImportRulesFromClipboardAsync(CancellationToken.None);
+
+        Assert.True(viewModel.HasUnsavedChanges);
+        Assert.Equal("未保存名称", viewModel.DraftName);
+        Assert.Equal(1, documents.FileReadCount);
+        Assert.Equal(1, documents.ClipboardReadCount);
+    }
+
+    [Fact]
+    public async Task Import_sources_share_one_operation_slot()
+    {
+        var gate = new TaskCompletionSource<RuleImportDocument?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var documents = new FakeRuleDocumentInteraction
+        {
+            FileDocumentGate = gate,
+            ClipboardDocument = new RuleImportDocument("[]", "剪贴板")
+        };
+        var viewModel = CreateViewModel(ruleDocuments: documents);
+
+        var fileImport = viewModel.ImportRuleFileAsync(CancellationToken.None);
+        await viewModel.ImportRulesFromClipboardAsync(CancellationToken.None);
+
+        Assert.Equal(1, documents.FileReadCount);
+        Assert.Equal(0, documents.ClipboardReadCount);
+        gate.SetResult(null);
+        await fileImport;
+    }
+
+    [Fact]
+    public async Task Import_and_rule_mutations_share_busy_ownership()
+    {
+        var toggleUseCases = new TtsRuleUseCaseStub(
+            [new TtsRuleSummary(3, "规则", false, false, null)],
+            CreateEditor(3, "规则", false))
+        {
+            SetEnabledGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var documents = new FakeRuleDocumentInteraction
+        {
+            FileDocument = new RuleImportDocument("[]", "rules.json")
+        };
+        var toggleViewModel = CreateViewModel(useCases: toggleUseCases, ruleDocuments: documents);
+        await toggleViewModel.LoadAsync(CancellationToken.None);
+
+        var toggle = toggleViewModel.ToggleRuleEnabledCommand.ExecuteAsync(toggleViewModel.Rules.Single());
+        await toggleUseCases.SetEnabledEntered.Task;
+        await toggleViewModel.ImportRuleFileAsync(CancellationToken.None);
+
+        Assert.Equal(0, toggleUseCases.ImportCallCount);
+        Assert.True(toggleViewModel.IsBusy);
+        toggleUseCases.SetEnabledGate.SetResult();
+        await toggle;
+
+        var importUseCases = new TtsRuleUseCaseStub(
+            [new TtsRuleSummary(4, "另一规则", false, false, null)],
+            CreateEditor(4, "另一规则", false))
+        {
+            ImportGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var importViewModel = CreateViewModel(useCases: importUseCases, ruleDocuments: documents);
+        await importViewModel.LoadAsync(CancellationToken.None);
+
+        var import = importViewModel.ImportRuleFileAsync(CancellationToken.None);
+        await importUseCases.ImportEntered.Task;
+        await importViewModel.ToggleRuleEnabledCommand.ExecuteAsync(importViewModel.Rules.Single());
+
+        Assert.Equal(0, importUseCases.SetEnabledCallCount);
+        Assert.True(importViewModel.IsBusy);
+        importUseCases.ImportGate.SetResult();
+        await import;
     }
 
     [Fact]
@@ -647,7 +710,7 @@ public sealed class TtsRulesViewModelTests
         FakeTtsRuleTestService? ruleTestService = null,
         FakeFeedbackService? feedbackService = null,
         FakeAppDialogService? dialogService = null,
-        IUserDocumentFileOperations? fileOperations = null)
+        IRuleDocumentInteraction? ruleDocuments = null)
     {
         return new TtsRulesViewModel(
             useCases ??= new TtsRuleUseCaseStub([], null),
@@ -659,7 +722,7 @@ public sealed class TtsRulesViewModelTests
             dialogService ?? new FakeAppDialogService(),
             new FakeAppSettingsService(),
             new FakeNavigationService(),
-            fileOperations ?? new FakeUserDocumentFileOperations());
+            ruleDocuments ?? new FakeRuleDocumentInteraction());
     }
 
     private static TtsRuleImportItem CreateImportItem(int index, bool canImport, string statusMessage)
@@ -719,6 +782,14 @@ public sealed class TtsRulesViewModelTests
 
         public TaskCompletionSource SetEnabledEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        public int SetEnabledCallCount { get; private set; }
+
+        public TaskCompletionSource? ImportGate { get; init; }
+
+        public TaskCompletionSource ImportEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int ImportCallCount { get; private set; }
+
         public string? ExportedRuleJson { get; set; }
 
         public long? LastExportedRuleId { get; private set; }
@@ -751,14 +822,21 @@ public sealed class TtsRulesViewModelTests
             return Task.FromResult(ImportResult);
         }
 
-        public Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken)
+        public async Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken)
         {
+            ImportCallCount++;
+            ImportEntered.TrySetResult();
+            if (ImportGate is not null)
+            {
+                await ImportGate.Task.WaitAsync(cancellationToken);
+            }
+
             if (RulesAfterImport is not null)
             {
                 _rules = RulesAfterImport;
             }
 
-            return Task.FromResult(ImportResult);
+            return ImportResult;
         }
 
         public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken)
@@ -826,6 +904,7 @@ public sealed class TtsRulesViewModelTests
 
         public async Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken)
         {
+            SetEnabledCallCount++;
             SetEnabledEntered.SetResult();
             if (SetEnabledGate is not null)
             {
@@ -870,55 +949,6 @@ public sealed class TtsRulesViewModelTests
             return Task.CompletedTask;
         }
 
-    }
-
-    private sealed class FakeUserDocumentFileOperations : IUserDocumentFileOperations
-    {
-        public UserDocumentFileMetadata? Metadata { get; set; }
-
-        public string ReadText { get; set; } = string.Empty;
-
-        public Exception? ReadException { get; set; }
-
-        public string? LastReadPath { get; private set; }
-
-        public string? LastWritePath { get; private set; }
-
-        public string? LastWrittenText { get; private set; }
-
-        public CancellationToken LastCancellationToken { get; private set; }
-
-        public Task<UserDocumentFileMetadata?> GetMetadataAsync(
-            string filePath,
-            CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(Metadata);
-        }
-
-        public Task<string> ReadTextAsync(string filePath, CancellationToken cancellationToken)
-        {
-            LastReadPath = filePath;
-            LastCancellationToken = cancellationToken;
-            if (ReadException is not null)
-            {
-                throw ReadException;
-            }
-
-            return Task.FromResult(ReadText);
-        }
-
-        public Task WriteTextAsync(
-            string filePath,
-            string content,
-            CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            LastWritePath = filePath;
-            LastWrittenText = content;
-            LastCancellationToken = cancellationToken;
-            return Task.CompletedTask;
-        }
     }
 
     private sealed class FakeTtsRuleTestService : ITtsRuleTestService

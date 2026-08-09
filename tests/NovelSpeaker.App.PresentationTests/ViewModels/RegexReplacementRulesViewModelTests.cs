@@ -1,6 +1,8 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.PresentationTests.TestDoubles;
 using NovelSpeaker.Domain.Books;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
@@ -265,6 +267,77 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal(1, fixture.Playback.RegexRefreshCount);
     }
 
+    [Fact]
+    public async Task Shared_document_commands_import_export_and_copy_rule()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Discard);
+        fixture.Documents.FileDocument = new RuleImportDocument(
+            "[{\"name\":\"导入\",\"pattern\":\"二\",\"scope\":\"Both\"}]",
+            "rules.json");
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+
+        await fixture.ViewModel.ImportRuleFileAsync(CancellationToken.None);
+        await fixture.ViewModel.ExportRuleAsync(fixture.ViewModel.Rules[0], CancellationToken.None);
+        await fixture.ViewModel.CopyRuleAsync(fixture.ViewModel.Rules[0], CancellationToken.None);
+
+        Assert.Equal(fixture.Documents.FileDocument.Json, fixture.Workspace.LastImportedJson);
+        Assert.Equal("regex-replacement-rule.json", fixture.Documents.ExportedFileName);
+        Assert.Equal(fixture.Workspace.ExportedJson, fixture.Documents.ExportedJson);
+        Assert.Equal(fixture.Workspace.ExportedJson, fixture.Documents.CopiedJson);
+        Assert.Equal(1, fixture.Playback.RegexRefreshCount);
+        Assert.False(fixture.ViewModel.HasEditor);
+    }
+
+    [Fact]
+    public async Task Missing_import_sources_preserve_dirty_draft_and_imports_do_not_overlap()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Discard);
+        await LoadAndSelectFirstAsync(fixture);
+        fixture.ViewModel.DraftName = "未保存名称";
+
+        await fixture.ViewModel.ImportRuleFileAsync(CancellationToken.None);
+        await fixture.ViewModel.ImportRulesFromClipboardAsync(CancellationToken.None);
+
+        Assert.True(fixture.ViewModel.HasUnsavedChanges);
+        Assert.Equal("未保存名称", fixture.ViewModel.DraftName);
+
+        var gate = new TaskCompletionSource<RuleImportDocument?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Documents.FileDocumentGate = gate;
+        var fileImport = fixture.ViewModel.ImportRuleFileAsync(CancellationToken.None);
+        await fixture.ViewModel.ImportRulesFromClipboardAsync(CancellationToken.None);
+        Assert.Equal(2, fixture.Documents.FileReadCount);
+        Assert.Equal(1, fixture.Documents.ClipboardReadCount);
+        gate.SetResult(null);
+        await fileImport;
+    }
+
+    [Fact]
+    public async Task Import_and_rule_mutations_share_busy_ownership()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Discard);
+        fixture.Documents.FileDocument = new RuleImportDocument("[]", "rules.json");
+        fixture.Workspace.SetEnabledGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+
+        var toggle = fixture.ViewModel.ToggleEnabledCommand.ExecuteAsync(fixture.ViewModel.Rules[0]);
+        await fixture.Workspace.SetEnabledEntered.Task;
+        await fixture.ViewModel.ImportRuleFileAsync(CancellationToken.None);
+        Assert.Equal(0, fixture.Workspace.ImportCallCount);
+        Assert.True(fixture.ViewModel.IsBusy);
+        fixture.Workspace.SetEnabledGate.SetResult();
+        await toggle;
+
+        fixture.Workspace.ImportGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var import = fixture.ViewModel.ImportRuleFileAsync(CancellationToken.None);
+        await fixture.Workspace.ImportEntered.Task;
+        var enabledCalls = fixture.Workspace.SetEnabledCallCount;
+        await fixture.ViewModel.ToggleEnabledCommand.ExecuteAsync(fixture.ViewModel.Rules[0]);
+        Assert.Equal(enabledCalls, fixture.Workspace.SetEnabledCallCount);
+        Assert.True(fixture.ViewModel.IsBusy);
+        fixture.Workspace.ImportGate.SetResult();
+        await import;
+    }
+
     private static TestFixture CreateFixture(UnsavedChangesDecision decision)
     {
         var firstRuleId = Guid.NewGuid();
@@ -274,13 +347,15 @@ public sealed class RegexReplacementRulesViewModelTests
             new RegexReplacementRuleEditorModel(secondRuleId, "规则二", "二", "乙", RegexReplacementScope.Display));
         var feedback = new FakeFeedbackService();
         var playback = new FakePlaybackCoordinator();
+        var documents = new FakeRuleDocumentInteraction();
         var viewModel = new RegexReplacementRulesViewModel(
             workspace,
             playback,
             feedback,
             new FakeDialogService(decision),
-            new FakeNavigationService());
-        return new TestFixture(viewModel, workspace, feedback, playback, firstRuleId, secondRuleId);
+            new FakeNavigationService(),
+            documents);
+        return new TestFixture(viewModel, workspace, feedback, playback, documents, firstRuleId, secondRuleId);
     }
 
     private static async Task LoadAndSelectFirstAsync(TestFixture fixture)
@@ -294,6 +369,7 @@ public sealed class RegexReplacementRulesViewModelTests
         FakeRegexReplacementRuleWorkspaceService Workspace,
         FakeFeedbackService Feedback,
         FakePlaybackCoordinator Playback,
+        FakeRuleDocumentInteraction Documents,
         Guid FirstRuleId,
         Guid SecondRuleId);
 
@@ -314,6 +390,20 @@ public sealed class RegexReplacementRulesViewModelTests
 
         public Exception? SaveException { get; set; }
         public Exception? SetEnabledException { get; set; }
+
+        public TaskCompletionSource? SetEnabledGate { get; set; }
+
+        public TaskCompletionSource SetEnabledEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int SetEnabledCallCount { get; private set; }
+
+        public TaskCompletionSource? ImportGate { get; set; }
+
+        public TaskCompletionSource ImportEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int ImportCallCount { get; private set; }
+        public string? LastImportedJson { get; private set; }
+        public string ExportedJson { get; set; } = """{"name":"规则"}""";
         public IReadOnlyList<Guid> OrderedRuleIds => _orderedRuleIds;
 
         public Task<IReadOnlyList<RegexReplacementRuleListItem>> GetRulesAsync(CancellationToken cancellationToken)
@@ -332,10 +422,20 @@ public sealed class RegexReplacementRulesViewModelTests
         }
 
         public Task<string?> ExportRuleJsonAsync(Guid ruleId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            Task.FromResult<string?>(ExportedJson);
 
-        public Task<RuleJsonImportResult> ImportJsonAsync(string json, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+        public async Task<RuleJsonImportResult> ImportJsonAsync(string json, CancellationToken cancellationToken)
+        {
+            ImportCallCount++;
+            ImportEntered.TrySetResult();
+            if (ImportGate is not null)
+            {
+                await ImportGate.Task.WaitAsync(cancellationToken);
+            }
+
+            LastImportedJson = json;
+            return new RuleJsonImportResult(1, 0, 1);
+        }
 
         public Task<RegexReplacementRuleEditorModel?> GetEditorAsync(Guid ruleId, CancellationToken cancellationToken)
         {
@@ -362,15 +462,21 @@ public sealed class RegexReplacementRulesViewModelTests
             return Task.FromResult(saved);
         }
 
-        public Task SetRuleEnabledAsync(Guid ruleId, bool isEnabled, CancellationToken cancellationToken)
+        public async Task SetRuleEnabledAsync(Guid ruleId, bool isEnabled, CancellationToken cancellationToken)
         {
+            SetEnabledCallCount++;
+            SetEnabledEntered.TrySetResult();
+            if (SetEnabledGate is not null)
+            {
+                await SetEnabledGate.Task.WaitAsync(cancellationToken);
+            }
+
             if (SetEnabledException is not null)
             {
                 throw SetEnabledException;
             }
 
             _enabled[ruleId] = isEnabled;
-            return Task.CompletedTask;
         }
 
         public Task SaveOrderAsync(IReadOnlyList<Guid> orderedRuleIds, CancellationToken cancellationToken)
