@@ -11,7 +11,7 @@
 - 删除生产代码中硬编码 Style Gallery 示例内容的伪公共组件。
 - 建立可跨页面复用的正式自有控件。
 - 通过临时 Legacy 字典保持页面迁移期间可运行，并在最后删除全部旧资源。
-- 每次只迁移一个页面或一个明确资源族，保持功能、导航和状态语义不变。
+- 每次只迁移一个页面或一个明确资源族；除任务明确列出的已确认产品行为变化外，保持功能、导航和状态语义不变。
 
 最终形态以 `13_VISUAL_DESIGN_SYSTEM.md` 为准。本文件只描述实施顺序、依赖和自动验收。
 
@@ -43,7 +43,7 @@
    - 属于稳定的平台级视觉合同，例如 Button、Input、Focus、Dialog 内容表面。
 6. 标准 WPF/Wpf.Ui 控件只使用显式 `App.*` Style；NovelSpeaker 自有控件允许按类型自动应用默认 Style。
 7. Style Gallery fixture 只能位于 `tools/NovelSpeaker.StyleGallery`，生产控件不得硬编码示例文本、命令、进度或状态。
-8. 不改变导航、播放、缓存、选择、Dirty State、持久化、确认顺序和生命周期语义。
+8. 不擅自改变导航、播放、缓存、选择、Dirty State、持久化、确认顺序和生命周期语义；任务明确列出的已确认产品行为变化按对应设计文档实施，并以自动测试固定新语义。
 9. 不把用户人工视觉验收写入任务关闭条件。任务必须通过自动构建、契约、几何、可访问性、截图生成和发布检查关闭。
 10. 视觉截图用于用户后续查看：
     - Gallery 截图按稳定 `family-id` 保存，用于集中检查资源族、控件族和样式族。
@@ -102,6 +102,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 → 诊断与关于
 → 书库
 → 书籍详情
+→ Rules 管理交互与 TTS 选择语义
 → Rules 共享视图
 → TTS 规则
 → 章节规则
@@ -763,88 +764,118 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `BookDetailsPage` 更新 `artifacts/visual-review/pages/book-details/`。
 - 完整质量门禁通过。
 
-## [ ] 22（P1）：建立 Rules 页面族共享视图
+## [ ] 22（P0）：统一 Rules 管理交互与 TTS 当前规则语义
 
 前置：21。
 
 实现：
 
-- 在相近 Rules Feature 边界中建立共享规则列表项和必要的帮助/命令区视图。
-- 共享视图使用正式 Selection、Menu、Button、Typography 和 Surface 资源。
-- 不建立完整 `AppRuleWorkbench`，不固定三个页面的列宽和字段集合。
-- 规则启用、当前、排序、Drag/Drop、更多菜单和 Dirty 提示分别保留明确状态。
-- 为 TTS、章节和正则 fixture 建立 Gallery 场景，但不迁移正式页面。
+- 先固定三个规则 Feature 的新行为合同，再建立共享视觉：页面进入时不自动打开规则；单击卡片才进入编辑状态；显式“取消”直接丢弃草稿、清除选择并关闭编辑器，只有切换规则或离开页面时继续使用 Dirty State 导航保护。
+- 将规则启用状态从编辑 Draft 中解耦为列表级即时设置。Toggle 失败时回滚 UI；保存其它字段不能用旧草稿值覆盖刚刚切换的 `IsEnabled`。
+- 删除 TTS Rules 页“设为当前”及其特殊保护逻辑。当前 TTS 规则只允许播放页切换，播放页规则列表只投影已启用规则；当前规则被禁用或删除时清空选择，不自动回退，导入、新建或重新启用规则也不自动成为当前规则。
+- 为 TTS、章节规则和正则替换建立明确的单规则 JSON 导出/复制合同，完整保留 `IsEnabled` 等可移植字段；不要把内部持久化 Id 当作导入覆盖键。
+- 三类规则均支持从文件和剪切板导入单条对象或规则数组，并采用合并语义：完全重复跳过，同名不同内容作为新规则，不覆盖现有规则；章节/正则新增项按导入源顺序追加到现有排序末尾。
+- 为页面层准备统一的文件选择、剪切板读写和导入结果反馈入口，复用既有 presentation port/错误投影边界，不在各 Page code-behind 重复实现平台访问。
+- 本任务只完成行为、用例、状态模型和可测试命令边界；最终卡片布局、ContextMenu、长按拖动视觉和 PageHeader 排版由后续 Rules 共享视图及页面迁移任务完成。
 
 自动验收：
 
-- 共享视图不依赖具体规则 ViewModel 类型之外的 WPF 视觉返回值。
-- 虚拟化、选择、启用、当前、拖拽、键盘备用排序和菜单状态测试通过。
-- 更新 Gallery 稳定资源族 `artifacts/visual-review/gallery/rules-shared/`。
+- TTS Rules 中不存在可执行“设为当前”入口；播放页只列出启用规则，禁用/删除当前规则会清空 `SelectedTtsRuleId`，且不会自动选择替代规则。
+- 播放页无可用规则状态只引导用户前往规则管理页启用或导入规则，不再提示用户在规则管理页选择“当前规则”。
+- 启用切换与编辑 Dirty State 相互独立；存在未保存草稿时切换启用状态并随后保存其它字段，不会回写旧启用值。
+- 初始无选择、单击打开、显式取消关闭、Dirty 切换保护和页面离开保护均有 Presentation 测试。
+- 三类规则的文件/剪切板导入、单对象/数组、重复跳过、同名不同内容新增、排序追加、失败不覆盖现有数据和单规则导出状态保真测试通过。
+- TTS 导出与导入的 `IsEnabled` 对称性测试通过；导入、新建和重新启用均不改变当前播放规则。
 - 完整质量门禁通过。
 
-## [ ] 23（P1）：迁移 TTS 规则工作台
+## [ ] 23（P1）：建立 Rules 页面族共享视图
 
 前置：22。
 
 实现：
 
-- 使用正式 PageHeader、SectionSurface、AppFormField、Input、Button、Menu、Feedback 和 Rules 共享列表项迁移 `TtsRulesPage`。
-- 新建、导入和帮助等顶部操作放入 `AppPageHeader.Actions`，与标题平齐，不保留 Header 下方的并行工具栏。
-- 页面拥有真实双栏比例、字段布局和滚动。
-- 保持试听、当前规则、启用、排序、导入、导出、删除、Dirty State 和导航守卫语义。
-- 未修改时取消/保存禁用；试听针对当前编辑副本。
-- 删除该页全部 Legacy 键引用。
+- 在相近 Rules Feature 边界中建立共享规则列表项和必要的交互行为，不建立完整 `AppRuleWorkbench`，不固定三个页面的列宽和字段集合。
+- 共享卡片采用左右布局：左侧名称/摘要占剩余空间，右侧 ToggleSwitch 使用自身内容宽度；Toggle 命中区域不能因 Stretch 或透明空白扩展，也不触发卡片选择或拖动。
+- 单击卡片主体用于选择/打开编辑器；右键打开 ContextMenu 但不改变当前编辑对象，支持 `Shift+F10`/Menu Key。共享菜单能力允许 Feature 提供“导出到文件”“复制到剪切板”、删除以及可选上移/下移，不显示 `⋮` 按钮。
+- 为章节规则和正则替换建立整卡长按拖动行为：固定约 `300 ms` 长按阈值，长按后移动才启动 Drag；Toggle/ContextMenu 区域排除；使用轻量拖动态反馈、明确插入线和列表边缘自动滚动，不实现相邻卡片位移动画。
+- 插入索引由目标卡片垂直中心线决定前/后位置；DragOver 不写持久层，只在 Drop 后提交排序。上移/下移继续作为键盘和备用排序入口。
+- 共享视图使用正式 Selection、Menu、Input、Typography 和 Surface 资源，并为 TTS、章节、正则 fixture 建立 Gallery 场景，但不迁移正式页面。
 
 自动验收：
 
-- 最小工作区下关键字段有非零宽度且可滚动。
-- 试听、保存/取消、切换保护、导入导出、删除和当前规则测试通过。
-- 使用正式 `TtsRulesPage` 更新 `artifacts/visual-review/pages/tts-rules/`。
+- 共享视图不依赖具体规则 ViewModel 类型或业务持久化类型，只消费明确的显示、状态和命令合同。
+- Toggle 可见轨道与实际横向命中范围一致；Toggle 点击不改变选择，不启动拖动。
+- 左键选择、右键不选择、键盘 ContextMenu、虚拟化回收和菜单能力状态测试通过。
+- 长按阈值使用可确定测试的手势状态机，不以任意 `Thread.Sleep`/`Task.Delay` 猜测；插入前后、边缘自动滚动、取消拖动、Drop 后排序和备用上移/下移测试通过。
+- Gallery 明确覆盖普通 TTS 项、可排序项、禁用项、Selected、Focus、ContextMenu、拖动态和插入线；更新 `artifacts/visual-review/gallery/rules-shared/`。
 - 完整质量门禁通过。
 
-## [ ] 24（P1）：迁移章节规则工作台
+## [ ] 24（P1）：迁移 TTS 规则工作台
 
 前置：23。
 
 实现：
 
-- 使用与任务 23 相同的公共边界迁移 `ChapterRulesPage`。
-- 新建、导入默认规则和恢复默认规则等顶部操作放入 `AppPageHeader.Actions`。
-- 页面保留自身字段、帮助、默认规则导入/恢复和布局。
-- 内置规则可删除性由能力字段决定，不新增标签。
-- 排序以拖拽为主，菜单上移/下移作为键盘和备用入口。
+- 使用正式 PageHeader、SectionSurface、AppFormField、Input、Button、Menu、Feedback 和 Rules 共享列表项迁移 `TtsRulesPage`。
+- `AppPageHeader.Actions` 放置新建、从文件导入、从剪切板导入和帮助，与标题平齐；不保留 Header 下方并行工具栏，也不提供页面级导出。
+- 单规则 ContextMenu 提供“导出到文件”“复制到剪切板”和删除；不显示当前规则状态、“设为当前”或 `⋮` 按钮。
+- 页面拥有真实双栏比例、字段布局和滚动；初始右侧为空状态，单击规则后才打开编辑器。
+- 保持任务 22 已固定的启用即时保存、试听编辑副本、显式取消关闭编辑器、Dirty 导航守卫和导入合并语义。
 - 删除该页全部 Legacy 键引用。
 
 自动验收：
 
-- 默认规则、启用、排序、Drag/Drop、帮助、保存/取消和导航守卫测试通过。
-- 长正则、错误和最小工作区几何测试通过。
-- 使用正式 `ChapterRulesPage` 更新 `artifacts/visual-review/pages/chapter-rules/`。
+- 最小工作区下关键字段有非零宽度且可滚动；初始空编辑区、选择和取消关闭状态正确。
+- PageHeader 文件/剪切板导入、右键文件/剪切板单规则导出、删除、启用、试听、保存/取消和切换保护测试通过。
+- 页面及其 Automation/ContextMenu 中不存在“设为当前”操作；右键其它规则不会切换当前编辑对象或触发现有草稿守卫。
+- 使用正式 `TtsRulesPage` 更新 `artifacts/visual-review/pages/tts-rules/`。
 - 完整质量门禁通过。
 
-## [ ] 25（P1）：迁移正则替换工作台
+## [ ] 25（P1）：迁移章节规则工作台
 
 前置：24。
 
 实现：
 
-- 使用与任务 23 相同的公共边界迁移 `RegexReplacementRulesPage`。
-- 新建规则等顶部操作放入 `AppPageHeader.Actions`。
-- 页面保留名称、Pattern、Replacement、作用目标、帮助和自身布局。
-- 错误统一通过 AppFormField/Feedback 投影。
-- 保持启用、排序、删除、保存/取消、Dirty State 和播放刷新语义。
+- 使用与任务 24 相同的公共边界迁移 `ChapterRulesPage`。
+- `AppPageHeader.Actions` 放置新建、从文件导入、从剪切板导入、默认规则导入/恢复和帮助；不提供页面级导出。
+- 单规则 ContextMenu 提供“导出到文件”“复制到剪切板”、上移、下移和按能力控制的删除；右键不改变当前编辑对象。
+- 页面保留自身字段、帮助、默认规则导入/恢复和布局；通用文件/剪切板导入与默认规则操作保持独立语义。
+- 使用共享整卡长按拖动、插入线和边缘自动滚动，不再显示拖动手柄；不实现相邻卡片位移动画。
+- 保持任务 22 已固定的初始空编辑区、启用即时保存、显式取消关闭编辑器、Dirty 导航守卫和合并导入语义。
 - 删除该页全部 Legacy 键引用。
 
 自动验收：
 
-- Pattern/Replacement 校验、错误投影、排序、保存/取消、导航守卫和播放刷新测试通过。
-- 长表达式、错误和最小工作区几何测试通过。
+- 默认规则操作、文件/剪切板合并导入、单规则导出、启用、长按 Drag/Drop、上移/下移、帮助、保存/取消和导航守卫测试通过。
+- 长正则、错误、最小工作区、插入线和列表边缘自动滚动几何测试通过。
+- 使用正式 `ChapterRulesPage` 更新 `artifacts/visual-review/pages/chapter-rules/`。
+- 完整质量门禁通过。
+
+## [ ] 26（P1）：迁移正则替换工作台
+
+前置：25。
+
+实现：
+
+- 使用与任务 24 相同的公共边界迁移 `RegexReplacementRulesPage`。
+- `AppPageHeader.Actions` 放置新建、从文件导入、从剪切板导入和帮助；不提供页面级导出。
+- 单规则 ContextMenu 提供“导出到文件”“复制到剪切板”、上移、下移和删除；右键不改变当前编辑对象。
+- 页面保留名称、Pattern、Replacement、作用目标、帮助和自身布局，错误统一通过 AppFormField/Feedback 投影。
+- 使用共享整卡长按拖动、插入线和边缘自动滚动，不再显示拖动手柄；不实现相邻卡片位移动画。
+- 保持任务 22 已固定的初始空编辑区、启用即时保存、显式取消关闭编辑器、Dirty 导航守卫、合并导入和播放刷新语义。
+- 删除该页全部 Legacy 键引用。
+
+自动验收：
+
+- Pattern/Replacement 校验、错误投影、文件/剪切板合并导入、单规则导出、启用、长按排序、保存/取消、导航守卫和播放刷新测试通过。
+- 长表达式、错误、最小工作区、插入线和列表边缘自动滚动几何测试通过。
 - 使用正式 `RegexReplacementRulesPage` 更新 `artifacts/visual-review/pages/regex-replacement-rules/`。
 - 完整质量门禁通过。
 
-## [ ] 26（P1）：迁移缓存管理页
+## [ ] 27（P1）：迁移缓存管理页
 
-前置：18、21、25。
+前置：18、21、26。
 
 实现：
 
@@ -862,9 +893,9 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `CacheManagementPage` 更新 `artifacts/visual-review/pages/cache-management/`。
 - 完整质量门禁通过。
 
-## [ ] 27（P1）：迁移播放页与 PlayerView
+## [ ] 28（P1）：迁移播放页与 PlayerView
 
-前置：8、21、26。
+前置：8、21、27。
 
 实现：
 
@@ -872,6 +903,7 @@ artifacts/visual-review/windows/<window-id>/
 - 正文、章节侧栏、媒体控制条、Flyout 内容和页面 Padding 由 Playback Feature 拥有。
 - 播放页和迷你播放器的媒体按钮使用统一尺寸和中性状态；播放/暂停不建立 Accent 主媒体操作层级。
 - 保持 PlaybackSnapshot、播放状态机、上下章/段、拖动、音量、定时停止、主动缓存、滚动追随和快捷键语义。
+- TTS 规则菜单只渲染已启用规则并保留播放页独占切换语义；无可用规则状态不恢复 Rules 页“设为当前”的旧文案或入口。
 - 当前段使用统一轻量状态，不使用高饱和背景。
 - 删除两个视图全部 Legacy 键引用。
 
@@ -882,9 +914,9 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `PlayerPage` 更新 `artifacts/visual-review/pages/player/`。
 - 完整质量门禁通过。
 
-## [ ] 28（P1）：迁移主窗口与启动窗口
+## [ ] 29（P1）：迁移主窗口与启动窗口
 
-前置：12–27。
+前置：12–28。
 
 实现：
 
@@ -902,9 +934,9 @@ artifacts/visual-review/windows/<window-id>/
 - 分别使用正式窗口更新 `artifacts/visual-review/windows/main-window/` 与 `artifacts/visual-review/windows/startup-status-window/`。
 - 完整质量门禁通过。
 
-## [ ] 29（P1）：统一 Dialog、Flyout、Snackbar 和状态视图
+## [ ] 30（P1）：统一 Dialog、Flyout、Snackbar 和状态视图
 
-前置：9、12–28。
+前置：9、12–29。
 
 实现：
 
@@ -923,9 +955,9 @@ artifacts/visual-review/windows/<window-id>/
 - 将每个 Dialog、Flyout、Snackbar 和状态场景写入其所属 `pages/<page-id>/` 或 `windows/<window-id>/`，不得建立跨页面的 `feedback-hosts` 截图目录。
 - 完整质量门禁通过。
 
-## [ ] 30（P0）：删除 Legacy 与旧资源并完成发布门禁
+## [ ] 31（P0）：删除 Legacy 与旧资源并完成发布门禁
 
-前置：1–29。
+前置：1–30。
 
 实现：
 
