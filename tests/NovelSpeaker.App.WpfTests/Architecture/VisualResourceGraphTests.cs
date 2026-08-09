@@ -153,8 +153,13 @@ public sealed class VisualResourceGraphTests
             finding => finding.Source.EndsWith(
                 "/Features/TtsRules/TtsRulesPage.xaml",
                 StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            findings,
+            finding => finding.Source.EndsWith(
+                "/Features/ChapterRules/ChapterRulesPage.xaml",
+                StringComparison.Ordinal));
         Assert.Equal(
-            "CDFF8927321828FC92E8A57FF985D39965E5315A94AEC814FD329919B3C395C2",
+            "FA1E1986742C8D89E9BFFEA1548981B9520BC7702675ECACE7071073874B2C3E",
             VisualResourceGraphScanner.Fingerprint(findings));
     }
 

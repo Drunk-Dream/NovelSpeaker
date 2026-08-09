@@ -454,6 +454,31 @@ public sealed class ChapterRulesViewModelTests
         Assert.All(viewModel.Rules, rule => Assert.True(rule.CanQuickActions));
     }
 
+    [Theory]
+    [InlineData(RuleDropPlacement.Before, "custom:third", "custom:first", "custom:second")]
+    [InlineData(RuleDropPlacement.After, "custom:first", "custom:third", "custom:second")]
+    public async Task ReorderRuleCommand_honors_insertion_line_placement(
+        RuleDropPlacement placement,
+        string first,
+        string second,
+        string third)
+    {
+        var workspace = new FakeChapterRuleWorkspaceService(
+        [
+            new ChapterRuleListItem("custom:first", "第一条", @"^\s*一$", true, 10, false, true),
+            new ChapterRuleListItem("custom:second", "第二条", @"^\s*二$", true, 20, false, true),
+            new ChapterRuleListItem("custom:third", "第三条", @"^\s*三$", true, 30, false, true)
+        ]);
+        var viewModel = CreateViewModel(workspaceService: workspace);
+        await viewModel.LoadAsync(CancellationToken.None);
+        var source = viewModel.Rules.Single(rule => rule.Id == "custom:third");
+        var target = viewModel.Rules.Single(rule => rule.Id == "custom:first");
+
+        await viewModel.ReorderRuleCommand.ExecuteAsync(new RuleReorderRequest(source, target, placement));
+
+        Assert.Equal([first, second, third], viewModel.Rules.Select(rule => rule.Id));
+    }
+
     [Fact]
     public async Task ImportDefaultsAsync_with_unsaved_changes_saves_first_then_applies_defaults()
     {

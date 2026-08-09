@@ -116,8 +116,36 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         ChapterRuleListItemViewModel? targetRule,
         CancellationToken cancellationToken)
     {
+        await ReorderRuleCoreAsync(
+            sourceRule,
+            targetRule,
+            RuleDropPlacement.Before,
+            cancellationToken);
+    }
+
+    [RelayCommand]
+    private async Task ReorderRuleAsync(
+        RuleReorderRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (request?.Source is not ChapterRuleListItemViewModel sourceRule ||
+            request.Target is not ChapterRuleListItemViewModel targetRule)
+        {
+            return;
+        }
+
+        await ReorderRuleCoreAsync(sourceRule, targetRule, request.Placement, cancellationToken);
+    }
+
+    private async Task ReorderRuleCoreAsync(
+        ChapterRuleListItemViewModel? sourceRule,
+        ChapterRuleListItemViewModel? targetRule,
+        RuleDropPlacement placement,
+        CancellationToken cancellationToken)
+    {
         if (sourceRule is null ||
             targetRule is null ||
+            placement == RuleDropPlacement.None ||
             string.Equals(sourceRule.Id, targetRule.Id, StringComparison.Ordinal) ||
             !sourceRule.CanQuickActions ||
             !targetRule.CanQuickActions)
@@ -136,7 +164,9 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
         }
 
         orderedIds.RemoveAt(sourceIndex);
-        orderedIds.Insert(targetIndex, sourceRule.Id);
+        targetIndex = orderedIds.FindIndex(id => string.Equals(id, targetRule.Id, StringComparison.Ordinal));
+        var insertionIndex = placement == RuleDropPlacement.After ? targetIndex + 1 : targetIndex;
+        orderedIds.Insert(insertionIndex, sourceRule.Id);
         await SaveRuleOrderAsync(orderedIds, cancellationToken);
     }
 
@@ -332,6 +362,14 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             SetBusy(false);
         }
     }
+
+    [RelayCommand]
+    private Task DeleteRuleAsync(
+        ChapterRuleListItemViewModel? rule,
+        CancellationToken cancellationToken) =>
+        rule is null
+            ? Task.CompletedTask
+            : DeleteRuleFromListAsync(rule, cancellationToken);
 
     [RelayCommand]
     private async Task ImportDefaultsAsync(CancellationToken cancellationToken)
