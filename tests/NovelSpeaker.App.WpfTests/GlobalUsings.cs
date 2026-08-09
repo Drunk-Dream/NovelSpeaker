@@ -3,6 +3,7 @@ global using NovelSpeaker.App.Shared.Dialogs;
 global using NovelSpeaker.App.Shared.Feedback;
 global using NovelSpeaker.App.Shared.Presentation;
 global using NovelSpeaker.App.Shared.Presentation.Books;
+global using NovelSpeaker.App.Shared.Presentation.Rules;
 global using NovelSpeaker.App.Shared.Theming;
 global using NovelSpeaker.App.Features.Appearance;
 global using NovelSpeaker.App.Features.BookDetails;

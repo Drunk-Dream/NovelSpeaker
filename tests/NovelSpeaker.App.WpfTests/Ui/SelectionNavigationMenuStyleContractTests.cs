@@ -36,6 +36,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
             [
                 "App.Selection.ListItem",
                 "App.Selection.CardItem",
+                "App.Selection.RuleCard",
                 "App.Selection.CurrentItem",
                 "App.Selection.DropTarget",
                 "App.Selection.MultiSelectItem"

@@ -27,6 +27,7 @@
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/Settings.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/Forms.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/Feedback.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/Rules.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Legacy/LegacyStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>

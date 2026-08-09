@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:rules="clr-namespace:NovelSpeaker.App.Shared.Presentation.Rules">
     <!--
         Selection styles express container state for list rows: default,
         hover, keyboard focus, disabled, selected, current, multi-select and
@@ -42,6 +43,30 @@
         <Setter Property="CornerRadius" Value="{StaticResource App.Radius.Medium}" />
         <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
         <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+    </Style>
+
+    <Style x:Key="App.Selection.RuleCard"
+           TargetType="{x:Type Border}"
+           BasedOn="{StaticResource App.Selection.CardItem}">
+        <Setter Property="MinHeight" Value="72" />
+        <Setter Property="Padding" Value="14,12" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type rules:RuleListItemView}}}"
+                         Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Default}" />
+            </DataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type rules:RuleListItemView}}}"
+                               Value="True" />
+                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}"
+                               Value="True" />
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Hover}" />
+            </MultiDataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="App.Selection.CurrentItem"
