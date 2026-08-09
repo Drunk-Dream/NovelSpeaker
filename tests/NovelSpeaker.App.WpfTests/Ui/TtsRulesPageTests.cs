@@ -1,12 +1,15 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Forms;
 using NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.Shared.Theming;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
@@ -167,6 +170,7 @@ public sealed partial class TtsRulesPageTests
 
             var header = Assert.IsType<AppPageHeader>(view.FindName("PageHeader"));
             Assert.Equal("TTS 规则", header.Title);
+            Assert.Empty(header.Description);
             Assert.NotNull(header.Actions);
             Assert.IsType<AppSectionSurface>(view.FindName("RulesSurface"));
             Assert.IsType<AppSectionSurface>(view.FindName("EditorSurface"));
@@ -258,6 +262,45 @@ public sealed partial class TtsRulesPageTests
             expectedSymbol,
             Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(button)).Symbol);
         Assert.Equal(automationName, button.ToolTip);
+    }
+
+    [Fact]
+    public void TtsRulesPage_toolbar_icons_follow_dark_theme_foreground()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var runtime = new WpfUiThemeRuntime();
+            runtime.ApplyDarkTheme();
+            try
+            {
+                var view = new TtsRulesPage
+                {
+                    DataContext = new TtsRulesViewLayoutContext()
+                };
+                view.Measure(new Size(1280, 760));
+                view.Arrange(new Rect(0, 0, 1280, 760));
+                view.UpdateLayout();
+                var expected = Assert.IsAssignableFrom<Brush>(view.FindResource("App.Brush.Text.Primary"));
+
+                foreach (var automationName in new[]
+                         {
+                             "新建规则", "从文件导入", "从剪切板导入", "规则编写帮助"
+                         })
+                {
+                    var button = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
+                        view,
+                        candidate => AutomationProperties.GetName(candidate) == automationName));
+                    var icon = Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(button));
+                    Assert.True(button.IsEnabled);
+                    Assert.Equal(expected, button.Foreground);
+                    Assert.Equal(expected, icon.Foreground);
+                }
+            }
+            finally
+            {
+                runtime.ApplyLightTheme();
+            }
+        });
     }
 
     [Fact]
@@ -447,8 +490,105 @@ public sealed partial class TtsRulesPageTests
         });
     }
 
+    [Fact]
+    public void Tts_rules_visual_review_generates_stable_page_screenshots()
+    {
+        if (!VisualArtifactTestGuard.IsEnabled)
+        {
+            return;
+        }
+
+        WpfTestHost.RunInSta(() =>
+        {
+            var scenarios = new[]
+            {
+                new PageVisualReviewScenario("empty", 1d),
+                new PageVisualReviewScenario("empty", 1.5d),
+                new PageVisualReviewScenario("editor", 1d, OpenEditor),
+                new PageVisualReviewScenario("editor", 1.5d, OpenEditor)
+            };
+
+            PageVisualReviewHarness.GenerateAndVerifyRepeatable(
+                LocateRepositoryRoot(),
+                "tts-rules",
+                scenarios,
+                CreateVisualReviewPage);
+        });
+    }
+
+    private static void OpenEditor(FrameworkElement element)
+    {
+        ((TtsRulesViewLayoutContext)element.DataContext).HasEditor = true;
+    }
+
+    private static PageVisualReviewPage CreateVisualReviewPage()
+    {
+        var context = new TtsRulesViewLayoutContext
+        {
+            Rules =
+            [
+                new TtsRuleListItemViewModel(
+                    1,
+                    "标准云端语音",
+                    "POST · https://speech.example.test/v1/audio",
+                    true,
+                    false,
+                    false),
+                new TtsRuleListItemViewModel(
+                    2,
+                    "本地调试服务",
+                    "GET · http://127.0.0.1:5000/tts",
+                    false,
+                    false,
+                    false),
+                new TtsRuleListItemViewModel(
+                    3,
+                    "轻量备用规则",
+                    "GET · https://backup.example.test/speak",
+                    true,
+                    false,
+                    false)
+            ]
+        };
+        context.HeaderEntries.Add(new EditableKeyValueItemViewModel("Accept", "audio/mpeg"));
+        return new PageVisualReviewPage(
+            new TtsRulesPage { DataContext = context },
+            static () => { });
+    }
+
+    private static string LocateRepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (Directory.Exists(Path.Combine(current.FullName, "src")) &&
+                Directory.Exists(Path.Combine(current.FullName, "docs")))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate repository root.");
+    }
+
     private sealed partial class TtsRulesViewLayoutContext : ObservableObject
     {
+        public RelayCommand NewRuleCommand { get; } = new(static () => { });
+
+        public RelayCommand OpenHelpCommand { get; } = new(static () => { });
+
+        public RelayCommand<TtsRuleListItemViewModel> SelectRuleCommand { get; } = new(static _ => { });
+
+        public RelayCommand<TtsRuleListItemViewModel> ToggleRuleEnabledCommand { get; } = new(static _ => { });
+
+        public RelayCommand<TtsRuleListItemViewModel> ExportRuleCommand { get; } = new(static _ => { });
+
+        public RelayCommand<TtsRuleListItemViewModel> CopyRuleCommand { get; } = new(static _ => { });
+
+        public RelayCommand<TtsRuleListItemViewModel> DeleteRuleCommand { get; } = new(static _ => { });
+
         public ObservableCollection<TtsRuleListItemViewModel> Rules { get; init; } = [];
 
         public ObservableCollection<EditableKeyValueItemViewModel> HeaderEntries { get; } = [];

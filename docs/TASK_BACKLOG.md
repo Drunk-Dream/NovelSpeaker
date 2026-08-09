@@ -810,7 +810,7 @@ artifacts/visual-review/windows/<window-id>/
 - Gallery 明确覆盖普通 TTS 项、可排序项、禁用项、Selected、Focus、ContextMenu、拖动态和插入线；更新 `artifacts/visual-review/gallery/rules-shared/`。
 - 完整质量门禁通过。
 
-## [ ] 24（P1）：迁移 TTS 规则工作台
+## [x] 24（P1）：迁移 TTS 规则工作台
 
 前置：23。
 
@@ -830,6 +830,8 @@ artifacts/visual-review/windows/<window-id>/
 - 页面及其 Automation/ContextMenu 中不存在“设为当前”操作；右键其它规则不会切换当前编辑对象或触发现有草稿守卫。
 - 使用正式 `TtsRulesPage` 更新 `artifacts/visual-review/pages/tts-rules/`。
 - 完整质量门禁通过。
+
+结果：`TtsRulesPage` 已迁移为透明页面根、`AppPageHeader.Actions`、按 `2:3` 比例分栏的两个 `AppSectionSurface`、正式 `AppFormField`/Input/Button/Feedback 资源与虚拟化共享 `RuleListItemView`；页首只保留新建、文件导入、剪切板导入和帮助，单规则菜单只保留文件导出、复制到剪切板和删除，旧 `⋮` 菜单桥接及全部 Legacy 键引用已删除。初始空编辑区、启用即时保存、试听编辑副本、显式取消、Dirty 切换/导航保护和合并导入语义沿用既有 ViewModel，并由页面、共享规则项、导航守卫、资源图与 Presentation 回归测试固定。正式页面脱敏 fixture 已在 `artifacts/visual-review/pages/tts-rules/` 生成空状态/编辑状态 × Light/Dark × 100%/150% 的 8 张 PNG 与 manifest，重复渲染的尺寸、DPI 和 SHA-256 一致；`artifacts/` 按仓库规则不加入 Git。完整质量门禁通过：Domain 2、Application 212、Presentation 394、Infrastructure 347、WPF 404，共 1,359 项测试；locked restore 无依赖变化，format 与 Release build（0 警告/0 错误）通过。
 
 ## [ ] 25（P1）：迁移章节规则工作台
 

@@ -45,6 +45,7 @@ public sealed class RuleListItemViewTests
                 AutomationProperties.GetName(toggle));
             Assert.True(toggle.Focusable);
             Assert.True(toggle.IsTabStop);
+            Assert.True(toggle.IsChecked);
             var toggleCommand = Assert.IsAssignableFrom<ICommand>(toggle.Command);
             Assert.True(toggleCommand.CanExecute(toggle.CommandParameter));
             toggleCommand.Execute(toggle.CommandParameter);

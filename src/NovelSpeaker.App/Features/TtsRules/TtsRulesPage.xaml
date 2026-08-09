@@ -25,7 +25,6 @@
 
         <commonControls:AppPageHeader x:Name="PageHeader"
                                       Title="TTS 规则"
-                                      Description="管理 HTTP TTS 服务规则；当前播放规则在播放页选择。"
                                       BackCommand="{Binding BackCommand}">
             <commonControls:AppPageHeader.Actions>
                 <WrapPanel x:Name="PageActions"
@@ -37,27 +36,31 @@
                             Command="{Binding NewRuleCommand}"
                             ToolTip="新建规则"
                             AutomationProperties.Name="新建规则">
-                        <ui:SymbolIcon Symbol="DocumentAdd24" />
+                        <ui:SymbolIcon Symbol="DocumentAdd24"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                     </Button>
                     <Button Margin="0,0,8,0"
                             Style="{StaticResource App.Button.Icon}"
                             Click="ImportRuleFileButton_OnClick"
                             ToolTip="从文件导入"
                             AutomationProperties.Name="从文件导入">
-                        <ui:SymbolIcon Symbol="ArrowImport24" />
+                        <ui:SymbolIcon Symbol="ArrowImport24"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                     </Button>
                     <Button Margin="0,0,8,0"
                             Style="{StaticResource App.Button.Icon}"
                             Click="ImportRulesFromClipboardButton_OnClick"
                             ToolTip="从剪切板导入"
                             AutomationProperties.Name="从剪切板导入">
-                        <ui:SymbolIcon Symbol="ClipboardPaste24" />
+                        <ui:SymbolIcon Symbol="ClipboardPaste24"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                     </Button>
                     <Button Style="{StaticResource App.Button.Icon}"
                             Command="{Binding OpenHelpCommand}"
                             ToolTip="规则编写帮助"
                             AutomationProperties.Name="规则编写帮助">
-                        <ui:SymbolIcon Symbol="QuestionCircle24" />
+                        <ui:SymbolIcon Symbol="QuestionCircle24"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                     </Button>
                 </WrapPanel>
             </commonControls:AppPageHeader.Actions>
