@@ -263,6 +263,7 @@ public sealed class CacheManagementViewModelTests
         pendingRefresh.SetResult(
         [new CachedChapterCacheItem("book-1", 0, "迟到章节", 2, 2, 2048, 2)]);
 
+        Assert.False(viewModel.IsLoadingChapters);
         Assert.DoesNotContain(viewModel.Chapters, chapter => chapter.Title == "迟到章节");
     }
 

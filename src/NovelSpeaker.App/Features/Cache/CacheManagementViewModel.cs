@@ -108,7 +108,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
 
     public bool ShowSelectedBookEmptyState => HasSelection && !SelectedBookHasCache && !IsLoadingChapters;
 
-    public bool ShowSelectedBookContent => HasSelection && SelectedBookHasCache;
+    public bool ShowSelectedBookContent => HasSelection && SelectedBookHasCache && !IsLoadingChapters;
 
     public IReadOnlyList<int> SelectedChapterIndices => _chapterSelection.SelectedItems;
 
@@ -166,9 +166,11 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         Interlocked.Increment(ref _bookLoadVersion);
         Interlocked.Increment(ref _chapterLoadVersion);
         CancelChapterLoad();
+        IsLoadingChapters = false;
         CancelExportOperation();
         DeactivatePage();
         _chapterSelection.Clear();
+        NotifyVisibilityStateChanged();
     }
 
     [RelayCommand]
@@ -567,6 +569,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         _selectedBookId = null;
         HasSelection = false;
         SelectedBookHasCache = false;
+        IsLoadingChapters = false;
         SelectedBookTitle = string.Empty;
         SelectedBookAuthor = "未知作者";
         SelectedBookCacheSizeText = "0 B";

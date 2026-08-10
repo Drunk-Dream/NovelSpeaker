@@ -879,7 +879,7 @@ artifacts/visual-review/windows/<window-id>/
 
 结果：`RegexReplacementRulesPage` 已迁移为透明页面根、无辅助说明的 `AppPageHeader.Actions`、按 `2:3` 比例分栏的两个 `AppSectionSurface`、正式 `AppFormField`/Input/Button/Feedback 资源与虚拟化共享 `RuleListItemView`。页首只提供新建、文件导入、剪切板导入和帮助，单规则菜单提供文件导出、复制到剪切板、上移、下移和删除；旧拖动手柄、`⋮` 菜单、页面私有拖放/菜单桥接和全部 Legacy 键引用已删除。共享规则卡片新增可选运行时错误投影并使用正式 Inline Feedback；名称和 Pattern 校验分别进入对应 `AppFormField`，空 Replacement 继续作为合法删除匹配内容语义。共享整卡长按拖动按插入线目标前/目标后保存排序并沿用边缘自动滚动；初始空编辑区、启用即时保存、显式取消、Dirty 导航守卫、合并导入和播放刷新语义保持不变。新增/更新页面结构、深色图标、菜单能力、错误投影、长表达式、最小工作区、虚拟化、拖放插入位置、空 Replacement、播放刷新和资源图测试。正式页面脱敏 fixture 已在 `artifacts/visual-review/pages/regex-replacement-rules/` 生成空状态/编辑状态/错误状态 × Light/Dark × 100%/150% 的 12 张 PNG 与 manifest，重复渲染校验通过；`artifacts/` 按仓库规则不加入 Git。完整质量门禁通过：locked restore 无依赖变化，format、Release build（0 警告/0 错误）和完整测试通过。
 
-## [ ] 27（P1）：迁移缓存管理页
+## [x] 27（P1）：迁移缓存管理页
 
 前置：18、21、26。
 
@@ -898,6 +898,8 @@ artifacts/visual-review/windows/<window-id>/
 - 0%、未计算、长章节名、空列表和 150% DPI 场景通过。
 - 使用正式 `CacheManagementPage` 更新 `artifacts/visual-review/pages/cache-management/`。
 - 完整质量门禁通过。
+
+结果：`CacheManagementPage` 已迁移为透明页面根、正式 `AppPageHeader` 和 `2:3` 比例的左右 `AppSectionSurface`；书籍卡片与章节卡片使用正式 `App.Selection.CardItem`，章节列表保留虚拟化回收和文件管理器式多选工具栏，并为所选章节操作提供正式 `App.Menu.ContextSurface` 上下文菜单。加载、空书籍、未选书籍、章节加载和无缓存状态统一使用 `AppStatusView`，导出状态使用正式 `App.Feedback.InlineMessage` 与 `App.Progress.Compact`，清理/导出/取消/打开目录使用正式 Button 资源。缓存书籍和章节项仍由 Cache Feature 持有；0%、计划计算中、计划更新中、配置不可用和无可播放内容继续由现有完整度投影明确显示；单书选择、Ctrl/Shift/Ctrl+A、清理、导出、确认/取消、状态刷新和页面离开取消语义保持不变。章节加载时工作区保持折叠，避免与 Loading 状态重叠。该页全部 Legacy 资源键引用已删除。新增正式结构、菜单、Legacy 清零、0%/不可用状态、加载态、虚拟化、导出状态和页面视觉回归测试；`artifacts/visual-review/pages/cache-management/` 已生成空态/选择态/导出态 × Light/Dark × 100%/150% 的 12 张 PNG 与 manifest，重复渲染校验通过，`artifacts/` 按仓库规则不入 Git。完整质量门禁通过：locked restore 无依赖变化，format、Release build（0 警告/0 错误）和完整测试通过。
 
 ## [ ] 28（P1）：迁移播放页与 PlayerView
 
