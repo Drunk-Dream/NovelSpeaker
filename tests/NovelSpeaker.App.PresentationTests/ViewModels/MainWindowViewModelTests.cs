@@ -1,5 +1,7 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.ActiveCache;
+using NovelSpeaker.App.PresentationTests.TestDoubles;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shell;
@@ -48,6 +50,7 @@ public sealed class MainWindowViewModelTests
         var viewModel = new MainWindowViewModel(
             playback,
             activeProjection,
+            CreateChapterExportProjection(),
             new FakeNavigationService());
 
         playback.Publish(new PlaybackSnapshot(
@@ -190,7 +193,14 @@ public sealed class MainWindowViewModelTests
             new ShellActiveCacheController(
                 new FakeActiveCacheCoordinator(),
                 new FakeAppFeedbackService()),
+            CreateChapterExportProjection(),
             navigator);
+
+    private static ShellChapterExportController CreateChapterExportProjection() =>
+        new(
+            new FakeChapterExportCoordinator(),
+            new FakeAppFeedbackService(),
+            new FakePresentationLauncher());
 
     private sealed class FakeAppFeedbackService : IAppFeedbackService
     {
@@ -214,6 +224,11 @@ public sealed class MainWindowViewModelTests
             string message,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class FakePresentationLauncher : IPresentationLauncher
+    {
+        public Task OpenAsync(string path, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class FakePlaybackCoordinator : IPlaybackSnapshotSource

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
 using NovelSpeaker.App.Features.Appearance;
 using System.Windows.Automation;
@@ -11,6 +12,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.ActiveCache;
+using NovelSpeaker.Application.Playback.Export;
 using NovelSpeaker.App;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Shell.Input;
@@ -76,6 +78,70 @@ public sealed class MainWindowNavigationTests
 
                 Assert.Equal(Visibility.Visible, entry.Visibility);
                 Assert.Equal("缓存中 · 1/3 章 · 40%", entry.Content);
+            }
+            finally
+            {
+                window.Close();
+                await DrainDispatcherAsync(window.Dispatcher);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Chapter_export_footer_entry_opens_progress_flyout_and_survives_primary_navigation()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            using var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
+            var chapterExport = new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeChapterExportCoordinator(
+                new ChapterExportSnapshot(
+                    Guid.NewGuid(),
+                    "book-1",
+                    "示例小说",
+                    ChapterExportBatchStatus.Running,
+                    7,
+                    2,
+                    0,
+                    2,
+                    "第三章",
+                    "D:\\Exports",
+                    null,
+                    null));
+            var navigationService = new FakeNavigationService();
+            var window = CreateWindow(
+                navigationService,
+                new FakeNavigationGuardService { NextResult = true },
+                new FakeAppFeedbackService(),
+                new FakeContentDialogService(),
+                new FakeNavigationViewPageProvider(),
+                new FakeSnackbarService(),
+                serviceProvider,
+                new FakeMainWindowAppearanceConfigurator(),
+                chapterExportCoordinator: chapterExport);
+            WpfWindowHost.Show(window);
+            try
+            {
+                window.UpdateLayout();
+
+                var entry = Assert.IsType<NavigationViewItem>(window.FindName("ChapterExportNavigationItem"));
+                Assert.Equal(Visibility.Visible, entry.Visibility);
+                Assert.Equal("导出中 · 2/7 章 · 29%", entry.Content);
+                Assert.Equal("查看章节导出进度", entry.ToolTip);
+
+                InvokeClick(entry);
+                window.UpdateLayout();
+
+                var flyout = Assert.IsType<Popup>(window.FindName("ChapterExportFlyout"));
+                var cancelButton = Assert.IsType<System.Windows.Controls.Button>(
+                    window.FindName("CancelChapterExportButton"));
+                Assert.True(flyout.IsOpen);
+                Assert.Equal("取消章节导出任务", AutomationProperties.GetName(cancelButton));
+
+                Assert.True(navigationService.Navigate(typeof(SettingsPage)));
+                await DrainDispatcherAsync(window.Dispatcher);
+
+                Assert.Equal(Visibility.Visible, entry.Visibility);
+                Assert.Equal("导出中 · 2/7 章 · 29%", entry.Content);
             }
             finally
             {
@@ -458,6 +524,7 @@ public sealed class MainWindowNavigationTests
         IServiceProvider serviceProvider,
         IMainWindowAppearanceConfigurator appearanceConfigurator,
         IActiveCacheCoordinator? activeCacheCoordinator = null,
+        IChapterExportCoordinator? chapterExportCoordinator = null,
         Func<CancellationToken, Task>? requestCloseAsync = null,
         Func<bool>? isExitApproved = null)
     {
@@ -481,6 +548,10 @@ public sealed class MainWindowNavigationTests
                 new ShellActiveCacheController(
                     activeCacheCoordinator ?? new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeActiveCacheCoordinator(),
                     feedbackService),
+                new ShellChapterExportController(
+                    chapterExportCoordinator ?? new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeChapterExportCoordinator(),
+                    feedbackService,
+                    new FakePresentationLauncher()),
                 navigationService),
             feedbackService,
             activationCoordinator,
@@ -522,6 +593,11 @@ public sealed class MainWindowNavigationTests
     private static Task DrainDispatcherAsync(Dispatcher dispatcher)
     {
         return dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ApplicationIdle).Task;
+    }
+
+    private sealed class FakePresentationLauncher : IPresentationLauncher
+    {
+        public Task OpenAsync(string path, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class FakeNavigationService : INavigationService, IShellNavigationAdapter

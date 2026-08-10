@@ -65,6 +65,16 @@
                         <ui:SymbolIcon Symbol="ArrowDownload24" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
+                <ui:NavigationViewItem x:Name="ChapterExportNavigationItem"
+                                       Content="{Binding ChapterExport.CompactStatusText}"
+                                       Click="ChapterExportNavigationItem_OnClick"
+                                       ToolTip="查看章节导出进度"
+                                       AutomationProperties.Name="{Binding ChapterExport.CompactStatusText}"
+                                       Visibility="{Binding ChapterExport.IsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="DocumentText24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
                 <ui:NavigationViewItem x:Name="PlaybackNavigationItem"
                                        Click="PlaybackNavigationItem_OnClick"
                                        Visibility="{Binding IsNowPlayingVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -182,6 +192,64 @@
                             Content="取消任务"
                             ToolTip="取消主动缓存任务"
                             AutomationProperties.Name="取消主动缓存任务" />
+                </StackPanel>
+            </Border>
+        </Popup>
+
+        <Popup x:Name="ChapterExportFlyout"
+               PlacementTarget="{Binding ElementName=ChapterExportNavigationItem}"
+               Placement="Right"
+               HorizontalOffset="8"
+               AllowsTransparency="True"
+               StaysOpen="False"
+               IsOpen="{Binding ChapterExport.IsFlyoutOpen, Mode=TwoWay}">
+            <Border Width="360"
+                    Padding="{StaticResource CardPaddingLarge}"
+                    Style="{StaticResource PopupSurfaceBorderStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                               Text="{Binding ChapterExport.BatchStatusText}" />
+                    <TextBlock Margin="0,4,0,0"
+                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Text="{Binding ChapterExport.BookTitle}"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Margin="0,16,0,0"
+                               Style="{StaticResource PrimaryTextBlockStyle}"
+                               Text="{Binding ChapterExport.CurrentChapterText}"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Margin="0,8,0,0"
+                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Text="{Binding ChapterExport.ProgressText}" />
+
+                    <Button x:Name="CancelChapterExportButton"
+                            Margin="0,16,0,0"
+                            HorizontalAlignment="Right"
+                            Padding="12,7"
+                            Command="{Binding ChapterExport.CancelCommand}"
+                            Content="取消任务"
+                            ToolTip="取消章节导出任务"
+                            AutomationProperties.Name="取消章节导出任务"
+                            Visibility="{Binding ChapterExport.CanCancel, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                    <StackPanel Margin="0,16,0,0"
+                                HorizontalAlignment="Right"
+                                Orientation="Horizontal"
+                                Visibility="{Binding ChapterExport.CanDismiss, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Button x:Name="OpenChapterExportDirectoryButton"
+                                Margin="0,0,8,0"
+                                Padding="12,7"
+                                Command="{Binding ChapterExport.OpenDirectoryCommand}"
+                                Content="打开目录"
+                                ToolTip="打开导出目录"
+                                AutomationProperties.Name="打开章节导出目录" />
+                        <Button x:Name="DismissChapterExportButton"
+                                Padding="12,7"
+                                Command="{Binding ChapterExport.DismissCommand}"
+                                Content="关闭"
+                                ToolTip="关闭导出完成状态"
+                                AutomationProperties.Name="关闭章节导出状态" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </Popup>

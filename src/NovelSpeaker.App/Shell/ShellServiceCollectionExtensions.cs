@@ -24,6 +24,7 @@ public static class ShellServiceCollectionExtensions
         services.TryAddSingleton<IShellActivationCoordinator, ShellActivationCoordinator>();
         services.TryAddSingleton<IShellLayoutController, ShellLayoutController>();
         services.TryAddSingleton<ShellActiveCacheController>();
+        services.TryAddSingleton<ShellChapterExportController>();
         services.TryAddSingleton<MainWindowViewModel>();
         services.TryAddSingleton<MainWindow>();
         return services;

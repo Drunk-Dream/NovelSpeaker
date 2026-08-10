@@ -153,6 +153,8 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IPlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
                 Assert.IsType<PlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
                 Assert.IsType<ActiveCacheCoordinator>(provider.GetRequiredService<IActiveCacheCoordinator>());
+                Assert.IsType<ChapterExportCoordinator>(provider.GetRequiredService<IChapterExportCoordinator>());
+                Assert.IsType<ShellChapterExportController>(provider.GetRequiredService<ShellChapterExportController>());
                 Assert.IsType<PlaybackSegmentRunner>(provider.GetRequiredService<PlaybackSegmentRunner>());
                 Assert.IsType<PlaybackRecoveryPolicy>(provider.GetRequiredService<PlaybackRecoveryPolicy>());
                 Assert.IsType<PlaybackAudioFailureReporter>(provider.GetRequiredService<IPlaybackAudioFailureReporter>());
@@ -203,6 +205,9 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.Same(
                     provider.GetRequiredService<IActiveCacheCoordinator>(),
                     provider.GetRequiredService<IActiveCacheCoordinator>());
+                Assert.Same(
+                    provider.GetRequiredService<IChapterExportCoordinator>(),
+                    provider.GetRequiredService<IChapterExportCoordinator>());
                 Assert.Same(
                     provider.GetRequiredService<DesktopLifecycleCoordinator>(),
                     provider.GetRequiredService<IDesktopLifecycleCoordinator>());
@@ -278,6 +283,7 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(ICacheWorkspaceBackgroundTaskOwner),
             typeof(IPlaybackAudioProvider),
             typeof(IActiveCacheCoordinator),
+            typeof(IChapterExportCoordinator),
             typeof(ILocalAudioPlaybackCoordinator),
             typeof(IPlaybackPrefetchController),
             typeof(IPlaybackSession),
