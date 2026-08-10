@@ -69,6 +69,10 @@ internal sealed class ChapterMp3ExportWriter : IChapterMp3ExportWriter
         foreach (var chapter in batch.Chapters)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            batch.Progress?.Report(new ExportChaptersProgress(
+                exported.Count,
+                batch.Chapters.Count,
+                chapter.ChapterIndex));
             var sourcePaths = lease.OrderedFilePaths
                 .Skip(sourceOffset)
                 .Take(chapter.OrderedSegmentKeys.Count)
@@ -101,6 +105,10 @@ internal sealed class ChapterMp3ExportWriter : IChapterMp3ExportWriter
                     chapter.FileNameBase,
                     cancellationToken);
                 exported.Add(new ExportedChapterMp3(chapter.ChapterIndex, outputPath));
+                batch.Progress?.Report(new ExportChaptersProgress(
+                    exported.Count,
+                    batch.Chapters.Count,
+                    chapter.ChapterIndex));
             }
             finally
             {

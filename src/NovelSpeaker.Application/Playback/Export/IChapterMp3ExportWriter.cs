@@ -15,7 +15,8 @@ public interface IChapterMp3ExportWriter
 public sealed record ChapterMp3ExportBatch(
     string DestinationRootDirectory,
     string BookDirectoryName,
-    IReadOnlyList<ChapterMp3ExportPlan> Chapters);
+    IReadOnlyList<ChapterMp3ExportPlan> Chapters,
+    IProgress<ExportChaptersProgress>? Progress = null);
 
 public sealed record ChapterMp3ExportPlan(
     int ChapterIndex,

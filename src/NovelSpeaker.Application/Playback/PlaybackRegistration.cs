@@ -24,6 +24,7 @@ public static class PlaybackRegistration
             serviceProvider => serviceProvider.GetRequiredService<CacheWorkspaceService>());
         services.TryAddSingleton<ExportFileNameSanitizer>();
         services.TryAddSingleton<IExportChaptersService, ExportChaptersService>();
+        services.TryAddSingleton<IChapterExportCoordinator, ChapterExportCoordinator>();
         services.TryAddSingleton<IPlaybackAudioProvider, PlaybackAudioProvider>();
         services.TryAddSingleton<IActiveCacheCoordinator, ActiveCacheCoordinator>();
         services.TryAddSingleton<ILocalAudioPlaybackCoordinator, LocalAudioPlaybackCoordinator>();

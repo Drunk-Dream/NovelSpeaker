@@ -42,8 +42,14 @@ public sealed class ExportChaptersService : IExportChaptersService
         _writer = writer;
     }
 
+    public Task<ExportChaptersResult> ExportAsync(
+        ExportChaptersRequest request,
+        CancellationToken cancellationToken) =>
+        ExportAsync(request, progress: null, cancellationToken);
+
     public async Task<ExportChaptersResult> ExportAsync(
         ExportChaptersRequest request,
+        IProgress<ExportChaptersProgress>? progress,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -167,14 +173,18 @@ public sealed class ExportChaptersService : IExportChaptersService
                     synthesisProfile))
                 .ToList();
 
-            if (settings.ReadChapterTitle && !string.IsNullOrWhiteSpace(metadata.Title))
+            var chapterTitle = request.FrozenChapterTitles is not null &&
+                               request.FrozenChapterTitles.TryGetValue(chapterIndex, out var frozenTitle)
+                ? frozenTitle
+                : metadata.Title;
+            if (settings.ReadChapterTitle && !string.IsNullOrWhiteSpace(chapterTitle))
             {
                 keys.Insert(
                     0,
                     AudioCacheKey.FromSpeechTextHash(
                         metadata.ChapterId,
                         StableSpeechSegmentIdentity.ChapterTitle(),
-                        Fingerprint.Sha256(metadata.Title),
+                        Fingerprint.Sha256(chapterTitle),
                         synthesisProfile));
             }
 
@@ -186,7 +196,7 @@ public sealed class ExportChaptersService : IExportChaptersService
             }
 
             var safeChapterTitle = _fileNameSanitizer.Sanitize(
-                metadata.Title,
+                chapterTitle,
                 MaximumChapterTitleLength);
             plans.Add(new ChapterMp3ExportPlan(
                 chapterIndex,
@@ -198,8 +208,11 @@ public sealed class ExportChaptersService : IExportChaptersService
 
         var batch = new ChapterMp3ExportBatch(
             request.DestinationRootDirectory,
-            _fileNameSanitizer.Sanitize(book.Title, MaximumBookDirectoryNameLength),
-            plans);
+            _fileNameSanitizer.Sanitize(
+                request.FrozenBookTitle ?? book.Title,
+                MaximumBookDirectoryNameLength),
+            plans,
+            progress);
         var writeResult = await _writer
             .WriteAsync(batch, cancellationToken)
             .ConfigureAwait(false);

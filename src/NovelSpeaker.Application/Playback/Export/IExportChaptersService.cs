@@ -9,4 +9,10 @@ public interface IExportChaptersService
     Task<ExportChaptersResult> ExportAsync(
         ExportChaptersRequest request,
         CancellationToken cancellationToken);
+
+    Task<ExportChaptersResult> ExportAsync(
+        ExportChaptersRequest request,
+        IProgress<ExportChaptersProgress>? progress,
+        CancellationToken cancellationToken) =>
+        ExportAsync(request, cancellationToken);
 }
