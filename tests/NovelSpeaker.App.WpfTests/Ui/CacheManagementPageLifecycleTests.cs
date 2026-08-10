@@ -3,6 +3,7 @@ using NovelSpeaker.Application.Playback.Export;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Platform;
+using NovelSpeaker.App.WpfTests.TestDoubles;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -63,9 +64,8 @@ public sealed class CacheManagementPageLifecycleTests
             feedback ?? new CachePageFeedback(),
             new CachePageDialog(),
             new CachePageNavigator(),
-            new CachePageExporter(),
-            new CachePageFileDialogs(),
-            new CachePageLauncher());
+            new WpfFakeChapterExportCoordinator(),
+            new CachePageFileDialogs());
 
     private sealed class CachePageWorkspace : ICacheWorkspaceService
     {
@@ -182,12 +182,6 @@ public sealed class CacheManagementPageLifecycleTests
             Task.FromResult(true);
     }
 
-    private sealed class CachePageExporter : IExportChaptersService
-    {
-        public Task<ExportChaptersResult> ExportAsync(ExportChaptersRequest request, CancellationToken cancellationToken) =>
-            Task.FromResult(ExportChaptersResult.Failed(ExportChaptersStatus.IncompleteCache, 0));
-    }
-
     private sealed class CachePageFileDialogs : IPresentationFileDialogService
     {
         public Task<string?> PickOpenFileAsync(PresentationFileDialogOptions options, CancellationToken cancellationToken) =>
@@ -200,8 +194,4 @@ public sealed class CacheManagementPageLifecycleTests
             Task.FromResult<string?>(null);
     }
 
-    private sealed class CachePageLauncher : IPresentationLauncher
-    {
-        public Task OpenAsync(string path, CancellationToken cancellationToken) => Task.CompletedTask;
-    }
 }

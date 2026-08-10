@@ -10,10 +10,6 @@
       ClipToBounds="True"
       navigation:NavigationViewportHeightBehavior.IsEnabled="True"
       PreviewKeyDown="Page_OnPreviewKeyDown">
-    <Page.Resources>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
-    </Page.Resources>
-
     <Border x:Name="RootViewport"
             Background="Transparent"
             MinHeight="0"
@@ -29,7 +25,32 @@
 
             <commonControls:AppPageHeader x:Name="PageHeader"
                                           Title="缓存管理"
-                                          BackCommand="{Binding BackCommand}" />
+                                          BackCommand="{Binding BackCommand}">
+                <commonControls:AppPageHeader.Actions>
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <TextBlock Margin="0,0,12,0"
+                                   VerticalAlignment="Center"
+                                   Style="{StaticResource App.Typography.Secondary}"
+                                   Text="{Binding ChapterSelectionSummary}" />
+                        <ui:Button x:Name="ClearSelectedChaptersButton"
+                                   Margin="0,0,6,0"
+                                   Style="{StaticResource App.Button.DangerIcon}"
+                                   Command="{Binding ClearSelectedChaptersCommand}"
+                                   ToolTip="清理所选章节缓存"
+                                   AutomationProperties.Name="清理所选章节缓存">
+                            <ui:SymbolIcon Symbol="Delete24" />
+                        </ui:Button>
+                        <Button x:Name="ExportSelectedChaptersButton"
+                                Style="{StaticResource App.Button.Icon}"
+                                Command="{Binding ExportSelectedChaptersCommand}"
+                                ToolTip="{Binding ExportCommandToolTip}"
+                                AutomationProperties.Name="导出所选章节">
+                            <ui:SymbolIcon Symbol="ArrowDownload24" />
+                        </Button>
+                    </StackPanel>
+                </commonControls:AppPageHeader.Actions>
+            </commonControls:AppPageHeader>
 
             <Grid Grid.Row="1"
                   Margin="0,20,0,0"
@@ -150,9 +171,7 @@
                 </commonControls:AppSectionSurface>
 
                 <commonControls:AppSectionSurface x:Name="ChaptersSurface"
-                                                  Grid.Column="2"
-                                                  Header="章节缓存"
-                                                  Description="{Binding SelectedBookTitle}">
+                                                  Grid.Column="2">
                     <Grid MinHeight="0">
                         <feedbackControls:AppStatusView x:Name="SelectionPromptStatusView"
                                                         MaxWidth="520"
@@ -236,101 +255,21 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
 
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-
-                                <StackPanel>
-                                    <TextBlock Style="{StaticResource App.Typography.SectionTitle}"
-                                               Text="{Binding SelectedBookTitle}"
-                                               TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Margin="0,6,0,0"
-                                               Style="{StaticResource App.Typography.Secondary}"
-                                               Text="{Binding SelectedBookAuthor}"
-                                               TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Margin="0,6,0,0"
-                                               Style="{StaticResource App.Typography.Secondary}"
-                                               Text="{Binding SelectedBookChapterCountText}" />
-                                    <TextBlock Margin="0,6,0,0"
-                                               Style="{StaticResource App.Typography.ItemTitle}"
-                                               Text="{Binding SelectedBookCacheSizeText}" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Column="1"
-                                            Margin="16,0,0,0"
-                                            VerticalAlignment="Top">
-                                    <TextBlock HorizontalAlignment="Right"
-                                               Margin="0,0,0,8"
-                                               Style="{StaticResource App.Typography.Secondary}"
-                                               Text="{Binding ChapterSelectionSummary}" />
-                                    <WrapPanel HorizontalAlignment="Right">
-                                        <Button x:Name="ClearSelectedChaptersButton"
-                                                Margin="0,0,8,0"
-                                                Padding="16,8"
-                                                Style="{StaticResource App.Button.Secondary}"
-                                                Command="{Binding ClearSelectedChaptersCommand}"
-                                                Content="清理"
-                                                ToolTip="清理所选章节缓存"
-                                                AutomationProperties.Name="清理所选章节缓存" />
-                                        <Button x:Name="ExportSelectedChaptersButton"
-                                                Padding="16,8"
-                                                Style="{StaticResource App.Button.Secondary}"
-                                                Command="{Binding ExportSelectedChaptersCommand}"
-                                                Content="导出"
-                                                ToolTip="{Binding ExportCommandToolTip}"
-                                                AutomationProperties.Name="导出所选章节" />
-                                    </WrapPanel>
-
-                                    <Border x:Name="ExportProgressPanel"
-                                            Margin="0,12,0,0">
-                                        <Border.Style>
-                                            <Style TargetType="Border"
-                                                   BasedOn="{StaticResource App.Feedback.InlineMessage}">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsExporting}" Value="True">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                        <StackPanel>
-                                            <ProgressBar Style="{StaticResource App.Progress.Compact}"
-                                                         IsIndeterminate="True"
-                                                         AutomationProperties.Name="章节导出进度" />
-                                            <DockPanel Margin="0,8,0,0"
-                                                       LastChildFill="True">
-                                                <Button x:Name="CancelExportButton"
-                                                        DockPanel.Dock="Right"
-                                                        Margin="12,0,0,0"
-                                                        Padding="10,4"
-                                                        Style="{StaticResource App.Button.Subtle}"
-                                                        Command="{Binding CancelExportCommand}"
-                                                        Content="取消"
-                                                        ToolTip="取消导出"
-                                                        AutomationProperties.Name="取消章节导出" />
-                                                <TextBlock VerticalAlignment="Center"
-                                                           Style="{StaticResource App.Typography.Secondary}"
-                                                           Text="{Binding ExportStatusText}"
-                                                           TextTrimming="CharacterEllipsis" />
-                                            </DockPanel>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Button x:Name="OpenExportDirectoryButton"
-                                            Margin="0,12,0,0"
-                                            HorizontalAlignment="Right"
-                                            Padding="10,4"
-                                            Style="{StaticResource App.Button.Subtle}"
-                                            Command="{Binding OpenExportDirectoryCommand}"
-                                            Content="打开目录"
-                                            ToolTip="打开目录"
-                                            AutomationProperties.Name="打开导出目录"
-                                            Visibility="{Binding CanOpenExportDirectory, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                </StackPanel>
-                            </Grid>
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource App.Typography.SectionTitle}"
+                                           Text="{Binding SelectedBookTitle}"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Style="{StaticResource App.Typography.Secondary}"
+                                           Text="{Binding SelectedBookAuthor}"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Style="{StaticResource App.Typography.Secondary}"
+                                           Text="{Binding SelectedBookChapterCountText}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Style="{StaticResource App.Typography.ItemTitle}"
+                                           Text="{Binding SelectedBookCacheSizeText}" />
+                            </StackPanel>
 
                             <ListBox x:Name="ChaptersListBox"
                                      Grid.Row="1"
@@ -365,7 +304,11 @@
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="ListBoxItem">
-                                                    <ContentPresenter />
+                                                    <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                                      Content="{TemplateBinding Content}"
+                                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                                      SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
                                                 </ControlTemplate>
                                             </Setter.Value>
                                         </Setter>
@@ -375,6 +318,7 @@
                                     <DataTemplate>
                                         <Button Margin="0,0,0,12"
                                                 Padding="0"
+                                                HorizontalAlignment="Stretch"
                                                 HorizontalContentAlignment="Stretch"
                                                 Style="{StaticResource App.Button.Subtle}"
                                                 Click="ChapterCard_OnClick"

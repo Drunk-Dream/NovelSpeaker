@@ -132,6 +132,13 @@
                         <Trigger Property="Footer" Value="{x:Null}">
                             <Setter TargetName="FooterPresenter" Property="Visibility" Value="Collapsed" />
                         </Trigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding Header, RelativeSource={RelativeSource TemplatedParent}}" Value="" />
+                                <Condition Binding="{Binding Description, RelativeSource={RelativeSource TemplatedParent}}" Value="" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="ContentPresenter" Property="Margin" Value="0" />
+                        </MultiDataTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>

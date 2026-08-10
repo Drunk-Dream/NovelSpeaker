@@ -21,21 +21,21 @@ public sealed partial class CacheManagementViewModel : ObservableObject
     private readonly IAppFeedbackService _feedbackService;
     private readonly IAppDialogService _dialogService;
     private readonly IAppNavigator _navigator;
-    private readonly IExportChaptersService _exportChaptersService;
+    private readonly IChapterExportCoordinator _chapterExportCoordinator;
     private readonly IPresentationFileDialogService _fileDialogs;
-    private readonly IPresentationLauncher _launcher;
     private readonly IUiScheduler _uiScheduler;
     private readonly DesktopSelectionController<int> _chapterSelection = new();
     private readonly OwnedTaskRegistry _pageTasks = new();
     private readonly object _cacheRefreshSync = new();
     private CancellationTokenSource? _chapterLoadCts;
-    private CancellationTokenSource? _exportCts;
+    private CancellationTokenSource? _exportPreparationCts;
     private CancellationTokenSource? _pageCancellation;
     private int _bookLoadVersion;
     private int _chapterLoadVersion;
     private int _cacheRefreshGeneration;
     private bool _isPageActive;
     private bool _isCacheEventsRegistered;
+    private bool _isExportEventsRegistered;
     private bool _isCacheRefreshRunning;
     private bool _cacheRefreshPending;
     private string? _cacheRefreshBookId;
@@ -46,18 +46,16 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         IAppFeedbackService feedbackService,
         IAppDialogService dialogService,
         IAppNavigator navigator,
-        IExportChaptersService exportChaptersService,
+        IChapterExportCoordinator chapterExportCoordinator,
         IPresentationFileDialogService fileDialogs,
-        IPresentationLauncher launcher,
         IUiScheduler? uiScheduler = null)
     {
         _cacheWorkspaceService = cacheWorkspaceService;
         _feedbackService = feedbackService;
         _dialogService = dialogService;
         _navigator = navigator;
-        _exportChaptersService = exportChaptersService;
+        _chapterExportCoordinator = chapterExportCoordinator;
         _fileDialogs = fileDialogs;
-        _launcher = launcher;
         _uiScheduler = uiScheduler ?? new WpfUiScheduler();
         _chapterSelection.SelectionChanged += OnChapterSelectionChanged;
     }
@@ -74,15 +72,6 @@ public sealed partial class CacheManagementViewModel : ObservableObject
 
     [ObservableProperty]
     private bool isBusy;
-
-    [ObservableProperty]
-    private bool isExporting;
-
-    [ObservableProperty]
-    private string exportStatusText = string.Empty;
-
-    [ObservableProperty]
-    private string? lastExportDirectoryPath;
 
     [ObservableProperty]
     private bool hasSelection;
@@ -122,24 +111,18 @@ public sealed partial class CacheManagementViewModel : ObservableObject
 
     public bool CanExportSelectedChapters =>
         !IsBusy &&
-        !IsExporting &&
+        !IsChapterExportActive() &&
         HasSelection &&
         !string.IsNullOrWhiteSpace(_selectedBookId) &&
         _chapterSelection.Count > 0;
-
-    public bool CanCancelExport => IsExporting;
-
-    public bool CanOpenExportDirectory =>
-        !IsExporting &&
-        !string.IsNullOrWhiteSpace(LastExportDirectoryPath);
 
     public string ExportCommandToolTip
     {
         get
         {
-            if (IsExporting)
+            if (IsChapterExportActive())
             {
-                return "章节正在导出";
+                return "已有章节导出任务正在运行";
             }
 
             if (_chapterSelection.Count == 0)
@@ -167,7 +150,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         Interlocked.Increment(ref _chapterLoadVersion);
         CancelChapterLoad();
         IsLoadingChapters = false;
-        CancelExportOperation();
+        CancelExportPreparation();
         DeactivatePage();
         _chapterSelection.Clear();
         NotifyVisibilityStateChanged();
@@ -280,13 +263,12 @@ public sealed partial class CacheManagementViewModel : ObservableObject
             .Where(chapter => _chapterSelection.IsSelected(chapter.ChapterIndex))
             .OrderBy(chapter => chapter.ChapterIndex)
             .ToArray();
-        var exportableChapterIndices = selectedChapters
+        var exportableChapters = selectedChapters
             .Where(chapter => chapter.IsExportable)
-            .Select(chapter => chapter.ChapterIndex)
             .ToArray();
-        var skippedChapterCount = selectedChapters.Length - exportableChapterIndices.Length;
+        var skippedChapterCount = selectedChapters.Length - exportableChapters.Length;
 
-        if (exportableChapterIndices.Length == 0)
+        if (exportableChapters.Length == 0)
         {
             _feedbackService.ShowWarning(
                 "没有可导出的章节",
@@ -294,19 +276,16 @@ public sealed partial class CacheManagementViewModel : ObservableObject
             return;
         }
 
-        var operationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        if (Interlocked.CompareExchange(ref _exportCts, operationCts, null) is not null)
+        var operationCts = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _pageCancellation?.Token ?? CancellationToken.None);
+        if (Interlocked.CompareExchange(ref _exportPreparationCts, operationCts, null) is not null)
         {
             operationCts.Dispose();
             return;
         }
 
-        IsExporting = true;
         IsBusy = true;
-        LastExportDirectoryPath = null;
-        ExportStatusText = skippedChapterCount > 0
-            ? "请确认是否跳过不可导出章节…"
-            : "请选择导出位置…";
         NotifyCommandStateChanged();
 
         try
@@ -316,19 +295,17 @@ public sealed partial class CacheManagementViewModel : ObservableObject
                 var decision = await _dialogService.ShowConfirmationAsync(
                     "跳过不可导出章节",
                     $"所选 {selectedChapters.Length} 章中有 {skippedChapterCount} 章当前不可导出。" +
-                    $"是否跳过这 {skippedChapterCount} 章并导出其余 {exportableChapterIndices.Length} 章？",
+                    $"是否跳过这 {skippedChapterCount} 章并导出其余 {exportableChapters.Length} 章？",
                     "跳过并导出",
                     "取消",
                     operationCts.Token);
                 operationCts.Token.ThrowIfCancellationRequested();
                 if (decision != AppConfirmationDecision.Confirm)
                 {
-                    ExportStatusText = "导出已取消";
                     return;
                 }
             }
 
-            ExportStatusText = "请选择导出位置…";
             var destinationRoot = await _fileDialogs.PickFolderAsync(
                 new PresentationFolderDialogOptions("选择章节 MP3 导出位置"),
                 operationCts.Token);
@@ -338,68 +315,44 @@ public sealed partial class CacheManagementViewModel : ObservableObject
                 return;
             }
 
-            ExportStatusText = $"正在导出 {exportableChapterIndices.Length} 章…";
-            var result = await _exportChaptersService.ExportAsync(
-                new ExportChaptersRequest(
+            var startResult = await _chapterExportCoordinator.StartAsync(
+                new StartChapterExportRequest(
                     selectedBookId,
-                    exportableChapterIndices,
-                    destinationRoot),
+                    SelectedBookTitle,
+                    exportableChapters
+                        .Select(chapter => new ChapterExportSelection(chapter.ChapterIndex, chapter.Title))
+                        .ToArray(),
+                    destinationRoot,
+                    skippedChapterCount),
                 operationCts.Token);
             operationCts.Token.ThrowIfCancellationRequested();
-            ShowExportResult(result, skippedChapterCount);
+
+            if (startResult.Status == ChapterExportStartStatus.BatchAlreadyActive)
+            {
+                _feedbackService.ShowWarning(
+                    "已有导出任务",
+                    startResult.Message ?? "已有章节导出任务正在运行。");
+            }
+            else if (startResult.Status != ChapterExportStartStatus.Accepted)
+            {
+                _feedbackService.ShowWarning(
+                    "无法开始导出",
+                    startResult.Message ?? "没有可导出的章节。");
+            }
         }
         catch (OperationCanceledException) when (operationCts.IsCancellationRequested)
         {
-            ExportStatusText = "导出已取消";
         }
         catch (Exception exception)
         {
-            _feedbackService.ShowProjectedNotification("导出失败", _feedbackService.Project(exception));
-            ExportStatusText = "导出失败";
+            _feedbackService.ShowProjectedNotification("开始导出失败", _feedbackService.Project(exception));
         }
         finally
         {
-            Interlocked.CompareExchange(ref _exportCts, null, operationCts);
+            Interlocked.CompareExchange(ref _exportPreparationCts, null, operationCts);
             operationCts.Dispose();
             IsBusy = false;
-            IsExporting = false;
             NotifyCommandStateChanged();
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanCancelExport))]
-    private void CancelExport()
-    {
-        if (_exportCts is null)
-        {
-            return;
-        }
-
-        ExportStatusText = "正在取消导出…";
-        _exportCts.Cancel();
-    }
-
-    [RelayCommand(CanExecute = nameof(CanOpenExportDirectory), AllowConcurrentExecutions = false)]
-    private async Task OpenExportDirectoryAsync(CancellationToken cancellationToken)
-    {
-        if (!CanOpenExportDirectory || string.IsNullOrWhiteSpace(LastExportDirectoryPath))
-        {
-            return;
-        }
-
-        try
-        {
-            await _launcher.OpenAsync(LastExportDirectoryPath, cancellationToken);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
-        catch (Exception exception)
-        {
-            _feedbackService.ShowProjectedNotification(
-                "打开导出目录失败",
-                _feedbackService.Project(exception));
         }
     }
 
@@ -611,6 +564,8 @@ public sealed partial class CacheManagementViewModel : ObservableObject
 
         _cacheWorkspaceService.Changed += OnCacheChanged;
         _isCacheEventsRegistered = true;
+        _chapterExportCoordinator.SnapshotChanged += OnChapterExportSnapshotChanged;
+        _isExportEventsRegistered = true;
     }
 
     private void DeactivatePage()
@@ -619,6 +574,12 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         {
             _cacheWorkspaceService.Changed -= OnCacheChanged;
             _isCacheEventsRegistered = false;
+        }
+
+        if (_isExportEventsRegistered)
+        {
+            _chapterExportCoordinator.SnapshotChanged -= OnChapterExportSnapshotChanged;
+            _isExportEventsRegistered = false;
         }
 
         CancellationTokenSource? pageCancellation;
@@ -648,14 +609,29 @@ public sealed partial class CacheManagementViewModel : ObservableObject
             return;
         }
 
-        var cancellationToken = _pageCancellation?.Token ?? new CancellationToken(canceled: true);
+        if (!TryGetActivePageCancellationToken(out var cancellationToken))
+        {
+            return;
+        }
+
         if (!_uiScheduler.CheckAccess())
         {
-            _pageTasks.Register(
-                _uiScheduler.InvokeAsync(
-                    () => QueueCacheRefresh(selectedBookId),
-                    cancellationToken),
-                ReportCacheRefreshFailure);
+            try
+            {
+                _pageTasks.Register(
+                    _uiScheduler.InvokeAsync(
+                        () => QueueCacheRefresh(selectedBookId),
+                        cancellationToken),
+                    ReportCacheRefreshFailure);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                ReportCacheRefreshFailure(exception);
+            }
+
             return;
         }
 
@@ -762,26 +738,12 @@ public sealed partial class CacheManagementViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanClearSelectedChapters));
         OnPropertyChanged(nameof(CanExportSelectedChapters));
-        OnPropertyChanged(nameof(CanCancelExport));
-        OnPropertyChanged(nameof(CanOpenExportDirectory));
         OnPropertyChanged(nameof(ExportCommandToolTip));
         ClearSelectedChaptersCommand.NotifyCanExecuteChanged();
         ExportSelectedChaptersCommand.NotifyCanExecuteChanged();
-        CancelExportCommand.NotifyCanExecuteChanged();
-        OpenExportDirectoryCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnIsBusyChanged(bool value)
-    {
-        NotifyCommandStateChanged();
-    }
-
-    partial void OnIsExportingChanged(bool value)
-    {
-        NotifyCommandStateChanged();
-    }
-
-    partial void OnLastExportDirectoryPathChanged(string? value)
     {
         NotifyCommandStateChanged();
     }
@@ -826,72 +788,81 @@ public sealed partial class CacheManagementViewModel : ObservableObject
             index => chaptersByIndex.TryGetValue(index, out var chapter) && chapter.IsExportable);
     }
 
-    private void CancelExportOperation()
+    private void CancelExportPreparation()
     {
-        _exportCts?.Cancel();
+        _exportPreparationCts?.Cancel();
     }
 
-    private void ShowExportResult(ExportChaptersResult result, int skippedChapterCount)
+    private void OnChapterExportSnapshotChanged(object? sender, ChapterExportSnapshot snapshot)
     {
-        switch (result.Status)
+        if (!_isExportEventsRegistered)
         {
-            case ExportChaptersStatus.Succeeded
-                when !string.IsNullOrWhiteSpace(result.ExportDirectoryPath):
-                LastExportDirectoryPath = result.ExportDirectoryPath;
-                ExportStatusText = FormatExportSummary(result.Files.Count, skippedChapterCount);
-                _feedbackService.ShowSuccess(
-                    "导出完成",
-                    $"{FormatExportSummary(result.Files.Count, skippedChapterCount)}。可在缓存管理页打开导出目录。");
-                break;
-            case ExportChaptersStatus.IncompleteCache:
-                ExportStatusText = "所选章节缓存不完整";
-                _feedbackService.ShowWarning(
-                    "无法导出",
-                    "所选章节缓存已发生变化，请刷新后确认缓存完整度。");
-                break;
-            case ExportChaptersStatus.SelectedRuleUnavailable:
-                ExportStatusText = "当前 TTS 配置不可用";
-                _feedbackService.ShowWarning(
-                    "无法导出",
-                    "当前 TTS 规则不可用，请检查规则选择后重试。");
-                break;
-            case ExportChaptersStatus.ChapterHasNoPlayableSegments:
-                ExportStatusText = "章节没有可播放段落";
-                _feedbackService.ShowWarning(
-                    "无法导出",
-                    FormatChapterFailure(result.FailedChapterIndex, "没有可播放段落"));
-                break;
-            case ExportChaptersStatus.BookNotFound:
-            case ExportChaptersStatus.ChapterNotFound:
-                ExportStatusText = "书籍或章节已发生变化";
-                _feedbackService.ShowWarning(
-                    "无法导出",
-                    "书籍或章节已发生变化，请重新打开缓存管理页。");
-                break;
-            case ExportChaptersStatus.ChapterSpeechPlanUnavailable:
-                ExportStatusText = "章节朗读清单不可用";
-                _feedbackService.ShowWarning(
-                    "无法导出",
-                    FormatChapterFailure(result.FailedChapterIndex, "章节朗读清单尚未就绪"));
-                break;
-            default:
-                throw new InvalidOperationException("The export service returned an invalid result.");
+            return;
+        }
+
+        if (!TryGetActivePageCancellationToken(out var cancellationToken))
+        {
+            return;
+        }
+
+        if (!_uiScheduler.CheckAccess())
+        {
+            try
+            {
+                _pageTasks.Register(
+                    _uiScheduler.InvokeAsync(NotifyCommandStateChanged, cancellationToken),
+                    ReportExportProjectionFailure);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                ReportExportProjectionFailure(exception);
+            }
+
+            return;
+        }
+
+        NotifyCommandStateChanged();
+    }
+
+    private void ReportExportProjectionFailure(Exception exception)
+    {
+        lock (_cacheRefreshSync)
+        {
+            if (!_isPageActive)
+            {
+                return;
+            }
+        }
+
+        _feedbackService.ShowProjectedNotification(
+            "更新导出状态失败",
+            _feedbackService.Project(exception));
+    }
+
+    private bool TryGetActivePageCancellationToken(out CancellationToken cancellationToken)
+    {
+        lock (_cacheRefreshSync)
+        {
+            if (!_isPageActive ||
+                _pageCancellation is not { IsCancellationRequested: false } pageCancellation)
+            {
+                cancellationToken = default;
+                return false;
+            }
+
+            cancellationToken = pageCancellation.Token;
+            return true;
         }
     }
 
-    private static string FormatExportSummary(int exportedChapterCount, int skippedChapterCount)
-    {
-        return skippedChapterCount == 0
-            ? $"已导出 {exportedChapterCount} 章"
-            : $"已导出 {exportedChapterCount} 章，跳过 {skippedChapterCount} 章";
-    }
-
-    private static string FormatChapterFailure(int? chapterIndex, string reason)
-    {
-        return chapterIndex is null
-            ? $"所选章节{reason}。"
-            : $"第 {chapterIndex.Value + 1} 章{reason}。";
-    }
+    private bool IsChapterExportActive() =>
+        _chapterExportCoordinator.CurrentSnapshot?.Status is
+            ChapterExportBatchStatus.Waiting or
+            ChapterExportBatchStatus.Running or
+            ChapterExportBatchStatus.Cancelling;
 
     private static ChapterExportAvailability GetExportAvailability(CachedChapterCacheItem chapter)
     {

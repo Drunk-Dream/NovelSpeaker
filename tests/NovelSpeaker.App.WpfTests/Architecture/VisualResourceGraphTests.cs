@@ -164,7 +164,7 @@ public sealed class VisualResourceGraphTests
                 "/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml",
                 StringComparison.Ordinal));
         Assert.Equal(
-            "18C283D1EAD195A8F4BC7FA33C724197269D6082904A4B5CE0F911A346420841",
+            "32CAC0A90E697487D485D7CE96AD9294151CD830D4F48382011DC9A8B96C038F",
             VisualResourceGraphScanner.Fingerprint(findings));
     }
 

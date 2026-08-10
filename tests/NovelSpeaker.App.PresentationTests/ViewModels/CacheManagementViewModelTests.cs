@@ -5,6 +5,7 @@ using NovelSpeaker.Application.Playback.Export;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Selection;
+using NovelSpeaker.App.PresentationTests.TestDoubles;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
@@ -348,15 +349,15 @@ public sealed class CacheManagementViewModelTests
     }
 
     [Fact]
-    public async Task Mixed_selection_cancel_does_not_open_folder_or_call_export()
+    public async Task Mixed_selection_cancel_does_not_open_folder_or_start_background_export()
     {
-        var exporter = new FakeExportChaptersService();
+        var coordinator = new FakeChapterExportCoordinator();
         var folders = new FakePresentationFileDialogService { FolderResult = @"D:\Export" };
         var dialogs = new FakeAppDialogService
         {
             NextConfirmationDecision = AppConfirmationDecision.Cancel
         };
-        var viewModel = await CreateMixedExportViewModelAsync(exporter, folders, dialogs);
+        var viewModel = await CreateMixedExportViewModelAsync(coordinator, folders, dialogs);
 
         await viewModel.ExportSelectedChaptersCommand.ExecuteAsync(null);
 
@@ -365,16 +366,16 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal("跳过并导出", dialogs.LastPrimaryButtonText);
         Assert.Contains("跳过这 1 章并导出其余 1 章", dialogs.LastMessage, StringComparison.Ordinal);
         Assert.Equal(0, folders.PickFolderCallCount);
-        Assert.Equal(0, exporter.CallCount);
+        Assert.Equal(0, coordinator.StartCallCount);
     }
 
     [Fact]
-    public async Task Navigating_from_during_skip_confirmation_cancels_before_folder_selection()
+    public async Task Navigating_from_during_skip_confirmation_cancels_only_page_owned_preparation()
     {
-        var exporter = new FakeExportChaptersService();
+        var coordinator = new FakeChapterExportCoordinator();
         var folders = new FakePresentationFileDialogService { FolderResult = @"D:\Export" };
         var dialogs = new FakeAppDialogService { WaitForCancellation = true };
-        var viewModel = await CreateMixedExportViewModelAsync(exporter, folders, dialogs);
+        var viewModel = await CreateMixedExportViewModelAsync(coordinator, folders, dialogs);
 
         var running = viewModel.ExportSelectedChaptersCommand.ExecuteAsync(null);
         await dialogs.ConfirmationStarted.Task;
@@ -383,38 +384,30 @@ public sealed class CacheManagementViewModelTests
 
         Assert.True(dialogs.ObservedCancellation);
         Assert.Equal(0, folders.PickFolderCallCount);
-        Assert.Equal(0, exporter.CallCount);
-        Assert.False(viewModel.IsExporting);
+        Assert.Equal(0, coordinator.StartCallCount);
     }
 
     [Fact]
-    public async Task Mixed_selection_confirm_skips_unavailable_chapters_before_strict_export()
+    public async Task Mixed_selection_confirm_submits_only_exportable_chapters_to_background_coordinator()
     {
-        var exporter = new FakeExportChaptersService
-        {
-            Result = new ExportChaptersResult(
-                ExportChaptersStatus.Succeeded,
-                @"D:\Export\第一本",
-                [new ExportedChapterMp3(0, @"D:\Export\第一本\001_完整.mp3")],
-                null)
-        };
+        var coordinator = new FakeChapterExportCoordinator();
         var folders = new FakePresentationFileDialogService { FolderResult = @"D:\Export" };
         var dialogs = new FakeAppDialogService();
-        var feedback = new FakeFeedbackService();
-        var viewModel = await CreateMixedExportViewModelAsync(exporter, folders, dialogs, feedback);
+        var viewModel = await CreateMixedExportViewModelAsync(coordinator, folders, dialogs);
 
         await viewModel.ExportSelectedChaptersCommand.ExecuteAsync(null);
 
-        var request = Assert.IsType<ExportChaptersRequest>(exporter.LastRequest);
-        Assert.Equal([0], request.ChapterIndices);
+        var request = Assert.IsType<StartChapterExportRequest>(coordinator.LastRequest);
+        Assert.Equal("book-1", request.BookId);
+        Assert.Equal("第一本", request.BookTitle);
+        Assert.Equal([0], request.Chapters.Select(chapter => chapter.ChapterIndex));
+        Assert.Equal(1, request.SkippedChapterCount);
+        Assert.Equal(@"D:\Export", request.DestinationRootDirectory);
         Assert.Equal(1, folders.PickFolderCallCount);
-        Assert.Equal("已导出 1 章，跳过 1 章", viewModel.ExportStatusText);
-        Assert.Equal("导出完成", feedback.LastTitle);
-        Assert.Contains("已导出 1 章，跳过 1 章", feedback.LastMessage, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task All_unavailable_selection_warns_without_confirmation_folder_or_export()
+    public async Task All_unavailable_selection_warns_without_confirmation_folder_or_background_export()
     {
         var workspace = new FakeCacheWorkspaceService
         {
@@ -424,11 +417,11 @@ public sealed class CacheManagementViewModelTests
         [
             new CachedChapterCacheItem("book-1", 0, "不完整", 1, 1, 1024, 2)
         ];
-        var exporter = new FakeExportChaptersService();
+        var coordinator = new FakeChapterExportCoordinator();
         var folders = new FakePresentationFileDialogService { FolderResult = @"D:\Export" };
         var dialogs = new FakeAppDialogService();
         var feedback = new FakeFeedbackService();
-        var viewModel = CreateViewModel(workspace, feedback, dialogs, exporter, folders);
+        var viewModel = CreateViewModel(workspace, feedback, dialogs, coordinator, folders);
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
         viewModel.HandleChapterClick(viewModel.Chapters[0], DesktopSelectionModifiers.None);
@@ -440,160 +433,100 @@ public sealed class CacheManagementViewModelTests
         Assert.Contains("当前均不可导出", feedback.LastMessage, StringComparison.Ordinal);
         Assert.Equal(0, dialogs.ConfirmationCallCount);
         Assert.Equal(0, folders.PickFolderCallCount);
-        Assert.Equal(0, exporter.CallCount);
+        Assert.Equal(0, coordinator.StartCallCount);
     }
 
     [Fact]
-    public async Task Export_directory_cancellation_does_not_call_export_use_case()
+    public async Task Export_directory_cancellation_does_not_start_background_export()
     {
-        var exporter = new FakeExportChaptersService();
+        var coordinator = new FakeChapterExportCoordinator();
         var folders = new FakePresentationFileDialogService { FolderResult = null };
-        var viewModel = await CreateExportReadyViewModelAsync(exporter, folders);
+        var viewModel = await CreateExportReadyViewModelAsync(coordinator, folders);
 
         await viewModel.ExportSelectedChaptersCommand.ExecuteAsync(null);
 
-        Assert.Equal(0, exporter.CallCount);
-        Assert.False(viewModel.IsExporting);
+        Assert.Equal(0, coordinator.StartCallCount);
     }
 
     [Fact]
-    public async Task Export_sends_selected_book_chapters_and_destination_to_application()
+    public async Task Export_submits_frozen_selection_and_destination_to_background_coordinator()
     {
-        var exporter = new FakeExportChaptersService
-        {
-            Result = new ExportChaptersResult(
-                ExportChaptersStatus.Succeeded,
-                @"D:\Export\第一本",
-                [
-                    new ExportedChapterMp3(0, @"D:\Export\第一本\001_第一章.mp3"),
-                    new ExportedChapterMp3(1, @"D:\Export\第一本\002_第二章.mp3")
-                ],
-                null)
-        };
+        var coordinator = new FakeChapterExportCoordinator();
         var folders = new FakePresentationFileDialogService { FolderResult = @"D:\Export" };
-        var viewModel = await CreateExportReadyViewModelAsync(exporter, folders, selectBoth: true);
+        var viewModel = await CreateExportReadyViewModelAsync(coordinator, folders, selectBoth: true);
 
         await viewModel.ExportSelectedChaptersCommand.ExecuteAsync(null);
 
-        var request = Assert.IsType<ExportChaptersRequest>(exporter.LastRequest);
+        var request = Assert.IsType<StartChapterExportRequest>(coordinator.LastRequest);
         Assert.Equal("book-1", request.BookId);
-        Assert.Equal([0, 1], request.ChapterIndices);
+        Assert.Equal([0, 1], request.Chapters.Select(chapter => chapter.ChapterIndex));
+        Assert.Equal(["第一章", "第二章"], request.Chapters.Select(chapter => chapter.ChapterTitle));
         Assert.Equal(@"D:\Export", request.DestinationRootDirectory);
     }
 
     [Fact]
-    public async Task Export_can_be_cancelled_without_error_feedback_and_rejects_duplicate_start()
+    public async Task Active_background_export_disables_new_export_without_blocking_cleanup_selection_state()
     {
-        var exporter = new FakeExportChaptersService { WaitForCancellation = true };
-        var folders = new FakePresentationFileDialogService { FolderResult = @"D:\Export" };
-        var feedback = new FakeFeedbackService();
-        var viewModel = await CreateExportReadyViewModelAsync(exporter, folders, feedback: feedback);
-
-        var running = viewModel.ExportSelectedChaptersCommand.ExecuteAsync(null);
-        await exporter.Started.Task;
-
-        Assert.True(viewModel.IsExporting);
-        Assert.False(viewModel.ExportSelectedChaptersCommand.CanExecute(null));
-        Assert.Equal("正在导出 1 章…", viewModel.ExportStatusText);
-        await viewModel.ExportSelectedChaptersCommand.ExecuteAsync(null);
-        Assert.Equal(1, exporter.CallCount);
-
-        viewModel.CancelExportCommand.Execute(null);
-        await running;
-
-        Assert.False(viewModel.IsExporting);
-        Assert.Null(feedback.LastTitle);
-    }
-
-    [Fact]
-    public async Task Export_failure_is_projected_but_cancellation_is_not()
-    {
-        var exporter = new FakeExportChaptersService
-        {
-            Exception = new IOException("technical path must be projected")
-        };
-        var feedback = new FakeFeedbackService();
+        var coordinator = new FakeChapterExportCoordinator(CreateExportSnapshot(ChapterExportBatchStatus.Running));
         var viewModel = await CreateExportReadyViewModelAsync(
-            exporter,
-            new FakePresentationFileDialogService { FolderResult = @"D:\Export" },
-            feedback: feedback);
-
-        await viewModel.ExportSelectedChaptersCommand.ExecuteAsync(null);
-
-        Assert.Equal("导出失败", feedback.LastTitle);
-        Assert.Equal("technical path must be projected", feedback.LastProjectedMessage);
-    }
-
-    [Fact]
-    public async Task Export_cache_race_is_presented_as_a_safe_warning()
-    {
-        var exporter = new FakeExportChaptersService
-        {
-            Result = ExportChaptersResult.Failed(ExportChaptersStatus.IncompleteCache, 0)
-        };
-        var feedback = new FakeFeedbackService();
-        var viewModel = await CreateExportReadyViewModelAsync(
-            exporter,
-            new FakePresentationFileDialogService { FolderResult = @"D:\Export" },
-            feedback: feedback);
-
-        await viewModel.ExportSelectedChaptersCommand.ExecuteAsync(null);
-
-        Assert.Equal("无法导出", feedback.LastTitle);
-        Assert.Contains("缓存已发生变化", feedback.LastMessage, StringComparison.Ordinal);
-        Assert.Null(feedback.LastProjectedMessage);
-    }
-
-    [Fact]
-    public async Task Successful_export_shows_summary_and_opens_result_directory_through_platform_port()
-    {
-        var exporter = new FakeExportChaptersService
-        {
-            Result = new ExportChaptersResult(
-                ExportChaptersStatus.Succeeded,
-                @"D:\Export\第一本",
-                [new ExportedChapterMp3(0, @"D:\Export\第一本\001_第一章.mp3")],
-                null)
-        };
-        var feedback = new FakeFeedbackService();
-        var launcher = new FakePresentationLauncher();
-        var viewModel = await CreateExportReadyViewModelAsync(
-            exporter,
-            new FakePresentationFileDialogService { FolderResult = @"D:\Export" },
-            feedback,
-            launcher);
-
-        await viewModel.ExportSelectedChaptersCommand.ExecuteAsync(null);
-
-        Assert.Equal("导出完成", feedback.LastTitle);
-        Assert.Contains("1 章", feedback.LastMessage, StringComparison.Ordinal);
-        Assert.True(viewModel.CanOpenExportDirectory);
-        await viewModel.OpenExportDirectoryCommand.ExecuteAsync(null);
-        Assert.Equal(@"D:\Export\第一本", launcher.LastPath);
-    }
-
-    [Fact]
-    public async Task Navigating_from_page_cancels_page_owned_export_operation()
-    {
-        var exporter = new FakeExportChaptersService { WaitForCancellation = true };
-        var viewModel = await CreateExportReadyViewModelAsync(
-            exporter,
+            coordinator,
             new FakePresentationFileDialogService { FolderResult = @"D:\Export" });
-        var running = viewModel.ExportSelectedChaptersCommand.ExecuteAsync(null);
-        await exporter.Started.Task;
+
+        Assert.False(viewModel.CanExportSelectedChapters);
+        Assert.False(viewModel.ExportSelectedChaptersCommand.CanExecute(null));
+        Assert.Equal("已有章节导出任务正在运行", viewModel.ExportCommandToolTip);
+        Assert.True(viewModel.CanClearSelectedChapters);
+    }
+
+    [Fact]
+    public async Task Background_export_completion_reenables_export_while_page_is_active()
+    {
+        var coordinator = new FakeChapterExportCoordinator(CreateExportSnapshot(ChapterExportBatchStatus.Running));
+        var viewModel = await CreateExportReadyViewModelAsync(
+            coordinator,
+            new FakePresentationFileDialogService { FolderResult = @"D:\Export" });
+
+        coordinator.Publish(CreateExportSnapshot(ChapterExportBatchStatus.Completed));
+
+        Assert.True(viewModel.CanExportSelectedChapters);
+        Assert.True(viewModel.ExportSelectedChaptersCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Navigating_from_page_does_not_cancel_already_started_background_export()
+    {
+        var coordinator = new FakeChapterExportCoordinator();
+        var viewModel = await CreateExportReadyViewModelAsync(
+            coordinator,
+            new FakePresentationFileDialogService { FolderResult = @"D:\Export" });
+
+        await viewModel.ExportSelectedChaptersCommand.ExecuteAsync(null);
+        Assert.Equal(1, coordinator.StartCallCount);
 
         viewModel.HandleNavigatedFrom();
-        await running;
 
-        Assert.True(exporter.ObservedCancellation);
-        Assert.False(viewModel.IsExporting);
+        Assert.Equal(0, coordinator.CancelCallCount);
     }
 
+    private static ChapterExportSnapshot CreateExportSnapshot(ChapterExportBatchStatus status) =>
+        new(
+            Guid.Parse("11111111-2222-3333-4444-555555555555"),
+            "book-1",
+            "第一本",
+            status,
+            1,
+            status == ChapterExportBatchStatus.Completed ? 1 : 0,
+            0,
+            status == ChapterExportBatchStatus.Running ? 0 : null,
+            status == ChapterExportBatchStatus.Running ? "第一章" : null,
+            @"D:\Export",
+            status == ChapterExportBatchStatus.Completed ? @"D:\Export\第一本" : null,
+            null);
+
     private static async Task<CacheManagementViewModel> CreateExportReadyViewModelAsync(
-        FakeExportChaptersService exporter,
+        FakeChapterExportCoordinator coordinator,
         FakePresentationFileDialogService folders,
         FakeFeedbackService? feedback = null,
-        FakePresentationLauncher? launcher = null,
         bool selectBoth = false)
     {
         var workspace = new FakeCacheWorkspaceService
@@ -605,7 +538,7 @@ public sealed class CacheManagementViewModelTests
             new CachedChapterCacheItem("book-1", 0, "第一章", 1, 1, 1024, 1),
             new CachedChapterCacheItem("book-1", 1, "第二章", 1, 1, 1024, 1)
         ];
-        var viewModel = CreateViewModel(workspace, feedback, exporter: exporter, fileDialogs: folders, launcher: launcher);
+        var viewModel = CreateViewModel(workspace, feedback, coordinator: coordinator, fileDialogs: folders);
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
         viewModel.HandleChapterClick(viewModel.Chapters[0], DesktopSelectionModifiers.None);
@@ -618,7 +551,7 @@ public sealed class CacheManagementViewModelTests
     }
 
     private static async Task<CacheManagementViewModel> CreateMixedExportViewModelAsync(
-        FakeExportChaptersService exporter,
+        FakeChapterExportCoordinator coordinator,
         FakePresentationFileDialogService folders,
         FakeAppDialogService dialogs,
         FakeFeedbackService? feedback = null)
@@ -632,7 +565,7 @@ public sealed class CacheManagementViewModelTests
             new CachedChapterCacheItem("book-1", 0, "完整", 1, 1, 1024, 1),
             new CachedChapterCacheItem("book-1", 1, "不完整", 1, 1, 1024, 2)
         ];
-        var viewModel = CreateViewModel(workspace, feedback, dialogs, exporter, folders);
+        var viewModel = CreateViewModel(workspace, feedback, dialogs, coordinator, folders);
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
         viewModel.HandleChapterClick(viewModel.Chapters[0], DesktopSelectionModifiers.None);
@@ -666,18 +599,16 @@ public sealed class CacheManagementViewModelTests
         FakeCacheWorkspaceService workspaceService,
         FakeFeedbackService? feedbackService = null,
         FakeAppDialogService? dialogService = null,
-        FakeExportChaptersService? exporter = null,
-        FakePresentationFileDialogService? fileDialogs = null,
-        FakePresentationLauncher? launcher = null)
+        FakeChapterExportCoordinator? coordinator = null,
+        FakePresentationFileDialogService? fileDialogs = null)
     {
         return new CacheManagementViewModel(
             workspaceService,
             feedbackService ?? new FakeFeedbackService(),
             dialogService ?? new FakeAppDialogService(),
             new FakeNavigationService(),
-            exporter ?? new FakeExportChaptersService(),
-            fileDialogs ?? new FakePresentationFileDialogService(),
-            launcher ?? new FakePresentationLauncher());
+            coordinator ?? new FakeChapterExportCoordinator(),
+            fileDialogs ?? new FakePresentationFileDialogService());
     }
 
     private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
@@ -888,56 +819,6 @@ public sealed class CacheManagementViewModelTests
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken) => Task.FromResult(AppConfirmationDecision.Cancel);
     }
 
-    private sealed class FakeExportChaptersService : IExportChaptersService
-    {
-        public ExportChaptersResult Result { get; set; } =
-            ExportChaptersResult.Failed(ExportChaptersStatus.IncompleteCache, 0);
-
-        public Exception? Exception { get; set; }
-
-        public bool WaitForCancellation { get; set; }
-
-        public int CallCount { get; private set; }
-
-        public ExportChaptersRequest? LastRequest { get; private set; }
-
-        public bool ObservedCancellation { get; private set; }
-
-        public TaskCompletionSource Started { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public async Task<ExportChaptersResult> ExportAsync(
-            ExportChaptersRequest request,
-            CancellationToken cancellationToken)
-        {
-            CallCount++;
-            LastRequest = request;
-            Started.TrySetResult();
-            if (Exception is not null)
-            {
-                throw Exception;
-            }
-
-            if (WaitForCancellation)
-            {
-                var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                using var registration = cancellationToken.Register(
-                    () => cancelled.TrySetCanceled(cancellationToken));
-                try
-                {
-                    await cancelled.Task;
-                }
-                catch (OperationCanceledException)
-                {
-                    ObservedCancellation = true;
-                    throw;
-                }
-            }
-
-            return Result;
-        }
-    }
-
     private sealed class FakePresentationFileDialogService : IPresentationFileDialogService
     {
         public string? FolderResult { get; set; }
@@ -960,17 +841,6 @@ public sealed class CacheManagementViewModelTests
         {
             PickFolderCallCount++;
             return Task.FromResult(FolderResult);
-        }
-    }
-
-    private sealed class FakePresentationLauncher : IPresentationLauncher
-    {
-        public string? LastPath { get; private set; }
-
-        public Task OpenAsync(string path, CancellationToken cancellationToken)
-        {
-            LastPath = path;
-            return Task.CompletedTask;
         }
     }
 

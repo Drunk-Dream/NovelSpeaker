@@ -62,9 +62,15 @@ public partial class CacheManagementPage : System.Windows.Controls.Page, INaviga
 
     private void ChapterCard_OnContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
-        if (sender is not Button button || button.ContextMenu is null)
+        if (sender is not Button { DataContext: CachedChapterListItemViewModel chapter } button ||
+            button.ContextMenu is null)
         {
             return;
+        }
+
+        if (!chapter.IsSelected)
+        {
+            ViewModel.HandleChapterClick(chapter, DesktopSelectionModifiers.None);
         }
 
         button.ContextMenu.DataContext = DataContext;

@@ -66,9 +66,8 @@ public sealed class CachePagesViewTests
                      "App.Selection.CardItem",
                      "App.Menu.ContextSurface",
                      "App.Menu.Item",
-                     "App.Progress.Compact",
-                     "App.Button.Secondary",
-                     "App.Feedback.InlineMessage",
+                     "App.Button.Icon",
+                     "App.Button.DangerIcon",
                      "AppStatusView"
                  })
         {
@@ -132,11 +131,6 @@ public sealed class CachePagesViewTests
                     ClearSelectedChaptersCommand = new RelayCommand(() => { }),
                     ExportSelectedChaptersCommand = new RelayCommand(() => { }),
                     ExportCommandToolTip = "将所选章节导出为 MP3",
-                    IsExporting = false,
-                    ExportStatusText = string.Empty,
-                    CanOpenExportDirectory = false,
-                    CancelExportCommand = new RelayCommand(() => { }),
-                    OpenExportDirectoryCommand = new AsyncRelayCommand(() => Task.CompletedTask)
                 };
 
                 page.Measure(new Size(1200, 800));
@@ -207,7 +201,7 @@ public sealed class CachePagesViewTests
                 page.Arrange(new Rect(0, 0, 1200, 800));
                 page.UpdateLayout();
 
-                var clearButton = Assert.IsType<Button>(page.FindName("ClearSelectedChaptersButton"));
+                var clearButton = Assert.IsType<Wpf.Ui.Controls.Button>(page.FindName("ClearSelectedChaptersButton"));
                 var exportButton = Assert.IsType<Button>(page.FindName("ExportSelectedChaptersButton"));
 
                 Assert.False(clearButton.IsEnabled);
@@ -305,11 +299,6 @@ public sealed class CachePagesViewTests
                         () => { },
                         () => false),
                     ExportCommandToolTip = "导出可用章节；不可导出章节将先请求确认",
-                    IsExporting = false,
-                    ExportStatusText = string.Empty,
-                    CanOpenExportDirectory = false,
-                    CancelExportCommand = new RelayCommand(() => { }),
-                    OpenExportDirectoryCommand = new AsyncRelayCommand(() => Task.CompletedTask)
                 };
 
                 var frame = new Frame
@@ -372,11 +361,13 @@ public sealed class CachePagesViewTests
                     .ToArray();
                 Assert.Empty(chapterCleanupButtons);
 
-                var clearButton = Assert.IsType<Button>(page.FindName("ClearSelectedChaptersButton"));
+                var clearButton = Assert.IsType<Wpf.Ui.Controls.Button>(page.FindName("ClearSelectedChaptersButton"));
                 var exportButton = Assert.IsType<Button>(page.FindName("ExportSelectedChaptersButton"));
-                Assert.Equal("清理", clearButton.Content);
+                var clearIcon = Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(clearButton.Content);
+                var exportIcon = Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(exportButton.Content);
+                Assert.Equal(Wpf.Ui.Controls.SymbolRegular.Delete24, clearIcon.Symbol);
                 Assert.Equal("清理所选章节缓存", AutomationProperties.GetName(clearButton));
-                Assert.Equal("导出", exportButton.Content);
+                Assert.Equal(Wpf.Ui.Controls.SymbolRegular.ArrowDownload24, exportIcon.Symbol);
                 Assert.Equal("导出所选章节", AutomationProperties.GetName(exportButton));
                 Assert.Equal("导出可用章节；不可导出章节将先请求确认", exportButton.ToolTip);
                 Assert.False(exportButton.IsEnabled);
@@ -387,6 +378,16 @@ public sealed class CachePagesViewTests
                 var firstChapterButton = Assert.Single(
                     VisualTreeTestHelper.FindDescendants<Button>(chaptersListBox),
                     button => AutomationProperties.GetName(button) == chapters[0].AutomationName);
+                var visibleChapterButtons = VisualTreeTestHelper.FindDescendants<Button>(chaptersListBox)
+                    .Where(button => chapters.Any(chapter => AutomationProperties.GetName(button) == chapter.AutomationName))
+                    .ToArray();
+                Assert.True(firstChapterButton.ActualWidth > chaptersListBox.ActualWidth - 48d);
+                Assert.All(
+                    visibleChapterButtons,
+                    button => Assert.InRange(Math.Abs(button.ActualWidth - firstChapterButton.ActualWidth), 0d, 2d));
+                var chaptersSurface = Assert.IsType<AppSectionSurface>(page.FindName("ChaptersSurface"));
+                Assert.True(string.IsNullOrWhiteSpace(chaptersSurface.Header));
+                Assert.True(string.IsNullOrWhiteSpace(chaptersSurface.Description));
                 var chapterContextMenu = Assert.IsType<ContextMenu>(firstChapterButton.ContextMenu);
                 Assert.Same(page.FindResource("App.Menu.ContextSurface"), chapterContextMenu.Style);
                 Assert.Equal(
@@ -414,7 +415,7 @@ public sealed class CachePagesViewTests
     }
 
     [Fact]
-    public void CacheManagementPage_exposes_export_status_cancel_open_and_chapter_tooltip_contracts()
+    public void CacheManagementPage_keeps_export_progress_out_of_page_and_exposes_header_icons_and_chapter_tooltip_contracts()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -447,33 +448,24 @@ public sealed class CachePagesViewTests
                     ChapterSelectionSummary = "已选择 1 章",
                     ClearSelectedChaptersCommand = new RelayCommand(() => { }),
                     ExportSelectedChaptersCommand = new RelayCommand(() => { }),
-                    ExportCommandToolTip = "所选章节缓存不完整，无法导出",
-                    IsExporting = true,
-                    ExportStatusText = "正在导出 1 章…",
-                    CanOpenExportDirectory = true,
-                    CancelExportCommand = new RelayCommand(() => { }),
-                    OpenExportDirectoryCommand = new AsyncRelayCommand(() => Task.CompletedTask)
+                    ExportCommandToolTip = "所选章节缓存不完整，无法导出"
                 };
 
                 page.Measure(new Size(1200, 800));
                 page.Arrange(new Rect(0, 0, 1200, 800));
                 page.UpdateLayout();
 
-                var progressPanel = Assert.IsType<Border>(page.FindName("ExportProgressPanel"));
-                var cancelButton = Assert.IsType<Button>(page.FindName("CancelExportButton"));
-                var openButton = Assert.IsType<Button>(page.FindName("OpenExportDirectoryButton"));
+                var clearButton = Assert.IsType<Wpf.Ui.Controls.Button>(page.FindName("ClearSelectedChaptersButton"));
+                var exportButton = Assert.IsType<Button>(page.FindName("ExportSelectedChaptersButton"));
                 var chapterButton = Assert.Single(
                     VisualTreeTestHelper.FindDescendants<Button>(page),
                     button => AutomationProperties.GetName(button) == chapter.AutomationName);
 
-                Assert.Equal(Visibility.Visible, progressPanel.Visibility);
-                Assert.Contains(
-                    VisualTreeTestHelper.FindDescendants<ProgressBar>(progressPanel),
-                    progress => progress.IsIndeterminate);
-                Assert.Equal("取消章节导出", AutomationProperties.GetName(cancelButton));
-                Assert.Equal("取消导出", cancelButton.ToolTip);
-                Assert.Equal("打开导出目录", AutomationProperties.GetName(openButton));
-                Assert.Equal("打开目录", openButton.ToolTip);
+                Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(clearButton.Content);
+                Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(exportButton.Content);
+                Assert.Null(page.FindName("ExportProgressPanel"));
+                Assert.Null(page.FindName("CancelExportButton"));
+                Assert.Null(page.FindName("OpenExportDirectoryButton"));
                 Assert.Equal(chapter.ExportToolTip, chapterButton.ToolTip);
                 Assert.Contains("缓存不完整，无法导出", chapter.AutomationName, StringComparison.Ordinal);
                 Assert.DoesNotContain(
@@ -502,9 +494,7 @@ public sealed class CachePagesViewTests
                 new PageVisualReviewScenario("empty", 1d),
                 new PageVisualReviewScenario("empty", 1.5d),
                 new PageVisualReviewScenario("selected", 1d, PopulateSelectedState),
-                new PageVisualReviewScenario("selected", 1.5d, PopulateSelectedState),
-                new PageVisualReviewScenario("exporting", 1d, PopulateExportingState),
-                new PageVisualReviewScenario("exporting", 1.5d, PopulateExportingState)
+                new PageVisualReviewScenario("selected", 1.5d, PopulateSelectedState)
             };
 
             PageVisualReviewHarness.GenerateAndVerifyRepeatable(
@@ -517,22 +507,12 @@ public sealed class CachePagesViewTests
 
     private static void PopulateSelectedState(FrameworkElement element)
     {
-        element.DataContext = CreateVisualContext(isExporting: false);
+        element.DataContext = CreateVisualContext();
     }
 
-    private static void PopulateExportingState(FrameworkElement element)
+    private static CacheManagementVisualContext CreateVisualContext()
     {
-        element.DataContext = CreateVisualContext(isExporting: true);
-    }
-
-    private static CacheManagementVisualContext CreateVisualContext(bool isExporting)
-    {
-        var context = new CacheManagementVisualContext
-        {
-            IsExporting = isExporting,
-            IsBusy = isExporting,
-            ExportStatusText = isExporting ? "正在导出 2 章…" : string.Empty
-        };
+        var context = new CacheManagementVisualContext();
         context.Books.Add(new CachedBookListItemViewModel(
             "book-1", "一部很长的测试小说标题", "脱敏作者", "18.4 MB", "已缓存 7 章"));
         context.Books.Add(new CachedBookListItemViewModel(
@@ -591,14 +571,6 @@ public sealed class CachePagesViewTests
 
         public bool IsLoadingChapters { get; } = false;
 
-        public bool IsBusy { get; init; }
-
-        public bool IsExporting { get; init; }
-
-        public string ExportStatusText { get; init; } = string.Empty;
-
-        public bool CanOpenExportDirectory { get; } = false;
-
         public bool ShowSelectionPrompt { get; } = false;
 
         public bool ShowSelectedBookEmptyState { get; } = false;
@@ -621,9 +593,6 @@ public sealed class CachePagesViewTests
 
         public RelayCommand ExportSelectedChaptersCommand { get; } = new(() => { });
 
-        public RelayCommand CancelExportCommand { get; } = new(() => { });
-
-        public AsyncRelayCommand OpenExportDirectoryCommand { get; } = new(() => Task.CompletedTask);
     }
 
 }
