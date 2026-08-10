@@ -715,7 +715,7 @@ sans-serif
 | Book Details | Typography、Input、Selection、Progress | AppPageHeader、AppSectionSurface、AppStatusView | 摘要、编辑区、目录模板、虚拟化与定位 |
 | TTS/Chapter/Regex Rules | Typography、Input、Selection、Menu、Feedback | AppPageHeader、AppSectionSurface、AppFormField、AppStatusView | Rules 共享列表项、各自字段、分栏和 Dirty State |
 | Cache And Data | Typography、Input、Button、Feedback | AppPageHeader、AppSettingsList、AppSettingsRow、AppSettingsNavigationRow | 无标题列表 Surface、数据操作、确认和路径信息 |
-| Cache Management | Typography、Selection、Progress、Menu、Feedback | AppPageHeader、AppSectionSurface、AppStatusView | 单书分栏、章节项、多选工具栏和后台状态 |
+| Cache Management | Typography、Selection、Menu、Feedback、Button | AppPageHeader、AppSectionSurface、AppStatusView | 单书分栏、全宽章节项和 PageHeader 多选动作；导出后台状态由 Shell 投影 |
 | Player | Typography、Surface、Button、Media、Progress、Feedback | AppPageHeader、AppSectionSurface、AppStatusView | PlayerView、正文、侧栏、滚动追随和 Flyout 内容 |
 | Mini Player | Typography、Surface、Button、Media | 无强制复合控件 | 固定横向布局、窗口动作和尺寸约束 |
 | Dialog/Flyout/Snackbar | Button、Surface、Typography、Feedback | AppStatusView 仅用于内容状态 | Wpf.Ui host、真实文案、命令和生命周期 |
@@ -776,10 +776,12 @@ sans-serif
 
 ### 12.6 缓存管理
 
-- 左侧单书选择，右侧章节列表。
-- 使用文件管理器式多选和统一 Selected 状态。
-- 工具栏只保留作用于选中项的操作。
+- 左侧单书选择；右侧 `AppSectionSurface` 使用无 Header 状态，直接显示当前书籍摘要和章节列表，不重复“章节缓存 / 当前书名”。无 Header/Description 时 Surface 内容区不得留下标题间距。
+- 使用文件管理器式多选和统一 Selected 状态；右键未选项先变为唯一选择，右键已选项保留多选集合。
+- `AppPageHeader.Actions` 显示“已选择 N 章”以及清理 DangerIcon、导出 IconButton；按钮无文字但必须有 Tooltip/AutomationName。页面正文不再放多选工具栏或导出进度卡片。
+- 章节 `ListBoxItem` 的 ContentPresenter 必须继承 HorizontalContentAlignment，使卡片铺满 ScrollViewer 可用宽度；禁止通过固定 Width 伪造统一宽度，横向不出现滚动条。
 - 缓存管理页显示所有有缓存章节，包括当前配置完整度为 0% 的章节。
+- 章节导出运行态/完成态属于 Shell Footer/Flyout 的进程级投影，不属于 CacheManagement Surface。
 
 ### 12.7 迷你播放器
 

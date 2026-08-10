@@ -76,12 +76,13 @@ App 的业务页面不得直接依赖 Infrastructure；所有业务动作通过 
 | 当前音频输出 | Local audio coordinator | Playback session |
 | 页面加载/编辑副本 | 对应 Page/ViewModel | Page activation |
 | 主动缓存批次 | Application background cache coordinator | Process/background job |
+| 章节 MP3 导出批次 | Application chapter export coordinator | Process/background job |
 | 章节朗读清单构建与完整度补建 | 播放、预取、主动缓存、导出用例及缓存工作区的进程级后台 owner；同章 in-flight 任务负责并发合并 | Process/background job or operation |
 | 托盘/迷你窗口 | Desktop shell coordinator | Process |
 | 当前设置快照 | Settings service | Process |
 | 短操作 | 发起用例/控制器 | Operation |
 
-页面离开只能取消页面拥有的工作，不能误取消正在播放或已经启动的主动缓存任务。
+页面离开只能取消页面拥有的工作，不能误取消正在播放、已经启动的主动缓存任务或已经提交给章节导出协调器的 MP3 导出批次。缓存管理页只拥有导出前的确认与目录选择。
 
 ## 7. 播放与主动缓存架构
 
@@ -109,6 +110,8 @@ Current playback > Playback prefetch > Active cache
 同一规则的所有请求必须经过同一异步并发/速率限制器，不能为主动缓存另建绕过限制的客户端或 semaphore。
 
 主动缓存协调器负责批次快照、章节队列、进度、取消和状态发布；播放器只提交缓存请求，不拥有后台批次。
+
+章节 MP3 导出采用独立的进程级 `IChapterExportCoordinator`：缓存管理页完成可导出性预检、跳过确认和目录选择后提交不可变批次参数，协调器拥有批次 CTS、执行 Task、章节级进度和终态快照。Shell 只投影协调器状态并提供取消/打开目录/关闭完成状态，不拥有导出任务。当前阶段不抽象通用后台任务中心。
 
 章节朗读清单由播放、预取、主动缓存和导出等真正消费章节内容的用例按需建立或更新；完整度读取发现过期计划时由进程级缓存工作区 owner 异步补建，缓存管理页对有缓存但缺失计划的章节同样补建，同章请求合并为一个后台任务。普通目录遇到缺失计划不建立清单；所有页面首轮查询只聚合 SQLite 计划和 `Ready` 索引，不重新处理正文、不逐文件解码。正式缓存写入前必须先提交对应计划。删除某章最后一条缓存索引时同步回收其朗读清单。
 

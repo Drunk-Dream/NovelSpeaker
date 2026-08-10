@@ -108,6 +108,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 → 章节规则
 → 正则替换
 → 缓存管理
+→ 缓存管理后台导出初版调试/审阅
 → 播放页
 → 主窗口与启动窗口
 → Dialog/Flyout/Snackbar 与状态视图
@@ -881,6 +882,10 @@ artifacts/visual-review/windows/<window-id>/
 
 ## [x] 27（P1）：迁移缓存管理页
 
+> 历史完成项。其“页面内导出进度/取消/打开目录、页面离开取消导出”等行为已由后续 27A 的新方案取代；实现当前行为时以 27A 和现行 `docs/` 为准。
+>
+> 本节下方的实现、自动验收和结果记录保留的是 27A 前历史基线，不代表当前缓存页仍提供页面内导出进度、取消、打开目录或页面离开取消；当前行为以 27A 的结果和现行设计文档为准。
+
 前置：18、21、26。
 
 实现：
@@ -901,9 +906,42 @@ artifacts/visual-review/windows/<window-id>/
 
 结果：`CacheManagementPage` 已迁移为透明页面根、正式 `AppPageHeader` 和 `2:3` 比例的左右 `AppSectionSurface`；书籍卡片与章节卡片使用正式 `App.Selection.CardItem`，章节列表保留虚拟化回收和文件管理器式多选工具栏，并为所选章节操作提供正式 `App.Menu.ContextSurface` 上下文菜单。加载、空书籍、未选书籍、章节加载和无缓存状态统一使用 `AppStatusView`，导出状态使用正式 `App.Feedback.InlineMessage` 与 `App.Progress.Compact`，清理/导出/取消/打开目录使用正式 Button 资源。缓存书籍和章节项仍由 Cache Feature 持有；0%、计划计算中、计划更新中、配置不可用和无可播放内容继续由现有完整度投影明确显示；单书选择、Ctrl/Shift/Ctrl+A、清理、导出、确认/取消、状态刷新和页面离开取消语义保持不变。章节加载时工作区保持折叠，避免与 Loading 状态重叠。该页全部 Legacy 资源键引用已删除。新增正式结构、菜单、Legacy 清零、0%/不可用状态、加载态、虚拟化、导出状态和页面视觉回归测试；`artifacts/visual-review/pages/cache-management/` 已生成空态/选择态/导出态 × Light/Dark × 100%/150% 的 12 张 PNG 与 manifest，重复渲染校验通过，`artifacts/` 按仓库规则不入 Git。完整质量门禁通过：locked restore 无依赖变化，format、Release build（0 警告/0 错误）和完整测试通过。
 
+## [x] 27A（P0）：调试、修复、审阅并提交缓存管理后台导出初版
+
+前置：27。
+
+背景：
+
+- 当前更新包已经给出缓存管理右侧布局调整、进程级章节导出协调器、Shell 导出进度/Flyout 和对应测试的初版实现。
+- 本任务以现有初版为基线进行工程化收口，不重新设计已经确认的交互方案；如实现与当前 `docs/` 冲突，以当前文档为准。
+
+实现：
+
+- 先执行 locked restore、format 检查、Release build 和完整测试，定位并修复初版中的编译、DI、WPF Binding、线程调度、并发、取消、生命周期和资源释放问题。
+- 审阅 `IChapterExportCoordinator` / `ChapterExportCoordinator`：保证全应用最多一个活动批次，提交参数被冻结，章级进度单调且归属正确，取消/失败/成功终态稳定，新批次不会被旧回调污染。
+- 审阅 `ExportChaptersService`、`ChapterMp3ExportWriter` 与 `AudioCacheExportLease`：后台化不得改变 MP3 内容/命名合同；整个 writer 批次持有缓存保护，清理/LRU 不得删除正在导出的来源文件；取消/失败继续清理 staging 且不覆盖已有文件。
+- 审阅 `CacheManagementViewModel/Page`：右侧不再显示重复二级 Header；“已选择 N 章”与清理/导出图标位于 PageHeader；页面不再持有已提交导出的进度/取消/打开目录状态；页面离开只取消提交前确认/目录选择；章节卡片全宽且保持虚拟化；右键未选章节变为唯一选择，右键已选章节保持多选集合。
+- 审阅 `ShellChapterExportController/MainWindow`：运行态显示 `导出中 · x/y 章 · n%` 与可取消 Flyout；成功态保留 `导出完成 · N 章` 并提供“打开目录/关闭”；成功只通知一次，失败/取消 Snackbar 后清除；导航和关闭到托盘不取消。
+- 审阅真正退出流程：进程退出时请求取消章节导出并有界等待，不因后台任务阻塞退出；普通导航、切换书籍和隐藏主窗口不得触发该取消。
+- 补齐/修复 Application、Presentation、WPF、DI 与必要 Integration 测试；移除已经过期的页面内导出 Progress/Cancel/Open Directory 断言，并更新缓存管理视觉回归场景为当前正式布局。
+- 做一次主 agent 级完整 diff 审阅，检查无重复后台 owner、无页面级 fire-and-forget、无业务逻辑进入共享视觉控件、无无关重构。按可回溯性拆分为多个原子提交；每个提交只包含一组可独立解释的修改。
+
+自动验收：
+
+- `ChapterExportCoordinator` 的单批次互斥、参数冻结、章级进度、取消、失败、安全终态和页面离开后继续执行测试通过。
+- Cache Management 的 PageHeader 图标、无重复右侧 Header、全宽章节卡片、ContextMenu 选择语义、虚拟化和导出提交前流程测试通过。
+- Shell 导出运行态、取消、完成态持续显示、打开目录/关闭、失败/取消通知和导航持续性测试通过。
+- 导出缓存保护、临时文件清理、已有文件不覆盖以及真正退出取消测试通过。
+- `dotnet restore --locked-mode`、format、Release build（0 警告/0 错误）和完整测试门禁通过。
+- 审阅无阻断问题后完成原子提交，并在本任务下记录实际测试数、关键修复和提交摘要，再将任务标记为完成。
+
+结果：已完成三组可回溯原子提交。`ChapterExportCoordinator` 现拥有单一进程级批次、冻结的书籍/章节标题与目标目录、单调且按批次归属的进度、取消/失败/成功终态和有界释放；`ExportChaptersService`/writer 在整个批次持有 `AudioCacheExportLease`，继续遵守 staging 清理、已有文件不覆盖和缓存保护合同。`CacheManagementPage/ViewModel` 已移除已提交导出的页面级状态，右侧无重复 Header，PageHeader 提供选择摘要与图标动作，章节卡片全宽，右键选择语义和页面离开边界已固定。Shell 新增进程级导出 Footer/Flyout 投影，成功状态持续到打开目录或关闭，失败/取消只通知一次后清除；真正退出请求取消并有界等待，导航、切书和托盘隐藏不取消。另修复 WPF 原生 Button 与 Wpf.Ui DangerIcon TargetType 不匹配、缓存章节卡片未铺满宽度、页面离开调度竞态以及旧完成批次清除新批次投影等问题。
+
+自动验收：Domain 2、Application 219、Infrastructure 348、Presentation 405、WPF 417，共 1,391 项测试全部通过；locked restore 无依赖变化，format 通过，Release build 0 警告/0 错误。提交摘要：`62389f2 feat(export): coordinate background chapter mp3 batches`、`7a83896 refactor(cache): hand off chapter export to coordinator`、`cd2670a feat(shell): project chapter export lifecycle`。
+
 ## [ ] 28（P1）：迁移播放页与 PlayerView
 
-前置：8、21、27。
+前置：8、21、27A。
 
 实现：
 
@@ -931,7 +969,7 @@ artifacts/visual-review/windows/<window-id>/
 - 迁移 `MainWindow` 的 Window Chrome、一级导航、内容宿主和全局运行时入口。
 - 迁移 `StartupStatusWindow` 到正式 Typography、Surface、Progress、Feedback 和 AppStatusView。
 - Shell 只拥有标题栏、导航、内容边界和 Window Background，不向页面重复注入 Padding/FrameMargin；正式 Page 自身从根区域覆盖 Canvas。
-- 保持最小化、最大化、恢复、关闭到托盘、真正退出、未保存导航守卫、播放和主动缓存入口语义。
+- 保持最小化、最大化、恢复、关闭到托盘、真正退出、未保存导航守卫、播放、主动缓存和章节导出入口/Flyout 语义。
 - 删除两个窗口全部 Legacy 键引用。
 
 自动验收：
