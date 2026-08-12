@@ -15,4 +15,27 @@ public sealed partial class StartupStatusViewModel : ObservableObject
 
     [ObservableProperty]
     private string detailText = "首次启动或升级后，应用可能需要几秒完成初始化。";
+
+    [ObservableProperty]
+    private bool hasError;
+
+    public void ReportStage(string status, string detail)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        ArgumentNullException.ThrowIfNull(detail);
+
+        HasError = false;
+        StatusText = status;
+        DetailText = detail;
+    }
+
+    internal void ShowFailure(StartupFailure failure)
+    {
+        ArgumentNullException.ThrowIfNull(failure);
+
+        Title = failure.Title;
+        StatusText = "启动未完成";
+        DetailText = failure.Message;
+        HasError = true;
+    }
 }

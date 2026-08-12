@@ -9,6 +9,64 @@ namespace NovelSpeaker.App.WpfTests.Bootstrap;
 [Collection("WpfDispatcher")]
 public sealed class WpfStartupRuntimeTests
 {
+    [Theory]
+    [InlineData("desktop")]
+    [InlineData("media")]
+    [InlineData("background")]
+    public async Task Shell_failure_keeps_startup_status_open_for_error_projection(string failurePoint)
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var statusCloseCalls = 0;
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                WpfStartupRuntime.CompleteShellStartupAsync(
+                    _ => failurePoint == "desktop"
+                        ? Task.FromException(new InvalidOperationException("desktop"))
+                        : Task.CompletedTask,
+                    _ => failurePoint == "media"
+                        ? Task.FromException(new InvalidOperationException("media"))
+                        : Task.CompletedTask,
+                    _ =>
+                    {
+                        if (failurePoint == "background")
+                        {
+                            throw new InvalidOperationException("background");
+                        }
+                    },
+                    () => statusCloseCalls++,
+                    CancellationToken.None));
+
+            Assert.Equal(0, statusCloseCalls);
+        });
+    }
+
+    [Fact]
+    public async Task Successful_shell_startup_closes_status_after_all_runtime_steps()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var events = new List<string>();
+
+            await WpfStartupRuntime.CompleteShellStartupAsync(
+                _ =>
+                {
+                    events.Add("desktop");
+                    return Task.CompletedTask;
+                },
+                _ =>
+                {
+                    events.Add("media");
+                    return Task.CompletedTask;
+                },
+                _ => events.Add("background"),
+                () => events.Add("close"),
+                CancellationToken.None);
+
+            Assert.Equal(["desktop", "media", "background", "close"], events);
+        });
+    }
+
     [Fact]
     public async Task Shutdown_cancels_chapter_export_before_stopping_cache_background_work()
     {

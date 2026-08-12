@@ -1,6 +1,7 @@
 <Window x:Class="NovelSpeaker.App.Bootstrap.StartupStatusWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:feedbackControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Feedback"
         Title="{Binding Title}"
         Width="420"
         Height="220"
@@ -8,21 +9,45 @@
         WindowStartupLocation="CenterScreen"
         WindowStyle="ToolWindow"
         ShowInTaskbar="False"
-        Background="{DynamicResource ApplicationBackgroundBrush}">
-    <Border Padding="{StaticResource DialogPadding}">
+        Background="{DynamicResource App.Brush.Window.Background}">
+    <Border x:Name="StartupSurface"
+            Margin="12"
+            Padding="12"
+            Style="{StaticResource App.Surface.DialogContent}">
         <StackPanel VerticalAlignment="Center">
-            <TextBlock Style="{StaticResource DialogTitleTextBlockStyle}"
-                       Text="{Binding Title}" />
-            <TextBlock Margin="0,18,0,0"
-                       Style="{StaticResource StatusTextBlockStyle}"
-                       Text="{Binding StatusText}" />
-            <TextBlock Margin="0,12,0,0"
-                       Style="{StaticResource SecondaryTextBlockStyle}"
-                       TextWrapping="Wrap"
-                       Text="{Binding DetailText}" />
-            <ProgressBar Margin="0,20,0,0"
-                         Height="10"
-                         IsIndeterminate="True" />
+            <feedbackControls:AppStatusView x:Name="StartupStatusView"
+                                            Title="{Binding StatusText}"
+                                            Description="{Binding DetailText}"
+                                            AutomationProperties.Name="{Binding StatusText}">
+                <feedbackControls:AppStatusView.Style>
+                    <Style TargetType="feedbackControls:AppStatusView"
+                           BasedOn="{StaticResource {x:Type feedbackControls:AppStatusView}}">
+                        <Setter Property="Status" Value="Loading" />
+                        <Setter Property="Icon" Value="ArrowSync24" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Status" Value="Error" />
+                                <Setter Property="Icon" Value="ErrorCircle24" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </feedbackControls:AppStatusView.Style>
+            </feedbackControls:AppStatusView>
+            <ProgressBar x:Name="StartupProgressBar"
+                         Margin="0,16,0,0"
+                         IsIndeterminate="True"
+                         AutomationProperties.Name="启动进度">
+                <ProgressBar.Style>
+                    <Style TargetType="ProgressBar"
+                           BasedOn="{StaticResource App.Progress.Standard}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ProgressBar.Style>
+            </ProgressBar>
         </StackPanel>
     </Border>
 </Window>

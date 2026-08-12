@@ -71,6 +71,7 @@ public sealed class StartupCoordinatorTests
         Assert.DoesNotContain("正文机密句", runtime.VisibleFailures[0], StringComparison.Ordinal);
         Assert.Equal(stage == StartupStage.Shell ? 1 : 0, runtime.ShellCalls);
         Assert.True(runtime.StatusClosed);
+        Assert.Equal(["show", "failure", "close"], runtime.StartupStatusEvents);
     }
 
     [Fact]
@@ -296,6 +297,8 @@ public sealed class StartupCoordinatorTests
 
         public bool StatusClosed { get; private set; }
 
+        public List<string> StartupStatusEvents { get; } = [];
+
         public CancellationToken ShellProcessToken { get; private set; }
 
         public Task BackgroundCancellation => _backgroundCancellation.Task;
@@ -318,6 +321,7 @@ public sealed class StartupCoordinatorTests
 
         public void ShowStartupStatus()
         {
+            StartupStatusEvents.Add("show");
         }
 
         public Task ReportStageAsync(StartupStage stage, CancellationToken cancellationToken)
@@ -383,11 +387,13 @@ public sealed class StartupCoordinatorTests
 
         public void ShowStartupFailure(StartupFailure failure)
         {
+            StartupStatusEvents.Add("failure");
             VisibleFailures.Add($"{failure.Title} {failure.Message}");
         }
 
         public void CloseStartupStatus()
         {
+            StartupStatusEvents.Add("close");
             StatusClosed = true;
         }
 

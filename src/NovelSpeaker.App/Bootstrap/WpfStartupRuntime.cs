@@ -89,8 +89,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         await _dispatcher.InvokeAsync(
             () =>
             {
-                _statusViewModel.StatusText = text.Status;
-                _statusViewModel.DetailText = text.Detail;
+                _statusViewModel.ReportStage(text.Status, text.Detail);
             },
             DispatcherPriority.Background,
             cancellationToken);
@@ -185,13 +184,30 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
             desktopLifecycle.RequestMainWindowCloseAsync,
             () => desktopLifecycle.IsExitApproved);
         _setMainWindow(window);
-        CloseStartupStatus();
-        await desktopLifecycle.StartAsync(cancellationToken).ConfigureAwait(true);
-        await RequireServices()
-            .GetRequiredService<IMediaControlCoordinator>()
-            .StartAsync(cancellationToken)
-            .ConfigureAwait(true);
-        StartBackgroundCacheMaintenance(cancellationToken);
+        await CompleteShellStartupAsync(
+            desktopLifecycle.StartAsync,
+            RequireServices().GetRequiredService<IMediaControlCoordinator>().StartAsync,
+            StartBackgroundCacheMaintenance,
+            CloseStartupStatus,
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    internal static async Task CompleteShellStartupAsync(
+        Func<CancellationToken, Task> startDesktopLifecycleAsync,
+        Func<CancellationToken, Task> startMediaControlsAsync,
+        Action<CancellationToken> startBackgroundMaintenance,
+        Action closeStartupStatus,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(startDesktopLifecycleAsync);
+        ArgumentNullException.ThrowIfNull(startMediaControlsAsync);
+        ArgumentNullException.ThrowIfNull(startBackgroundMaintenance);
+        ArgumentNullException.ThrowIfNull(closeStartupStatus);
+
+        await startDesktopLifecycleAsync(cancellationToken).ConfigureAwait(true);
+        await startMediaControlsAsync(cancellationToken).ConfigureAwait(true);
+        startBackgroundMaintenance(cancellationToken);
+        closeStartupStatus();
     }
 
     public void BeginShutdown()
@@ -331,6 +347,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
 
     public void ShowStartupFailure(StartupFailure failure)
     {
+        _statusViewModel.ShowFailure(failure);
         MessageBox.Show(
             failure.Message,
             failure.Title,

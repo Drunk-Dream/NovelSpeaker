@@ -19,7 +19,8 @@ internal static class WindowVisualReviewHarness
         int width,
         int height,
         IReadOnlyList<WindowVisualReviewScenario> scenarios,
-        Func<WindowVisualReviewWindow> createWindow)
+        Func<WindowVisualReviewWindow> createWindow,
+        bool useActualClientSize = false)
     {
         var outputDirectory = Path.Combine(
             repositoryRoot,
@@ -30,12 +31,12 @@ internal static class WindowVisualReviewHarness
         Directory.CreateDirectory(outputDirectory);
         var expectedGitCommit = ReadGitCommit(repositoryRoot);
 
-        Generate(outputDirectory, artifactId, expectedGitCommit, width, height, scenarios, createWindow);
+        Generate(outputDirectory, artifactId, expectedGitCommit, width, height, scenarios, createWindow, useActualClientSize);
         var first = ReadManifest(outputDirectory);
         AssertManifest(first, outputDirectory, artifactId, expectedGitCommit, width, height, scenarios.Count * 2);
         var firstSnapshot = CreateLayoutSnapshot(first);
 
-        Generate(outputDirectory, artifactId, expectedGitCommit, width, height, scenarios, createWindow);
+        Generate(outputDirectory, artifactId, expectedGitCommit, width, height, scenarios, createWindow, useActualClientSize);
         var second = ReadManifest(outputDirectory);
         AssertManifest(second, outputDirectory, artifactId, expectedGitCommit, width, height, scenarios.Count * 2);
         Assert.Equal(firstSnapshot, CreateLayoutSnapshot(second));
@@ -48,7 +49,8 @@ internal static class WindowVisualReviewHarness
         int width,
         int height,
         IReadOnlyList<WindowVisualReviewScenario> scenarios,
-        Func<WindowVisualReviewWindow> createWindow)
+        Func<WindowVisualReviewWindow> createWindow,
+        bool useActualClientSize)
     {
         var entries = new List<WindowVisualReviewEntry>();
         var themeRuntime = new WpfUiThemeRuntime();
@@ -73,6 +75,10 @@ internal static class WindowVisualReviewHarness
                     fixture.Window.Dispatcher.Invoke(static () => { }, DispatcherPriority.ApplicationIdle);
                     fixture.Window.UpdateLayout();
                     var content = Assert.IsAssignableFrom<FrameworkElement>(fixture.Window.Content);
+                    var renderWidth = useActualClientSize ? content.ActualWidth : width;
+                    var renderHeight = useActualClientSize ? content.ActualHeight : height;
+                    Assert.True(renderWidth > 0);
+                    Assert.True(renderHeight > 0);
                     fixture.Window.Content = null;
                     var shell = new Border
                     {
@@ -80,11 +86,15 @@ internal static class WindowVisualReviewHarness
                         DataContext = fixture.Window.DataContext
                     };
                     shell.SetResourceReference(Border.BackgroundProperty, "App.Brush.Window.Background");
+                    VisualTreeHelper.SetRootDpi(shell, new DpiScale(scenario.Scale, scenario.Scale));
                     using var host = new WpfControlHost(shell);
-                    host.MeasureArrange(new Size(width, height));
+                    host.MeasureArrange(new Size(renderWidth, renderHeight));
+                    var layoutDpi = VisualTreeHelper.GetDpi(shell);
+                    Assert.Equal(scenario.Scale, layoutDpi.DpiScaleX, 3);
+                    Assert.Equal(scenario.Scale, layoutDpi.DpiScaleY, 3);
 
                     var dpi = 96 * scenario.Scale;
-                    var png = EncodePng(host.Render(new Size(width, height), dpi));
+                    var png = EncodePng(host.Render(new Size(renderWidth, renderHeight), dpi));
                     var frame = DecodePng(png);
                     var fileName = $"{artifactId}.{scenario.Id}.{themeName}.{scenario.Scale * 100:0}.png";
                     File.WriteAllBytes(Path.Combine(outputDirectory, fileName), png);
@@ -93,6 +103,8 @@ internal static class WindowVisualReviewHarness
                         themeName,
                         scenario.Scale,
                         dpi,
+                        renderWidth,
+                        renderHeight,
                         frame.PixelWidth,
                         frame.PixelHeight,
                         fileName,
@@ -154,6 +166,8 @@ internal static class WindowVisualReviewHarness
                 entry.Theme,
                 entry.Scale,
                 entry.Dpi,
+                entry.ContentWidth,
+                entry.ContentHeight,
                 entry.Width,
                 entry.Height,
                 entry.Png
@@ -185,8 +199,8 @@ internal static class WindowVisualReviewHarness
             var frame = DecodePng(png);
             Assert.Equal(entry.Width, frame.PixelWidth);
             Assert.Equal(entry.Height, frame.PixelHeight);
-            Assert.Equal((int)Math.Ceiling(width * entry.Scale), frame.PixelWidth);
-            Assert.Equal((int)Math.Ceiling(height * entry.Scale), frame.PixelHeight);
+            Assert.Equal((int)Math.Ceiling(entry.ContentWidth * entry.Scale), frame.PixelWidth);
+            Assert.Equal((int)Math.Ceiling(entry.ContentHeight * entry.Scale), frame.PixelHeight);
             Assert.InRange(frame.DpiX, entry.Dpi - 0.1, entry.Dpi + 0.1);
             Assert.InRange(frame.DpiY, entry.Dpi - 0.1, entry.Dpi + 0.1);
         }
@@ -233,6 +247,8 @@ internal static class WindowVisualReviewHarness
         string Theme,
         double Scale,
         double Dpi,
+        double ContentWidth,
+        double ContentHeight,
         int Width,
         int Height,
         string Png,
