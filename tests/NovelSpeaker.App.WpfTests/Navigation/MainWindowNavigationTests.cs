@@ -2,13 +2,16 @@ using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
+using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Features.Appearance;
+using System.IO;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.ActiveCache;
@@ -312,6 +315,149 @@ public sealed class MainWindowNavigationTests
     }
 
     [Fact]
+    public async Task Main_window_uses_formal_shell_resources_without_legacy_keys_or_page_margin()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            var window = provider.GetRequiredService<MainWindow>();
+            try
+            {
+                window.Width = 960;
+                window.Height = 640;
+                WpfWindowHost.Show(window);
+                await DrainDispatcherAsync(window.Dispatcher);
+                window.UpdateLayout();
+
+                var navigationView = GetNavigationView(window);
+                Assert.Equal(220, navigationView.OpenPaneLength);
+                Assert.Equal(64, navigationView.CompactPaneLength);
+                var navigationStyle = window.FindResource("App.Navigation.Entry");
+                Assert.All(
+                    navigationView.MenuItems.Cast<NavigationViewItem>(),
+                    item => Assert.Same(navigationStyle, item.Style));
+                Assert.All(
+                    navigationView.FooterMenuItems.Cast<NavigationViewItem>(),
+                    item => Assert.Same(navigationStyle, item.Style));
+
+                Assert.Same(
+                    window.FindResource("App.Feedback.PopupSurface"),
+                    Assert.IsType<Border>(window.FindName("ActiveCacheFlyoutSurface")).Style);
+                Assert.Same(
+                    window.FindResource("App.Feedback.PopupSurface"),
+                    Assert.IsType<Border>(window.FindName("ChapterExportFlyoutSurface")).Style);
+                Assert.Same(
+                    window.FindResource("App.Button.Secondary"),
+                    Assert.IsType<System.Windows.Controls.Button>(window.FindName("CancelActiveCacheButton")).Style);
+
+                var presenter = Assert.IsType<NavigationViewContentPresenter>(
+                    VisualTreeTestHelper.FindDescendant<NavigationViewContentPresenter>(navigationView));
+                Assert.True(presenter.ActualWidth > 0);
+                Assert.True(presenter.ActualHeight > 0);
+                var libraryPage = Assert.IsType<LibraryPage>(
+                    VisualTreeTestHelper.FindDescendant<LibraryPage>(presenter));
+                var pageHeader = Assert.IsType<AppPageHeader>(libraryPage.FindName("PageHeader"));
+                Assert.Equal(new Thickness(0), libraryPage.Margin);
+                Assert.InRange(
+                    Math.Abs(libraryPage.ActualWidth - presenter.ActualWidth),
+                    0,
+                    1);
+                Assert.InRange(
+                    Math.Abs(libraryPage.ActualHeight - presenter.ActualHeight),
+                    0,
+                    1);
+                var headerOrigin = pageHeader.TranslatePoint(new Point(), libraryPage);
+                Assert.True(headerOrigin.X >= 0);
+                Assert.True(headerOrigin.Y >= 0);
+                Assert.True(headerOrigin.X + pageHeader.ActualWidth <= libraryPage.ActualWidth);
+                Assert.True(headerOrigin.Y + pageHeader.ActualHeight <= libraryPage.ActualHeight);
+
+                var xaml = File.ReadAllText(Path.Combine(
+                    LocateRepositoryRoot(),
+                    "src",
+                    "NovelSpeaker.App",
+                    "Shell",
+                    "MainWindow.xaml"));
+                Assert.Contains("App.Brush.Window.Background", xaml, StringComparison.Ordinal);
+                foreach (var legacyKey in new[]
+                         {
+                             "ApplicationBackgroundBrush",
+                             "LayerFillColorAltBrush",
+                             "NavigationPaneOpenWidth",
+                             "NavigationPaneCompactWidth",
+                             "CardPaddingLarge",
+                             "PopupSurfaceBorderStyle",
+                             "StrongTextBlockStyle",
+                             "SecondaryTextBlockStyle",
+                             "SectionTitleTextBlockStyle",
+                             "PrimaryTextBlockStyle"
+                         })
+                {
+                    Assert.DoesNotContain(legacyKey, xaml, StringComparison.Ordinal);
+                }
+
+                var themeRuntime = new WpfUiThemeRuntime();
+                foreach (var applyTheme in new Action[] { themeRuntime.ApplyLightTheme, themeRuntime.ApplyDarkTheme })
+                {
+                    applyTheme();
+                    window.UpdateLayout();
+                    var activeNavigationItem = navigationView.MenuItems
+                        .Cast<NavigationViewItem>()
+                        .Single(item => item.IsActive);
+                    var foreground = Assert.IsType<SolidColorBrush>(activeNavigationItem.Foreground).Color;
+                    var background = Assert.IsType<SolidColorBrush>(activeNavigationItem.Background).Color;
+                    Assert.True(
+                        ContrastRatio(foreground, background) >= 4.5,
+                        $"Active navigation contrast was {ContrastRatio(foreground, background):0.00}:1.");
+                    foreach (var scale in new[] { 1d, 1.25d, 1.5d })
+                    {
+                        var bitmap = new RenderTargetBitmap(
+                            (int)Math.Round(960 * scale),
+                            (int)Math.Round(640 * scale),
+                            96 * scale,
+                            96 * scale,
+                            PixelFormats.Pbgra32);
+                        bitmap.Render(window);
+                        Assert.Equal((int)Math.Round(960 * scale), bitmap.PixelWidth);
+                        Assert.Equal((int)Math.Round(640 * scale), bitmap.PixelHeight);
+                    }
+                }
+            }
+            finally
+            {
+                new WpfUiThemeRuntime().ApplyLightTheme();
+                window.Close();
+                await DrainDispatcherAsync(window.Dispatcher);
+                await provider.DisposeAsync();
+            }
+        });
+    }
+
+    [Fact]
+    public void Main_window_visual_review_generates_stable_window_screenshots()
+    {
+        if (!VisualArtifactTestGuard.IsEnabled)
+        {
+            return;
+        }
+
+        WpfTestHost.RunInSta(() =>
+        {
+            WindowVisualReviewHarness.GenerateAndVerifyRepeatable(
+                LocateRepositoryRoot(),
+                "main-window",
+                960,
+                640,
+                [
+                    new WindowVisualReviewScenario("default", 1d),
+                    new WindowVisualReviewScenario("default", 1.25d),
+                    new WindowVisualReviewScenario("default", 1.5d)
+                ],
+                CreateVisualReviewWindow);
+        });
+    }
+
+    [Fact]
     public async Task Real_guarded_navigation_to_player_page_keeps_navigation_content_presenter_configuration()
     {
         await WpfTestHost.RunInStaAsync(async () =>
@@ -475,6 +621,60 @@ public sealed class MainWindowNavigationTests
     {
         var property = typeof(MainWindow).GetProperty("NavigationViewControl", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         return Assert.IsType<NavigationView>(property?.GetValue(window));
+    }
+
+    private static string LocateRepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (Directory.Exists(Path.Combine(current.FullName, "src")) &&
+                Directory.Exists(Path.Combine(current.FullName, "docs")))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate repository root.");
+    }
+
+    private static double ContrastRatio(Color foreground, Color background)
+    {
+        var foregroundLuminance = RelativeLuminance(foreground);
+        var backgroundLuminance = RelativeLuminance(background);
+        return (Math.Max(foregroundLuminance, backgroundLuminance) + 0.05) /
+               (Math.Min(foregroundLuminance, backgroundLuminance) + 0.05);
+    }
+
+    private static double RelativeLuminance(Color color)
+    {
+        static double Linearize(byte component)
+        {
+            var channel = component / 255d;
+            return channel <= 0.04045
+                ? channel / 12.92
+                : Math.Pow((channel + 0.055) / 1.055, 2.4);
+        }
+
+        return (0.2126 * Linearize(color.R)) +
+               (0.7152 * Linearize(color.G)) +
+               (0.0722 * Linearize(color.B));
+    }
+
+    private static WindowVisualReviewWindow CreateVisualReviewWindow()
+    {
+        var provider = WpfTestHost.BuildServiceProvider();
+        var window = provider.GetRequiredService<MainWindow>();
+        window.ConfigureDesktopLifecycle(_ => Task.CompletedTask, () => true);
+        return new WindowVisualReviewWindow(
+            window,
+            () => provider.DisposeAsync().AsTask().GetAwaiter().GetResult(),
+            () => provider.GetRequiredService<IAppNavigator>()
+                .NavigateAsync(AppRoutes.Settings, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult());
     }
 
     private static T? FindVisualAncestor<T>(DependencyObject element)

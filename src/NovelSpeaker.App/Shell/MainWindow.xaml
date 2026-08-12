@@ -11,7 +11,7 @@
                   MinHeight="640"
                   WindowCornerPreference="Round"
                   ExtendsContentIntoTitleBar="True"
-                  Background="{DynamicResource ApplicationBackgroundBrush}">
+                  Background="{DynamicResource App.Brush.Window.Background}">
     <ui:FluentWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </ui:FluentWindow.Resources>
@@ -32,21 +32,23 @@
         <ui:NavigationView x:Name="RootNavigationView"
                            Grid.Row="1"
                            PaneTitle=""
-                           OpenPaneLength="{StaticResource NavigationPaneOpenWidth}"
-                           CompactPaneLength="{StaticResource NavigationPaneCompactWidth}"
+                           OpenPaneLength="220"
+                           CompactPaneLength="64"
                            IsBackButtonVisible="Collapsed"
                            IsPaneToggleVisible="True"
                            IsFooterSeparatorVisible="False"
                            PaneDisplayMode="Left"
-                           Background="{DynamicResource LayerFillColorAltBrush}">
+                           Background="{DynamicResource App.Brush.Window.Background}">
             <ui:NavigationView.MenuItems>
                 <ui:NavigationViewItem x:Name="LibraryNavigationItem"
+                                       Style="{StaticResource App.Navigation.Entry}"
                                        Content="书库">
                     <ui:NavigationViewItem.Icon>
                         <ui:SymbolIcon Symbol="Book24" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
                 <ui:NavigationViewItem x:Name="SettingsNavigationItem"
+                                       Style="{StaticResource App.Navigation.Entry}"
                                        Content="设置">
                     <ui:NavigationViewItem.Icon>
                         <ui:SymbolIcon Symbol="Settings24" />
@@ -56,6 +58,7 @@
 
             <ui:NavigationView.FooterMenuItems>
                 <ui:NavigationViewItem x:Name="ActiveCacheNavigationItem"
+                                       Style="{StaticResource App.Navigation.Entry}"
                                        Content="{Binding ActiveCache.CompactStatusText}"
                                        Click="ActiveCacheNavigationItem_OnClick"
                                        ToolTip="查看主动缓存进度"
@@ -66,6 +69,7 @@
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
                 <ui:NavigationViewItem x:Name="ChapterExportNavigationItem"
+                                       Style="{StaticResource App.Navigation.Entry}"
                                        Content="{Binding ChapterExport.CompactStatusText}"
                                        Click="ChapterExportNavigationItem_OnClick"
                                        ToolTip="查看章节导出进度"
@@ -76,6 +80,7 @@
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
                 <ui:NavigationViewItem x:Name="PlaybackNavigationItem"
+                                       Style="{StaticResource App.Navigation.Entry}"
                                        Click="PlaybackNavigationItem_OnClick"
                                        Visibility="{Binding IsNowPlayingVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <ui:NavigationViewItem.Icon>
@@ -99,10 +104,10 @@
                         </ui:SymbolIcon>
                     </ui:NavigationViewItem.Icon>
                     <StackPanel>
-                        <TextBlock Style="{StaticResource StrongTextBlockStyle}"
+                        <TextBlock Style="{StaticResource App.Typography.ItemTitle}"
                                    Text="{Binding NowPlayingTitle}" />
                         <TextBlock FontSize="12"
-                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                   Style="{StaticResource App.Typography.Caption}"
                                    Text="{Binding NowPlayingStatus}" />
                     </StackPanel>
                 </ui:NavigationViewItem>
@@ -116,14 +121,14 @@
                AllowsTransparency="True"
                StaysOpen="False"
                IsOpen="{Binding ActiveCache.IsFlyoutOpen, Mode=TwoWay}">
-            <Border Width="360"
-                    Padding="{StaticResource CardPaddingLarge}"
-                    Style="{StaticResource PopupSurfaceBorderStyle}">
+            <Border x:Name="ActiveCacheFlyoutSurface"
+                    Width="360"
+                    Style="{StaticResource App.Feedback.PopupSurface}">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                    <TextBlock Style="{StaticResource App.Typography.SectionTitle}"
                                Text="{Binding ActiveCache.BatchStatusText}" />
                     <TextBlock Margin="0,4,0,0"
-                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Style="{StaticResource App.Typography.Secondary}"
                                Text="{Binding ActiveCache.BookTitle}"
                                TextTrimming="CharacterEllipsis" />
 
@@ -151,14 +156,15 @@
                                 <Border Padding="10,8"
                                         CornerRadius="8">
                                     <Border.Style>
-                                        <Style TargetType="Border">
+                                        <Style TargetType="Border"
+                                               BasedOn="{StaticResource App.Selection.ListItem}">
                                             <Setter Property="Background" Value="Transparent" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                                    <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding IsFailed}" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBackgroundBrush}" />
+                                                    <Setter Property="Background" Value="{DynamicResource App.Brush.Danger.Subtle}" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -168,12 +174,12 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
+                                        <TextBlock Style="{StaticResource App.Typography.Body}"
                                                    Text="{Binding Title}"
                                                    TextTrimming="CharacterEllipsis" />
                                         <TextBlock Grid.Column="1"
                                                    Margin="12,0,0,0"
-                                                   Style="{StaticResource SecondaryTextBlockStyle}"
+                                                   Style="{StaticResource App.Typography.Secondary}"
                                                    Text="{Binding StatusText}" />
                                     </Grid>
                                 </Border>
@@ -182,12 +188,13 @@
                     </ListBox>
 
                     <TextBlock Margin="0,12,0,0"
-                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Style="{StaticResource App.Typography.Secondary}"
                                Text="{Binding ActiveCache.TotalSegmentProgressText}" />
                     <Button x:Name="CancelActiveCacheButton"
                             Margin="0,16,0,0"
                             HorizontalAlignment="Right"
                             Padding="12,7"
+                            Style="{StaticResource App.Button.Secondary}"
                             Command="{Binding ActiveCache.CancelCommand}"
                             Content="取消任务"
                             ToolTip="取消主动缓存任务"
@@ -203,29 +210,30 @@
                AllowsTransparency="True"
                StaysOpen="False"
                IsOpen="{Binding ChapterExport.IsFlyoutOpen, Mode=TwoWay}">
-            <Border Width="360"
-                    Padding="{StaticResource CardPaddingLarge}"
-                    Style="{StaticResource PopupSurfaceBorderStyle}">
+            <Border x:Name="ChapterExportFlyoutSurface"
+                    Width="360"
+                    Style="{StaticResource App.Feedback.PopupSurface}">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource SectionTitleTextBlockStyle}"
+                    <TextBlock Style="{StaticResource App.Typography.SectionTitle}"
                                Text="{Binding ChapterExport.BatchStatusText}" />
                     <TextBlock Margin="0,4,0,0"
-                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Style="{StaticResource App.Typography.Secondary}"
                                Text="{Binding ChapterExport.BookTitle}"
                                TextTrimming="CharacterEllipsis" />
                     <TextBlock Margin="0,16,0,0"
-                               Style="{StaticResource PrimaryTextBlockStyle}"
+                               Style="{StaticResource App.Typography.Body}"
                                Text="{Binding ChapterExport.CurrentChapterText}"
                                TextWrapping="Wrap"
                                TextTrimming="CharacterEllipsis" />
                     <TextBlock Margin="0,8,0,0"
-                               Style="{StaticResource SecondaryTextBlockStyle}"
+                               Style="{StaticResource App.Typography.Secondary}"
                                Text="{Binding ChapterExport.ProgressText}" />
 
                     <Button x:Name="CancelChapterExportButton"
                             Margin="0,16,0,0"
                             HorizontalAlignment="Right"
                             Padding="12,7"
+                            Style="{StaticResource App.Button.Secondary}"
                             Command="{Binding ChapterExport.CancelCommand}"
                             Content="取消任务"
                             ToolTip="取消章节导出任务"
@@ -239,12 +247,14 @@
                         <Button x:Name="OpenChapterExportDirectoryButton"
                                 Margin="0,0,8,0"
                                 Padding="12,7"
+                                Style="{StaticResource App.Button.Secondary}"
                                 Command="{Binding ChapterExport.OpenDirectoryCommand}"
                                 Content="打开目录"
                                 ToolTip="打开导出目录"
                                 AutomationProperties.Name="打开章节导出目录" />
                         <Button x:Name="DismissChapterExportButton"
                                 Padding="12,7"
+                                Style="{StaticResource App.Button.Subtle}"
                                 Command="{Binding ChapterExport.DismissCommand}"
                                 Content="关闭"
                                 ToolTip="关闭导出完成状态"

@@ -19,7 +19,7 @@
             </Trigger>
             <Trigger Property="IsActive" Value="True">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Text}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
             </Trigger>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
