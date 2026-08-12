@@ -28,7 +28,12 @@ public sealed class AppDialogService : IAppDialogService
                 : AppConfirmationDecision.Cancel;
         }
 
-        var dialog = CreateDialog(title, message, primaryButtonText, null, closeButtonText);
+        var dialog = AppDialogVisuals.Create(
+            title,
+            AppDialogVisuals.Wrap(AppDialogVisuals.CreateMessage(message)),
+            primaryButtonText,
+            null,
+            closeButtonText);
         var result = await _contentDialogService.ShowAsync(dialog, cancellationToken);
         return result == ContentDialogResult.Primary
             ? AppConfirmationDecision.Confirm
@@ -53,7 +58,12 @@ public sealed class AppDialogService : IAppDialogService
             };
         }
 
-        var dialog = CreateDialog(title, message, saveButtonText, discardButtonText, cancelButtonText);
+        var dialog = AppDialogVisuals.Create(
+            title,
+            AppDialogVisuals.Wrap(AppDialogVisuals.CreateMessage(message)),
+            saveButtonText,
+            discardButtonText,
+            cancelButtonText);
         var result = await _contentDialogService.ShowAsync(dialog, cancellationToken);
 
         return result switch
@@ -62,29 +72,6 @@ public sealed class AppDialogService : IAppDialogService
             ContentDialogResult.Secondary => UnsavedChangesDecision.Discard,
             _ => UnsavedChangesDecision.Cancel
         };
-    }
-
-    private static ContentDialog CreateDialog(
-        string title,
-        string message,
-        string primaryButtonText,
-        string? secondaryButtonText,
-        string closeButtonText)
-    {
-        var dialog = new ContentDialog
-        {
-            Title = title,
-            Content = message,
-            PrimaryButtonText = primaryButtonText,
-            CloseButtonText = closeButtonText
-        };
-
-        if (!string.IsNullOrWhiteSpace(secondaryButtonText))
-        {
-            dialog.SecondaryButtonText = secondaryButtonText;
-        }
-
-        return dialog;
     }
 
     private static global::System.Windows.MessageBoxResult ShowConfirmationFallback(string title, string message)

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using NovelSpeaker.App.Shared.Dialogs;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 
@@ -36,39 +37,28 @@ public sealed class BookDeleteDialogService : IBookDeleteDialogService
             IsChecked = request.DeleteAudioCacheByDefault,
             Margin = new Thickness(0, 12, 0, 0)
         };
+        deleteCacheCheckBox.SetResourceReference(FrameworkElement.StyleProperty, "App.Input.CheckBox.Standard");
         var content = new global::System.Windows.Controls.StackPanel
         {
             Children =
             {
-                new global::System.Windows.Controls.TextBlock
-                {
-                    Text = $"将删除《{request.BookTitle}》的书籍记录、章节、阅读进度和应用内部 TXT 副本。",
-                    TextWrapping = TextWrapping.Wrap
-                },
-                new global::System.Windows.Controls.TextBlock
-                {
-                    Margin = new Thickness(0, 8, 0, 0),
-                    Text = "不会删除用户最初选择的外部 TXT 文件。",
-                    TextWrapping = TextWrapping.Wrap
-                },
-                new global::System.Windows.Controls.TextBlock
-                {
-                    Margin = new Thickness(0, 8, 0, 0),
-                    Text = request.IsCurrentPlaybackBook
+                AppDialogVisuals.CreateTitle($"将删除《{request.BookTitle}》"),
+                AppDialogVisuals.CreateMessage("书籍记录、章节、阅读进度和应用内部 TXT 副本将被删除。"),
+                AppDialogVisuals.CreateMessage("不会删除用户最初选择的外部 TXT 文件。"),
+                AppDialogVisuals.CreateMessage(
+                    request.IsCurrentPlaybackBook
                         ? "这本书当前正在播放，确认后会先停止播放并结束当前会话。"
-                        : "此操作不可撤销。",
-                    TextWrapping = TextWrapping.Wrap
-                },
+                        : "此操作不可撤销。"),
                 deleteCacheCheckBox
             }
         };
-        var dialog = new ContentDialog
-        {
-            Title = "删除书籍",
-            Content = content,
-            PrimaryButtonText = "删除",
-            CloseButtonText = "取消"
-        };
+        var dialog = AppDialogVisuals.Create(
+            "删除书籍",
+            AppDialogVisuals.Wrap(content),
+            "删除",
+            null,
+            "取消",
+            ControlAppearance.Danger);
 
         var result = await _contentDialogService.ShowAsync(dialog, cancellationToken);
         return new BookDeleteDialogResult(

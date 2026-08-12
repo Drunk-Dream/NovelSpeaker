@@ -1,5 +1,6 @@
 using System.Windows;
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using Wpf.Ui;
@@ -37,17 +38,16 @@ public sealed class ImportProgressDialogService : IImportProgressDialogService
         using var linkedCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var progressTextBlock = new global::System.Windows.Controls.TextBlock
         {
-            Text = "正在准备导入。",
-            TextWrapping = TextWrapping.Wrap
+            Text = "正在准备导入。"
         };
+        progressTextBlock.SetResourceReference(FrameworkElement.StyleProperty, "App.Feedback.DialogMessage");
         var progressBar = new global::System.Windows.Controls.ProgressBar
         {
-            Height = 8,
-            Margin = new Thickness(0, 12, 0, 0),
             Minimum = 0,
             Maximum = 100,
             IsIndeterminate = true
         };
+        progressBar.SetResourceReference(FrameworkElement.StyleProperty, "App.Progress.Standard");
 
         ContentDialog? dialog = null;
         var cancelButton = new global::System.Windows.Controls.Button
@@ -56,31 +56,40 @@ public sealed class ImportProgressDialogService : IImportProgressDialogService
             Margin = new Thickness(0, 16, 0, 0),
             HorizontalAlignment = HorizontalAlignment.Left
         };
+        cancelButton.SetResourceReference(FrameworkElement.StyleProperty, "App.Button.Secondary");
         cancelButton.Click += (_, _) =>
         {
             linkedCancellationTokenSource.Cancel();
             dialog?.Hide(ContentDialogResult.None);
         };
 
+        var content = new global::System.Windows.Controls.StackPanel
+        {
+            Children =
+            {
+                AppDialogVisuals.CreateTitle(fileName),
+                progressTextBlock,
+                progressBar,
+                cancelButton
+            }
+        };
         dialog = new ContentDialog
         {
             Title = "正在导入小说",
-            CloseButtonText = string.Empty,
-            Content = new global::System.Windows.Controls.StackPanel
-            {
-                Children =
-                {
-                    new global::System.Windows.Controls.TextBlock
-                    {
-                        Text = fileName,
-                        FontWeight = FontWeights.SemiBold
-                    },
-                    progressTextBlock,
-                    progressBar,
-                    cancelButton
-                }
-            }
+            Content = AppDialogVisuals.Wrap(content),
+            IsFooterVisible = false,
+            DefaultButton = ContentDialogButton.Close
         };
+        var isClosingAfterOperation = false;
+        void OnDialogClosed(object sender, ContentDialogClosedEventArgs args)
+        {
+            if (!isClosingAfterOperation)
+            {
+                linkedCancellationTokenSource.Cancel();
+            }
+        }
+
+        dialog.Closed += OnDialogClosed;
 
         var progress = new Progress<BookImportProgress>(update =>
         {
@@ -109,16 +118,18 @@ public sealed class ImportProgressDialogService : IImportProgressDialogService
 
         try
         {
-            var result = await operation(progress, linkedCancellationTokenSource.Token);
-            dialog.Hide(ContentDialogResult.None);
-            await AwaitDialogClosureAsync(showTask);
-            return result;
+            return await operation(progress, linkedCancellationTokenSource.Token);
         }
         catch (OperationCanceledException) when (linkedCancellationTokenSource.IsCancellationRequested || cancellationToken.IsCancellationRequested)
         {
+            return new LibraryImportCoordinatorResult(LibraryImportCoordinatorStatus.Cancelled);
+        }
+        finally
+        {
+            isClosingAfterOperation = true;
+            dialog.Closed -= OnDialogClosed;
             dialog.Hide(ContentDialogResult.None);
             await AwaitDialogClosureAsync(showTask);
-            return new LibraryImportCoordinatorResult(LibraryImportCoordinatorStatus.Cancelled);
         }
     }
 
