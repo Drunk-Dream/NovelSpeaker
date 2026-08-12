@@ -2,7 +2,7 @@
 
 ## 1. 阶段定位
 
-当前阶段重构 NovelSpeaker 的公共视觉资源体系，并按页面逐步迁移正式 UI。
+当前阶段已完成 NovelSpeaker 公共视觉资源体系重构和正式 UI 迁移。
 
 目标：
 
@@ -10,7 +10,7 @@
 - 将相同控件族的 Style 集中到同一资源字典，消除综合性资源文件和重复定义。
 - 删除生产代码中硬编码 Style Gallery 示例内容的伪公共组件。
 - 建立可跨页面复用的正式自有控件。
-- 通过临时 Legacy 字典保持页面迁移期间可运行，并在最后删除全部旧资源。
+- 删除迁移期旧资源，只保留正式 Palette、Token、Style 和 ControlTheme 加载链。
 - 每次只迁移一个页面或一个明确资源族；除任务明确列出的已确认产品行为变化外，保持功能、导航和状态语义不变。
 
 最终形态以 `13_VISUAL_DESIGN_SYSTEM.md` 为准。本文件只描述实施顺序、依赖和自动验收。
@@ -73,14 +73,6 @@ Shared/Presentation/Controls/
 ├─ Forms/
 └─ Feedback/
 ```
-
-迁移期间允许存在：
-
-```text
-Shared/Theming/Resources/Legacy/LegacyStyles.xaml
-```
-
-Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得在 Legacy 中新增新的产品语义。
 
 ## 5. 总体顺序
 
@@ -1035,7 +1027,7 @@ artifacts/visual-review/windows/<window-id>/
 - 将每个 Dialog、Flyout、Snackbar 和状态场景写入其所属 `pages/<page-id>/` 或 `windows/<window-id>/`，不得建立跨页面的 `feedback-hosts` 截图目录。
 - 完整质量门禁通过。
 
-## [ ] 31（P0）：删除 Legacy 与旧资源并完成发布门禁
+## [x] 31（P0）：删除 Legacy 与旧资源并完成发布门禁
 
 前置：1–30。
 
@@ -1059,3 +1051,7 @@ artifacts/visual-review/windows/<window-id>/
 - 主题切换不产生旧 Style、字典或窗口事件订阅泄漏。
 - 更新根清单 `artifacts/visual-review/manifest.json`，列出所有 Gallery family、页面、窗口、scenario、主题、DPI 和截图哈希。
 - 完整质量门禁与 self-contained 发布检查通过。
+
+结果：删除 `Resources/Legacy/LegacyStyles.xaml` 及 App/Style Gallery 最后一层旧字典入口，将 `BookCoverView` 的最后一个 `StrongTextBlockStyle` 引用迁移为 `App.Typography.ItemTitle`；资源图测试改为终态约束并移除逐页旧键基线、Semantic/Legacy 兼容分类和旧资源交互测试。新增根视觉清单生成器与自动校验，`artifacts/visual-review/manifest.json` 汇总并验证 254 个 Gallery、页面和窗口截图条目的 scenario、主题、DPI 与 SHA-256。
+
+自动验收：locked `win-x64` restore、format、Release build（0 警告/0 错误）通过；Domain 2、Application 219、Infrastructure 348、Presentation 407、WPF 443，共 1,419 项测试全部通过。self-contained `win-x64` publish 成功，284 个根文件的 208 MB 发布目录包含主程序、许可证、第三方声明、NAudio/Media Foundation 运行时、.NET runtime 与 SQLite 运行时，且未发现测试程序集、TestAssets、音频 fixture、Style Gallery、visual-review 或临时文件。
