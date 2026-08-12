@@ -117,7 +117,10 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     public bool ShowPlaybackErrorBar => IsFaulted && !string.IsNullOrWhiteSpace(ErrorText);
 
-    public bool CanTogglePlayPause => HasAvailableRule && !IsFaulted;
+    public bool ShowEmptyChapterState =>
+        IsCurrentChapterContentLoaded && CurrentChapterSegmentCount == 0 && HasAvailableRule;
+
+    public bool CanTogglePlayPause => HasAvailableRule && !IsFaulted && !ShowEmptyChapterState;
 
     public bool CanDecreaseSpeakSpeed => SpeakSpeed > AppSettings.MinSpeakSpeed;
 
@@ -153,9 +156,11 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         ? PlaybackPrimaryAction.Pause
         : PlaybackPrimaryAction.Play;
 
-    public string DisplayedSegmentCounterText => BuildSegmentCounterText(
-        IsSegmentProgressDragging ? (int)Math.Round(SegmentProgressPreviewValue) : CurrentSegmentIndex,
-        CurrentChapterSegmentCount);
+    public string DisplayedSegmentCounterText => ShowEmptyChapterState
+        ? "0 / 0"
+        : BuildSegmentCounterText(
+            IsSegmentProgressDragging ? (int)Math.Round(SegmentProgressPreviewValue) : CurrentSegmentIndex,
+            CurrentChapterSegmentCount);
 
     public PlayerAutoScrollState AutoScrollState => _autoScrollCoordinator.State;
 
@@ -188,6 +193,9 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     [ObservableProperty]
     private string errorText = string.Empty;
+
+    [ObservableProperty]
+    private bool isCurrentChapterContentLoaded;
 
     [ObservableProperty]
     private string primaryActionText = "播放";
@@ -659,7 +667,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task TogglePlayPauseAsync(CancellationToken cancellationToken)
     {
-        if (!HasAvailableRule || CurrentPlaybackState == PlaybackState.Faulted)
+        if (!CanTogglePlayPause)
         {
             return;
         }
@@ -942,6 +950,8 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     {
         OnPropertyChanged(nameof(DisplayedSegmentCounterText));
         OnPropertyChanged(nameof(SegmentProgressMaximum));
+        OnPropertyChanged(nameof(ShowEmptyChapterState));
+        OnPropertyChanged(nameof(CanTogglePlayPause));
         SegmentProgressValue = NormalizeSegmentProgressValue(CurrentSegmentIndex);
         if (!IsSegmentProgressDragging)
         {
@@ -972,6 +982,14 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         OnPropertyChanged(nameof(ShowPlaybackControls));
         OnPropertyChanged(nameof(ShowNoRuleState));
         OnPropertyChanged(nameof(CanTogglePlayPause));
+        OnPropertyChanged(nameof(ShowEmptyChapterState));
+    }
+
+    partial void OnIsCurrentChapterContentLoadedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowEmptyChapterState));
+        OnPropertyChanged(nameof(CanTogglePlayPause));
+        OnPropertyChanged(nameof(DisplayedSegmentCounterText));
     }
 
     partial void OnErrorTextChanged(string value)
@@ -1260,6 +1278,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         CurrentChapterItem = _contentProjection.CurrentChapterItem;
         CurrentSegmentItem = _contentProjection.CurrentSegmentItem;
         CurrentChapterSegmentCount = _contentProjection.CurrentChapterSegmentCount;
+        IsCurrentChapterContentLoaded = _contentProjection.IsChapterLoaded(CurrentChapterIndex);
         if (includeChapterTitle && !string.IsNullOrWhiteSpace(_contentProjection.CurrentChapterTitle))
         {
             CurrentChapterTitle = _contentProjection.CurrentChapterTitle;

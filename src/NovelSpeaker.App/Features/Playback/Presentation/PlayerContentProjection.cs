@@ -47,6 +47,9 @@ internal sealed class PlayerContentProjection
 
     public bool CanGoToNextSegment { get; private set; }
 
+    public bool IsChapterLoaded(int chapterIndex) =>
+        chapterIndex >= 0 && _loadedChapterIndex == chapterIndex;
+
     public async Task<PlaybackBookContent?> EnsureBookLoadedAsync(
         string bookId,
         int currentChapterIndex,

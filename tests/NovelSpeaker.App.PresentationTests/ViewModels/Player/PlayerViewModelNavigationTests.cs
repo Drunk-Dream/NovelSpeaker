@@ -522,6 +522,102 @@ public sealed partial class PlayerViewModelTests
     }
 
     [Fact]
+    public async Task Paused_chapter_does_not_show_empty_state_before_content_load_completes()
+    {
+        var chapterLoad = new TaskCompletionSource<PlaybackChapterContent?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var contentService = new DelayedBookPlaybackContentService(
+            new PlaybackBookContent(
+                "book-1",
+                "示例小说",
+                [PlaybackChapterContent.FromLoaded(0, "第一章", [])],
+                "作者甲"),
+            [chapterLoad.Task]);
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            1,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false));
+        var viewModel = CreateViewModel(coordinator, contentService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        var navigationTask = viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
+        await contentService.WaitForChapterRequestCountAsync(1);
+
+        Assert.False(viewModel.ShowEmptyChapterState);
+        Assert.True(viewModel.CanTogglePlayPause);
+
+        chapterLoad.SetResult(PlaybackChapterContent.FromLoaded(
+            0,
+            "第一章",
+            [new SpeechSegment(0, 0, 4, "第一段", "第一段")]));
+        await navigationTask;
+
+        Assert.False(viewModel.ShowEmptyChapterState);
+        Assert.True(viewModel.CanTogglePlayPause);
+        Assert.Equal("1 / 1", viewModel.DisplayedSegmentCounterText);
+    }
+
+    [Fact]
+    public async Task Loaded_empty_chapter_projects_explicit_empty_state_and_disables_playback()
+    {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说",
+            0,
+            "空章节",
+            -1,
+            0,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false));
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(
+                new PlaybackBookContent(
+                    "book-1",
+                    "示例小说",
+                    [PlaybackChapterContent.FromLoaded(0, "空章节", [])],
+                    "作者甲"),
+                PlaybackChapterContent.FromLoaded(0, "空章节", [])));
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
+
+        Assert.True(viewModel.ShowEmptyChapterState);
+        Assert.False(viewModel.CanTogglePlayPause);
+        Assert.False(viewModel.CanGoToPreviousSegment);
+        Assert.False(viewModel.CanGoToNextSegment);
+        Assert.Equal("0 / 0", viewModel.DisplayedSegmentCounterText);
+        Assert.Equal(0, viewModel.SegmentProgressMaximum);
+
+        await viewModel.TogglePlayPauseCommand.ExecuteAsync(null);
+
+        Assert.Equal(PlaybackState.Paused, coordinator.CurrentSnapshot.State);
+        Assert.Null(coordinator.LastStartRequest);
+    }
+
+    [Fact]
     public async Task Same_chapter_snapshot_sequence_preserves_segment_items_while_updating_current_segment()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(

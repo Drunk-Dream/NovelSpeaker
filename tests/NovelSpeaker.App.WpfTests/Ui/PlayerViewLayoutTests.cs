@@ -2,7 +2,9 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
+using System.Xml.Linq;
 using System.Windows.Automation;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,11 +13,14 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation.Controls.Common;
+using NovelSpeaker.App.Shared.Presentation.Controls.Feedback;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Books;
@@ -32,6 +37,83 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed partial class PlayerViewTests
 {
+    [Fact]
+    public void PlayerPage_and_view_use_formal_visual_controls_without_legacy_resources()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = CreateVisualReviewPlayerView();
+            view.Measure(new Size(960, 640));
+            view.Arrange(new Rect(0, 0, 960, 640));
+            view.UpdateLayout();
+
+            Assert.IsType<AppPageHeader>(view.FindName("PageHeader"));
+            Assert.IsType<AppSectionSurface>(view.FindName("CatalogPanelSurface"));
+            Assert.IsType<AppSectionSurface>(view.FindName("PreviewPanelSurface"));
+            Assert.IsType<AppStatusView>(view.FindName("PlaybackErrorStatusView"));
+            Assert.IsType<AppStatusView>(view.FindName("EmptyChapterStatusView"));
+            Assert.IsType<AppStatusView>(view.FindName("NoRuleStatusView"));
+
+            var repositoryRoot = LocateRepositoryRoot();
+            var playerPageXaml = File.ReadAllText(Path.Combine(
+                repositoryRoot,
+                "src",
+                "NovelSpeaker.App",
+                "Features",
+                "Playback",
+                "PlayerPage.xaml"));
+            var playerViewXaml = File.ReadAllText(Path.Combine(
+                repositoryRoot,
+                "src",
+                "NovelSpeaker.App",
+                "Features",
+                "Playback",
+                "Components",
+                "PlayerView.xaml"));
+
+            Assert.Contains("Background=\"Transparent\"", playerPageXaml, StringComparison.Ordinal);
+            Assert.DoesNotContain("Legacy", playerPageXaml, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Legacy", playerViewXaml, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("App.Selection.MultiSelectItem", playerViewXaml, StringComparison.Ordinal);
+            Assert.Contains("App.Selection.CurrentItem", playerViewXaml, StringComparison.Ordinal);
+
+            var playerViewDocument = XDocument.Parse(playerViewXaml);
+            Assert.DoesNotContain(
+                playerViewDocument.Descendants().Where(element => element.Name.LocalName == "Button"),
+                button => button.Attribute("Style") is null &&
+                          !button.Elements().Any(element => element.Name.LocalName == "Button.Style"));
+        });
+    }
+
+    [Fact]
+    public void PlayerView_explains_empty_chapter_and_disables_segment_playback_controls()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(
+                    new ObservableCollection<PlayerChapterItemViewModel> { new(0, "空章节") },
+                    [])
+            };
+
+            view.Measure(new Size(960, 640));
+            view.Arrange(new Rect(0, 0, 960, 640));
+            view.UpdateLayout();
+
+            var emptyStatus = Assert.IsType<AppStatusView>(view.FindName("EmptyChapterStatusView"));
+            Assert.Equal(Visibility.Visible, emptyStatus.Visibility);
+            Assert.Equal("当前章节没有可播放段落", emptyStatus.Title);
+            Assert.Equal("0 / 0", Assert.IsType<TextBlock>(FindVisibleDescendantByText(view, "0 / 0")).Text);
+            Assert.False(Assert.IsType<WpfUiButton>(view.FindName("PrimaryPlaybackButton")).IsEnabled);
+            Assert.False(Assert.IsType<WpfUiButton>(view.FindName("PreviousSegmentButton")).IsEnabled);
+            Assert.False(Assert.IsType<WpfUiButton>(view.FindName("NextSegmentButton")).IsEnabled);
+            Assert.Equal(
+                Visibility.Collapsed,
+                Assert.IsType<Grid>(view.FindName("SegmentProgressPanel")).Visibility);
+        });
+    }
+
     [Fact]
     public void PlayerView_highlights_every_active_cache_selection_and_replaces_current_badge_with_percentage()
     {
@@ -276,7 +358,7 @@ public sealed partial class PlayerViewTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var backButton = Assert.IsType<WpfUiButton>(view.FindName("BackButton"));
+            var backButton = FindUiButtonByAutomationName(view, "返回");
             var titleText = Assert.IsType<TextBlock>(FindVisibleDescendantByText(view, "信息全知者"));
             var chapterTitleText = Assert.IsType<TextBlock>(FindVisibleDescendantByText(view, "第二章 头铁的落款"));
             var footer = Assert.IsType<Border>(view.FindName("PlaybackFooterBorder"));
@@ -356,8 +438,8 @@ public sealed partial class PlayerViewTests
             view.UpdateLayout();
 
             var emptyStateButton = Assert.IsType<Button>(FindVisibleDescendantByContent(view, "前往 TTS 规则"));
-            var noRuleFooter = Assert.IsType<Border>(view.FindName("NoRuleFooterBorder"));
-            var backButton = Assert.IsType<WpfUiButton>(view.FindName("BackButton"));
+            var noRuleFooter = Assert.IsType<AppStatusView>(view.FindName("NoRuleStatusView"));
+            var backButton = FindUiButtonByAutomationName(view, "返回");
 
             Assert.Equal(Visibility.Visible, emptyStateButton.Visibility);
             Assert.Equal(Visibility.Visible, noRuleFooter.Visibility);
@@ -486,8 +568,8 @@ public sealed partial class PlayerViewTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var catalogBorder = Assert.IsType<Border>(view.FindName("CatalogPanelBorder"));
-            var previewBorder = Assert.IsType<Border>(view.FindName("PreviewPanelBorder"));
+            var catalogBorder = Assert.IsType<AppSectionSurface>(view.FindName("CatalogPanelSurface"));
+            var previewBorder = Assert.IsType<AppSectionSurface>(view.FindName("PreviewPanelSurface"));
 
             Assert.InRange(Math.Abs(catalogBorder.ActualHeight - previewBorder.ActualHeight), 0d, 1d);
         });
@@ -740,7 +822,7 @@ public sealed partial class PlayerViewTests
             Assert.Equal("播放音量", volumeButton.ToolTip);
             Assert.Equal("播放音量 100%", AutomationProperties.GetName(volumeButton));
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("ReturnToCurrentSegmentButton")), "返回当前段落");
-            AssertButtonMetadata(Assert.IsType<WpfUiButton>(view.FindName("BackButton")), "返回");
+            AssertButtonMetadata(FindUiButtonByAutomationName(view, "返回"), "返回");
             Assert.Null(view.FindName("SkipCurrentSegmentButton"));
 
             var primaryIcon = Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(
@@ -793,6 +875,140 @@ public sealed partial class PlayerViewTests
                 volumePopup,
                 textBlock => textBlock.Text == "仅调整应用内播放音量，不改变系统音量。"));
         });
+    }
+
+    [Fact]
+    public void Player_visual_review_generates_stable_page_screenshots()
+    {
+        if (!VisualArtifactTestGuard.IsEnabled)
+        {
+            return;
+        }
+
+        WpfTestHost.RunInSta(() =>
+        {
+            var scenarios = new[]
+            {
+                new PageVisualReviewScenario("default", 1d, page => ConfigurePlayerPage(page, CreateDefaultVisualContext())),
+                new PageVisualReviewScenario("default", 1.25d, page => ConfigurePlayerPage(page, CreateDefaultVisualContext())),
+                new PageVisualReviewScenario("default", 1.5d, page => ConfigurePlayerPage(page, CreateDefaultVisualContext())),
+                new PageVisualReviewScenario("long-body", 1.5d, page => ConfigurePlayerPage(page, CreateLongVisualContext())),
+                new PageVisualReviewScenario(
+                    "empty-chapter",
+                    1d,
+                    page => ConfigurePlayerPage(
+                        page,
+                        new PlayerViewLayoutTestContext(
+                            new ObservableCollection<PlayerChapterItemViewModel> { new(0, "空章节") },
+                            []))),
+                new PageVisualReviewScenario(
+                    "error",
+                    1d,
+                    page => ConfigurePlayerPage(
+                        page,
+                        new PlayerViewLayoutTestContext(
+                            new ObservableCollection<PlayerChapterItemViewModel> { new(0, "第一章") },
+                            new ObservableCollection<PlayerSegmentItemViewModel> { new(0, 0, "用于错误场景的脱敏正文。") },
+                            showPlaybackErrorBar: true,
+                            errorText: "播放暂时不可用，请稍后重试。")))
+            };
+
+            PageVisualReviewHarness.GenerateAndVerifyRepeatable(
+                LocateRepositoryRoot(),
+                "player",
+                scenarios,
+                CreateVisualReviewPage);
+        });
+    }
+
+    private static PlayerView CreateVisualReviewPlayerView()
+    {
+        return new PlayerView { DataContext = CreateDefaultVisualContext() };
+    }
+
+    private static PlayerViewLayoutTestContext CreateDefaultVisualContext()
+    {
+        var chapters = new ObservableCollection<PlayerChapterItemViewModel>();
+        for (var index = 0; index < 18; index++)
+        {
+            chapters.Add(new PlayerChapterItemViewModel(index, $"第 {index + 1} 章 示例章节")
+            {
+                IsCurrent = index == 4,
+                CachePercentageText = index % 3 == 0 ? "75%" : string.Empty
+            });
+        }
+
+        var segments = new ObservableCollection<PlayerSegmentItemViewModel>();
+        for (var index = 0; index < 24; index++)
+        {
+            segments.Add(new PlayerSegmentItemViewModel(4, index, $"这是用于播放页视觉回归的第 {index + 1} 段脱敏正文。")
+            {
+                IsCurrent = index == 2,
+                VisualOpacity = index == 2 ? 1d : 0.52d
+            });
+        }
+
+        return new PlayerViewLayoutTestContext(chapters, segments);
+    }
+
+    private static PlayerViewLayoutTestContext CreateLongVisualContext()
+    {
+        var chapters = new ObservableCollection<PlayerChapterItemViewModel>();
+        for (var index = 0; index < 60; index++)
+        {
+            chapters.Add(new PlayerChapterItemViewModel(
+                index,
+                $"第 {index + 1} 章 这是用于验证长标题截断和目录滚动的章节名称")
+            {
+                IsCurrent = index == 10
+            });
+        }
+
+        var segments = new ObservableCollection<PlayerSegmentItemViewModel>();
+        for (var index = 0; index < 100; index++)
+        {
+            segments.Add(new PlayerSegmentItemViewModel(
+                10,
+                index,
+                $"这是第 {index + 1} 段较长的脱敏正文，用于验证播放页在长内容下仍保持正文滚动、当前段轻量高亮和媒体控制可见。")
+            {
+                IsCurrent = index == 2,
+                VisualOpacity = index == 2 ? 1d : 0.52d
+            });
+        }
+
+        return new PlayerViewLayoutTestContext(chapters, segments);
+    }
+
+    private static void ConfigurePlayerPage(FrameworkElement page, PlayerViewLayoutTestContext context)
+    {
+        Assert.IsType<PlayerPage>(page);
+        Assert.IsType<PlayerView>(page.FindName("PlayerView")).DataContext = context;
+    }
+
+    private static PageVisualReviewPage CreateVisualReviewPage()
+    {
+        var provider = WpfTestHost.BuildServiceProvider();
+        return new PageVisualReviewPage(
+            provider.GetRequiredService<PlayerPage>(),
+            () => provider.DisposeAsync().AsTask().GetAwaiter().GetResult());
+    }
+
+    private static string LocateRepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (Directory.Exists(Path.Combine(current.FullName, "src")) &&
+                Directory.Exists(Path.Combine(current.FullName, "docs")))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate repository root.");
     }
 
 }
