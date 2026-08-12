@@ -163,8 +163,28 @@ public sealed class VisualResourceGraphTests
             finding => finding.Source.EndsWith(
                 "/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml",
                 StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            findings,
+            finding => finding.Source.EndsWith(
+                "/Features/Playback/PlayerPage.xaml",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            findings,
+            finding => finding.Source.EndsWith(
+                "/Features/Playback/Components/PlayerView.xaml",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            findings,
+            finding => finding.Source.EndsWith(
+                "/Shell/MainWindow.xaml",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            findings,
+            finding => finding.Source.EndsWith(
+                "/Bootstrap/StartupStatusWindow.xaml",
+                StringComparison.Ordinal));
         Assert.Equal(
-            "32CAC0A90E697487D485D7CE96AD9294151CD830D4F48382011DC9A8B96C038F",
+            "178B6729A8580EB8772A4B99F3EA2186B9483449F95191F72959FC1E2BBBEB1C",
             VisualResourceGraphScanner.Fingerprint(findings));
     }
 
