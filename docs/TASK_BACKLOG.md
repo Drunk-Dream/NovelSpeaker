@@ -973,7 +973,7 @@ artifacts/visual-review/windows/<window-id>/
 
 自动验收：Domain 2、Application 219、Infrastructure 348、Presentation 405、WPF 425，共 1,399 项测试全部通过；locked restore 无依赖变化，format 通过，Release build 0 警告/0 错误。提交摘要：`feat(theme): enforce icon foreground ownership`、`test(ui): guard icon foreground contracts`、`docs(ui): record icon foreground contract`。
 
-## [ ] 28（P1）：迁移播放页与 PlayerView
+## [x] 28（P1）：迁移播放页与 PlayerView
 
 前置：8、21、27B。
 
@@ -994,7 +994,7 @@ artifacts/visual-review/windows/<window-id>/
 - 使用正式 `PlayerPage` 更新 `artifacts/visual-review/pages/player/`。
 - 完整质量门禁通过。
 
-## [ ] 29（P1）：迁移主窗口与启动窗口
+## [x] 29（P1）：迁移主窗口与启动窗口
 
 前置：12–28。
 
