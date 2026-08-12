@@ -280,6 +280,50 @@ public sealed partial class PlayerViewTests
         });
     }
 
+    [Fact]
+    public void PlayerView_uses_compact_balanced_spacing_for_chapters_and_segments()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(
+                    new ObservableCollection<PlayerChapterItemViewModel>
+                    {
+                        new(0, "第一章"),
+                        new(1, "第二章")
+                    },
+                    new ObservableCollection<PlayerSegmentItemViewModel>
+                    {
+                        new(0, 0, "第一段"),
+                        new(0, 1, "第二段")
+                    })
+            };
+
+            view.Measure(new Size(1280, 760));
+            view.Arrange(new Rect(0, 0, 1280, 760));
+            view.UpdateLayout();
+
+            var chaptersListBox = Assert.IsType<ListBox>(view.FindName("WideChaptersListBox"));
+            var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
+            var chapterItem = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(0));
+            var segmentItem = Assert.IsType<ListBoxItem>(segmentsListBox.ItemContainerGenerator.ContainerFromIndex(0));
+            var chapterCard = FindChapterCard(chapterItem);
+            var segmentCard = FindSegmentCard(segmentItem);
+            var segmentText = Assert.IsType<TextBlock>(segmentCard.Child);
+
+            Assert.Equal(new Thickness(0, 0, 0, 4), chapterItem.Margin);
+            Assert.Equal(44, chapterCard.MinHeight);
+            Assert.Equal(new Thickness(12, 6, 12, 6), chapterCard.Padding);
+            Assert.Equal(new Thickness(0, 0, 0, 4), segmentItem.Margin);
+            Assert.Equal(40, segmentCard.MinHeight);
+            Assert.Equal(new Thickness(14, 4, 14, 4), segmentCard.Padding);
+            Assert.Equal(VerticalAlignment.Center, segmentText.VerticalAlignment);
+            Assert.Equal(28, segmentText.LineHeight);
+            Assert.Equal(3, Assert.IsType<TranslateTransform>(segmentText.RenderTransform).Y);
+        });
+    }
+
     private static Border FindChapterCard(DependencyObject item)
     {
         return Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(
@@ -287,8 +331,14 @@ public sealed partial class PlayerViewTests
             static border =>
                 Grid.GetColumn(border) == 1 &&
                 border.Child is Grid &&
-                border.Padding.Left == 12 &&
-                border.Padding.Top == 8));
+                border.Padding.Left == 12));
+    }
+
+    private static Border FindSegmentCard(DependencyObject item)
+    {
+        return Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(
+            item,
+            static border => border.Child is TextBlock textBlock && textBlock.LineHeight == 28));
     }
 
     [Fact]

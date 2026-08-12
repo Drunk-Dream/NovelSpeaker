@@ -440,7 +440,7 @@
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <Setter Property="Padding" Value="0" />
-                                <Setter Property="Margin" Value="0,0,0,6" />
+                                <Setter Property="Margin" Value="0,0,0,4" />
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                                 <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                                 <Setter Property="Background" Value="Transparent" />
@@ -476,7 +476,8 @@
                                         </Border>
 
                                         <Border Grid.Column="1"
-                                                Padding="12,8"
+                                                MinHeight="44"
+                                                Padding="12,6"
                                                 CornerRadius="10">
                                             <Border.Style>
                                                 <Style TargetType="Border"
@@ -694,7 +695,7 @@
                                 <ListBox.ItemContainerStyle>
                                     <Style TargetType="ListBoxItem">
                                         <Setter Property="Padding" Value="0" />
-                                        <Setter Property="Margin" Value="0,0,0,8" />
+                                        <Setter Property="Margin" Value="0,0,0,4" />
                                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                                         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                                         <Setter Property="Background" Value="Transparent" />
@@ -711,13 +712,18 @@
                                                 CommandParameter="{Binding}"
                                                 IsEnabled="{Binding IsInteractive}">
                                             <Border HorizontalAlignment="Stretch"
-                                                    Padding="14,6,14,10"
+                                                    MinHeight="40"
+                                                    Padding="14,4"
                                                     CornerRadius="10"
                                                     Style="{StaticResource App.Selection.CurrentItem}">
                                                 <TextBlock Text="{Binding Text}"
                                                            TextWrapping="Wrap"
+                                                           VerticalAlignment="Center"
                                                            Opacity="{Binding VisualOpacity}"
                                                            LineHeight="28">
+                                                    <TextBlock.RenderTransform>
+                                                        <TranslateTransform Y="3" />
+                                                    </TextBlock.RenderTransform>
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock"
                                                                BasedOn="{StaticResource App.Typography.Body}">
