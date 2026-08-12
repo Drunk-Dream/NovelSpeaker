@@ -68,7 +68,48 @@ internal static class PageVisualReviewHarness
                     Assert.True(fixture.Page.ActualHeight > 0);
 
                     var dpi = 96 * scenario.Scale;
-                    var png = EncodePng(RenderWithShellCanvas(host.Render(size, dpi), size, dpi));
+                    IReadOnlyList<TransientPopupLayer> popupLayers = [];
+                    if (scenario.PrepareAfterShow is not null ||
+                        TransientPopupVisualRenderer.HasOpenPopups(fixture.Page))
+                    {
+                        var transientWindow = new Window
+                        {
+                            Width = size.Width,
+                            Height = size.Height,
+                            Content = fixture.Page,
+                            ShowInTaskbar = false,
+                            WindowStyle = WindowStyle.None,
+                            ResizeMode = ResizeMode.NoResize
+                        };
+                        using var transientHost = WpfWindowHost.Show(transientWindow);
+                        scenario.PrepareAfterShow?.Invoke(fixture.Page);
+                        transientWindow.UpdateLayout();
+                        transientWindow.Dispatcher.Invoke(
+                            static () => { },
+                            System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                        popupLayers = TransientPopupVisualRenderer.CaptureOpenLayers(
+                            fixture.Page,
+                            dpi);
+                        if (scenario.RequireTransientPopup)
+                        {
+                            Assert.NotEmpty(popupLayers);
+                            Assert.All(popupLayers, layer => Assert.True(
+                                new Rect(new Point(), size).Contains(new Rect(layer.Origin, layer.Size)),
+                                $"Scenario '{scenario.Id}' captured a transient layer outside the viewport: {layer.Origin} {layer.Size}."));
+                        }
+                        transientWindow.Content = null;
+                    }
+                    else if (scenario.RequireTransientPopup)
+                    {
+                        Assert.Fail($"Scenario '{scenario.Id}' requires an open transient popup.");
+                    }
+
+                    var background = RenderWithShellCanvas(host.Render(size, dpi), size, dpi);
+                    var png = EncodePng(TransientPopupVisualRenderer.Composite(
+                        background,
+                        size,
+                        dpi,
+                        popupLayers));
                     var frame = DecodePng(png);
                     var fileName = $"{artifactId}.{scenario.Id}.{themeName}.{scenario.Scale * 100:0}.png";
                     File.WriteAllBytes(Path.Combine(outputDirectory, fileName), png);
@@ -279,7 +320,9 @@ internal static class PageVisualReviewHarness
 internal sealed record PageVisualReviewScenario(
     string Id,
     double Scale,
-    Action<FrameworkElement>? Configure = null);
+    Action<FrameworkElement>? Configure = null,
+    bool RequireTransientPopup = false,
+    Action<FrameworkElement>? PrepareAfterShow = null);
 
 internal sealed class PageVisualReviewPage(FrameworkElement page, Action dispose) : IDisposable
 {

@@ -495,12 +495,19 @@ ProgressBar 与 Slider 保持不同控件语义和测试，不共用模板。
 
 ```text
 App.Feedback.PopupSurface
+App.Feedback.FlyoutHost
+App.Feedback.DialogContent
+App.Feedback.DialogTitle
+App.Feedback.DialogMessage
 App.Feedback.ValidationText
 App.Feedback.InlineMessage
 App.Feedback.SnackbarBody
+App.Feedback.SnackbarTitleTemplate
+App.Feedback.SnackbarMessageTemplate
+App.Feedback.Snackbar
 ```
 
-加载、空状态、无结果和错误使用 `AppStatusView`，不分别建立四套硬编码控件类。
+Dialog、Flyout 和 Snackbar 的宿主及生命周期由 Wpf.Ui 持有；NovelSpeaker 资源只定义内容表面、排版、语义前景色和键盘导航输入。加载、空状态、无结果和错误使用 `AppStatusView`，不分别建立四套硬编码控件类。
 
 ## 8. 基础视觉规范
 
@@ -885,6 +892,14 @@ artifacts/visual-review/windows/<window-id>/<scenario-id>.<theme>.<dpi>.png
 - `startup-status-window`
 
 页面和窗口 ID 表示长期产品界面身份，不随 backlog 编号、任务顺序或中文标题调整而变化。页面特有 Dialog、Flyout、Snackbar 和错误状态作为该页面目录中的独立 `scenario-id` 保存；跨页面共享的纯样式状态仍在 Gallery 对应资源族中展示。
+
+`MainWindow` 的 `ContentDialogHost` 是所有页面模态决策的唯一宿主，因此页面发起的 Dialog 保存在 `windows/main-window/`，并用发起页面作为 scenario 前缀。反馈场景覆盖映射如下：
+
+- `close-dialog` 覆盖通用双按钮确认结构，包括关闭、清理和导出确认。
+- `tts-rules-unsaved-dialog` 覆盖 TTS、章节和正则规则编辑器共享的三按钮未保存修改结构。
+- `book-details-book-delete-dialog` 覆盖书籍详情页发起的危险主按钮、说明段落和缓存复选框删除结构。
+- `library-encoding-dialog` 与 `library-import-progress-dialog` 分别覆盖编码选择和无 Footer 的导入进度结构。
+- `active-cache-flyout`、`chapter-export-flyout`、`snackbar` 归属 `windows/main-window/`；播放器定时停止和音量归属 `pages/player/`，迷你播放器音量归属 `windows/mini-player/`。
 
 根清单 `artifacts/visual-review/manifest.json` 汇总全部 Gallery family、页面、窗口、scenario、主题、DPI 和截图哈希，供用户稳定比较。
 

@@ -86,7 +86,8 @@ public sealed class TestCleanupArchitectureTests
             "WpfFailureDiagnostics.cs",
             "VisualTreeTestHelper.cs",
             "PageVisualReviewHarness.cs",
-            "WindowVisualReviewHarness.cs"
+            "WindowVisualReviewHarness.cs",
+            "TransientPopupVisualRenderer.cs"
         };
 
         Assert.Equal(

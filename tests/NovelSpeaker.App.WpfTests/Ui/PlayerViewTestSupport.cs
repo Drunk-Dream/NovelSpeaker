@@ -267,6 +267,8 @@ public sealed partial class PlayerViewTests
 
         public bool IsSpeedMenuOpen { get; set; }
 
+        public bool IsStopTimerMenuOpen { get; set; }
+
         public bool IsVolumeMenuOpen { get; set; }
 
         public bool ShouldAutoCenterCurrentSegment { get; } = true;

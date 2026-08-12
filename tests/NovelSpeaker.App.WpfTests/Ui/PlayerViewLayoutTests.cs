@@ -960,7 +960,46 @@ public sealed partial class PlayerViewTests
                             new ObservableCollection<PlayerChapterItemViewModel> { new(0, "第一章") },
                             new ObservableCollection<PlayerSegmentItemViewModel> { new(0, 0, "用于错误场景的脱敏正文。") },
                             showPlaybackErrorBar: true,
-                            errorText: "播放暂时不可用，请稍后重试。")))
+                            errorText: "播放暂时不可用，请稍后重试。"))),
+                new PageVisualReviewScenario(
+                    "no-rule",
+                    1d,
+                    page => ConfigurePlayerPage(
+                        page,
+                        new PlayerViewLayoutTestContext(
+                            new ObservableCollection<PlayerChapterItemViewModel> { new(0, "第一章") },
+                            [],
+                            showNoRuleState: true))),
+                new PageVisualReviewScenario(
+                    "stop-timer-flyout",
+                    1d,
+                    page =>
+                    {
+                        var context = CreateDefaultVisualContext();
+                        ConfigurePlayerPage(page, context);
+                    },
+                    true,
+                    page =>
+                    {
+                        var playerView = Assert.IsType<PlayerView>(page.FindName("PlayerView"));
+                        Assert.IsType<Wpf.Ui.Controls.Flyout>(
+                            playerView.FindName("StopTimerFlyout")).IsOpen = true;
+                    }),
+                new PageVisualReviewScenario(
+                    "volume-flyout",
+                    1d,
+                    page =>
+                    {
+                        var context = CreateDefaultVisualContext();
+                        ConfigurePlayerPage(page, context);
+                    },
+                    true,
+                    page =>
+                    {
+                        var playerView = Assert.IsType<PlayerView>(page.FindName("PlayerView"));
+                        Assert.IsType<Wpf.Ui.Controls.Flyout>(
+                            playerView.FindName("VolumeFlyout")).IsOpen = true;
+                    })
             };
 
             PageVisualReviewHarness.GenerateAndVerifyRepeatable(

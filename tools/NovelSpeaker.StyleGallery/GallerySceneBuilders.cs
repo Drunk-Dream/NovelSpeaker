@@ -123,7 +123,7 @@ internal static class GallerySceneBuilders
         CreateSceneRoot(
             "feedback",
             "Feedback content styles",
-            "Popup, inline validation and Snackbar content styles keep Wpf.Ui hosts and lifecycles outside the resource dictionary.",
+            "Dialog, Flyout, inline validation and Snackbar content resources keep Wpf.Ui hosts and lifecycles outside the resource dictionary.",
             GalleryFeedbackScene.Create);
 
     public static FrameworkElement CreateProviderStyleProbe() =>

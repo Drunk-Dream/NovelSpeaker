@@ -89,7 +89,7 @@ public static class GallerySceneRegistry
         new GallerySceneDefinition(
             "feedback",
             GallerySceneGroup.ComponentFamilies,
-            "Popup, inline validation and Snackbar content styles.",
+            "Dialog, Flyout, inline validation and Snackbar content resources.",
             GallerySceneBuilders.CreateFeedbackStyles),
         new GallerySceneDefinition(
             "page-header",

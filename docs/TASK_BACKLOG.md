@@ -1014,7 +1014,7 @@ artifacts/visual-review/windows/<window-id>/
 - 分别使用正式窗口更新 `artifacts/visual-review/windows/main-window/` 与 `artifacts/visual-review/windows/startup-status-window/`。
 - 完整质量门禁通过。
 
-## [ ] 30（P1）：统一 Dialog、Flyout、Snackbar 和状态视图
+## [x] 30（P1）：统一 Dialog、Flyout、Snackbar 和状态视图
 
 前置：9、12–29。
 

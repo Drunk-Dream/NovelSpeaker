@@ -1,4 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
+using NovelSpeaker.Application.Books;
+using NovelSpeaker.App.Features.BookDetails;
+using NovelSpeaker.App.Features.Library;
+using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
@@ -16,6 +20,7 @@ using System.Windows.Threading;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.ActiveCache;
 using NovelSpeaker.Application.Playback.Export;
+using NovelSpeaker.Domain.Books;
 using NovelSpeaker.App;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Shell.Input;
@@ -25,6 +30,7 @@ using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.App.Bootstrap;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
+using Wpf.Ui.Animations;
 using Wpf.Ui.Controls;
 using Xunit;
 
@@ -460,7 +466,15 @@ public sealed class MainWindowNavigationTests
                 [
                     new WindowVisualReviewScenario("default", 1d),
                     new WindowVisualReviewScenario("default", 1.25d),
-                    new WindowVisualReviewScenario("default", 1.5d)
+                    new WindowVisualReviewScenario("default", 1.5d),
+                    new WindowVisualReviewScenario("active-cache-flyout", 1d, ConfigureActiveCacheVisual, true),
+                    new WindowVisualReviewScenario("chapter-export-flyout", 1d, ConfigureChapterExportVisual, true),
+                    new WindowVisualReviewScenario("snackbar", 1d, window => window.Tag = "snackbar"),
+                    new WindowVisualReviewScenario("close-dialog", 1d, window => window.Tag = "close-dialog"),
+                    new WindowVisualReviewScenario("tts-rules-unsaved-dialog", 1d, window => window.Tag = "tts-rules-unsaved-dialog"),
+                    new WindowVisualReviewScenario("book-details-book-delete-dialog", 1d, window => window.Tag = "book-details-book-delete-dialog"),
+                    new WindowVisualReviewScenario("library-encoding-dialog", 1d, window => window.Tag = "library-encoding-dialog"),
+                    new WindowVisualReviewScenario("library-import-progress-dialog", 1d, window => window.Tag = "library-import-progress-dialog")
                 ],
                 CreateVisualReviewWindow);
         });
@@ -674,16 +688,243 @@ public sealed class MainWindowNavigationTests
 
     private static WindowVisualReviewWindow CreateVisualReviewWindow()
     {
-        var provider = WpfTestHost.BuildServiceProvider();
+        var provider = WpfTestHost.BuildInitializedServiceProviderAsync()
+            .GetAwaiter()
+            .GetResult();
+        SeedVisualReviewBookAsync(provider).GetAwaiter().GetResult();
         var window = provider.GetRequiredService<MainWindow>();
+        var navigationView = GetNavigationView(window);
+        navigationView.Transition = Transition.None;
+        navigationView.TransitionDuration = 0;
+        navigationView.PaneDisplayMode = NavigationViewPaneDisplayMode.LeftMinimal;
+        navigationView.IsPaneToggleVisible = false;
+        navigationView.IsPaneOpen = false;
+        var dialogCancellation = new CancellationTokenSource();
+        var pendingDialogs = new List<Task>();
         window.ConfigureDesktopLifecycle(_ => Task.CompletedTask, () => true);
         return new WindowVisualReviewWindow(
             window,
-            () => provider.DisposeAsync().AsTask().GetAwaiter().GetResult(),
-            () => provider.GetRequiredService<IAppNavigator>()
-                .NavigateAsync(AppRoutes.Settings, CancellationToken.None)
-                .GetAwaiter()
-                .GetResult());
+            () =>
+            {
+                dialogCancellation.Cancel();
+                DrainDispatcherFrame(window.Dispatcher);
+                foreach (var pendingDialog in pendingDialogs)
+                {
+                    Assert.True(pendingDialog.IsCompleted, "Visual-review dialog did not complete after host closure and cancellation.");
+                    try
+                    {
+                        pendingDialog.GetAwaiter().GetResult();
+                    }
+                    catch (OperationCanceledException)
+                    {
+                    }
+                }
+
+                dialogCancellation.Dispose();
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            },
+            () =>
+            {
+                var route = window.Tag switch
+                {
+                    "tts-rules-unsaved-dialog" => AppRoutes.TtsRules,
+                    "book-details-book-delete-dialog" => new BookDetailsRoute("visual-book"),
+                    "library-encoding-dialog" or
+                    "library-import-progress-dialog" => AppRoutes.Library,
+                    _ => AppRoutes.Settings
+                };
+                provider.GetRequiredService<IAppNavigator>()
+                    .NavigateAsync(route, CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+                switch (window.Tag)
+                {
+                    case "active-cache-flyout":
+                        Assert.IsType<Flyout>(window.FindName("ActiveCacheFlyout")).IsOpen = true;
+                        break;
+                    case "chapter-export-flyout":
+                        Assert.IsType<Flyout>(window.FindName("ChapterExportFlyout")).IsOpen = true;
+                        break;
+                    case "snackbar":
+                        provider.GetRequiredService<IAppFeedbackService>()
+                            .ShowSuccess("设置已保存", "新的显示偏好已立即生效。");
+                        break;
+                    case "close-dialog":
+                        pendingDialogs.Add(provider.GetRequiredService<IAppDialogService>()
+                            .ShowConfirmationAsync(
+                                "退出 NovelSpeaker？",
+                                "当前没有未保存的修改。退出后将停止正在进行的播放。",
+                                "退出",
+                                "取消",
+                                dialogCancellation.Token));
+                        break;
+                    case "tts-rules-unsaved-dialog":
+                        pendingDialogs.Add(provider.GetRequiredService<IAppDialogService>()
+                            .ShowUnsavedChangesAsync(
+                                "保存 TTS 规则修改？",
+                                "当前规则包含尚未保存的修改。",
+                                "保存并离开",
+                                "放弃修改",
+                                "取消",
+                                dialogCancellation.Token));
+                        break;
+                    case "book-details-book-delete-dialog":
+                        pendingDialogs.Add(provider.GetRequiredService<IBookDeleteDialogService>()
+                            .ShowAsync(
+                                new BookDeleteDialogRequest("示例小说", true),
+                                dialogCancellation.Token));
+                        break;
+                    case "library-encoding-dialog":
+                        pendingDialogs.Add(provider.GetRequiredService<IEncodingSelectionDialogService>()
+                            .ShowAsync(
+                                new EncodingSelectionPrompt(
+                                    "C:\\fixtures\\sample.txt",
+                                    "示例小说.txt",
+                                    "无法自动识别文本编码，请选择后继续导入。",
+                                    "GB18030",
+                                    ["UTF-8", "GB18030", "Big5"]),
+                                dialogCancellation.Token));
+                        break;
+                    case "library-import-progress-dialog":
+                        pendingDialogs.Add(provider.GetRequiredService<IImportProgressDialogService>()
+                            .RunAsync(
+                                "示例小说.txt",
+                                HoldImportProgressAsync,
+                                dialogCancellation.Token));
+                        break;
+                }
+            },
+            () => StabilizeVisualNavigationPane(window, navigationView));
+    }
+
+    private static Task SeedVisualReviewBookAsync(IServiceProvider provider)
+    {
+        var timestamp = new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero);
+        return provider.GetRequiredService<IBookImportRepository>().SaveAsync(
+            new Book(
+                "visual-book",
+                "示例小说",
+                "示例作者",
+                "sample.txt",
+                "books/visual-book.txt",
+                "visual-review-hash",
+                "UTF-8",
+                timestamp,
+                timestamp,
+                null,
+                timestamp),
+            [
+                new Chapter("visual-chapter-1", "visual-book", 0, 0, "第一章", 0, 120),
+                new Chapter("visual-chapter-2", "visual-book", 1, 1, "第二章", 120, 160)
+            ],
+            CancellationToken.None);
+    }
+
+    private static async Task<LibraryImportCoordinatorResult> HoldImportProgressAsync(
+        IProgress<BookImportProgress> progress,
+        CancellationToken cancellationToken)
+    {
+        progress.Report(new BookImportProgress(
+            BookImportPhase.HashingContent,
+            42,
+            100,
+            false,
+            "正在读取并分析文本。"));
+        var completion = new TaskCompletionSource<LibraryImportCoordinatorResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration = cancellationToken.Register(
+            () => completion.TrySetCanceled(cancellationToken));
+        return await completion.Task;
+    }
+
+    private static void DrainDispatcherFrame(Dispatcher dispatcher)
+    {
+        var frame = new DispatcherFrame();
+        dispatcher.BeginInvoke(
+            DispatcherPriority.ApplicationIdle,
+            new Action(() => frame.Continue = false));
+        Dispatcher.PushFrame(frame);
+    }
+
+    private static void StabilizeVisualNavigationPane(
+        Window window,
+        NavigationView navigationView)
+    {
+        navigationView.PaneDisplayMode = NavigationViewPaneDisplayMode.LeftMinimal;
+        navigationView.IsPaneToggleVisible = false;
+        navigationView.IsPaneOpen = false;
+        window.UpdateLayout();
+        var presenter = Assert.IsType<NavigationViewContentPresenter>(
+            VisualTreeTestHelper.FindDescendant<NavigationViewContentPresenter>(navigationView));
+        if (presenter.TransformToAncestor(navigationView).Transform(new Point()).X <=
+            navigationView.CompactPaneLength)
+        {
+            return;
+        }
+
+        const int maximumFrameCount = 180;
+        var renderedFrameCount = 0;
+        var reachedClosedLayout = false;
+        var frame = new DispatcherFrame();
+        EventHandler? rendering = null;
+        rendering = (_, _) =>
+        {
+            window.UpdateLayout();
+            renderedFrameCount++;
+            if (presenter.TransformToAncestor(navigationView).Transform(new Point()).X <=
+                navigationView.CompactPaneLength)
+            {
+                reachedClosedLayout = true;
+                frame.Continue = false;
+            }
+            else if (renderedFrameCount >= maximumFrameCount)
+            {
+                frame.Continue = false;
+            }
+        };
+        try
+        {
+            CompositionTarget.Rendering += rendering;
+            Dispatcher.PushFrame(frame);
+        }
+        finally
+        {
+            CompositionTarget.Rendering -= rendering;
+        }
+
+        Assert.True(
+            reachedClosedLayout,
+            $"Main-window navigation pane did not reach its closed layout within {maximumFrameCount} frames.");
+    }
+
+    private static void ConfigureActiveCacheVisual(Window window)
+    {
+        window.Tag = "active-cache-flyout";
+        var viewModel = Assert.IsType<MainWindowViewModel>(window.DataContext);
+        viewModel.ActiveCache.IsVisible = true;
+        viewModel.ActiveCache.CompactStatusText = "缓存中 · 1/3 章 · 40%";
+        viewModel.ActiveCache.BookTitle = "示例小说";
+        viewModel.ActiveCache.BatchStatusText = "正在缓存";
+        viewModel.ActiveCache.TotalSegmentProgressText = "总进度 4 / 10 段";
+        viewModel.ActiveCache.CanCancel = true;
+        viewModel.ActiveCache.Chapters.Add(new ShellActiveCacheChapterItem(0, "第一章", "已完成", false, true, false));
+        viewModel.ActiveCache.Chapters.Add(new ShellActiveCacheChapterItem(1, "第二章", "2 / 5", true, false, false));
+        viewModel.ActiveCache.Chapters.Add(new ShellActiveCacheChapterItem(2, "第三章", "等待中", false, false, false));
+        viewModel.ActiveCache.IsFlyoutOpen = true;
+    }
+
+    private static void ConfigureChapterExportVisual(Window window)
+    {
+        window.Tag = "chapter-export-flyout";
+        var viewModel = Assert.IsType<MainWindowViewModel>(window.DataContext);
+        viewModel.ChapterExport.IsVisible = true;
+        viewModel.ChapterExport.CompactStatusText = "导出中 · 2/7 章 · 29%";
+        viewModel.ChapterExport.BookTitle = "示例小说";
+        viewModel.ChapterExport.BatchStatusText = "正在导出";
+        viewModel.ChapterExport.CurrentChapterText = "正在导出：第三章";
+        viewModel.ChapterExport.ProgressText = "已完成 2 / 7 章";
+        viewModel.ChapterExport.CanCancel = true;
+        viewModel.ChapterExport.IsFlyoutOpen = true;
     }
 
     private static T? FindVisualAncestor<T>(DependencyObject element)

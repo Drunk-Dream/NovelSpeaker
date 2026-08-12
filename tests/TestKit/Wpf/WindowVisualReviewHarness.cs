@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -69,16 +70,39 @@ internal static class WindowVisualReviewHarness
                     using var fixture = createWindow();
                     fixture.Window.Width = width;
                     fixture.Window.Height = height;
+                    fixture.Window.WindowStartupLocation = WindowStartupLocation.Manual;
+                    fixture.Window.Left = 0;
+                    fixture.Window.Top = 0;
                     scenario.Configure?.Invoke(fixture.Window);
                     WpfWindowHost.Show(fixture.Window);
                     fixture.PrepareAfterShow?.Invoke();
-                    fixture.Window.Dispatcher.Invoke(static () => { }, DispatcherPriority.ApplicationIdle);
+                    DrainDispatcher(fixture.Window.Dispatcher);
+                    fixture.StabilizeBeforeCapture?.Invoke();
+                    DrainDispatcher(fixture.Window.Dispatcher);
+                    Keyboard.ClearFocus();
+                    DrainDispatcher(fixture.Window.Dispatcher);
+                    applyTheme();
                     fixture.Window.UpdateLayout();
+                    WaitForStableRendering(
+                        Assert.IsAssignableFrom<FrameworkElement>(fixture.Window.Content),
+                        scenario.Id);
                     var content = Assert.IsAssignableFrom<FrameworkElement>(fixture.Window.Content);
                     var renderWidth = useActualClientSize ? content.ActualWidth : width;
                     var renderHeight = useActualClientSize ? content.ActualHeight : height;
                     Assert.True(renderWidth > 0);
                     Assert.True(renderHeight > 0);
+                    var dpi = 96 * scenario.Scale;
+                    var popupLayers = TransientPopupVisualRenderer.CaptureOpenLayers(
+                        content,
+                        dpi);
+                    if (scenario.RequireTransientPopup)
+                    {
+                        Assert.NotEmpty(popupLayers);
+                        Assert.All(popupLayers, layer => AssertLayerIntersectsViewport(
+                            scenario.Id,
+                            layer,
+                            new Size(renderWidth, renderHeight)));
+                    }
                     fixture.Window.Content = null;
                     var shell = new Border
                     {
@@ -93,8 +117,13 @@ internal static class WindowVisualReviewHarness
                     Assert.Equal(scenario.Scale, layoutDpi.DpiScaleX, 3);
                     Assert.Equal(scenario.Scale, layoutDpi.DpiScaleY, 3);
 
-                    var dpi = 96 * scenario.Scale;
-                    var png = EncodePng(host.Render(new Size(renderWidth, renderHeight), dpi));
+                    var renderSize = new Size(renderWidth, renderHeight);
+                    var background = host.Render(renderSize, dpi);
+                    var png = EncodePng(TransientPopupVisualRenderer.Composite(
+                        background,
+                        renderSize,
+                        dpi,
+                        popupLayers));
                     var frame = DecodePng(png);
                     var fileName = $"{artifactId}.{scenario.Id}.{themeName}.{scenario.Scale * 100:0}.png";
                     File.WriteAllBytes(Path.Combine(outputDirectory, fileName), png);
@@ -139,6 +168,76 @@ internal static class WindowVisualReviewHarness
         return stream.ToArray();
     }
 
+    private static void DrainDispatcher(Dispatcher dispatcher)
+    {
+        var frame = new DispatcherFrame();
+        dispatcher.BeginInvoke(
+            DispatcherPriority.ApplicationIdle,
+            new Action(() => frame.Continue = false));
+        Dispatcher.PushFrame(frame);
+    }
+
+    private static void WaitForStableRendering(FrameworkElement root, string scenarioId)
+    {
+        const int maximumFrameCount = 180;
+        byte[]? previousPixels = null;
+        var stableFrameCount = 0;
+        var renderedFrameCount = 0;
+        var converged = false;
+        var frame = new DispatcherFrame();
+        EventHandler? rendering = null;
+        rendering = (_, _) =>
+        {
+            root.UpdateLayout();
+            var width = Math.Max(1, (int)Math.Ceiling(root.ActualWidth));
+            var height = Math.Max(1, (int)Math.Ceiling(root.ActualHeight));
+            var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(root);
+            var stride = width * 4;
+            var pixels = new byte[stride * height];
+            bitmap.CopyPixels(pixels, stride, 0);
+            stableFrameCount = previousPixels is not null && previousPixels.AsSpan().SequenceEqual(pixels)
+                ? stableFrameCount + 1
+                : 0;
+            previousPixels = pixels;
+            renderedFrameCount++;
+            if (stableFrameCount >= 2)
+            {
+                converged = true;
+                frame.Continue = false;
+                return;
+            }
+
+            if (renderedFrameCount >= maximumFrameCount)
+            {
+                frame.Continue = false;
+            }
+        };
+        try
+        {
+            CompositionTarget.Rendering += rendering;
+            Dispatcher.PushFrame(frame);
+        }
+        finally
+        {
+            CompositionTarget.Rendering -= rendering;
+        }
+
+        Assert.True(
+            converged,
+            $"Scenario '{scenarioId}' did not reach two stable render frames within {maximumFrameCount} frames.");
+    }
+
+    private static void AssertLayerIntersectsViewport(
+        string scenarioId,
+        TransientPopupLayer layer,
+        Size viewport)
+    {
+        Assert.True(
+            new Rect(new Point(), viewport).Contains(new Rect(layer.Origin, layer.Size)),
+            $"Scenario '{scenarioId}' captured a transient layer outside the viewport: {layer.Origin} {layer.Size}.");
+    }
+
     private static BitmapFrame DecodePng(byte[] png)
     {
         using var stream = new MemoryStream(png, writable: false);
@@ -170,7 +269,8 @@ internal static class WindowVisualReviewHarness
                 entry.ContentHeight,
                 entry.Width,
                 entry.Height,
-                entry.Png
+                entry.Png,
+                entry.Sha256
             })
         });
 
@@ -258,16 +358,20 @@ internal static class WindowVisualReviewHarness
 internal sealed record WindowVisualReviewScenario(
     string Id,
     double Scale,
-    Action<Window>? Configure = null);
+    Action<Window>? Configure = null,
+    bool RequireTransientPopup = false);
 
 internal sealed class WindowVisualReviewWindow(
     Window window,
     Action dispose,
-    Action? prepareAfterShow = null) : IDisposable
+    Action? prepareAfterShow = null,
+    Action? stabilizeBeforeCapture = null) : IDisposable
 {
     public Window Window { get; } = window;
 
     public Action? PrepareAfterShow { get; } = prepareAfterShow;
+
+    public Action? StabilizeBeforeCapture { get; } = stabilizeBeforeCapture;
 
     public void Dispose()
     {

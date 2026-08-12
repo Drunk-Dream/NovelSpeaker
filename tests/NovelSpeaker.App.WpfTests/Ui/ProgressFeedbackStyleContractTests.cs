@@ -217,11 +217,16 @@ public sealed class ProgressFeedbackStyleContractTests
             Assert.NotEmpty(AutomationProperties.GetName(standard));
             Assert.NotEmpty(AutomationProperties.GetName(slider));
 
-            Assert.Empty(FindDescendants<ContentControl>(feedbackScene));
+            Assert.Empty(FindDescendants<Wpf.Ui.Controls.Flyout>(feedbackScene));
+            Assert.Empty(FindDescendants<Wpf.Ui.Controls.Snackbar>(feedbackScene));
             Assert.NotNull(FindDescendants<Border>(feedbackScene).Single(border =>
-                AutomationProperties.GetAutomationId(border) == "feedback-popup").Style);
+                AutomationProperties.GetAutomationId(border) == "feedback-dialog").Style);
+            Assert.NotNull(FindDescendants<Border>(feedbackScene).Single(border =>
+                AutomationProperties.GetAutomationId(border) == "feedback-flyout").Style);
             Assert.NotNull(FindDescendants<Border>(feedbackScene).Single(border =>
                 AutomationProperties.GetAutomationId(border) == "feedback-inline").Style);
+            Assert.NotNull(FindDescendants<Border>(feedbackScene).Single(border =>
+                AutomationProperties.GetAutomationId(border) == "feedback-snackbar").Style);
             Assert.NotNull(FindDescendants<TextBlock>(feedbackScene).Single(block =>
                 AutomationProperties.GetAutomationId(block) == "feedback-validation").Style);
             Assert.NotEmpty(AutomationProperties.GetName(

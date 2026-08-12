@@ -606,6 +606,16 @@ public sealed class MiniPlayerWindowTests
                 ChapterIndex = 98,
                 SegmentIndex = 4,
                 SegmentCount = 12
+            },
+            ["volume-flyout"] = PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Paused,
+                BookId = "visual-review-book",
+                BookTitle = "示例小说",
+                ChapterTitle = "第三章",
+                ChapterIndex = 2,
+                SegmentIndex = 4,
+                SegmentCount = 12
             }
         };
 
@@ -624,6 +634,12 @@ public sealed class MiniPlayerWindowTests
                     try
                     {
                         WpfWindowHost.Show(fixture.Window);
+                        if (scenarioName == "volume-flyout")
+                        {
+                            Assert.IsType<Wpf.Ui.Controls.Flyout>(
+                                fixture.Window.FindName("MiniPlayerVolumeFlyout")).IsOpen = true;
+                        }
+
                         fixture.Window.UpdateLayout();
                         var surface = Assert.IsType<Border>(fixture.Window.FindName("MiniPlayerSurface"));
                         Assert.True(surface.ActualWidth > 0);
@@ -691,13 +707,13 @@ public sealed class MiniPlayerWindowTests
         Assert.True(IsValidGitCommit(manifest.GitCommit));
         Assert.Equal(480, manifest.WindowWidth);
         Assert.Equal(150, manifest.WindowHeight);
-        Assert.Equal(12, manifest.Scenarios.Count);
+        Assert.Equal(18, manifest.Scenarios.Count);
 
         var keys = new HashSet<string>(StringComparer.Ordinal);
         foreach (var entry in manifest.Scenarios)
         {
             Assert.True(entry.Theme is "light" or "dark");
-            Assert.True(entry.Scenario is "no-context" or "long-context");
+            Assert.True(entry.Scenario is "no-context" or "long-context" or "volume-flyout");
             Assert.True(entry.Scale is 1d or 1.25d or 1.5d);
             Assert.Equal(96 * entry.Scale, entry.Dpi);
             Assert.True(keys.Add($"{entry.Theme}|{entry.Scenario}|{entry.Scale:R}"));
@@ -723,7 +739,7 @@ public sealed class MiniPlayerWindowTests
             Assert.InRange(frame.DpiY, entry.Dpi - 0.1, entry.Dpi + 0.1);
         }
 
-        Assert.Equal(12, keys.Count);
+        Assert.Equal(18, keys.Count);
     }
 
     private static string[] CreateVisualReviewSnapshot(MiniPlayerVisualReviewManifest manifest) =>
@@ -747,15 +763,21 @@ public sealed class MiniPlayerWindowTests
 
     private static BitmapSource Render(MiniPlayerWindow window, double scale)
     {
+        var dpi = 96 * scale;
+        var size = new Size(window.Width, window.Height);
         var bitmap = new RenderTargetBitmap(
             Pixels(window.Width, scale),
             Pixels(window.Height, scale),
-            96 * scale,
-            96 * scale,
+            dpi,
+            dpi,
             PixelFormats.Pbgra32);
         bitmap.Render(window);
         bitmap.Freeze();
-        return bitmap;
+        return TransientPopupVisualRenderer.Composite(
+            bitmap,
+            size,
+            dpi,
+            TransientPopupVisualRenderer.CaptureOpenLayers(window, dpi));
     }
 
     private static int Pixels(double dip, double scale) =>
