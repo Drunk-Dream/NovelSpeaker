@@ -30,9 +30,16 @@ public sealed class ProgressFeedbackStyleContractTests
         Assert.Equal(
             [
                 "App.Feedback.PopupSurface",
+                "App.Feedback.FlyoutHost",
+                "App.Feedback.DialogContent",
+                "App.Feedback.DialogTitle",
+                "App.Feedback.DialogMessage",
                 "App.Feedback.ValidationText",
                 "App.Feedback.InlineMessage",
-                "App.Feedback.SnackbarBody"
+                "App.Feedback.SnackbarBody",
+                "App.Feedback.SnackbarTitleTemplate",
+                "App.Feedback.SnackbarMessageTemplate",
+                "App.Feedback.Snackbar"
             ],
             ReadKeys(Path.Combine(stylesDirectory, "Feedback.xaml")));
 
@@ -46,9 +53,16 @@ public sealed class ProgressFeedbackStyleContractTests
                 "App.Progress.Standard",
                 "App.Progress.Compact",
                 "App.Feedback.PopupSurface",
+                "App.Feedback.FlyoutHost",
+                "App.Feedback.DialogContent",
+                "App.Feedback.DialogTitle",
+                "App.Feedback.DialogMessage",
                 "App.Feedback.ValidationText",
                 "App.Feedback.InlineMessage",
-                "App.Feedback.SnackbarBody"
+                "App.Feedback.SnackbarBody",
+                "App.Feedback.SnackbarTitleTemplate",
+                "App.Feedback.SnackbarMessageTemplate",
+                "App.Feedback.Snackbar"
             },
             key => Assert.Single(definitions, definition => definition.key == key));
     }
@@ -108,7 +122,7 @@ public sealed class ProgressFeedbackStyleContractTests
     }
 
     [Fact]
-    public void Feedback_styles_are_content_styles_and_do_not_define_hosts_or_templates()
+    public void Feedback_resources_style_provider_hosts_without_replacing_their_templates()
     {
         var document = XDocument.Load(Path.Combine(
             LocateRepositoryRoot(),
@@ -122,27 +136,40 @@ public sealed class ProgressFeedbackStyleContractTests
         var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
         var styles = document.Root?.Elements().ToArray() ?? [];
 
-        Assert.Equal(4, styles.Length);
-        Assert.Equal(
-            ["{x:Type Border}", "{x:Type TextBlock}", "{x:Type Border}", "{x:Type Border}"],
-            styles.Select(style => style.Attribute("TargetType")?.Value ?? string.Empty).ToArray());
-        Assert.All(styles, style =>
+        Assert.Equal(11, styles.Length);
+        var styleElements = styles.Where(style => style.Name.LocalName == "Style").ToArray();
+        Assert.Equal(9, styleElements.Length);
+        Assert.All(styleElements, style =>
         {
-            Assert.Equal("Style", style.Name.LocalName);
             Assert.DoesNotContain(
                 style.Descendants(),
                 element => element.Name.LocalName == "ControlTemplate" ||
                            (string?)element.Attribute("Property") == "Template");
         });
         Assert.DoesNotContain(
-            styles.SelectMany(style => style.Descendants()),
+            styleElements.SelectMany(style => style.Descendants()),
             element => element.Name.LocalName is "ContentControl" or "Popup" or "Window");
         Assert.Equal(
             "{StaticResource App.Surface.Popup}",
-            (string?)styles[0].Attribute("BasedOn"));
+            (string?)styleElements[0].Attribute("BasedOn"));
         Assert.Equal(
-            "{StaticResource App.Typography.Validation}",
-            (string?)styles[1].Attribute("BasedOn"));
+            "{StaticResource Provider.Flyout}",
+            (string?)styleElements[1].Attribute("BasedOn"));
+        Assert.Equal(
+            "{StaticResource Provider.Snackbar}",
+            (string?)styleElements[^1].Attribute("BasedOn"));
+
+        var snackbarTemplates = styles
+            .Where(resource => resource.Name.LocalName == "DataTemplate")
+            .ToDictionary(
+                resource => (string)resource.Attribute(xaml + "Key")!,
+                resource => resource.Descendants().Single(element => element.Name.LocalName == "TextBlock"));
+        Assert.Equal(
+            "{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type ui:Snackbar}}}",
+            (string?)snackbarTemplates["App.Feedback.SnackbarTitleTemplate"].Attribute("Foreground"));
+        Assert.Equal(
+            "{Binding ContentForeground, RelativeSource={RelativeSource AncestorType={x:Type ui:Snackbar}}}",
+            (string?)snackbarTemplates["App.Feedback.SnackbarMessageTemplate"].Attribute("Foreground"));
     }
 
     [Theory]

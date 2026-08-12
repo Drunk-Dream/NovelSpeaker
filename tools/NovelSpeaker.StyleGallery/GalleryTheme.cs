@@ -48,7 +48,9 @@ public static class GalleryThemeRuntime
         "Provider.MenuItem",
         "Provider.NavigationViewItem",
         "Provider.ProgressBar",
-        "Provider.Slider"
+        "Provider.Slider",
+        "Provider.Flyout",
+        "Provider.Snackbar"
     ];
 
     public static void EnsureProviderResources()

@@ -914,7 +914,7 @@ public sealed partial class PlayerViewTests
                 Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(button.Background).Color);
             });
 
-            var volumePopup = Assert.IsType<Popup>(view.FindName("VolumeMenuPopup"));
+            var volumePopup = Assert.IsType<Wpf.Ui.Controls.Flyout>(view.FindName("VolumeFlyout"));
             var volumeSlider = Assert.IsType<Slider>(view.FindName("VolumeSlider"));
             Assert.False(volumePopup.IsOpen);
             Assert.Equal(0d, volumeSlider.Minimum);

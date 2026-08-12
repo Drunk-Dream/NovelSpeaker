@@ -59,4 +59,12 @@
     <Style x:Key="Provider.MenuItem"
            TargetType="{x:Type MenuItem}"
            BasedOn="{StaticResource {x:Type MenuItem}}" />
+
+    <Style x:Key="Provider.Flyout"
+           TargetType="{x:Type ui:Flyout}"
+           BasedOn="{StaticResource {x:Type ui:Flyout}}" />
+
+    <Style x:Key="Provider.Snackbar"
+           TargetType="{x:Type ui:Snackbar}"
+           BasedOn="{StaticResource {x:Type ui:Snackbar}}" />
 </ResourceDictionary>

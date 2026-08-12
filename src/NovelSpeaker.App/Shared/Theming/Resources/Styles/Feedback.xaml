@@ -1,9 +1,22 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
     <!-- Feedback styles format content; Wpf.Ui remains the owner of each host lifecycle. -->
     <Style x:Key="App.Feedback.PopupSurface"
            TargetType="{x:Type Border}"
-           BasedOn="{StaticResource App.Surface.Popup}" />
+           BasedOn="{StaticResource App.Surface.Popup}">
+        <Setter Property="KeyboardNavigation.TabNavigation" Value="Cycle" />
+        <Setter Property="KeyboardNavigation.ControlTabNavigation" Value="Cycle" />
+        <Setter Property="KeyboardNavigation.DirectionalNavigation" Value="Contained" />
+    </Style>
+
+    <Style x:Key="App.Feedback.FlyoutHost"
+           TargetType="{x:Type ui:Flyout}"
+           BasedOn="{StaticResource Provider.Flyout}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Padding" Value="0" />
+    </Style>
 
     <Style x:Key="App.Feedback.DialogContent"
            TargetType="{x:Type Border}"
@@ -36,5 +49,27 @@
            TargetType="{x:Type Border}"
            BasedOn="{StaticResource App.Surface.Raised}">
         <Setter Property="Padding" Value="12,8" />
+    </Style>
+
+    <DataTemplate x:Key="App.Feedback.SnackbarTitleTemplate">
+        <TextBlock Style="{StaticResource App.Typography.ItemTitle}"
+                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type ui:Snackbar}}}"
+                   Text="{Binding}"
+                   TextWrapping="Wrap" />
+    </DataTemplate>
+
+    <DataTemplate x:Key="App.Feedback.SnackbarMessageTemplate">
+        <TextBlock Style="{StaticResource App.Typography.Body}"
+                   Foreground="{Binding ContentForeground, RelativeSource={RelativeSource AncestorType={x:Type ui:Snackbar}}}"
+                   Text="{Binding}"
+                   TextWrapping="Wrap" />
+    </DataTemplate>
+
+    <Style x:Key="App.Feedback.Snackbar"
+           TargetType="{x:Type ui:Snackbar}"
+           BasedOn="{StaticResource Provider.Snackbar}">
+        <Setter Property="MaxWidth" Value="480" />
+        <Setter Property="TitleTemplate" Value="{StaticResource App.Feedback.SnackbarTitleTemplate}" />
+        <Setter Property="ContentTemplate" Value="{StaticResource App.Feedback.SnackbarMessageTemplate}" />
     </Style>
 </ResourceDictionary>

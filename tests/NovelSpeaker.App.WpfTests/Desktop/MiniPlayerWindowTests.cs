@@ -102,7 +102,7 @@ public sealed class MiniPlayerWindowTests
                 Assert.False(ToolTipService.GetIsEnabled(progressSlider));
                 Assert.Same(window.FindResource("App.Media.Slider"), progressSlider.Style);
 
-                var volumePopup = Assert.IsType<Popup>(window.FindName("MiniPlayerVolumeMenuPopup"));
+                var volumePopup = Assert.IsType<Wpf.Ui.Controls.Flyout>(window.FindName("MiniPlayerVolumeFlyout"));
                 var volumeSlider = Assert.IsType<Slider>(window.FindName("MiniPlayerVolumeSlider"));
                 Assert.False(volumePopup.IsOpen);
                 Assert.Equal(0d, volumeSlider.Minimum);

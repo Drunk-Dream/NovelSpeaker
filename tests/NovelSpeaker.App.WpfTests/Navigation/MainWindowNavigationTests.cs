@@ -65,7 +65,7 @@ public sealed class MainWindowNavigationTests
                 InvokeClick(entry);
                 window.UpdateLayout();
 
-                var flyout = Assert.IsType<Popup>(window.FindName("ActiveCacheFlyout"));
+                var flyout = Assert.IsType<Flyout>(window.FindName("ActiveCacheFlyout"));
                 var chapterList = Assert.IsType<ListBox>(window.FindName("ActiveCacheChapterList"));
                 var cancelButton = Assert.IsType<System.Windows.Controls.Button>(
                     window.FindName("CancelActiveCacheButton"));
@@ -134,7 +134,7 @@ public sealed class MainWindowNavigationTests
                 InvokeClick(entry);
                 window.UpdateLayout();
 
-                var flyout = Assert.IsType<Popup>(window.FindName("ChapterExportFlyout"));
+                var flyout = Assert.IsType<Flyout>(window.FindName("ChapterExportFlyout"));
                 var cancelButton = Assert.IsType<System.Windows.Controls.Button>(
                     window.FindName("CancelChapterExportButton"));
                 Assert.True(flyout.IsOpen);
@@ -340,6 +340,10 @@ public sealed class MainWindowNavigationTests
                     navigationView.FooterMenuItems.Cast<NavigationViewItem>(),
                     item => Assert.Same(navigationStyle, item.Style));
 
+                var activeCacheFlyout = Assert.IsType<Flyout>(window.FindName("ActiveCacheFlyout"));
+                var chapterExportFlyout = Assert.IsType<Flyout>(window.FindName("ChapterExportFlyout"));
+                Assert.Same(window.FindResource("App.Feedback.FlyoutHost"), activeCacheFlyout.Style);
+                Assert.Same(window.FindResource("App.Feedback.FlyoutHost"), chapterExportFlyout.Style);
                 Assert.Same(
                     window.FindResource("App.Feedback.PopupSurface"),
                     Assert.IsType<Border>(window.FindName("ActiveCacheFlyoutSurface")).Style);
@@ -349,6 +353,11 @@ public sealed class MainWindowNavigationTests
                 Assert.Same(
                     window.FindResource("App.Button.Secondary"),
                     Assert.IsType<System.Windows.Controls.Button>(window.FindName("CancelActiveCacheButton")).Style);
+                var dialogHost = Assert.IsType<ContentDialogHost>(window.FindName("RootContentDialogHost"));
+                var snackbarPresenter = Assert.IsType<SnackbarPresenter>(window.FindName("RootSnackbarPresenter"));
+                Assert.True(Panel.GetZIndex(dialogHost) > Panel.GetZIndex(snackbarPresenter));
+                var snackbarStyle = Assert.IsType<Style>(snackbarPresenter.Resources[typeof(Snackbar)]);
+                Assert.Same(window.FindResource("App.Feedback.Snackbar"), snackbarStyle.BasedOn);
 
                 var presenter = Assert.IsType<NavigationViewContentPresenter>(
                     VisualTreeTestHelper.FindDescendant<NavigationViewContentPresenter>(navigationView));

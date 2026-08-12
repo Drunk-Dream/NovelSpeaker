@@ -31,7 +31,9 @@ public sealed class ProviderStyleBridgeTests
         "Provider.Slider",
         "Provider.Menu",
         "Provider.ContextMenu",
-        "Provider.MenuItem"
+        "Provider.MenuItem",
+        "Provider.Flyout",
+        "Provider.Snackbar"
     ];
 
     private static readonly string[] StableApplicationResourceKeys =
@@ -309,6 +311,13 @@ public sealed class ProviderStyleBridgeTests
         "Provider.NavigationViewItem" => new NavigationViewItem { Content = "navigation", Style = style },
         "Provider.ProgressBar" => new ProgressBar { Minimum = 0, Maximum = 1, Value = 0.5, Style = style },
         "Provider.Slider" => new Slider { Minimum = 0, Maximum = 1, Value = 0.5, Style = style },
+        "Provider.Flyout" => new Flyout { Content = "flyout", Style = style },
+        "Provider.Snackbar" => new Snackbar(new SnackbarPresenter())
+        {
+            Title = "title",
+            Content = "message",
+            Style = style
+        },
         _ => throw new ArgumentOutOfRangeException(nameof(key), key, "Unknown bridge key.")
     };
 
