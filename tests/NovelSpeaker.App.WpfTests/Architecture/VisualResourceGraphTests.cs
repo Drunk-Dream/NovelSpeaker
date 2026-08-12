@@ -1,6 +1,4 @@
 using System.IO;
-using System.Security.Cryptography;
-using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using System.Text.RegularExpressions;
@@ -24,7 +22,6 @@ public sealed class VisualResourceGraphTests
             path => path.EndsWith("tools/NovelSpeaker.StyleGallery/App.xaml", StringComparison.Ordinal));
         Assert.Contains(graph.Definitions, definition => definition.Key.StartsWith("App.", StringComparison.Ordinal));
         Assert.Contains(graph.Definitions, definition => definition.Key.StartsWith("Provider.", StringComparison.Ordinal));
-        Assert.Empty(graph.LegacyFixtureFindings);
         Assert.Empty(graph.ProductionFixtureFindings);
         Assert.Empty(graph.Violations);
 
@@ -56,7 +53,6 @@ public sealed class VisualResourceGraphTests
         var tokens = IndexOf(order, source => VisualResourceGraphScanner.LayerOf(source) == ResourceLayer.Tokens);
         var styles = IndexOf(order, source => VisualResourceGraphScanner.LayerOf(source) == ResourceLayer.Styles);
         var controlThemes = IndexOf(order, source => VisualResourceGraphScanner.LayerOf(source) == ResourceLayer.ControlThemes);
-        var legacy = IndexOf(order, source => VisualResourceGraphScanner.LayerOf(source) == ResourceLayer.Legacy);
 
         Assert.True(themes >= 0);
         Assert.True(controls >= 0);
@@ -71,18 +67,11 @@ public sealed class VisualResourceGraphTests
             Assert.True(controlThemes > styles);
         }
 
-        if (legacy >= 0)
-        {
-            Assert.True(legacy > Math.Max(styles, controlThemes));
-        }
-
-        Assert.Equal(
-            1,
-            order.Count(source => VisualResourceGraphScanner.LayerOf(source) == ResourceLayer.Legacy));
+        Assert.DoesNotContain(order, source => source.Contains("Legacy", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
-    public void Resource_directory_skeleton_has_one_legacy_entry_and_no_root_dictionaries()
+    public void Resource_directory_has_only_formal_layers_and_no_root_or_legacy_dictionaries()
     {
         var repositoryRoot = LocateRepositoryRoot();
         var resourcesRoot = Path.Combine(
@@ -93,110 +82,31 @@ public sealed class VisualResourceGraphTests
             "Theming",
             "Resources");
 
-        foreach (var directory in new[] { "Tokens", "Styles", "ControlThemes", "Legacy" })
+        foreach (var directory in new[] { "Tokens", "Styles", "ControlThemes" })
         {
             Assert.True(Directory.Exists(Path.Combine(resourcesRoot, directory)), directory);
         }
 
         Assert.Empty(Directory.EnumerateFiles(resourcesRoot, "*.xaml", SearchOption.TopDirectoryOnly));
-        Assert.Equal(
-            ["LegacyStyles.xaml"],
-            Directory.EnumerateFiles(
-                    Path.Combine(resourcesRoot, "Legacy"),
-                    "*.xaml",
-                    SearchOption.TopDirectoryOnly)
-                .Select(Path.GetFileName)
-                .Order(StringComparer.Ordinal));
+        Assert.False(Directory.Exists(Path.Combine(resourcesRoot, "Legacy")));
     }
 
     [Fact]
-    public void Existing_page_legacy_references_are_pinned_until_page_migration()
+    public void Product_gallery_and_tests_do_not_contain_legacy_resource_dictionaries()
     {
         var repositoryRoot = LocateRepositoryRoot();
-        var graph = VisualResourceGraphScanner.ScanRepository(repositoryRoot);
-        var legacyKeys = graph.Definitions
-            .Where(definition => definition.Source.Contains(
-                "/Shared/Theming/Resources/Legacy/",
-                StringComparison.Ordinal))
-            .Select(definition => definition.Key)
-            .ToHashSet(StringComparer.Ordinal);
-        var findings = VisualResourceGraphScanner.ScanPageLegacyReferences(repositoryRoot, legacyKeys);
+        var roots = new[] { "src", "tests", "tools" };
+        var findings = roots
+            .Select(root => Path.Combine(repositoryRoot, root))
+            .SelectMany(root => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .Where(path => path.Contains($"{Path.DirectorySeparatorChar}Legacy{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) ||
+                           Path.GetFileName(path).Contains("Legacy", StringComparison.OrdinalIgnoreCase))
+            .Select(path => Path.GetRelativePath(repositoryRoot, path))
+            .ToArray();
 
-        Assert.NotEmpty(findings);
-        Assert.DoesNotContain(
-            findings,
-            finding => finding.Source.EndsWith(
-                "/Features/Cache/CacheAndDataPage.xaml",
-                StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            findings,
-            finding => finding.Source.EndsWith(
-                "/Features/Diagnostics/DiagnosticsAboutPage.xaml",
-                StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            findings,
-            finding => finding.Source.EndsWith(
-                "/Features/Library/LibraryPage.xaml",
-                StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            findings,
-            finding => finding.Source.EndsWith(
-                "/Features/Library/BookCardView.xaml",
-                StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            findings,
-            finding => finding.Source.EndsWith(
-                "/Features/BookDetails/BookDetailsPage.xaml",
-                StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            findings,
-            finding => finding.Source.EndsWith(
-                "/Features/TtsRules/TtsRulesPage.xaml",
-                StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            findings,
-            finding => finding.Source.EndsWith(
-                "/Features/ChapterRules/ChapterRulesPage.xaml",
-                StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            findings,
-            finding => finding.Source.EndsWith(
-                "/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml",
-                StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            findings,
-            finding => finding.Source.EndsWith(
-                "/Features/Playback/PlayerPage.xaml",
-                StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            findings,
-            finding => finding.Source.EndsWith(
-                "/Features/Playback/Components/PlayerView.xaml",
-                StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            findings,
-            finding => finding.Source.EndsWith(
-                "/Shell/MainWindow.xaml",
-                StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            findings,
-            finding => finding.Source.EndsWith(
-                "/Bootstrap/StartupStatusWindow.xaml",
-                StringComparison.Ordinal));
-        Assert.Equal(
-            "178B6729A8580EB8772A4B99F3EA2186B9483449F95191F72959FC1E2BBBEB1C",
-            VisualResourceGraphScanner.Fingerprint(findings));
-    }
-
-    [Fact]
-    public void New_page_legacy_reference_fixture_is_detected()
-    {
-        var findings = VisualResourceGraphScanner.ScanPageLegacyReferenceSource(
-            "fixture/NewPage.xaml",
-            "<TextBlock Style=\"{StaticResource PageTitleTextBlockStyle}\" />",
-            new HashSet<string>(["PageTitleTextBlockStyle"], StringComparer.Ordinal));
-
-        Assert.Single(findings);
+        Assert.Empty(findings);
     }
 
     [Fact]
@@ -269,35 +179,11 @@ public sealed class VisualResourceGraphTests
     }
 
     [Fact]
-    public void Mixed_semantic_dictionary_classifies_existing_legacy_keys_but_rejects_new_unprefixed_keys()
+    public void Formal_keys_participate_in_duplicate_detection()
     {
         var graph = VisualResourceGraphScanner.ScanDocuments(
             new ResourceGraphDocument(
-                "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml",
-                XDocument.Parse(
-                    """
-                    <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-                        <Style x:Key="PageTitleTextBlockStyle" TargetType="TextBlock" />
-                        <Style x:Key="App.Typography.PageTitle" TargetType="TextBlock" />
-                        <Style x:Key="NewUnprefixedStyle" TargetType="TextBlock" />
-                    </ResourceDictionary>
-                    """,
-                    LoadOptions.SetLineInfo),
-                IsFormal: true));
-
-        Assert.DoesNotContain(
-            graph.Definitions,
-            definition => definition.Key == "PageTitleTextBlockStyle" && definition.IsFormal);
-        Assert.Contains(graph.Violations, violation => violation.Rule == "formal-key-prefix");
-    }
-
-    [Fact]
-    public void Semantic_formal_keys_participate_in_duplicate_detection()
-    {
-        var graph = VisualResourceGraphScanner.ScanDocuments(
-            new ResourceGraphDocument(
-                "src/NovelSpeaker.App/Shared/Theming/Resources/SemanticStyles.xaml",
+                "src/NovelSpeaker.App/Shared/Theming/Resources/Styles/Typography.xaml",
                 XDocument.Parse(
                     """
                     <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -485,54 +371,25 @@ internal static class VisualResourceGraphScanner
             .ToArray();
 
         var graph = ScanDocuments(documents);
-        var controlRoots = new[]
-        {
-            new
-            {
-                Path = Path.Combine(
-                    repositoryRoot,
-                    "src",
-                    "NovelSpeaker.App",
-                    "Shared",
-                    "Presentation",
-                    "Controls"),
-                IsLegacy = false
-            },
-            new
-            {
-                Path = Path.Combine(
-                    repositoryRoot,
-                    "src",
-                    "NovelSpeaker.App",
-                    "Shared",
-                    "Theming",
-                    "Components"),
-                IsLegacy = true
-            }
-        };
-        var controlFindings = controlRoots
-            .Where(root => Directory.Exists(root.Path))
-            .SelectMany(root => Directory.EnumerateFiles(root.Path, "*.cs", SearchOption.AllDirectories)
-                .Where(path => !IsGeneratedPath(path))
-                .SelectMany(path => ScanProductionControlSource(
-                    ToRepositoryRelativePath(repositoryRoot, path),
-                    File.ReadAllText(path)))
-                .Select(finding => (finding, root.IsLegacy)))
-            .ToArray();
-        var productionControlFindings = controlFindings
-            .Where(item => !item.IsLegacy)
-            .Select(item => item.finding)
-            .ToArray();
-        var legacyControlFindings = controlFindings
-            .Where(item => item.IsLegacy)
-            .Select(item => item.finding)
+        var controlsRoot = Path.Combine(
+            repositoryRoot,
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Presentation",
+            "Controls");
+        var productionControlFindings = Directory
+            .EnumerateFiles(controlsRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !IsGeneratedPath(path))
+            .SelectMany(path => ScanProductionControlSource(
+                ToRepositoryRelativePath(repositoryRoot, path),
+                File.ReadAllText(path)))
             .ToArray();
 
         return graph with
         {
             XamlFiles = documents.Select(document => document.Source).ToArray(),
             ProductionFixtureFindings = productionControlFindings,
-            LegacyFixtureFindings = legacyControlFindings,
             Violations = [.. graph.Violations, .. productionControlFindings.Select(finding => new ResourceGraphViolation(
                 finding.Rule,
                 finding.Source,
@@ -651,7 +508,6 @@ internal static class VisualResourceGraphScanner
             references,
             applicationMergeSources,
             [],
-            [],
             violations);
     }
 
@@ -672,64 +528,9 @@ internal static class VisualResourceGraphScanner
         return findings;
     }
 
-    public static IReadOnlyList<LegacyResourceReferenceFinding> ScanPageLegacyReferences(
-        string repositoryRoot,
-        IReadOnlySet<string> legacyKeys)
-    {
-        var appRoot = Path.Combine(repositoryRoot, "src", "NovelSpeaker.App");
-        var resourcesRoot = Path.Combine(
-            appRoot,
-            "Shared",
-            "Theming",
-            "Resources") + Path.DirectorySeparatorChar;
-
-        return Directory.EnumerateFiles(appRoot, "*.xaml", SearchOption.AllDirectories)
-            .Where(path => !path.StartsWith(resourcesRoot, StringComparison.OrdinalIgnoreCase))
-            .Where(path => !IsGeneratedPath(path))
-            .SelectMany(path => ScanPageLegacyReferenceSource(
-                ToRepositoryRelativePath(repositoryRoot, path),
-                File.ReadAllText(path),
-                legacyKeys))
-            .OrderBy(finding => finding.Source, StringComparer.Ordinal)
-            .ThenBy(finding => finding.Line)
-            .ThenBy(finding => finding.Key, StringComparer.Ordinal)
-            .ToArray();
-    }
-
-    public static IReadOnlyList<LegacyResourceReferenceFinding> ScanPageLegacyReferenceSource(
-        string source,
-        string content,
-        IReadOnlySet<string> legacyKeys)
-    {
-        return ResourceReference.Matches(content)
-            .Where(match => legacyKeys.Contains(match.Groups["key"].Value))
-            .Select(match => new LegacyResourceReferenceFinding(
-                source,
-                LineAt(content, match.Index),
-                match.Groups["key"].Value))
-            .ToArray();
-    }
-
-    public static string Fingerprint(IEnumerable<LegacyResourceReferenceFinding> findings)
-    {
-        var canonical = string.Join(
-            "\n",
-            findings
-                .OrderBy(finding => finding.Source, StringComparer.Ordinal)
-                .ThenBy(finding => finding.Key, StringComparer.Ordinal)
-                .Select(finding => $"{finding.Source}:{finding.Key}"));
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
-    }
-
     public static ResourceLayer LayerOf(string source)
     {
         var normalized = source.Replace('\\', '/');
-        if (normalized.Contains("/Legacy/", StringComparison.OrdinalIgnoreCase) ||
-            normalized.EndsWith("/LegacyStyles.xaml", StringComparison.OrdinalIgnoreCase))
-        {
-            return ResourceLayer.Legacy;
-        }
-
         if (normalized.Contains("/ControlThemes/", StringComparison.OrdinalIgnoreCase))
         {
             return ResourceLayer.ControlThemes;
@@ -764,59 +565,10 @@ internal static class VisualResourceGraphScanner
             return false;
         }
 
-        return !normalized.Contains("/Legacy/", StringComparison.OrdinalIgnoreCase);
+        return true;
     }
 
-    private static bool IsFormalDefinition(ResourceGraphDocument document, string key) =>
-        document.IsFormal &&
-        (!document.Source.EndsWith("/SemanticStyles.xaml", StringComparison.OrdinalIgnoreCase) ||
-         !SemanticLegacyKeys.Contains(key));
-
-    private static readonly HashSet<string> SemanticLegacyKeys =
-    [
-        "PageTitleTextBlockStyle",
-        "SectionTitleTextBlockStyle",
-        "PrimaryTextBlockStyle",
-        "SecondaryTextBlockStyle",
-        "StrongTextBlockStyle",
-        "FormLabelTextBlockStyle",
-        "SettingsNavigationRowTitleTextBlockStyle",
-        "SettingsNavigationRowContentTemplate",
-        "SettingsGroupBorderStyle",
-        "SettingsRowsGroupBorderStyle",
-        "SettingsRowBorderStyle",
-        "SettingsLastRowBorderStyle",
-        "SettingsRowTitleTextBlockStyle",
-        "SettingsRowDescriptionTextBlockStyle",
-        "SettingsRowValueTextBlockStyle",
-        "DialogTitleTextBlockStyle",
-        "StatusTextBlockStyle",
-        "ErrorTextBlockStyle",
-        "CardBorderStyle",
-        "PopupSurfaceBorderStyle",
-        "PlaybackProgressBarStyle",
-        "PlaybackSliderTrackButtonStyle",
-        "PlaybackSliderThumbStyle",
-        "PlaybackProgressSliderStyle",
-        "IconButtonControlTemplate",
-        "MediaIconButtonControlTemplate",
-        "BorderlessListItemButtonControlTemplate",
-        "BorderlessIconButtonStyle",
-        "BackIconButtonStyle",
-        "SecondaryIconButtonStyle",
-        "BorderlessListItemButtonStyle",
-        "SettingsNavigationRowButtonStyle",
-        "SelectedCardContainerStyle",
-        "SelectableListItemContainerStyle",
-        "SelectableCardListItemContainerStyle",
-        "CurrentListItemContainerStyle",
-        "DropTargetListItemContainerStyle",
-        "PlaybackSpeedPillButtonStyle",
-        "ToolbarValueButtonStyle",
-        "MediaIconButtonStyle",
-        "PrimaryPlaybackIconButtonStyle",
-        "FloatingIconButtonStyle"
-    ];
+    private static bool IsFormalDefinition(ResourceGraphDocument document, string key) => document.IsFormal;
 
     private static bool HasFormalPrefix(string key) =>
         key.StartsWith("App.", StringComparison.Ordinal) ||
@@ -858,7 +610,6 @@ internal sealed record ResourceGraphAudit(
     IReadOnlyList<ResourceKeyReference> References,
     IReadOnlyList<string> ApplicationMergeSources,
     IReadOnlyList<ProductionFixtureFinding> ProductionFixtureFindings,
-    IReadOnlyList<ProductionFixtureFinding> LegacyFixtureFindings,
     IReadOnlyList<ResourceGraphViolation> Violations);
 
 internal sealed record ResourceKeyDefinition(string Source, int Line, string Key, bool IsFormal);
@@ -867,8 +618,6 @@ internal sealed record ResourceKeyReference(string Source, int Line, string Key)
 
 internal sealed record ProductionFixtureFinding(string Rule, string Source, int Line, string Detail);
 
-internal sealed record LegacyResourceReferenceFinding(string Source, int Line, string Key);
-
 internal sealed record ResourceGraphViolation(string Rule, string Source, int Line, string Detail);
 
 internal enum ResourceLayer
@@ -876,6 +625,5 @@ internal enum ResourceLayer
     Other,
     Tokens,
     Styles,
-    ControlThemes,
-    Legacy
+    ControlThemes
 }

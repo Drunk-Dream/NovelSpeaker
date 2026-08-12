@@ -74,24 +74,6 @@ public sealed class CachePagesViewTests
             Assert.Contains(requiredResource, source, StringComparison.Ordinal);
         }
 
-        foreach (var legacyKey in new[]
-                 {
-                     "PagePadding",
-                     "BackIconButtonStyle",
-                     "PageTitleTextBlockStyle",
-                     "SectionTitleTextBlockStyle",
-                     "CardBorderStyle",
-                     "SelectableCardListItemContainerStyle",
-                     "BorderlessListItemButtonStyle",
-                     "PrimaryTextBlockStyle",
-                     "SecondaryTextBlockStyle",
-                     "StrongTextBlockStyle",
-                     "AccentFillColorSecondaryBrush",
-                     "AccentFillColorDefaultBrush"
-                 })
-        {
-            Assert.DoesNotContain(legacyKey, source, StringComparison.Ordinal);
-        }
     }
 
     [Fact]

@@ -44,8 +44,8 @@ public sealed class ProviderStyleBridgeTests
         "App.Progress.Standard",
         "App.Media.Slider",
         "App.Feedback.PopupSurface",
-        "PageTitleTextBlockStyle",
-        "IconButtonControlTemplate"
+        "App.Typography.SectionTitle",
+        "App.Button.Icon"
     ];
 
     [Fact]
@@ -56,7 +56,7 @@ public sealed class ProviderStyleBridgeTests
             var dictionaries = Assert.IsAssignableFrom<global::System.Windows.Application>(
                 global::System.Windows.Application.Current).Resources.MergedDictionaries;
 
-            Assert.Equal(25, dictionaries.Count);
+            Assert.Equal(24, dictionaries.Count);
             Assert.True(IsWpfUiThemeDictionary(dictionaries[0]));
             Assert.Contains("Wpf.Ui", dictionaries[0].Source?.OriginalString, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(
@@ -153,10 +153,6 @@ public sealed class ProviderStyleBridgeTests
             Assert.EndsWith(
                 "Shared/Theming/Resources/ControlThemes/Rules.xaml",
                 dictionaries[23].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Legacy/LegacyStyles.xaml",
-                dictionaries[24].Source?.OriginalString,
                 StringComparison.Ordinal);
         });
     }

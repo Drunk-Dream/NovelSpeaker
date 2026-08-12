@@ -128,17 +128,16 @@ public static class GalleryThemeRuntime
             "Resources/ControlThemes/Settings.xaml",
             "Resources/ControlThemes/Forms.xaml",
             "Resources/ControlThemes/Feedback.xaml",
-            "Resources/ControlThemes/Rules.xaml",
-            "Resources/Legacy/LegacyStyles.xaml"
+            "Resources/ControlThemes/Rules.xaml"
         };
-        if (dictionaries.Count != 25 ||
+        if (dictionaries.Count != 24 ||
             expectedApplicationSources.Select((suffix, index) =>
                 dictionaries[index + 8].Source?.OriginalString?.EndsWith(
                     suffix,
                     StringComparison.OrdinalIgnoreCase) == true).Any(isMatch => !isMatch))
         {
             throw new InvalidOperationException(
-                "Style Gallery application resources must load Styles, ControlThemes and Legacy exactly once in order, with Legacy last.");
+                "Style Gallery application resources must load Styles and ControlThemes exactly once in order.");
         }
     }
 

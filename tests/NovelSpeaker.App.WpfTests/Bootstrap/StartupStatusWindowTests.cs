@@ -156,17 +156,6 @@ public sealed class StartupStatusWindowTests
         Assert.Contains("App.Surface.DialogContent", xaml, StringComparison.Ordinal);
         Assert.Contains("App.Progress.Standard", xaml, StringComparison.Ordinal);
         Assert.Contains("AppStatusView", xaml, StringComparison.Ordinal);
-        foreach (var legacyKey in new[]
-                 {
-                     "ApplicationBackgroundBrush",
-                     "DialogPadding",
-                     "DialogTitleTextBlockStyle",
-                     "StatusTextBlockStyle",
-                     "SecondaryTextBlockStyle"
-                 })
-        {
-            Assert.DoesNotContain(legacyKey, xaml, StringComparison.Ordinal);
-        }
     }
 
     private static void ConfigureFailure(Window window)

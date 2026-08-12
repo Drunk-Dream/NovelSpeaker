@@ -109,25 +109,6 @@ public sealed class DiagnosticsAboutPageTests
             pageElement.Descendants(),
             element => element.Attribute("Background") is not null);
 
-        foreach (var legacyKey in new[]
-                 {
-                     "PagePadding",
-                     "SectionSpacing",
-                     "BackIconButtonStyle",
-                     "PageTitleTextBlockStyle",
-                     "SettingsRowsGroupBorderStyle",
-                     "SettingsRowBorderStyle",
-                     "SettingsLastRowBorderStyle",
-                     "SettingsRowTitleTextBlockStyle",
-                     "SettingsRowDescriptionTextBlockStyle",
-                     "SettingsRowValueTextBlockStyle",
-                     "SettingsRowControlMargin",
-                     "SettingsRowControlWidth",
-                     "SecondaryIconButtonStyle"
-                 })
-        {
-            Assert.DoesNotContain(legacyKey, source, StringComparison.Ordinal);
-        }
     }
 
     [Theory]

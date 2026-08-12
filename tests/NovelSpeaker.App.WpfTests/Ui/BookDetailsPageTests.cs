@@ -244,25 +244,6 @@ public sealed class BookDetailsPageTests
         Assert.Contains("App.Selection.CurrentItem", source, StringComparison.Ordinal);
         Assert.Contains("App.Progress.Compact", source, StringComparison.Ordinal);
 
-        foreach (var legacyKey in new[]
-                 {
-                     "PagePadding",
-                     "BackIconButtonStyle",
-                     "PageTitleTextBlockStyle",
-                     "CardBorderStyle",
-                     "SectionTitleTextBlockStyle",
-                     "SecondaryTextBlockStyle",
-                     "StrongTextBlockStyle",
-                     "CurrentListItemContainerStyle",
-                     "BorderlessListItemButtonStyle",
-                     "FloatingIconButtonStyle",
-                     "AccentFillColorDefaultBrush",
-                     "CardBackgroundFillColorDefaultBrush",
-                     "CardStrokeColorDefaultBrush"
-                 })
-        {
-            Assert.DoesNotContain(legacyKey, source, StringComparison.Ordinal);
-        }
     }
 
     [Fact]

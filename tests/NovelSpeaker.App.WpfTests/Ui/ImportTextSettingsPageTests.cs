@@ -114,26 +114,6 @@ public sealed class ImportTextSettingsPageTests
             pageElement.Descendants(),
             element => element.Attribute("Background") is not null);
 
-        foreach (var legacyKey in new[]
-                 {
-                     "PagePadding",
-                     "SectionSpacing",
-                     "BackIconButtonStyle",
-                     "PageTitleTextBlockStyle",
-                     "SettingsRowsGroupBorderStyle",
-                     "SettingsRowBorderStyle",
-                     "SettingsLastRowBorderStyle",
-                     "SettingsRowTitleTextBlockStyle",
-                     "SettingsRowDescriptionTextBlockStyle",
-                     "SettingsRowControlMargin",
-                     "SettingsRowControlWidth",
-                     "ErrorTextBlockStyle",
-                     "SettingsNavigationRowButtonStyle"
-                 })
-        {
-            Assert.DoesNotContain(legacyKey, source, StringComparison.Ordinal);
-        }
-
         WpfTestHost.RunInSta(() =>
         {
             var provider = WpfTestHost.BuildServiceProvider();

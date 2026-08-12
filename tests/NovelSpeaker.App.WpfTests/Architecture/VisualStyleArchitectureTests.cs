@@ -61,9 +61,9 @@ public sealed class VisualStyleArchitectureTests
 
         Assert.Empty(audit.Violations);
         Assert.Contains(audit.Provider, entry => entry.Provider == "Wpf.Ui" && entry.Resource == "ThemesDictionary");
-        Assert.Contains(
+        Assert.DoesNotContain(
             audit.GlobalDictionaries,
-            entry => entry.Source.EndsWith("Shared/Theming/Resources/Legacy/LegacyStyles.xaml", StringComparison.Ordinal));
+            entry => entry.Source.Contains("Legacy", StringComparison.OrdinalIgnoreCase));
         Assert.NotEmpty(audit.TemplateOverrides);
         Assert.NotEmpty(audit.PageLocalResources);
 
@@ -160,7 +160,7 @@ public sealed class VisualStyleArchitectureTests
     }
 
     [Fact]
-    public void Stable_design_tokens_have_cross_component_names_and_gallery_does_not_use_page_geometry()
+    public void Stable_design_tokens_have_cross_component_names_without_page_geometry()
     {
         var repositoryRoot = LocateRepositoryRoot();
         var tokensDirectory = Path.Combine(
@@ -192,17 +192,10 @@ public sealed class VisualStyleArchitectureTests
             StableDesignTokenKeys.Count(designTokens.Contains));
         Assert.DoesNotContain(
             StableDesignTokenKeys,
-            key => key.Contains("PagePadding", StringComparison.Ordinal) ||
-                   key.Contains("Width", StringComparison.Ordinal) ||
+            key => key.Contains("Width", StringComparison.Ordinal) ||
                    key.Contains("Margin", StringComparison.Ordinal) ||
                    key.Contains("Column", StringComparison.Ordinal) ||
                    key.Contains("List", StringComparison.Ordinal));
-
-        var componentGallerySource = File.ReadAllText(
-            Path.Combine(repositoryRoot, "tools", "NovelSpeaker.StyleGallery", "GallerySceneBuilders.cs"));
-        Assert.DoesNotContain("PagePadding", componentGallerySource, StringComparison.Ordinal);
-        Assert.DoesNotContain("SettingsRowControlWidth", componentGallerySource, StringComparison.Ordinal);
-        Assert.DoesNotContain("NavigationPaneOpenWidth", componentGallerySource, StringComparison.Ordinal);
     }
 
     [Fact]

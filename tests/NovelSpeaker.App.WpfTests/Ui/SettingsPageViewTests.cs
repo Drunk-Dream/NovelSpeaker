@@ -210,25 +210,6 @@ public sealed class SettingsPageViewTests
     }
 
     [Fact]
-    public void SettingsPage_does_not_reference_legacy_page_or_navigation_resources()
-    {
-        var source = File.ReadAllText(Path.Combine(
-            LocateRepositoryRoot(),
-            "src",
-            "NovelSpeaker.App",
-            "Features",
-            "Settings",
-            "SettingsPage.xaml"));
-
-        Assert.DoesNotContain("PagePadding", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("SectionSpacing", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("PageTitleTextBlockStyle", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("SectionTitleTextBlockStyle", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("SettingsGroupBorderStyle", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("SettingsNavigationRowButtonStyle", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void Settings_home_visual_review_generates_stable_page_screenshots()
     {
         if (!VisualArtifactTestGuard.IsEnabled)

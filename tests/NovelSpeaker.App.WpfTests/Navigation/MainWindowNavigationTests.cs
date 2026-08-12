@@ -394,23 +394,6 @@ public sealed class MainWindowNavigationTests
                     "Shell",
                     "MainWindow.xaml"));
                 Assert.Contains("App.Brush.Window.Background", xaml, StringComparison.Ordinal);
-                foreach (var legacyKey in new[]
-                         {
-                             "ApplicationBackgroundBrush",
-                             "LayerFillColorAltBrush",
-                             "NavigationPaneOpenWidth",
-                             "NavigationPaneCompactWidth",
-                             "CardPaddingLarge",
-                             "PopupSurfaceBorderStyle",
-                             "StrongTextBlockStyle",
-                             "SecondaryTextBlockStyle",
-                             "SectionTitleTextBlockStyle",
-                             "PrimaryTextBlockStyle"
-                         })
-                {
-                    Assert.DoesNotContain(legacyKey, xaml, StringComparison.Ordinal);
-                }
-
                 var themeRuntime = new WpfUiThemeRuntime();
                 foreach (var applyTheme in new Action[] { themeRuntime.ApplyLightTheme, themeRuntime.ApplyDarkTheme })
                 {

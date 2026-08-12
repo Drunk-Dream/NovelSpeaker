@@ -82,7 +82,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <TextBlock Margin="0,0,0,2"
-                                       Style="{StaticResource StrongTextBlockStyle}"
+                                       Style="{StaticResource App.Typography.ItemTitle}"
                                        FontSize="18"
                                        Foreground="{Binding Cover.ForegroundBrush, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                        Text="{Binding}"

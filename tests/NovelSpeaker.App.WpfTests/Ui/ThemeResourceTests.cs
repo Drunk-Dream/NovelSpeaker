@@ -21,29 +21,6 @@ public sealed class ThemeResourceTests
     }
 
     [Fact]
-    public void Semantic_resources_reference_provider_theme_brushes_and_preserve_interaction_states()
-    {
-        var path = Path.Combine(
-            GetRepositoryRoot(),
-            "src",
-            "NovelSpeaker.App",
-            "Shared",
-            "Theming",
-            "Resources",
-            "Legacy",
-            "LegacyStyles.xaml");
-        var content = File.ReadAllText(path);
-
-        Assert.Contains("TextFillColorPrimaryBrush", content);
-        Assert.Contains("CardBackgroundFillColorDefaultBrush", content);
-        Assert.Contains("AccentFillColorDefaultBrush", content);
-        Assert.Contains("Property=\"IsMouseOver\"", content);
-        Assert.Contains("Property=\"IsPressed\"", content);
-        Assert.Contains("Property=\"IsEnabled\" Value=\"False\"", content);
-        Assert.DoesNotContain("Property=\"IsKeyboardFocused\"", content);
-    }
-
-    [Fact]
     public void Application_resource_dictionaries_do_not_take_over_standard_control_templates_globally()
     {
         var resourcesRoot = Path.Combine(

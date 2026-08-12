@@ -161,18 +161,6 @@ public sealed partial class LibraryPageTests
         Assert.Contains("AppStatusView", source, StringComparison.Ordinal);
         Assert.Contains("App.Feedback.InlineMessage", source, StringComparison.Ordinal);
 
-        foreach (var legacyKey in new[]
-                 {
-                     "PagePadding",
-                     "PageTitleTextBlockStyle",
-                     "PrimaryTextBlockStyle",
-                     "SecondaryTextBlockStyle",
-                     "StrongTextBlockStyle",
-                     "BorderlessIconButtonStyle"
-                 })
-        {
-            Assert.DoesNotContain(legacyKey, source, StringComparison.Ordinal);
-        }
     }
 
     [Theory]
