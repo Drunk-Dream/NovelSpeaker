@@ -143,7 +143,7 @@ public sealed class MediaControlStyleTests
                            (element.Name.LocalName == "Setter" &&
                             (string?)element.Attribute("Property") == "Template"));
         });
-        Assert.Equal("Button", (string?)resources[0].Attribute("TargetType"));
+        Assert.Equal("{x:Type ui:Button}", (string?)resources[0].Attribute("TargetType"));
         Assert.Equal("{StaticResource App.Button.Icon}", (string?)resources[0].Attribute("BasedOn"));
         Assert.Equal("{x:Type Slider}", (string?)resources[1].Attribute("TargetType"));
         Assert.Equal("{StaticResource Provider.Slider}", (string?)resources[1].Attribute("BasedOn"));
@@ -177,7 +177,7 @@ public sealed class MediaControlStyleTests
         var style = Assert.Single(resources, resource =>
             (string?)resource.Attribute(xaml + "Key") == "App.Media.Button");
         Assert.Equal("Style", style.Name.LocalName);
-        Assert.Equal("Button", (string?)style.Attribute("TargetType"));
+        Assert.Equal("{x:Type ui:Button}", (string?)style.Attribute("TargetType"));
         Assert.Equal("{StaticResource App.Button.Icon}", (string?)style.Attribute("BasedOn"));
         Assert.DoesNotContain(
             style.Descendants(),
@@ -215,22 +215,22 @@ public sealed class MediaControlStyleTests
 
                 Assert.Equal(
                     SymbolRegular.ChevronDoubleLeft20,
-                    Assert.IsType<SymbolIcon>(bar.PreviousChapterButton.Content).Symbol);
+                    GetButtonIcon(bar.PreviousChapterButton).Symbol);
                 Assert.Equal(
                     SymbolRegular.ChevronLeft20,
-                    Assert.IsType<SymbolIcon>(bar.PreviousSegmentButton.Content).Symbol);
+                    GetButtonIcon(bar.PreviousSegmentButton).Symbol);
                 Assert.Equal(
                     SymbolRegular.ChevronRight20,
-                    Assert.IsType<SymbolIcon>(bar.NextSegmentButton.Content).Symbol);
+                    GetButtonIcon(bar.NextSegmentButton).Symbol);
                 Assert.Equal(
                     SymbolRegular.ChevronDoubleRight20,
-                    Assert.IsType<SymbolIcon>(bar.NextChapterButton.Content).Symbol);
+                    GetButtonIcon(bar.NextChapterButton).Symbol);
                 Assert.Equal(
                     SymbolRegular.PlayCircle24,
-                    Assert.IsType<SymbolIcon>(bar.PlayButton.Content).Symbol);
+                    GetButtonIcon(bar.PlayButton).Symbol);
                 Assert.Equal(
                     SymbolRegular.PauseCircle24,
-                    Assert.IsType<SymbolIcon>(bar.PauseButton.Content).Symbol);
+                    GetButtonIcon(bar.PauseButton).Symbol);
 
                 Assert.True(bar.PinButton.IsEnabled);
                 Assert.False(bar.DisabledWindowActionButton.IsEnabled);
@@ -284,8 +284,8 @@ public sealed class MediaControlStyleTests
                 Assert.True(bar.PlayButton.ActualWidth >= 32);
                 Assert.True(bar.PlayButton.ActualHeight >= 32);
 
-                var playIcon = Assert.IsType<SymbolIcon>(bar.PlayButton.Content);
-                var pauseIcon = Assert.IsType<SymbolIcon>(bar.PauseButton.Content);
+                var playIcon = GetButtonIcon(bar.PlayButton);
+                var pauseIcon = GetButtonIcon(bar.PauseButton);
                 Assert.True(playIcon.RenderSize.Width > 0);
                 Assert.True(playIcon.RenderSize.Height > 0);
                 Assert.Equal(playIcon.RenderSize, pauseIcon.RenderSize);
@@ -298,13 +298,15 @@ public sealed class MediaControlStyleTests
         });
     }
 
-    [Fact]
-    public void Gallery_media_fixture_binds_dark_media_glyph_nodes_to_semantic_foregrounds()
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
+    public void Gallery_media_fixture_binds_media_glyph_nodes_to_semantic_owner_foregrounds(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
             GalleryThemeRuntime.EnsureProviderResources();
-            GalleryThemeRuntime.Apply(GalleryTheme.Dark);
+            GalleryThemeRuntime.Apply(theme);
             var bar = new GalleryMediaControlBar();
             var window = CreateFixtureWindow(bar, 900, 360);
             try
@@ -400,7 +402,7 @@ public sealed class MediaControlStyleTests
 
                 Assert.Equal(
                     SymbolRegular.Speaker224,
-                    Assert.IsType<SymbolIcon>(bar.VolumeButton.Content).Symbol);
+                    GetButtonIcon(bar.VolumeButton).Symbol);
                 Assert.Contains("音量", AutomationProperties.GetName(bar.VolumeButton), StringComparison.Ordinal);
                 Assert.Contains("音量", Assert.IsType<string>(bar.VolumeButton.ToolTip), StringComparison.Ordinal);
                 Assert.True(bar.VolumeButton.ActualWidth >= 36);
@@ -486,12 +488,15 @@ public sealed class MediaControlStyleTests
 
     private static void AssertMediaGlyphForeground(Button button, Color expectedColor)
     {
-        var icon = Assert.IsType<SymbolIcon>(button.Content);
+        var icon = GetButtonIcon(button);
         var glyph = Assert.Single(FindDescendants<TextBlock>(icon));
         var foreground = Assert.IsType<SolidColorBrush>(glyph.Foreground);
         Assert.Equal(expectedColor, foreground.Color);
         Assert.NotEqual(Colors.Black, foreground.Color);
     }
+
+    private static SymbolIcon GetButtonIcon(Button button) =>
+        Assert.IsType<SymbolIcon>(Assert.IsType<Wpf.Ui.Controls.Button>(button).Icon);
 
     private static IReadOnlyList<T> FindDescendants<T>(DependencyObject root)
         where T : DependencyObject

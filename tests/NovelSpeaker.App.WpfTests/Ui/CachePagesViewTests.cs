@@ -202,7 +202,7 @@ public sealed class CachePagesViewTests
                 page.UpdateLayout();
 
                 var clearButton = Assert.IsType<Wpf.Ui.Controls.Button>(page.FindName("ClearSelectedChaptersButton"));
-                var exportButton = Assert.IsType<Button>(page.FindName("ExportSelectedChaptersButton"));
+                var exportButton = Assert.IsType<Wpf.Ui.Controls.Button>(page.FindName("ExportSelectedChaptersButton"));
 
                 Assert.False(clearButton.IsEnabled);
                 Assert.False(exportButton.IsEnabled);
@@ -239,7 +239,8 @@ public sealed class CachePagesViewTests
                     page.FindName("OpenCacheManagementRow"));
                 var settingsRows = Assert.IsType<NovelSpeaker.App.Shared.Presentation.Controls.Settings.AppSettingsList>(
                     page.FindName("SettingsList"));
-                Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(clearAllButton.Content);
+                Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(
+                    Assert.IsType<Wpf.Ui.Controls.Button>(clearAllButton).Icon);
                 Assert.Equal("清理全部缓存", clearAllButton.ToolTip);
                 Assert.Equal(settingsRows.Items.Count - 1, settingsRows.Items.IndexOf(cacheManagementButton));
             }
@@ -362,9 +363,9 @@ public sealed class CachePagesViewTests
                 Assert.Empty(chapterCleanupButtons);
 
                 var clearButton = Assert.IsType<Wpf.Ui.Controls.Button>(page.FindName("ClearSelectedChaptersButton"));
-                var exportButton = Assert.IsType<Button>(page.FindName("ExportSelectedChaptersButton"));
-                var clearIcon = Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(clearButton.Content);
-                var exportIcon = Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(exportButton.Content);
+                var exportButton = Assert.IsType<Wpf.Ui.Controls.Button>(page.FindName("ExportSelectedChaptersButton"));
+                var clearIcon = Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(clearButton.Icon);
+                var exportIcon = Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(exportButton.Icon);
                 Assert.Equal(Wpf.Ui.Controls.SymbolRegular.Delete24, clearIcon.Symbol);
                 Assert.Equal("清理所选章节缓存", AutomationProperties.GetName(clearButton));
                 Assert.Equal(Wpf.Ui.Controls.SymbolRegular.ArrowDownload24, exportIcon.Symbol);
@@ -456,13 +457,13 @@ public sealed class CachePagesViewTests
                 page.UpdateLayout();
 
                 var clearButton = Assert.IsType<Wpf.Ui.Controls.Button>(page.FindName("ClearSelectedChaptersButton"));
-                var exportButton = Assert.IsType<Button>(page.FindName("ExportSelectedChaptersButton"));
+                var exportButton = Assert.IsType<Wpf.Ui.Controls.Button>(page.FindName("ExportSelectedChaptersButton"));
                 var chapterButton = Assert.Single(
                     VisualTreeTestHelper.FindDescendants<Button>(page),
                     button => AutomationProperties.GetName(button) == chapter.AutomationName);
 
-                Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(clearButton.Content);
-                Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(exportButton.Content);
+                Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(clearButton.Icon);
+                Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(exportButton.Icon);
                 Assert.Null(page.FindName("ExportProgressPanel"));
                 Assert.Null(page.FindName("CancelExportButton"));
                 Assert.Null(page.FindName("OpenExportDirectoryButton"));

@@ -311,7 +311,8 @@ public sealed class StyleGallerySceneTests
                     global::System.Windows.Application.Current);
                 var iconButton = FindDescendants<WpfButton>(scene).Single(button =>
                     AutomationProperties.GetAutomationId(button) == "button-icon-default");
-                var icon = FindDescendants<SymbolIcon>(iconButton).Single();
+                var iconOwner = Assert.IsType<Wpf.Ui.Controls.Button>(iconButton);
+                var icon = Assert.IsType<SymbolIcon>(iconOwner.Icon);
                 var iconAndText = FindDescendants<WpfButton>(scene).Single(button =>
                     AutomationProperties.GetAutomationId(button) == "button-icon-text");
                 var iconAndTextSymbol = FindDescendants<SymbolIcon>(iconAndText).Single();
@@ -321,6 +322,9 @@ public sealed class StyleGallerySceneTests
                 var expectedPrimaryBrush = Assert.IsType<SolidColorBrush>(
                     application.FindResource("App.Brush.Accent.Text"));
                 Assert.Equal(expectedIconBrush.Color, Assert.IsType<SolidColorBrush>(icon.Foreground).Color);
+                Assert.Equal(
+                    Assert.IsType<SolidColorBrush>(iconOwner.Foreground).Color,
+                    Assert.IsType<SolidColorBrush>(icon.Foreground).Color);
                 Assert.Equal(
                     expectedPrimaryBrush.Color,
                     Assert.IsType<SolidColorBrush>(iconAndTextSymbol.Foreground).Color);
@@ -412,6 +416,11 @@ public sealed class StyleGallerySceneTests
                 Assert.Equal(
                     expectedDangerIconHoverForeground.Color,
                     Assert.IsType<SolidColorBrush>(dangerIconHover.Foreground).Color);
+                var dangerIcon = Assert.IsType<SymbolIcon>(
+                    Assert.IsType<Wpf.Ui.Controls.Button>(dangerIconHover).Icon);
+                Assert.Equal(
+                    expectedDangerIconHoverForeground.Color,
+                    Assert.IsType<SolidColorBrush>(dangerIcon.Foreground).Color);
             }
             finally
             {

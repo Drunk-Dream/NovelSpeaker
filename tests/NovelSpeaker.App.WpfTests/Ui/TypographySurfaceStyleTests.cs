@@ -102,8 +102,16 @@ public sealed class TypographySurfaceStyleTests
                 dictionaries[9].Source?.OriginalString,
                 StringComparison.Ordinal);
             Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Inputs.xaml",
+                "Shared/Theming/Resources/Styles/Buttons.xaml",
                 dictionaries[10].Source?.OriginalString,
+                StringComparison.Ordinal);
+            Assert.EndsWith(
+                "Shared/Theming/Resources/Styles/Icons.xaml",
+                dictionaries[11].Source?.OriginalString,
+                StringComparison.Ordinal);
+            Assert.EndsWith(
+                "Shared/Theming/Resources/Styles/Inputs.xaml",
+                dictionaries[12].Source?.OriginalString,
                 StringComparison.Ordinal);
 
             var application = Assert.IsAssignableFrom<global::System.Windows.Application>(

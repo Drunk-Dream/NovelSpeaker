@@ -66,15 +66,15 @@ public sealed class CacheAndDataPageTests
                 var progress = Assert.Single(VisualTreeTestHelper.FindDescendants<ProgressBar>(overviewRow));
                 Assert.Same(page.FindResource("App.Progress.Compact"), progress.Style);
 
-                var directoryButton = Assert.IsType<Button>(page.FindName("OpenAppDataDirectoryButton"));
+                var directoryButton = Assert.IsType<Wpf.Ui.Controls.Button>(page.FindName("OpenAppDataDirectoryButton"));
                 Assert.Same(page.FindResource("App.Button.Icon"), directoryButton.Style);
-                Assert.Equal(SymbolRegular.FolderOpen24, Assert.IsType<SymbolIcon>(directoryButton.Content).Symbol);
+                Assert.Equal(SymbolRegular.FolderOpen24, Assert.IsType<SymbolIcon>(directoryButton.Icon).Symbol);
                 Assert.Equal("打开应用数据目录", directoryButton.ToolTip);
                 Assert.Equal("打开应用数据目录", AutomationProperties.GetName(directoryButton));
 
                 var clearButton = Assert.IsType<Wpf.Ui.Controls.Button>(page.FindName("ClearAllCacheButton"));
                 Assert.Same(page.FindResource("App.Button.DangerIcon"), clearButton.Style);
-                Assert.Equal(SymbolRegular.Delete24, Assert.IsType<SymbolIcon>(clearButton.Content).Symbol);
+                Assert.Equal(SymbolRegular.Delete24, Assert.IsType<SymbolIcon>(clearButton.Icon).Symbol);
                 Assert.Equal("清理全部缓存", clearButton.ToolTip);
                 Assert.Equal("清理全部缓存", AutomationProperties.GetName(clearButton));
 

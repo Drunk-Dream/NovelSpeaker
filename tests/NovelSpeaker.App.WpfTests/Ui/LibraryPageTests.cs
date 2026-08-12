@@ -66,7 +66,7 @@ public sealed partial class LibraryPageTests
                 0d,
                 1d);
             Assert.NotNull(clearSearchButton);
-            AssertImportIcon(Assert.IsType<Button>(view.FindName("ToolbarImportButton")));
+            AssertImportIcon(Assert.IsType<Wpf.Ui.Controls.Button>(view.FindName("ToolbarImportButton")));
             Assert.Same(view.FindResource("App.Button.Icon"), clearSearchButton.Style);
             Assert.Same(
                 view.FindResource("App.Input.TextBox.Standard"),

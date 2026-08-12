@@ -225,7 +225,10 @@ public sealed class SettingsSubpageViewTests
             candidate => AutomationProperties.GetName(candidate) == accessibleName);
 
         Assert.Equal(accessibleName, button.ToolTip);
-        Assert.Equal(expectedSymbol, Assert.IsType<SymbolIcon>(button.Content).Symbol);
+        var icon = button is Wpf.Ui.Controls.Button uiButton
+            ? Assert.IsType<SymbolIcon>(uiButton.Icon)
+            : Assert.IsType<SymbolIcon>(button.Content);
+        Assert.Equal(expectedSymbol, icon.Symbol);
         Assert.Same(page.FindResource(styleKey), button.Style);
     }
 

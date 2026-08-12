@@ -12,6 +12,7 @@ using NovelSpeaker.StyleGallery;
 using Xunit;
 using WpfButton = System.Windows.Controls.Button;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
+using WpfUiButton = Wpf.Ui.Controls.Button;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
 
@@ -157,7 +158,7 @@ public sealed class CommonFeedbackControlTests
             Assert.NotNull(withBack.Template);
             Assert.NotNull(section.Template);
 
-            var noBackButton = Assert.IsType<WpfButton>(
+            var noBackButton = Assert.IsType<WpfUiButton>(
                 noBack.Template!.FindName("BackButton", noBack));
             Assert.Equal(Visibility.Collapsed, noBackButton.Visibility);
             var noBackTitle = Assert.IsType<WpfTextBlock>(
@@ -176,14 +177,14 @@ public sealed class CommonFeedbackControlTests
                     emptyDescriptionPageHeader.Template.FindName("TitleLayout", emptyDescriptionPageHeader)).VerticalAlignment);
             Assert.Equal(
                 VerticalAlignment.Center,
-                Assert.IsType<WpfButton>(
+                Assert.IsType<WpfUiButton>(
                     emptyDescriptionPageHeader.Template.FindName("BackButton", emptyDescriptionPageHeader)).VerticalAlignment);
             Assert.Equal(
                 Visibility.Collapsed,
                 Assert.IsType<WpfTextBlock>(
                     nullDescriptionPageHeader.Template!.FindName("DescriptionPresenter", nullDescriptionPageHeader)).Visibility);
 
-            var backButton = Assert.IsType<WpfButton>(
+            var backButton = Assert.IsType<WpfUiButton>(
                 withBack.Template!.FindName("BackButton", withBack));
             Assert.Equal(Visibility.Visible, backButton.Visibility);
             Assert.True(backButton.Focusable);
@@ -371,9 +372,9 @@ public sealed class CommonFeedbackControlTests
             var headers = FindDescendants<AppPageHeader>(pageHeaderScene);
             Assert.Equal(2, headers.Count);
             Assert.Contains(headers, header =>
-                Assert.IsType<WpfButton>(header.Template!.FindName("BackButton", header)).Visibility == Visibility.Collapsed);
+                Assert.IsType<WpfUiButton>(header.Template!.FindName("BackButton", header)).Visibility == Visibility.Collapsed);
             Assert.Contains(headers, header =>
-                Assert.IsType<WpfButton>(header.Template!.FindName("BackButton", header)).Visibility == Visibility.Visible);
+                Assert.IsType<WpfUiButton>(header.Template!.FindName("BackButton", header)).Visibility == Visibility.Visible);
 
             var sections = FindDescendants<AppSectionSurface>(sectionScene);
             Assert.Equal(2, sections.Count);

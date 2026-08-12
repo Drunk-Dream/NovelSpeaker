@@ -5,8 +5,11 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Xml.Linq;
+using NovelSpeaker.StyleGallery;
+using Wpf.Ui.Controls;
 using Xunit;
 using WpfButton = System.Windows.Controls.Button;
+using WpfTextBlock = System.Windows.Controls.TextBlock;
 using WpfUiButton = Wpf.Ui.Controls.Button;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -49,11 +52,12 @@ public sealed class ButtonStyleTests
         {
             Assert.Equal("Style", resource.Name.LocalName);
             var key = (string?)resource.Attribute(xaml + "Key");
+            var usesUiButton = key is "App.Button.Icon" or "App.Button.DangerIcon";
             Assert.Equal(
-                key == "App.Button.DangerIcon" ? "{x:Type ui:Button}" : "Button",
+                usesUiButton ? "{x:Type ui:Button}" : "Button",
                 (string?)resource.Attribute("TargetType"));
             Assert.Equal(
-                key == "App.Button.DangerIcon"
+                usesUiButton
                     ? "{StaticResource Provider.UiButton}"
                     : "{StaticResource Provider.Button}",
                 (string?)resource.Attribute("BasedOn"));
@@ -132,11 +136,7 @@ public sealed class ButtonStyleTests
             {
                 Width = 48,
                 Height = 48,
-                Content = new Border
-                {
-                    Width = 20,
-                    Height = 20
-                },
+                Icon = new SymbolIcon { Symbol = SymbolRegular.Delete24 },
                 Style = Assert.IsType<Style>(application.FindResource("App.Button.DangerIcon"))
             };
             var window = new Window
@@ -219,6 +219,103 @@ public sealed class ButtonStyleTests
                       (string?)setter.Attribute("Value") == "{x:Null}");
     }
 
+    [Theory]
+    [InlineData(GalleryTheme.Light)]
+    [InlineData(GalleryTheme.Dark)]
+    public void Icon_button_icon_inherits_owner_foreground_in_both_themes(GalleryTheme theme)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(theme);
+            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                global::System.Windows.Application.Current);
+            var icon = new SymbolIcon { Symbol = SymbolRegular.Settings24 };
+            var button = new WpfUiButton
+            {
+                Icon = icon,
+                Style = Assert.IsType<Style>(application.FindResource("App.Button.Icon"))
+            };
+            var window = new Window
+            {
+                Content = button,
+                Width = 96,
+                Height = 96,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            try
+            {
+                WpfWindowHost.Show(window);
+                window.UpdateLayout();
+
+                var expected = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("App.Brush.Text.Primary")).Color;
+                Assert.Equal(expected, Assert.IsType<SolidColorBrush>(button.Foreground).Color);
+                Assert.Equal(expected, Assert.IsType<SolidColorBrush>(icon.Foreground).Color);
+
+                button.IsEnabled = false;
+                window.UpdateLayout();
+                Assert.Equal(
+                    Assert.IsType<SolidColorBrush>(button.Foreground).Color,
+                    Assert.IsType<SolidColorBrush>(icon.Foreground).Color);
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void Icon_button_owner_foreground_updates_in_place_when_theme_changes()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                global::System.Windows.Application.Current);
+            var icon = new SymbolIcon { Symbol = SymbolRegular.Settings24 };
+            var button = new WpfUiButton
+            {
+                Icon = icon,
+                Style = Assert.IsType<Style>(application.FindResource("App.Button.Icon"))
+            };
+            var window = new Window
+            {
+                Content = button,
+                Width = 96,
+                Height = 96,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            try
+            {
+                WpfWindowHost.Show(window);
+                window.UpdateLayout();
+                var light = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("App.Brush.Text.Primary")).Color;
+                Assert.Equal(light, Assert.IsType<SolidColorBrush>(icon.Foreground).Color);
+
+                GalleryThemeRuntime.Apply(GalleryTheme.Dark);
+                window.UpdateLayout();
+                var dark = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("App.Brush.Text.Primary")).Color;
+
+                Assert.NotEqual(light, dark);
+                Assert.Equal(dark, Assert.IsType<SolidColorBrush>(button.Foreground).Color);
+                Assert.Equal(dark, Assert.IsType<SolidColorBrush>(icon.Foreground).Color);
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+                window.Close();
+            }
+        });
+    }
+
     [Fact]
     public void Named_button_styles_keep_provider_templates_and_have_all_interaction_state_triggers()
     {
@@ -233,28 +330,38 @@ public sealed class ButtonStyleTests
             var buttons = new Dictionary<string, WpfButton>(StringComparer.Ordinal);
             foreach (var key in ButtonStyleKeys)
             {
-                WpfButton button = key == "App.Button.DangerIcon"
+                var usesUiButton = key is "App.Button.Icon" or "App.Button.DangerIcon";
+                WpfButton button = usesUiButton
                     ? new WpfUiButton
                     {
-                        Content = new TextBlock { Text = $"{key} fixture" },
+                        Icon = new SymbolIcon
+                        {
+                            Symbol = key == "App.Button.DangerIcon"
+                                ? SymbolRegular.Delete24
+                                : SymbolRegular.Settings24
+                        },
                         Style = Assert.IsType<Style>(application.FindResource(key))
                     }
                     : new WpfButton
                     {
-                        Content = new TextBlock { Text = $"{key} fixture" },
+                        Content = new WpfTextBlock { Text = $"{key} fixture" },
                         Style = Assert.IsType<Style>(application.FindResource(key))
                     };
                 buttons.Add(key, button);
                 stack.Children.Add(button);
 
                 Assert.Equal(
-                    key == "App.Button.DangerIcon" ? typeof(WpfUiButton) : typeof(WpfButton),
+                    usesUiButton ? typeof(WpfUiButton) : typeof(WpfButton),
                     button.Style.TargetType);
                 Assert.Same(
-                    key == "App.Button.DangerIcon" ? providerUiButton : provider,
+                    usesUiButton ? providerUiButton : provider,
                     button.Style.BasedOn);
+
+                var expectedTriggers = key == "App.Button.Icon"
+                    ? new[] { "IsEnabled" }
+                    : new[] { "IsEnabled", "IsMouseOver", "IsPressed" };
                 Assert.Equal(
-                    ["IsEnabled", "IsMouseOver", "IsPressed"],
+                    expectedTriggers,
                     button.Style.Triggers
                         .OfType<Trigger>()
                         .Select(trigger => trigger.Property.Name)
@@ -290,9 +397,16 @@ public sealed class ButtonStyleTests
                     Assert.NotNull(button.Template);
                     Assert.True(button.ActualWidth >= 32, pair.Key);
                     Assert.True(button.ActualHeight >= 32, pair.Key);
-                    Assert.Contains(
-                        FindDescendants<TextBlock>(button),
-                        text => text.Text == $"{pair.Key} fixture");
+                    if (button is WpfUiButton iconButton)
+                    {
+                        Assert.IsType<SymbolIcon>(iconButton.Icon);
+                    }
+                    else
+                    {
+                        Assert.Contains(
+                            FindDescendants<WpfTextBlock>(button),
+                            text => text.Text == $"{pair.Key} fixture");
+                    }
                 });
 
                 var enabledSizes = buttons.ToDictionary(

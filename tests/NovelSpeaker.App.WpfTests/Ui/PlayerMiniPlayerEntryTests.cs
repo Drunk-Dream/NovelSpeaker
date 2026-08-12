@@ -1,5 +1,4 @@
 using System.Windows.Automation;
-using System.Windows.Controls;
 using NovelSpeaker.App.Features.Playback.Components;
 using Xunit;
 
@@ -14,7 +13,7 @@ public sealed class PlayerMiniPlayerEntryTests
         WpfTestHost.RunInSta(() =>
         {
             var view = new PlayerView();
-            var button = Assert.IsType<Button>(view.FindName("MiniPlayerToolButton"));
+            var button = Assert.IsType<Wpf.Ui.Controls.Button>(view.FindName("MiniPlayerToolButton"));
 
             Assert.Equal("迷你播放器", button.ToolTip);
             Assert.Equal("迷你播放器", AutomationProperties.GetName(button));

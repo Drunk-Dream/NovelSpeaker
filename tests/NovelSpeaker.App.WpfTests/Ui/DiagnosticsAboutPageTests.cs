@@ -177,7 +177,7 @@ public sealed class DiagnosticsAboutPageTests
                              "OpenThirdPartyNoticesButton"
                          })
                 {
-                    var button = Assert.IsType<Button>(page.FindName(buttonName));
+                    var button = Assert.IsType<Wpf.Ui.Controls.Button>(page.FindName(buttonName));
                     var expectedTouchSize = (double)page.FindResource("App.Size.Icon.Touch");
                     Assert.True(button.ActualWidth >= expectedTouchSize);
                     Assert.True(button.ActualHeight >= expectedTouchSize);
@@ -220,9 +220,9 @@ public sealed class DiagnosticsAboutPageTests
 
     private static void AssertIconButton(FrameworkElement page, string name, SymbolRegular symbol)
     {
-        var button = Assert.IsType<Button>(page.FindName(name));
+        var button = Assert.IsType<Wpf.Ui.Controls.Button>(page.FindName(name));
         Assert.Same(page.FindResource("App.Button.Icon"), button.Style);
-        Assert.Equal(symbol, Assert.IsType<SymbolIcon>(button.Content).Symbol);
+        Assert.Equal(symbol, Assert.IsType<SymbolIcon>(button.Icon).Symbol);
         Assert.Equal(button.ToolTip, AutomationProperties.GetName(button));
     }
 

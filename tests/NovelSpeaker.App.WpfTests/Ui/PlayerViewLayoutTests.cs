@@ -24,6 +24,7 @@ using NovelSpeaker.Domain.Speech;
 using Wpf.Ui;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
+using WpfUiButton = Wpf.Ui.Controls.Button;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -126,7 +127,7 @@ public sealed partial class PlayerViewTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var toolButton = Assert.IsType<Button>(view.FindName("ActiveCacheToolButton"));
+            var toolButton = Assert.IsType<WpfUiButton>(view.FindName("ActiveCacheToolButton"));
             var locateButton = Assert.IsType<Button>(view.FindName("LocateCurrentChapterButton"));
             var selectionToolbar = Assert.IsType<StackPanel>(view.FindName("ActiveCacheSelectionToolbar"));
             var cancelButton = Assert.IsType<Button>(view.FindName("CancelActiveCacheSelectionButton"));
@@ -240,7 +241,7 @@ public sealed partial class PlayerViewTests
             view.UpdateLayout();
 
             var footer = Assert.IsType<Border>(view.FindName("PlaybackFooterBorder"));
-            var playButton = Assert.IsType<Button>(view.FindName("PrimaryPlaybackButton"));
+            var playButton = Assert.IsType<WpfUiButton>(view.FindName("PrimaryPlaybackButton"));
 
             Assert.Equal(Visibility.Visible, footer.Visibility);
             Assert.True(GetBoundsRelativeToRoot(footer, view).Bottom <= view.ActualHeight);
@@ -275,7 +276,7 @@ public sealed partial class PlayerViewTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var backButton = Assert.IsType<Button>(view.FindName("BackButton"));
+            var backButton = Assert.IsType<WpfUiButton>(view.FindName("BackButton"));
             var titleText = Assert.IsType<TextBlock>(FindVisibleDescendantByText(view, "信息全知者"));
             var chapterTitleText = Assert.IsType<TextBlock>(FindVisibleDescendantByText(view, "第二章 头铁的落款"));
             var footer = Assert.IsType<Border>(view.FindName("PlaybackFooterBorder"));
@@ -356,7 +357,7 @@ public sealed partial class PlayerViewTests
 
             var emptyStateButton = Assert.IsType<Button>(FindVisibleDescendantByContent(view, "前往 TTS 规则"));
             var noRuleFooter = Assert.IsType<Border>(view.FindName("NoRuleFooterBorder"));
-            var backButton = Assert.IsType<Button>(view.FindName("BackButton"));
+            var backButton = Assert.IsType<WpfUiButton>(view.FindName("BackButton"));
 
             Assert.Equal(Visibility.Visible, emptyStateButton.Visibility);
             Assert.Equal(Visibility.Visible, noRuleFooter.Visibility);
@@ -394,7 +395,7 @@ public sealed partial class PlayerViewTests
 
             Assert.NotNull(FindVisibleDescendantByContent(faultedView, "再次尝试"));
             Assert.True(IsEffectivelyVisible(
-                Assert.IsType<Button>(faultedView.FindName("ErrorRuleMenuButton")),
+                Assert.IsType<WpfUiButton>(faultedView.FindName("ErrorRuleMenuButton")),
                 faultedView));
 
             var normalView = new PlayerView
@@ -408,7 +409,7 @@ public sealed partial class PlayerViewTests
 
             Assert.Null(FindVisibleDescendantByContent(normalView, "再次尝试"));
             Assert.False(IsEffectivelyVisible(
-                Assert.IsType<Button>(normalView.FindName("ErrorRuleMenuButton")),
+                Assert.IsType<WpfUiButton>(normalView.FindName("ErrorRuleMenuButton")),
                 normalView));
         });
     }
@@ -609,7 +610,7 @@ public sealed partial class PlayerViewTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var ruleButton = Assert.IsType<Button>(view.FindName("RuleMenuButton"));
+            var ruleButton = Assert.IsType<WpfUiButton>(view.FindName("RuleMenuButton"));
             var stopTimerButton = Assert.IsType<Button>(view.FindName("StopTimerToolButton"));
             var speedButton = Assert.IsType<Button>(view.FindName("SpeedMenuButton"));
             var stopTimerPill = Assert.IsType<Border>(view.FindName("StopTimerPillBorder"));
@@ -730,26 +731,26 @@ public sealed partial class PlayerViewTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("PreviousChapterButton")), "上一章");
-            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("PreviousSegmentButton")), "上一段");
-            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("PrimaryPlaybackButton")), "播放");
-            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("NextSegmentButton")), "下一段");
-            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("NextChapterButton")), "下一章");
-            var volumeButton = Assert.IsType<Button>(view.FindName("VolumeMenuButton"));
+            AssertButtonMetadata(Assert.IsType<WpfUiButton>(view.FindName("PreviousChapterButton")), "上一章");
+            AssertButtonMetadata(Assert.IsType<WpfUiButton>(view.FindName("PreviousSegmentButton")), "上一段");
+            AssertButtonMetadata(Assert.IsType<WpfUiButton>(view.FindName("PrimaryPlaybackButton")), "播放");
+            AssertButtonMetadata(Assert.IsType<WpfUiButton>(view.FindName("NextSegmentButton")), "下一段");
+            AssertButtonMetadata(Assert.IsType<WpfUiButton>(view.FindName("NextChapterButton")), "下一章");
+            var volumeButton = Assert.IsType<WpfUiButton>(view.FindName("VolumeMenuButton"));
             Assert.Equal("播放音量", volumeButton.ToolTip);
             Assert.Equal("播放音量 100%", AutomationProperties.GetName(volumeButton));
             AssertButtonMetadata(Assert.IsType<Button>(view.FindName("ReturnToCurrentSegmentButton")), "返回当前段落");
-            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("BackButton")), "返回");
+            AssertButtonMetadata(Assert.IsType<WpfUiButton>(view.FindName("BackButton")), "返回");
             Assert.Null(view.FindName("SkipCurrentSegmentButton"));
 
             var primaryIcon = Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(
-                Assert.IsType<Button>(view.FindName("PrimaryPlaybackButton")),
+                Assert.IsType<WpfUiButton>(view.FindName("PrimaryPlaybackButton")),
                 static _ => true));
             var previousChapterIcon = Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(
-                Assert.IsType<Button>(view.FindName("PreviousChapterButton")),
+                Assert.IsType<WpfUiButton>(view.FindName("PreviousChapterButton")),
                 static _ => true));
             var nextChapterIcon = Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(
-                Assert.IsType<Button>(view.FindName("NextChapterButton")),
+                Assert.IsType<WpfUiButton>(view.FindName("NextChapterButton")),
                 static _ => true));
 
             Assert.Equal(SymbolRegular.PlayCircle24, primaryIcon.Symbol);
@@ -766,11 +767,11 @@ public sealed partial class PlayerViewTests
             var mediaButtonStyle = view.FindResource("App.Media.Button");
             var mediaButtons = new[]
             {
-                Assert.IsType<Button>(view.FindName("PreviousChapterButton")),
-                Assert.IsType<Button>(view.FindName("PreviousSegmentButton")),
-                Assert.IsType<Button>(view.FindName("PrimaryPlaybackButton")),
-                Assert.IsType<Button>(view.FindName("NextSegmentButton")),
-                Assert.IsType<Button>(view.FindName("NextChapterButton")),
+                Assert.IsType<WpfUiButton>(view.FindName("PreviousChapterButton")),
+                Assert.IsType<WpfUiButton>(view.FindName("PreviousSegmentButton")),
+                Assert.IsType<WpfUiButton>(view.FindName("PrimaryPlaybackButton")),
+                Assert.IsType<WpfUiButton>(view.FindName("NextSegmentButton")),
+                Assert.IsType<WpfUiButton>(view.FindName("NextChapterButton")),
                 volumeButton
             };
             Assert.All(mediaButtons, button =>

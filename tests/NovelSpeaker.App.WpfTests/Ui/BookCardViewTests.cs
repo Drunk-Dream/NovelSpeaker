@@ -51,7 +51,7 @@ public sealed class BookCardViewTests
                 var openButton = VisualTreeTestHelper.FindDescendant<Button>(
                     view,
                     candidate => AutomationProperties.GetName(candidate) == item.AutomationName);
-                var moreButton = Assert.IsType<Button>(view.FindName("MoreButton"));
+                var moreButton = Assert.IsType<Wpf.Ui.Controls.Button>(view.FindName("MoreButton"));
 
                 Assert.NotNull(openButton);
                 Assert.Same(view.FindResource("App.Button.Subtle"), openButton.Style);
@@ -144,7 +144,7 @@ public sealed class BookCardViewTests
             Assert.Equal(title, titleText.ToolTip);
             Assert.Equal(item.AutomationName, AutomationProperties.GetName(openButton));
 
-            var moreButton = Assert.IsType<Button>(view.FindName("MoreButton"));
+            var moreButton = Assert.IsType<Wpf.Ui.Controls.Button>(view.FindName("MoreButton"));
             moreButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var menu = Assert.IsType<ContextMenu>(moreButton.ContextMenu);
             Assert.Same(view, menu.DataContext);

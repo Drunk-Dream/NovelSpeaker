@@ -64,31 +64,31 @@ public sealed class MiniPlayerWindowTests
                 Assert.NotNull(chapterTitle.GetBindingExpression(FrameworkElement.ToolTipProperty));
                 var segmentCounter = Assert.IsType<TextBlock>(window.FindName("MiniPlayerSegmentCounterText"));
                 Assert.NotNull(segmentCounter.GetBindingExpression(TextBlock.TextProperty));
-                AssertControl<Button>(window, "MiniPlayerPreviousChapterButton", "上一章");
-                AssertControl<Button>(window, "MiniPlayerPreviousSegmentButton", "上一段");
-                AssertControl<Button>(window, "MiniPlayerPlaybackButton", "播放");
-                var playbackButton = Assert.IsType<Button>(window.FindName("MiniPlayerPlaybackButton"));
+                AssertControl<WpfUiButton>(window, "MiniPlayerPreviousChapterButton", "上一章");
+                AssertControl<WpfUiButton>(window, "MiniPlayerPreviousSegmentButton", "上一段");
+                AssertControl<WpfUiButton>(window, "MiniPlayerPlaybackButton", "播放");
+                var playbackButton = Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerPlaybackButton"));
                 Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(playbackButton.Background).Color);
                 Assert.Equal(new Thickness(0), playbackButton.BorderThickness);
-                var playbackIcon = Assert.IsType<SymbolIcon>(playbackButton.Content);
+                var playbackIcon = Assert.IsType<SymbolIcon>(Assert.IsType<WpfUiButton>(playbackButton).Icon);
                 var playbackTrigger = Assert.Single(playbackIcon.Style!.Triggers.OfType<DataTrigger>());
                 var playbackBinding = Assert.IsType<Binding>(playbackTrigger.Binding);
                 Assert.Equal("PlaybackActionText", playbackBinding.Path.Path);
-                AssertControl<Button>(window, "MiniPlayerNextSegmentButton", "下一段");
-                AssertControl<Button>(window, "MiniPlayerNextChapterButton", "下一章");
-                var volumeButton = Assert.IsType<Button>(window.FindName("MiniPlayerVolumeMenuButton"));
+                AssertControl<WpfUiButton>(window, "MiniPlayerNextSegmentButton", "下一段");
+                AssertControl<WpfUiButton>(window, "MiniPlayerNextChapterButton", "下一章");
+                var volumeButton = Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerVolumeMenuButton"));
                 Assert.Equal("播放音量", volumeButton.ToolTip);
                 Assert.Equal("播放音量 100%", AutomationProperties.GetName(volumeButton));
-                AssertControl<Button>(window, "MiniPlayerRestoreButton", "恢复主窗口");
+                AssertControl<WpfUiButton>(window, "MiniPlayerRestoreButton", "恢复主窗口");
                 Assert.Equal(
                     SymbolRegular.ArrowMaximize24,
                     Assert.IsType<SymbolIcon>(
-                        Assert.IsType<Button>(window.FindName("MiniPlayerRestoreButton")).Content).Symbol);
+                        Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerRestoreButton")).Icon).Symbol);
                 AssertControl<WpfUiButton>(window, "MiniPlayerCloseButton", "退出应用");
-                AssertControl<Button>(window, "MiniPlayerTopmostButton", "置顶");
-                var topmostStateBorder = Assert.IsType<Border>(window.FindName("MiniPlayerTopmostStateBorder"));
-                Assert.Equal(Brushes.Transparent, topmostStateBorder.Background);
-                var topmostTrigger = Assert.Single(topmostStateBorder.Style!.Triggers.OfType<DataTrigger>());
+                AssertControl<WpfUiButton>(window, "MiniPlayerTopmostButton", "置顶");
+                var topmostButton = Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerTopmostButton"));
+                Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(topmostButton.Background).Color);
+                var topmostTrigger = Assert.Single(topmostButton.Style!.Triggers.OfType<DataTrigger>());
                 var topmostBinding = Assert.IsType<Binding>(topmostTrigger.Binding);
                 Assert.Equal("IsTopmost", topmostBinding.Path.Path);
                 Assert.Equal(
@@ -124,18 +124,18 @@ public sealed class MiniPlayerWindowTests
                 Assert.Equal(HorizontalAlignment.Right, volumeButton.HorizontalAlignment);
                 Assert.Same(window.FindResource("App.Media.Button"), playbackButton.Style);
                 Assert.Same(window.FindResource("App.Media.Button"),
-                    Assert.IsType<Button>(window.FindName("MiniPlayerPreviousSegmentButton")).Style);
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerPreviousSegmentButton")).Style);
                 Assert.Same(window.FindResource("App.Media.Button"),
-                    Assert.IsType<Button>(window.FindName("MiniPlayerPreviousChapterButton")).Style);
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerPreviousChapterButton")).Style);
                 Assert.Same(window.FindResource("App.Button.Icon"),
-                    Assert.IsType<Button>(window.FindName("MiniPlayerRestoreButton")).Style);
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerRestoreButton")).Style);
                 Assert.Same(window.FindResource("App.Media.Button"),
-                    Assert.IsType<Button>(window.FindName("MiniPlayerNextSegmentButton")).Style);
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerNextSegmentButton")).Style);
                 Assert.Same(window.FindResource("App.Media.Button"),
-                    Assert.IsType<Button>(window.FindName("MiniPlayerNextChapterButton")).Style);
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerNextChapterButton")).Style);
                 Assert.Same(window.FindResource("App.Media.Button"), volumeButton.Style);
-                Assert.Same(window.FindResource("App.Button.Icon"),
-                    Assert.IsType<Button>(window.FindName("MiniPlayerTopmostButton")).Style);
+                Assert.Equal(typeof(WpfUiButton), topmostButton.Style.TargetType);
+                Assert.Same(window.FindResource("App.Button.Icon"), topmostButton.Style.BasedOn);
                 Assert.Same(window.FindResource("App.Button.DangerIcon"),
                     Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerCloseButton")).Style);
                 Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
@@ -399,7 +399,7 @@ public sealed class MiniPlayerWindowTests
                             var surface = Assert.IsType<Border>(fixture.Window.FindName("MiniPlayerSurface"));
                             var progress = Assert.IsType<Slider>(fixture.Window.FindName("MiniPlayerProgressSlider"));
                             var controlBar = Assert.IsType<Grid>(fixture.Window.FindName("MiniPlayerControlBar"));
-                            var playbackButton = Assert.IsType<Button>(fixture.Window.FindName("MiniPlayerPlaybackButton"));
+                            var playbackButton = Assert.IsType<WpfUiButton>(fixture.Window.FindName("MiniPlayerPlaybackButton"));
                             var progressBounds = GetBoundsIn(progress, surface);
                             var controlBarBounds = GetBoundsIn(controlBar, surface);
                             var gap = controlBarBounds.Top - progressBounds.Bottom;
@@ -414,9 +414,9 @@ public sealed class MiniPlayerWindowTests
                             Assert.True(controlBar.IsVisible);
                             Assert.True(controlBar.ActualWidth > 0);
                             Assert.True(controlBar.ActualHeight > 0);
-                            var previousSegmentButton = Assert.IsType<Button>(
+                            var previousSegmentButton = Assert.IsType<WpfUiButton>(
                                 fixture.Window.FindName("MiniPlayerPreviousSegmentButton"));
-                            var nextSegmentButton = Assert.IsType<Button>(
+                            var nextSegmentButton = Assert.IsType<WpfUiButton>(
                                 fixture.Window.FindName("MiniPlayerNextSegmentButton"));
                             Assert.Equal(previousSegmentButton.ActualWidth, playbackButton.ActualWidth);
                             Assert.Equal(previousSegmentButton.ActualHeight, playbackButton.ActualHeight);
@@ -433,7 +433,7 @@ public sealed class MiniPlayerWindowTests
                                          "MiniPlayerVolumeMenuButton"
                                      })
                             {
-                                var button = Assert.IsType<Button>(fixture.Window.FindName(name));
+                                var button = Assert.IsType<WpfUiButton>(fixture.Window.FindName(name));
                                 Assert.True(button.IsVisible);
                                 Assert.True(button.ActualWidth > 0);
                                 Assert.True(button.ActualHeight > 0);
