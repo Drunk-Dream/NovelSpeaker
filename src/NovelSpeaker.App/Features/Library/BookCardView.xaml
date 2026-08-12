@@ -64,14 +64,15 @@
                 </Grid>
             </Button>
 
-            <Button x:Name="MoreButton"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Top"
-                    AutomationProperties.Name="{Binding Item.MoreActionsAutomationName, ElementName=Root}"
-                    Click="MoreButton_OnClick"
-                    ToolTip="更多操作">
-                <Button.Style>
-                    <Style TargetType="Button"
+            <ui:Button x:Name="MoreButton"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Top"
+                       Icon="{ui:SymbolIcon Symbol=MoreHorizontal24}"
+                       AutomationProperties.Name="{Binding Item.MoreActionsAutomationName, ElementName=Root}"
+                       Click="MoreButton_OnClick"
+                       ToolTip="更多操作">
+                <ui:Button.Style>
+                    <Style TargetType="{x:Type ui:Button}"
                            BasedOn="{StaticResource App.Button.Icon}">
                         <Setter Property="Opacity" Value="0" />
                         <Setter Property="IsHitTestVisible" Value="False" />
@@ -86,8 +87,8 @@
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
-                </Button.Style>
-                <Button.ContextMenu>
+                </ui:Button.Style>
+                <ui:Button.ContextMenu>
                     <ContextMenu Style="{StaticResource App.Menu.ContextSurface}">
                         <MenuItem Style="{StaticResource App.Menu.Item}"
                                   Command="{Binding OpenBookDetailsCommand}"
@@ -100,10 +101,8 @@
                                   Header="删除书籍"
                                   IsEnabled="{Binding Item.CanDelete}" />
                     </ContextMenu>
-                </Button.ContextMenu>
-                <ui:SymbolIcon Foreground="{DynamicResource App.Brush.Text.Secondary}"
-                               Symbol="MoreHorizontal24" />
-            </Button>
+                </ui:Button.ContextMenu>
+            </ui:Button>
         </Grid>
     </Border>
 </UserControl>

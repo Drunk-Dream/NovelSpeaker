@@ -1,4 +1,4 @@
-﻿<Application x:Class="NovelSpeaker.App.Bootstrap.App"
+<Application x:Class="NovelSpeaker.App.Bootstrap.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
@@ -15,8 +15,9 @@
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Tokens/Elevation.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Typography.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Surfaces.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Inputs.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Buttons.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Icons.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Inputs.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Selection.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Navigation.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Menus.xaml" />

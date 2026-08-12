@@ -6,7 +6,8 @@
     <DataTemplate DataType="{x:Type theming:SettingsNavigationIcon}">
         <ui:SymbolIcon>
             <ui:SymbolIcon.Style>
-                <Style TargetType="ui:SymbolIcon">
+                <Style TargetType="ui:SymbolIcon"
+                       BasedOn="{StaticResource App.Icon.Primary}">
                     <Setter Property="Symbol" Value="Info24" />
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding}"
@@ -286,7 +287,7 @@
                             <ui:SymbolIcon Grid.Column="2"
                                            Margin="16,0,0,0"
                                            VerticalAlignment="Center"
-                                           Foreground="{DynamicResource App.Brush.Text.Secondary}"
+                                           Style="{StaticResource App.Icon.Secondary}"
                                            Symbol="ChevronRight24" />
                         </Grid>
                     </Border>

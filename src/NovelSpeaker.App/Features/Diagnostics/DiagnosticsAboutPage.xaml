@@ -86,15 +86,14 @@
                                    TextAlignment="Right"
                                    TextWrapping="Wrap"
                                    AutomationProperties.Name="{Binding AppDataDirectoryPath, StringFormat=应用数据目录：{0}}" />
-                        <Button x:Name="OpenAppDataDirectoryButton"
+                        <ui:Button x:Name="OpenAppDataDirectoryButton"
                                 Margin="0,8,0,0"
                                 HorizontalAlignment="Right"
                                 Style="{StaticResource App.Button.Icon}"
                                 Command="{Binding OpenAppDataDirectoryCommand}"
                                 ToolTip="打开应用数据目录"
-                                AutomationProperties.Name="打开应用数据目录">
-                            <ui:SymbolIcon Symbol="FolderOpen24" />
-                        </Button>
+                                AutomationProperties.Name="打开应用数据目录"
+                                Icon="{ui:SymbolIcon Symbol=FolderOpen24}" />
                     </StackPanel>
                 </settingsControls:AppSettingsRow>
 
@@ -111,15 +110,14 @@
                                    TextAlignment="Right"
                                    TextWrapping="Wrap"
                                    AutomationProperties.Name="{Binding LogsDirectoryPath, StringFormat=日志目录：{0}}" />
-                        <Button x:Name="OpenLogsDirectoryButton"
+                        <ui:Button x:Name="OpenLogsDirectoryButton"
                                 Margin="0,8,0,0"
                                 HorizontalAlignment="Right"
                                 Style="{StaticResource App.Button.Icon}"
                                 Command="{Binding OpenLogsDirectoryCommand}"
                                 ToolTip="打开日志目录"
-                                AutomationProperties.Name="打开日志目录">
-                            <ui:SymbolIcon Symbol="FolderOpen24" />
-                        </Button>
+                                AutomationProperties.Name="打开日志目录"
+                                Icon="{ui:SymbolIcon Symbol=FolderOpen24}" />
                     </StackPanel>
                 </settingsControls:AppSettingsRow>
 
@@ -139,26 +137,24 @@
                                                  Title="脱敏诊断摘要"
                                                  Description="仅包含版本、运行环境和目录信息，不包含小说正文、规则或凭据。"
                                                  AutomationProperties.Name="脱敏诊断摘要">
-                    <Button x:Name="CopyRedactedSummaryButton"
+                    <ui:Button x:Name="CopyRedactedSummaryButton"
                             Style="{StaticResource App.Button.Icon}"
                             Command="{Binding CopyRedactedSummaryCommand}"
                             ToolTip="复制脱敏诊断摘要"
-                            AutomationProperties.Name="复制脱敏诊断摘要">
-                        <ui:SymbolIcon Symbol="DocumentCopy24" />
-                    </Button>
+                            AutomationProperties.Name="复制脱敏诊断摘要"
+                            Icon="{ui:SymbolIcon Symbol=DocumentCopy24}" />
                 </settingsControls:AppSettingsRow>
 
                 <settingsControls:AppSettingsRow x:Name="ThirdPartyNoticesRow"
                                                  Title="第三方许可证"
                                                  Description="查看应用所使用开源组件的许可证和声明。"
                                                  AutomationProperties.Name="第三方许可证">
-                    <Button x:Name="OpenThirdPartyNoticesButton"
+                    <ui:Button x:Name="OpenThirdPartyNoticesButton"
                             Style="{StaticResource App.Button.Icon}"
                             Command="{Binding OpenThirdPartyNoticesCommand}"
                             ToolTip="打开第三方许可证"
-                            AutomationProperties.Name="打开第三方许可证">
-                        <ui:SymbolIcon Symbol="DocumentText24" />
-                    </Button>
+                            AutomationProperties.Name="打开第三方许可证"
+                            Icon="{ui:SymbolIcon Symbol=DocumentText24}" />
                 </settingsControls:AppSettingsRow>
             </settingsControls:AppSettingsList>
         </ScrollViewer>

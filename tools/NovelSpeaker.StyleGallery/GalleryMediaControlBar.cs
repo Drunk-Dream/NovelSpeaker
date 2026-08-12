@@ -2,7 +2,6 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Documents;
 using System.Windows.Media;
 using Wpf.Ui.Controls;
 using Button = System.Windows.Controls.Button;
@@ -131,6 +130,7 @@ public sealed class GalleryMediaControlBar : Border
             18);
         PinButton.SetResourceReference(Control.BackgroundProperty, "App.Brush.Accent.Subtle");
         PinButton.SetResourceReference(Control.BorderBrushProperty, "App.Brush.Accent");
+        PinButton.SetResourceReference(Control.ForegroundProperty, "App.Brush.Accent.Default");
 
         RestoreButton = CreateButton(
             32,
@@ -384,26 +384,16 @@ public sealed class GalleryMediaControlBar : Border
         double iconSize,
         string styleKey = "App.Button.Icon")
     {
-        const string foregroundKey = "App.Brush.Text.Primary";
-        var isDangerIcon = styleKey == "App.Button.DangerIcon";
         var icon = new SymbolIcon
         {
             Symbol = symbol,
             Width = iconSize,
             Height = iconSize
         };
-        if (!isDangerIcon)
-        {
-            icon.SetResourceReference(SymbolIcon.ForegroundProperty, foregroundKey);
-            icon.SetResourceReference(TextElement.ForegroundProperty, foregroundKey);
-            icon.Loaded += (_, _) => ApplyMediaIconGlyphForeground(icon, foregroundKey);
-        }
 
-        var button = isDangerIcon
-            ? new Wpf.Ui.Controls.Button()
-            : new Button();
+        var button = new Wpf.Ui.Controls.Button();
         button.Style = FindButtonStyle(styleKey);
-        button.Content = icon;
+        button.Icon = icon;
         button.ToolTip = toolTip;
         button.Focusable = true;
         if (buttonSize is double size)
@@ -417,36 +407,6 @@ public sealed class GalleryMediaControlBar : Border
         AutomationProperties.SetAutomationId(button, automationId);
         AutomationProperties.SetName(button, automationName);
         return button;
-    }
-
-    private static void ApplyMediaIconGlyphForeground(SymbolIcon icon, string foregroundKey)
-    {
-        icon.ApplyTemplate();
-        foreach (var glyph in FindVisualDescendants<TextBlock>(icon))
-        {
-            glyph.SetResourceReference(TextBlock.ForegroundProperty, foregroundKey);
-        }
-    }
-
-    private static IReadOnlyList<T> FindVisualDescendants<T>(DependencyObject root)
-        where T : DependencyObject
-    {
-        var matches = new List<T>();
-        Visit(root, matches);
-        return matches;
-
-        static void Visit(DependencyObject current, ICollection<T> matches)
-        {
-            if (current is T match)
-            {
-                matches.Add(match);
-            }
-
-            for (var index = 0; index < VisualTreeHelper.GetChildrenCount(current); index++)
-            {
-                Visit(VisualTreeHelper.GetChild(current, index), matches);
-            }
-        }
     }
 
     private void OnProgressValueChanged(object sender, RoutedPropertyChangedEventArgs<double> args)

@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                     xmlns:controls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Common">
     <Style TargetType="{x:Type controls:AppPageHeader}">
         <Setter Property="Focusable" Value="False" />
@@ -15,17 +16,15 @@
                             <ColumnDefinition x:Name="ActionsColumn" Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <Button x:Name="BackButton"
+                        <ui:Button x:Name="BackButton"
                                 Grid.Column="0"
                                 Margin="0,0,12,0"
                                 VerticalAlignment="Center"
                                 Style="{StaticResource App.Button.Icon}"
                                 Command="{TemplateBinding BackCommand}"
                                 ToolTip="返回"
-                                AutomationProperties.Name="返回">
-                            <ui:SymbolIcon xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                                           Symbol="ChevronLeft24" />
-                        </Button>
+                                AutomationProperties.Name="返回"
+                                Icon="{ui:SymbolIcon Symbol=ChevronLeft24}" />
 
                         <Grid x:Name="TitleLayout"
                               Grid.Column="1"

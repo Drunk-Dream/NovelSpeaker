@@ -36,7 +36,7 @@
                                  Style="{StaticResource App.Input.TextBox.Standard}"
                                  Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                                  AutomationProperties.Name="搜索书库" />
-                        <Button x:Name="ClearSearchButton"
+                        <ui:Button x:Name="ClearSearchButton"
                                 Margin="0,0,6,0"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center"
@@ -44,9 +44,8 @@
                                 AutomationProperties.Name="清空搜索"
                                 Command="{Binding ClearSearchCommand}"
                                 ToolTip="清空搜索"
-                                Visibility="{Binding HasSearchText, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <ui:SymbolIcon Symbol="Dismiss24" />
-                        </Button>
+                                Visibility="{Binding HasSearchText, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                Icon="{ui:SymbolIcon Symbol=Dismiss24}" />
                     </Grid>
                     <ComboBox x:Name="SortComboBox"
                               Width="160"
@@ -57,13 +56,12 @@
                               SelectedValue="{Binding SelectedSortMode}"
                               SelectedValuePath="Mode"
                               AutomationProperties.Name="书库排序" />
-                    <Button x:Name="ToolbarImportButton"
+                    <ui:Button x:Name="ToolbarImportButton"
                             Style="{StaticResource App.Button.Icon}"
                             Click="ImportButton_OnClick"
                             ToolTip="导入小说"
-                            AutomationProperties.Name="导入小说">
-                        <ui:SymbolIcon Symbol="ArrowImport24" />
-                    </Button>
+                            AutomationProperties.Name="导入小说"
+                            Icon="{ui:SymbolIcon Symbol=ArrowImport24}" />
                 </WrapPanel>
             </commonControls:AppPageHeader.Actions>
         </commonControls:AppPageHeader>

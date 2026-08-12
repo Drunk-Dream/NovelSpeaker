@@ -38,16 +38,14 @@
                                    Style="{StaticResource App.Button.DangerIcon}"
                                    Command="{Binding ClearSelectedChaptersCommand}"
                                    ToolTip="清理所选章节缓存"
-                                   AutomationProperties.Name="清理所选章节缓存">
-                            <ui:SymbolIcon Symbol="Delete24" />
-                        </ui:Button>
-                        <Button x:Name="ExportSelectedChaptersButton"
+                                   AutomationProperties.Name="清理所选章节缓存"
+                                   Icon="{ui:SymbolIcon Symbol=Delete24}" />
+                        <ui:Button x:Name="ExportSelectedChaptersButton"
                                 Style="{StaticResource App.Button.Icon}"
                                 Command="{Binding ExportSelectedChaptersCommand}"
                                 ToolTip="{Binding ExportCommandToolTip}"
-                                AutomationProperties.Name="导出所选章节">
-                            <ui:SymbolIcon Symbol="ArrowDownload24" />
-                        </Button>
+                                AutomationProperties.Name="导出所选章节"
+                                Icon="{ui:SymbolIcon Symbol=ArrowDownload24}" />
                     </StackPanel>
                 </commonControls:AppPageHeader.Actions>
             </commonControls:AppPageHeader>

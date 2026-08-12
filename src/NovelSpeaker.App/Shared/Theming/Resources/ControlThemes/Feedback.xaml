@@ -26,8 +26,8 @@
                                     CornerRadius="{StaticResource App.Radius.Small}"
                                     VerticalAlignment="Center">
                                 <ui:SymbolIcon x:Name="IconPresenter"
+                                               Style="{StaticResource App.Icon.Accent}"
                                                Symbol="{TemplateBinding Icon}"
-                                               Foreground="{DynamicResource App.Brush.Accent}"
                                                Width="24"
                                                Height="24" />
                             </Border>

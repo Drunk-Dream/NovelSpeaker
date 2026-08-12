@@ -1,0 +1,28 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <!--
+        Semantic styles for app-owned standalone icons. Icons hosted by
+        Wpf.Ui Button.Icon inherit their foreground from the owning button and
+        must not use these styles to override button interaction states.
+    -->
+    <Style x:Key="App.Icon.Primary"
+           TargetType="{x:Type ui:SymbolIcon}">
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+    </Style>
+
+    <Style x:Key="App.Icon.Secondary"
+           TargetType="{x:Type ui:SymbolIcon}">
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Secondary}" />
+    </Style>
+
+    <Style x:Key="App.Icon.Accent"
+           TargetType="{x:Type ui:SymbolIcon}">
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+    </Style>
+
+    <Style x:Key="App.Icon.Danger"
+           TargetType="{x:Type ui:SymbolIcon}">
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger}" />
+    </Style>
+</ResourceDictionary>

@@ -155,9 +155,9 @@ internal static class GalleryListComponentScene
         Grid.SetColumn(copy, 1);
         grid.Children.Add(copy);
 
-        var menu = new WpfButton
+        var menu = new Wpf.Ui.Controls.Button
         {
-            Content = new SymbolIcon { Symbol = SymbolRegular.MoreHorizontal24, Width = 18, Height = 18 },
+            Icon = new SymbolIcon { Symbol = SymbolRegular.MoreHorizontal24, Width = 18, Height = 18 },
             Style = FindStyle("App.Button.Icon"),
             ToolTip = "书籍更多操作"
         };
@@ -227,8 +227,13 @@ internal static class GalleryListComponentScene
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var icon = new SymbolIcon { Symbol = SymbolRegular.TextBulletListSquare24, Width = 20, Height = 20 };
-        icon.SetResourceReference(SymbolIcon.ForegroundProperty, "App.Brush.Accent.Default");
+        var icon = new SymbolIcon
+        {
+            Symbol = SymbolRegular.TextBulletListSquare24,
+            Width = 20,
+            Height = 20,
+            Style = FindStyle("App.Icon.Accent")
+        };
         Grid.SetColumn(icon, 0);
         grid.Children.Add(icon);
         var copy = new StackPanel();
@@ -236,9 +241,9 @@ internal static class GalleryListComponentScene
         copy.Children.Add(CreateText(@"正则：^\s*第\s*\d+章", "App.Typography.Secondary"));
         Grid.SetColumn(copy, 1);
         grid.Children.Add(copy);
-        var menu = new WpfButton
+        var menu = new Wpf.Ui.Controls.Button
         {
-            Content = new SymbolIcon { Symbol = SymbolRegular.MoreHorizontal24, Width = 18, Height = 18 },
+            Icon = new SymbolIcon { Symbol = SymbolRegular.MoreHorizontal24, Width = 18, Height = 18 },
             Style = FindStyle("App.Button.Icon"),
             ToolTip = "规则更多操作"
         };

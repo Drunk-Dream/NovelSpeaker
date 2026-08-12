@@ -237,7 +237,7 @@
                                         <ui:SymbolIcon x:Name="ChevronIcon"
                                                        VerticalAlignment="Center"
                                                        FontSize="11"
-                                                       Foreground="{DynamicResource App.Brush.Text.Secondary}"
+                                                       Style="{StaticResource App.Icon.Secondary}"
                                                        RenderTransformOrigin="0.5,0.5"
                                                        Symbol="ChevronDown24">
                                             <ui:SymbolIcon.RenderTransform>

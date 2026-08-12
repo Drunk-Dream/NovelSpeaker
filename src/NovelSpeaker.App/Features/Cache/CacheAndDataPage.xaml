@@ -122,13 +122,12 @@
                                                  Title="应用数据目录"
                                                  Description="打开保存书籍副本、数据库、日志和音频缓存的位置。"
                                                  AutomationProperties.Name="应用数据目录">
-                    <Button x:Name="OpenAppDataDirectoryButton"
+                    <ui:Button x:Name="OpenAppDataDirectoryButton"
                             Style="{StaticResource App.Button.Icon}"
                             Command="{Binding OpenAppDataDirectoryCommand}"
                             ToolTip="打开应用数据目录"
-                            AutomationProperties.Name="打开应用数据目录">
-                        <ui:SymbolIcon Symbol="FolderOpen24" />
-                    </Button>
+                            AutomationProperties.Name="打开应用数据目录"
+                            Icon="{ui:SymbolIcon Symbol=FolderOpen24}" />
                 </settingsControls:AppSettingsRow>
 
                 <settingsControls:AppSettingsRow x:Name="ClearAllCacheRow"
@@ -139,9 +138,8 @@
                                Style="{StaticResource App.Button.DangerIcon}"
                                Command="{Binding ClearAllCommand}"
                                ToolTip="清理全部缓存"
-                               AutomationProperties.Name="清理全部缓存">
-                        <ui:SymbolIcon Symbol="Delete24" />
-                    </ui:Button>
+                               AutomationProperties.Name="清理全部缓存"
+                               Icon="{ui:SymbolIcon Symbol=Delete24}" />
                 </settingsControls:AppSettingsRow>
 
                 <settingsControls:AppSettingsNavigationRow

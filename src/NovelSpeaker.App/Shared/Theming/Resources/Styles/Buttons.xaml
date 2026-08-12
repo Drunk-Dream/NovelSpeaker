@@ -79,27 +79,27 @@
     </Style>
 
     <Style x:Key="App.Button.Icon"
-           TargetType="Button"
-           BasedOn="{StaticResource Provider.Button}">
+           TargetType="{x:Type ui:Button}"
+           BasedOn="{StaticResource Provider.UiButton}">
         <Setter Property="Width" Value="{StaticResource App.Size.Icon.Touch}" />
         <Setter Property="Height" Value="{StaticResource App.Size.Icon.Touch}" />
         <Setter Property="MinWidth" Value="{StaticResource App.Size.Icon.Touch}" />
         <Setter Property="MinHeight" Value="{StaticResource App.Size.Icon.Touch}" />
         <Setter Property="Padding" Value="0" />
+        <Setter Property="FontSize" Value="{StaticResource App.Size.Icon.Standard}" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Background" Value="Transparent" />
+        <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+        <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Surface.Secondary}" />
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Text.Primary}" />
         <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="MouseOverBorderBrush" Value="Transparent" />
+        <Setter Property="PressedBorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
         <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-            </Trigger>
-            <Trigger Property="IsPressed" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
-            </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
@@ -141,6 +141,7 @@
         <Setter Property="MinWidth" Value="{StaticResource App.Size.Icon.Touch}" />
         <Setter Property="MinHeight" Value="{StaticResource App.Size.Icon.Touch}" />
         <Setter Property="Padding" Value="0" />
+        <Setter Property="FontSize" Value="{StaticResource App.Size.Icon.Standard}" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Background" Value="Transparent" />

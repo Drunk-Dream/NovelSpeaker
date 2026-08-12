@@ -1109,13 +1109,18 @@ internal static class GallerySceneBuilders
 
     private static Button CreateButtonPreview(string variant, string state)
     {
-        Button button = variant == "DangerIcon"
+        Button button = variant is "Icon" or "DangerIcon"
             ? new WpfUiButton
             {
                 Style = FindButtonStyle(variant),
                 HorizontalAlignment = HorizontalAlignment.Left,
                 Margin = new Thickness(0, 0, 12, 8),
-                Content = CreateButtonIcon(SymbolRegular.Delete24, "App.Brush.Text.Primary"),
+                Icon = new SymbolIcon
+                {
+                    Symbol = variant == "DangerIcon"
+                        ? SymbolRegular.Delete24
+                        : SymbolRegular.Settings24
+                },
                 ToolTip = $"{variant} · {state}"
             }
             : new Button
@@ -1123,9 +1128,7 @@ internal static class GallerySceneBuilders
                 Style = FindButtonStyle(variant),
                 HorizontalAlignment = HorizontalAlignment.Left,
                 Margin = new Thickness(0, 0, 12, 8),
-                Content = variant == "Icon"
-                    ? CreateButtonIcon(SymbolRegular.Settings24, "App.Brush.Text.Primary")
-                    : variant,
+                Content = variant,
                 ToolTip = $"{variant} · {state}"
             };
         AutomationProperties.SetAutomationId(

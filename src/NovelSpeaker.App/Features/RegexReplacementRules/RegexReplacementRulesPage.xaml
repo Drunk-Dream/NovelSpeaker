@@ -29,37 +29,29 @@
                            HorizontalAlignment="Right"
                            VerticalAlignment="Center"
                            ItemHeight="40">
-                    <Button Margin="0,0,8,0"
+                    <ui:Button Margin="0,0,8,0"
                             Style="{StaticResource App.Button.Icon}"
                             Command="{Binding NewRuleCommand}"
                             ToolTip="新建规则"
-                            AutomationProperties.Name="新建规则">
-                        <ui:SymbolIcon Symbol="DocumentAdd24"
-                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                    </Button>
-                    <Button Margin="0,0,8,0"
+                            AutomationProperties.Name="新建规则"
+                            Icon="{ui:SymbolIcon Symbol=DocumentAdd24}" />
+                    <ui:Button Margin="0,0,8,0"
                             Style="{StaticResource App.Button.Icon}"
                             Click="ImportRuleFileButton_OnClick"
                             ToolTip="从文件导入"
-                            AutomationProperties.Name="从文件导入">
-                        <ui:SymbolIcon Symbol="ArrowImport24"
-                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                    </Button>
-                    <Button Margin="0,0,8,0"
+                            AutomationProperties.Name="从文件导入"
+                            Icon="{ui:SymbolIcon Symbol=ArrowImport24}" />
+                    <ui:Button Margin="0,0,8,0"
                             Style="{StaticResource App.Button.Icon}"
                             Click="ImportRulesFromClipboardButton_OnClick"
                             ToolTip="从剪切板导入"
-                            AutomationProperties.Name="从剪切板导入">
-                        <ui:SymbolIcon Symbol="ClipboardPaste24"
-                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                    </Button>
-                    <Button Style="{StaticResource App.Button.Icon}"
+                            AutomationProperties.Name="从剪切板导入"
+                            Icon="{ui:SymbolIcon Symbol=ClipboardPaste24}" />
+                    <ui:Button Style="{StaticResource App.Button.Icon}"
                             Command="{Binding OpenHelpCommand}"
                             ToolTip="正则替换帮助"
-                            AutomationProperties.Name="正则替换帮助">
-                        <ui:SymbolIcon Symbol="QuestionCircle24"
-                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                    </Button>
+                            AutomationProperties.Name="正则替换帮助"
+                            Icon="{ui:SymbolIcon Symbol=QuestionCircle24}" />
                 </WrapPanel>
             </commonControls:AppPageHeader.Actions>
         </commonControls:AppPageHeader>
@@ -271,13 +263,12 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource App.Typography.SectionTitle}"
                                        Text="正则替换帮助" />
-                            <Button Grid.Column="1"
+                            <ui:Button Grid.Column="1"
                                     Style="{StaticResource App.Button.Icon}"
                                     Command="{Binding CloseHelpCommand}"
                                     ToolTip="关闭帮助"
-                                    AutomationProperties.Name="关闭帮助">
-                                <ui:SymbolIcon Symbol="Dismiss24" />
-                            </Button>
+                                    AutomationProperties.Name="关闭帮助"
+                                    Icon="{ui:SymbolIcon Symbol=Dismiss24}" />
                         </Grid>
                         <ScrollViewer Grid.Row="1"
                                       Margin="0,16,0,0"

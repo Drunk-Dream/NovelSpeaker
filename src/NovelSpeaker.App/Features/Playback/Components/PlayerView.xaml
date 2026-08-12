@@ -24,15 +24,14 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <Button x:Name="BackButton"
+                <ui:Button x:Name="BackButton"
                         Width="40"
                         Height="40"
                         Style="{StaticResource App.Button.Icon}"
                         Command="{Binding BackCommand}"
                         ToolTip="返回"
-                        AutomationProperties.Name="返回">
-                    <ui:SymbolIcon Symbol="ChevronLeft24" />
-                </Button>
+                        AutomationProperties.Name="返回"
+                        Icon="{ui:SymbolIcon Symbol=ChevronLeft24}" />
                 <TextBlock Grid.Column="1"
                            Margin="12,0,0,0"
                            VerticalAlignment="Center"
@@ -46,35 +45,32 @@
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center">
-                <Button x:Name="ActiveCacheToolButton"
+                <ui:Button x:Name="ActiveCacheToolButton"
                         Width="44"
                         Height="44"
                         Style="{StaticResource App.Button.Icon}"
                         Command="{Binding EnterActiveCacheSelectionCommand}"
                         ToolTip="主动缓存章节"
-                        AutomationProperties.Name="主动缓存章节">
-                    <ui:SymbolIcon Symbol="ArrowDownload24" />
-                </Button>
-                <Button x:Name="MiniPlayerToolButton"
+                        AutomationProperties.Name="主动缓存章节"
+                        Icon="{ui:SymbolIcon Symbol=ArrowDownload24}" />
+                <ui:Button x:Name="MiniPlayerToolButton"
                         Margin="12,0,0,0"
                         Width="44"
                         Height="44"
                         Style="{StaticResource App.Button.Icon}"
                         Command="{Binding OpenMiniPlayerCommand}"
                         ToolTip="迷你播放器"
-                        AutomationProperties.Name="迷你播放器">
-                    <ui:SymbolIcon Symbol="WindowNew24" />
-                </Button>
-                <Button x:Name="RuleMenuButton"
+                        AutomationProperties.Name="迷你播放器"
+                        Icon="{ui:SymbolIcon Symbol=WindowNew24}" />
+                <ui:Button x:Name="RuleMenuButton"
                         Margin="12,0,0,0"
                         Width="44"
                         Height="44"
                         Style="{StaticResource App.Button.Icon}"
                         Command="{Binding ToggleRuleMenuCommand}"
                         ToolTip="切换规则"
-                        AutomationProperties.Name="切换规则">
-                    <ui:SymbolIcon Symbol="TextBulletListSquare24" />
-                </Button>
+                        AutomationProperties.Name="切换规则"
+                        Icon="{ui:SymbolIcon Symbol=TextBulletListSquare24}" />
                 <Button x:Name="StopTimerToolButton"
                         Margin="12,0,0,0"
                         Width="80"
@@ -606,15 +602,14 @@
                                     Content="再次尝试"
                                     ToolTip="再次尝试"
                                     AutomationProperties.Name="再次尝试" />
-                            <Button x:Name="ErrorRuleMenuButton"
+                            <ui:Button x:Name="ErrorRuleMenuButton"
                                     Width="44"
                                     Height="44"
                                     Style="{StaticResource App.Button.Icon}"
                                     Command="{Binding OpenRuleMenuCommand}"
                                     ToolTip="切换规则"
-                                    AutomationProperties.Name="切换规则">
-                                <ui:SymbolIcon Symbol="TextBulletListSquare24" />
-                            </Button>
+                                    AutomationProperties.Name="切换规则"
+                                    Icon="{ui:SymbolIcon Symbol=TextBulletListSquare24}" />
                         </WrapPanel>
                     </Grid>
                 </Border>
@@ -834,35 +829,33 @@
                         <WrapPanel x:Name="PlaybackMediaControls"
                                    Grid.Column="1"
                                    HorizontalAlignment="Center">
-                            <Button x:Name="PreviousChapterButton"
+                            <ui:Button x:Name="PreviousChapterButton"
                                     Margin="0,0,12,0"
                                     Style="{StaticResource App.Media.Button}"
                                     IsEnabled="{Binding CanGoToPreviousChapter}"
                                     Command="{Binding PreviousChapterCommand}"
                                     ToolTip="上一章"
-                                    AutomationProperties.Name="上一章">
-                                <ui:SymbolIcon Symbol="ChevronDoubleLeft20" />
-                            </Button>
-                            <Button x:Name="PreviousSegmentButton"
+                                    AutomationProperties.Name="上一章"
+                                    Icon="{ui:SymbolIcon Symbol=ChevronDoubleLeft20}" />
+                            <ui:Button x:Name="PreviousSegmentButton"
                                     Margin="0,0,12,0"
                                     Style="{StaticResource App.Media.Button}"
                                     IsEnabled="{Binding CanGoToPreviousSegment}"
                                     Command="{Binding PreviousSegmentCommand}"
                                     ToolTip="上一段"
-                                    AutomationProperties.Name="上一段">
-                                <ui:SymbolIcon Symbol="ArrowPrevious24" />
-                            </Button>
-                            <Button x:Name="PrimaryPlaybackButton"
-                                    Margin="0,0,12,0"
-                                    Style="{StaticResource App.Media.Button}"
-                                    IsEnabled="{Binding CanTogglePlayPause}"
-                                    Command="{Binding TogglePlayPauseCommand}"
-                                    ToolTip="{Binding PrimaryActionText}"
-                                    AutomationProperties.Name="{Binding PrimaryActionText}">
-                                <ui:SymbolIcon Width="28"
-                                               Height="28"
-                                               Foreground="{DynamicResource App.Brush.Text.Primary}">
-                                    <ui:SymbolIcon.Style>
+                                    AutomationProperties.Name="上一段"
+                                    Icon="{ui:SymbolIcon Symbol=ArrowPrevious24}" />
+                            <ui:Button x:Name="PrimaryPlaybackButton"
+                                       Margin="0,0,12,0"
+                                       Style="{StaticResource App.Media.Button}"
+                                       FontSize="28"
+                                       IsEnabled="{Binding CanTogglePlayPause}"
+                                       Command="{Binding TogglePlayPauseCommand}"
+                                       ToolTip="{Binding PrimaryActionText}"
+                                       AutomationProperties.Name="{Binding PrimaryActionText}">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon>
+                                        <ui:SymbolIcon.Style>
                                         <Style TargetType="ui:SymbolIcon">
                                             <Setter Property="Symbol" Value="PlayCircle24" />
                                             <Style.Triggers>
@@ -872,37 +865,37 @@
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </ui:SymbolIcon.Style>
-                                </ui:SymbolIcon>
-                            </Button>
-                            <Button x:Name="NextSegmentButton"
+                                        </ui:SymbolIcon.Style>
+                                    </ui:SymbolIcon>
+                                </ui:Button.Icon>
+                            </ui:Button>
+                            <ui:Button x:Name="NextSegmentButton"
                                     Margin="0,0,12,0"
                                     Style="{StaticResource App.Media.Button}"
                                     IsEnabled="{Binding CanGoToNextSegment}"
                                     Command="{Binding NextSegmentCommand}"
                                     ToolTip="下一段"
-                                    AutomationProperties.Name="下一段">
-                                <ui:SymbolIcon Symbol="ArrowNext24" />
-                            </Button>
-                            <Button x:Name="NextChapterButton"
+                                    AutomationProperties.Name="下一段"
+                                    Icon="{ui:SymbolIcon Symbol=ArrowNext24}" />
+                            <ui:Button x:Name="NextChapterButton"
                                     Style="{StaticResource App.Media.Button}"
                                     IsEnabled="{Binding CanGoToNextChapter}"
                                     Command="{Binding NextChapterCommand}"
                                     ToolTip="下一章"
-                                    AutomationProperties.Name="下一章">
-                                <ui:SymbolIcon Symbol="ChevronDoubleRight20" />
-                            </Button>
+                                    AutomationProperties.Name="下一章"
+                                    Icon="{ui:SymbolIcon Symbol=ChevronDoubleRight20}" />
                         </WrapPanel>
-                        <Button x:Name="VolumeMenuButton"
-                                Grid.Column="2"
-                                Margin="12,0,0,0"
-                                HorizontalAlignment="Right"
-                                Style="{StaticResource App.Media.Button}"
-                                Command="{Binding ToggleVolumeMenuCommand}"
-                                ToolTip="播放音量"
-                                AutomationProperties.Name="{Binding VolumeButtonAutomationName, FallbackValue=播放音量}">
-                            <ui:SymbolIcon>
-                                <ui:SymbolIcon.Style>
+                        <ui:Button x:Name="VolumeMenuButton"
+                                   Grid.Column="2"
+                                   Margin="12,0,0,0"
+                                   HorizontalAlignment="Right"
+                                   Style="{StaticResource App.Media.Button}"
+                                   Command="{Binding ToggleVolumeMenuCommand}"
+                                   ToolTip="播放音量"
+                                   AutomationProperties.Name="{Binding VolumeButtonAutomationName, FallbackValue=播放音量}">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon>
+                                    <ui:SymbolIcon.Style>
                                     <Style TargetType="ui:SymbolIcon">
                                         <Setter Property="Symbol" Value="Speaker224" />
                                         <Style.Triggers>
@@ -911,9 +904,10 @@
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </ui:SymbolIcon.Style>
-                            </ui:SymbolIcon>
-                        </Button>
+                                    </ui:SymbolIcon.Style>
+                                </ui:SymbolIcon>
+                            </ui:Button.Icon>
+                        </ui:Button>
                     </Grid>
 
                     <Grid Margin="0,16,0,0">
