@@ -301,6 +301,7 @@ src/NovelSpeaker.App/Shared/
       │  ├─ Typography.xaml
       │  ├─ Surfaces.xaml
       │  ├─ Buttons.xaml
+      │  ├─ Icons.xaml
       │  ├─ Inputs.xaml
       │  ├─ Selection.xaml
       │  ├─ Navigation.xaml
@@ -409,6 +410,10 @@ App.Button.Floating
 ```
 
 `App.Button.DangerIcon` 的默认图标和背景保持中性；Hover 时背景进入 `App.Brush.Danger`，Pressed 时进入 `App.Brush.Danger.Pressed` 并切换到可读的危险文本色。它表达危险动作，而不是让危险色常驻。
+
+`App.Button.Icon` 与 `App.Button.DangerIcon` 的宿主统一为 `Wpf.Ui.Controls.Button`。纯图标按钮必须通过 `Button.Icon` 提供 `SymbolIcon`，图标的 Normal、Hover、Pressed、Disabled 前景色由 owning Button 的 `Foreground`/Provider 状态属性统一拥有；页面只负责 Symbol、Command、Tooltip 和 AutomationName，不在 `SymbolIcon` 上手工绑定、硬编码或覆盖 `Foreground`。`App.Media.Button` 继承同一 owner-foreground 合同。
+
+应用自有、且不位于 Button.Icon 中的独立 `SymbolIcon` 使用显式语义样式：`App.Icon.Primary`、`App.Icon.Secondary`、`App.Icon.Accent`、`App.Icon.Danger`。NavigationView 等由 Wpf.Ui Provider 自己拥有颜色的图标继续交给 Provider，不强制覆盖。禁止增加全局隐式 `SymbolIcon` Style，以免破坏 Button、Navigation 和状态图标各自的颜色所有权。
 
 媒体按钮从 Button 基础变体派生，不在 Media 字典复制完整 Button 模板。
 
@@ -901,6 +906,8 @@ artifacts/visual-review/windows/<window-id>/<scenario-id>.<theme>.<dpi>.png
 - 正式页面和窗口按稳定 page-id/window-id 生成截图，路径不依赖 backlog 任务编号。
 - 页面截图使用正式 View，而不是 Gallery 中的页面仿制品。
 - 根视觉 manifest 可以唯一索引全部 family、页面、窗口和 scenario。
+- `App.Button.Icon`、`App.Button.DangerIcon` 与 `App.Media.Button` 的生产调用方只能使用 `ui:Button` + `Button.Icon`，不得退回标准 WPF Button 的直接 `SymbolIcon` Content；静态 XAML 契约必须阻止该模式回归。
+- 浅色/深色运行时测试必须证明 Icon Button 的 `SymbolIcon.Foreground` 跟随 owning Button 的前景色；`button-styles` 与 `media-controls` Gallery 场景持续覆盖普通、危险、媒体 Icon Button 的主题与状态组合。
 - 最小点击区域、关键非零宽度、不重叠和核心内容可见测试通过。
 - 100%、125%、150% DPI 和文本缩放下核心操作可用。
 - 视觉资源重构不得改变导航、播放、选择、缓存、规则、Dirty State 和生命周期语义。
@@ -917,6 +924,8 @@ artifacts/visual-review/windows/<window-id>/<scenario-id>.<theme>.<dpi>.png
 - 禁止同一控件族的 Style 分散在多个无关字典中。
 - 禁止用综合资源文件承载排版、按钮、列表、媒体和反馈等多类无关资源。
 - 禁止用全局 Token 保存页面专用几何。
+- 禁止在纯 Icon Button 内把 `SymbolIcon` 作为 `Content`，或在页面上为 Button.Icon 内的 `SymbolIcon` 单独维护 `Foreground`/祖先 Foreground Binding；颜色由 owning Button 统一拥有。
+- 禁止为 `SymbolIcon` 建立无 `x:Key` 的全局隐式 Style；应用自有独立图标使用 `App.Icon.*` 语义样式，Provider 所有图标保持 Provider 所有权。
 - 禁止建立依赖大量可选属性的万能 BookCard、RuleWorkbench 或 MediaControlBar。
 - 禁止 ViewModel 返回 Brush、Style、Thickness、CornerRadius、Icon 或其它 WPF 视觉类型。
 - 禁止通过整体 `Opacity` 弱化复杂容器导致文字对比度不足。

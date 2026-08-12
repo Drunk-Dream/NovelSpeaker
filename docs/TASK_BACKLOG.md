@@ -109,6 +109,7 @@ Legacy 只保存尚未完成迁移的旧键，必须最后整体删除。不得�
 → 正则替换
 → 缓存管理
 → 缓存管理后台导出初版调试/审阅
+→ Icon Foreground Contract 初版调试/审阅
 → 播放页
 → 主窗口与启动窗口
 → Dialog/Flyout/Snackbar 与状态视图
@@ -939,9 +940,42 @@ artifacts/visual-review/windows/<window-id>/
 
 自动验收：Domain 2、Application 219、Infrastructure 348、Presentation 405、WPF 417，共 1,391 项测试全部通过；locked restore 无依赖变化，format 通过，Release build 0 警告/0 错误。提交摘要：`62389f2 feat(export): coordinate background chapter mp3 batches`、`7a83896 refactor(cache): hand off chapter export to coordinator`、`cd2670a feat(shell): project chapter export lifecycle`。
 
+## [x] 27B（P0）：调试、修复、审阅并提交 Icon Foreground Contract 初版
+
+前置：27A。
+
+背景：
+
+- 当前更新包已经给出 Icon Foreground Contract 的初版：`App.Button.Icon`/`App.Button.DangerIcon` 统一为 Wpf.Ui Button owner，纯 Icon Button 迁移到 `Button.Icon`，新增 `App.Icon.*` 独立图标语义样式，并补充静态 XAML、Light/Dark WPF 与 Style Gallery 回归。
+- 本任务只负责把该初版调试、修复并工程化收口，不重新设计已确认的颜色所有权模型，也不顺手迁移播放页其它视觉结构。
+
+实现：
+
+- 先执行 locked restore、format 检查、Release build 和完整测试，修复初版中的 XAML TargetType、Provider bridge、资源加载顺序、Wpf.Ui `Button.Icon`、主题热切换、模板状态和测试 fixture 问题。
+- 全仓审阅 `App.Button.Icon`、`App.Button.DangerIcon`、`App.Media.Button` 的生产调用方：宿主必须为 `ui:Button`，纯图标必须走 `Button.Icon`，不得保留直接 `SymbolIcon` Content、页面局部 Foreground workaround 或 Ancestor Foreground Binding；复杂动态图标只允许本地切换 Symbol，不接管颜色。
+- 审阅 `App.Icon.Primary/Secondary/Accent/Danger`：只服务应用自有的非 Button.Icon 独立图标；不得新增全局隐式 `SymbolIcon` Style，也不得覆盖 NavigationView/Provider 自己拥有颜色的图标。
+- 审阅 `Buttons.xaml` / `Media.xaml`：Normal、Hover、Pressed、Disabled 的前景/背景语义由 owning Button 负责；DangerIcon 默认保持中性，Hover/Pressed 使用现有危险语义；媒体按钮继续统一尺寸和中性状态，不复制 Button 模板。
+- 审阅资源加载图和 Style Gallery：`Icons.xaml` 在 Button 样式之后、调用方之前稳定加载；`button-styles` 与 `media-controls` fixture 自身也必须使用 `Button.Icon` owner contract，不允许为了截图手工给内部 glyph 注入颜色。
+- 审阅 `IconForegroundContractTests` 的扫描边界：阻止新生产回归，同时避免对 Provider 所有图标产生误报；Legacy 只保留既有迁移例外，不得新增同类债务。
+- 补齐/修复受控件类型变化影响的 WPF 页面测试，确保 Tooltip、AutomationName、命令、尺寸、Focus 和原业务语义不变；不得为了通过测试退回标准 WPF Button。
+- 做一次主 agent 级完整 diff 审阅，确认没有无关页面重构、没有新的硬编码 Black/White/Hex Icon 色、没有双重颜色 owner。按可回溯性拆分多个原子提交并记录摘要。
+
+自动验收：
+
+- 静态 XAML Contract 证明生产 `App.Button.Icon`/`App.Button.DangerIcon`/`App.Media.Button` 均由 `ui:Button` 承载且使用 `Button.Icon`，非 Legacy 生产 `SymbolIcon` 不存在局部 Foreground workaround。
+- Light/Dark WPF 测试证明普通、危险和媒体 Icon 的最终 Foreground 跟随 owning Button；主题切换后无需重建控件即可更新，Disabled/危险 Hover/Pressed 状态保持可读。
+- `button-styles` 与 `media-controls` Gallery family 在 Light/Dark 下可重复渲染，fixture 不再手工注入 icon glyph Foreground。
+- 现有页面/迷你播放器/缓存/Rules/Library 等受影响 Icon Button 的 Tooltip、AutomationName、命令和布局回归通过。
+- `dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore`、`dotnet test -c Release --no-build` 全部门禁通过。
+- 审阅无阻断问题后完成原子提交，并在本任务下记录实际测试数、关键修复与提交摘要，再将任务标记为完成。
+
+结果：Icon Foreground Contract 已收口。`App.Button.Icon`、`App.Button.DangerIcon` 与 `App.Media.Button` 统一由 `ui:Button` 和 `Button.Icon` 承载，应用自有独立图标使用 `App.Icon.Primary/Secondary/Accent/Danger`，生产 XAML 不再保留直接 `SymbolIcon` Content 或页面级 Foreground workaround。资源加载顺序固定为 Buttons → Icons → Inputs → 其余调用方，避免模板实例化时的前向 `StaticResource` 失败；Style Gallery、PageHeader、Rules、Library、Cache、Player 与迷你播放器 fixture/断言同步迁移，并保留 Tooltip、AutomationName、命令、尺寸、Focus 和动态 Symbol 语义。调试过程中另修复 Gallery 媒体控件编译缺失、列表组件残留标准 Button、迷你播放器局部状态样式断言以及旧资源顺序测试。
+
+自动验收：Domain 2、Application 219、Infrastructure 348、Presentation 405、WPF 425，共 1,399 项测试全部通过；locked restore 无依赖变化，format 通过，Release build 0 警告/0 错误。提交摘要：`feat(theme): enforce icon foreground ownership`、`test(ui): guard icon foreground contracts`、`docs(ui): record icon foreground contract`。
+
 ## [ ] 28（P1）：迁移播放页与 PlayerView
 
-前置：8、21、27A。
+前置：8、21、27B。
 
 实现：
 

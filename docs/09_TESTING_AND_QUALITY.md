@@ -139,6 +139,7 @@
 - 共享样式默认不得替换标准控件完整模板；经视觉系统明确批准的控件族级模板例外必须集中在对应资源族中，并由专项测试证明状态、内容对齐、键盘/鼠标命中、Focus、Disabled、Editable、Popup 和主题切换语义完整。页面级模板覆盖仍禁止。
 - Design Token 只包含跨组件稳定值；架构测试阻止页面列宽、设置控件宽度、工作台分栏等页面几何进入全局令牌。
 - Style Gallery 自动覆盖浅色/深色下的 Default、Hover、Pressed、Focus、Disabled、Selected 和 Error 场景。
+- Icon Foreground Contract 采用三层自动守卫：静态 XAML 测试阻止 `App.Button.Icon`/`App.Button.DangerIcon`/`App.Media.Button` 被标准 WPF Button 承载、阻止纯图标按钮继续使用直接 `SymbolIcon` Content，并阻止生产 `SymbolIcon` 局部 Foreground workaround；WPF Light/Dark 运行时测试验证 `Button.Icon` 的最终 Foreground 跟随 owning Button；`button-styles` 与 `media-controls` Gallery family 覆盖普通、危险、媒体 Icon Button 的主题和交互状态。Legacy 字典在最终清理前可以作为明确迁移例外，但不得新增同类写法。
 - ComboBox 视觉/交互回归以稳定的 `inputs` Gallery family 为入口：宽控件保持左侧文案、右侧 Chevron 和全表面点击命中；Popup 使用 Raised Surface、Subtle Border、Medium Radius、Medium Elevation，并与闭合态保持约 4 px 间隔；Popup 宽度不小于闭合态控件；Normal/Hover/Selected/Disabled Item 分别验证透明、Secondary、Accent.Subtle + 左侧 Accent 状态条、Tertiary 文本；纯字符串长选中项单行省略且不得挤压或移动 Chevron；对象项/自定义模板在存在长文本时提供等价截断。
 - Shell 视觉契约测试固定内容背景所有权：`NavigationView` 内容宿主跟随 `App.Brush.Canvas` 与边界语义并保留非零左上圆角，已迁移正式 Page 根背景保持透明；Light/Dark 热切换后 Provider 投影键必须与应用 Palette 同步，页面不得用不透明根背景重新遮住 Shell 圆角。
 - 设置页面结构契约区分首页与子页面：`SettingsPage` 首页继续允许并要求按导航类别使用 `AppSettingsGroup`；具体设置子页面不得包含 `AppSettingsGroup` 或重复分类 Header，而必须以单一无 Header `AppSettingsList` 承载 `AppSettingsRow`/`AppSettingsNavigationRow`。已迁移的 Appearance/General 与后续 Playback/ImportText/CacheData/Diagnostics 页面均由静态 XAML 契约或视觉树测试固定这一边界。
