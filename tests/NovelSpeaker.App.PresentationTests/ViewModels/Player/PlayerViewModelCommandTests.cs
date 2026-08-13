@@ -59,7 +59,8 @@ public sealed partial class PlayerViewModelTests
             ruleService: new FakeTtsRuleQueries(
                 [
                     new TtsRuleSummary(1, "默认规则", true, true, null),
-                    new TtsRuleSummary(2, "备用规则", true, false, null)
+                    new TtsRuleSummary(2, "备用规则", true, false, null),
+                    new TtsRuleSummary(3, "已禁用规则", false, false, null)
                 ]));
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -67,6 +68,7 @@ public sealed partial class PlayerViewModelTests
             new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
+        Assert.DoesNotContain(viewModel.Rules, rule => rule.Id == 3);
         await viewModel.SelectRuleCommand.ExecuteAsync(viewModel.Rules[1]);
 
         Assert.Equal(2, coordinator.LastChangedRuleId);
@@ -173,6 +175,42 @@ public sealed partial class PlayerViewModelTests
 
         Assert.Equal(10, settingsService.Settings.DefaultSpeakSpeed);
         Assert.Null(coordinator.LastChangedSpeakSpeed);
+    }
+
+    [Fact]
+    public async Task ApplySpeakSpeedCommand_enforces_domain_boundaries_and_projects_invalid_input()
+    {
+        var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+        var settingsService = new FakeAppSettingsService(AppSettings.Default);
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(null, null),
+            settingsService: settingsService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        foreach (var (input, expected) in new[] { ("1", 1), ("20", 20) })
+        {
+            viewModel.SpeedEditorText = input;
+            await viewModel.ApplySpeakSpeedCommand.ExecuteAsync(null);
+            Assert.Equal(expected, viewModel.SpeakSpeed);
+            Assert.Equal(expected, settingsService.Settings.DefaultSpeakSpeed);
+        }
+
+        foreach (var input in new[] { "0", "21", "invalid" })
+        {
+            var previousSpeed = viewModel.SpeakSpeed;
+            var previousSetting = settingsService.Settings.DefaultSpeakSpeed;
+            var previousChange = coordinator.LastChangedSpeakSpeed;
+            viewModel.SpeedEditorText = input;
+
+            await viewModel.ApplySpeakSpeedCommand.ExecuteAsync(null);
+
+            Assert.Contains("1 到 20", viewModel.SpeedEditorErrorText, StringComparison.Ordinal);
+            Assert.Equal(previousSpeed, viewModel.SpeakSpeed);
+            Assert.Equal(previousSetting, settingsService.Settings.DefaultSpeakSpeed);
+            Assert.Equal(previousChange, coordinator.LastChangedSpeakSpeed);
+        }
     }
 
     [Fact]
