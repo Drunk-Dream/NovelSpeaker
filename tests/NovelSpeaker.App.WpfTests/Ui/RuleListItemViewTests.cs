@@ -16,8 +16,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed class RuleListItemViewTests
 {
-    [Fact]
-    public void Shared_view_consumes_display_state_and_commands_without_rule_view_model_types()
+    private void Shared_view_consumes_display_state_and_commands_without_rule_view_model_types()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -65,8 +64,7 @@ public sealed class RuleListItemViewTests
         });
     }
 
-    [Fact]
-    public void Right_click_does_not_select_and_context_menu_exposes_capability_state()
+    private void Right_click_does_not_select_and_context_menu_exposes_capability_state()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -103,8 +101,7 @@ public sealed class RuleListItemViewTests
         });
     }
 
-    [Fact]
-    public void Non_sortable_menu_omits_move_fallbacks_and_remains_keyboard_focusable()
+    private void Non_sortable_menu_omits_move_fallbacks_and_remains_keyboard_focusable()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -146,8 +143,7 @@ public sealed class RuleListItemViewTests
         });
     }
 
-    [Fact]
-    public void Recycled_view_refreshes_all_visual_state_from_the_new_contract()
+    private void Recycled_view_refreshes_all_visual_state_from_the_new_contract()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -170,8 +166,7 @@ public sealed class RuleListItemViewTests
         });
     }
 
-    [Fact]
-    public void Optional_runtime_error_uses_formal_inline_feedback_without_changing_card_commands()
+    private void Optional_runtime_error_uses_formal_inline_feedback_without_changing_card_commands()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -202,8 +197,7 @@ public sealed class RuleListItemViewTests
         });
     }
 
-    [Fact]
-    public void Reorder_command_runs_only_for_a_valid_drop_commit()
+    private void Reorder_command_runs_only_for_a_valid_drop_commit()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -224,8 +218,7 @@ public sealed class RuleListItemViewTests
         });
     }
 
-    [Fact]
-    public void Toggle_automation_uses_the_same_single_command_path_and_reprojects_state()
+    private void Toggle_automation_uses_the_same_single_command_path_and_reprojects_state()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -254,8 +247,7 @@ public sealed class RuleListItemViewTests
         });
     }
 
-    [Fact]
-    public void Toggle_tracks_standard_command_availability_for_input_and_automation()
+    private void Toggle_tracks_standard_command_availability_for_input_and_automation()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -289,8 +281,7 @@ public sealed class RuleListItemViewTests
         });
     }
 
-    [Fact]
-    public void Toggle_capability_disables_input_without_changing_projected_state()
+    private void Toggle_capability_disables_input_without_changing_projected_state()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -318,8 +309,7 @@ public sealed class RuleListItemViewTests
         });
     }
 
-    [Fact]
-    public void Rule_selection_style_has_an_explicit_selected_hover_combination()
+    private void Rule_selection_style_has_an_explicit_selected_hover_combination()
     {
         var repositoryRoot = LocateRepositoryRoot();
         var document = XDocument.Load(Path.Combine(
@@ -340,6 +330,26 @@ public sealed class RuleListItemViewTests
         Assert.Contains(
             style.Descendants().Where(element => element.Name.LocalName == "Setter"),
             setter => (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Accent.Hover}");
+    }
+
+    [Fact]
+    public void Rule_list_item_projection_contracts_cover_display_recycling_and_selection_style()
+    {
+        Shared_view_consumes_display_state_and_commands_without_rule_view_model_types();
+        Recycled_view_refreshes_all_visual_state_from_the_new_contract();
+        Optional_runtime_error_uses_formal_inline_feedback_without_changing_card_commands();
+        Rule_selection_style_has_an_explicit_selected_hover_combination();
+    }
+
+    [Fact]
+    public void Rule_list_item_interaction_contracts_cover_context_actions_and_command_capabilities()
+    {
+        Right_click_does_not_select_and_context_menu_exposes_capability_state();
+        Non_sortable_menu_omits_move_fallbacks_and_remains_keyboard_focusable();
+        Reorder_command_runs_only_for_a_valid_drop_commit();
+        Toggle_automation_uses_the_same_single_command_path_and_reprojects_state();
+        Toggle_tracks_standard_command_availability_for_input_and_automation();
+        Toggle_capability_disables_input_without_changing_projected_state();
     }
 
     private static RuleListItemView CreateBoundView(
