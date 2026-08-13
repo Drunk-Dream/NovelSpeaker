@@ -307,25 +307,25 @@ public sealed class LibraryViewModelTests
         Assert.Single(viewModel.Books);
     }
 
-    public static IEnumerable<object[]> InvalidImportInputs()
+    [Fact]
+    public async Task ImportFilesAsync_rejects_invalid_inputs()
     {
-        yield return [Array.Empty<string>(), "未检测到可导入的 TXT 文件。"];
-        yield return [new[] { "one.txt", "two.txt" }, "一次只能导入一个 TXT 文件。"];
-    }
+        foreach (var (inputs, expectedMessage) in new[]
+                 {
+                     (Array.Empty<string>(), "未检测到可导入的 TXT 文件。"),
+                     (new[] { "one.txt", "two.txt" }, "一次只能导入一个 TXT 文件。")
+                 })
+        {
+            var feedback = new FakeFeedbackService();
+            var importCoordinator = new FakeLibraryImportCoordinator();
+            var viewModel = CreateViewModel(feedback: feedback, importCoordinator: importCoordinator);
 
-    [Theory]
-    [MemberData(nameof(InvalidImportInputs))]
-    public async Task ImportFilesAsync_rejects_invalid_inputs(string[] inputs, string expectedMessage)
-    {
-        var feedback = new FakeFeedbackService();
-        var importCoordinator = new FakeLibraryImportCoordinator();
-        var viewModel = CreateViewModel(feedback: feedback, importCoordinator: importCoordinator);
+            await viewModel.ImportFilesAsync(inputs, CancellationToken.None);
 
-        await viewModel.ImportFilesAsync(inputs, CancellationToken.None);
-
-        Assert.Equal("无法导入", feedback.LastTitle);
-        Assert.Equal(expectedMessage, feedback.LastMessage);
-        Assert.Empty(importCoordinator.Requests);
+            Assert.Equal("无法导入", feedback.LastTitle);
+            Assert.Equal(expectedMessage, feedback.LastMessage);
+            Assert.Empty(importCoordinator.Requests);
+        }
     }
 
     [Fact]

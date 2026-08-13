@@ -28,40 +28,46 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal(fixture.FirstRuleId, fixture.ViewModel.SelectedRuleId);
     }
 
-    [Theory]
-    [InlineData(UnsavedChangesDecision.Save, true)]
-    [InlineData(UnsavedChangesDecision.Discard, true)]
-    [InlineData(UnsavedChangesDecision.Cancel, false)]
-    public async Task ConfirmLeaveAsync_applies_global_navigation_decision(
-        UnsavedChangesDecision decision,
-        bool expectedCanLeave)
+    [Fact]
+    public async Task ConfirmLeaveAsync_applies_global_navigation_decision()
     {
-        var fixture = CreateFixture(decision);
-        await LoadAndSelectFirstAsync(fixture);
-        fixture.ViewModel.DraftName = "已修改";
+        foreach (var (decision, expectedCanLeave) in new[]
+                 {
+                     (UnsavedChangesDecision.Save, true),
+                     (UnsavedChangesDecision.Discard, true),
+                     (UnsavedChangesDecision.Cancel, false)
+                 })
+        {
+            var fixture = CreateFixture(decision);
+            await LoadAndSelectFirstAsync(fixture);
+            fixture.ViewModel.DraftName = "已修改";
 
-        var canLeave = await fixture.ViewModel.ConfirmLeaveAsync(CancellationToken.None);
+            var canLeave = await fixture.ViewModel.ConfirmLeaveAsync(CancellationToken.None);
 
-        Assert.Equal(expectedCanLeave, canLeave);
-        Assert.Equal(!expectedCanLeave, fixture.ViewModel.HasUnsavedChanges);
+            Assert.Equal(expectedCanLeave, canLeave);
+            Assert.Equal(!expectedCanLeave, fixture.ViewModel.HasUnsavedChanges);
+        }
     }
 
-    [Theory]
-    [InlineData(UnsavedChangesDecision.Save, 1)]
-    [InlineData(UnsavedChangesDecision.Discard, 0)]
-    public async Task SelectRuleAsync_with_unsaved_changes_applies_leave_decision(
-        UnsavedChangesDecision decision,
-        int expectedSaveCount)
+    [Fact]
+    public async Task SelectRuleAsync_with_unsaved_changes_applies_leave_decision()
     {
-        var fixture = CreateFixture(decision);
-        await LoadAndSelectFirstAsync(fixture);
-        fixture.ViewModel.DraftPattern = "已修改";
+        foreach (var (decision, expectedSaveCount) in new[]
+                 {
+                     (UnsavedChangesDecision.Save, 1),
+                     (UnsavedChangesDecision.Discard, 0)
+                 })
+        {
+            var fixture = CreateFixture(decision);
+            await LoadAndSelectFirstAsync(fixture);
+            fixture.ViewModel.DraftPattern = "已修改";
 
-        await fixture.ViewModel.SelectRuleCommand.ExecuteAsync(fixture.ViewModel.Rules[1]);
+            await fixture.ViewModel.SelectRuleCommand.ExecuteAsync(fixture.ViewModel.Rules[1]);
 
-        Assert.Equal(fixture.SecondRuleId, fixture.ViewModel.SelectedRuleId);
-        Assert.Equal("规则二", fixture.ViewModel.DraftName);
-        Assert.Equal(expectedSaveCount, fixture.Workspace.SaveEditorCallCount);
+            Assert.Equal(fixture.SecondRuleId, fixture.ViewModel.SelectedRuleId);
+            Assert.Equal("规则二", fixture.ViewModel.DraftName);
+            Assert.Equal(expectedSaveCount, fixture.Workspace.SaveEditorCallCount);
+        }
     }
 
     [Fact]
@@ -281,27 +287,28 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal(1, fixture.Playback.RegexRefreshCount);
     }
 
-    [Theory]
-    [InlineData(RuleDropPlacement.Before, 2, 0, 1)]
-    [InlineData(RuleDropPlacement.After, 0, 2, 1)]
-    public async Task ReorderRuleCommand_honors_insertion_line_and_refreshes_playback(
-        RuleDropPlacement placement,
-        int firstIndex,
-        int secondIndex,
-        int thirdIndex)
+    [Fact]
+    public async Task ReorderRuleCommand_honors_insertion_line_and_refreshes_playback()
     {
-        var fixture = CreateFixture(UnsavedChangesDecision.Save, ruleCount: 3);
-        await fixture.ViewModel.LoadAsync(CancellationToken.None);
-        var original = fixture.ViewModel.Rules.Select(rule => rule.Id).ToArray();
-        var source = fixture.ViewModel.Rules[2];
-        var target = fixture.ViewModel.Rules[0];
+        foreach (var (placement, expectedIndexes) in new[]
+                 {
+                     (RuleDropPlacement.Before, new[] { 2, 0, 1 }),
+                     (RuleDropPlacement.After, new[] { 0, 2, 1 })
+                 })
+        {
+            var fixture = CreateFixture(UnsavedChangesDecision.Save, ruleCount: 3);
+            await fixture.ViewModel.LoadAsync(CancellationToken.None);
+            var original = fixture.ViewModel.Rules.Select(rule => rule.Id).ToArray();
+            var source = fixture.ViewModel.Rules[2];
+            var target = fixture.ViewModel.Rules[0];
 
-        await fixture.ViewModel.ReorderRuleCommand.ExecuteAsync(new RuleReorderRequest(source, target, placement));
+            await fixture.ViewModel.ReorderRuleCommand.ExecuteAsync(new RuleReorderRequest(source, target, placement));
 
-        Assert.Equal(
-            [original[firstIndex], original[secondIndex], original[thirdIndex]],
-            fixture.Workspace.OrderedRuleIds);
-        Assert.Equal(1, fixture.Playback.RegexRefreshCount);
+            Assert.Equal(
+                expectedIndexes.Select(index => original[index]),
+                fixture.Workspace.OrderedRuleIds);
+            Assert.Equal(1, fixture.Playback.RegexRefreshCount);
+        }
     }
 
     [Fact]
