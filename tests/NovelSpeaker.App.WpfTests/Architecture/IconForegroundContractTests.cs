@@ -14,8 +14,7 @@ public sealed class IconForegroundContractTests
     private static readonly XNamespace WpfUiNamespace =
         "http://schemas.lepo.co/wpfui/2022/xaml";
 
-    [Fact]
-    public void Standalone_icon_styles_define_the_semantic_foreground_contract()
+    private void Standalone_icon_styles_define_the_semantic_foreground_contract()
     {
         var path = Path.Combine(
             LocateRepositoryRoot(),
@@ -55,8 +54,7 @@ public sealed class IconForegroundContractTests
         }
     }
 
-    [Fact]
-    public void Icon_button_styles_are_owned_by_wpf_ui_buttons_and_use_the_icon_slot()
+    private void Icon_button_styles_are_owned_by_wpf_ui_buttons_and_use_the_icon_slot()
     {
         var appRoot = Path.Combine(LocateRepositoryRoot(), "src", "NovelSpeaker.App");
         var violations = new List<string>();
@@ -119,8 +117,7 @@ public sealed class IconForegroundContractTests
             $"Icon button foreground contract violations:{Environment.NewLine}{string.Join(Environment.NewLine, violations)}");
     }
 
-    [Fact]
-    public void Product_symbol_icons_do_not_override_owner_foreground_locally()
+    private void Product_symbol_icons_do_not_override_owner_foreground_locally()
     {
         var appRoot = Path.Combine(LocateRepositoryRoot(), "src", "NovelSpeaker.App");
         var legacySegment = Path.Combine("Shared", "Theming", "Resources", "Legacy");
@@ -152,8 +149,7 @@ public sealed class IconForegroundContractTests
             $"Local SymbolIcon foreground overrides found:{Environment.NewLine}{string.Join(Environment.NewLine, violations)}");
     }
 
-    [Fact]
-    public void App_owned_standalone_symbol_icons_use_semantic_icon_styles()
+    private void App_owned_standalone_symbol_icons_use_semantic_icon_styles()
     {
         var appRoot = Path.Combine(LocateRepositoryRoot(), "src", "NovelSpeaker.App");
         var legacySegment = Path.Combine("Shared", "Theming", "Resources", "Legacy");
@@ -197,6 +193,15 @@ public sealed class IconForegroundContractTests
         Assert.True(
             violations.Count == 0,
             $"Standalone SymbolIcon semantic style violations:{Environment.NewLine}{string.Join(Environment.NewLine, violations)}");
+    }
+
+    [Fact]
+    public void Icon_foreground_contracts_cover_standalone_and_owner_styles()
+    {
+        Standalone_icon_styles_define_the_semantic_foreground_contract();
+        Icon_button_styles_are_owned_by_wpf_ui_buttons_and_use_the_icon_slot();
+        Product_symbol_icons_do_not_override_owner_foreground_locally();
+        App_owned_standalone_symbol_icons_use_semantic_icon_styles();
     }
 
     private static bool UsesIconButtonStyle(XElement element)

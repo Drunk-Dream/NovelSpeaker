@@ -5,8 +5,7 @@ namespace NovelSpeaker.App.PresentationTests;
 
 public sealed class CurrentItemLocatorControllerTests
 {
-    [Fact]
-    public void User_scroll_shows_locator_only_after_current_item_leaves_view_and_hides_when_it_returns()
+    private void User_scroll_shows_locator_only_after_current_item_leaves_view_and_hides_when_it_returns()
     {
         var controller = new CurrentItemLocatorController();
 
@@ -22,8 +21,7 @@ public sealed class CurrentItemLocatorControllerTests
         Assert.False(controller.IsLocatorVisible);
     }
 
-    [Fact]
-    public void Current_item_change_hides_locator_until_the_user_scrolls_again()
+    private void Current_item_change_hides_locator_until_the_user_scrolls_again()
     {
         var controller = new CurrentItemLocatorController();
         controller.NotifyUserScrollInput();
@@ -39,8 +37,7 @@ public sealed class CurrentItemLocatorControllerTests
         Assert.True(controller.IsLocatorVisible);
     }
 
-    [Fact]
-    public void Locate_request_stays_visible_during_programmatic_scroll_and_hides_on_arrival()
+    private void Locate_request_stays_visible_during_programmatic_scroll_and_hides_on_arrival()
     {
         var controller = new CurrentItemLocatorController();
         controller.NotifyUserScrollInput();
@@ -54,8 +51,7 @@ public sealed class CurrentItemLocatorControllerTests
         Assert.False(controller.IsLocatorVisible);
     }
 
-    [Fact]
-    public void Continuous_scroll_keeps_tracking_after_an_early_visible_update_and_can_hide_then_show_again()
+    private void Continuous_scroll_keeps_tracking_after_an_early_visible_update_and_can_hide_then_show_again()
     {
         var controller = new CurrentItemLocatorController();
 
@@ -75,5 +71,14 @@ public sealed class CurrentItemLocatorControllerTests
         controller.ObserveCurrentItem(hasCurrentItem: true, isVisible: true);
         Assert.False(controller.IsLocatorVisible);
         controller.EndContinuousUserScroll();
+    }
+
+    [Fact]
+    public void Current_item_locator_contracts_cover_visibility_and_scroll_transitions()
+    {
+        User_scroll_shows_locator_only_after_current_item_leaves_view_and_hides_when_it_returns();
+        Current_item_change_hides_locator_until_the_user_scrolls_again();
+        Locate_request_stays_visible_during_programmatic_scroll_and_hides_on_arrival();
+        Continuous_scroll_keeps_tracking_after_an_early_visible_update_and_can_hide_then_show_again();
     }
 }

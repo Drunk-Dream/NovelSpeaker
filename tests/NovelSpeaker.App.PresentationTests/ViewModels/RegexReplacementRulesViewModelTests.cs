@@ -12,8 +12,7 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class RegexReplacementRulesViewModelTests
 {
-    [Fact]
-    public async Task LoadAsync_leaves_editor_closed_until_a_rule_is_clicked()
+    private async Task LoadAsync_leaves_editor_closed_until_a_rule_is_clicked()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Discard);
 
@@ -28,8 +27,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal(fixture.FirstRuleId, fixture.ViewModel.SelectedRuleId);
     }
 
-    [Fact]
-    public async Task ConfirmLeaveAsync_applies_global_navigation_decision()
+    private async Task ConfirmLeaveAsync_applies_global_navigation_decision()
     {
         foreach (var (decision, expectedCanLeave) in new[]
                  {
@@ -49,8 +47,7 @@ public sealed class RegexReplacementRulesViewModelTests
         }
     }
 
-    [Fact]
-    public async Task SelectRuleAsync_with_unsaved_changes_applies_leave_decision()
+    private async Task SelectRuleAsync_with_unsaved_changes_applies_leave_decision()
     {
         foreach (var (decision, expectedSaveCount) in new[]
                  {
@@ -70,8 +67,7 @@ public sealed class RegexReplacementRulesViewModelTests
         }
     }
 
-    [Fact]
-    public async Task SelectRuleAsync_cancel_keeps_current_draft_and_selection()
+    private async Task SelectRuleAsync_cancel_keeps_current_draft_and_selection()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Cancel);
         await LoadAndSelectFirstAsync(fixture);
@@ -85,8 +81,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal(0, fixture.Workspace.SaveEditorCallCount);
     }
 
-    [Fact]
-    public async Task NewRuleAsync_tracks_dirty_and_cancel_closes_editor()
+    private async Task NewRuleAsync_tracks_dirty_and_cancel_closes_editor()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Discard);
         await LoadAndSelectFirstAsync(fixture);
@@ -106,8 +101,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Null(fixture.ViewModel.SelectedRuleId);
     }
 
-    [Fact]
-    public async Task Editor_actions_are_disabled_until_the_draft_changes()
+    private async Task Editor_actions_are_disabled_until_the_draft_changes()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Discard);
         await LoadAndSelectFirstAsync(fixture);
@@ -130,8 +124,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.False(fixture.ViewModel.CanSave);
     }
 
-    [Fact]
-    public async Task Validation_projects_name_and_pattern_errors_to_their_form_fields()
+    private async Task Validation_projects_name_and_pattern_errors_to_their_form_fields()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
         await LoadAndSelectFirstAsync(fixture);
@@ -149,8 +142,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.False(fixture.ViewModel.CanSave);
     }
 
-    [Fact]
-    public async Task Empty_replacement_is_valid_for_removing_matching_text()
+    private async Task Empty_replacement_is_valid_for_removing_matching_text()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
         await LoadAndSelectFirstAsync(fixture);
@@ -162,8 +154,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.True(fixture.ViewModel.CanSave);
     }
 
-    [Fact]
-    public async Task SelectRuleAsync_save_failure_keeps_current_draft_and_blocks_leave()
+    private async Task SelectRuleAsync_save_failure_keeps_current_draft_and_blocks_leave()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
         fixture.Workspace.SaveException = new InvalidOperationException("save failed");
@@ -178,8 +169,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal("保存正则替换规则失败", fixture.Feedback.LastProjectedTitle);
     }
 
-    [Fact]
-    public async Task ConfirmLeaveAsync_does_not_convert_save_cancellation_to_failure()
+    private async Task ConfirmLeaveAsync_does_not_convert_save_cancellation_to_failure()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
         fixture.Workspace.SaveException = new OperationCanceledException();
@@ -194,8 +184,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Null(fixture.Feedback.LastProjectedTitle);
     }
 
-    [Fact]
-    public async Task SaveAsync_refreshes_playback_when_execution_fields_change()
+    private async Task SaveAsync_refreshes_playback_when_execution_fields_change()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
         await LoadAndSelectFirstAsync(fixture);
@@ -206,8 +195,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal(1, fixture.Playback.RegexRefreshCount);
     }
 
-    [Fact]
-    public async Task SaveAsync_does_not_refresh_playback_when_only_name_changes()
+    private async Task SaveAsync_does_not_refresh_playback_when_only_name_changes()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
         await LoadAndSelectFirstAsync(fixture);
@@ -218,8 +206,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal(0, fixture.Playback.RegexRefreshCount);
     }
 
-    [Fact]
-    public async Task ToggleEnabledAsync_persists_state_and_refreshes_current_playback()
+    private async Task ToggleEnabledAsync_persists_state_and_refreshes_current_playback()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
         await fixture.ViewModel.LoadAsync(CancellationToken.None);
@@ -231,8 +218,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal(1, fixture.Playback.RegexRefreshCount);
     }
 
-    [Fact]
-    public async Task ToggleEnabledAsync_cancellation_rolls_back_immediately_and_propagates()
+    private async Task ToggleEnabledAsync_cancellation_rolls_back_immediately_and_propagates()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
         fixture.Workspace.SetEnabledException = new OperationCanceledException();
@@ -248,8 +234,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Null(fixture.Feedback.LastProjectedTitle);
     }
 
-    [Fact]
-    public async Task ToggleEnabledAsync_playback_refresh_cancellation_keeps_persisted_list_state_and_propagates()
+    private async Task ToggleEnabledAsync_playback_refresh_cancellation_keeps_persisted_list_state_and_propagates()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
         fixture.Playback.RefreshException = new OperationCanceledException();
@@ -268,8 +253,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Null(fixture.Feedback.LastProjectedTitle);
     }
 
-    [Fact]
-    public async Task MoveRuleDownFromListAsync_persists_order_updates_boundaries_and_refreshes_playback()
+    private async Task MoveRuleDownFromListAsync_persists_order_updates_boundaries_and_refreshes_playback()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
         await fixture.ViewModel.LoadAsync(CancellationToken.None);
@@ -287,8 +271,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal(1, fixture.Playback.RegexRefreshCount);
     }
 
-    [Fact]
-    public async Task ReorderRuleCommand_honors_insertion_line_and_refreshes_playback()
+    private async Task ReorderRuleCommand_honors_insertion_line_and_refreshes_playback()
     {
         foreach (var (placement, expectedIndexes) in new[]
                  {
@@ -311,8 +294,7 @@ public sealed class RegexReplacementRulesViewModelTests
         }
     }
 
-    [Fact]
-    public async Task DeleteRuleFromListAsync_deletes_the_menu_target_without_closing_another_editor()
+    private async Task DeleteRuleFromListAsync_deletes_the_menu_target_without_closing_another_editor()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Save);
         fixture.Feedback.DeletionDecision = AppConfirmationDecision.Confirm;
@@ -329,8 +311,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal(1, fixture.Playback.RegexRefreshCount);
     }
 
-    [Fact]
-    public async Task Shared_document_commands_import_export_and_copy_rule()
+    private async Task Shared_document_commands_import_export_and_copy_rule()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Discard);
         fixture.Documents.FileDocument = new RuleImportDocument(
@@ -350,8 +331,7 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.False(fixture.ViewModel.HasEditor);
     }
 
-    [Fact]
-    public async Task Missing_import_sources_preserve_dirty_draft_and_imports_do_not_overlap()
+    private async Task Missing_import_sources_preserve_dirty_draft_and_imports_do_not_overlap()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Discard);
         await LoadAndSelectFirstAsync(fixture);
@@ -373,8 +353,7 @@ public sealed class RegexReplacementRulesViewModelTests
         await fileImport;
     }
 
-    [Fact]
-    public async Task Import_and_rule_mutations_share_busy_ownership()
+    private async Task Import_and_rule_mutations_share_busy_ownership()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Discard);
         fixture.Documents.FileDocument = new RuleImportDocument("[]", "rules.json");
@@ -398,6 +377,47 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.True(fixture.ViewModel.IsBusy);
         fixture.Workspace.ImportGate.SetResult();
         await import;
+    }
+
+    [Fact]
+    public async Task Regex_rule_editing_contracts_cover_load_selection_and_dirty_leave_decisions()
+    {
+        await LoadAsync_leaves_editor_closed_until_a_rule_is_clicked();
+        await ConfirmLeaveAsync_applies_global_navigation_decision();
+        await SelectRuleAsync_with_unsaved_changes_applies_leave_decision();
+        await SelectRuleAsync_cancel_keeps_current_draft_and_selection();
+        await NewRuleAsync_tracks_dirty_and_cancel_closes_editor();
+        await Editor_actions_are_disabled_until_the_draft_changes();
+    }
+
+    [Fact]
+    public async Task Regex_rule_validation_and_save_contracts_cover_fields_failures_and_refresh()
+    {
+        await Validation_projects_name_and_pattern_errors_to_their_form_fields();
+        await Empty_replacement_is_valid_for_removing_matching_text();
+        await SelectRuleAsync_save_failure_keeps_current_draft_and_blocks_leave();
+        await ConfirmLeaveAsync_does_not_convert_save_cancellation_to_failure();
+        await SaveAsync_refreshes_playback_when_execution_fields_change();
+        await SaveAsync_does_not_refresh_playback_when_only_name_changes();
+    }
+
+    [Fact]
+    public async Task Regex_rule_mutation_contracts_cover_enabled_state_and_ordered_list_commands()
+    {
+        await ToggleEnabledAsync_persists_state_and_refreshes_current_playback();
+        await ToggleEnabledAsync_cancellation_rolls_back_immediately_and_propagates();
+        await ToggleEnabledAsync_playback_refresh_cancellation_keeps_persisted_list_state_and_propagates();
+        await MoveRuleDownFromListAsync_persists_order_updates_boundaries_and_refreshes_playback();
+        await ReorderRuleCommand_honors_insertion_line_and_refreshes_playback();
+        await DeleteRuleFromListAsync_deletes_the_menu_target_without_closing_another_editor();
+    }
+
+    [Fact]
+    public async Task Regex_rule_document_contracts_cover_import_export_copy_and_busy_ownership()
+    {
+        await Shared_document_commands_import_export_and_copy_rule();
+        await Missing_import_sources_preserve_dirty_draft_and_imports_do_not_overlap();
+        await Import_and_rule_mutations_share_busy_ownership();
     }
 
     private static TestFixture CreateFixture(UnsavedChangesDecision decision, int ruleCount = 2)

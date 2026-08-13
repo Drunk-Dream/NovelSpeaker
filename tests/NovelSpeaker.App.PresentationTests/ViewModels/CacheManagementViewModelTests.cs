@@ -14,8 +14,7 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class CacheManagementViewModelTests
 {
-    [Fact]
-    public async Task LoadAsync_does_not_auto_select_first_book()
+    private async Task LoadAsync_does_not_auto_select_first_book()
     {
         var workspaceService = new FakeCacheWorkspaceService
         {
@@ -35,8 +34,7 @@ public sealed class CacheManagementViewModelTests
         Assert.DoesNotContain(viewModel.Books, static book => book.IsSelected);
     }
 
-    [Fact]
-    public async Task SelectBookAsync_ignores_late_results_from_previous_selection()
+    private async Task SelectBookAsync_ignores_late_results_from_previous_selection()
     {
         var workspaceService = new FakeCacheWorkspaceService
         {
@@ -74,8 +72,7 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal("第二本 第一章", viewModel.Chapters[0].Title);
     }
 
-    [Fact]
-    public async Task Chapter_selection_uses_desktop_modifiers_select_all_and_clear()
+    private async Task Chapter_selection_uses_desktop_modifiers_select_all_and_clear()
     {
         var workspaceService = new FakeCacheWorkspaceService
         {
@@ -113,8 +110,7 @@ public sealed class CacheManagementViewModelTests
         Assert.False(viewModel.ClearSelectedChaptersCommand.CanExecute(null));
     }
 
-    [Fact]
-    public async Task Chapter_card_marks_current_configuration_completeness_as_unavailable()
+    private async Task Chapter_card_marks_current_configuration_completeness_as_unavailable()
     {
         var workspaceService = new FakeCacheWorkspaceService
         {
@@ -132,8 +128,7 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal("完整度：配置不可用", Assert.Single(viewModel.Chapters).CompletenessText);
     }
 
-    [Fact]
-    public async Task Chapter_cards_project_current_configuration_statuses_without_turning_zero_zero_into_full()
+    private async Task Chapter_cards_project_current_configuration_statuses_without_turning_zero_zero_into_full()
     {
         var workspaceService = new FakeCacheWorkspaceService
         {
@@ -172,8 +167,7 @@ public sealed class CacheManagementViewModelTests
         Assert.DoesNotContain("100%", viewModel.Chapters[3].CompletenessText, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task Matching_cache_changes_are_coalesced_and_refresh_only_during_page_activation()
+    private async Task Matching_cache_changes_are_coalesced_and_refresh_only_during_page_activation()
     {
         var workspaceService = new FakeCacheWorkspaceService
         {
@@ -215,8 +209,7 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal(callsAfterLeave, workspaceService.GetCachedChaptersCallCount);
     }
 
-    [Fact]
-    public async Task Reentering_cache_management_does_not_duplicate_cache_change_subscription()
+    private async Task Reentering_cache_management_does_not_duplicate_cache_change_subscription()
     {
         var workspaceService = new FakeCacheWorkspaceService
         {
@@ -240,8 +233,7 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal(callsBeforeChange + 1, workspaceService.GetCachedChaptersCallCount);
     }
 
-    [Fact]
-    public async Task Page_leave_cancels_pending_cache_refresh_and_discards_late_results()
+    private async Task Page_leave_cancels_pending_cache_refresh_and_discards_late_results()
     {
         var workspaceService = new FakeCacheWorkspaceService
         {
@@ -268,8 +260,7 @@ public sealed class CacheManagementViewModelTests
         Assert.DoesNotContain(viewModel.Chapters, chapter => chapter.Title == "迟到章节");
     }
 
-    [Fact]
-    public async Task Switching_books_clears_chapter_selection_without_cross_book_carryover()
+    private async Task Switching_books_clears_chapter_selection_without_cross_book_carryover()
     {
         var workspaceService = CreateTwoBookWorkspace();
         var viewModel = CreateViewModel(workspaceService);
@@ -284,8 +275,7 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal("第二本", viewModel.SelectedBookTitle);
     }
 
-    [Fact]
-    public async Task Clear_selected_chapters_uses_one_application_batch_request()
+    private async Task Clear_selected_chapters_uses_one_application_batch_request()
     {
         var workspaceService = CreateTwoBookWorkspace();
         workspaceService.ClearChaptersResult = new CacheCleanupResult(2048, 2, 0, 0);
@@ -302,8 +292,7 @@ public sealed class CacheManagementViewModelTests
         Assert.Empty(viewModel.SelectedChapterIndices);
     }
 
-    [Fact]
-    public async Task Selecting_all_chapters_cleans_the_whole_visible_book_through_batch_boundary()
+    private async Task Selecting_all_chapters_cleans_the_whole_visible_book_through_batch_boundary()
     {
         var workspaceService = CreateTwoBookWorkspace();
         var viewModel = CreateViewModel(workspaceService);
@@ -317,8 +306,7 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal(0, workspaceService.ClearBookCallCount);
     }
 
-    [Fact]
-    public async Task Export_command_is_enabled_for_any_selection_and_keeps_unavailable_reasons_accessible()
+    private async Task Export_command_is_enabled_for_any_selection_and_keeps_unavailable_reasons_accessible()
     {
         var workspace = new FakeCacheWorkspaceService
         {
@@ -348,8 +336,7 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal("没有可播放段落，无法导出", viewModel.Chapters[3].ExportAccessibilityText);
     }
 
-    [Fact]
-    public async Task Mixed_selection_cancel_does_not_open_folder_or_start_background_export()
+    private async Task Mixed_selection_cancel_does_not_open_folder_or_start_background_export()
     {
         var coordinator = new FakeChapterExportCoordinator();
         var folders = new FakePresentationFileDialogService { FolderResult = @"D:\Export" };
@@ -369,8 +356,7 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal(0, coordinator.StartCallCount);
     }
 
-    [Fact]
-    public async Task Navigating_from_during_skip_confirmation_cancels_only_page_owned_preparation()
+    private async Task Navigating_from_during_skip_confirmation_cancels_only_page_owned_preparation()
     {
         var coordinator = new FakeChapterExportCoordinator();
         var folders = new FakePresentationFileDialogService { FolderResult = @"D:\Export" };
@@ -387,8 +373,7 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal(0, coordinator.StartCallCount);
     }
 
-    [Fact]
-    public async Task Mixed_selection_confirm_submits_only_exportable_chapters_to_background_coordinator()
+    private async Task Mixed_selection_confirm_submits_only_exportable_chapters_to_background_coordinator()
     {
         var coordinator = new FakeChapterExportCoordinator();
         var folders = new FakePresentationFileDialogService { FolderResult = @"D:\Export" };
@@ -406,8 +391,7 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal(1, folders.PickFolderCallCount);
     }
 
-    [Fact]
-    public async Task All_unavailable_selection_warns_without_confirmation_folder_or_background_export()
+    private async Task All_unavailable_selection_warns_without_confirmation_folder_or_background_export()
     {
         var workspace = new FakeCacheWorkspaceService
         {
@@ -436,8 +420,7 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal(0, coordinator.StartCallCount);
     }
 
-    [Fact]
-    public async Task Export_directory_cancellation_does_not_start_background_export()
+    private async Task Export_directory_cancellation_does_not_start_background_export()
     {
         var coordinator = new FakeChapterExportCoordinator();
         var folders = new FakePresentationFileDialogService { FolderResult = null };
@@ -448,8 +431,7 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal(0, coordinator.StartCallCount);
     }
 
-    [Fact]
-    public async Task Export_submits_frozen_selection_and_destination_to_background_coordinator()
+    private async Task Export_submits_frozen_selection_and_destination_to_background_coordinator()
     {
         var coordinator = new FakeChapterExportCoordinator();
         var folders = new FakePresentationFileDialogService { FolderResult = @"D:\Export" };
@@ -464,8 +446,7 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal(@"D:\Export", request.DestinationRootDirectory);
     }
 
-    [Fact]
-    public async Task Active_background_export_disables_new_export_without_blocking_cleanup_selection_state()
+    private async Task Active_background_export_disables_new_export_without_blocking_cleanup_selection_state()
     {
         var coordinator = new FakeChapterExportCoordinator(CreateExportSnapshot(ChapterExportBatchStatus.Running));
         var viewModel = await CreateExportReadyViewModelAsync(
@@ -478,8 +459,7 @@ public sealed class CacheManagementViewModelTests
         Assert.True(viewModel.CanClearSelectedChapters);
     }
 
-    [Fact]
-    public async Task Background_export_completion_reenables_export_while_page_is_active()
+    private async Task Background_export_completion_reenables_export_while_page_is_active()
     {
         var coordinator = new FakeChapterExportCoordinator(CreateExportSnapshot(ChapterExportBatchStatus.Running));
         var viewModel = await CreateExportReadyViewModelAsync(
@@ -492,8 +472,7 @@ public sealed class CacheManagementViewModelTests
         Assert.True(viewModel.ExportSelectedChaptersCommand.CanExecute(null));
     }
 
-    [Fact]
-    public async Task Navigating_from_page_does_not_cancel_already_started_background_export()
+    private async Task Navigating_from_page_does_not_cancel_already_started_background_export()
     {
         var coordinator = new FakeChapterExportCoordinator();
         var viewModel = await CreateExportReadyViewModelAsync(
@@ -506,6 +485,47 @@ public sealed class CacheManagementViewModelTests
         viewModel.HandleNavigatedFrom();
 
         Assert.Equal(0, coordinator.CancelCallCount);
+    }
+
+    [Fact]
+    public async Task Cache_management_selection_and_projection_contracts_cover_loading_status_and_cleanup()
+    {
+        await LoadAsync_does_not_auto_select_first_book();
+        await SelectBookAsync_ignores_late_results_from_previous_selection();
+        await Chapter_selection_uses_desktop_modifiers_select_all_and_clear();
+        await Chapter_card_marks_current_configuration_completeness_as_unavailable();
+        await Chapter_cards_project_current_configuration_statuses_without_turning_zero_zero_into_full();
+        await Matching_cache_changes_are_coalesced_and_refresh_only_during_page_activation();
+        await Reentering_cache_management_does_not_duplicate_cache_change_subscription();
+        await Page_leave_cancels_pending_cache_refresh_and_discards_late_results();
+        await Switching_books_clears_chapter_selection_without_cross_book_carryover();
+        await Clear_selected_chapters_uses_one_application_batch_request();
+        await Selecting_all_chapters_cleans_the_whole_visible_book_through_batch_boundary();
+    }
+
+    [Fact]
+    public async Task Cache_management_export_preparation_contracts_cover_selection_and_cancellation()
+    {
+        await Export_command_is_enabled_for_any_selection_and_keeps_unavailable_reasons_accessible();
+        await Mixed_selection_cancel_does_not_open_folder_or_start_background_export();
+        await Navigating_from_during_skip_confirmation_cancels_only_page_owned_preparation();
+        await Mixed_selection_confirm_submits_only_exportable_chapters_to_background_coordinator();
+        await All_unavailable_selection_warns_without_confirmation_folder_or_background_export();
+        await Export_directory_cancellation_does_not_start_background_export();
+    }
+
+    [Fact]
+    public async Task Cache_management_export_submission_contracts_freeze_destination_and_selection()
+    {
+        await Export_submits_frozen_selection_and_destination_to_background_coordinator();
+    }
+
+    [Fact]
+    public async Task Cache_management_background_export_contracts_cover_busy_state_completion_and_leave()
+    {
+        await Active_background_export_disables_new_export_without_blocking_cleanup_selection_state();
+        await Background_export_completion_reenables_export_while_page_is_active();
+        await Navigating_from_page_does_not_cancel_already_started_background_export();
     }
 
     private static ChapterExportSnapshot CreateExportSnapshot(ChapterExportBatchStatus status) =>

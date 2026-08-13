@@ -11,8 +11,7 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class ChapterRulesViewModelTests
 {
-    [Fact]
-    public async Task NewRuleAsync_saves_after_deduplication_and_selects_saved_rule()
+    private async Task NewRuleAsync_saves_after_deduplication_and_selects_saved_rule()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -38,8 +37,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal("章节规则已保存", feedback.LastTitle);
     }
 
-    [Fact]
-    public async Task DraftValidation_disables_save_for_invalid_regex()
+    private async Task DraftValidation_disables_save_for_invalid_regex()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -61,8 +59,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.False(viewModel.CanSaveDraft);
     }
 
-    [Fact]
-    public async Task BuiltInRule_projects_nondelete_capability_in_list()
+    private async Task BuiltInRule_projects_nondelete_capability_in_list()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -80,8 +77,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.False(viewModel.Rules.Single().CanDelete);
     }
 
-    [Fact]
-    public async Task ExportRuleAsync_uses_the_chapter_rule_file_name()
+    private async Task ExportRuleAsync_uses_the_chapter_rule_file_name()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [new ChapterRuleListItem("custom:one", "规则", "^一$", true, 10, false, true)]);
@@ -94,8 +90,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal("chapter-rule.json", documents.ExportedFileName);
     }
 
-    [Fact]
-    public async Task DeleteRuleFromListAsync_deletes_nonselected_rule_without_switching_editor()
+    private async Task DeleteRuleFromListAsync_deletes_nonselected_rule_without_switching_editor()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -120,8 +115,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.DoesNotContain(viewModel.Rules, rule => rule.Id == "custom:delete");
     }
 
-    [Fact]
-    public async Task DeleteRuleFromListAsync_failure_keeps_list_and_editor()
+    private async Task DeleteRuleFromListAsync_failure_keeps_list_and_editor()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -148,8 +142,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal("章节规则删除失败", feedback.LastTitle);
     }
 
-    [Fact]
-    public async Task ToggleRuleEnabledAsync_on_selected_rule_keeps_editor_draft_and_skips_unsaved_prompt()
+    private async Task ToggleRuleEnabledAsync_on_selected_rule_keeps_editor_draft_and_skips_unsaved_prompt()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -179,8 +172,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal(0, dialogService.UnsavedChangesPromptCount);
     }
 
-    [Fact]
-    public async Task ToggleRuleEnabledAsync_failure_rolls_back_list_state()
+    private async Task ToggleRuleEnabledAsync_failure_rolls_back_list_state()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -205,8 +197,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal("章节规则启用状态保存失败", feedback.LastTitle);
     }
 
-    [Fact]
-    public async Task ToggleRuleEnabledAsync_cancellation_rolls_back_list_state_and_propagates()
+    private async Task ToggleRuleEnabledAsync_cancellation_rolls_back_list_state_and_propagates()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -230,8 +221,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.True(targetRule.CanQuickActions);
     }
 
-    [Fact]
-    public async Task ReorderByDropAsync_failure_reloads_persisted_order()
+    private async Task ReorderByDropAsync_failure_reloads_persisted_order()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -259,8 +249,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal("章节规则排序保存失败", feedback.LastTitle);
     }
 
-    [Fact]
-    public async Task ReorderByDropAsync_cancellation_restores_original_order_and_propagates()
+    private async Task ReorderByDropAsync_cancellation_restores_original_order_and_propagates()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -289,8 +278,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.All(viewModel.Rules, rule => Assert.True(rule.CanQuickActions));
     }
 
-    [Fact]
-    public async Task ReorderRuleCommand_honors_insertion_line_placement()
+    private async Task ReorderRuleCommand_honors_insertion_line_placement()
     {
         foreach (var (placement, expectedOrder) in new[]
                  {
@@ -315,8 +303,7 @@ public sealed class ChapterRulesViewModelTests
         }
     }
 
-    [Fact]
-    public async Task ImportDefaultsAsync_with_unsaved_changes_saves_first_then_applies_defaults()
+    private async Task ImportDefaultsAsync_with_unsaved_changes_saves_first_then_applies_defaults()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -344,8 +331,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal("默认规则导入完成", feedback.LastTitle);
     }
 
-    [Fact]
-    public async Task BackAsync_cancelled_unsaved_changes_does_not_navigate()
+    private async Task BackAsync_cancelled_unsaved_changes_does_not_navigate()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -374,8 +360,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal(0, navigationService.GoBackCallCount);
     }
 
-    [Fact]
-    public async Task MoveRuleUpAndSaveDraftAsync_preserves_reordered_selection_and_skips_unsaved_prompt()
+    private async Task MoveRuleUpAndSaveDraftAsync_preserves_reordered_selection_and_skips_unsaved_prompt()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -408,8 +393,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal(0, dialogService.UnsavedChangesPromptCount);
     }
 
-    [Fact]
-    public async Task CancelEditingAsync_does_not_rollback_left_saved_enabled_state()
+    private async Task CancelEditingAsync_does_not_rollback_left_saved_enabled_state()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -433,6 +417,37 @@ public sealed class ChapterRulesViewModelTests
         Assert.False(selectedRule.IsEnabled);
         Assert.False(viewModel.HasEditor);
         Assert.False(viewModel.HasUnsavedChanges);
+    }
+
+    [Fact]
+    public async Task Chapter_rule_editing_contracts_cover_creation_validation_and_capabilities()
+    {
+        await NewRuleAsync_saves_after_deduplication_and_selects_saved_rule();
+        await DraftValidation_disables_save_for_invalid_regex();
+        await BuiltInRule_projects_nondelete_capability_in_list();
+        await ExportRuleAsync_uses_the_chapter_rule_file_name();
+        await DeleteRuleFromListAsync_deletes_nonselected_rule_without_switching_editor();
+        await DeleteRuleFromListAsync_failure_keeps_list_and_editor();
+    }
+
+    [Fact]
+    public async Task Chapter_rule_toggle_and_reorder_contracts_cover_failure_cancellation_and_drop()
+    {
+        await ToggleRuleEnabledAsync_on_selected_rule_keeps_editor_draft_and_skips_unsaved_prompt();
+        await ToggleRuleEnabledAsync_failure_rolls_back_list_state();
+        await ToggleRuleEnabledAsync_cancellation_rolls_back_list_state_and_propagates();
+        await ReorderByDropAsync_failure_reloads_persisted_order();
+        await ReorderByDropAsync_cancellation_restores_original_order_and_propagates();
+        await ReorderRuleCommand_honors_insertion_line_placement();
+    }
+
+    [Fact]
+    public async Task Chapter_rule_defaults_and_navigation_contracts_preserve_saved_state()
+    {
+        await ImportDefaultsAsync_with_unsaved_changes_saves_first_then_applies_defaults();
+        await BackAsync_cancelled_unsaved_changes_does_not_navigate();
+        await MoveRuleUpAndSaveDraftAsync_preserves_reordered_selection_and_skips_unsaved_prompt();
+        await CancelEditingAsync_does_not_rollback_left_saved_enabled_state();
     }
 
     private static ChapterRulesViewModel CreateViewModel(

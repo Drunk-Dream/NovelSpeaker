@@ -15,8 +15,7 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class BookDetailsViewModelTests
 {
-    [Fact]
-    public async Task LoadAsync_projects_read_only_fields_and_chapters()
+    private async Task LoadAsync_projects_read_only_fields_and_chapters()
     {
         var viewModel = CreateViewModel();
 
@@ -34,8 +33,7 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal("第二章 继续", viewModel.Chapters[1].TitleToolTip);
     }
 
-    [Fact]
-    public async Task LoadAsync_returns_after_header_and_populates_catalog_when_background_load_finishes()
+    private async Task LoadAsync_returns_after_header_and_populates_catalog_when_background_load_finishes()
     {
         var managementService = new FakeBookManagementService
         {
@@ -61,8 +59,7 @@ public sealed class BookDetailsViewModelTests
         Assert.False(viewModel.IsBusy);
     }
 
-    [Fact]
-    public async Task Chapter_cache_percentages_refresh_for_cache_and_configuration_changes_until_page_leave()
+    private async Task Chapter_cache_percentages_refresh_for_cache_and_configuration_changes_until_page_leave()
     {
         var cacheWorkspace = new FakeCacheWorkspaceService
         {
@@ -111,8 +108,7 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal(3, cacheWorkspace.StatusCallCount);
     }
 
-    [Fact]
-    public async Task Page_leave_discards_cache_status_projection_that_reaches_the_ui_late()
+    private async Task Page_leave_discards_cache_status_projection_that_reaches_the_ui_late()
     {
         var cacheWorkspace = new FakeCacheWorkspaceService
         {
@@ -133,8 +129,7 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal(string.Empty, viewModel.Chapters[0].CachePercentageText);
     }
 
-    [Fact]
-    public async Task SaveCommand_trims_metadata_and_refreshes_playback_metadata()
+    private async Task SaveCommand_trims_metadata_and_refreshes_playback_metadata()
     {
         var managementService = new FakeBookManagementService();
         var playbackCoordinator = new FakePlaybackCoordinator();
@@ -158,8 +153,7 @@ public sealed class BookDetailsViewModelTests
         Assert.True(invalidationState.IsInvalidated);
     }
 
-    [Fact]
-    public async Task ClearCacheCommand_is_disabled_until_a_book_is_loaded()
+    private async Task ClearCacheCommand_is_disabled_until_a_book_is_loaded()
     {
         var viewModel = CreateViewModel();
 
@@ -170,8 +164,7 @@ public sealed class BookDetailsViewModelTests
         Assert.True(viewModel.ClearCacheCommand.CanExecute(null));
     }
 
-    [Fact]
-    public async Task BackCommand_with_unsaved_changes_can_save_then_navigate_back()
+    private async Task BackCommand_with_unsaved_changes_can_save_then_navigate_back()
     {
         var dialogService = new FakeAppDialogService
         {
@@ -190,8 +183,7 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal(1, navigationService.GoBackCallCount);
     }
 
-    [Fact]
-    public async Task BackCommand_with_unsaved_changes_can_discard_or_cancel()
+    private async Task BackCommand_with_unsaved_changes_can_discard_or_cancel()
     {
         var navigationService = new FakeGuardedNavigationService();
         var dialogService = new FakeAppDialogService
@@ -219,8 +211,7 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal("再次修改", viewModel.EditTitle);
     }
 
-    [Fact]
-    public async Task SaveCommand_failure_preserves_edit_copy()
+    private async Task SaveCommand_failure_preserves_edit_copy()
     {
         var managementService = new FakeBookManagementService
         {
@@ -240,8 +231,7 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal("保存书籍信息失败", feedbackService.LastTitle);
     }
 
-    [Fact]
-    public async Task ClearCacheAsync_reloads_details_and_warns_when_cache_remains()
+    private async Task ClearCacheAsync_reloads_details_and_warns_when_cache_remains()
     {
         var dialogService = new FakeAppDialogService
         {
@@ -272,8 +262,7 @@ public sealed class BookDetailsViewModelTests
         Assert.StartsWith("将清理这本书的音频缓存", dialogService.LastMessage, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task DeleteBookAsync_for_current_book_stops_playback_and_navigates_back()
+    private async Task DeleteBookAsync_for_current_book_stops_playback_and_navigates_back()
     {
         var deleteDialogService = new FakeBookDeleteDialogService
         {
@@ -302,8 +291,7 @@ public sealed class BookDetailsViewModelTests
         Assert.True(invalidationState.IsInvalidated);
     }
 
-    [Fact]
-    public async Task SelectChapterCommand_navigates_to_player_with_first_segment_after_confirming_unsaved_changes()
+    private async Task SelectChapterCommand_navigates_to_player_with_first_segment_after_confirming_unsaved_changes()
     {
         var dialogService = new FakeAppDialogService
         {
@@ -327,8 +315,7 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal(0, request.SegmentIndex);
     }
 
-    [Fact]
-    public async Task ConfirmLeaveAsync_save_failure_returns_false_and_preserves_edit_copy()
+    private async Task ConfirmLeaveAsync_save_failure_returns_false_and_preserves_edit_copy()
     {
         var managementService = new FakeBookManagementService
         {
@@ -351,8 +338,7 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal("保存失败后仍保留", viewModel.EditTitle);
     }
 
-    [Fact]
-    public async Task ClearCacheCommand_cancelled_unsaved_changes_does_not_clear_cache()
+    private async Task ClearCacheCommand_cancelled_unsaved_changes_does_not_clear_cache()
     {
         var dialogService = new FakeAppDialogService
         {
@@ -371,8 +357,7 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal(0, cacheWorkspaceService.ClearBookCallCount);
     }
 
-    [Fact]
-    public async Task DeleteBookCommand_cancelled_unsaved_changes_does_not_delete_book()
+    private async Task DeleteBookCommand_cancelled_unsaved_changes_does_not_delete_book()
     {
         var dialogService = new FakeAppDialogService
         {
@@ -389,6 +374,36 @@ public sealed class BookDetailsViewModelTests
         await viewModel.DeleteBookCommand.ExecuteAsync(null);
 
         Assert.Equal(0, managementService.DeleteCallCount);
+    }
+
+    [Fact]
+    public async Task Book_details_loading_and_cache_contracts_cover_projection_and_activation()
+    {
+        await LoadAsync_projects_read_only_fields_and_chapters();
+        await LoadAsync_returns_after_header_and_populates_catalog_when_background_load_finishes();
+        await Chapter_cache_percentages_refresh_for_cache_and_configuration_changes_until_page_leave();
+        await Page_leave_discards_cache_status_projection_that_reaches_the_ui_late();
+        await ClearCacheCommand_is_disabled_until_a_book_is_loaded();
+    }
+
+    [Fact]
+    public async Task Book_details_editing_contracts_cover_save_leave_and_metadata()
+    {
+        await SaveCommand_trims_metadata_and_refreshes_playback_metadata();
+        await BackCommand_with_unsaved_changes_can_save_then_navigate_back();
+        await BackCommand_with_unsaved_changes_can_discard_or_cancel();
+        await SaveCommand_failure_preserves_edit_copy();
+        await ConfirmLeaveAsync_save_failure_returns_false_and_preserves_edit_copy();
+    }
+
+    [Fact]
+    public async Task Book_details_mutation_contracts_cover_cache_clear_delete_and_navigation()
+    {
+        await ClearCacheAsync_reloads_details_and_warns_when_cache_remains();
+        await DeleteBookAsync_for_current_book_stops_playback_and_navigates_back();
+        await SelectChapterCommand_navigates_to_player_with_first_segment_after_confirming_unsaved_changes();
+        await ClearCacheCommand_cancelled_unsaved_changes_does_not_clear_cache();
+        await DeleteBookCommand_cancelled_unsaved_changes_does_not_delete_book();
     }
 
     private static BookDetailsViewModel CreateViewModel(

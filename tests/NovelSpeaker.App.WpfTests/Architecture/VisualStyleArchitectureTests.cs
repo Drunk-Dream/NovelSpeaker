@@ -72,8 +72,7 @@ public sealed class VisualStyleArchitectureTests
 
     }
 
-    [Fact]
-    public void Implicit_global_standard_control_style_fixture_is_rejected()
+    private void Implicit_global_standard_control_style_fixture_is_rejected()
     {
         var result = VisualStyleOwnershipScanner.ScanGlobalDictionary(
             "fixture/ImplicitStyle.xaml",
@@ -93,8 +92,7 @@ public sealed class VisualStyleArchitectureTests
             violation => violation.Rule == "implicit-standard-control-style");
     }
 
-    [Fact]
-    public void Global_standard_control_template_fixture_is_rejected_without_an_explicit_whitelist_entry()
+    private void Global_standard_control_template_fixture_is_rejected_without_an_explicit_whitelist_entry()
     {
         var result = VisualStyleOwnershipScanner.ScanGlobalDictionary(
             "fixture/Template.xaml",
@@ -114,8 +112,7 @@ public sealed class VisualStyleArchitectureTests
             violation => violation.Rule == "global-standard-control-template");
     }
 
-    [Fact]
-    public void Theme_runtime_typed_resource_write_fixture_is_rejected()
+    private void Theme_runtime_typed_resource_write_fixture_is_rejected()
     {
         var violations = VisualStyleOwnershipScanner.ScanThemeRuntime(
             "fixture/ThemeRuntime.cs",
@@ -137,8 +134,7 @@ public sealed class VisualStyleArchitectureTests
             violation => violation.Rule == "theme-runtime-resource-write");
     }
 
-    [Fact]
-    public void Page_specific_design_token_fixture_is_rejected()
+    private void Page_specific_design_token_fixture_is_rejected()
     {
         var result = VisualStyleOwnershipScanner.ScanDesignTokens(
             "fixture/DesignTokens.xaml",
@@ -157,6 +153,15 @@ public sealed class VisualStyleArchitectureTests
             result.Violations,
             violation => violation.Rule == "page-specific-design-token");
         Assert.Equal(2, result.ForbiddenDesignTokens.Count);
+    }
+
+    [Fact]
+    public void Visual_style_fixture_contracts_reject_global_ownership_violations()
+    {
+        Implicit_global_standard_control_style_fixture_is_rejected();
+        Global_standard_control_template_fixture_is_rejected_without_an_explicit_whitelist_entry();
+        Theme_runtime_typed_resource_write_fixture_is_rejected();
+        Page_specific_design_token_fixture_is_rejected();
     }
 
     [Fact]
