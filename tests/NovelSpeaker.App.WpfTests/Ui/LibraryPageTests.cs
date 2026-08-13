@@ -142,34 +142,34 @@ public sealed partial class LibraryPageTests
         });
     }
 
-    [Theory]
-    [InlineData(900, 1d)]
-    [InlineData(960, 1.25d)]
-    [InlineData(1280, 1.5d)]
-    public void LibraryPage_adapts_toolbar_and_book_grid_across_widths_and_dpi(double width, double scale)
+    [Fact]
+    public void LibraryPage_adapts_toolbar_and_book_grid_across_widths_and_dpi()
     {
-        WpfTestHost.RunInSta(() =>
+        foreach (var (width, scale) in new[] { (900d, 1d), (960d, 1.25d), (1280d, 1.5d) })
         {
-            var context = CreateContext(6, longTitles: true);
-            var view = new LibraryPage { DataContext = context };
-            using var host = new WpfControlHost(view);
-            var size = new Size(width, 760);
-            host.MeasureArrange(size);
+            WpfTestHost.RunInSta(() =>
+            {
+                var context = CreateContext(6, longTitles: true);
+                var view = new LibraryPage { DataContext = context };
+                using var host = new WpfControlHost(view);
+                var size = new Size(width, 760);
+                host.MeasureArrange(size);
 
-            var toolbar = Assert.IsType<WrapPanel>(view.FindName("LibraryToolbar"));
-            var search = Assert.IsType<TextBox>(view.FindName("SearchTextBox"));
-            var sort = Assert.IsType<ComboBox>(view.FindName("SortComboBox"));
-            var items = Assert.IsType<ItemsControl>(view.FindName("BooksItemsControl"));
-            Assert.True(toolbar.ActualWidth > 0);
-            Assert.True(toolbar.ActualWidth <= width - 48 + 0.5);
-            Assert.True(search.ActualWidth >= 260);
-            Assert.True(sort.ActualWidth >= 160);
-            Assert.Equal(6, items.Items.Count);
+                var toolbar = Assert.IsType<WrapPanel>(view.FindName("LibraryToolbar"));
+                var search = Assert.IsType<TextBox>(view.FindName("SearchTextBox"));
+                var sort = Assert.IsType<ComboBox>(view.FindName("SortComboBox"));
+                var items = Assert.IsType<ItemsControl>(view.FindName("BooksItemsControl"));
+                Assert.True(toolbar.ActualWidth > 0);
+                Assert.True(toolbar.ActualWidth <= width - 48 + 0.5);
+                Assert.True(search.ActualWidth >= 260);
+                Assert.True(sort.ActualWidth >= 160);
+                Assert.Equal(6, items.Items.Count);
 
-            var bitmap = host.Render(size, 96 * scale);
-            Assert.Equal((int)Math.Round(width * scale), bitmap.PixelWidth);
-            Assert.Equal((int)Math.Round(760 * scale), bitmap.PixelHeight);
-        });
+                var bitmap = host.Render(size, 96 * scale);
+                Assert.Equal((int)Math.Round(width * scale), bitmap.PixelWidth);
+                Assert.Equal((int)Math.Round(760 * scale), bitmap.PixelHeight);
+            });
+        }
     }
 
     [Fact]

@@ -259,39 +259,39 @@ public sealed class BookDetailsPageTests
         });
     }
 
-    [Theory]
-    [InlineData(900, 1d)]
-    [InlineData(1280, 1.25d)]
-    [InlineData(1440, 1.5d)]
-    public void BookDetailsPage_keeps_workspace_usable_with_long_titles_and_supported_dpi(double width, double scale)
+    [Fact]
+    public void BookDetailsPage_keeps_workspace_usable_with_long_titles_and_supported_dpi()
     {
-        WpfTestHost.RunInSta(() =>
+        foreach (var (width, scale) in new[] { (900d, 1d), (1280d, 1.25d), (1440d, 1.5d) })
         {
-            var viewModel = CreateViewModel();
-            PopulateLayoutState(viewModel, chapterCount: 80);
-            viewModel.EditTitle = "一部拥有非常非常长的书名并用于验证详情页编辑布局和截断行为的小说";
-            viewModel.CurrentChapterText = "第 41 章 一个同样非常长的当前章节标题用于验证摘要区域不会重叠";
-            var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService());
-            using var host = new WpfControlHost(page);
-            var size = new Size(width, 760);
-            host.MeasureArrange(size);
+            WpfTestHost.RunInSta(() =>
+            {
+                var viewModel = CreateViewModel();
+                PopulateLayoutState(viewModel, chapterCount: 80);
+                viewModel.EditTitle = "一部拥有非常非常长的书名并用于验证详情页编辑布局和截断行为的小说";
+                viewModel.CurrentChapterText = "第 41 章 一个同样非常长的当前章节标题用于验证摘要区域不会重叠";
+                var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService());
+                using var host = new WpfControlHost(page);
+                var size = new Size(width, 760);
+                host.MeasureArrange(size);
 
-            var title = Assert.IsType<TextBox>(page.FindName("TitleTextBox"));
-            var author = Assert.IsType<TextBox>(page.FindName("AuthorTextBox"));
-            var progress = Assert.IsType<ProgressBar>(page.FindName("ReadingProgressBar"));
-            var catalog = Assert.IsType<ListBox>(page.FindName("ChaptersListBox"));
-            Assert.True(title.ActualWidth > 0);
-            Assert.True(author.ActualWidth > 0);
-            Assert.Same(page.FindResource("App.Input.TextBox.Standard"), title.Style);
-            Assert.Same(page.FindResource("App.Input.TextBox.Standard"), author.Style);
-            Assert.Same(page.FindResource("App.Progress.Compact"), progress.Style);
-            Assert.True(catalog.ActualWidth > 0);
-            Assert.True(catalog.ActualHeight > 0);
+                var title = Assert.IsType<TextBox>(page.FindName("TitleTextBox"));
+                var author = Assert.IsType<TextBox>(page.FindName("AuthorTextBox"));
+                var progress = Assert.IsType<ProgressBar>(page.FindName("ReadingProgressBar"));
+                var catalog = Assert.IsType<ListBox>(page.FindName("ChaptersListBox"));
+                Assert.True(title.ActualWidth > 0);
+                Assert.True(author.ActualWidth > 0);
+                Assert.Same(page.FindResource("App.Input.TextBox.Standard"), title.Style);
+                Assert.Same(page.FindResource("App.Input.TextBox.Standard"), author.Style);
+                Assert.Same(page.FindResource("App.Progress.Compact"), progress.Style);
+                Assert.True(catalog.ActualWidth > 0);
+                Assert.True(catalog.ActualHeight > 0);
 
-            var bitmap = host.Render(size, 96 * scale);
-            Assert.Equal((int)Math.Round(width * scale), bitmap.PixelWidth);
-            Assert.Equal((int)Math.Round(760 * scale), bitmap.PixelHeight);
-        });
+                var bitmap = host.Render(size, 96 * scale);
+                Assert.Equal((int)Math.Round(width * scale), bitmap.PixelWidth);
+                Assert.Equal((int)Math.Round(760 * scale), bitmap.PixelHeight);
+            });
+        }
     }
 
     [Fact]

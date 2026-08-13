@@ -14,97 +14,97 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed class ImportTextSettingsPageTests
 {
-    [Theory]
-    [InlineData(1d)]
-    [InlineData(1.25d)]
-    [InlineData(1.5d)]
-    public void Import_text_fields_and_navigation_remain_usable_at_narrow_width_and_supported_dpi(double scale)
+    [Fact]
+    public void Import_text_fields_and_navigation_remain_usable_at_narrow_width_and_supported_dpi()
     {
-        WpfTestHost.RunInSta(() =>
+        foreach (var scale in new[] { 1d, 1.25d, 1.5d })
         {
-            var provider = WpfTestHost.BuildServiceProvider();
-            try
+            WpfTestHost.RunInSta(() =>
             {
-                var page = provider.GetRequiredService<ImportTextSettingsPage>();
-                page.ViewModel.LongParagraphThresholdErrorText =
-                    "请输入整数；当前输入不会保存，也不会影响后续导入。";
-                page.LayoutTransform = new ScaleTransform(scale, scale);
-                using var host = new WpfControlHost(page);
-
-                var rows = new[]
+                var provider = WpfTestHost.BuildServiceProvider();
+                try
                 {
+                    var page = provider.GetRequiredService<ImportTextSettingsPage>();
+                    page.ViewModel.LongParagraphThresholdErrorText =
+                        "请输入整数；当前输入不会保存，也不会影响后续导入。";
+                    page.LayoutTransform = new ScaleTransform(scale, scale);
+                    using var host = new WpfControlHost(page);
+
+                    var rows = new[]
+                    {
                     Assert.IsType<AppSettingsRow>(page.FindName("EnableLongParagraphSplittingRow")),
                     Assert.IsType<AppSettingsRow>(page.FindName("LongParagraphThresholdRow")),
                     Assert.IsType<AppSettingsRow>(page.FindName("BookFileNameTemplateRow"))
                 };
-                var values = new FrameworkElement[]
-                {
+                    var values = new FrameworkElement[]
+                    {
                     Assert.IsType<ToggleSwitch>(page.FindName("EnableLongParagraphSplittingToggleSwitch")),
                     Assert.IsType<TextBox>(page.FindName("LongParagraphThresholdTextBox")).Parent as FrameworkElement
                         ?? throw new InvalidOperationException("Threshold input has no value container."),
                     Assert.IsType<TextBox>(page.FindName("BookFileNameTemplateTextBox"))
-                };
-                var navigation = Assert.IsType<AppSettingsNavigationRow>(
-                    page.FindName("OpenRegexReplacementRulesRow"));
-                var settingsList = Assert.IsType<AppSettingsList>(page.FindName("SettingsList"));
-                Assert.Equal("导入与文本设置", AutomationProperties.GetName(settingsList));
-                Assert.Equal(4, settingsList.Items.Count);
-                Assert.Same(rows[0], settingsList.Items[0]);
-                Assert.Same(rows[1], settingsList.Items[1]);
-                Assert.Same(rows[2], settingsList.Items[2]);
-                Assert.Same(navigation, settingsList.Items[3]);
+                    };
+                    var navigation = Assert.IsType<AppSettingsNavigationRow>(
+                        page.FindName("OpenRegexReplacementRulesRow"));
+                    var settingsList = Assert.IsType<AppSettingsList>(page.FindName("SettingsList"));
+                    Assert.Equal("导入与文本设置", AutomationProperties.GetName(settingsList));
+                    Assert.Equal(4, settingsList.Items.Count);
+                    Assert.Same(rows[0], settingsList.Items[0]);
+                    Assert.Same(rows[1], settingsList.Items[1]);
+                    Assert.Same(rows[2], settingsList.Items[2]);
+                    Assert.Same(navigation, settingsList.Items[3]);
 
-                var splitToggle = Assert.IsType<ToggleSwitch>(
-                    page.FindName("EnableLongParagraphSplittingToggleSwitch"));
-                Assert.Equal("拆分长段落", AutomationProperties.GetName(splitToggle));
-                AssertCheckedBinding(
-                    splitToggle,
-                    nameof(ImportTextSettingsViewModel.EnableLongParagraphSplitting));
-                var thresholdInput = Assert.IsType<TextBox>(page.FindName("LongParagraphThresholdTextBox"));
-                var templateInput = Assert.IsType<TextBox>(page.FindName("BookFileNameTemplateTextBox"));
-                Assert.Equal("长段落阈值", AutomationProperties.GetName(thresholdInput));
-                Assert.Equal("文件名模板", AutomationProperties.GetName(templateInput));
-                AssertTextBinding(thresholdInput, nameof(ImportTextSettingsViewModel.LongParagraphThresholdText));
-                AssertTextBinding(templateInput, nameof(ImportTextSettingsViewModel.BookFileNameTemplateText));
+                    var splitToggle = Assert.IsType<ToggleSwitch>(
+                        page.FindName("EnableLongParagraphSplittingToggleSwitch"));
+                    Assert.Equal("拆分长段落", AutomationProperties.GetName(splitToggle));
+                    AssertCheckedBinding(
+                        splitToggle,
+                        nameof(ImportTextSettingsViewModel.EnableLongParagraphSplitting));
+                    var thresholdInput = Assert.IsType<TextBox>(page.FindName("LongParagraphThresholdTextBox"));
+                    var templateInput = Assert.IsType<TextBox>(page.FindName("BookFileNameTemplateTextBox"));
+                    Assert.Equal("长段落阈值", AutomationProperties.GetName(thresholdInput));
+                    Assert.Equal("文件名模板", AutomationProperties.GetName(templateInput));
+                    AssertTextBinding(thresholdInput, nameof(ImportTextSettingsViewModel.LongParagraphThresholdText));
+                    AssertTextBinding(templateInput, nameof(ImportTextSettingsViewModel.BookFileNameTemplateText));
 
-                host.MeasureArrange(new Size(520, 900));
-                for (var index = 0; index < rows.Length; index++)
-                {
-                    Assert.True(rows[index].IsNarrowLayout);
-                    Assert.True(rows[index].ActualHeight >= 60);
-                    AssertValueBelowTitle(rows[index], values[index]);
+                    host.MeasureArrange(new Size(520, 900));
+                    for (var index = 0; index < rows.Length; index++)
+                    {
+                        Assert.True(rows[index].IsNarrowLayout);
+                        Assert.True(rows[index].ActualHeight >= 60);
+                        AssertValueBelowTitle(rows[index], values[index]);
+                    }
+
+                    Assert.True(navigation.ActualWidth > 0);
+                    Assert.True(navigation.ActualHeight >= 60);
+                    Assert.True(navigation.IsHitTestVisible);
+                    Assert.Equal("正则替换", navigation.Title);
+                    Assert.Equal("正则替换", AutomationProperties.GetName(navigation));
+                    Assert.Equal("正则替换", navigation.ToolTip);
+                    Assert.NotNull(navigation.Icon);
+                    Assert.True(navigation.Focusable);
+                    Assert.True(navigation.IsTabStop);
+                    var commandBinding = Assert.IsType<Binding>(
+                        BindingOperations.GetBinding(navigation, Button.CommandProperty));
+                    Assert.Equal("OpenRegexReplacementRulesCommand", commandBinding.Path.Path);
+                    Assert.True(FindValidationText(page).ActualHeight > 0);
+
+                    host.MeasureArrange(new Size(1200, 900));
+                    for (var index = 0; index < rows.Length; index++)
+                    {
+                        Assert.False(rows[index].IsNarrowLayout);
+                        AssertValueRightOfTitle(rows[index], values[index]);
+                    }
+
+                    var bitmap = host.Render(new Size(1200, 900), 96 * scale);
+                    Assert.True(bitmap.PixelWidth > 0);
+                    Assert.True(bitmap.PixelHeight > 0);
                 }
-
-                Assert.True(navigation.ActualWidth > 0);
-                Assert.True(navigation.ActualHeight >= 60);
-                Assert.True(navigation.IsHitTestVisible);
-                Assert.Equal("正则替换", navigation.Title);
-                Assert.Equal("正则替换", AutomationProperties.GetName(navigation));
-                Assert.Equal("正则替换", navigation.ToolTip);
-                Assert.NotNull(navigation.Icon);
-                Assert.True(navigation.Focusable);
-                Assert.True(navigation.IsTabStop);
-                var commandBinding = Assert.IsType<Binding>(
-                    BindingOperations.GetBinding(navigation, Button.CommandProperty));
-                Assert.Equal("OpenRegexReplacementRulesCommand", commandBinding.Path.Path);
-                Assert.True(FindValidationText(page).ActualHeight > 0);
-
-                host.MeasureArrange(new Size(1200, 900));
-                for (var index = 0; index < rows.Length; index++)
+                finally
                 {
-                    Assert.False(rows[index].IsNarrowLayout);
-                    AssertValueRightOfTitle(rows[index], values[index]);
+                    provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
                 }
-
-                var bitmap = host.Render(new Size(1200, 900), 96 * scale);
-                Assert.True(bitmap.PixelWidth > 0);
-                Assert.True(bitmap.PixelHeight > 0);
-            }
-            finally
-            {
-                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            }
-        });
+            });
+        }
     }
 
     private static TextBlock FindValidationText(FrameworkElement page) =>
