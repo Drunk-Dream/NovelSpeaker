@@ -33,7 +33,7 @@ public sealed class JsonAppSettingsStoreTests
     }
 
     [Fact]
-    public async Task SaveAsync_persists_updated_segmentation_settings()
+    public async Task SaveAsync_roundtrips_updated_settings()
     {
         using var temporaryDirectory = new TemporaryDirectory();
         var root = temporaryDirectory.Path;
@@ -44,7 +44,17 @@ public sealed class JsonAppSettingsStoreTests
         var settings = (await store.LoadAsync(CancellationToken.None)) with
         {
             EnableLongParagraphSplitting = false,
-            LongParagraphThreshold = 42
+            LongParagraphThreshold = 42,
+            SelectedTtsRuleId = 42,
+            ReadChapterTitle = true,
+            CacheLimitBytes = 512L * 1024 * 1024,
+            PlaybackVolume = 0.35,
+            MainWindowCloseBehavior = MainWindowCloseBehavior.ExitApplication,
+            StartMinimizedToTray = true,
+            MiniPlayerLeft = 123.5,
+            MiniPlayerTop = 456.25,
+            MiniPlayerTopmost = true,
+            BookFileNameTemplate = "《{{name}}》 - {{author}}"
         };
 
         await store.SaveAsync(settings, CancellationToken.None);
@@ -52,111 +62,15 @@ public sealed class JsonAppSettingsStoreTests
 
         Assert.False(reloaded.EnableLongParagraphSplitting);
         Assert.Equal(50, reloaded.LongParagraphThreshold);
-    }
-
-    [Fact]
-    public async Task SaveAsync_persists_selected_tts_rule_id()
-    {
-        using var temporaryDirectory = new TemporaryDirectory();
-        var root = temporaryDirectory.Path;
-        var directories = new LocalAppDataDirectoryProvider(root);
-        await directories.EnsureCreatedAsync(CancellationToken.None);
-        var store = new JsonAppSettingsStore(directories);
-
-        await store.SaveAsync(AppSettings.Default with { SelectedTtsRuleId = 42 }, CancellationToken.None);
-        var reloaded = await store.LoadAsync(CancellationToken.None);
-
         Assert.Equal(42, reloaded.SelectedTtsRuleId);
-    }
-
-    [Fact]
-    public async Task SaveAsync_persists_read_chapter_title()
-    {
-        using var temporaryDirectory = new TemporaryDirectory();
-        var directories = new LocalAppDataDirectoryProvider(temporaryDirectory.Path);
-        await directories.EnsureCreatedAsync(CancellationToken.None);
-        var store = new JsonAppSettingsStore(directories);
-
-        await store.SaveAsync(
-            AppSettings.Default with { ReadChapterTitle = true },
-            CancellationToken.None);
-        var reloaded = await store.LoadAsync(CancellationToken.None);
-
         Assert.True(reloaded.ReadChapterTitle);
-    }
-
-    [Fact]
-    public async Task SaveAsync_persists_cache_limit()
-    {
-        using var temporaryDirectory = new TemporaryDirectory();
-        var root = temporaryDirectory.Path;
-        var directories = new LocalAppDataDirectoryProvider(root);
-        await directories.EnsureCreatedAsync(CancellationToken.None);
-        var store = new JsonAppSettingsStore(directories);
-
-        await store.SaveAsync(AppSettings.Default with { CacheLimitBytes = 512L * 1024 * 1024 }, CancellationToken.None);
-        var reloaded = await store.LoadAsync(CancellationToken.None);
-
         Assert.Equal(512L * 1024 * 1024, reloaded.CacheLimitBytes);
-    }
-
-    [Fact]
-    public async Task SaveAsync_persists_playback_volume()
-    {
-        using var temporaryDirectory = new TemporaryDirectory();
-        var directories = new LocalAppDataDirectoryProvider(temporaryDirectory.Path);
-        await directories.EnsureCreatedAsync(CancellationToken.None);
-        var store = new JsonAppSettingsStore(directories);
-
-        await store.SaveAsync(
-            AppSettings.Default with { PlaybackVolume = 0.35 },
-            CancellationToken.None);
-        var reloaded = await store.LoadAsync(CancellationToken.None);
-
         Assert.Equal(0.35, reloaded.PlaybackVolume);
-    }
-
-    [Fact]
-    public async Task SaveAsync_persists_desktop_lifecycle_preferences()
-    {
-        using var temporaryDirectory = new TemporaryDirectory();
-        var directories = new LocalAppDataDirectoryProvider(temporaryDirectory.Path);
-        await directories.EnsureCreatedAsync(CancellationToken.None);
-        var store = new JsonAppSettingsStore(directories);
-
-        await store.SaveAsync(
-            AppSettings.Default with
-            {
-                MainWindowCloseBehavior = MainWindowCloseBehavior.ExitApplication,
-                StartMinimizedToTray = true,
-                MiniPlayerLeft = 123.5,
-                MiniPlayerTop = 456.25,
-                MiniPlayerTopmost = true
-            },
-            CancellationToken.None);
-        var reloaded = await store.LoadAsync(CancellationToken.None);
-
         Assert.Equal(MainWindowCloseBehavior.ExitApplication, reloaded.MainWindowCloseBehavior);
         Assert.True(reloaded.StartMinimizedToTray);
         Assert.Equal(123.5, reloaded.MiniPlayerLeft);
         Assert.Equal(456.25, reloaded.MiniPlayerTop);
         Assert.True(reloaded.MiniPlayerTopmost);
-    }
-
-    [Fact]
-    public async Task SaveAsync_persists_custom_file_name_template()
-    {
-        using var temporaryDirectory = new TemporaryDirectory();
-        var root = temporaryDirectory.Path;
-        var directories = new LocalAppDataDirectoryProvider(root);
-        await directories.EnsureCreatedAsync(CancellationToken.None);
-        var store = new JsonAppSettingsStore(directories);
-
-        await store.SaveAsync(
-            AppSettings.Default with { BookFileNameTemplate = "《{{name}}》 - {{author}}" },
-            CancellationToken.None);
-        var reloaded = await store.LoadAsync(CancellationToken.None);
-
         Assert.Equal("《{{name}}》 - {{author}}", reloaded.BookFileNameTemplate);
     }
 
