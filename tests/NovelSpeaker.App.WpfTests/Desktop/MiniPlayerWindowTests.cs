@@ -26,8 +26,7 @@ namespace NovelSpeaker.App.WpfTests.Desktop;
 [Collection("WpfDispatcher")]
 public sealed class MiniPlayerWindowTests
 {
-    [Fact]
-    public void Window_exposes_required_controls_and_accessibility_contract()
+    private void Window_exposes_required_controls_and_accessibility_contract()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -149,8 +148,7 @@ public sealed class MiniPlayerWindowTests
         });
     }
 
-    [Fact]
-    public void Drag_policy_allows_blank_surface_but_excludes_interactive_controls()
+    private void Drag_policy_allows_blank_surface_but_excludes_interactive_controls()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -168,8 +166,7 @@ public sealed class MiniPlayerWindowTests
         });
     }
 
-    [Fact]
-    public void Width_resize_thumb_changes_only_width_within_window_bounds()
+    private void Width_resize_thumb_changes_only_width_within_window_bounds()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -206,8 +203,7 @@ public sealed class MiniPlayerWindowTests
         });
     }
 
-    [Fact]
-    public void Invalid_or_offscreen_placement_uses_safe_fallback()
+    private void Invalid_or_offscreen_placement_uses_safe_fallback()
     {
         foreach (var (left, top) in new[]
         {
@@ -232,8 +228,7 @@ public sealed class MiniPlayerWindowTests
             out _));
     }
 
-    [Fact]
-    public void Valid_placement_is_preserved()
+    private void Valid_placement_is_preserved()
     {
         Assert.True(MiniPlayerPlacementValidator.TryValidate(
             100,
@@ -245,8 +240,7 @@ public sealed class MiniPlayerWindowTests
         Assert.Equal(new MiniPlayerPlacement(100, 120), placement);
     }
 
-    [Fact]
-    public void User_close_requests_application_exit_instead_of_restoring_main_window()
+    private void User_close_requests_application_exit_instead_of_restoring_main_window()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -271,8 +265,7 @@ public sealed class MiniPlayerWindowTests
         });
     }
 
-    [Fact]
-    public void Close_button_requests_application_exit_without_restoring_main_window()
+    private void Close_button_requests_application_exit_without_restoring_main_window()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -296,8 +289,7 @@ public sealed class MiniPlayerWindowTests
         });
     }
 
-    [Fact]
-    public void Playback_context_projection_keeps_window_actions_and_media_command_contract()
+    private void Playback_context_projection_keeps_window_actions_and_media_command_contract()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -343,8 +335,7 @@ public sealed class MiniPlayerWindowTests
         });
     }
 
-    [Fact]
-    public void Idle_projection_keeps_window_surface_and_media_controls_safe_without_playback_context()
+    private void Idle_projection_keeps_window_surface_and_media_controls_safe_without_playback_context()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -368,8 +359,7 @@ public sealed class MiniPlayerWindowTests
         });
     }
 
-    [Fact]
-    public void Default_layout_keeps_progress_and_control_bar_close_without_overlap()
+    private void Default_layout_keeps_progress_and_control_bar_close_without_overlap()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -466,8 +456,7 @@ public sealed class MiniPlayerWindowTests
         });
     }
 
-    [Fact]
-    public void Saved_position_is_available_and_a_user_move_is_persisted()
+    private void Saved_position_is_available_and_a_user_move_is_persisted()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -509,8 +498,7 @@ public sealed class MiniPlayerWindowTests
         });
     }
 
-    [Fact]
-    public void Mini_player_visual_review_generates_stable_window_screenshots()
+    private void Mini_player_visual_review_generates_stable_window_screenshots()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {
@@ -539,8 +527,7 @@ public sealed class MiniPlayerWindowTests
         });
     }
 
-    [Fact]
-    public void Placement_in_gap_between_monitors_is_rejected()
+    private void Placement_in_gap_between_monitors_is_rejected()
     {
         Assert.False(MiniPlayerPlacementValidator.TryValidate(
             700,
@@ -552,6 +539,39 @@ public sealed class MiniPlayerWindowTests
                 new MiniPlayerScreenBounds(1000, 0, 600, 800)
             ],
             out _));
+    }
+
+    [Fact]
+    public void Mini_player_surface_contracts_cover_controls_drag_and_layout()
+    {
+        Window_exposes_required_controls_and_accessibility_contract();
+        Drag_policy_allows_blank_surface_but_excludes_interactive_controls();
+        Width_resize_thumb_changes_only_width_within_window_bounds();
+        Default_layout_keeps_progress_and_control_bar_close_without_overlap();
+    }
+
+    [Fact]
+    public void Mini_player_placement_contracts_cover_valid_invalid_and_monitor_gap_positions()
+    {
+        Invalid_or_offscreen_placement_uses_safe_fallback();
+        Valid_placement_is_preserved();
+        Placement_in_gap_between_monitors_is_rejected();
+    }
+
+    [Fact]
+    public void Mini_player_lifecycle_contracts_cover_close_and_persisted_position_commands()
+    {
+        User_close_requests_application_exit_instead_of_restoring_main_window();
+        Close_button_requests_application_exit_without_restoring_main_window();
+        Saved_position_is_available_and_a_user_move_is_persisted();
+    }
+
+    [Fact]
+    public void Mini_player_projection_contracts_cover_playback_idle_and_visual_review()
+    {
+        Playback_context_projection_keeps_window_actions_and_media_command_contract();
+        Idle_projection_keeps_window_surface_and_media_controls_safe_without_playback_context();
+        Mini_player_visual_review_generates_stable_window_screenshots();
     }
 
     private static void AssertControl<T>(MiniPlayerWindow window, string name, string automationName)

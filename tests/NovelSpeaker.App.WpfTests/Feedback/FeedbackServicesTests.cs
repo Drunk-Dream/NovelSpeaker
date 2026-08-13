@@ -14,8 +14,7 @@ namespace NovelSpeaker.App.WpfTests.Feedback;
 [Collection("WpfDispatcher")]
 public sealed class FeedbackServicesTests
 {
-    [Fact]
-    public void AppDialogService_maps_confirmation_and_unsaved_changes_results()
+    private void AppDialogService_maps_confirmation_and_unsaved_changes_results()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -36,8 +35,7 @@ public sealed class FeedbackServicesTests
         });
     }
 
-    [Fact]
-    public void EncodingSelectionDialogService_uses_standard_dialog_content_and_input_styles()
+    private void EncodingSelectionDialogService_uses_standard_dialog_content_and_input_styles()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -66,8 +64,7 @@ public sealed class FeedbackServicesTests
         });
     }
 
-    [Fact]
-    public void ImportProgressDialogService_uses_standard_content_progress_and_cancel_styles()
+    private void ImportProgressDialogService_uses_standard_content_progress_and_cancel_styles()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -99,8 +96,7 @@ public sealed class FeedbackServicesTests
         });
     }
 
-    [Fact]
-    public void ImportProgressDialogService_cancels_operation_when_host_closes_dialog()
+    private void ImportProgressDialogService_cancels_operation_when_host_closes_dialog()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -133,8 +129,7 @@ public sealed class FeedbackServicesTests
         });
     }
 
-    [Fact]
-    public void ImportProgressDialogService_closes_dialog_and_preserves_operation_failure()
+    private void ImportProgressDialogService_closes_dialog_and_preserves_operation_failure()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -159,8 +154,7 @@ public sealed class FeedbackServicesTests
         });
     }
 
-    [Fact]
-    public void AppNotificationService_routes_messages_to_snackbar_service()
+    private void AppNotificationService_routes_messages_to_snackbar_service()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -175,8 +169,7 @@ public sealed class FeedbackServicesTests
         });
     }
 
-    [Fact]
-    public void AppFeedbackService_confirms_deletion_and_routes_projected_notifications()
+    private void AppFeedbackService_confirms_deletion_and_routes_projected_notifications()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -208,6 +201,30 @@ public sealed class FeedbackServicesTests
         });
     }
 
+    [Fact]
+    public void Feedback_dialog_contracts_cover_confirmation_encoding_and_progress_lifecycle()
+    {
+        AppDialogService_maps_confirmation_and_unsaved_changes_results();
+        EncodingSelectionDialogService_uses_standard_dialog_content_and_input_styles();
+        ImportProgressDialogService_uses_standard_content_progress_and_cancel_styles();
+        ImportProgressDialogService_cancels_operation_when_host_closes_dialog();
+        ImportProgressDialogService_closes_dialog_and_preserves_operation_failure();
+    }
+
+    [Fact]
+    public void Feedback_notification_contracts_route_messages_and_projected_notifications()
+    {
+        AppNotificationService_routes_messages_to_snackbar_service();
+        AppFeedbackService_confirms_deletion_and_routes_projected_notifications();
+    }
+
+    [Fact]
+    public void Feedback_exception_projection_contracts_hide_details_and_cancellation()
+    {
+        ExceptionProjector_hides_unexpected_error_details_and_silences_cancellation();
+        ExceptionProjector_does_not_expose_invalid_operation_messages();
+    }
+
     private static void AssertStandardDialogVisuals(ContentDialog dialog)
     {
         var surface = Assert.IsType<Border>(dialog.Content);
@@ -217,8 +234,7 @@ public sealed class FeedbackServicesTests
         Assert.Equal(ControlAppearance.Secondary, dialog.CloseButtonAppearance);
     }
 
-    [Fact]
-    public void ExceptionProjector_hides_unexpected_error_details_and_silences_cancellation()
+    private void ExceptionProjector_hides_unexpected_error_details_and_silences_cancellation()
     {
         var projector = new ExceptionProjector();
 
@@ -229,8 +245,7 @@ public sealed class FeedbackServicesTests
         Assert.Equal("操作失败，请稍后重试。", unexpected.UserMessage);
     }
 
-    [Fact]
-    public void ExceptionProjector_does_not_expose_invalid_operation_messages()
+    private void ExceptionProjector_does_not_expose_invalid_operation_messages()
     {
         var projected = new ExceptionProjector().Project(new InvalidOperationException("Token=secret"));
 
