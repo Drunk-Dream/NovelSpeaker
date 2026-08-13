@@ -20,8 +20,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed class SettingsFormControlTests
 {
-    [Fact]
-    public void Settings_and_forms_templates_are_implicit_and_have_no_page_width_or_last_row_contract()
+    private void Settings_and_forms_templates_are_implicit_and_have_no_page_width_or_last_row_contract()
     {
         var root = LocateRepositoryRoot();
         var settings = XDocument.Load(Path.Combine(
@@ -71,8 +70,7 @@ public sealed class SettingsFormControlTests
             StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Settings_and_form_controls_apply_default_styles_preserve_slots_and_bindings()
+    private void Settings_and_form_controls_apply_default_styles_preserve_slots_and_bindings()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -197,8 +195,7 @@ public sealed class SettingsFormControlTests
         });
     }
 
-    [Fact]
-    public void Settings_and_form_controls_keep_long_copy_and_error_below_content_at_narrow_width()
+    private void Settings_and_form_controls_keep_long_copy_and_error_below_content_at_narrow_width()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -315,8 +312,7 @@ public sealed class SettingsFormControlTests
         });
     }
 
-    [Fact]
-    public void Settings_and_form_gallery_scenes_render_required_fixture_families()
+    private void Settings_and_form_gallery_scenes_render_required_fixture_families()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -369,8 +365,7 @@ public sealed class SettingsFormControlTests
         });
     }
 
-    [Fact]
-    public void Settings_and_form_gallery_scenes_keep_finite_layout_at_supported_dpi_scales()
+    private void Settings_and_form_gallery_scenes_keep_finite_layout_at_supported_dpi_scales()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -418,8 +413,7 @@ public sealed class SettingsFormControlTests
         });
     }
 
-    [Fact]
-    public void Settings_gallery_pairs_home_groups_with_headerless_settings_lists()
+    private void Settings_gallery_pairs_home_groups_with_headerless_settings_lists()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -525,8 +519,7 @@ public sealed class SettingsFormControlTests
         });
     }
 
-    [Fact]
-    public void Settings_group_geometry_keeps_baseline_and_controls_at_supported_dpi_scales()
+    private void Settings_group_geometry_keeps_baseline_and_controls_at_supported_dpi_scales()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -778,6 +771,28 @@ public sealed class SettingsFormControlTests
             .TransformBounds(new Rect(new Point(), value.RenderSize));
         Assert.True(titleBounds.Bottom <= valueBounds.Top);
         Assert.True(valueBounds.Right <= row.ActualWidth);
+    }
+
+    [Fact]
+    public void Settings_form_template_contracts_cover_implicit_ownership_and_bindings()
+    {
+        Settings_and_forms_templates_are_implicit_and_have_no_page_width_or_last_row_contract();
+        Settings_and_form_controls_apply_default_styles_preserve_slots_and_bindings();
+    }
+
+    [Fact]
+    public void Settings_form_layout_contracts_cover_copy_errors_and_gallery_fixtures()
+    {
+        Settings_and_form_controls_keep_long_copy_and_error_below_content_at_narrow_width();
+        Settings_and_form_gallery_scenes_render_required_fixture_families();
+        Settings_and_form_gallery_scenes_keep_finite_layout_at_supported_dpi_scales();
+    }
+
+    [Fact]
+    public void Settings_form_geometry_contracts_cover_group_pairing_and_dpi_baselines()
+    {
+        Settings_gallery_pairs_home_groups_with_headerless_settings_lists();
+        Settings_group_geometry_keeps_baseline_and_controls_at_supported_dpi_scales();
     }
 
     private static bool HasGroupAncestor(DependencyObject element)

@@ -27,8 +27,7 @@ public sealed class MediaControlStyleTests
         "App.Media.Button"
     ];
 
-    [Fact]
-    public void Media_style_dictionary_contains_explicit_styles_without_templates()
+    private void Media_style_dictionary_contains_explicit_styles_without_templates()
     {
         var path = Path.Combine(
             LocateRepositoryRoot(),
@@ -63,8 +62,7 @@ public sealed class MediaControlStyleTests
         Assert.Equal("{StaticResource App.Surface.Secondary}", (string?)resources[2].Attribute("BasedOn"));
     }
 
-    [Fact]
-    public void Media_button_style_dictionary_contains_icon_based_style_without_template()
+    private void Media_button_style_dictionary_contains_icon_based_style_without_template()
     {
         var path = Path.Combine(
             LocateRepositoryRoot(),
@@ -104,8 +102,7 @@ public sealed class MediaControlStyleTests
                 .ToArray());
     }
 
-    [Fact]
-    public void Gallery_media_fixture_distinguishes_navigation_icons_and_projects_slider_without_playback()
+    private void Gallery_media_fixture_distinguishes_navigation_icons_and_projects_slider_without_playback()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -178,8 +175,7 @@ public sealed class MediaControlStyleTests
         });
     }
 
-    [Fact]
-    public void Gallery_media_fixture_uses_equal_primary_button_and_icon_geometry()
+    private void Gallery_media_fixture_uses_equal_primary_button_and_icon_geometry()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -210,8 +206,7 @@ public sealed class MediaControlStyleTests
         });
     }
 
-    [Fact]
-    public void Gallery_media_fixture_binds_media_glyph_nodes_to_semantic_owner_foregrounds()
+    private void Gallery_media_fixture_binds_media_glyph_nodes_to_semantic_owner_foregrounds()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -256,8 +251,7 @@ public sealed class MediaControlStyleTests
         });
     }
 
-    [Fact]
-    public void Gallery_media_fixture_projects_accent_and_neutral_progress_tracks_during_drag()
+    private void Gallery_media_fixture_projects_accent_and_neutral_progress_tracks_during_drag()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -304,8 +298,7 @@ public sealed class MediaControlStyleTests
         });
     }
 
-    [Fact]
-    public void Gallery_media_fixture_exposes_a_non_command_volume_button()
+    private void Gallery_media_fixture_exposes_a_non_command_volume_button()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -340,8 +333,7 @@ public sealed class MediaControlStyleTests
         });
     }
 
-    [Fact]
-    public void Gallery_media_fixture_is_measurable_in_both_themes()
+    private void Gallery_media_fixture_is_measurable_in_both_themes()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -398,6 +390,29 @@ public sealed class MediaControlStyleTests
                 window.Close();
             }
         });
+    }
+
+    [Fact]
+    public void Media_style_contracts_cover_explicit_ownership_and_inheritance()
+    {
+        Media_style_dictionary_contains_explicit_styles_without_templates();
+        Media_button_style_dictionary_contains_icon_based_style_without_template();
+    }
+
+    [Fact]
+    public void Media_fixture_contracts_cover_navigation_projection_geometry_and_controls()
+    {
+        Gallery_media_fixture_distinguishes_navigation_icons_and_projects_slider_without_playback();
+        Gallery_media_fixture_uses_equal_primary_button_and_icon_geometry();
+        Gallery_media_fixture_projects_accent_and_neutral_progress_tracks_during_drag();
+        Gallery_media_fixture_exposes_a_non_command_volume_button();
+    }
+
+    [Fact]
+    public void Media_fixture_theme_contracts_cover_foregrounds_and_measurable_layout()
+    {
+        Gallery_media_fixture_binds_media_glyph_nodes_to_semantic_owner_foregrounds();
+        Gallery_media_fixture_is_measurable_in_both_themes();
     }
 
     private static Window CreateFixtureWindow(FrameworkElement content, double width, double height) =>

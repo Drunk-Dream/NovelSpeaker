@@ -17,8 +17,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed class SelectionNavigationMenuStyleContractTests
 {
-    [Fact]
-    public void Selection_navigation_menu_styles_resolve_through_the_provider_style_chains()
+    private void Selection_navigation_menu_styles_resolve_through_the_provider_style_chains()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -54,8 +53,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
         });
     }
 
-    [Fact]
-    public void Selection_gallery_covers_all_variants_states_and_accessibility_metadata()
+    private void Selection_gallery_covers_all_variants_states_and_accessibility_metadata()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -135,8 +133,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
         });
     }
 
-    [Fact]
-    public void Selection_virtualized_row_text_uses_theme_semantic_brushes()
+    private void Selection_virtualized_row_text_uses_theme_semantic_brushes()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -181,8 +178,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
         });
     }
 
-    [Fact]
-    public void Selection_facts_follow_data_through_virtualized_container_recycling()
+    private void Selection_facts_follow_data_through_virtualized_container_recycling()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -258,8 +254,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
         });
     }
 
-    [Fact]
-    public void Multi_select_item_style_reflects_the_active_cache_selection_fact()
+    private void Multi_select_item_style_reflects_the_active_cache_selection_fact()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -302,8 +297,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
         });
     }
 
-    [Fact]
-    public void Navigation_gallery_covers_primary_entries_settings_rows_and_keyboard_focus()
+    private void Navigation_gallery_covers_primary_entries_settings_rows_and_keyboard_focus()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -377,8 +371,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
         });
     }
 
-    [Fact]
-    public void Menus_gallery_covers_surfaces_danger_grouping_and_neutral_close()
+    private void Menus_gallery_covers_surfaces_danger_grouping_and_neutral_close()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -528,6 +521,28 @@ public sealed class SelectionNavigationMenuStyleContractTests
                 Visit(VisualTreeHelper.GetChild(current, index), matches);
             }
         }
+    }
+
+    [Fact]
+    public void Selection_style_contracts_cover_provider_chains_and_gallery_states()
+    {
+        Selection_navigation_menu_styles_resolve_through_the_provider_style_chains();
+        Selection_gallery_covers_all_variants_states_and_accessibility_metadata();
+    }
+
+    [Fact]
+    public void Selection_data_contracts_cover_virtualized_rows_and_active_cache_state()
+    {
+        Selection_virtualized_row_text_uses_theme_semantic_brushes();
+        Selection_facts_follow_data_through_virtualized_container_recycling();
+        Multi_select_item_style_reflects_the_active_cache_selection_fact();
+    }
+
+    [Fact]
+    public void Navigation_menu_gallery_contracts_cover_entries_surfaces_and_focus()
+    {
+        Navigation_gallery_covers_primary_entries_settings_rows_and_keyboard_focus();
+        Menus_gallery_covers_surfaces_danger_grouping_and_neutral_close();
     }
 
     private static Color BrushColor(string key) =>

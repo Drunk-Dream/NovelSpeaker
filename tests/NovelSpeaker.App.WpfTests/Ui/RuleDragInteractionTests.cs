@@ -6,8 +6,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 
 public sealed class RuleDragInteractionTests
 {
-    [Fact]
-    public void Gesture_requires_hold_threshold_followed_by_movement()
+    private void Gesture_requires_hold_threshold_followed_by_movement()
     {
         var gesture = new RuleDragGestureStateMachine(
             minimumHorizontalDistance: 4,
@@ -20,8 +19,7 @@ public sealed class RuleDragInteractionTests
         Assert.False(gesture.IsPressed);
     }
 
-    [Fact]
-    public void Gesture_excludes_toggle_and_cancels_when_button_is_released()
+    private void Gesture_excludes_toggle_and_cancels_when_button_is_released()
     {
         var gesture = new RuleDragGestureStateMachine();
         gesture.Press(new Point(), 0, isExcludedRegion: true);
@@ -33,8 +31,7 @@ public sealed class RuleDragInteractionTests
         Assert.False(gesture.IsPressed);
     }
 
-    [Fact]
-    public void Placement_uses_target_vertical_center()
+    private void Placement_uses_target_vertical_center()
     {
         foreach (var (pointerY, targetHeight, expected) in new[]
                  {
@@ -48,8 +45,7 @@ public sealed class RuleDragInteractionTests
         }
     }
 
-    [Fact]
-    public void Edge_scroll_direction_is_deterministic()
+    private void Edge_scroll_direction_is_deterministic()
     {
         foreach (var (pointerY, expected) in new[]
                  {
@@ -65,8 +61,7 @@ public sealed class RuleDragInteractionTests
         }
     }
 
-    [Fact]
-    public void Invalid_target_geometry_has_no_drop_placement()
+    private void Invalid_target_geometry_has_no_drop_placement()
     {
         foreach (var (pointerY, targetHeight) in new[]
                  {
@@ -79,8 +74,7 @@ public sealed class RuleDragInteractionTests
         }
     }
 
-    [Fact]
-    public void Logical_scrolling_uses_the_pixel_render_height_for_edge_detection()
+    private void Logical_scrolling_uses_the_pixel_render_height_for_edge_detection()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -97,5 +91,21 @@ public sealed class RuleDragInteractionTests
             Assert.Equal(-1, RuleListItemView.ResolveEdgeScrollDirection(scrollViewer, 16));
             Assert.Equal(1, RuleListItemView.ResolveEdgeScrollDirection(scrollViewer, 284));
         });
+    }
+
+    [Fact]
+    public void Rule_drag_gesture_contracts_cover_threshold_exclusion_and_release()
+    {
+        Gesture_requires_hold_threshold_followed_by_movement();
+        Gesture_excludes_toggle_and_cancels_when_button_is_released();
+    }
+
+    [Fact]
+    public void Rule_drag_geometry_contracts_cover_placement_scrolling_and_invalid_targets()
+    {
+        Placement_uses_target_vertical_center();
+        Edge_scroll_direction_is_deterministic();
+        Invalid_target_geometry_has_no_drop_placement();
+        Logical_scrolling_uses_the_pixel_render_height_for_edge_detection();
     }
 }

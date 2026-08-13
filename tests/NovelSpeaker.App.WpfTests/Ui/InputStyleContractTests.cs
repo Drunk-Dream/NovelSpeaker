@@ -70,8 +70,7 @@ public sealed class InputStyleContractTests
             ["input-toggle-error-standard-error"] = "后台朗读需要先启用本地缓存，请检查相关设置。"
         };
 
-    [Fact]
-    public void Input_style_dictionary_contains_all_named_variants_and_no_implicit_standard_styles()
+    private void Input_style_dictionary_contains_all_named_variants_and_no_implicit_standard_styles()
     {
         var path = Path.Combine(
             LocateRepositoryRoot(),
@@ -139,8 +138,7 @@ public sealed class InputStyleContractTests
         Assert.Empty(implicitStyles);
     }
 
-    [Fact]
-    public void Named_input_styles_resolve_through_the_provider_style_chain()
+    private void Named_input_styles_resolve_through_the_provider_style_chain()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -166,8 +164,7 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Fact]
-    public void Input_controls_scene_contains_all_control_families_states_and_accessibility_metadata()
+    private void Input_controls_scene_contains_all_control_families_states_and_accessibility_metadata()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -258,8 +255,7 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Fact]
-    public void Every_input_control_has_nonzero_layout_and_toggle_width_follows_content()
+    private void Every_input_control_has_nonzero_layout_and_toggle_width_follows_content()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -311,8 +307,7 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Fact]
-    public void Input_controls_keep_style_and_template_instances_while_dynamic_colors_follow_theme_switches()
+    private void Input_controls_keep_style_and_template_instances_while_dynamic_colors_follow_theme_switches()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -367,8 +362,7 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Fact]
-    public void ComboBox_popup_and_items_construct_with_resolvable_theme_resources()
+    private void ComboBox_popup_and_items_construct_with_resolvable_theme_resources()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -432,8 +426,7 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Fact]
-    public void ComboBox_styles_keep_stretch_alignment_and_full_surface_toggle_target()
+    private void ComboBox_styles_keep_stretch_alignment_and_full_surface_toggle_target()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -499,8 +492,7 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Fact]
-    public void ComboBox_long_string_item_trims_on_one_line_without_moving_the_chevron()
+    private void ComboBox_long_string_item_trims_on_one_line_without_moving_the_chevron()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -571,8 +563,7 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Fact]
-    public void ComboBox_popup_is_never_narrower_than_the_closed_control()
+    private void ComboBox_popup_is_never_narrower_than_the_closed_control()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -628,8 +619,7 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Fact]
-    public void ComboBox_popup_and_item_states_follow_the_family_visual_contract()
+    private void ComboBox_popup_and_item_states_follow_the_family_visual_contract()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -722,8 +712,7 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Fact]
-    public void ComboBox_template_preserves_editable_focus_and_keyboard_semantics()
+    private void ComboBox_template_preserves_editable_focus_and_keyboard_semantics()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -833,8 +822,7 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Fact]
-    public void ComboBox_disabled_string_item_keeps_state_foreground_without_double_opacity()
+    private void ComboBox_disabled_string_item_keeps_state_foreground_without_double_opacity()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -961,6 +949,43 @@ public sealed class InputStyleContractTests
             BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(onClick);
         onClick!.Invoke(button, []);
+    }
+
+    [Fact]
+    public void Input_style_contracts_cover_dictionary_and_provider_ownership()
+    {
+        Input_style_dictionary_contains_all_named_variants_and_no_implicit_standard_styles();
+        Named_input_styles_resolve_through_the_provider_style_chain();
+    }
+
+    [Fact]
+    public void Input_scene_contracts_cover_fixtures_accessibility_layout_and_theme_switching()
+    {
+        Input_controls_scene_contains_all_control_families_states_and_accessibility_metadata();
+        Every_input_control_has_nonzero_layout_and_toggle_width_follows_content();
+        Input_controls_keep_style_and_template_instances_while_dynamic_colors_follow_theme_switches();
+    }
+
+    [Fact]
+    public void ComboBox_resource_contracts_cover_popup_items_and_style_targets()
+    {
+        ComboBox_popup_and_items_construct_with_resolvable_theme_resources();
+        ComboBox_styles_keep_stretch_alignment_and_full_surface_toggle_target();
+    }
+
+    [Fact]
+    public void ComboBox_geometry_contracts_cover_trimming_and_popup_width()
+    {
+        ComboBox_long_string_item_trims_on_one_line_without_moving_the_chevron();
+        ComboBox_popup_is_never_narrower_than_the_closed_control();
+    }
+
+    [Fact]
+    public void ComboBox_state_contracts_cover_visual_states_focus_and_disabled_content()
+    {
+        ComboBox_popup_and_item_states_follow_the_family_visual_contract();
+        ComboBox_template_preserves_editable_focus_and_keyboard_semantics();
+        ComboBox_disabled_string_item_keeps_state_foreground_without_double_opacity();
     }
 
     private static string LocateRepositoryRoot()
