@@ -6,12 +6,8 @@ namespace NovelSpeaker.Application.UnitTests;
 
 public sealed class PlaybackPositionResolverTests
 {
-    [Theory]
-    [MemberData(nameof(ChapterSearchCases))]
-    public void GetChapterSearchOrder_handles_first_and_last_boundaries(
-        int? preferredChapterIndex,
-        int direction,
-        int[] expectedChapterIndexes)
+    [Fact]
+    public void GetChapterSearchOrder_handles_first_and_last_boundaries()
     {
         var chapters = new[]
         {
@@ -20,24 +16,25 @@ public sealed class PlaybackPositionResolverTests
             PlaybackChapterContent.FromLoaded(5, "第六章", [Speech(0, 20, "六")])
         };
 
-        var result = PlaybackPositionResolver.GetChapterSearchOrder(
-            chapters,
-            preferredChapterIndex,
-            direction);
+        foreach (var (preferredChapterIndex, direction, expectedChapterIndexes) in new[]
+                 {
+                     ((int?)null, 1, new[] { 0, 2, 5 }),
+                     ((int?)null, -1, new[] { 5, 2, 0 }),
+                     ((int?)0, -1, new[] { 0 }),
+                     ((int?)5, 1, new[] { 5 }),
+                     ((int?)3, 1, new[] { 5 }),
+                     ((int?)3, -1, new[] { 2, 0 }),
+                     ((int?)-1, 1, new[] { 0, 2, 5 }),
+                     ((int?)99, -1, new[] { 5, 2, 0 })
+                 })
+        {
+            var result = PlaybackPositionResolver.GetChapterSearchOrder(
+                chapters,
+                preferredChapterIndex,
+                direction);
 
-        Assert.Equal(expectedChapterIndexes, result);
-    }
-
-    public static IEnumerable<object[]> ChapterSearchCases()
-    {
-        yield return [null!, 1, new[] { 0, 2, 5 }];
-        yield return [null!, -1, new[] { 5, 2, 0 }];
-        yield return [0, -1, new[] { 0 }];
-        yield return [5, 1, new[] { 5 }];
-        yield return [3, 1, new[] { 5 }];
-        yield return [3, -1, new[] { 2, 0 }];
-        yield return [-1, 1, new[] { 0, 2, 5 }];
-        yield return [99, -1, new[] { 5, 2, 0 }];
+            Assert.Equal(expectedChapterIndexes, result);
+        }
     }
 
     [Fact]
@@ -117,14 +114,8 @@ public sealed class PlaybackPositionResolverTests
         Assert.Null(PlaybackPositionResolver.ResolveRelativeSegmentInChapter(chapter, 3, 1));
     }
 
-    [Theory]
-    [MemberData(nameof(RestoredPositionCases))]
-    public void ResolveRestoredPosition_maps_offsets_and_clamps_invalid_segment_indexes(
-        int savedSegmentIndex,
-        int characterOffset,
-        long savedAudioPosition,
-        int expectedSegmentIndex,
-        long expectedResumePosition)
+    [Fact]
+    public void ResolveRestoredPosition_maps_offsets_and_clamps_invalid_segment_indexes()
     {
         var chapter = PlaybackChapterContent.FromLoaded(
             4,
@@ -135,28 +126,29 @@ public sealed class PlaybackPositionResolverTests
                 Speech(2, 20, "第三段")
             ]);
         var book = new PlaybackBookContent("book-1", "示例小说", [chapter]);
-        var progress = new ReadingProgressEntry(
-            "book-1",
-            4,
-            savedSegmentIndex,
-            characterOffset,
-            savedAudioPosition,
-            DateTimeOffset.UnixEpoch);
+        foreach (var (savedSegmentIndex, characterOffset, savedAudioPosition, expectedSegmentIndex, expectedResumePosition) in new[]
+                 {
+                     (1, 10, 333L, 1, 333L),
+                     (99, 10, 333L, 1, 0L),
+                     (0, 15, 333L, 2, 0L),
+                     (0, 999, 333L, 2, 0L),
+                     (0, -10, 333L, 0, 0L)
+                 })
+        {
+            var progress = new ReadingProgressEntry(
+                "book-1",
+                4,
+                savedSegmentIndex,
+                characterOffset,
+                savedAudioPosition,
+                DateTimeOffset.UnixEpoch);
 
-        var result = PlaybackPositionResolver.ResolveRestoredPosition(book, progress);
+            var result = PlaybackPositionResolver.ResolveRestoredPosition(book, progress);
 
-        Assert.Equal(
-            new PlaybackRestoredPosition(4, expectedSegmentIndex, expectedResumePosition),
-            result);
-    }
-
-    public static IEnumerable<object[]> RestoredPositionCases()
-    {
-        yield return [1, 10, 333L, 1, 333L];
-        yield return [99, 10, 333L, 1, 0L];
-        yield return [0, 15, 333L, 2, 0L];
-        yield return [0, 999, 333L, 2, 0L];
-        yield return [0, -10, 333L, 0, 0L];
+            Assert.Equal(
+                new PlaybackRestoredPosition(4, expectedSegmentIndex, expectedResumePosition),
+                result);
+        }
     }
 
     [Fact]

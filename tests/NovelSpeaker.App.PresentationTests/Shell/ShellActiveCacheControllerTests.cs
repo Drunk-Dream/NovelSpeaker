@@ -80,24 +80,24 @@ public sealed class ShellActiveCacheControllerTests
             feedback.WarningMessages);
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void Failed_result_without_safe_summary_uses_generic_fallback(string? errorSummary)
+    [Fact]
+    public void Failed_result_without_safe_summary_uses_generic_fallback()
     {
-        var coordinator = new FakeActiveCacheCoordinator(CreateSnapshot(ActiveCacheBatchStatus.Running));
-        var feedback = new FakeFeedbackService();
-        var controller = new ShellActiveCacheController(
-            coordinator,
-            feedback,
-            new InlineUiScheduler());
+        foreach (var errorSummary in new string?[] { null, string.Empty, "   " })
+        {
+            var coordinator = new FakeActiveCacheCoordinator(CreateSnapshot(ActiveCacheBatchStatus.Running));
+            var feedback = new FakeFeedbackService();
+            var controller = new ShellActiveCacheController(
+                coordinator,
+                feedback,
+                new InlineUiScheduler());
 
-        coordinator.Publish(CreateSnapshot(ActiveCacheBatchStatus.Failed, errorSummary));
+            coordinator.Publish(CreateSnapshot(ActiveCacheBatchStatus.Failed, errorSummary));
 
-        Assert.Equal(
-            [("主动缓存失败", "主动缓存失败，请重试。")],
-            feedback.WarningMessages);
+            Assert.Equal(
+                [("主动缓存失败", "主动缓存失败，请重试。")],
+                feedback.WarningMessages);
+        }
     }
 
     [Fact]

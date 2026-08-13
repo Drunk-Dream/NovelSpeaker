@@ -92,25 +92,28 @@ public sealed class ShellChapterExportControllerTests
         Assert.False(controller.IsVisible);
     }
 
-    [Theory]
-    [InlineData(ChapterExportBatchStatus.Cancelled, "导出已取消")]
-    [InlineData(ChapterExportBatchStatus.Failed, "导出失败")]
-    public void Cancelled_or_failed_snapshot_notifies_and_does_not_persist_in_shell(
-        ChapterExportBatchStatus status,
-        string expectedTitle)
+    [Fact]
+    public void Cancelled_or_failed_snapshot_notifies_and_does_not_persist_in_shell()
     {
-        var coordinator = new FakeCoordinator(CreateSnapshot(ChapterExportBatchStatus.Running));
-        var feedback = new FakeFeedbackService();
-        var controller = new ShellChapterExportController(
-            coordinator,
-            feedback,
-            new FakeLauncher(),
-            new InlineUiScheduler());
+        foreach (var (status, expectedTitle) in new[]
+                 {
+                     (ChapterExportBatchStatus.Cancelled, "导出已取消"),
+                     (ChapterExportBatchStatus.Failed, "导出失败")
+                 })
+        {
+            var coordinator = new FakeCoordinator(CreateSnapshot(ChapterExportBatchStatus.Running));
+            var feedback = new FakeFeedbackService();
+            var controller = new ShellChapterExportController(
+                coordinator,
+                feedback,
+                new FakeLauncher(),
+                new InlineUiScheduler());
 
-        coordinator.Publish(CreateSnapshot(status, errorSummary: status == ChapterExportBatchStatus.Failed ? "导出服务失败。" : null));
+            coordinator.Publish(CreateSnapshot(status, errorSummary: status == ChapterExportBatchStatus.Failed ? "导出服务失败。" : null));
 
-        Assert.False(controller.IsVisible);
-        Assert.Contains(feedback.WarningMessages, item => item.Title == expectedTitle);
+            Assert.False(controller.IsVisible);
+            Assert.Contains(feedback.WarningMessages, item => item.Title == expectedTitle);
+        }
     }
 
     [Fact]

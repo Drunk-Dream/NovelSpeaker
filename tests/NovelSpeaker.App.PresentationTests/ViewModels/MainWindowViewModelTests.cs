@@ -87,42 +87,43 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(NowPlayingVisualState.Inactive, viewModel.NowPlayingVisualState);
     }
 
-    [Theory]
-    [InlineData(PlaybackState.Playing, "正在播放", "示例小说", NowPlayingVisualState.Playing)]
-    [InlineData(PlaybackState.Paused, "已暂停", "示例小说", NowPlayingVisualState.Paused)]
-    [InlineData(PlaybackState.Stopped, "已停止", "示例小说", NowPlayingVisualState.Inactive)]
-    [InlineData(PlaybackState.Faulted, "播放出错", "示例小说", NowPlayingVisualState.Faulted)]
-    public void Snapshot_projection_updates_now_playing_entry(
-        PlaybackState state,
-        string status,
-        string title,
-        NowPlayingVisualState visualState)
+    [Fact]
+    public void Snapshot_projection_updates_now_playing_entry()
     {
-        var navigationService = new FakeNavigationService();
-        var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
-        var viewModel = CreateViewModel(coordinator, navigationService);
+        foreach (var (state, status, title, visualState) in new[]
+                 {
+                     (PlaybackState.Playing, "正在播放", "示例小说", NowPlayingVisualState.Playing),
+                     (PlaybackState.Paused, "已暂停", "示例小说", NowPlayingVisualState.Paused),
+                     (PlaybackState.Stopped, "已停止", "示例小说", NowPlayingVisualState.Inactive),
+                     (PlaybackState.Faulted, "播放出错", "示例小说", NowPlayingVisualState.Faulted)
+                 })
+        {
+            var navigationService = new FakeNavigationService();
+            var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+            var viewModel = CreateViewModel(coordinator, navigationService);
 
-        coordinator.Publish(new PlaybackSnapshot(
-            state,
-            "book-1",
-            title,
-            0,
-            "第一章",
-            0,
-            3,
-            1,
-            "默认规则",
-            10,
-            0,
-            1000,
-            "message",
-            false,
-            false));
+            coordinator.Publish(new PlaybackSnapshot(
+                state,
+                "book-1",
+                title,
+                0,
+                "第一章",
+                0,
+                3,
+                1,
+                "默认规则",
+                10,
+                0,
+                1000,
+                "message",
+                false,
+                false));
 
-        Assert.True(viewModel.IsNowPlayingVisible);
-        Assert.Equal(status, viewModel.NowPlayingStatus);
-        Assert.Equal(title, viewModel.NowPlayingTitle);
-        Assert.Equal(visualState, viewModel.NowPlayingVisualState);
+            Assert.True(viewModel.IsNowPlayingVisible);
+            Assert.Equal(status, viewModel.NowPlayingStatus);
+            Assert.Equal(title, viewModel.NowPlayingTitle);
+            Assert.Equal(visualState, viewModel.NowPlayingVisualState);
+        }
     }
 
     [Fact]
