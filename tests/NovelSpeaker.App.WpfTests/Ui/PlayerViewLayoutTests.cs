@@ -36,8 +36,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed partial class PlayerViewTests
 {
-    [Fact]
-    public void PlayerView_explains_empty_chapter_and_disables_segment_playback_controls()
+    private void PlayerView_explains_empty_chapter_and_disables_segment_playback_controls()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -65,8 +64,7 @@ public sealed partial class PlayerViewTests
         });
     }
 
-    [Fact]
-    public void PlayerView_highlights_every_active_cache_selection_and_replaces_current_badge_with_percentage()
+    private void PlayerView_highlights_every_active_cache_selection_and_replaces_current_badge_with_percentage()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -142,8 +140,7 @@ public sealed partial class PlayerViewTests
                 border.Padding.Left == 12));
     }
 
-    [Fact]
-    public void PlayerView_exposes_active_cache_tool_and_selection_actions_with_automation_names()
+    private void PlayerView_exposes_active_cache_tool_and_selection_actions_with_automation_names()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -190,8 +187,7 @@ public sealed partial class PlayerViewTests
         });
     }
 
-    [Fact]
-    public void PlayerView_keeps_catalog_and_segments_scrollable_inside_their_cards()
+    private void PlayerView_keeps_catalog_and_segments_scrollable_inside_their_cards()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -241,8 +237,7 @@ public sealed partial class PlayerViewTests
         });
     }
 
-    [Fact]
-    public void PlayerView_keeps_playback_footer_visible_with_long_content()
+    private void PlayerView_keeps_playback_footer_visible_with_long_content()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -281,8 +276,7 @@ public sealed partial class PlayerViewTests
         });
     }
 
-    [Fact]
-    public void PlayerView_places_book_title_in_toolbar_and_moves_chapter_title_to_preview_header()
+    private void PlayerView_places_book_title_in_toolbar_and_moves_chapter_title_to_preview_header()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -326,8 +320,7 @@ public sealed partial class PlayerViewTests
         });
     }
 
-    [Fact]
-    public void PlayerView_shows_return_to_current_segment_button_when_manual_browsing()
+    private void PlayerView_shows_return_to_current_segment_button_when_manual_browsing()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -360,8 +353,7 @@ public sealed partial class PlayerViewTests
         });
     }
 
-    [Fact]
-    public void PlayerView_replaces_control_area_with_no_rule_state()
+    private void PlayerView_replaces_control_area_with_no_rule_state()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -398,8 +390,7 @@ public sealed partial class PlayerViewTests
         });
     }
 
-    [Fact]
-    public void PlayerView_shows_error_bar_only_when_faulted()
+    private void PlayerView_shows_error_bar_only_when_faulted()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -446,8 +437,7 @@ public sealed partial class PlayerViewTests
         });
     }
 
-    [Fact]
-    public void PlayerView_keeps_catalog_visible_at_minimum_supported_width()
+    private void PlayerView_keeps_catalog_visible_at_minimum_supported_width()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -487,8 +477,7 @@ public sealed partial class PlayerViewTests
         });
     }
 
-    [Fact]
-    public void PlayerView_keeps_catalog_and_preview_cards_at_the_same_height_without_error_bar()
+    private void PlayerView_keeps_catalog_and_preview_cards_at_the_same_height_without_error_bar()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -525,8 +514,7 @@ public sealed partial class PlayerViewTests
         });
     }
 
-    [Fact]
-    public void PlayerView_uses_single_line_truncated_chapter_titles_without_horizontal_scroll()
+    private void PlayerView_uses_single_line_truncated_chapter_titles_without_horizontal_scroll()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -574,8 +562,7 @@ public sealed partial class PlayerViewTests
         });
     }
 
-    [Fact]
-    public void PlayerView_uses_accent_filled_segment_progress_slider()
+    private void PlayerView_uses_accent_filled_segment_progress_slider()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -627,8 +614,7 @@ public sealed partial class PlayerViewTests
         });
     }
 
-    [Fact]
-    public void PlayerView_uses_icon_buttons_with_accessible_metadata_for_playback_controls()
+    private void PlayerView_uses_icon_buttons_with_accessible_metadata_for_playback_controls()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -721,8 +707,7 @@ public sealed partial class PlayerViewTests
         });
     }
 
-    [Fact]
-    public void Player_visual_review_generates_stable_page_screenshots()
+    private void Player_visual_review_generates_stable_page_screenshots()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {
@@ -802,6 +787,41 @@ public sealed partial class PlayerViewTests
                 scenarios,
                 CreateVisualReviewPage);
         });
+    }
+
+    [Fact]
+    public void Player_view_content_contracts_cover_empty_cache_scroll_and_titles()
+    {
+        PlayerView_explains_empty_chapter_and_disables_segment_playback_controls();
+        PlayerView_highlights_every_active_cache_selection_and_replaces_current_badge_with_percentage();
+        PlayerView_exposes_active_cache_tool_and_selection_actions_with_automation_names();
+        PlayerView_keeps_catalog_and_segments_scrollable_inside_their_cards();
+        PlayerView_places_book_title_in_toolbar_and_moves_chapter_title_to_preview_header();
+        PlayerView_replaces_control_area_with_no_rule_state();
+    }
+
+    [Fact]
+    public void Player_view_geometry_contracts_cover_footer_width_height_and_truncation()
+    {
+        PlayerView_keeps_playback_footer_visible_with_long_content();
+        PlayerView_keeps_catalog_visible_at_minimum_supported_width();
+        PlayerView_keeps_catalog_and_preview_cards_at_the_same_height_without_error_bar();
+        PlayerView_uses_single_line_truncated_chapter_titles_without_horizontal_scroll();
+    }
+
+    [Fact]
+    public void Player_view_playback_feedback_contracts_cover_error_progress_and_accessibility()
+    {
+        PlayerView_shows_return_to_current_segment_button_when_manual_browsing();
+        PlayerView_shows_error_bar_only_when_faulted();
+        PlayerView_uses_accent_filled_segment_progress_slider();
+        PlayerView_uses_icon_buttons_with_accessible_metadata_for_playback_controls();
+    }
+
+    [Fact]
+    public void Player_view_visual_review_contract_remains_repeatable()
+    {
+        Player_visual_review_generates_stable_page_screenshots();
     }
 
     private static PlayerViewLayoutTestContext CreateDefaultVisualContext()

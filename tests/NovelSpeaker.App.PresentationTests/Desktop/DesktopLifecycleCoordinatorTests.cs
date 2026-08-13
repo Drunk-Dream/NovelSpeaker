@@ -9,8 +9,7 @@ namespace NovelSpeaker.App.PresentationTests.Desktop;
 
 public sealed class DesktopLifecycleCoordinatorTests
 {
-    [Fact]
-    public async Task Minimize_close_hides_without_running_exit_guard_or_shutdown()
+    private async Task Minimize_close_hides_without_running_exit_guard_or_shutdown()
     {
         var fixture = CreateFixture(
             AppSettings.Default with
@@ -28,8 +27,7 @@ public sealed class DesktopLifecycleCoordinatorTests
         await fixture.Coordinator.StopAsync(CancellationToken.None);
     }
 
-    [Fact]
-    public async Task Ask_close_exit_runs_guard_shutdown_and_closes_in_order()
+    private async Task Ask_close_exit_runs_guard_shutdown_and_closes_in_order()
     {
         var calls = new List<string>();
         var fixture = CreateFixture(
@@ -48,8 +46,7 @@ public sealed class DesktopLifecycleCoordinatorTests
         await fixture.Coordinator.StopAsync(CancellationToken.None);
     }
 
-    [Fact]
-    public async Task Rejected_exit_can_be_retried_and_never_closes_on_rejection()
+    private async Task Rejected_exit_can_be_retried_and_never_closes_on_rejection()
     {
         var fixture = CreateFixture(AppSettings.Default);
         fixture.Guard.Result = false;
@@ -65,8 +62,7 @@ public sealed class DesktopLifecycleCoordinatorTests
         await fixture.Coordinator.StopAsync(CancellationToken.None);
     }
 
-    [Fact]
-    public async Task Concurrent_exit_requests_share_guard_shutdown_and_close()
+    private async Task Concurrent_exit_requests_share_guard_shutdown_and_close()
     {
         var fixture = CreateFixture(AppSettings.Default);
         var confirmation = new TaskCompletionSource<bool>(
@@ -86,8 +82,7 @@ public sealed class DesktopLifecycleCoordinatorTests
         await fixture.Coordinator.StopAsync(CancellationToken.None);
     }
 
-    [Fact]
-    public async Task Startup_setting_hides_after_tray_platform_is_initialized()
+    private async Task Startup_setting_hides_after_tray_platform_is_initialized()
     {
         var calls = new List<string>();
         var fixture = CreateFixture(
@@ -100,8 +95,7 @@ public sealed class DesktopLifecycleCoordinatorTests
         await fixture.Coordinator.StopAsync(CancellationToken.None);
     }
 
-    [Fact]
-    public async Task Default_startup_shows_after_tray_platform_is_initialized()
+    private async Task Default_startup_shows_after_tray_platform_is_initialized()
     {
         var calls = new List<string>();
         var fixture = CreateFixture(AppSettings.Default, calls);
@@ -112,8 +106,7 @@ public sealed class DesktopLifecycleCoordinatorTests
         await fixture.Coordinator.StopAsync(CancellationToken.None);
     }
 
-    [Fact]
-    public async Task Tray_playback_command_is_serialized_to_application_playback_port()
+    private async Task Tray_playback_command_is_serialized_to_application_playback_port()
     {
         var fixture = CreateFixture(AppSettings.Default);
         fixture.Playback.Snapshot = PlaybackSnapshot.Idle with { State = PlaybackState.Paused };
@@ -126,8 +119,7 @@ public sealed class DesktopLifecycleCoordinatorTests
         await fixture.Coordinator.StopAsync(CancellationToken.None);
     }
 
-    [Fact]
-    public async Task Mini_player_open_restore_and_repeated_requests_are_idempotent()
+    private async Task Mini_player_open_restore_and_repeated_requests_are_idempotent()
     {
         var fixture = CreateFixture(AppSettings.Default);
         await fixture.Coordinator.StartAsync(CancellationToken.None);
@@ -149,8 +141,7 @@ public sealed class DesktopLifecycleCoordinatorTests
         await fixture.Coordinator.StopAsync(CancellationToken.None);
     }
 
-    [Fact]
-    public async Task Restart_starts_from_main_window_after_mini_player_session()
+    private async Task Restart_starts_from_main_window_after_mini_player_session()
     {
         var fixture = CreateFixture(AppSettings.Default);
         await fixture.Coordinator.StartAsync(CancellationToken.None);
@@ -165,8 +156,7 @@ public sealed class DesktopLifecycleCoordinatorTests
         await fixture.Coordinator.StopAsync(CancellationToken.None);
     }
 
-    [Fact]
-    public async Task Cancellation_callback_can_reenter_stop_and_platform_stops_once()
+    private async Task Cancellation_callback_can_reenter_stop_and_platform_stops_once()
     {
         var fixture = CreateFixture(AppSettings.Default);
         Task? reentrantStop = null;
@@ -185,8 +175,7 @@ public sealed class DesktopLifecycleCoordinatorTests
         Assert.Equal(1, fixture.Platform.StopCount);
     }
 
-    [Fact]
-    public async Task Stop_starts_platform_cleanup_before_returning_shared_task()
+    private async Task Stop_starts_platform_cleanup_before_returning_shared_task()
     {
         var fixture = CreateFixture(AppSettings.Default);
         var platformStopGate = new TaskCompletionSource(
@@ -203,8 +192,7 @@ public sealed class DesktopLifecycleCoordinatorTests
         Assert.Equal(1, fixture.Platform.StopCount);
     }
 
-    [Fact]
-    public async Task Dispose_is_idempotent_and_stops_platform_once()
+    private async Task Dispose_is_idempotent_and_stops_platform_once()
     {
         var fixture = CreateFixture(AppSettings.Default);
         await fixture.Coordinator.StartAsync(CancellationToken.None);
@@ -215,8 +203,7 @@ public sealed class DesktopLifecycleCoordinatorTests
         Assert.Equal(1, fixture.Platform.StopCount);
     }
 
-    [Fact]
-    public async Task Command_failure_log_contains_only_command_and_failure_type()
+    private async Task Command_failure_log_contains_only_command_and_failure_type()
     {
         var logger = new RecordingLogger<DesktopLifecycleCoordinator>();
         var fixture = CreateFixture(
@@ -233,6 +220,39 @@ public sealed class DesktopLifecycleCoordinatorTests
         Assert.Contains(nameof(InvalidOperationException), entry.Message);
         Assert.DoesNotContain("secret-url-and-body", entry.Message);
         await fixture.Coordinator.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Desktop_exit_contracts_cover_minimize_guard_reentry_and_concurrency()
+    {
+        await Minimize_close_hides_without_running_exit_guard_or_shutdown();
+        await Ask_close_exit_runs_guard_shutdown_and_closes_in_order();
+        await Rejected_exit_can_be_retried_and_never_closes_on_rejection();
+        await Concurrent_exit_requests_share_guard_shutdown_and_close();
+    }
+
+    [Fact]
+    public async Task Desktop_startup_and_tray_contracts_cover_visibility_commands_and_mini_player()
+    {
+        await Startup_setting_hides_after_tray_platform_is_initialized();
+        await Default_startup_shows_after_tray_platform_is_initialized();
+        await Tray_playback_command_is_serialized_to_application_playback_port();
+        await Mini_player_open_restore_and_repeated_requests_are_idempotent();
+        await Restart_starts_from_main_window_after_mini_player_session();
+    }
+
+    [Fact]
+    public async Task Desktop_shutdown_contracts_cover_reentry_cleanup_and_idempotent_disposal()
+    {
+        await Cancellation_callback_can_reenter_stop_and_platform_stops_once();
+        await Stop_starts_platform_cleanup_before_returning_shared_task();
+        await Dispose_is_idempotent_and_stops_platform_once();
+    }
+
+    [Fact]
+    public async Task Desktop_failure_contract_projects_safe_command_diagnostics()
+    {
+        await Command_failure_log_contains_only_command_and_failure_type();
     }
 
     private static Fixture CreateFixture(
