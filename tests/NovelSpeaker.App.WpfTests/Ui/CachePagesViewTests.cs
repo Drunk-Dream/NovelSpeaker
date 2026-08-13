@@ -17,7 +17,21 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed class CachePagesViewTests
 {
     [Fact]
-    public void CacheManagementPage_disables_both_top_actions_with_no_chapter_selection()
+    public void Cache_page_projection_contracts_cover_actions_loading_completeness_and_export_surface()
+    {
+        CacheManagementPage_disables_both_top_actions_with_no_chapter_selection();
+        CacheManagementPage_hides_chapter_workspace_while_chapters_are_loading();
+        CacheManagementPage_projects_zero_and_unavailable_completeness_without_row_actions();
+        CacheManagementPage_keeps_export_progress_out_of_page_and_exposes_header_icons_and_chapter_tooltip_contracts();
+    }
+
+    [Fact]
+    public void Cache_page_layout_contracts_cover_independent_columns_and_workspace_height()
+    {
+        CacheManagementPage_constrains_workspace_and_scrolls_both_columns_independently();
+    }
+
+    private void CacheManagementPage_disables_both_top_actions_with_no_chapter_selection()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -44,8 +58,7 @@ public sealed class CachePagesViewTests
         });
     }
 
-    [Fact]
-    public void CacheManagementPage_constrains_workspace_and_scrolls_both_columns_independently()
+    private void CacheManagementPage_constrains_workspace_and_scrolls_both_columns_independently()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -208,8 +221,7 @@ public sealed class CachePagesViewTests
         });
     }
 
-    [Fact]
-    public void CacheManagementPage_hides_chapter_workspace_while_chapters_are_loading()
+    private void CacheManagementPage_hides_chapter_workspace_while_chapters_are_loading()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -241,8 +253,7 @@ public sealed class CachePagesViewTests
         });
     }
 
-    [Fact]
-    public void CacheManagementPage_projects_zero_and_unavailable_completeness_without_row_actions()
+    private void CacheManagementPage_projects_zero_and_unavailable_completeness_without_row_actions()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -302,8 +313,7 @@ public sealed class CachePagesViewTests
         });
     }
 
-    [Fact]
-    public void CacheManagementPage_keeps_export_progress_out_of_page_and_exposes_header_icons_and_chapter_tooltip_contracts()
+    private void CacheManagementPage_keeps_export_progress_out_of_page_and_exposes_header_icons_and_chapter_tooltip_contracts()
     {
         WpfTestHost.RunInSta(() =>
         {

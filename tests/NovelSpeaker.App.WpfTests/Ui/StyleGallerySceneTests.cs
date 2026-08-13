@@ -20,7 +20,21 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed class StyleGallerySceneTests
 {
     [Fact]
-    public void Scene_registry_groups_concrete_gallery_scenes_with_fixed_dimensions()
+    public void Style_gallery_registry_contracts_cover_scene_groups_ids_and_outputs()
+    {
+        Scene_registry_groups_concrete_gallery_scenes_with_fixed_dimensions();
+        Gallery_window_scene_selector_exposes_the_three_scene_groups();
+        Gallery_screenshot_options_use_stable_scene_ids_and_family_outputs();
+    }
+
+    [Fact]
+    public async Task Style_gallery_render_contracts_cover_scene_layout_and_screenshot_guards()
+    {
+        Every_scene_can_measure_arrange_and_render_without_dispatcher_exceptions();
+        await Screenshot_generator_is_explicitly_guarded_and_repeatable();
+    }
+
+    private void Scene_registry_groups_concrete_gallery_scenes_with_fixed_dimensions()
     {
         var scenes = GallerySceneRegistry.All;
 
@@ -51,8 +65,7 @@ public sealed class StyleGallerySceneTests
         Assert.Equal(96, GalleryRenderSettings.Dpi);
     }
 
-    [Fact]
-    public void Gallery_window_scene_selector_exposes_the_three_scene_groups()
+    private void Gallery_window_scene_selector_exposes_the_three_scene_groups()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -86,8 +99,7 @@ public sealed class StyleGallerySceneTests
         });
     }
 
-    [Fact]
-    public void Gallery_screenshot_options_use_stable_scene_ids_and_family_outputs()
+    private void Gallery_screenshot_options_use_stable_scene_ids_and_family_outputs()
     {
         var defaultOptions = GalleryCommandLineOptions.Parse(["--screenshot"]);
         var sceneOptions = GalleryCommandLineOptions.Parse(
@@ -109,8 +121,7 @@ public sealed class StyleGallerySceneTests
             sceneOptions.OutputDirectory);
     }
 
-    [Fact]
-    public void Every_scene_can_measure_arrange_and_render_without_dispatcher_exceptions()
+    private void Every_scene_can_measure_arrange_and_render_without_dispatcher_exceptions()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -163,8 +174,7 @@ public sealed class StyleGallerySceneTests
         });
     }
 
-    [Fact]
-    public async Task Screenshot_generator_is_explicitly_guarded_and_repeatable()
+    private async Task Screenshot_generator_is_explicitly_guarded_and_repeatable()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {

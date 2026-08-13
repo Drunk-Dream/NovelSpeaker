@@ -18,7 +18,21 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed partial class LibraryPageTests
 {
     [Fact]
-    public void LibraryPage_uses_internal_scroll_books_area_and_search_clear_icon()
+    public void Library_page_surface_contracts_cover_scroll_empty_states_and_responsive_layout()
+    {
+        LibraryPage_uses_internal_scroll_books_area_and_search_clear_icon();
+        LibraryPage_uses_import_icon_in_empty_state();
+        LibraryPage_shows_no_results_state_with_clear_search_action();
+        LibraryPage_adapts_toolbar_and_book_grid_across_widths_and_dpi();
+    }
+
+    [Fact]
+    public void Library_page_visual_contracts_keep_screenshot_review_repeatable()
+    {
+        Library_visual_review_generates_stable_page_screenshots();
+    }
+
+    private void LibraryPage_uses_internal_scroll_books_area_and_search_clear_icon()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -77,8 +91,7 @@ public sealed partial class LibraryPageTests
         });
     }
 
-    [Fact]
-    public void LibraryPage_uses_import_icon_in_empty_state()
+    private void LibraryPage_uses_import_icon_in_empty_state()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -107,8 +120,7 @@ public sealed partial class LibraryPageTests
         });
     }
 
-    [Fact]
-    public void LibraryPage_shows_no_results_state_with_clear_search_action()
+    private void LibraryPage_shows_no_results_state_with_clear_search_action()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -142,8 +154,7 @@ public sealed partial class LibraryPageTests
         });
     }
 
-    [Fact]
-    public void LibraryPage_adapts_toolbar_and_book_grid_across_widths_and_dpi()
+    private void LibraryPage_adapts_toolbar_and_book_grid_across_widths_and_dpi()
     {
         foreach (var (width, scale) in new[] { (900d, 1d), (960d, 1.25d), (1280d, 1.5d) })
         {
@@ -172,8 +183,7 @@ public sealed partial class LibraryPageTests
         }
     }
 
-    [Fact]
-    public void Library_visual_review_generates_stable_page_screenshots()
+    private void Library_visual_review_generates_stable_page_screenshots()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {
