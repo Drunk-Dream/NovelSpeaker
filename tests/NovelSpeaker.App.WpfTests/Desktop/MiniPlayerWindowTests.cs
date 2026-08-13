@@ -477,8 +477,8 @@ public sealed class MiniPlayerWindowTests
                 WpfWindowHost.Show(fixture.Window);
                 fixture.Window.UpdateLayout();
 
-                Assert.True(fixture.Window.Left < SystemParameters.VirtualScreenLeft);
-                Assert.True(fixture.Window.Top < SystemParameters.VirtualScreenTop);
+                Assert.Equal(0d, fixture.Window.Left);
+                Assert.Equal(0d, fixture.Window.Top);
                 Assert.True(fixture.Window.Topmost);
 
                 fixture.Window.Left = 260;

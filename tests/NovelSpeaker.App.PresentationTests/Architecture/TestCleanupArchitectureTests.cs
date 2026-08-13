@@ -21,6 +21,22 @@ public sealed class TestCleanupArchitectureTests
     }
 
     [Fact]
+    public void Wpf_tests_keep_desktop_creation_and_binding_inside_the_shared_testkit()
+    {
+        var wpfRoot = Path.Combine(Repository.RootPath, "tests", "NovelSpeaker.App.WpfTests");
+        var sources = Directory.EnumerateFiles(wpfRoot, "*.cs", SearchOption.AllDirectories)
+            .Select(File.ReadAllText)
+            .ToArray();
+
+        Assert.DoesNotContain(sources, source => source.Contains("SetThreadDesktop", StringComparison.Ordinal));
+        Assert.DoesNotContain(sources, source => source.Contains("CreateDesktop", StringComparison.Ordinal));
+        Assert.DoesNotContain(sources, source => source.Contains("OpenInputDesktop", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            sources,
+            source => source.Contains(string.Concat("NOVELSPEAKER_TEST_", "SHOW_WINDOWS"), StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Test_sources_do_not_use_sleep_or_finite_delay_as_a_synchronization_point()
     {
         var testsRoot = Path.Combine(Repository.RootPath, "tests");
@@ -87,7 +103,9 @@ public sealed class TestCleanupArchitectureTests
             "VisualTreeTestHelper.cs",
             "PageVisualReviewHarness.cs",
             "WindowVisualReviewHarness.cs",
-            "TransientPopupVisualRenderer.cs"
+            "TransientPopupVisualRenderer.cs",
+            "WindowsTestDesktop.cs",
+            "WindowsTestDesktopThread.cs"
         };
 
         Assert.Equal(

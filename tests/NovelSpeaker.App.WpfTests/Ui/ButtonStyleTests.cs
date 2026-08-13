@@ -1,8 +1,6 @@
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
 using System.Xml.Linq;
 using NovelSpeaker.StyleGallery;
@@ -123,65 +121,6 @@ public sealed class ButtonStyleTests
         Assert.DoesNotContain(
             pressed.Elements(),
             setter => (string?)setter.Attribute("Property") == "Background");
-    }
-
-    [Fact]
-    public void Danger_icon_template_renders_danger_background_when_pointer_is_over_button()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
-                global::System.Windows.Application.Current);
-            var button = new WpfUiButton
-            {
-                Width = 48,
-                Height = 48,
-                Icon = new SymbolIcon { Symbol = SymbolRegular.Delete24 },
-                Style = Assert.IsType<Style>(application.FindResource("App.Button.DangerIcon"))
-            };
-            var window = new Window
-            {
-                Content = button,
-                Width = 96,
-                Height = 96,
-                ShowInTaskbar = false,
-                WindowStyle = WindowStyle.ToolWindow
-            };
-            var originalCursor = GetCursorPosition();
-            try
-            {
-                WpfWindowHost.Show(window);
-                DoEvents();
-                window.Left = 120;
-                window.Top = 120;
-                window.Activate();
-                window.UpdateLayout();
-                DoEvents();
-
-                var expected = Assert.IsType<SolidColorBrush>(
-                    application.FindResource("App.Brush.Danger")).Color;
-                var screenPoint = button.PointToScreen(
-                    new Point(button.ActualWidth / 2, button.ActualHeight / 2));
-                Assert.True(SetCursorPos((int)screenPoint.X, (int)screenPoint.Y));
-                Assert.True(button.CaptureMouse());
-                DoEvents();
-                window.UpdateLayout();
-
-                Assert.True(button.IsMouseOver);
-                Assert.Equal(
-                    expected,
-                    Assert.IsType<SolidColorBrush>(button.MouseOverBackground).Color);
-                Assert.Contains(
-                    FindDescendants<Border>(button),
-                    border => border.Background is SolidColorBrush brush && brush.Color == expected);
-            }
-            finally
-            {
-                Mouse.Capture(null);
-                SetCursorPos(originalCursor.X, originalCursor.Y);
-                window.Close();
-            }
-        });
     }
 
     [Fact]
@@ -455,36 +394,6 @@ public sealed class ButtonStyleTests
                 Visit(VisualTreeHelper.GetChild(current, index), matches);
             }
         }
-    }
-
-    private static void DoEvents()
-    {
-        var frame = new System.Windows.Threading.DispatcherFrame();
-        System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
-            System.Windows.Threading.DispatcherPriority.Background,
-            new Action(() => frame.Continue = false));
-        System.Windows.Threading.Dispatcher.PushFrame(frame);
-    }
-
-    private static POINT GetCursorPosition()
-    {
-        Assert.True(GetCursorPos(out var point));
-        return point;
-    }
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetCursorPos(out POINT point);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetCursorPos(int x, int y);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct POINT
-    {
-        public int X;
-        public int Y;
     }
 
     private static string LocateRepositoryRoot()

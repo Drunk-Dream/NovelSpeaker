@@ -95,6 +95,20 @@ public sealed class InputStyleContractTests
             Assert.Equal(expected.XamlTargetType, (string?)style.Attribute("TargetType"));
         });
 
+        var comboItemTemplate = styles
+            .Single(style => (string?)style.Attribute(xaml + "Key") == "App.Input.ComboBox.Item")
+            .Descendants()
+            .Single(element => element.Name.LocalName == "ControlTemplate");
+        var highlightTrigger = comboItemTemplate
+            .Descendants()
+            .Single(trigger => trigger.Name.LocalName == "Trigger" &&
+                               (string?)trigger.Attribute("Property") == "IsHighlighted");
+        Assert.Contains(
+            highlightTrigger.Elements(),
+            setter => (string?)setter.Attribute("TargetName") == "ContentBorder" &&
+                      (string?)setter.Attribute("Property") == "Background" &&
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Surface.Secondary}");
+
         var standardControlNames = new[]
         {
             "Button",
@@ -717,29 +731,12 @@ public sealed class InputStyleContractTests
                     contentBorder.CornerRadius);
 
                 item.IsSelected = false;
-                item.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0)
-                {
-                    RoutedEvent = Mouse.MouseLeaveEvent
-                });
                 host.Window.UpdateLayout();
                 Assert.Equal(
                     Colors.Transparent,
                     Assert.IsType<SolidColorBrush>(contentBorder.Background).Color);
                 Assert.Equal(Visibility.Collapsed, activeRectangle.Visibility);
 
-                item.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0)
-                {
-                    RoutedEvent = Mouse.MouseEnterEvent
-                });
-                host.Window.UpdateLayout();
-                Assert.Equal(
-                    ((SolidColorBrush)application.FindResource("App.Brush.Surface.Secondary")).Color,
-                    Assert.IsType<SolidColorBrush>(contentBorder.Background).Color);
-
-                item.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0)
-                {
-                    RoutedEvent = Mouse.MouseLeaveEvent
-                });
                 item.IsSelected = true;
                 host.Window.UpdateLayout();
                 Assert.Equal(
@@ -825,19 +822,39 @@ public sealed class InputStyleContractTests
                     ((SolidColorBrush)global::System.Windows.Application.Current.FindResource("App.Brush.Focus")).Color,
                     ((SolidColorBrush)combo.BorderBrush).Color);
 
-                combo.SelectedIndex = 0;
-                combo.IsDropDownOpen = true;
-                var firstItem = Assert.IsType<ComboBoxItem>(combo.ItemContainerGenerator.ContainerFromIndex(0));
-                var secondItem = Assert.IsType<ComboBoxItem>(combo.ItemContainerGenerator.ContainerFromIndex(1));
-                Assert.True(firstItem.Focus());
-                RaiseKey(firstItem, Key.Down);
-                Assert.True(secondItem.IsKeyboardFocusWithin);
-                RaiseKey(secondItem, Key.Enter);
-                Assert.Equal(1, combo.SelectedIndex);
-                Assert.False(combo.IsDropDownOpen);
-                combo.IsDropDownOpen = true;
-                RaiseKey(combo, Key.Escape);
-                Assert.False(combo.IsDropDownOpen);
+                var keyboardCombo = new TestableComboBox
+                {
+                    SelectedIndex = 0,
+                    Style = Assert.IsType<Style>(
+                        global::System.Windows.Application.Current.FindResource("App.Input.ComboBox.Standard")),
+                    Width = 240
+                };
+                keyboardCombo.Items.Add("第一项");
+                keyboardCombo.Items.Add("第二项");
+                keyboardCombo.SelectedIndex = 0;
+                using var keyboardHost = WpfWindowHost.Show(new Window
+                {
+                    Content = keyboardCombo,
+                    Width = 320,
+                    Height = 120,
+                    ShowInTaskbar = false,
+                    WindowStyle = WindowStyle.ToolWindow
+                });
+                keyboardHost.Window.UpdateLayout();
+
+                // Invoke the actual ComboBox keyboard handler; InputManager would require
+                // OS keyboard state that is intentionally unavailable on the hidden Desktop.
+                Assert.Equal(2, keyboardCombo.Items.Count);
+                Assert.Equal(0, keyboardCombo.SelectedIndex);
+                keyboardCombo.IsDropDownOpen = false;
+                keyboardCombo.ProcessKey(Key.Down);
+                Assert.Equal(1, keyboardCombo.SelectedIndex);
+                keyboardCombo.IsDropDownOpen = true;
+                keyboardCombo.ProcessKey(Key.Enter);
+                Assert.False(keyboardCombo.IsDropDownOpen);
+                keyboardCombo.IsDropDownOpen = true;
+                keyboardCombo.ProcessKey(Key.Escape);
+                Assert.False(keyboardCombo.IsDropDownOpen);
             }
             finally
             {
@@ -961,19 +978,6 @@ public sealed class InputStyleContractTests
 
     private static bool IsFiniteAndPositive(double value) => double.IsFinite(value) && value > 0;
 
-    private static void RaiseKey(UIElement target, Key key)
-    {
-        var args = new KeyEventArgs(
-            Keyboard.PrimaryDevice,
-            PresentationSource.FromVisual(target),
-            0,
-            key)
-        {
-            RoutedEvent = Keyboard.KeyDownEvent
-        };
-        InputManager.Current.ProcessInput(args);
-    }
-
     private static void InvokeButtonClick(ButtonBase button)
     {
         var onClick = typeof(ButtonBase).GetMethod(
@@ -1032,6 +1036,22 @@ public sealed class InputStyleContractTests
                 _text = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Text)));
             }
+        }
+    }
+
+    private sealed class TestableComboBox : WpfComboBox
+    {
+        public void ProcessKey(Key key)
+        {
+            var args = new KeyEventArgs(
+                Keyboard.PrimaryDevice,
+                PresentationSource.FromVisual(this),
+                0,
+                key)
+            {
+                RoutedEvent = Keyboard.KeyDownEvent
+            };
+            OnKeyDown(args);
         }
     }
 }

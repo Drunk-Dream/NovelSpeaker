@@ -60,7 +60,7 @@
 - 阶段最终要求是完整测试全部通过且总数 `<800`。
 - 不新增 CI、架构测试或其它永久机制限制仓库未来测试总数不得超过 800。
 
-## [ ] 1（P0）：加固 WPF Test Host，默认隔离所有可见窗口
+## [x] 1（P0）：加固 WPF Test Host，默认隔离所有可见窗口
 
 目标：
 
@@ -89,6 +89,14 @@
 - `rg`/架构测试证明普通 WPF 测试没有直接 `Show()`/`ShowDialog()`/Desktop API 绕过路径。
 - `NOVELSPEAKER_TEST_SHOW_WINDOWS` 在源码、测试和稳定文档中零引用。
 - 定向 WPF/TestKit 测试和完整质量门禁通过。
+
+结果：
+
+- 在 `tests/TestKit/Wpf` 建立唯一隔离 Desktop 边界；原生线程入口先绑定 Desktop，再初始化 STA 和 WPF Dispatcher，句柄在测试线程退出后由宿主线程释放；创建或绑定失败保持 fail-closed。
+- `WpfWindowHost` 使用 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1` 作为唯一显式可见调试分支；默认不再移动窗口到虚拟屏幕外，窗口登记、诊断、串行化和清理继续由共享宿主负责。
+- 新增默认隔离、可见策略、创建/绑定失败、成功释放和清理边界契约；WPF 测试中的物理光标与操作系统键盘注入依赖改为确定性状态契约。WPF 定向测试通过 49 项，Presentation 架构守卫通过 6 项。
+- 完整质量门禁按固定顺序通过：`dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore`、`dotnet test -c Release --no-build`；实际通过 Domain 2、Application 219、Infrastructure 348、Presentation 408、WPF 454，共 1,431 项。
+- 未设置可见窗口授权变量执行验证；稳定测试文档已是最终隔离 Desktop 约束，无需额外行为说明。
 
 ## [ ] 2（P1）：精简 WPF 测试并收敛 UI 契约所有权
 

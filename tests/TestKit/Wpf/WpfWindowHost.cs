@@ -51,28 +51,23 @@ internal sealed class WpfWindowHost : IDisposable
     private void ApplyTestWindowConfiguration()
     {
         Window.ShowInTaskbar = false;
-        Window.ShowActivated = false;
+        Window.ShowActivated = WpfTestHost.IsVisibleWindowsAllowed;
         Window.WindowStartupLocation = WindowStartupLocation.Manual;
 
-        if (string.Equals(
-                Environment.GetEnvironmentVariable("NOVELSPEAKER_TEST_SHOW_WINDOWS"),
-                "1",
-                StringComparison.Ordinal))
+        if (WpfTestHost.IsVisibleWindowsAllowed)
         {
             Window.Left = 120;
             Window.Top = 120;
             return;
         }
 
-        var width = Window.ActualWidth > 0 ? Window.ActualWidth : Window.Width;
-        var height = Window.ActualHeight > 0 ? Window.ActualHeight : Window.Height;
-        Window.Left = SystemParameters.VirtualScreenLeft - Math.Max(width, 1) - 100;
-        Window.Top = SystemParameters.VirtualScreenTop - Math.Max(height, 1) - 100;
+        Window.Left = 0;
+        Window.Top = 0;
     }
 
     public void Dispose()
     {
-        if (Window.IsVisible)
+        if (Window.IsVisible || Window.IsLoaded)
         {
             Window.Close();
         }
