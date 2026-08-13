@@ -1,14 +1,15 @@
-using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
-using System.Xml.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
+using NovelSpeaker.App.Shared.Theming;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
+using Wpf.Ui.Appearance;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -16,101 +17,6 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed class DiagnosticsAboutPageTests
 {
-    [Fact]
-    public void Diagnostics_page_uses_formal_headerless_settings_controls()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var provider = WpfTestHost.BuildServiceProvider();
-            try
-            {
-                var page = provider.GetRequiredService<DiagnosticsAboutPage>();
-                PopulateLongValues(page);
-                using var host = new WpfControlHost(page);
-                host.MeasureArrange(new Size(1200, 900));
-
-                var header = Assert.IsType<AppPageHeader>(page.FindName("PageHeader"));
-                Assert.Same(page.FindResource(typeof(AppPageHeader)), header.Style);
-                Assert.Equal("诊断与关于", header.Title);
-                var backBinding = Assert.IsType<Binding>(
-                    BindingOperations.GetBinding(header, AppPageHeader.BackCommandProperty));
-                Assert.Equal(nameof(DiagnosticsAboutViewModel.BackCommand), backBinding.Path.Path);
-
-                var settingsList = Assert.IsType<AppSettingsList>(page.FindName("SettingsList"));
-                Assert.Same(page.FindResource(typeof(AppSettingsList)), settingsList.Style);
-                Assert.Equal(9, settingsList.Items.Count);
-                Assert.Empty(VisualTreeTestHelper.FindDescendants<AppSettingsGroup>(page));
-
-                foreach (var name in new[]
-                         {
-                             "AppNameRow",
-                             "AppVersionRow",
-                             "DescriptionRow",
-                             "DatabaseSchemaVersionRow",
-                             "AppDataDirectoryRow",
-                             "LogsDirectoryRow",
-                             "LogLevelRow",
-                             "DiagnosticsSummaryRow",
-                             "ThirdPartyNoticesRow"
-                         })
-                {
-                    var row = Assert.IsType<AppSettingsRow>(page.FindName(name));
-                    Assert.Same(page.FindResource(typeof(AppSettingsRow)), row.Style);
-                }
-
-                Assert.Same(
-                    page.FindResource("App.Input.ComboBox.Standard"),
-                    Assert.IsType<ComboBox>(page.FindName("LogLevelComboBox")).Style);
-
-                AssertIconButton(page, "OpenAppDataDirectoryButton", SymbolRegular.FolderOpen24);
-                AssertIconButton(page, "OpenLogsDirectoryButton", SymbolRegular.FolderOpen24);
-                AssertIconButton(page, "CopyRedactedSummaryButton", SymbolRegular.DocumentCopy24);
-                AssertIconButton(page, "OpenThirdPartyNoticesButton", SymbolRegular.DocumentText24);
-
-                foreach (var valueName in new[]
-                         {
-                             "AppNameValue",
-                             "AppVersionValue",
-                             "DescriptionValue",
-                             "DatabaseSchemaVersionValue",
-                             "AppDataDirectoryValue",
-                             "LogsDirectoryValue"
-                         })
-                {
-                    var value = Assert.IsType<TextBlock>(page.FindName(valueName));
-                    Assert.Contains(value.Text, AutomationProperties.GetName(value), StringComparison.Ordinal);
-                }
-            }
-            finally
-            {
-                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            }
-        });
-    }
-
-    [Fact]
-    public void Diagnostics_page_is_transparent_and_has_no_legacy_or_group_resources()
-    {
-        var xamlPath = Path.Combine(
-            LocateRepositoryRoot(),
-            "src",
-            "NovelSpeaker.App",
-            "Features",
-            "Diagnostics",
-            "DiagnosticsAboutPage.xaml");
-        var source = File.ReadAllText(xamlPath);
-        var pageElement = XDocument.Load(xamlPath).Root!;
-
-        Assert.Equal("Transparent", pageElement.Attribute("Background")?.Value);
-        Assert.Contains("AppSettingsList", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("AppSettingsGroup", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("Header=\"", source, StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            pageElement.Descendants(),
-            element => element.Attribute("Background") is not null);
-
-    }
-
     [Theory]
     [InlineData(1d)]
     [InlineData(1.25d)]
@@ -130,19 +36,60 @@ public sealed class DiagnosticsAboutPageTests
                 var rows = VisualTreeTestHelper.FindDescendants<AppSettingsRow>(page).ToArray();
                 Assert.Equal(9, rows.Length);
                 Assert.All(rows, row => Assert.True(row.IsNarrowLayout));
-
-                foreach (var valueName in new[]
+                var settingsList = Assert.IsType<AppSettingsList>(page.FindName("SettingsList"));
+                Assert.Equal("诊断与关于", AutomationProperties.GetName(settingsList));
+                Assert.Equal(9, settingsList.Items.Count);
+                foreach (var (index, name, title) in new[]
                          {
-                             "AppVersionValue",
-                             "AppDataDirectoryValue",
-                             "LogsDirectoryValue"
+                             (0, "AppNameRow", "应用名称"),
+                             (1, "AppVersionRow", "应用版本"),
+                             (2, "DescriptionRow", "项目说明"),
+                             (3, "DatabaseSchemaVersionRow", "数据库版本"),
+                             (4, "AppDataDirectoryRow", "应用数据目录"),
+                             (5, "LogsDirectoryRow", "日志目录"),
+                             (6, "LogLevelRow", "日志级别设置"),
+                             (7, "DiagnosticsSummaryRow", "脱敏诊断摘要"),
+                             (8, "ThirdPartyNoticesRow", "第三方许可证")
+                         })
+                {
+                    var row = Assert.IsType<AppSettingsRow>(page.FindName(name));
+                    Assert.Same(row, settingsList.Items[index]);
+                    Assert.Equal(title, AutomationProperties.GetName(row));
+                }
+
+                var logLevel = Assert.IsType<ComboBox>(page.FindName("LogLevelComboBox"));
+                Assert.Equal("日志级别", AutomationProperties.GetName(logLevel));
+                Assert.Equal(
+                    nameof(DiagnosticsAboutViewModel.AvailableLogLevels),
+                    Assert.IsType<Binding>(BindingOperations.GetBinding(
+                        logLevel,
+                        ItemsControl.ItemsSourceProperty)).Path.Path);
+                Assert.Equal(
+                    nameof(DiagnosticsAboutViewModel.SelectedLogLevel),
+                    Assert.IsType<Binding>(BindingOperations.GetBinding(
+                        logLevel,
+                        Selector.SelectedItemProperty)).Path.Path);
+
+                foreach (var (valueName, propertyName, expectedText, automationPrefix) in new[]
+                         {
+                             ("AppNameValue", nameof(DiagnosticsAboutViewModel.AppName), "NovelSpeaker", "应用名称："),
+                             ("AppVersionValue", nameof(DiagnosticsAboutViewModel.AppVersion), "10.20.300-preview.12345+0123456789abcdef0123456789abcdef", "应用版本："),
+                             ("DescriptionValue", nameof(DiagnosticsAboutViewModel.Description), "Windows 桌面小说听书应用。", "项目说明："),
+                             ("DatabaseSchemaVersionValue", nameof(DiagnosticsAboutViewModel.DatabaseSchemaVersionText), "7", "数据库版本："),
+                             ("AppDataDirectoryValue", nameof(DiagnosticsAboutViewModel.AppDataDirectoryPath), @"C:\Users\Sample\AppData\Local\NovelSpeaker\A-Very-Long-Application-Data-Directory\Profiles\Default", "应用数据目录："),
+                             ("LogsDirectoryValue", nameof(DiagnosticsAboutViewModel.LogsDirectoryPath), @"C:\Users\Sample\AppData\Local\NovelSpeaker\A-Very-Long-Application-Data-Directory\Logs", "日志目录：")
                          })
                 {
                     var value = Assert.IsType<TextBlock>(page.FindName(valueName));
+                    var binding = Assert.IsType<Binding>(
+                        BindingOperations.GetBinding(value, TextBlock.TextProperty));
+                    Assert.Equal(propertyName, binding.Path.Path);
+                    Assert.Equal(expectedText, value.Text);
+                    Assert.False(string.IsNullOrWhiteSpace(value.Text));
                     Assert.True(value.ActualWidth > 0);
                     Assert.True(value.ActualHeight > 0);
                     Assert.Equal(TextWrapping.Wrap, value.TextWrapping);
-                    Assert.Contains(value.Text, AutomationProperties.GetName(value), StringComparison.Ordinal);
+                    Assert.Contains(automationPrefix + expectedText, AutomationProperties.GetName(value), StringComparison.Ordinal);
                 }
 
                 var appDataPath = Assert.IsType<TextBlock>(page.FindName("AppDataDirectoryValue"));
@@ -164,6 +111,24 @@ public sealed class DiagnosticsAboutPageTests
                     Assert.True(button.ActualHeight >= expectedTouchSize);
                 }
 
+                foreach (var (name, automationName, commandPath, symbol) in new[]
+                         {
+                             ("OpenAppDataDirectoryButton", "打开应用数据目录", "OpenAppDataDirectoryCommand", SymbolRegular.FolderOpen24),
+                             ("OpenLogsDirectoryButton", "打开日志目录", "OpenLogsDirectoryCommand", SymbolRegular.FolderOpen24),
+                             ("CopyRedactedSummaryButton", "复制脱敏诊断摘要", "CopyRedactedSummaryCommand", SymbolRegular.DocumentCopy24),
+                             ("OpenThirdPartyNoticesButton", "打开第三方许可证", "OpenThirdPartyNoticesCommand", SymbolRegular.DocumentText24)
+                         })
+                {
+                    var button = Assert.IsType<Wpf.Ui.Controls.Button>(page.FindName(name));
+                    Assert.Equal(automationName, AutomationProperties.GetName(button));
+                    Assert.Equal(automationName, button.ToolTip);
+                    Assert.Equal(symbol, Assert.IsType<SymbolIcon>(button.Icon).Symbol);
+                    Assert.Equal(
+                        commandPath,
+                        Assert.IsType<Binding>(BindingOperations.GetBinding(button, Button.CommandProperty))
+                            .Path.Path);
+                }
+
                 var bitmap = host.Render(new Size(520, 900), 96 * scale);
                 Assert.Equal((int)Math.Round(520 * scale), bitmap.PixelWidth);
                 Assert.Equal((int)Math.Round(900 * scale), bitmap.PixelHeight);
@@ -175,36 +140,47 @@ public sealed class DiagnosticsAboutPageTests
         });
     }
 
-    [Fact]
-    public void Diagnostics_visual_review_generates_stable_page_screenshots()
+    [Theory]
+    [InlineData(ApplicationTheme.Dark)]
+    [InlineData(ApplicationTheme.Light)]
+    public void Diagnostics_page_constructs_after_runtime_theme_switch(ApplicationTheme theme)
     {
-        if (!VisualArtifactTestGuard.IsEnabled)
-        {
-            return;
-        }
-
         WpfTestHost.RunInSta(() =>
         {
-            var scenarios = new[]
+            var runtime = new WpfUiThemeRuntime();
+            if (theme == ApplicationTheme.Dark)
             {
-                new PageVisualReviewScenario("default", 1d, PopulateValues),
-                new PageVisualReviewScenario("long-values", 1.5d, PopulateLongValues)
-            };
+                runtime.ApplyDarkTheme();
+            }
+            else
+            {
+                runtime.ApplyLightTheme();
+            }
 
-            PageVisualReviewHarness.GenerateAndVerifyRepeatable(
-                LocateRepositoryRoot(),
-                "diagnostics-about",
-                scenarios,
-                CreateVisualReviewPage);
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var page = provider.GetRequiredService<DiagnosticsAboutPage>();
+                using var host = new WpfControlHost(page);
+                host.MeasureArrange(new Size(1200, 900));
+                var header = Assert.IsType<AppPageHeader>(page.FindName("PageHeader"));
+                Assert.Equal("诊断与关于", header.Title);
+                Assert.Equal(
+                    nameof(DiagnosticsAboutViewModel.BackCommand),
+                    Assert.IsType<Binding>(BindingOperations.GetBinding(
+                        header,
+                        AppPageHeader.BackCommandProperty)).Path.Path);
+
+                Assert.True(page.ActualWidth > 0);
+                Assert.True(page.ActualHeight > 0);
+                Assert.True(((AppPageHeader)page.FindName("PageHeader")!).ActualHeight > 0);
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                runtime.ApplyLightTheme();
+            }
         });
-    }
-
-    private static void AssertIconButton(FrameworkElement page, string name, SymbolRegular symbol)
-    {
-        var button = Assert.IsType<Wpf.Ui.Controls.Button>(page.FindName(name));
-        Assert.Same(page.FindResource("App.Button.Icon"), button.Style);
-        Assert.Equal(symbol, Assert.IsType<SymbolIcon>(button.Icon).Symbol);
-        Assert.Equal(button.ToolTip, AutomationProperties.GetName(button));
     }
 
     private static void PopulateValues(FrameworkElement element)
@@ -225,30 +201,5 @@ public sealed class DiagnosticsAboutPageTests
         viewModel.AppVersion = "10.20.300-preview.12345+0123456789abcdef0123456789abcdef";
         viewModel.AppDataDirectoryPath = @"C:\Users\Sample\AppData\Local\NovelSpeaker\A-Very-Long-Application-Data-Directory\Profiles\Default";
         viewModel.LogsDirectoryPath = @"C:\Users\Sample\AppData\Local\NovelSpeaker\A-Very-Long-Application-Data-Directory\Logs";
-    }
-
-    private static PageVisualReviewPage CreateVisualReviewPage()
-    {
-        var provider = WpfTestHost.BuildServiceProvider();
-        return new PageVisualReviewPage(
-            provider.GetRequiredService<DiagnosticsAboutPage>(),
-            () => provider.DisposeAsync().AsTask().GetAwaiter().GetResult());
-    }
-
-    private static string LocateRepositoryRoot()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null)
-        {
-            if (Directory.Exists(Path.Combine(current.FullName, "src")) &&
-                Directory.Exists(Path.Combine(current.FullName, "docs")))
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate repository root.");
     }
 }

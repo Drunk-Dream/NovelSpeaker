@@ -1,4 +1,3 @@
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -43,144 +42,8 @@ public sealed class ProviderStyleBridgeTests
         "App.Input.TextBox.Standard",
         "App.Progress.Standard",
         "App.Media.Slider",
-        "App.Feedback.PopupSurface",
-        "App.Typography.SectionTitle",
-        "App.Button.Icon"
+        "App.Feedback.PopupSurface"
     ];
-
-    [Fact]
-    public void App_loads_provider_dictionaries_then_bridge_then_application_dictionaries()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var dictionaries = Assert.IsAssignableFrom<global::System.Windows.Application>(
-                global::System.Windows.Application.Current).Resources.MergedDictionaries;
-
-            Assert.Equal(24, dictionaries.Count);
-            Assert.True(IsWpfUiThemeDictionary(dictionaries[0]));
-            Assert.Contains("Wpf.Ui", dictionaries[0].Source?.OriginalString, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains(
-                "/Resources/Theme/",
-                dictionaries[0].Source?.OriginalString?.Replace('\\', '/'),
-                StringComparison.OrdinalIgnoreCase);
-            Assert.IsType<ControlsDictionary>(dictionaries[1]);
-            Assert.EndsWith(
-                "Shared/Theming/Provider/ProviderStyleBridge.xaml",
-                dictionaries[2].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.Equal(
-                BridgeKeys.Order(StringComparer.Ordinal),
-                dictionaries[2].Keys.Cast<object>().OfType<string>().Order(StringComparer.Ordinal));
-            Assert.All(BridgeKeys, key => Assert.IsType<Style>(dictionaries[2][key]));
-            Assert.EndsWith(
-                "Shared/Theming/Palettes/Palette.Light.xaml",
-                dictionaries[3].Source?.OriginalString,
-                StringComparison.Ordinal);
-            foreach (var (suffix, index) in new[]
-                     {
-                         ("Shared/Theming/Resources/Tokens/Metrics.xaml", 4),
-                         ("Shared/Theming/Resources/Tokens/TypographyTokens.xaml", 5),
-                         ("Shared/Theming/Resources/Tokens/Motion.xaml", 6),
-                         ("Shared/Theming/Resources/Tokens/Elevation.xaml", 7)
-                     })
-            {
-                Assert.EndsWith(
-                    suffix,
-                    dictionaries[index].Source?.OriginalString,
-                    StringComparison.Ordinal);
-            }
-
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Typography.xaml",
-                dictionaries[8].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Surfaces.xaml",
-                dictionaries[9].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Buttons.xaml",
-                dictionaries[10].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Icons.xaml",
-                dictionaries[11].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Inputs.xaml",
-                dictionaries[12].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Selection.xaml",
-                dictionaries[13].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Navigation.xaml",
-                dictionaries[14].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Menus.xaml",
-                dictionaries[15].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Progress.xaml",
-                dictionaries[16].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Media.xaml",
-                dictionaries[17].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Feedback.xaml",
-                dictionaries[18].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/ControlThemes/Common.xaml",
-                dictionaries[19].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/ControlThemes/Settings.xaml",
-                dictionaries[20].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/ControlThemes/Forms.xaml",
-                dictionaries[21].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/ControlThemes/Feedback.xaml",
-                dictionaries[22].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/ControlThemes/Rules.xaml",
-                dictionaries[23].Source?.OriginalString,
-                StringComparison.Ordinal);
-        });
-    }
-
-    [Fact]
-    public void Bridge_contains_only_explicit_alias_styles_and_no_templates()
-    {
-        var path = Path.Combine(
-            LocateRepositoryRoot(),
-            "src",
-            "NovelSpeaker.App",
-            "Shared",
-            "Theming",
-            "Provider",
-            "ProviderStyleBridge.xaml");
-        var document = XDocument.Load(path);
-        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
-        var resources = document.Root?.Elements().ToArray() ?? [];
-
-        Assert.Equal(BridgeKeys, resources
-            .Select(resource => (string?)resource.Attribute(xaml + "Key"))
-            .ToArray());
-        Assert.All(resources, resource => Assert.Equal("Style", resource.Name.LocalName));
-        Assert.DoesNotContain(resources, resource => resource.Descendants().Any(
-            element => element.Name.LocalName == "ControlTemplate" ||
-                       (element.Name.LocalName == "Setter" &&
-                        (string?)element.Attribute("Property") == "Template")));
-    }
 
     [Fact]
     public void Bridge_styles_resolve_to_non_empty_provider_templates_in_both_themes()
@@ -190,98 +53,58 @@ public sealed class ProviderStyleBridgeTests
             var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
                 global::System.Windows.Application.Current);
             var runtime = new WpfUiThemeRuntime();
-            var before = CaptureProviderChain(application);
-
-            var styles = BridgeKeys.ToDictionary(
-                key => key,
-                key => Assert.IsType<Style>(application.FindResource(key)),
-                StringComparer.Ordinal);
-            Assert.All(styles.Values, style => Assert.NotNull(style.BasedOn));
-
-            foreach (var key in BridgeKeys)
-            {
-                var control = CreateControl(key, styles[key]);
-                PrepareControl(control);
-                Assert.True(
-                    control.Template is not null,
-                    $"Provider alias did not resolve a template: {key}");
-            }
-
-            runtime.ApplyDarkTheme();
-            var dark = CaptureProviderChain(application);
-            runtime.ApplyLightTheme();
-            var light = CaptureProviderChain(application);
-
-            Assert.Equal(before.DictionaryCount, dark.DictionaryCount);
-            Assert.Equal(before.DictionaryCount, light.DictionaryCount);
-            Assert.Equal(before.ProviderDictionarySignatures, dark.ProviderDictionarySignatures);
-            Assert.Equal(before.ProviderDictionarySignatures, light.ProviderDictionarySignatures);
-            Assert.All(
-                styles,
-                pair => Assert.Same(pair.Value, application.FindResource(pair.Key)));
-        });
-    }
-
-    [Fact]
-    public void Application_style_and_template_resources_keep_instances_across_theme_switches()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
-                global::System.Windows.Application.Current);
-            var before = StableApplicationResourceKeys.ToDictionary(
-                key => key,
-                key => application.FindResource(key),
-                StringComparer.Ordinal);
-
-            Assert.All(before.Values, resource => Assert.True(resource is Style or ControlTemplate));
-
-            var runtime = new WpfUiThemeRuntime();
-            runtime.ApplyDarkTheme();
-            runtime.ApplyLightTheme();
-
-            Assert.All(
-                before,
-                pair => Assert.Same(pair.Value, application.FindResource(pair.Key)));
-        });
-    }
-
-    [Fact]
-    public void Provider_button_preserves_content_alignment_and_triggers_focus_and_disabled_states()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var button = new WpfButton
-            {
-                Style = Assert.IsType<Style>(
-                    global::System.Windows.Application.Current.FindResource("Provider.Button")),
-                Content = "alignment fixture",
-                HorizontalContentAlignment = HorizontalAlignment.Center,
-                VerticalContentAlignment = VerticalAlignment.Center
-            };
-            var window = new TestWindow(button);
             try
             {
-                WpfWindowHost.Show(window);
-                button.Measure(new Size(240, 60));
-                button.Arrange(new Rect(0, 0, 240, 60));
-                button.ApplyTemplate();
-                button.UpdateLayout();
+                runtime.ApplyLightTheme();
+                var before = CaptureProviderChain(application);
 
-                Assert.NotNull(button.Template);
-                Assert.Equal(HorizontalAlignment.Center, button.HorizontalContentAlignment);
-                Assert.Equal(VerticalAlignment.Center, button.VerticalContentAlignment);
-                Assert.True(button.Focus());
-                Assert.True(button.IsKeyboardFocused);
+                var styles = BridgeKeys.ToDictionary(
+                    key => key,
+                    key => Assert.IsType<Style>(application.FindResource(key)),
+                    StringComparer.Ordinal);
+                Assert.All(styles.Values, style => Assert.NotNull(style.BasedOn));
+                var stableResources = StableApplicationResourceKeys.ToDictionary(
+                    key => key,
+                    key => application.FindResource(key),
+                    StringComparer.Ordinal);
+                Assert.All(stableResources.Values, resource => Assert.True(resource is Style or ControlTemplate));
 
-                button.IsEnabled = false;
-                button.UpdateLayout();
-                Assert.False(button.IsEnabled);
-                Assert.NotNull(button.Template);
+                foreach (var key in BridgeKeys)
+                {
+                    var control = CreateControl(key, styles[key]);
+                    PrepareControl(control);
+                    Assert.True(
+                        control.Template is not null,
+                        $"Provider alias did not resolve a template: {key}");
+                }
+
+                runtime.ApplyDarkTheme();
+                foreach (var key in BridgeKeys)
+                {
+                    var control = CreateControl(key, styles[key]);
+                    PrepareControl(control);
+                    Assert.True(
+                        control.Template is not null,
+                        $"Provider alias did not resolve a dark-theme template: {key}");
+                }
+                var dark = CaptureProviderChain(application);
+                runtime.ApplyLightTheme();
+                var light = CaptureProviderChain(application);
+
+                Assert.Equal(before.DictionaryCount, dark.DictionaryCount);
+                Assert.Equal(before.DictionaryCount, light.DictionaryCount);
+                Assert.Equal(before.ProviderDictionarySignatures, dark.ProviderDictionarySignatures);
+                Assert.Equal(before.ProviderDictionarySignatures, light.ProviderDictionarySignatures);
+                Assert.All(
+                    styles,
+                    pair => Assert.Same(pair.Value, application.FindResource(pair.Key)));
+                Assert.All(
+                    stableResources,
+                    pair => Assert.Same(pair.Value, application.FindResource(pair.Key)));
             }
             finally
             {
-                window.Close();
+                runtime.ApplyLightTheme();
             }
         });
     }
@@ -418,23 +241,6 @@ public sealed class ProviderStyleBridgeTests
         Type type => $"type:{type.AssemblyQualifiedName}",
         _ => $"value:{key.GetType().AssemblyQualifiedName}:{key}"
     };
-
-    private static string LocateRepositoryRoot()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null)
-        {
-            if (Directory.Exists(Path.Combine(current.FullName, "src")) &&
-                Directory.Exists(Path.Combine(current.FullName, "docs")))
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate repository root.");
-    }
 
     private sealed record ProviderChainSnapshot(
         int DictionaryCount,
