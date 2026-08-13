@@ -11,8 +11,7 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class LibraryViewModelTests
 {
-    [Fact]
-    public async Task LoadAsync_maps_book_summary_to_card_fields()
+    private async Task LoadAsync_maps_book_summary_to_card_fields()
     {
         var viewModel = CreateViewModel(
             catalogService: new FakeBookCatalogService(
@@ -43,8 +42,7 @@ public sealed class LibraryViewModelTests
         Assert.Equal("三体".ToUpperInvariant(), book.Cover.NormalizedTitleKey);
     }
 
-    [Fact]
-    public async Task Search_filters_books_by_title_and_author()
+    private async Task Search_filters_books_by_title_and_author()
     {
         var timeProvider = new ManualTimeProvider();
         var viewModel = CreateViewModel(
@@ -64,8 +62,7 @@ public sealed class LibraryViewModelTests
         Assert.Equal("沙丘", book.Title);
     }
 
-    [Fact]
-    public async Task LoadAsync_sorts_recent_reading_before_unplayed_books_by_default()
+    private async Task LoadAsync_sorts_recent_reading_before_unplayed_books_by_default()
     {
         var viewModel = CreateViewModel(
             catalogService: new FakeBookCatalogService(
@@ -80,8 +77,7 @@ public sealed class LibraryViewModelTests
         Assert.Equal(["Alpha", "Beta", "Gamma"], viewModel.Books.Select(static book => book.Title));
     }
 
-    [Fact]
-    public async Task Selecting_title_sort_orders_books_by_normalized_title()
+    private async Task Selecting_title_sort_orders_books_by_normalized_title()
     {
         var viewModel = CreateViewModel(
             catalogService: new FakeBookCatalogService(
@@ -97,8 +93,7 @@ public sealed class LibraryViewModelTests
         Assert.Equal(["Alpha", "beta", "charlie"], viewModel.Books.Select(static book => book.Title));
     }
 
-    [Fact]
-    public async Task DeleteBookAsync_keeps_current_filter_and_removes_deleted_book()
+    private async Task DeleteBookAsync_keeps_current_filter_and_removes_deleted_book()
     {
         var timeProvider = new ManualTimeProvider();
         var deleteDialogService = new FakeBookDeleteDialogService
@@ -132,8 +127,7 @@ public sealed class LibraryViewModelTests
         Assert.Equal("Alpha", deleteDialogService.Requests[0].BookTitle);
     }
 
-    [Fact]
-    public async Task LoadAsync_keeps_search_and_sort_state()
+    private async Task LoadAsync_keeps_search_and_sort_state()
     {
         var timeProvider = new ManualTimeProvider();
         var catalogService = new FakeBookCatalogService(
@@ -162,8 +156,7 @@ public sealed class LibraryViewModelTests
         Assert.Equal("Beta", book.Title);
     }
 
-    [Fact]
-    public async Task DeleteBookAsync_allows_current_playing_book_and_stops_playback_first()
+    private async Task DeleteBookAsync_allows_current_playing_book_and_stops_playback_first()
     {
         var playbackCoordinator = new FakePlaybackCoordinator(
             PlaybackSnapshot.Idle with
@@ -194,8 +187,7 @@ public sealed class LibraryViewModelTests
         Assert.False(managementService.Requests[0].DeleteAudioCache);
     }
 
-    [Fact]
-    public async Task OpenBookCommand_navigates_to_player_page_in_open_paused_mode()
+    private async Task OpenBookCommand_navigates_to_player_page_in_open_paused_mode()
     {
         var navigationService = new FakeNavigationService();
         var viewModel = CreateViewModel(
@@ -213,8 +205,7 @@ public sealed class LibraryViewModelTests
         Assert.Equal(PlayerNavigationMode.OpenPaused, request.Mode);
     }
 
-    [Fact]
-    public async Task OpenBookDetailsCommand_navigates_to_book_details_page_with_book_id()
+    private async Task OpenBookDetailsCommand_navigates_to_book_details_page_with_book_id()
     {
         var navigationService = new FakeNavigationService();
         var viewModel = CreateViewModel(
@@ -231,8 +222,7 @@ public sealed class LibraryViewModelTests
         Assert.Equal("book-9", request.BookId);
     }
 
-    [Fact]
-    public async Task ImportFilesAsync_refreshes_books_when_import_coordinator_reports_imported()
+    private async Task ImportFilesAsync_refreshes_books_when_import_coordinator_reports_imported()
     {
         var feedback = new FakeFeedbackService();
         var importCoordinator = new FakeLibraryImportCoordinator
@@ -253,8 +243,7 @@ public sealed class LibraryViewModelTests
         Assert.Single(importCoordinator.Requests);
     }
 
-    [Fact]
-    public async Task ImportFilesAsync_shows_duplicate_warning_without_refreshing_books()
+    private async Task ImportFilesAsync_shows_duplicate_warning_without_refreshing_books()
     {
         var feedback = new FakeFeedbackService();
         var importCoordinator = new FakeLibraryImportCoordinator
@@ -276,8 +265,7 @@ public sealed class LibraryViewModelTests
         Assert.Empty(viewModel.Books);
     }
 
-    [Fact]
-    public async Task ImportFilesAsync_cancels_previous_inflight_import_when_new_request_starts()
+    private async Task ImportFilesAsync_cancels_previous_inflight_import_when_new_request_starts()
     {
         var firstResult = new TaskCompletionSource<LibraryImportCoordinatorResult>();
         var importCoordinator = new FakeLibraryImportCoordinator();
@@ -307,8 +295,7 @@ public sealed class LibraryViewModelTests
         Assert.Single(viewModel.Books);
     }
 
-    [Fact]
-    public async Task ImportFilesAsync_rejects_invalid_inputs()
+    private async Task ImportFilesAsync_rejects_invalid_inputs()
     {
         foreach (var (inputs, expectedMessage) in new[]
                  {
@@ -328,8 +315,7 @@ public sealed class LibraryViewModelTests
         }
     }
 
-    [Fact]
-    public async Task ImportFilesAsync_projects_invalid_source_reported_by_coordinator()
+    private async Task ImportFilesAsync_projects_invalid_source_reported_by_coordinator()
     {
         var feedback = new FakeFeedbackService();
         var importCoordinator = new FakeLibraryImportCoordinator
@@ -343,6 +329,40 @@ public sealed class LibraryViewModelTests
         Assert.Equal("无法导入", feedback.LastTitle);
         Assert.Equal("只支持导入单个 .txt 文件。", feedback.LastMessage);
         Assert.Equal(["novel.epub"], importCoordinator.Requests);
+    }
+
+    [Fact]
+    public async Task Library_loading_and_sort_contracts_cover_projection_filtering_and_state()
+    {
+        await LoadAsync_maps_book_summary_to_card_fields();
+        await Search_filters_books_by_title_and_author();
+        await LoadAsync_sorts_recent_reading_before_unplayed_books_by_default();
+        await Selecting_title_sort_orders_books_by_normalized_title();
+        await LoadAsync_keeps_search_and_sort_state();
+    }
+
+    [Fact]
+    public async Task Library_deletion_contracts_cover_filters_and_playback_cleanup()
+    {
+        await DeleteBookAsync_keeps_current_filter_and_removes_deleted_book();
+        await DeleteBookAsync_allows_current_playing_book_and_stops_playback_first();
+    }
+
+    [Fact]
+    public async Task Library_navigation_contracts_cover_player_and_details_routes()
+    {
+        await OpenBookCommand_navigates_to_player_page_in_open_paused_mode();
+        await OpenBookDetailsCommand_navigates_to_book_details_page_with_book_id();
+    }
+
+    [Fact]
+    public async Task Library_import_contracts_cover_refresh_warnings_cancellation_and_inputs()
+    {
+        await ImportFilesAsync_refreshes_books_when_import_coordinator_reports_imported();
+        await ImportFilesAsync_shows_duplicate_warning_without_refreshing_books();
+        await ImportFilesAsync_cancels_previous_inflight_import_when_new_request_starts();
+        await ImportFilesAsync_rejects_invalid_inputs();
+        await ImportFilesAsync_projects_invalid_source_reported_by_coordinator();
     }
 
     private static LibraryViewModel CreateViewModel(

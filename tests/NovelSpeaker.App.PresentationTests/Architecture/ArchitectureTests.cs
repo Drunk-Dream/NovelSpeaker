@@ -7,8 +7,7 @@ public sealed class ArchitectureTests
 {
     private static readonly ArchitectureTestRepository Repository = ArchitectureTestRepository.Locate();
 
-    [Fact]
-    public void InfrastructurePublicTtsSourceApiDoesNotExposeJsonElement()
+    private void InfrastructurePublicTtsSourceApiDoesNotExposeJsonElement()
     {
         var jsonElementType = typeof(System.Text.Json.JsonElement);
         var exposedMembers = typeof(NovelSpeaker.Infrastructure.Speech.Legado.LegadoRuleConverter)
@@ -26,8 +25,7 @@ public sealed class ArchitectureTests
         Assert.Empty(exposedMembers);
     }
 
-    [Fact]
-    public void SolutionContainsExpectedProjects()
+    private void SolutionContainsExpectedProjects()
     {
         var expected = new[]
         {
@@ -46,8 +44,7 @@ public sealed class ArchitectureTests
         AssertEqualSet(expected, Repository.ReadSolutionProjectPaths());
     }
 
-    [Fact]
-    public void TestProjectsKeepTheirDocumentedResponsibilitiesAndReferenceBoundaries()
+    private void TestProjectsKeepTheirDocumentedResponsibilitiesAndReferenceBoundaries()
     {
         var expectedProjects = new[]
         {
@@ -92,8 +89,7 @@ public sealed class ArchitectureTests
         }
     }
 
-    [Fact]
-    public void Style_gallery_uses_shared_app_resources_without_reverse_dependency_or_data_layers()
+    private void Style_gallery_uses_shared_app_resources_without_reverse_dependency_or_data_layers()
     {
         var gallery = Repository.ReadProject("tools/NovelSpeaker.StyleGallery/NovelSpeaker.StyleGallery.csproj");
         AssertEqualSet(["src/NovelSpeaker.App/NovelSpeaker.App.csproj"], gallery.ProjectReferences);
@@ -131,8 +127,7 @@ public sealed class ArchitectureTests
             forbiddenFragments.Any(fragment => source.Contains(fragment, StringComparison.OrdinalIgnoreCase)));
     }
 
-    [Fact]
-    public void TestSourcesUseCurrentProjectAndSharedTestKitNamespaces()
+    private void TestSourcesUseCurrentProjectAndSharedTestKitNamespaces()
     {
         var expectedRoots = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -166,8 +161,7 @@ public sealed class ArchitectureTests
         Assert.Empty(violations);
     }
 
-    [Fact]
-    public void WpfSerializationDoesNotDisableParallelUnitTestProjects()
+    private void WpfSerializationDoesNotDisableParallelUnitTestProjects()
     {
         var globallySerializedProjects = new[]
         {
@@ -204,8 +198,7 @@ public sealed class ArchitectureTests
         Assert.Equal(["tests/NovelSpeaker.App.WpfTests/WpfTestCollection.cs"], collectionDefinitions);
     }
 
-    [Fact]
-    public void DomainHasNoProductOrTechnicalDependencies()
+    private void DomainHasNoProductOrTechnicalDependencies()
     {
         var project = Repository.ReadProject("src/NovelSpeaker.Domain/NovelSpeaker.Domain.csproj");
 
@@ -215,8 +208,7 @@ public sealed class ArchitectureTests
         Assert.False(ArchitectureRules.UsesWpf(project));
     }
 
-    [Fact]
-    public void DomainContainsOnlyStableSpeechTypesAndNoTransportOrPersistenceModels()
+    private void DomainContainsOnlyStableSpeechTypesAndNoTransportOrPersistenceModels()
     {
         var domainFiles = Repository.ReadProductSourceFiles()
             .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.Domain")
@@ -236,8 +228,7 @@ public sealed class ArchitectureTests
             file.Content.Contains("Sqlite", StringComparison.Ordinal));
     }
 
-    [Fact]
-    public void ApplicationOnlyHasDomainAndDocumentedDependencies()
+    private void ApplicationOnlyHasDomainAndDocumentedDependencies()
     {
         var project = Repository.ReadProject("src/NovelSpeaker.Application/NovelSpeaker.Application.csproj");
 
@@ -275,8 +266,7 @@ public sealed class ArchitectureTests
         Assert.Empty(actual);
     }
 
-    [Fact]
-    public void InfrastructureDoesNotDependOnAppOrWpf()
+    private void InfrastructureDoesNotDependOnAppOrWpf()
     {
         var project = Repository.ReadProject("src/NovelSpeaker.Infrastructure/NovelSpeaker.Infrastructure.csproj");
 
@@ -301,8 +291,7 @@ public sealed class ArchitectureTests
         Assert.Empty(actual);
     }
 
-    [Fact]
-    public void Playback_business_implementations_are_owned_by_Application()
+    private void Playback_business_implementations_are_owned_by_Application()
     {
         var applicationAssembly = typeof(NovelSpeaker.Application.Playback.PlaybackCoordinator).Assembly;
 
@@ -324,8 +313,7 @@ public sealed class ArchitectureTests
                     file.Content.Contains("class SelectedTtsRuleProvider", StringComparison.Ordinal));
     }
 
-    [Fact]
-    public void AppOnlyUsesInfrastructureFromStartupCompositionBoundary()
+    private void AppOnlyUsesInfrastructureFromStartupCompositionBoundary()
     {
         var project = Repository.ReadProject("src/NovelSpeaker.App/NovelSpeaker.App.csproj");
 
@@ -343,8 +331,7 @@ public sealed class ArchitectureTests
         AssertEqualSet(KnownArchitectureBaseline.AppInfrastructureSourceFiles, actual);
     }
 
-    [Fact]
-    public void ServiceProviderUsageStaysInsideCompositionAndFrameworkBridges()
+    private void ServiceProviderUsageStaysInsideCompositionAndFrameworkBridges()
     {
         var allowedRelativePaths = new[]
         {
@@ -366,8 +353,7 @@ public sealed class ArchitectureTests
         Assert.Empty(actual);
     }
 
-    [Fact]
-    public void AppDoesNotDirectlyDiscardAsyncOperations()
+    private void AppDoesNotDirectlyDiscardAsyncOperations()
     {
         var appFiles = Repository.ReadProductSourceFiles()
             .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.App");
@@ -377,8 +363,7 @@ public sealed class ArchitectureTests
         Assert.Empty(actual);
     }
 
-    [Fact]
-    public void ViewModelsDoNotAddWpfOrWpfUiTypesToPublicApi()
+    private void ViewModelsDoNotAddWpfOrWpfUiTypesToPublicApi()
     {
         var actual = ArchitectureRules.FindForbiddenPublicApiDependencies(
             typeof(PlayerViewModel).Assembly,
@@ -389,16 +374,14 @@ public sealed class ArchitectureTests
         AssertEqualSet(KnownArchitectureBaseline.ViewModelForbiddenPublicApiDependencies, actual);
     }
 
-    [Fact]
-    public void ProductionSourceFilesMatchNamespacesAndPrimaryPublicTypes()
+    private void ProductionSourceFilesMatchNamespacesAndPrimaryPublicTypes()
     {
         var actual = ArchitectureRules.FindSourceLayoutViolations(Repository.ReadProductSourceFiles());
 
         AssertEqualSet(KnownArchitectureBaseline.SourceLayoutViolations, actual);
     }
 
-    [Fact]
-    public void AppUsesFeatureSlicesInsteadOfGlobalUiDirectories()
+    private void AppUsesFeatureSlicesInsteadOfGlobalUiDirectories()
     {
         var appRoot = Path.Combine(Repository.RootPath, "src", "NovelSpeaker.App");
 
@@ -433,8 +416,7 @@ public sealed class ArchitectureTests
         Assert.True(Directory.Exists(Path.Combine(appRoot, "Shell")));
     }
 
-    [Fact]
-    public void AppKeepsOnlyReusableOrBehaviorOwningUserControlViews()
+    private void AppKeepsOnlyReusableOrBehaviorOwningUserControlViews()
     {
         var appRoot = Path.Combine(Repository.RootPath, "src", "NovelSpeaker.App");
         var actual = Directory
@@ -450,6 +432,49 @@ public sealed class ArchitectureTests
                 "Shared/Presentation/Books/BookCoverView.xaml"
             ],
             actual);
+    }
+
+    [Fact]
+    public void Architecture_contracts_cover_solution_projects_and_project_boundaries()
+    {
+        SolutionContainsExpectedProjects();
+        TestProjectsKeepTheirDocumentedResponsibilitiesAndReferenceBoundaries();
+        Style_gallery_uses_shared_app_resources_without_reverse_dependency_or_data_layers();
+    }
+
+    [Fact]
+    public void Architecture_contracts_cover_test_source_and_parallelism_boundaries()
+    {
+        TestSourcesUseCurrentProjectAndSharedTestKitNamespaces();
+        WpfSerializationDoesNotDisableParallelUnitTestProjects();
+    }
+
+    [Fact]
+    public void Architecture_contracts_cover_layer_dependencies_and_ownership()
+    {
+        InfrastructurePublicTtsSourceApiDoesNotExposeJsonElement();
+        DomainHasNoProductOrTechnicalDependencies();
+        DomainContainsOnlyStableSpeechTypesAndNoTransportOrPersistenceModels();
+        ApplicationOnlyHasDomainAndDocumentedDependencies();
+        InfrastructureDoesNotDependOnAppOrWpf();
+        Playback_business_implementations_are_owned_by_Application();
+        AppOnlyUsesInfrastructureFromStartupCompositionBoundary();
+        ServiceProviderUsageStaysInsideCompositionAndFrameworkBridges();
+    }
+
+    [Fact]
+    public void Architecture_contracts_cover_async_and_public_api_boundaries()
+    {
+        AppDoesNotDirectlyDiscardAsyncOperations();
+        ViewModelsDoNotAddWpfOrWpfUiTypesToPublicApi();
+    }
+
+    [Fact]
+    public void Architecture_contracts_cover_source_layout_and_view_ownership()
+    {
+        ProductionSourceFilesMatchNamespacesAndPrimaryPublicTypes();
+        AppUsesFeatureSlicesInsteadOfGlobalUiDirectories();
+        AppKeepsOnlyReusableOrBehaviorOwningUserControlViews();
     }
 
     private static void AssertEqualSet(IEnumerable<string> expected, IEnumerable<string> actual)

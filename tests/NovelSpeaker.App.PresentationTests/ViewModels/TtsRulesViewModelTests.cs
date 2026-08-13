@@ -16,8 +16,7 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class TtsRulesViewModelTests
 {
-    [Fact]
-    public async Task NewRuleAsync_does_not_add_item_until_saved()
+    private async Task NewRuleAsync_does_not_add_item_until_saved()
     {
         var useCases = new TtsRuleUseCaseStub(
             [new TtsRuleSummary(1, "现有规则", true, true, null)],
@@ -49,8 +48,7 @@ public sealed class TtsRulesViewModelTests
         Assert.Equal(2, viewModel.HighlightedRuleId);
     }
 
-    [Fact]
-    public async Task ImportJsonTextAsync_refreshes_rules_without_opening_imported_rule()
+    private async Task ImportJsonTextAsync_refreshes_rules_without_opening_imported_rule()
     {
         var useCases = new TtsRuleUseCaseStub(
             [new TtsRuleSummary(1, "旧规则", true, false, null)],
@@ -111,8 +109,7 @@ public sealed class TtsRulesViewModelTests
         Assert.Contains("新增 1 条", feedback.LastMessage);
     }
 
-    [Fact]
-    public async Task ImportJsonTextAsync_shows_safe_cookie_login_info_warning_with_mixed_counts()
+    private async Task ImportJsonTextAsync_shows_safe_cookie_login_info_warning_with_mixed_counts()
     {
         var incompatibleRule = CreateImportItem(
             0,
@@ -142,8 +139,7 @@ public sealed class TtsRulesViewModelTests
         Assert.DoesNotContain("secret", feedback.LastMessage);
     }
 
-    [Fact]
-    public async Task SaveDraftAsync_shows_explicit_validation_warning_for_cookie_header()
+    private async Task SaveDraftAsync_shows_explicit_validation_warning_for_cookie_header()
     {
         var editor = new TtsRuleEditorModel(
             1,
@@ -179,8 +175,7 @@ public sealed class TtsRulesViewModelTests
         Assert.Equal(0, useCases.SaveCallCount);
     }
 
-    [Fact]
-    public async Task ExportRuleAsync_uses_the_tts_rule_file_name()
+    private async Task ExportRuleAsync_uses_the_tts_rule_file_name()
     {
         var useCases = new TtsRuleUseCaseStub(
             [new TtsRuleSummary(3, "规则", true, false, null)],
@@ -194,8 +189,7 @@ public sealed class TtsRulesViewModelTests
         Assert.Equal("tts-rule.json", documents.ExportedFileName);
     }
 
-    [Fact]
-    public async Task SelectRuleAsync_with_unsaved_changes_saves_before_leaving_when_requested()
+    private async Task SelectRuleAsync_with_unsaved_changes_saves_before_leaving_when_requested()
     {
         var firstEditor = new TtsRuleEditorModel(
             1,
@@ -242,8 +236,7 @@ public sealed class TtsRulesViewModelTests
         Assert.Equal("规则二", viewModel.DraftName);
     }
 
-    [Fact]
-    public async Task TestDraftAsync_uses_unsaved_draft_values()
+    private async Task TestDraftAsync_uses_unsaved_draft_values()
     {
         var useCases = new TtsRuleUseCaseStub(
             [new TtsRuleSummary(7, "测试规则", true, true, null)],
@@ -275,8 +268,7 @@ public sealed class TtsRulesViewModelTests
         Assert.Equal("试听已开始", feedback.LastTitle);
     }
 
-    [Fact]
-    public async Task ToggleRuleEnabledAsync_disables_from_card_and_clears_current_without_dirty_prompt()
+    private async Task ToggleRuleEnabledAsync_disables_from_card_and_clears_current_without_dirty_prompt()
     {
         var useCases = new TtsRuleUseCaseStub(
             [new TtsRuleSummary(5, "当前规则", true, true, null)],
@@ -297,8 +289,7 @@ public sealed class TtsRulesViewModelTests
         Assert.Equal("未保存草稿", viewModel.DraftName);
     }
 
-    [Fact]
-    public async Task ToggleRuleEnabledAsync_enables_disabled_card_immediately()
+    private async Task ToggleRuleEnabledAsync_enables_disabled_card_immediately()
     {
         var editor = CreateEditor(8, "备用规则", false);
         var useCases = new TtsRuleUseCaseStub(
@@ -313,8 +304,7 @@ public sealed class TtsRulesViewModelTests
         Assert.True(viewModel.Rules.Single().IsEnabled);
     }
 
-    [Fact]
-    public async Task ToggleRuleEnabledAsync_serializes_with_draft_save()
+    private async Task ToggleRuleEnabledAsync_serializes_with_draft_save()
     {
         var useCases = new TtsRuleUseCaseStub(
             [new TtsRuleSummary(8, "备用规则", false, false, null)],
@@ -343,8 +333,7 @@ public sealed class TtsRulesViewModelTests
         Assert.Equal("已修改名称", useCases.EditorsById[8].Name);
     }
 
-    [Fact]
-    public async Task DeleteRuleAsync_current_rule_clears_selected_rule_after_confirmation()
+    private async Task DeleteRuleAsync_current_rule_clears_selected_rule_after_confirmation()
     {
         var useCases = new TtsRuleUseCaseStub(
             [new TtsRuleSummary(5, "当前规则", true, true, null)],
@@ -370,6 +359,37 @@ public sealed class TtsRulesViewModelTests
         Assert.NotNull(useCases.LastMutationDecision);
         Assert.True(useCases.LastMutationDecision!.ClearSelectedRule);
         Assert.Equal(TtsRuleMutationAction.Delete, useCases.LastMutationDecision.Action);
+    }
+
+    [Fact]
+    public async Task Tts_rule_creation_and_import_contracts_cover_save_refresh_and_safe_warnings()
+    {
+        await NewRuleAsync_does_not_add_item_until_saved();
+        await ImportJsonTextAsync_refreshes_rules_without_opening_imported_rule();
+        await ImportJsonTextAsync_shows_safe_cookie_login_info_warning_with_mixed_counts();
+    }
+
+    [Fact]
+    public async Task Tts_rule_editing_contracts_cover_validation_export_and_unsaved_selection()
+    {
+        await SaveDraftAsync_shows_explicit_validation_warning_for_cookie_header();
+        await ExportRuleAsync_uses_the_tts_rule_file_name();
+        await SelectRuleAsync_with_unsaved_changes_saves_before_leaving_when_requested();
+    }
+
+    [Fact]
+    public async Task Tts_rule_testing_and_toggle_contracts_cover_draft_values_busy_state_and_enablement()
+    {
+        await TestDraftAsync_uses_unsaved_draft_values();
+        await ToggleRuleEnabledAsync_disables_from_card_and_clears_current_without_dirty_prompt();
+        await ToggleRuleEnabledAsync_enables_disabled_card_immediately();
+        await ToggleRuleEnabledAsync_serializes_with_draft_save();
+    }
+
+    [Fact]
+    public async Task Tts_rule_delete_contracts_clear_current_selection_after_confirmation()
+    {
+        await DeleteRuleAsync_current_rule_clears_selected_rule_after_confirmation();
     }
 
     private static TtsRuleEditorModel CreateEditor(long id, string name, bool isEnabled)
