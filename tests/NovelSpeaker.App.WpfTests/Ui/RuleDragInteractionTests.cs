@@ -33,38 +33,50 @@ public sealed class RuleDragInteractionTests
         Assert.False(gesture.IsPressed);
     }
 
-    [Theory]
-    [InlineData(0, 80, RuleDropPlacement.Before)]
-    [InlineData(39.9, 80, RuleDropPlacement.Before)]
-    [InlineData(40, 80, RuleDropPlacement.After)]
-    [InlineData(79, 80, RuleDropPlacement.After)]
-    public void Placement_uses_target_vertical_center(
-        double pointerY,
-        double targetHeight,
-        RuleDropPlacement expected)
+    [Fact]
+    public void Placement_uses_target_vertical_center()
     {
-        Assert.Equal(expected, RuleDragGeometry.ResolvePlacement(pointerY, targetHeight));
+        foreach (var (pointerY, targetHeight, expected) in new[]
+                 {
+                     (0d, 80d, RuleDropPlacement.Before),
+                     (39.9d, 80d, RuleDropPlacement.Before),
+                     (40d, 80d, RuleDropPlacement.After),
+                     (79d, 80d, RuleDropPlacement.After)
+                 })
+        {
+            Assert.Equal(expected, RuleDragGeometry.ResolvePlacement(pointerY, targetHeight));
+        }
     }
 
-    [Theory]
-    [InlineData(0, -1)]
-    [InlineData(31, -1)]
-    [InlineData(32, 0)]
-    [InlineData(268, 0)]
-    [InlineData(269, 1)]
-    [InlineData(300, 1)]
-    public void Edge_scroll_direction_is_deterministic(double pointerY, int expected)
+    [Fact]
+    public void Edge_scroll_direction_is_deterministic()
     {
-        Assert.Equal(expected, RuleDragGeometry.ResolveEdgeScrollDirection(pointerY, 300, 32));
+        foreach (var (pointerY, expected) in new[]
+                 {
+                     (0d, -1),
+                     (31d, -1),
+                     (32d, 0),
+                     (268d, 0),
+                     (269d, 1),
+                     (300d, 1)
+                 })
+        {
+            Assert.Equal(expected, RuleDragGeometry.ResolveEdgeScrollDirection(pointerY, 300, 32));
+        }
     }
 
-    [Theory]
-    [InlineData(double.NaN, 80)]
-    [InlineData(10, 0)]
-    [InlineData(10, -1)]
-    public void Invalid_target_geometry_has_no_drop_placement(double pointerY, double targetHeight)
+    [Fact]
+    public void Invalid_target_geometry_has_no_drop_placement()
     {
-        Assert.Equal(RuleDropPlacement.None, RuleDragGeometry.ResolvePlacement(pointerY, targetHeight));
+        foreach (var (pointerY, targetHeight) in new[]
+                 {
+                     (double.NaN, 80d),
+                     (10d, 0d),
+                     (10d, -1d)
+                 })
+        {
+            Assert.Equal(RuleDropPlacement.None, RuleDragGeometry.ResolvePlacement(pointerY, targetHeight));
+        }
     }
 
     [Fact]

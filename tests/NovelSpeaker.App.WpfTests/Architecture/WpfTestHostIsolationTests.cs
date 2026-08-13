@@ -29,15 +29,20 @@ public sealed class WpfTestHostIsolationTests
         Assert.Equal(0, nativeApi.CloseCallCount);
     }
 
-    [Theory]
-    [InlineData(null, false)]
-    [InlineData("", false)]
-    [InlineData("0", false)]
-    [InlineData("true", false)]
-    [InlineData("1", true)]
-    public void Visible_window_policy_requires_the_explicit_value(string? value, bool expected)
+    [Fact]
+    public void Visible_window_policy_requires_the_explicit_value()
     {
-        Assert.Equal(expected, WpfTestHost.IsVisibleWindowsAllowedValue(value));
+        foreach (var (value, expected) in new[]
+                 {
+                     ((string?)null, false),
+                     (string.Empty, false),
+                     ("0", false),
+                     ("true", false),
+                     ("1", true)
+                 })
+        {
+            Assert.Equal(expected, WpfTestHost.IsVisibleWindowsAllowedValue(value));
+        }
     }
 
     [Fact]
