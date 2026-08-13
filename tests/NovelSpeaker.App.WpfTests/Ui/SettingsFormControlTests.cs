@@ -71,10 +71,16 @@ public sealed class SettingsFormControlTests
             StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Settings_and_form_controls_apply_default_styles_preserve_slots_and_bindings(GalleryTheme theme)
+    [Fact]
+    public void Settings_and_form_controls_apply_default_styles_preserve_slots_and_bindings()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Settings_and_form_controls_apply_default_styles_preserve_slots_and_bindings_for_theme(theme);
+        }
+    }
+
+    private void Settings_and_form_controls_apply_default_styles_preserve_slots_and_bindings_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -191,10 +197,16 @@ public sealed class SettingsFormControlTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Settings_and_form_controls_keep_long_copy_and_error_below_content_at_narrow_width(GalleryTheme theme)
+    [Fact]
+    public void Settings_and_form_controls_keep_long_copy_and_error_below_content_at_narrow_width()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Settings_and_form_controls_keep_long_copy_and_error_below_content_at_narrow_width_for_theme(theme);
+        }
+    }
+
+    private void Settings_and_form_controls_keep_long_copy_and_error_below_content_at_narrow_width_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -303,10 +315,16 @@ public sealed class SettingsFormControlTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Settings_and_form_gallery_scenes_render_required_fixture_families(GalleryTheme theme)
+    [Fact]
+    public void Settings_and_form_gallery_scenes_render_required_fixture_families()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Settings_and_form_gallery_scenes_render_required_fixture_families_for_theme(theme);
+        }
+    }
+
+    private void Settings_and_form_gallery_scenes_render_required_fixture_families_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -351,10 +369,16 @@ public sealed class SettingsFormControlTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Settings_and_form_gallery_scenes_keep_finite_layout_at_supported_dpi_scales(GalleryTheme theme)
+    [Fact]
+    public void Settings_and_form_gallery_scenes_keep_finite_layout_at_supported_dpi_scales()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Settings_and_form_gallery_scenes_keep_finite_layout_at_supported_dpi_scales_for_theme(theme);
+        }
+    }
+
+    private void Settings_and_form_gallery_scenes_keep_finite_layout_at_supported_dpi_scales_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -394,10 +418,16 @@ public sealed class SettingsFormControlTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Settings_gallery_pairs_home_groups_with_headerless_settings_lists(GalleryTheme theme)
+    [Fact]
+    public void Settings_gallery_pairs_home_groups_with_headerless_settings_lists()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Settings_gallery_pairs_home_groups_with_headerless_settings_lists_for_theme(theme);
+        }
+    }
+
+    private void Settings_gallery_pairs_home_groups_with_headerless_settings_lists_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -495,10 +525,16 @@ public sealed class SettingsFormControlTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Settings_group_geometry_keeps_baseline_and_controls_at_supported_dpi_scales(GalleryTheme theme)
+    [Fact]
+    public void Settings_group_geometry_keeps_baseline_and_controls_at_supported_dpi_scales()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Settings_group_geometry_keeps_baseline_and_controls_at_supported_dpi_scales_for_theme(theme);
+        }
+    }
+
+    private void Settings_group_geometry_keeps_baseline_and_controls_at_supported_dpi_scales_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {

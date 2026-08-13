@@ -109,10 +109,16 @@ public sealed class StyleGallerySceneTests
             sceneOptions.OutputDirectory);
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Every_scene_can_measure_arrange_and_render_without_dispatcher_exceptions(GalleryTheme theme)
+    [Fact]
+    public void Every_scene_can_measure_arrange_and_render_without_dispatcher_exceptions()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Every_scene_can_measure_arrange_and_render_without_dispatcher_exceptions_for_theme(theme);
+        }
+    }
+
+    private void Every_scene_can_measure_arrange_and_render_without_dispatcher_exceptions_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {

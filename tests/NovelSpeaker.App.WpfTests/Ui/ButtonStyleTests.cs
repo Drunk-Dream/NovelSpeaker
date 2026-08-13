@@ -158,10 +158,16 @@ public sealed class ButtonStyleTests
                       (string?)setter.Attribute("Value") == "{x:Null}");
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Icon_button_icon_inherits_owner_foreground_in_both_themes(GalleryTheme theme)
+    [Fact]
+    public void Icon_button_icon_inherits_owner_foreground_in_both_themes()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Icon_button_icon_inherits_owner_foreground_in_both_themes_for_theme(theme);
+        }
+    }
+
+    private void Icon_button_icon_inherits_owner_foreground_in_both_themes_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {

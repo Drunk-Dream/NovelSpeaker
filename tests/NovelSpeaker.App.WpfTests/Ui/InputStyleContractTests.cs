@@ -258,10 +258,16 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Every_input_control_has_nonzero_layout_and_toggle_width_follows_content(GalleryTheme theme)
+    [Fact]
+    public void Every_input_control_has_nonzero_layout_and_toggle_width_follows_content()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Every_input_control_has_nonzero_layout_and_toggle_width_follows_content_for_theme(theme);
+        }
+    }
+
+    private void Every_input_control_has_nonzero_layout_and_toggle_width_follows_content_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -361,10 +367,16 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void ComboBox_popup_and_items_construct_with_resolvable_theme_resources(GalleryTheme theme)
+    [Fact]
+    public void ComboBox_popup_and_items_construct_with_resolvable_theme_resources()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            ComboBox_popup_and_items_construct_with_resolvable_theme_resources_for_theme(theme);
+        }
+    }
+
+    private void ComboBox_popup_and_items_construct_with_resolvable_theme_resources_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -420,10 +432,16 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void ComboBox_styles_keep_stretch_alignment_and_full_surface_toggle_target(GalleryTheme theme)
+    [Fact]
+    public void ComboBox_styles_keep_stretch_alignment_and_full_surface_toggle_target()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            ComboBox_styles_keep_stretch_alignment_and_full_surface_toggle_target_for_theme(theme);
+        }
+    }
+
+    private void ComboBox_styles_keep_stretch_alignment_and_full_surface_toggle_target_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -481,10 +499,16 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void ComboBox_long_string_item_trims_on_one_line_without_moving_the_chevron(GalleryTheme theme)
+    [Fact]
+    public void ComboBox_long_string_item_trims_on_one_line_without_moving_the_chevron()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            ComboBox_long_string_item_trims_on_one_line_without_moving_the_chevron_for_theme(theme);
+        }
+    }
+
+    private void ComboBox_long_string_item_trims_on_one_line_without_moving_the_chevron_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -547,10 +571,16 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void ComboBox_popup_is_never_narrower_than_the_closed_control(GalleryTheme theme)
+    [Fact]
+    public void ComboBox_popup_is_never_narrower_than_the_closed_control()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            ComboBox_popup_is_never_narrower_than_the_closed_control_for_theme(theme);
+        }
+    }
+
+    private void ComboBox_popup_is_never_narrower_than_the_closed_control_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -598,10 +628,16 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void ComboBox_popup_and_item_states_follow_the_family_visual_contract(GalleryTheme theme)
+    [Fact]
+    public void ComboBox_popup_and_item_states_follow_the_family_visual_contract()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            ComboBox_popup_and_item_states_follow_the_family_visual_contract_for_theme(theme);
+        }
+    }
+
+    private void ComboBox_popup_and_item_states_follow_the_family_visual_contract_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -686,10 +722,16 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void ComboBox_template_preserves_editable_focus_and_keyboard_semantics(GalleryTheme theme)
+    [Fact]
+    public void ComboBox_template_preserves_editable_focus_and_keyboard_semantics()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            ComboBox_template_preserves_editable_focus_and_keyboard_semantics_for_theme(theme);
+        }
+    }
+
+    private void ComboBox_template_preserves_editable_focus_and_keyboard_semantics_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -791,10 +833,16 @@ public sealed class InputStyleContractTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void ComboBox_disabled_string_item_keeps_state_foreground_without_double_opacity(GalleryTheme theme)
+    [Fact]
+    public void ComboBox_disabled_string_item_keeps_state_foreground_without_double_opacity()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            ComboBox_disabled_string_item_keeps_state_foreground_without_double_opacity_for_theme(theme);
+        }
+    }
+
+    private void ComboBox_disabled_string_item_keeps_state_foreground_without_double_opacity_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {

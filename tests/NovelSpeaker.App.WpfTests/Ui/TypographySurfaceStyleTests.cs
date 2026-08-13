@@ -86,10 +86,16 @@ public sealed class TypographySurfaceStyleTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Typography_gallery_covers_long_text_disabled_state_and_nonzero_layout(GalleryTheme theme)
+    [Fact]
+    public void Typography_gallery_covers_long_text_disabled_state_and_nonzero_layout()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Typography_gallery_covers_long_text_disabled_state_and_nonzero_layout_for_theme(theme);
+        }
+    }
+
+    private void Typography_gallery_covers_long_text_disabled_state_and_nonzero_layout_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {

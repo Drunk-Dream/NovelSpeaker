@@ -210,10 +210,16 @@ public sealed class MediaControlStyleTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Gallery_media_fixture_binds_media_glyph_nodes_to_semantic_owner_foregrounds(GalleryTheme theme)
+    [Fact]
+    public void Gallery_media_fixture_binds_media_glyph_nodes_to_semantic_owner_foregrounds()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Gallery_media_fixture_binds_media_glyph_nodes_to_semantic_owner_foregrounds_for_theme(theme);
+        }
+    }
+
+    private void Gallery_media_fixture_binds_media_glyph_nodes_to_semantic_owner_foregrounds_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -334,10 +340,16 @@ public sealed class MediaControlStyleTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Gallery_media_fixture_is_measurable_in_both_themes(GalleryTheme theme)
+    [Fact]
+    public void Gallery_media_fixture_is_measurable_in_both_themes()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Gallery_media_fixture_is_measurable_in_both_themes_for_theme(theme);
+        }
+    }
+
+    private void Gallery_media_fixture_is_measurable_in_both_themes_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {

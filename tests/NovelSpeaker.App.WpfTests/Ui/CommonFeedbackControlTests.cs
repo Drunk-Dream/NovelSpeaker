@@ -61,10 +61,16 @@ public sealed class CommonFeedbackControlTests
             element => element.Name.LocalName == "ScrollViewer");
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Common_controls_apply_implicit_styles_and_preserve_content_slots(GalleryTheme theme)
+    [Fact]
+    public void Common_controls_apply_implicit_styles_and_preserve_content_slots()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Common_controls_apply_implicit_styles_and_preserve_content_slots_for_theme(theme);
+        }
+    }
+
+    private void Common_controls_apply_implicit_styles_and_preserve_content_slots_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -210,10 +216,16 @@ public sealed class CommonFeedbackControlTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Status_view_exposes_all_states_actions_and_usable_layout(GalleryTheme theme)
+    [Fact]
+    public void Status_view_exposes_all_states_actions_and_usable_layout()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Status_view_exposes_all_states_actions_and_usable_layout_for_theme(theme);
+        }
+    }
+
+    private void Status_view_exposes_all_states_actions_and_usable_layout_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -327,10 +339,16 @@ public sealed class CommonFeedbackControlTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Gallery_scenes_use_formal_controls_and_cover_required_variants(GalleryTheme theme)
+    [Fact]
+    public void Gallery_scenes_use_formal_controls_and_cover_required_variants()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Gallery_scenes_use_formal_controls_and_cover_required_variants_for_theme(theme);
+        }
+    }
+
+    private void Gallery_scenes_use_formal_controls_and_cover_required_variants_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {

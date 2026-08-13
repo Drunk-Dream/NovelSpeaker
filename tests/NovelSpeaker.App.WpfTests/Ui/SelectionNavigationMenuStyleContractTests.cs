@@ -135,10 +135,16 @@ public sealed class SelectionNavigationMenuStyleContractTests
         });
     }
 
-    [Theory]
-    [InlineData(GalleryTheme.Light)]
-    [InlineData(GalleryTheme.Dark)]
-    public void Selection_virtualized_row_text_uses_theme_semantic_brushes(GalleryTheme theme)
+    [Fact]
+    public void Selection_virtualized_row_text_uses_theme_semantic_brushes()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            Selection_virtualized_row_text_uses_theme_semantic_brushes_for_theme(theme);
+        }
+    }
+
+    private void Selection_virtualized_row_text_uses_theme_semantic_brushes_for_theme(GalleryTheme theme)
     {
         WpfTestHost.RunInSta(() =>
         {
