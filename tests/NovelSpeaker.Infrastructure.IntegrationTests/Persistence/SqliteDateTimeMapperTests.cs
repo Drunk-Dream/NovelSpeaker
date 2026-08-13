@@ -30,24 +30,29 @@ public sealed class SqliteDateTimeMapperTests
         }
     }
 
-    [Theory]
-    [InlineData("2026-07-16 09:08:07", "2026-07-16T09:08:07.0000000+00:00")]
-    [InlineData("2026-07-16T09:08:07Z", "2026-07-16T09:08:07.0000000+00:00")]
-    [InlineData("2026-07-16T09:08:07.1234567+08:00", "2026-07-16T09:08:07.1234567+08:00")]
-    public void TryParse_accepts_supported_legacy_and_roundtrip_formats(string storedValue, string expected)
+    [Fact]
+    public void TryParse_accepts_supported_legacy_and_roundtrip_formats()
     {
-        var parsed = SqliteDateTimeMapper.TryParse(storedValue, out var value);
+        foreach (var (storedValue, expected) in new[]
+                 {
+                     ("2026-07-16 09:08:07", "2026-07-16T09:08:07.0000000+00:00"),
+                     ("2026-07-16T09:08:07Z", "2026-07-16T09:08:07.0000000+00:00"),
+                     ("2026-07-16T09:08:07.1234567+08:00", "2026-07-16T09:08:07.1234567+08:00")
+                 })
+        {
+            var parsed = SqliteDateTimeMapper.TryParse(storedValue, out var value);
 
-        Assert.True(parsed);
-        Assert.Equal(DateTimeOffset.Parse(expected, CultureInfo.InvariantCulture), value);
+            Assert.True(parsed);
+            Assert.Equal(DateTimeOffset.Parse(expected, CultureInfo.InvariantCulture), value);
+        }
     }
 
-    [Theory]
-    [InlineData("")]
-    [InlineData("not-a-date")]
-    [InlineData("2026-99-99 25:61:61")]
-    public void TryParse_rejects_damaged_values_without_throwing(string storedValue)
+    [Fact]
+    public void TryParse_rejects_damaged_values_without_throwing()
     {
-        Assert.False(SqliteDateTimeMapper.TryParse(storedValue, out _));
+        foreach (var storedValue in new[] { string.Empty, "not-a-date", "2026-99-99 25:61:61" })
+        {
+            Assert.False(SqliteDateTimeMapper.TryParse(storedValue, out _));
+        }
     }
 }

@@ -25,23 +25,24 @@ public sealed class BookOperationRecoveryServiceTests
         Assert.Empty(await fixture.Journal.GetIncompleteAsync(CancellationToken.None));
     }
 
-    [Theory]
-    [InlineData(BookOperationPhase.Staged)]
-    [InlineData(BookOperationPhase.DatabaseCommitted)]
-    public async Task RecoverAsync_finalizes_import_when_database_row_exists(BookOperationPhase phase)
+    [Fact]
+    public async Task RecoverAsync_finalizes_import_when_database_row_exists()
     {
-        var fixture = await CreateFixtureAsync();
-        await SeedBookAsync(fixture, "book-1", "Books/book-1/content.txt");
-        var stagedPath = Path.Combine(fixture.Directories.BooksDirectoryPath, "book-1", "content.txt.tmp");
-        Directory.CreateDirectory(Path.GetDirectoryName(stagedPath)!);
-        await File.WriteAllTextAsync(stagedPath, "正文", CancellationToken.None);
-        await fixture.Journal.CreateAsync(CreateImport("operation-1", "book-1", phase), CancellationToken.None);
+        foreach (var phase in new[] { BookOperationPhase.Staged, BookOperationPhase.DatabaseCommitted })
+        {
+            var fixture = await CreateFixtureAsync();
+            await SeedBookAsync(fixture, "book-1", "Books/book-1/content.txt");
+            var stagedPath = Path.Combine(fixture.Directories.BooksDirectoryPath, "book-1", "content.txt.tmp");
+            Directory.CreateDirectory(Path.GetDirectoryName(stagedPath)!);
+            await File.WriteAllTextAsync(stagedPath, "正文", CancellationToken.None);
+            await fixture.Journal.CreateAsync(CreateImport("operation-1", "book-1", phase), CancellationToken.None);
 
-        await fixture.Recovery.RecoverAsync(CancellationToken.None);
-        await fixture.Recovery.RecoverAsync(CancellationToken.None);
+            await fixture.Recovery.RecoverAsync(CancellationToken.None);
+            await fixture.Recovery.RecoverAsync(CancellationToken.None);
 
-        Assert.True(File.Exists(Path.Combine(fixture.Directories.BooksDirectoryPath, "book-1", "content.txt")));
-        Assert.True(await BookExistsAsync(fixture, "book-1"));
+            Assert.True(File.Exists(Path.Combine(fixture.Directories.BooksDirectoryPath, "book-1", "content.txt")));
+            Assert.True(await BookExistsAsync(fixture, "book-1"));
+        }
     }
 
     [Fact]

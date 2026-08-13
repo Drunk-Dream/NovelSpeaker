@@ -8,22 +8,23 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed class NaudioAudioPlayerTests
 {
-    [Theory]
-    [InlineData("wav")]
-    [InlineData("mp3")]
-    public async Task LoadAsync_reads_duration_for_supported_audio(string extension)
+    [Fact]
+    public async Task LoadAsync_reads_duration_for_supported_audio()
     {
-        var wavePlayer = new FakeWavePlayer();
-        await using var player = new NaudioAudioPlayer(() => wavePlayer);
+        foreach (var extension in new[] { "wav", "mp3" })
+        {
+            var wavePlayer = new FakeWavePlayer();
+            await using var player = new NaudioAudioPlayer(() => wavePlayer);
 
-        var filePath = extension == "wav" ? PlaybackTestAudio.DemoWavPath : PlaybackTestAudio.DemoMp3Path;
-        await player.LoadAsync(filePath, CancellationToken.None);
+            var filePath = extension == "wav" ? PlaybackTestAudio.DemoWavPath : PlaybackTestAudio.DemoMp3Path;
+            await player.LoadAsync(filePath, CancellationToken.None);
 
-        Assert.Equal(PlaybackStatus.Stopped, player.State);
-        Assert.True(player.Duration > TimeSpan.Zero);
-        Assert.NotNull(wavePlayer.WaveProvider);
-        Assert.Equal(44100, wavePlayer.OutputWaveFormat?.SampleRate);
-        Assert.Equal(2, wavePlayer.OutputWaveFormat?.Channels);
+            Assert.Equal(PlaybackStatus.Stopped, player.State);
+            Assert.True(player.Duration > TimeSpan.Zero);
+            Assert.NotNull(wavePlayer.WaveProvider);
+            Assert.Equal(44100, wavePlayer.OutputWaveFormat?.SampleRate);
+            Assert.Equal(2, wavePlayer.OutputWaveFormat?.Channels);
+        }
     }
 
     [Fact]

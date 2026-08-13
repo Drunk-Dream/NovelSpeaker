@@ -17,14 +17,15 @@ public sealed class AppStoragePathResolverTests
         Assert.Equal("Books/book-1/content.txt", resolver.GetStorageKey(expected));
     }
 
-    [Theory]
-    [InlineData("../outside.txt")]
-    [InlineData("Books/../../outside.txt")]
-    public void ResolvePath_rejects_parent_traversal(string path)
+    [Fact]
+    public void ResolvePath_rejects_parent_traversal()
     {
-        var resolver = new AppStoragePathResolver(CreateDirectories());
+        foreach (var path in new[] { "../outside.txt", "Books/../../outside.txt" })
+        {
+            var resolver = new AppStoragePathResolver(CreateDirectories());
 
-        Assert.Throws<InvalidDataException>(() => resolver.ResolvePath(path));
+            Assert.Throws<InvalidDataException>(() => resolver.ResolvePath(path));
+        }
     }
 
     [Fact]

@@ -49,18 +49,19 @@ public sealed class TtsRuleSampleRegressionTests
         }
     }
 
-    [Theory]
-    [InlineData("cookie-sample.json")]
-    [InlineData("login-info-sample.json")]
-    public async Task Unsupported_cookie_and_login_info_samples_are_blocked(string fileName)
+    [Fact]
+    public async Task Unsupported_cookie_and_login_info_samples_are_blocked()
     {
-        var file = Path.Combine(AppContext.BaseDirectory, "TestAssets", "TtsRules", fileName);
-        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(file));
+        foreach (var fileName in new[] { "cookie-sample.json", "login-info-sample.json" })
+        {
+            var file = Path.Combine(AppContext.BaseDirectory, "TestAssets", "TtsRules", fileName);
+            using var document = JsonDocument.Parse(await File.ReadAllTextAsync(file));
 
-        var conversion = _converter.Convert(Assert.Single(_parser.Parse(document.RootElement.GetRawText()).Items).Source!);
+            var conversion = _converter.Convert(Assert.Single(_parser.Parse(document.RootElement.GetRawText()).Items).Source!);
 
-        Assert.False(conversion.CanImport);
-        Assert.Contains(conversion.BlockingIssues, issue =>
-            issue.Contains("Cookie/LoginInfo", StringComparison.Ordinal));
+            Assert.False(conversion.CanImport);
+            Assert.Contains(conversion.BlockingIssues, issue =>
+                issue.Contains("Cookie/LoginInfo", StringComparison.Ordinal));
+        }
     }
 }
