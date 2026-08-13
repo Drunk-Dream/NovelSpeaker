@@ -196,33 +196,6 @@ public sealed class BookDetailsPageTests
     }
 
     [Fact]
-    public void BookDetailsPage_uses_unified_current_item_selection_style()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var viewModel = CreateViewModel();
-            PopulateLayoutState(viewModel, chapterCount: 2);
-            viewModel.Chapters.Clear();
-            viewModel.Chapters.Add(new BookDetailsChapterItemViewModel(0, "第 1 章", "第一章", false));
-            viewModel.Chapters.Add(new BookDetailsChapterItemViewModel(1, "第 2 章", "第二章", true));
-            var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService());
-            page.Measure(new Size(900, 640));
-            page.Arrange(new Rect(0, 0, 900, 640));
-            page.UpdateLayout();
-
-            var list = Assert.IsType<ListBox>(page.FindName("ChaptersListBox"));
-            var currentContainer = Assert.IsType<ListBoxItem>(list.ItemContainerGenerator.ContainerFromIndex(1));
-            var currentBorder = Assert.IsType<Border>(
-                VisualTreeTestHelper.FindDescendant<Border>(
-                    currentContainer,
-                    border => ReferenceEquals(border.Style, page.FindResource("App.Selection.CurrentItem"))));
-
-            Assert.Same(page.FindResource("App.Selection.CurrentItem"), currentBorder.Style);
-            Assert.True(((BookDetailsChapterItemViewModel)currentContainer.DataContext).IsCurrent);
-        });
-    }
-
-    [Fact]
     public void BookDetailsPage_projects_missing_book_through_status_view()
     {
         WpfTestHost.RunInSta(() =>

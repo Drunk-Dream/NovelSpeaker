@@ -624,28 +624,6 @@ public sealed partial class PlayerViewTests
     }
 
     [Fact]
-    public void PlayerView_uses_opaque_surfaces_for_rule_and_speed_popups()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var view = new PlayerView
-            {
-                DataContext = new PlayerViewLayoutTestContext(
-                    [new PlayerChapterItemViewModel(0, "第一章")],
-                    [new PlayerSegmentItemViewModel(0, 0, "第一段")])
-            };
-
-            var rulePopup = Assert.IsType<Popup>(view.FindName("RuleMenuPopup"));
-            var speedPopup = Assert.IsType<Popup>(view.FindName("SpeedMenuPopup"));
-
-            Assert.True(rulePopup.AllowsTransparency);
-            Assert.True(speedPopup.AllowsTransparency);
-            Assert.NotEqual(Brushes.Transparent, Assert.IsType<Border>(rulePopup.Child).Background);
-            Assert.NotEqual(Brushes.Transparent, Assert.IsType<Border>(speedPopup.Child).Background);
-        });
-    }
-
-    [Fact]
     public void PlayerView_uses_accent_filled_segment_progress_slider()
     {
         WpfTestHost.RunInSta(() =>

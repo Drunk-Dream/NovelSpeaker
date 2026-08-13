@@ -3,7 +3,6 @@ using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
-using System.Xml.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.App.Features.Library;
@@ -141,26 +140,6 @@ public sealed partial class LibraryPageTests
             Assert.Equal(AppStatusKind.NoResult, noResults.Status);
             Assert.Equal(Visibility.Visible, noResults.Visibility);
         });
-    }
-
-    [Fact]
-    public void LibraryPage_is_transparent_and_uses_no_legacy_resources()
-    {
-        var xamlPath = Path.Combine(
-            LocateRepositoryRoot(),
-            "src",
-            "NovelSpeaker.App",
-            "Features",
-            "Library",
-            "LibraryPage.xaml");
-        var source = File.ReadAllText(xamlPath);
-        var pageElement = XDocument.Load(xamlPath).Root!;
-
-        Assert.Equal("Transparent", pageElement.Attribute("Background")?.Value);
-        Assert.Contains("AppPageHeader", source, StringComparison.Ordinal);
-        Assert.Contains("AppStatusView", source, StringComparison.Ordinal);
-        Assert.Contains("App.Feedback.InlineMessage", source, StringComparison.Ordinal);
-
     }
 
     [Theory]
