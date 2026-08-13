@@ -98,7 +98,7 @@
 - 完整质量门禁按固定顺序通过：`dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore`、`dotnet test -c Release --no-build`；实际通过 Domain 2、Application 219、Infrastructure 348、Presentation 408、WPF 454，共 1,431 项。
 - 未设置可见窗口授权变量执行验证；稳定测试文档已是最终隔离 Desktop 约束，无需额外行为说明。
 
-## [ ] 2（P1）：精简 WPF 测试并收敛 UI 契约所有权
+## [x] 2（P1）：精简 WPF 测试并收敛 UI 契约所有权
 
 目标：
 
@@ -122,7 +122,9 @@
 - WPF 定向测试、Presentation 架构测试和完整质量门禁通过。
 - 默认运行不设置可见窗口授权变量。
 
-## [ ] 3（P1）：精简 Presentation 测试并去除属性转发型重复覆盖
+结果：已按视觉资源、控件族、页面结构、Style Gallery、窗口生命周期和输入上下文收敛重复契约；保留 visual tree、资源、布局、主题、Focus、Popup、Automation、截图守卫和隔离宿主覆盖。最终 WPF 测试 152 项，未设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`。
+
+## [x] 3（P1）：精简 Presentation 测试并去除属性转发型重复覆盖
 
 目标：
 
@@ -142,7 +144,9 @@
 - 不新增 WPF 依赖或真实技术 adapter 依赖。
 - Presentation 定向测试、相关 WPF 测试和完整质量门禁通过。
 
-## [ ] 4（P0）：跨项目复查并完成 `<800` 阶段收口
+结果：已按架构边界、Library/TTS Workbench、页面 activation、缓存/导出投影、播放滚动、启动关闭、选择模型、MiniPlayer 和设置激活状态收敛重复入口；保留取消、迟到结果、Dirty State、错误投影、状态机和关键生命周期回归。最终 Presentation 测试 150 项。
+
+## [x] 4（P0）：跨项目复查并完成 `<800` 阶段收口
 
 目标：
 
@@ -173,3 +177,5 @@ dotnet test -c Release --no-build
 - 默认测试运行没有设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`，且自动守卫证明 WPF 测试使用隔离 Desktop/无 Window 控件宿主边界。
 - 受保护的关键回归类别仍有自动覆盖。
 - 稳定文档与最终实现一致，当前 Backlog 不包含需要人工视觉验收才能关闭的任务。
+
+结果：完整测试计数为 Domain 2、Application 174、Infrastructure 320、Presentation 150、WPF 152，总计 798（小于 800）。完整质量门禁按 restore、format、build、test 固定顺序执行并通过；测试未设置可见窗口授权变量，受保护回归类别未删除。
