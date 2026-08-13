@@ -18,8 +18,7 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels.Player;
 
 public sealed partial class PlayerViewModelTests
 {
-    [Fact]
-    public async Task LoadAsync_uses_persisted_global_speed_after_restart()
+    private async Task LoadAsync_uses_persisted_global_speed_after_restart()
     {
         var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
         var settingsService = new FakeAppSettingsService(
@@ -51,8 +50,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(18, viewModel.SpeakSpeed);
     }
 
-    [Fact]
-    public async Task HandleNavigationAsync_open_paused_calls_coordinator_for_different_book_and_loads_projection()
+    private async Task HandleNavigationAsync_open_paused_calls_coordinator_for_different_book_and_loads_projection()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
@@ -97,8 +95,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal("第二章第一段", viewModel.Segments[0].Text);
     }
 
-    [Fact]
-    public async Task HandleNavigationAsync_return_to_current_session_does_not_reopen_playback()
+    private async Task HandleNavigationAsync_return_to_current_session_does_not_reopen_playback()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Playing,
@@ -145,8 +142,7 @@ public sealed partial class PlayerViewModelTests
         Assert.True(viewModel.Segments[1].IsCurrent);
     }
 
-    [Fact]
-    public async Task HandleNavigationAsync_restored_session_projects_current_segment_without_view_lifecycle_state()
+    private async Task HandleNavigationAsync_restored_session_projects_current_segment_without_view_lifecycle_state()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
@@ -188,8 +184,7 @@ public sealed partial class PlayerViewModelTests
         Assert.False(viewModel.ShowReturnToCurrentSegment);
     }
 
-    [Fact]
-    public async Task HandleNavigationAsync_targeted_chapter_on_same_playing_book_keeps_playing_and_jumps()
+    private async Task HandleNavigationAsync_targeted_chapter_on_same_playing_book_keeps_playing_and_jumps()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Playing,
@@ -233,8 +228,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(0, coordinator.OpenPausedCallCount);
     }
 
-    [Fact]
-    public async Task HandleNavigationAsync_targeted_chapter_on_same_paused_book_stays_paused_and_jumps()
+    private async Task HandleNavigationAsync_targeted_chapter_on_same_paused_book_stays_paused_and_jumps()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
@@ -278,8 +272,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(0, coordinator.OpenPausedCallCount);
     }
 
-    [Fact]
-    public async Task HandleNavigationAsync_targeted_chapter_on_different_playing_book_restarts_playback()
+    private async Task HandleNavigationAsync_targeted_chapter_on_different_playing_book_restarts_playback()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Playing,
@@ -315,8 +308,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(PlaybackState.Playing, viewModel.CurrentPlaybackState);
     }
 
-    [Fact]
-    public async Task HandleNavigationAsync_targeted_chapter_on_different_paused_book_opens_paused()
+    private async Task HandleNavigationAsync_targeted_chapter_on_different_paused_book_opens_paused()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
@@ -352,8 +344,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(PlaybackState.Paused, viewModel.CurrentPlaybackState);
     }
 
-    [Fact]
-    public async Task HandleNavigationAsync_missing_book_navigates_to_library_and_warns()
+    private async Task HandleNavigationAsync_missing_book_navigates_to_library_and_warns()
     {
         var navigationService = new FakeNavigationService();
         var feedbackService = new FakeAppFeedbackService();
@@ -372,8 +363,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal("无法打开书籍", feedbackService.LastWarningTitle);
     }
 
-    [Fact]
-    public async Task SelectChapterCommand_jumps_without_reopening_playback()
+    private async Task SelectChapterCommand_jumps_without_reopening_playback()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
@@ -415,8 +405,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(0, coordinator.OpenPausedCallCount);
     }
 
-    [Fact]
-    public async Task SelectChapterCommand_current_chapter_resumes_without_jump()
+    private async Task SelectChapterCommand_current_chapter_resumes_without_jump()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
@@ -455,8 +444,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(1, autoScrollCoordinator.ResumeAutoCenterCallCount);
     }
 
-    [Fact]
-    public async Task Snapshot_updates_ignore_stale_chapter_load_results()
+    private async Task Snapshot_updates_ignore_stale_chapter_load_results()
     {
         var firstChapterLoad = new TaskCompletionSource<PlaybackChapterContent?>(TaskCreationOptions.RunContinuationsAsynchronously);
         var contentService = new DelayedBookPlaybackContentService(
@@ -521,8 +509,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal("第二章第一段", viewModel.Segments[0].Text);
     }
 
-    [Fact]
-    public async Task Paused_chapter_does_not_show_empty_state_before_content_load_completes()
+    private async Task Paused_chapter_does_not_show_empty_state_before_content_load_completes()
     {
         var chapterLoad = new TaskCompletionSource<PlaybackChapterContent?>(TaskCreationOptions.RunContinuationsAsynchronously);
         var contentService = new DelayedBookPlaybackContentService(
@@ -570,8 +557,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal("1 / 1", viewModel.DisplayedSegmentCounterText);
     }
 
-    [Fact]
-    public async Task Loaded_empty_chapter_projects_explicit_empty_state_and_disables_playback()
+    private async Task Loaded_empty_chapter_projects_explicit_empty_state_and_disables_playback()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
@@ -617,8 +603,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Null(coordinator.LastStartRequest);
     }
 
-    [Fact]
-    public async Task Same_chapter_snapshot_sequence_preserves_segment_items_while_updating_current_segment()
+    private async Task Same_chapter_snapshot_sequence_preserves_segment_items_while_updating_current_segment()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
@@ -675,6 +660,41 @@ public sealed partial class PlayerViewModelTests
         Assert.Same(originalItems[1], viewModel.CurrentSegmentItem);
         Assert.True(viewModel.Segments[1].IsCurrent);
         Assert.False(viewModel.Segments[0].IsCurrent);
+    }
+
+    [Fact]
+    public async Task Player_navigation_open_and_restore_contracts_cover_speed_and_session_projection()
+    {
+        await LoadAsync_uses_persisted_global_speed_after_restart();
+        await HandleNavigationAsync_open_paused_calls_coordinator_for_different_book_and_loads_projection();
+        await HandleNavigationAsync_return_to_current_session_does_not_reopen_playback();
+        await HandleNavigationAsync_restored_session_projects_current_segment_without_view_lifecycle_state();
+    }
+
+    [Fact]
+    public async Task Player_navigation_chapter_target_contracts_cover_playing_and_paused_books()
+    {
+        await HandleNavigationAsync_targeted_chapter_on_same_playing_book_keeps_playing_and_jumps();
+        await HandleNavigationAsync_targeted_chapter_on_same_paused_book_stays_paused_and_jumps();
+        await HandleNavigationAsync_targeted_chapter_on_different_playing_book_restarts_playback();
+        await HandleNavigationAsync_targeted_chapter_on_different_paused_book_opens_paused();
+    }
+
+    [Fact]
+    public async Task Player_navigation_command_contracts_cover_missing_books_and_chapter_selection()
+    {
+        await HandleNavigationAsync_missing_book_navigates_to_library_and_warns();
+        await SelectChapterCommand_jumps_without_reopening_playback();
+        await SelectChapterCommand_current_chapter_resumes_without_jump();
+    }
+
+    [Fact]
+    public async Task Player_navigation_loading_contracts_cover_stale_and_empty_content_states()
+    {
+        await Snapshot_updates_ignore_stale_chapter_load_results();
+        await Paused_chapter_does_not_show_empty_state_before_content_load_completes();
+        await Loaded_empty_chapter_projects_explicit_empty_state_and_disables_playback();
+        await Same_chapter_snapshot_sequence_preserves_segment_items_while_updating_current_segment();
     }
 
 }

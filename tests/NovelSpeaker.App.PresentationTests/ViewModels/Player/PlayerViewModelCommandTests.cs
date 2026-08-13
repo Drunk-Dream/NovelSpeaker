@@ -18,8 +18,7 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels.Player;
 
 public sealed partial class PlayerViewModelTests
 {
-    [Fact]
-    public async Task OpenMiniPlayerCommand_uses_required_desktop_launcher()
+    private async Task OpenMiniPlayerCommand_uses_required_desktop_launcher()
     {
         var launcher = new FakeMiniPlayerLauncher();
         var viewModel = CreateViewModel(
@@ -32,8 +31,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(1, launcher.OpenCount);
     }
 
-    [Fact]
-    public async Task SelectRuleCommand_changes_rule_without_losing_context()
+    private async Task SelectRuleCommand_changes_rule_without_losing_context()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
@@ -75,8 +73,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal("示例小说", viewModel.CurrentTitle);
     }
 
-    [Fact]
-    public async Task SelectRuleCommand_ignores_current_rule()
+    private async Task SelectRuleCommand_ignores_current_rule()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
@@ -110,8 +107,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Null(coordinator.LastChangedRuleId);
     }
 
-    [Fact]
-    public async Task ApplySpeakSpeedCommand_changes_speed_with_current_context()
+    private async Task ApplySpeakSpeedCommand_changes_speed_with_current_context()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
@@ -152,8 +148,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(18, settingsService.Settings.DefaultSpeakSpeed);
     }
 
-    [Fact]
-    public async Task ApplySpeakSpeedCommand_updates_global_speed_when_session_already_uses_the_value()
+    private async Task ApplySpeakSpeedCommand_updates_global_speed_when_session_already_uses_the_value()
     {
         var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle with
         {
@@ -177,8 +172,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Null(coordinator.LastChangedSpeakSpeed);
     }
 
-    [Fact]
-    public async Task ApplySpeakSpeedCommand_enforces_domain_boundaries_and_projects_invalid_input()
+    private async Task ApplySpeakSpeedCommand_enforces_domain_boundaries_and_projects_invalid_input()
     {
         var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
         var settingsService = new FakeAppSettingsService(AppSettings.Default);
@@ -213,8 +207,7 @@ public sealed partial class PlayerViewModelTests
         }
     }
 
-    [Fact]
-    public async Task CommitSpeakSpeedAsync_does_not_write_or_overwrite_state_after_activation_is_cancelled()
+    private async Task CommitSpeakSpeedAsync_does_not_write_or_overwrite_state_after_activation_is_cancelled()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
@@ -252,8 +245,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal("18", viewModel.SpeedEditorText);
     }
 
-    [Fact]
-    public async Task IncreaseAndDecreaseSpeakSpeedCommands_debounce_and_apply_only_the_latest_speed()
+    private async Task IncreaseAndDecreaseSpeakSpeedCommands_debounce_and_apply_only_the_latest_speed()
     {
         var timeProvider = new ManualTimeProvider();
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
@@ -305,8 +297,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(11, settingsService.Settings.DefaultSpeakSpeed);
     }
 
-    [Fact]
-    public async Task HandleNavigationAsync_same_book_open_paused_request_keeps_real_time_session()
+    private async Task HandleNavigationAsync_same_book_open_paused_request_keeps_real_time_session()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Playing,
@@ -339,8 +330,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(PlaybackState.Playing, viewModel.CurrentPlaybackState);
     }
 
-    [Fact]
-    public async Task HandleNavigationAsync_restores_paused_session_when_rule_becomes_available_again()
+    private async Task HandleNavigationAsync_restores_paused_session_when_rule_becomes_available_again()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Stopped,
@@ -378,6 +368,31 @@ public sealed partial class PlayerViewModelTests
         Assert.False(viewModel.ShowNoRuleState);
         Assert.True(viewModel.ShowPlaybackControls);
         Assert.Equal(PlaybackState.Paused, viewModel.CurrentPlaybackState);
+    }
+
+    [Fact]
+    public async Task Player_command_rule_and_desktop_contracts_cover_context_actions()
+    {
+        await OpenMiniPlayerCommand_uses_required_desktop_launcher();
+        await SelectRuleCommand_changes_rule_without_losing_context();
+        await SelectRuleCommand_ignores_current_rule();
+    }
+
+    [Fact]
+    public async Task Player_command_speed_contracts_cover_normalization_cancellation_and_debounce()
+    {
+        await ApplySpeakSpeedCommand_changes_speed_with_current_context();
+        await ApplySpeakSpeedCommand_updates_global_speed_when_session_already_uses_the_value();
+        await ApplySpeakSpeedCommand_enforces_domain_boundaries_and_projects_invalid_input();
+        await CommitSpeakSpeedAsync_does_not_write_or_overwrite_state_after_activation_is_cancelled();
+        await IncreaseAndDecreaseSpeakSpeedCommands_debounce_and_apply_only_the_latest_speed();
+    }
+
+    [Fact]
+    public async Task Player_command_navigation_contracts_preserve_session_and_restore_paused_playback()
+    {
+        await HandleNavigationAsync_same_book_open_paused_request_keeps_real_time_session();
+        await HandleNavigationAsync_restores_paused_session_when_rule_becomes_available_again();
     }
 
 }
