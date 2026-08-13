@@ -71,6 +71,9 @@
 - 允许激进清理内部 API、目录、重复抽象和低价值测试，只要书籍、规则、阅读进度等持久数据与目标行为受测试保护；音频缓存属于明确可重置数据。
 - `IServiceProvider` 只留在组合根/框架桥接。
 - 共享 TTS admission 使用进程内、按规则隔离的异步优先级队列；当前播放和预取已通过 `TtsAdmissionPriority` 接入，主动缓存由 CACHE-402 复用同一入口并以 `ActiveCache` 优先级接入。
+- 当前测试精简阶段以完整自动测试总数 `<800` 作为一次性验收目标，不建立永久测试数量上限；后续有价值的回归测试允许总数重新增长到 800 以上。
+- WPF 自动测试默认不得在用户当前交互 Desktop 显示窗口。普通控件/页面优先无 Window 宿主；真实 Window/Popup/Focus/HWND 生命周期统一进入 TestKit 创建的隔离隐藏 Windows Desktop，隔离初始化失败时 fail closed。
+- 只有用户在当前任务明确允许可见窗口时才可启用 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`；视觉产物生成不构成该授权。
 - 不为下一阶段规划依赖人工验证才能关闭的任务。
 
 ## 2. 主要实现风险
@@ -94,6 +97,10 @@ Ctrl/Shift 选择、anchor、滚动定位和虚拟化容器可能产生边界问
 ### WPF 样式作用域与 Provider 漂移
 
 WPF Style 不是 CSS。应用级隐式样式、合并字典顺序和完整模板替换可能同时改变 Wpf.Ui 默认模板、测量和交互状态。实现必须通过 Provider Style Bridge、具名样式、局部组件和架构测试限制影响范围；Wpf.Ui 升级必须单独执行并重新运行 Style Gallery 与资源契约。
+
+### WPF 测试 Desktop 隔离
+
+独立 Windows Desktop 涉及 Win32 Desktop handle、STA thread 绑定和 WPF Application/Dispatcher 初始化顺序。测试宿主必须在线程进入 WPF 初始化前完成 Desktop 绑定，确定性释放 native handle，并在 CI/非交互会话中保持 fail-closed 行为；任何初始化异常都不得退回用户当前 Desktop。可见调试模式只改变 Desktop/显示策略，不应形成第二套测试生命周期或绕过清理与诊断。
 
 ### 布局所有权冲突
 

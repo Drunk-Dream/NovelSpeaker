@@ -88,6 +88,11 @@ UI 事件和平台能力通过可测试的 presentation port 转交；不得在�
 - 测试按 `docs/09_TESTING_AND_QUALITY.md` 分层；纯测试不得依赖 WPF STA 或真实第三方服务。
 - 测试等待明确事件、状态版本或可控时间，不使用任意 `Task.Delay`/`Thread.Sleep` 猜测完成。
 - migration、fixture、损坏音频、规则样本和 WPF Test Host 属于受保护测试资产，不能仅因无生产引用而删除。
+- 自动 WPF 测试默认不得在用户当前交互桌面显示任何顶层窗口；普通 Page/UserControl 优先使用 `WpfControlHost`，真实 Window/Popup/Focus/HWND 生命周期只能通过 `tests/TestKit/Wpf` 的共享宿主进入隔离测试 Desktop。
+- 测试宿主无法建立隔离 Desktop 时必须失败，不得回退到当前用户 Desktop。不得通过“移到屏幕外”作为长期无窗口保证。
+- 未经用户在当前任务中明确授权，Codex 不得设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`，也不得设置旧的 `NOVELSPEAKER_TEST_SHOW_WINDOWS=1`、直接运行会显示 NovelSpeaker UI 的调试流程，或采用其它方式绕过隐藏 Desktop。
+- `NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 只授权生成确定性截图/manifest，不授权显示窗口。
+- 当前阶段的测试数量目标只存在于 `docs/TASK_BACKLOG.md`；不得建立永久的测试总数上限，也不得通过把无关行为塞进单一测试来规避数量。
 
 ## 文件和文档规则
 
@@ -124,6 +129,8 @@ dotnet test -c Release --no-build
 ```powershell
 dotnet run --project src/NovelSpeaker.App
 ```
+
+`dotnet run` 会显示正式应用窗口，属于可见 UI 操作；Codex 只有在用户当前任务明确允许时才可执行。普通测试和视觉产物生成不得以此替代自动宿主。
 
 只有依赖或版本确实变化时才允许：
 

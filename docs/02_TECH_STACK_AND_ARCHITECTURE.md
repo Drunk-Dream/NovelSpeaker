@@ -187,4 +187,4 @@ Wpf.Ui 是标准 WPF/Wpf.Ui 控件的基础视觉提供者，NovelSpeaker 不复
 - 文件名、主公共类型和命名空间保持一致。
 - 非组合根代码不新增 `IServiceProvider` 依赖。
 
-架构收口任务见 `TASK_BACKLOG.md`，本文件不记录迁移过程。
+当前实施任务见 `TASK_BACKLOG.md`，本文件只记录稳定架构边界，不记录执行过程。

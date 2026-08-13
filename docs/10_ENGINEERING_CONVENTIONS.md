@@ -60,7 +60,8 @@
 - 页面不得复制通用 Trigger/VisualState，但可以保留真实页面专用的 Grid、Margin、MinWidth 和滚动结构。
 - ViewModel 不返回 Brush、Style、ControlTemplate、Thickness、CornerRadius 或其它 WPF 视觉类型。
 - UI 平台能力通过 presentation port/adapter 暴露给可测试代码。
-- 页面视觉迁移按纵向切片执行：先在正确控件族中补齐该页真实需要的公共资源和 Gallery fixture，再迁移一个窗口或页面；不得把同类 Style 分散到页面局部资源或多个公共字典。
+- 页面视觉变更按纵向切片执行：先确认已有公共资源是否足够；确有复用价值时在正确控件族中补齐公共资源和 Gallery fixture，再修改一个窗口或页面。不得因局部调整重新建立页面同义 Style 或把同类 Style 分散到多个字典。
+- WPF 自动测试默认不在用户当前 Desktop 显示窗口；无窗口布局/渲染使用 `WpfControlHost`，真实 Window/Popup 生命周期只通过共享 TestKit 宿主进入隔离 Desktop。可见调试只在用户明确授权后启用。
 
 ## 7. 数据与文件
 

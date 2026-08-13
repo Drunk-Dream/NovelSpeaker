@@ -22,3 +22,4 @@
 - `2026-08-02_COMPLETED_SPEECH_PLAN_QUERY_LIFECYCLE_BACKLOG.md`：已完成的朗读清单查询与生命周期阶段任务记录。
 - `2026-08-03_ABANDONED_GLOBAL_VISUAL_WAVE1.md`：被放弃的全局视觉 Wave 及其回退原因。
 - `2026-08-05_VISUAL_RESOURCE_PHASE2_RESTRUCTURED_BACKLOG.md`：重构前的视觉资源第二阶段任务记录；原任务 1–14 已执行，但公共组件和资源组织方式已被新设计替代。
+- `2026-08-13_COMPLETED_UI_UNIFICATION_AND_MIGRATION_BACKLOG.md`：已完成的公共视觉资源体系重构、正式 UI 统一迁移、缓存管理导出和 Icon Foreground Contract 收口阶段完整记录。
