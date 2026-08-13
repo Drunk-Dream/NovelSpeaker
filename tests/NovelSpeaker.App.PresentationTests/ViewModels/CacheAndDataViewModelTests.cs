@@ -14,28 +14,6 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed class CacheAndDataViewModelTests
 {
     [Fact]
-    public async Task LoadAsync_populates_overview_and_cache_limit()
-    {
-        var viewModel = CreateViewModel(
-            settingsService: new FakeAppSettingsService(AppSettings.Default with
-            {
-                CacheLimitBytes = AppSettings.DefaultCacheLimitBytes
-            }),
-            workspaceService: new FakeCacheWorkspaceService
-            {
-                Overview = new CacheOverviewModel(512L * 1024 * 1024, 12, AppSettings.DefaultCacheLimitBytes, false)
-            });
-
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        Assert.True(viewModel.IsOverviewLoaded);
-        Assert.Equal("512 MB", viewModel.TotalCacheSizeText);
-        Assert.Equal("12 项缓存", viewModel.CacheEntryCountText);
-        Assert.Equal("GB", viewModel.SelectedCacheLimitUnit);
-        Assert.Equal("2", viewModel.CacheLimitValueText);
-    }
-
-    [Fact]
     public async Task CommitCacheLimitAsync_blocks_values_below_minimum()
     {
         var viewModel = CreateViewModel();

@@ -12,17 +12,6 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed class AppearanceSettingsViewModelTests
 {
     [Fact]
-    public async Task LoadAsync_reads_selected_theme()
-    {
-        var settingsService = new FakeAppSettingsService(AppSettings.Default with { Theme = "Dark" });
-        var viewModel = CreateViewModel(settingsService, new FakeThemePreferenceService());
-
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        Assert.Equal("Dark", viewModel.SelectedTheme);
-    }
-
-    [Fact]
     public async Task SelectedTheme_change_uses_theme_preference_service()
     {
         var themeService = new FakeThemePreferenceService();

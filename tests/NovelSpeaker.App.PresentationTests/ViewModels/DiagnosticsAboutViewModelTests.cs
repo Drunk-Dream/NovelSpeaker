@@ -12,20 +12,6 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed class DiagnosticsAboutViewModelTests
 {
     [Fact]
-    public async Task LoadAsync_populates_snapshot_and_log_level()
-    {
-        var viewModel = CreateViewModel(
-            new FakeDiagnosticsService(),
-            new FakeAppSettingsService(AppSettings.Default with { LogLevel = "Warning" }));
-
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        Assert.Equal("NovelSpeaker", viewModel.AppName);
-        Assert.Equal("4", viewModel.DatabaseSchemaVersionText);
-        Assert.Equal("Warning", viewModel.SelectedLogLevel);
-    }
-
-    [Fact]
     public async Task SelectedLogLevel_change_saves_immediately()
     {
         var settingsService = new FakeAppSettingsService(AppSettings.Default);

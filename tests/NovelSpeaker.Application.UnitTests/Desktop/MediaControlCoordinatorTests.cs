@@ -35,7 +35,7 @@ public sealed class MediaControlCoordinatorTests
         var platform = new FakeMediaControlPlatform();
         var playback = new FakePlaybackSession
         {
-            CurrentSnapshot = MediaControlMetadataProjectorTests.CreateSnapshot(
+            CurrentSnapshot = CreateSnapshot(
                 PlaybackState.Paused,
                 "第一章",
                 "示例书")
@@ -47,7 +47,7 @@ public sealed class MediaControlCoordinatorTests
 
         await coordinator.StartAsync(CancellationToken.None);
         await platform.WaitForUpdatesAsync(1);
-        playback.Publish(MediaControlMetadataProjectorTests.CreateSnapshot(
+        playback.Publish(CreateSnapshot(
             PlaybackState.Playing,
             "第二章",
             "示例书"));
@@ -65,7 +65,7 @@ public sealed class MediaControlCoordinatorTests
     public async Task Progress_only_snapshots_do_not_repeat_unchanged_system_metadata()
     {
         var platform = new FakeMediaControlPlatform();
-        var initial = MediaControlMetadataProjectorTests.CreateSnapshot(PlaybackState.Playing);
+        var initial = CreateSnapshot(PlaybackState.Playing);
         var playback = new FakePlaybackSession { CurrentSnapshot = initial };
         await using var coordinator = new MediaControlCoordinator(
             platform,
@@ -94,7 +94,7 @@ public sealed class MediaControlCoordinatorTests
 
         await coordinator.StopAsync(CancellationToken.None);
         platform.Raise(MediaControlCommand.Next);
-        playback.Publish(MediaControlMetadataProjectorTests.CreateSnapshot(PlaybackState.Playing));
+        playback.Publish(CreateSnapshot(PlaybackState.Playing));
 
         Assert.Empty(playback.Calls);
         Assert.Single(platform.Updates);
@@ -162,7 +162,7 @@ public sealed class MediaControlCoordinatorTests
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => coordinator.StartAsync(CancellationToken.None));
         platform.Raise(MediaControlCommand.Next);
-        playback.Publish(MediaControlMetadataProjectorTests.CreateSnapshot(PlaybackState.Playing));
+        playback.Publish(CreateSnapshot(PlaybackState.Playing));
 
         Assert.Empty(playback.Calls);
         Assert.Empty(platform.Updates);
@@ -190,6 +190,19 @@ public sealed class MediaControlCoordinatorTests
         Assert.Single(reporter.MetadataFailures);
         Assert.Equal(["next-segment", "pause"], playback.Calls);
     }
+
+    private static PlaybackSnapshot CreateSnapshot(
+        PlaybackState state,
+        string? chapterTitle = "章节",
+        string? bookTitle = "书名") =>
+        PlaybackSnapshot.Idle with
+        {
+            State = state,
+            BookId = "book-1",
+            BookTitle = bookTitle,
+            ChapterTitle = chapterTitle,
+            SegmentCount = 2
+        };
 
     private sealed class FakeMediaControlPlatform : IMediaControlPlatform
     {

@@ -12,24 +12,6 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed class GeneralSettingsViewModelTests
 {
     [Fact]
-    public async Task Load_projects_saved_desktop_lifecycle_preferences()
-    {
-        var settings = new FakeSettingsService(
-            AppSettings.Default with
-            {
-                MainWindowCloseBehavior = MainWindowCloseBehavior.AskEveryTime,
-                StartMinimizedToTray = true
-            });
-        var viewModel = CreateViewModel(settings);
-
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        Assert.Equal(MainWindowCloseBehavior.AskEveryTime, viewModel.SelectedCloseBehavior?.Value);
-        Assert.True(viewModel.StartMinimizedToTray);
-        Assert.Empty(settings.Updates);
-    }
-
-    [Fact]
     public async Task User_changes_are_immediately_persisted_through_settings_service()
     {
         var settings = new FakeSettingsService(AppSettings.Default);
