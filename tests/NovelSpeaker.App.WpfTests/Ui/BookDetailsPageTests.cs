@@ -23,8 +23,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed class BookDetailsPageTests
 {
-    [Fact]
-    public void BookDetailsPage_uses_short_cleanup_action_and_keeps_explicit_entity_delete()
+    private void BookDetailsPage_uses_short_cleanup_action_and_keeps_explicit_entity_delete()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -53,8 +52,7 @@ public sealed class BookDetailsPageTests
         });
     }
 
-    [Fact]
-    public void BookDetailsPage_uses_fixed_workspace_layout_and_virtualized_catalog()
+    private void BookDetailsPage_uses_fixed_workspace_layout_and_virtualized_catalog()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -118,8 +116,7 @@ public sealed class BookDetailsPageTests
         });
     }
 
-    [Fact]
-    public void BookDetailsPage_trims_long_chapter_titles_and_exposes_current_chapter_accessibility()
+    private void BookDetailsPage_trims_long_chapter_titles_and_exposes_current_chapter_accessibility()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -195,8 +192,7 @@ public sealed class BookDetailsPageTests
         });
     }
 
-    [Fact]
-    public void BookDetailsPage_projects_missing_book_through_status_view()
+    private void BookDetailsPage_projects_missing_book_through_status_view()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -217,8 +213,7 @@ public sealed class BookDetailsPageTests
         });
     }
 
-    [Fact]
-    public void BookDetailsPage_keeps_operation_status_visible_when_book_is_loaded()
+    private void BookDetailsPage_keeps_operation_status_visible_when_book_is_loaded()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -240,8 +235,7 @@ public sealed class BookDetailsPageTests
         });
     }
 
-    [Fact]
-    public void BookDetailsPage_keeps_all_book_information_reachable_at_reduced_height()
+    private void BookDetailsPage_keeps_all_book_information_reachable_at_reduced_height()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -259,8 +253,7 @@ public sealed class BookDetailsPageTests
         });
     }
 
-    [Fact]
-    public void BookDetailsPage_keeps_workspace_usable_with_long_titles_and_supported_dpi()
+    private void BookDetailsPage_keeps_workspace_usable_with_long_titles_and_supported_dpi()
     {
         foreach (var (width, scale) in new[] { (900d, 1d), (1280d, 1.25d), (1440d, 1.5d) })
         {
@@ -294,8 +287,7 @@ public sealed class BookDetailsPageTests
         }
     }
 
-    [Fact]
-    public void BookDetails_visual_review_generates_stable_page_screenshots()
+    private void BookDetails_visual_review_generates_stable_page_screenshots()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {
@@ -332,8 +324,7 @@ public sealed class BookDetailsPageTests
         });
     }
 
-    [Fact]
-    public void BookDetailsPage_scrolls_to_current_chapter_when_async_catalog_load_finishes()
+    private void BookDetailsPage_scrolls_to_current_chapter_when_async_catalog_load_finishes()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -394,6 +385,30 @@ public sealed class BookDetailsPageTests
                 window.Close();
             }
         });
+    }
+
+    [Fact]
+    public void Book_details_page_structure_and_projection_contracts_cover_actions_and_status()
+    {
+        BookDetailsPage_uses_short_cleanup_action_and_keeps_explicit_entity_delete();
+        BookDetailsPage_uses_fixed_workspace_layout_and_virtualized_catalog();
+        BookDetailsPage_trims_long_chapter_titles_and_exposes_current_chapter_accessibility();
+        BookDetailsPage_projects_missing_book_through_status_view();
+        BookDetailsPage_keeps_operation_status_visible_when_book_is_loaded();
+    }
+
+    [Fact]
+    public void Book_details_page_geometry_contracts_cover_reduced_height_long_titles_and_visual_review()
+    {
+        BookDetailsPage_keeps_all_book_information_reachable_at_reduced_height();
+        BookDetailsPage_keeps_workspace_usable_with_long_titles_and_supported_dpi();
+        BookDetails_visual_review_generates_stable_page_screenshots();
+    }
+
+    [Fact]
+    public void Book_details_page_async_catalog_contract_preserves_current_chapter_scroll()
+    {
+        BookDetailsPage_scrolls_to_current_chapter_when_async_catalog_load_finishes();
     }
 
     private static BookDetailsViewModel CreateViewModel(FakeBookManagementService? managementService = null)

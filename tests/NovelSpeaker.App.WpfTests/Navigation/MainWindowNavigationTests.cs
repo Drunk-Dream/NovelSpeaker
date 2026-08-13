@@ -39,8 +39,7 @@ namespace NovelSpeaker.App.WpfTests.Navigation;
 [Collection("WpfDispatcher")]
 public sealed class MainWindowNavigationTests
 {
-    [Fact]
-    public async Task Active_cache_footer_entry_opens_progress_flyout_and_survives_primary_navigation()
+    private async Task Active_cache_footer_entry_opens_progress_flyout_and_survives_primary_navigation()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -96,8 +95,7 @@ public sealed class MainWindowNavigationTests
         });
     }
 
-    [Fact]
-    public async Task Chapter_export_footer_entry_opens_progress_flyout_and_survives_primary_navigation()
+    private async Task Chapter_export_footer_entry_opens_progress_flyout_and_survives_primary_navigation()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -160,8 +158,7 @@ public sealed class MainWindowNavigationTests
         });
     }
 
-    [Fact]
-    public async Task Closing_window_delegates_to_desktop_lifecycle_and_remains_open_when_exit_is_not_approved()
+    private async Task Closing_window_delegates_to_desktop_lifecycle_and_remains_open_when_exit_is_not_approved()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -194,8 +191,7 @@ public sealed class MainWindowNavigationTests
         });
     }
 
-    [Fact]
-    public async Task Closing_window_closes_after_guard_approval()
+    private async Task Closing_window_closes_after_guard_approval()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -215,8 +211,7 @@ public sealed class MainWindowNavigationTests
         });
     }
 
-    [Fact]
-    public async Task Closing_guard_failure_is_projected_and_keeps_window_open()
+    private async Task Closing_guard_failure_is_projected_and_keeps_window_open()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -242,8 +237,7 @@ public sealed class MainWindowNavigationTests
         });
     }
 
-    [Fact]
-    public void Loaded_initializes_navigation_once_and_targets_library_page()
+    private void Loaded_initializes_navigation_once_and_targets_library_page()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -280,8 +274,7 @@ public sealed class MainWindowNavigationTests
         });
     }
 
-    [Fact]
-    public void Shell_exposes_only_library_and_settings_primary_items()
+    private void Shell_exposes_only_library_and_settings_primary_items()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -320,8 +313,7 @@ public sealed class MainWindowNavigationTests
         });
     }
 
-    [Fact]
-    public async Task Main_window_uses_formal_shell_resources_without_legacy_keys_or_page_margin()
+    private async Task Main_window_uses_formal_shell_resources_without_legacy_keys_or_page_margin()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -431,8 +423,7 @@ public sealed class MainWindowNavigationTests
         });
     }
 
-    [Fact]
-    public void Main_window_visual_review_generates_stable_window_screenshots()
+    private void Main_window_visual_review_generates_stable_window_screenshots()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {
@@ -463,8 +454,7 @@ public sealed class MainWindowNavigationTests
         });
     }
 
-    [Fact]
-    public async Task Real_guarded_navigation_to_player_page_keeps_navigation_content_presenter_configuration()
+    private async Task Real_guarded_navigation_to_player_page_keeps_navigation_content_presenter_configuration()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -493,8 +483,7 @@ public sealed class MainWindowNavigationTests
         });
     }
 
-    [Fact]
-    public async Task Real_navigation_to_appearance_settings_page_does_not_raise_dispatcher_exception()
+    private async Task Real_navigation_to_appearance_settings_page_does_not_raise_dispatcher_exception()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -546,8 +535,7 @@ public sealed class MainWindowNavigationTests
         });
     }
 
-    [Fact]
-    public async Task Navigation_content_host_uses_semantic_canvas_border_and_rounds_its_top_left_corner()
+    private async Task Navigation_content_host_uses_semantic_canvas_border_and_rounds_its_top_left_corner()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -581,8 +569,7 @@ public sealed class MainWindowNavigationTests
         });
     }
 
-    [Fact]
-    public async Task Primary_navigation_switch_keeps_only_one_active_menu_item()
+    private async Task Primary_navigation_switch_keeps_only_one_active_menu_item()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -621,6 +608,34 @@ public sealed class MainWindowNavigationTests
                 provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
         });
+    }
+
+    [Fact]
+    public async Task Main_window_footer_and_close_lifecycle_contracts_cover_commands_and_guards()
+    {
+        await Active_cache_footer_entry_opens_progress_flyout_and_survives_primary_navigation();
+        await Chapter_export_footer_entry_opens_progress_flyout_and_survives_primary_navigation();
+        await Closing_window_delegates_to_desktop_lifecycle_and_remains_open_when_exit_is_not_approved();
+        await Closing_window_closes_after_guard_approval();
+        await Closing_guard_failure_is_projected_and_keeps_window_open();
+    }
+
+    [Fact]
+    public async Task Main_window_navigation_contracts_cover_startup_routes_and_selection()
+    {
+        Loaded_initializes_navigation_once_and_targets_library_page();
+        Shell_exposes_only_library_and_settings_primary_items();
+        await Real_guarded_navigation_to_player_page_keeps_navigation_content_presenter_configuration();
+        await Real_navigation_to_appearance_settings_page_does_not_raise_dispatcher_exception();
+        await Primary_navigation_switch_keeps_only_one_active_menu_item();
+    }
+
+    [Fact]
+    public async Task Main_window_visual_contracts_cover_resources_geometry_and_rendering()
+    {
+        await Main_window_uses_formal_shell_resources_without_legacy_keys_or_page_margin();
+        Main_window_visual_review_generates_stable_window_screenshots();
+        await Navigation_content_host_uses_semantic_canvas_border_and_rounds_its_top_left_corner();
     }
 
     private static NavigationView GetNavigationView(MainWindow window)
