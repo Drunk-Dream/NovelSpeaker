@@ -14,7 +14,20 @@ namespace NovelSpeaker.App.WpfTests.Bootstrap;
 public sealed class StartupStatusWindowTests
 {
     [Fact]
-    public void Loading_state_uses_formal_surface_status_and_progress_resources()
+    public void Startup_status_state_contracts_cover_loading_failure_and_projected_copy()
+    {
+        Loading_state_uses_formal_surface_status_and_progress_resources();
+        Failure_state_uses_only_projected_copy_and_replaces_loading_progress();
+    }
+
+    [Fact]
+    public void Startup_status_visual_contracts_cover_theme_dpi_layout_and_review_artifacts()
+    {
+        Light_dark_and_supported_dpi_keep_core_status_inside_the_window();
+        Startup_status_visual_review_generates_stable_window_screenshots();
+    }
+
+    private void Loading_state_uses_formal_surface_status_and_progress_resources()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -50,8 +63,7 @@ public sealed class StartupStatusWindowTests
         });
     }
 
-    [Fact]
-    public void Failure_state_uses_only_projected_copy_and_replaces_loading_progress()
+    private void Failure_state_uses_only_projected_copy_and_replaces_loading_progress()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -86,8 +98,7 @@ public sealed class StartupStatusWindowTests
         });
     }
 
-    [Fact]
-    public void Light_dark_and_supported_dpi_keep_core_status_inside_the_window()
+    private void Light_dark_and_supported_dpi_keep_core_status_inside_the_window()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -113,8 +124,7 @@ public sealed class StartupStatusWindowTests
         });
     }
 
-    [Fact]
-    public void Startup_status_visual_review_generates_stable_window_screenshots()
+    private void Startup_status_visual_review_generates_stable_window_screenshots()
     {
         if (!VisualArtifactTestGuard.IsEnabled)
         {

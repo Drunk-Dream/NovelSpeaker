@@ -13,7 +13,22 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed class PlaybackSettingsViewModelTests
 {
     [Fact]
-    public async Task CommitDefaultSpeakSpeedAsync_normalizes_and_updates_text()
+    public async Task Playback_settings_speed_contracts_cover_normalization_global_updates_and_debounce()
+    {
+        await CommitDefaultSpeakSpeedAsync_normalizes_and_updates_text();
+        await CommitDefaultSpeakSpeedAsync_without_playback_session_only_updates_global_speed();
+        await DefaultSpeakSpeedText_change_debounces_global_update_and_audio_regeneration();
+    }
+
+    [Fact]
+    public async Task Playback_settings_activation_contracts_cover_cancellation_late_results_and_prefetch_validation()
+    {
+        await Leaving_page_cancels_pending_debounced_setting_operation();
+        await Late_debounced_result_from_old_activation_cannot_update_reentered_page();
+        await CommitPrefetchCountAsync_rejects_non_integer_input();
+    }
+
+    private async Task CommitDefaultSpeakSpeedAsync_normalizes_and_updates_text()
     {
         var service = new FakeAppSettingsService(AppSettings.Default);
         var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle with
@@ -33,8 +48,7 @@ public sealed class PlaybackSettingsViewModelTests
         Assert.Equal(AppSettings.MaxSpeakSpeed, coordinator.LastChangedSpeakSpeed);
     }
 
-    [Fact]
-    public async Task CommitDefaultSpeakSpeedAsync_without_playback_session_only_updates_global_speed()
+    private async Task CommitDefaultSpeakSpeedAsync_without_playback_session_only_updates_global_speed()
     {
         var service = new FakeAppSettingsService(AppSettings.Default);
         var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
@@ -48,8 +62,7 @@ public sealed class PlaybackSettingsViewModelTests
         Assert.Null(coordinator.LastChangedSpeakSpeed);
     }
 
-    [Fact]
-    public async Task DefaultSpeakSpeedText_change_debounces_global_update_and_audio_regeneration()
+    private async Task DefaultSpeakSpeedText_change_debounces_global_update_and_audio_regeneration()
     {
         var timeProvider = new ManualTimeProvider();
         var service = new FakeAppSettingsService(AppSettings.Default);
@@ -79,8 +92,7 @@ public sealed class PlaybackSettingsViewModelTests
         Assert.Equal(12, coordinator.LastChangedSpeakSpeed);
     }
 
-    [Fact]
-    public async Task Leaving_page_cancels_pending_debounced_setting_operation()
+    private async Task Leaving_page_cancels_pending_debounced_setting_operation()
     {
         var timeProvider = new ManualTimeProvider();
         var service = new FakeAppSettingsService(AppSettings.Default);
@@ -99,8 +111,7 @@ public sealed class PlaybackSettingsViewModelTests
         Assert.Equal(AppSettings.DefaultSpeakSpeedValue, service.CurrentSettings.DefaultSpeakSpeed);
     }
 
-    [Fact]
-    public async Task Late_debounced_result_from_old_activation_cannot_update_reentered_page()
+    private async Task Late_debounced_result_from_old_activation_cannot_update_reentered_page()
     {
         var timeProvider = new ManualTimeProvider();
         var service = new FakeAppSettingsService(AppSettings.Default)
@@ -133,8 +144,7 @@ public sealed class PlaybackSettingsViewModelTests
         Assert.Null(playback.LastChangedSpeakSpeed);
     }
 
-    [Fact]
-    public async Task CommitPrefetchCountAsync_rejects_non_integer_input()
+    private async Task CommitPrefetchCountAsync_rejects_non_integer_input()
     {
         var service = new FakeAppSettingsService(AppSettings.Default);
         var viewModel = CreateViewModel(service);

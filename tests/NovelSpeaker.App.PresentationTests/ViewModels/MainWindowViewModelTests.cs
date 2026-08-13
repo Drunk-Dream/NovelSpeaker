@@ -13,7 +13,21 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed class MainWindowViewModelTests
 {
     [Fact]
-    public void Active_cache_projection_is_process_scoped_and_unchanged_by_playback_updates()
+    public void Main_window_active_cache_contracts_preserve_process_scope_and_now_playing_projection()
+    {
+        Active_cache_projection_is_process_scoped_and_unchanged_by_playback_updates();
+        Idle_snapshot_hides_now_playing_entry();
+        Snapshot_projection_updates_now_playing_entry();
+        Missing_rule_snapshot_still_shows_now_playing_entry_until_context_is_cleared();
+    }
+
+    [Fact]
+    public async Task Main_window_navigation_contracts_use_the_current_playback_session()
+    {
+        await NavigateToNowPlayingCommand_uses_player_request_without_playback_control();
+    }
+
+    private void Active_cache_projection_is_process_scoped_and_unchanged_by_playback_updates()
     {
         var playback = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
         var activeCache = new FakeActiveCacheCoordinator(new ActiveCacheSnapshot(
@@ -75,8 +89,7 @@ public sealed class MainWindowViewModelTests
         Assert.Equal("缓存中 · 1/2 章 · 50%", viewModel.ActiveCache.CompactStatusText);
     }
 
-    [Fact]
-    public void Idle_snapshot_hides_now_playing_entry()
+    private void Idle_snapshot_hides_now_playing_entry()
     {
         var navigationService = new FakeNavigationService();
         var viewModel = CreateViewModel(
@@ -87,8 +100,7 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(NowPlayingVisualState.Inactive, viewModel.NowPlayingVisualState);
     }
 
-    [Fact]
-    public void Snapshot_projection_updates_now_playing_entry()
+    private void Snapshot_projection_updates_now_playing_entry()
     {
         foreach (var (state, status, title, visualState) in new[]
                  {
@@ -126,8 +138,7 @@ public sealed class MainWindowViewModelTests
         }
     }
 
-    [Fact]
-    public async Task NavigateToNowPlayingCommand_uses_player_request_without_playback_control()
+    private async Task NavigateToNowPlayingCommand_uses_player_request_without_playback_control()
     {
         var navigationService = new FakeNavigationService();
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
@@ -156,8 +167,7 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(PlayerNavigationMode.ReturnToCurrentSession, request.Mode);
     }
 
-    [Fact]
-    public void Missing_rule_snapshot_still_shows_now_playing_entry_until_context_is_cleared()
+    private void Missing_rule_snapshot_still_shows_now_playing_entry_until_context_is_cleared()
     {
         var navigationService = new FakeNavigationService();
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
