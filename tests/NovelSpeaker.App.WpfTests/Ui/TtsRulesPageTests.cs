@@ -16,8 +16,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed partial class TtsRulesPageTests
 {
-    [Fact]
-    public void TtsRulesPage_uses_split_scrollable_workspace_without_datagrid()
+    private void TtsRulesPage_uses_split_scrollable_workspace_without_datagrid()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -57,8 +56,7 @@ public sealed partial class TtsRulesPageTests
         });
     }
 
-    [Fact]
-    public void TtsRulesPage_exposes_rule_item_automation_name()
+    private void TtsRulesPage_exposes_rule_item_automation_name()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -88,8 +86,7 @@ public sealed partial class TtsRulesPageTests
         });
     }
 
-    [Fact]
-    public void TtsRulesPage_uses_shared_rule_item_with_context_actions_without_current_action()
+    private void TtsRulesPage_uses_shared_rule_item_with_context_actions_without_current_action()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -141,8 +138,7 @@ public sealed partial class TtsRulesPageTests
         });
     }
 
-    [Fact]
-    public void TtsRulesPage_right_editor_keeps_only_audition_cancel_and_save_actions()
+    private void TtsRulesPage_right_editor_keeps_only_audition_cancel_and_save_actions()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -192,8 +188,7 @@ public sealed partial class TtsRulesPageTests
         });
     }
 
-    [Fact]
-    public void TtsRulesPage_uses_icon_buttons_for_toolbar_import_actions()
+    private void TtsRulesPage_uses_icon_buttons_for_toolbar_import_actions()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -213,6 +208,30 @@ public sealed partial class TtsRulesPageTests
         });
     }
 
+    [Fact]
+    public void Tts_rules_page_workspace_contracts_cover_layout_shared_items_and_toolbar_actions()
+    {
+        TtsRulesPage_uses_split_scrollable_workspace_without_datagrid();
+        TtsRulesPage_exposes_rule_item_automation_name();
+        TtsRulesPage_uses_shared_rule_item_with_context_actions_without_current_action();
+        TtsRulesPage_uses_icon_buttons_for_toolbar_import_actions();
+    }
+
+    [Fact]
+    public void Tts_rules_page_editor_contracts_cover_actions_and_request_projection()
+    {
+        TtsRulesPage_right_editor_keeps_only_audition_cancel_and_save_actions();
+        TtsRulesPage_shows_request_body_only_for_post();
+        TtsRulesPage_shows_concurrent_rate_format_tooltip();
+    }
+
+    [Fact]
+    public void Tts_rules_page_help_contracts_cover_drawer_visibility_and_guidance()
+    {
+        TtsRulesPage_toggles_help_drawer_visibility();
+        TtsRulesPage_help_drawer_contains_guided_get_and_post_examples();
+    }
+
     private static void AssertToolbarIcon(TtsRulesPage view, string automationName, SymbolRegular expectedSymbol)
     {
         var button = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
@@ -224,8 +243,7 @@ public sealed partial class TtsRulesPageTests
         Assert.Equal(automationName, button.ToolTip);
     }
 
-    [Fact]
-    public void TtsRulesPage_toggles_help_drawer_visibility()
+    private void TtsRulesPage_toggles_help_drawer_visibility()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -257,8 +275,7 @@ public sealed partial class TtsRulesPageTests
         });
     }
 
-    [Fact]
-    public void TtsRulesPage_help_drawer_contains_guided_get_and_post_examples()
+    private void TtsRulesPage_help_drawer_contains_guided_get_and_post_examples()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -286,8 +303,7 @@ public sealed partial class TtsRulesPageTests
         });
     }
 
-    [Fact]
-    public void TtsRulesPage_shows_request_body_only_for_post()
+    private void TtsRulesPage_shows_request_body_only_for_post()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -329,8 +345,7 @@ public sealed partial class TtsRulesPageTests
         });
     }
 
-    [Fact]
-    public void TtsRulesPage_shows_concurrent_rate_format_tooltip()
+    private void TtsRulesPage_shows_concurrent_rate_format_tooltip()
     {
         WpfTestHost.RunInSta(() =>
         {
