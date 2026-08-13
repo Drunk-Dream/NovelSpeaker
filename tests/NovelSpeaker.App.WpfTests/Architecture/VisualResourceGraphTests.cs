@@ -109,8 +109,7 @@ public sealed class VisualResourceGraphTests
         Assert.Empty(findings);
     }
 
-    [Fact]
-    public void Formal_resource_key_fixture_requires_app_or_provider_prefix()
+    private void Formal_resource_key_fixture_requires_app_or_provider_prefix()
     {
         var graph = VisualResourceGraphScanner.ScanDocuments(
             new ResourceGraphDocument(
@@ -128,8 +127,7 @@ public sealed class VisualResourceGraphTests
         Assert.Contains(graph.Violations, violation => violation.Rule == "formal-key-prefix");
     }
 
-    [Fact]
-    public void Duplicate_formal_resource_key_fixture_is_rejected()
+    private void Duplicate_formal_resource_key_fixture_is_rejected()
     {
         var graph = VisualResourceGraphScanner.ScanDocuments(
             new ResourceGraphDocument(
@@ -158,8 +156,7 @@ public sealed class VisualResourceGraphTests
         Assert.Contains(graph.Violations, violation => violation.Rule == "duplicate-formal-key");
     }
 
-    [Fact]
-    public void Same_file_duplicate_formal_resource_key_fixture_is_rejected()
+    private void Same_file_duplicate_formal_resource_key_fixture_is_rejected()
     {
         var graph = VisualResourceGraphScanner.ScanDocuments(
             new ResourceGraphDocument(
@@ -178,8 +175,7 @@ public sealed class VisualResourceGraphTests
         Assert.Contains(graph.Violations, violation => violation.Rule == "duplicate-formal-key");
     }
 
-    [Fact]
-    public void Formal_keys_participate_in_duplicate_detection()
+    private void Formal_keys_participate_in_duplicate_detection()
     {
         var graph = VisualResourceGraphScanner.ScanDocuments(
             new ResourceGraphDocument(
@@ -208,8 +204,7 @@ public sealed class VisualResourceGraphTests
         Assert.Contains(graph.Violations, violation => violation.Rule == "duplicate-formal-key");
     }
 
-    [Fact]
-    public void Production_control_fixture_is_rejected()
+    private void Production_control_fixture_is_rejected()
     {
         var findings = VisualResourceGraphScanner.ScanProductionControlSource(
             "src/NovelSpeaker.App/Shared/Presentation/Controls/AppPageHeader.cs",
@@ -227,8 +222,7 @@ public sealed class VisualResourceGraphTests
         Assert.Contains(findings, finding => finding.Rule == "production-control-fixture");
     }
 
-    [Fact]
-    public void Production_control_attached_property_and_factory_fixtures_are_rejected()
+    private void Production_control_attached_property_and_factory_fixtures_are_rejected()
     {
         var findings = VisualResourceGraphScanner.ScanProductionControlSource(
             "src/NovelSpeaker.App/Shared/Presentation/Controls/AppStatusView.cs",
@@ -247,8 +241,7 @@ public sealed class VisualResourceGraphTests
         Assert.Equal(6, findings.Count);
     }
 
-    [Fact]
-    public void Production_control_dynamic_factory_fixture_is_allowed()
+    private void Production_control_dynamic_factory_fixture_is_allowed()
     {
         var findings = VisualResourceGraphScanner.ScanProductionControlSource(
             "src/NovelSpeaker.App/Shared/Presentation/Controls/AppStatusView.cs",
@@ -269,8 +262,7 @@ public sealed class VisualResourceGraphTests
         Assert.Empty(findings);
     }
 
-    [Fact]
-    public void Production_control_interpolated_and_raw_literal_fixtures_are_classified()
+    private void Production_control_interpolated_and_raw_literal_fixtures_are_classified()
     {
         var fixedFindings = VisualResourceGraphScanner.ScanProductionControlSource(
             "src/NovelSpeaker.App/Shared/Presentation/Controls/AppStatusView.cs",
@@ -290,8 +282,7 @@ public sealed class VisualResourceGraphTests
         Assert.Empty(escapedDynamicFindings);
     }
 
-    [Fact]
-    public void Production_control_multiline_fixtures_are_rejected()
+    private void Production_control_multiline_fixtures_are_rejected()
     {
         var findings = VisualResourceGraphScanner.ScanProductionControlSource(
             "src/NovelSpeaker.App/Shared/Presentation/Controls/AppStatusView.cs",
@@ -308,6 +299,25 @@ public sealed class VisualResourceGraphTests
 
         Assert.Equal(3, findings.Count);
         Assert.Equal([1, 3, 6], findings.Select(finding => finding.Line));
+    }
+
+    [Fact]
+    public void Formal_resource_graph_fixtures_enforce_key_ownership_and_duplicate_detection()
+    {
+        Formal_resource_key_fixture_requires_app_or_provider_prefix();
+        Duplicate_formal_resource_key_fixture_is_rejected();
+        Same_file_duplicate_formal_resource_key_fixture_is_rejected();
+        Formal_keys_participate_in_duplicate_detection();
+    }
+
+    [Fact]
+    public void Production_control_fixtures_classify_static_content_and_dynamic_factories()
+    {
+        Production_control_fixture_is_rejected();
+        Production_control_attached_property_and_factory_fixtures_are_rejected();
+        Production_control_dynamic_factory_fixture_is_allowed();
+        Production_control_interpolated_and_raw_literal_fixtures_are_classified();
+        Production_control_multiline_fixtures_are_rejected();
     }
 
     private static int IndexOf(
