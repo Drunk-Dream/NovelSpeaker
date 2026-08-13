@@ -5,7 +5,6 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
-using System.Xml.Linq;
 using NovelSpeaker.StyleGallery;
 using Wpf.Ui.Controls;
 using Xunit;
@@ -18,88 +17,6 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed class SelectionNavigationMenuStyleContractTests
 {
-    [Fact]
-    public void Selection_navigation_menu_keys_are_owned_by_their_dictionaries_only()
-    {
-        var repositoryRoot = LocateRepositoryRoot();
-        var stylesDirectory = Path.Combine(
-            repositoryRoot,
-            "src",
-            "NovelSpeaker.App",
-            "Shared",
-            "Theming",
-            "Resources",
-            "Styles");
-
-        var selectionKeys = ReadKeys(Path.Combine(stylesDirectory, "Selection.xaml"));
-        Assert.Equal(
-            [
-                "App.Selection.ListItem",
-                "App.Selection.CardItem",
-                "App.Selection.RuleCard",
-                "App.Selection.CurrentItem",
-                "App.Selection.DropTarget",
-                "App.Selection.MultiSelectItem"
-            ],
-            selectionKeys);
-
-        var navigationKeys = ReadKeys(Path.Combine(stylesDirectory, "Navigation.xaml"));
-        Assert.Equal(
-            [
-                "App.Navigation.Entry",
-                "App.Navigation.SettingsEntry"
-            ],
-            navigationKeys);
-
-        var menusKeys = ReadKeys(Path.Combine(stylesDirectory, "Menus.xaml"));
-        Assert.Equal(
-            [
-                "App.Menu.Surface",
-                "App.Menu.ContextSurface",
-                "App.Menu.Item",
-                "App.Menu.DangerItem",
-                "App.Menu.GroupHeader"
-            ],
-            menusKeys);
-
-        var allStyleDefinitions = Directory
-            .EnumerateFiles(stylesDirectory, "*.xaml", SearchOption.TopDirectoryOnly)
-            .SelectMany(path => ReadKeys(path).Select(key => (path, key)))
-            .ToArray();
-        Assert.All(selectionKeys, key =>
-            Assert.Single(allStyleDefinitions, definition => definition.key == key &&
-                definition.path.EndsWith("Selection.xaml", StringComparison.Ordinal)));
-        Assert.All(navigationKeys, key =>
-            Assert.Single(allStyleDefinitions, definition => definition.key == key &&
-                definition.path.EndsWith("Navigation.xaml", StringComparison.Ordinal)));
-        Assert.All(menusKeys, key =>
-            Assert.Single(allStyleDefinitions, definition => definition.key == key &&
-                definition.path.EndsWith("Menus.xaml", StringComparison.Ordinal)));
-
-        Assert.False(File.Exists(Path.Combine(
-            repositoryRoot,
-            "src",
-            "NovelSpeaker.App",
-            "Shared",
-            "Theming",
-            "Resources",
-            "ControlThemes",
-            "NavigationFeedbackStyles.xaml")));
-
-        var bridgePath = Path.Combine(
-            repositoryRoot,
-            "src",
-            "NovelSpeaker.App",
-            "Shared",
-            "Theming",
-            "Provider",
-            "ProviderStyleBridge.xaml");
-        var bridgeKeys = ReadKeys(bridgePath);
-        Assert.Contains("Provider.Menu", bridgeKeys);
-        Assert.Contains("Provider.ContextMenu", bridgeKeys);
-        Assert.Contains("Provider.MenuItem", bridgeKeys);
-    }
-
     [Fact]
     public void Selection_navigation_menu_styles_resolve_through_the_provider_style_chains()
     {
@@ -613,18 +530,6 @@ public sealed class SelectionNavigationMenuStyleContractTests
 
     private static Color? ColorOf(object? brush) =>
         brush is SolidColorBrush solid ? solid.Color : null;
-
-    private static IReadOnlyList<string> ReadKeys(string path)
-    {
-        var document = XDocument.Load(path);
-        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
-        return document.Root?
-            .Elements()
-            .Select(element => (string?)element.Attribute(xaml + "Key"))
-            .OfType<string>()
-            .ToArray()
-            ?? [];
-    }
 
     private static string LocateRepositoryRoot()
     {

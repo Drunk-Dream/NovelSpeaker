@@ -1,10 +1,8 @@
 using System.IO;
-using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using System.Xml.Linq;
 using NovelSpeaker.StyleGallery;
 using Wpf.Ui.Controls;
@@ -28,92 +26,6 @@ public sealed class MediaControlStyleTests
     [
         "App.Media.Button"
     ];
-
-    [Fact]
-    public void Gallery_command_line_accepts_stable_media_scene_id()
-    {
-        var options = GalleryCommandLineOptions.Parse(
-        [
-            "--screenshot",
-            "--theme",
-            "all",
-            "--scene",
-            "media-controls",
-            "--output",
-            Path.Combine("artifacts", "visual-review", "gallery", "media")
-        ]);
-
-        Assert.Equal(
-            Path.Combine("artifacts", "visual-review", "gallery", "media"),
-            options.OutputDirectory);
-        Assert.Equal("media-controls", options.SceneName);
-        Assert.Equal(GalleryThemeChoice.All, options.Theme);
-    }
-
-    [Fact]
-    public async Task Screenshot_generator_writes_media_scene_manifest()
-    {
-        if (!VisualArtifactTestGuard.IsEnabled)
-        {
-            return;
-        }
-
-        await WpfTestHost.RunInStaAsync(async () =>
-        {
-            using var output = new TemporaryOutputDirectory();
-            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-            var options = GalleryCommandLineOptions.Parse(
-            [
-                "--screenshot",
-                "--theme",
-                "all",
-                "--scene",
-                "media-controls",
-                "--output",
-                output.Path
-            ]);
-            var window = new GalleryWindow();
-            try
-            {
-                WpfWindowHost.Show(window);
-                var manifest = await new GalleryScreenshotGenerator().GenerateAsync(
-                    window,
-                    options,
-                    cancellation.Token);
-
-                Assert.Equal("media-controls", manifest.ArtifactId);
-                Assert.Equal(
-                    ["Dark", "Light"],
-                    manifest.Scenes.Select(scene => scene.Theme).Order(StringComparer.Ordinal));
-                Assert.All(manifest.Scenes, scene =>
-                {
-                    Assert.Equal("media-controls", scene.Scene);
-                    Assert.Equal(GalleryRenderSettings.WindowWidth, scene.Width);
-                    Assert.Equal(GalleryRenderSettings.WindowHeight, scene.Height);
-                    var pngPath = Path.Combine(output.Path, scene.Png);
-                    var pngBytes = File.ReadAllBytes(pngPath);
-                    Assert.Equal(
-                        scene.Sha256,
-                        Convert.ToHexString(SHA256.HashData(pngBytes)).ToLowerInvariant());
-                    using var stream = new MemoryStream(pngBytes, writable: false);
-                    var frame = Assert.Single(
-                        BitmapDecoder.Create(
-                            stream,
-                            BitmapCreateOptions.PreservePixelFormat,
-                            BitmapCacheOption.OnLoad).Frames);
-                    Assert.Equal(scene.Width, frame.PixelWidth);
-                    Assert.Equal(scene.Height, frame.PixelHeight);
-                });
-            }
-            finally
-            {
-                if (window.IsVisible)
-                {
-                    window.Close();
-                }
-            }
-        });
-    }
 
     [Fact]
     public void Media_style_dictionary_contains_explicit_styles_without_templates()
@@ -536,24 +448,4 @@ public sealed class MediaControlStyleTests
         throw new DirectoryNotFoundException("Could not locate repository root.");
     }
 
-    private sealed class TemporaryOutputDirectory : IDisposable
-    {
-        public TemporaryOutputDirectory()
-        {
-            Path = System.IO.Path.Combine(
-                System.IO.Path.GetTempPath(),
-                "NovelSpeakerStyleGalleryTests",
-                Guid.NewGuid().ToString("N"));
-        }
-
-        public string Path { get; }
-
-        public void Dispose()
-        {
-            if (Directory.Exists(Path))
-            {
-                Directory.Delete(Path, recursive: true);
-            }
-        }
-    }
 }

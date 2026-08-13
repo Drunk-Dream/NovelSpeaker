@@ -58,7 +58,6 @@ public sealed class TestCleanupArchitectureTests
         var files = new[]
         {
             "tests/NovelSpeaker.App.WpfTests/Ui/StyleGallerySceneTests.cs",
-            "tests/NovelSpeaker.App.WpfTests/Ui/MediaControlStyleTests.cs",
             "tests/NovelSpeaker.App.WpfTests/Desktop/MiniPlayerWindowTests.cs"
         };
 

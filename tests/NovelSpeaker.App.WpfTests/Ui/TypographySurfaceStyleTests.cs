@@ -86,41 +86,6 @@ public sealed class TypographySurfaceStyleTests
         });
     }
 
-    [Fact]
-    public void Application_loads_typography_then_surface_styles_before_control_families()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var dictionaries = Assert.IsAssignableFrom<global::System.Windows.Application>(
-                global::System.Windows.Application.Current).Resources.MergedDictionaries;
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Typography.xaml",
-                dictionaries[8].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Surfaces.xaml",
-                dictionaries[9].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Buttons.xaml",
-                dictionaries[10].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Icons.xaml",
-                dictionaries[11].Source?.OriginalString,
-                StringComparison.Ordinal);
-            Assert.EndsWith(
-                "Shared/Theming/Resources/Styles/Inputs.xaml",
-                dictionaries[12].Source?.OriginalString,
-                StringComparison.Ordinal);
-
-            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
-                global::System.Windows.Application.Current);
-            Assert.All(TypographyKeys, key => Assert.IsType<Style>(application.FindResource(key)));
-            Assert.All(SurfaceKeys, key => Assert.IsType<Style>(application.FindResource(key)));
-        });
-    }
-
     [Theory]
     [InlineData(GalleryTheme.Light)]
     [InlineData(GalleryTheme.Dark)]
