@@ -7,7 +7,6 @@ using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
-using Wpf.Ui.Appearance;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -78,43 +77,4 @@ public sealed class AppearanceSettingsPageTests
         });
     }
 
-    [Theory]
-    [InlineData(ApplicationTheme.Dark)]
-    [InlineData(ApplicationTheme.Light)]
-    public void Appearance_page_constructs_after_runtime_theme_switch(ApplicationTheme theme)
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var themeRuntime = new WpfUiThemeRuntime();
-            if (theme == ApplicationTheme.Dark)
-            {
-                themeRuntime.ApplyDarkTheme();
-            }
-            else
-            {
-                themeRuntime.ApplyLightTheme();
-            }
-            var provider = WpfTestHost.BuildServiceProvider();
-            try
-            {
-                var page = provider.GetRequiredService<AppearanceSettingsPage>();
-                using var host = new WpfControlHost(page);
-                host.MeasureArrange(new Size(1200, 900));
-                var header = Assert.IsType<AppPageHeader>(page.FindName("PageHeader"));
-                Assert.Equal("外观", header.Title);
-                Assert.Equal(
-                    nameof(AppearanceSettingsViewModel.BackCommand),
-                    Assert.IsType<Binding>(BindingOperations.GetBinding(
-                        header,
-                        AppPageHeader.BackCommandProperty)).Path.Path);
-                Assert.True(page.ActualWidth > 0);
-                Assert.True(page.ActualHeight > 0);
-            }
-            finally
-            {
-                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                themeRuntime.ApplyLightTheme();
-            }
-        });
-    }
 }

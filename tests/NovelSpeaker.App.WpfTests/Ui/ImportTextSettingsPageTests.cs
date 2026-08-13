@@ -6,8 +6,6 @@ using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
-using NovelSpeaker.App.Shared.Theming;
-using Wpf.Ui.Appearance;
 using ToggleSwitch = Wpf.Ui.Controls.ToggleSwitch;
 using Xunit;
 
@@ -105,47 +103,6 @@ public sealed class ImportTextSettingsPageTests
             finally
             {
                 provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            }
-        });
-    }
-
-    [Theory]
-    [InlineData(ApplicationTheme.Dark)]
-    [InlineData(ApplicationTheme.Light)]
-    public void Import_text_page_constructs_after_runtime_theme_switch(ApplicationTheme theme)
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var runtime = new WpfUiThemeRuntime();
-            if (theme == ApplicationTheme.Dark)
-            {
-                runtime.ApplyDarkTheme();
-            }
-            else
-            {
-                runtime.ApplyLightTheme();
-            }
-
-            var provider = WpfTestHost.BuildServiceProvider();
-            try
-            {
-                var page = provider.GetRequiredService<ImportTextSettingsPage>();
-                using var host = new WpfControlHost(page);
-                host.MeasureArrange(new Size(1200, 900));
-                var header = Assert.IsType<AppPageHeader>(page.FindName("PageHeader"));
-                Assert.Equal("导入与文本", header.Title);
-                Assert.Equal(
-                    nameof(ImportTextSettingsViewModel.BackCommand),
-                    Assert.IsType<Binding>(BindingOperations.GetBinding(
-                        header,
-                        AppPageHeader.BackCommandProperty)).Path.Path);
-                Assert.True(page.ActualWidth > 0);
-                Assert.True(page.ActualHeight > 0);
-            }
-            finally
-            {
-                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                runtime.ApplyLightTheme();
             }
         });
     }

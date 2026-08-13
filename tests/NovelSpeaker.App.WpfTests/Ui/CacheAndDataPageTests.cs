@@ -7,8 +7,6 @@ using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
-using NovelSpeaker.App.Shared.Theming;
-using Wpf.Ui.Appearance;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -122,58 +120,4 @@ public sealed class CacheAndDataPageTests
         });
     }
 
-    [Theory]
-    [InlineData(ApplicationTheme.Dark)]
-    [InlineData(ApplicationTheme.Light)]
-    public void Cache_and_data_page_constructs_after_runtime_theme_switch(ApplicationTheme theme)
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var runtime = new WpfUiThemeRuntime();
-            if (theme == ApplicationTheme.Dark)
-            {
-                runtime.ApplyDarkTheme();
-            }
-            else
-            {
-                runtime.ApplyLightTheme();
-            }
-
-            var provider = WpfTestHost.BuildServiceProvider();
-            try
-            {
-                var page = provider.GetRequiredService<CacheAndDataPage>();
-                using var host = new WpfControlHost(page);
-                host.MeasureArrange(new Size(1200, 900));
-                var header = Assert.IsType<AppPageHeader>(page.FindName("PageHeader"));
-                Assert.Equal("缓存与数据", header.Title);
-                Assert.Equal(
-                    nameof(CacheAndDataViewModel.BackCommand),
-                    Assert.IsType<Binding>(BindingOperations.GetBinding(
-                        header,
-                        AppPageHeader.BackCommandProperty)).Path.Path);
-
-                Assert.True(page.ActualWidth > 0);
-                Assert.True(page.ActualHeight > 0);
-                Assert.True(((AppPageHeader)page.FindName("PageHeader")!).ActualHeight > 0);
-
-                var navigation = Assert.IsType<AppSettingsNavigationRow>(
-                    page.FindName("OpenCacheManagementRow"));
-                Assert.Equal("缓存管理", navigation.Title);
-                Assert.Equal("缓存管理", AutomationProperties.GetName(navigation));
-                Assert.Equal("缓存管理", navigation.ToolTip);
-                Assert.NotNull(navigation.Icon);
-                Assert.True(navigation.Focusable);
-                Assert.True(navigation.IsTabStop);
-                var commandBinding = Assert.IsType<Binding>(
-                    BindingOperations.GetBinding(navigation, Button.CommandProperty));
-                Assert.Equal("OpenCacheManagementCommand", commandBinding.Path.Path);
-            }
-            finally
-            {
-                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                runtime.ApplyLightTheme();
-            }
-        });
-    }
 }

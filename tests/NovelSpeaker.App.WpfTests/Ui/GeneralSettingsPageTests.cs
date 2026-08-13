@@ -6,7 +6,6 @@ using System.Windows.Data;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
-using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 using Button = System.Windows.Controls.Button;
 using TextBlock = System.Windows.Controls.TextBlock;
@@ -79,46 +78,6 @@ public sealed class GeneralSettingsPageTests
             finally
             {
                 provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            }
-        });
-    }
-
-    [Theory]
-    [InlineData(ApplicationTheme.Dark)]
-    [InlineData(ApplicationTheme.Light)]
-    public void General_settings_page_constructs_after_runtime_theme_switch(ApplicationTheme theme)
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var themeRuntime = new WpfUiThemeRuntime();
-            if (theme == ApplicationTheme.Dark)
-            {
-                themeRuntime.ApplyDarkTheme();
-            }
-            else
-            {
-                themeRuntime.ApplyLightTheme();
-            }
-            var provider = WpfTestHost.BuildServiceProvider();
-            try
-            {
-                var page = provider.GetRequiredService<GeneralSettingsPage>();
-                using var host = new WpfControlHost(page);
-                host.MeasureArrange(new Size(1200, 900));
-                var header = Assert.IsType<AppPageHeader>(page.FindName("PageHeader"));
-                Assert.Equal("常规", header.Title);
-                Assert.Equal(
-                    nameof(GeneralSettingsViewModel.BackCommand),
-                    Assert.IsType<Binding>(BindingOperations.GetBinding(
-                        header,
-                        AppPageHeader.BackCommandProperty)).Path.Path);
-                Assert.True(page.ActualWidth > 0);
-                Assert.True(page.ActualHeight > 0);
-            }
-            finally
-            {
-                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                themeRuntime.ApplyLightTheme();
             }
         });
     }

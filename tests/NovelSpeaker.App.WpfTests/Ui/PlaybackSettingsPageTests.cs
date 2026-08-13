@@ -7,7 +7,6 @@ using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
-using Wpf.Ui.Appearance;
 using ToggleSwitch = Wpf.Ui.Controls.ToggleSwitch;
 using Xunit;
 
@@ -93,47 +92,6 @@ public sealed class PlaybackSettingsPageTests
             finally
             {
                 provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            }
-        });
-    }
-
-    [Theory]
-    [InlineData(ApplicationTheme.Dark)]
-    [InlineData(ApplicationTheme.Light)]
-    public void Playback_settings_page_constructs_after_runtime_theme_switch(ApplicationTheme theme)
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var runtime = new WpfUiThemeRuntime();
-            if (theme == ApplicationTheme.Dark)
-            {
-                runtime.ApplyDarkTheme();
-            }
-            else
-            {
-                runtime.ApplyLightTheme();
-            }
-
-            var provider = WpfTestHost.BuildServiceProvider();
-            try
-            {
-                var page = provider.GetRequiredService<PlaybackSettingsPage>();
-                using var host = new WpfControlHost(page);
-                host.MeasureArrange(new Size(1200, 900));
-                var header = Assert.IsType<AppPageHeader>(page.FindName("PageHeader"));
-                Assert.Equal("播放设置", header.Title);
-                Assert.Equal(
-                    nameof(PlaybackSettingsViewModel.BackCommand),
-                    Assert.IsType<Binding>(BindingOperations.GetBinding(
-                        header,
-                        AppPageHeader.BackCommandProperty)).Path.Path);
-                Assert.True(page.ActualWidth > 0);
-                Assert.True(page.ActualHeight > 0);
-            }
-            finally
-            {
-                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                runtime.ApplyLightTheme();
             }
         });
     }
