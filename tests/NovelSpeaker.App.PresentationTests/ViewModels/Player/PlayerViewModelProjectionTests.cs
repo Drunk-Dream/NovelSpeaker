@@ -92,6 +92,52 @@ public sealed partial class PlayerViewModelTests
     }
 
     [Fact]
+    public async Task Navigation_projects_loaded_metadata_when_snapshot_metadata_is_missing()
+    {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            string.Empty,
+            0,
+            string.Empty,
+            0,
+            1,
+            0,
+            null,
+            0,
+            0,
+            0,
+            null,
+            false,
+            false,
+            string.Empty));
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(
+                new PlaybackBookContent(
+                    "book-1",
+                    "加载书名",
+                    [PlaybackChapterContent.FromLoaded(0, "回退章节", [])],
+                    "作者乙"),
+                PlaybackChapterContent.FromLoaded(
+                    0,
+                    "回退章节",
+                    [new SpeechSegment(0, 0, 3, "第一段", "第一段")])),
+            settingsService: new FakeAppSettingsService(
+                AppSettings.Default with { DefaultSpeakSpeed = 18 }));
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
+
+        Assert.Equal("加载书名", viewModel.CurrentTitle);
+        Assert.Equal("作者乙", viewModel.CurrentAuthor);
+        Assert.Equal("回退章节", viewModel.CurrentChapterTitle);
+        Assert.Equal(18, viewModel.SpeakSpeed);
+    }
+
+    [Fact]
     public async Task CommitSegmentProgressAsync_same_segment_is_noop()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();

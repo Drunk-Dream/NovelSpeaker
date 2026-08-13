@@ -45,6 +45,36 @@ public sealed partial class PlayerViewModelTests
     }
 
     [Fact]
+    public async Task Active_cache_selection_projects_shift_range_and_select_all_through_the_view_model()
+    {
+        var viewModel = CreateViewModel(
+            CreatePlaybackCoordinator(),
+            CreateContentService());
+        await OpenBookAsync(viewModel);
+
+        viewModel.EnterActiveCacheSelectionCommand.Execute(null);
+        await viewModel.HandleChapterClickAsync(
+            viewModel.Chapters[1],
+            DesktopSelectionModifiers.None,
+            CancellationToken.None);
+        await viewModel.HandleChapterClickAsync(
+            viewModel.Chapters[2],
+            DesktopSelectionModifiers.Shift,
+            CancellationToken.None);
+
+        Assert.Equal(2, viewModel.SelectedActiveCacheChapterCount);
+        Assert.True(viewModel.Chapters[1].IsSelectedForActiveCache);
+        Assert.True(viewModel.Chapters[2].IsSelectedForActiveCache);
+
+        Assert.True(viewModel.HandleActiveCacheSelectAll());
+        Assert.Equal(3, viewModel.SelectedActiveCacheChapterCount);
+        Assert.All(viewModel.Chapters, chapter => Assert.True(chapter.IsSelectedForActiveCache));
+
+        Assert.True(viewModel.HandleActiveCacheEscape());
+        Assert.DoesNotContain(viewModel.Chapters, chapter => chapter.IsSelectedForActiveCache);
+    }
+
+    [Fact]
     public async Task Active_cache_start_uses_selected_chapters_and_active_batch_blocks_another_start()
     {
         var activeCache = new FakeActiveCacheCoordinator();
