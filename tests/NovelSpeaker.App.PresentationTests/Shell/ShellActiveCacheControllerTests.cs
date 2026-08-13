@@ -9,8 +9,7 @@ namespace NovelSpeaker.App.PresentationTests.Shell;
 
 public sealed class ShellActiveCacheControllerTests
 {
-    [Fact]
-    public void Running_snapshot_projects_compact_progress_and_chapter_rows()
+    private void Running_snapshot_projects_compact_progress_and_chapter_rows()
     {
         var coordinator = new FakeActiveCacheCoordinator(CreateSnapshot(ActiveCacheBatchStatus.Running));
         var controller = new ShellActiveCacheController(
@@ -25,8 +24,7 @@ public sealed class ShellActiveCacheControllerTests
         Assert.True(controller.CanCancel);
     }
 
-    [Fact]
-    public void Snapshot_events_are_dispatched_and_terminal_notification_is_emitted_once_per_batch()
+    private void Snapshot_events_are_dispatched_and_terminal_notification_is_emitted_once_per_batch()
     {
         var coordinator = new FakeActiveCacheCoordinator(CreateSnapshot(ActiveCacheBatchStatus.Running));
         var feedback = new FakeFeedbackService();
@@ -44,8 +42,7 @@ public sealed class ShellActiveCacheControllerTests
         Assert.Equal(("主动缓存完成", "已缓存 3 章。"), feedback.SuccessMessages[0]);
     }
 
-    [Fact]
-    public void Cancelled_result_uses_a_clear_warning_message()
+    private void Cancelled_result_uses_a_clear_warning_message()
     {
         var coordinator = new FakeActiveCacheCoordinator(CreateSnapshot(ActiveCacheBatchStatus.Running));
         var feedback = new FakeFeedbackService();
@@ -60,8 +57,7 @@ public sealed class ShellActiveCacheControllerTests
         Assert.Equal([("主动缓存已取消", "已完成的缓存会保留。")], feedback.WarningMessages);
     }
 
-    [Fact]
-    public void Failed_result_preserves_application_safe_summary_and_notifies_once_per_batch()
+    private void Failed_result_preserves_application_safe_summary_and_notifies_once_per_batch()
     {
         var coordinator = new FakeActiveCacheCoordinator(CreateSnapshot(ActiveCacheBatchStatus.Running));
         var feedback = new FakeFeedbackService();
@@ -80,8 +76,7 @@ public sealed class ShellActiveCacheControllerTests
             feedback.WarningMessages);
     }
 
-    [Fact]
-    public void Failed_result_without_safe_summary_uses_generic_fallback()
+    private void Failed_result_without_safe_summary_uses_generic_fallback()
     {
         foreach (var errorSummary in new string?[] { null, string.Empty, "   " })
         {
@@ -100,8 +95,7 @@ public sealed class ShellActiveCacheControllerTests
         }
     }
 
-    [Fact]
-    public async Task Cancel_command_only_forwards_to_process_coordinator()
+    private async Task Cancel_command_only_forwards_to_process_coordinator()
     {
         var snapshot = CreateSnapshot(ActiveCacheBatchStatus.Running);
         var coordinator = new FakeActiveCacheCoordinator(snapshot);
@@ -117,8 +111,7 @@ public sealed class ShellActiveCacheControllerTests
         Assert.True(controller.IsVisible);
     }
 
-    [Fact]
-    public void Dispose_detaches_process_snapshot_subscription()
+    private void Dispose_detaches_process_snapshot_subscription()
     {
         var coordinator = new FakeActiveCacheCoordinator(CreateSnapshot(ActiveCacheBatchStatus.Running));
         var controller = new ShellActiveCacheController(
@@ -131,6 +124,28 @@ public sealed class ShellActiveCacheControllerTests
         controller.Dispose();
 
         Assert.Equal(0, coordinator.SubscriberCount);
+    }
+
+    [Fact]
+    public void Active_cache_projection_contracts_cover_running_progress_and_terminal_notifications()
+    {
+        Running_snapshot_projects_compact_progress_and_chapter_rows();
+        Snapshot_events_are_dispatched_and_terminal_notification_is_emitted_once_per_batch();
+    }
+
+    [Fact]
+    public void Active_cache_result_contracts_cover_cancellation_failure_summaries_and_fallback()
+    {
+        Cancelled_result_uses_a_clear_warning_message();
+        Failed_result_preserves_application_safe_summary_and_notifies_once_per_batch();
+        Failed_result_without_safe_summary_uses_generic_fallback();
+    }
+
+    [Fact]
+    public async Task Active_cache_command_contracts_cover_cancel_forwarding_and_disposal()
+    {
+        await Cancel_command_only_forwards_to_process_coordinator();
+        Dispose_detaches_process_snapshot_subscription();
     }
 
     private static ActiveCacheSnapshot CreateSnapshot(

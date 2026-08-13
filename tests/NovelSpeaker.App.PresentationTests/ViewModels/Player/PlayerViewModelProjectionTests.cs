@@ -18,8 +18,7 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels.Player;
 
 public sealed partial class PlayerViewModelTests
 {
-    [Fact]
-    public async Task Volume_projection_and_changes_use_the_shared_playback_session()
+    private async Task Volume_projection_and_changes_use_the_shared_playback_session()
     {
         var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle with
         {
@@ -49,8 +48,7 @@ public sealed partial class PlayerViewModelTests
         Assert.False(viewModel.IsVolumeMenuOpen);
     }
 
-    [Fact]
-    public async Task Faulted_snapshot_shows_error_bar_and_retry_flow()
+    private async Task Faulted_snapshot_shows_error_bar_and_retry_flow()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Faulted,
@@ -91,8 +89,7 @@ public sealed partial class PlayerViewModelTests
         Assert.True(viewModel.IsRuleMenuOpen);
     }
 
-    [Fact]
-    public async Task Navigation_projects_loaded_metadata_when_snapshot_metadata_is_missing()
+    private async Task Navigation_projects_loaded_metadata_when_snapshot_metadata_is_missing()
     {
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
             PlaybackState.Paused,
@@ -137,8 +134,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(18, viewModel.SpeakSpeed);
     }
 
-    [Fact]
-    public async Task CommitSegmentProgressAsync_same_segment_is_noop()
+    private async Task CommitSegmentProgressAsync_same_segment_is_noop()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
@@ -188,8 +184,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(1, autoScrollCoordinator.ResumeAutoCenterCallCount);
     }
 
-    [Fact]
-    public async Task CommitSegmentProgressAsync_new_segment_jumps_once()
+    private async Task CommitSegmentProgressAsync_new_segment_jumps_once()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
@@ -240,8 +235,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(1, autoScrollCoordinator.ResumeAutoCenterCallCount);
     }
 
-    [Fact]
-    public async Task NotifyUserScrollInput_exposes_return_to_current_segment()
+    private async Task NotifyUserScrollInput_exposes_return_to_current_segment()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
         var viewModel = CreateViewModel(
@@ -259,8 +253,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
     }
 
-    [Fact]
-    public async Task SelectSegmentCommand_current_segment_resumes_without_jump()
+    private async Task SelectSegmentCommand_current_segment_resumes_without_jump()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
@@ -306,8 +299,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(1, autoScrollCoordinator.ResumeAutoCenterCallCount);
     }
 
-    [Fact]
-    public async Task Segment_navigation_commands_resume_auto_center_after_success()
+    private async Task Segment_navigation_commands_resume_auto_center_after_success()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
@@ -356,8 +348,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
     }
 
-    [Fact]
-    public async Task Chapter_navigation_commands_resume_auto_center_after_success()
+    private async Task Chapter_navigation_commands_resume_auto_center_after_success()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
@@ -406,8 +397,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(PlayerAutoScrollState.AutoCentering, viewModel.AutoScrollState);
     }
 
-    [Fact]
-    public async Task Playback_snapshot_segment_change_keeps_manual_browsing_state()
+    private async Task Playback_snapshot_segment_change_keeps_manual_browsing_state()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
         var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
@@ -456,8 +446,7 @@ public sealed partial class PlayerViewModelTests
         Assert.False(viewModel.ShouldAutoCenterCurrentSegment);
     }
 
-    [Fact]
-    public async Task Loading_states_are_exposed_only_for_inline_loading_indicator()
+    private async Task Loading_states_are_exposed_only_for_inline_loading_indicator()
     {
         var viewModel = CreateViewModel(
             new FakePlaybackCoordinator(
@@ -499,5 +488,36 @@ public sealed partial class PlayerViewModelTests
         await viewModel.LoadAsync(CancellationToken.None);
         Assert.False(viewModel.ShowInlineLoadingState);
         Assert.Equal(string.Empty, viewModel.InlineLoadingText);
+    }
+
+    [Fact]
+    public async Task Player_projection_contracts_cover_volume_errors_and_loaded_metadata()
+    {
+        await Volume_projection_and_changes_use_the_shared_playback_session();
+        await Faulted_snapshot_shows_error_bar_and_retry_flow();
+        await Navigation_projects_loaded_metadata_when_snapshot_metadata_is_missing();
+    }
+
+    [Fact]
+    public async Task Player_progress_contracts_cover_same_and_new_segment_commits()
+    {
+        await CommitSegmentProgressAsync_same_segment_is_noop();
+        await CommitSegmentProgressAsync_new_segment_jumps_once();
+    }
+
+    [Fact]
+    public async Task Player_navigation_contracts_cover_manual_scroll_and_auto_center_recovery()
+    {
+        await NotifyUserScrollInput_exposes_return_to_current_segment();
+        await SelectSegmentCommand_current_segment_resumes_without_jump();
+        await Segment_navigation_commands_resume_auto_center_after_success();
+        await Chapter_navigation_commands_resume_auto_center_after_success();
+        await Playback_snapshot_segment_change_keeps_manual_browsing_state();
+    }
+
+    [Fact]
+    public async Task Player_loading_contracts_cover_inline_loading_state_projection()
+    {
+        await Loading_states_are_exposed_only_for_inline_loading_indicator();
     }
 }

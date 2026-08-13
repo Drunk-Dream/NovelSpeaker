@@ -6,8 +6,7 @@ namespace NovelSpeaker.App.PresentationTests;
 
 public sealed class PlayerAutoScrollCoordinatorTests
 {
-    [Fact]
-    public void User_scroll_input_enters_manual_browsing_and_restores_after_delay()
+    private void User_scroll_input_enters_manual_browsing_and_restores_after_delay()
     {
         var timeProvider = new ManualTimeProvider();
         var coordinator = new PlayerAutoScrollCoordinator(timeProvider);
@@ -25,8 +24,7 @@ public sealed class PlayerAutoScrollCoordinatorTests
         Assert.False(coordinator.ShowReturnToCurrentSegment);
     }
 
-    [Fact]
-    public void New_scroll_input_invalidates_previous_restore_timer()
+    private void New_scroll_input_invalidates_previous_restore_timer()
     {
         var timeProvider = new ManualTimeProvider();
         var coordinator = new PlayerAutoScrollCoordinator(timeProvider);
@@ -47,8 +45,7 @@ public sealed class PlayerAutoScrollCoordinatorTests
         Assert.True(coordinator.ShouldAutoCenter);
     }
 
-    [Fact]
-    public void Scrollbar_drag_blocks_restore_until_drag_completed()
+    private void Scrollbar_drag_blocks_restore_until_drag_completed()
     {
         var timeProvider = new ManualTimeProvider();
         var coordinator = new PlayerAutoScrollCoordinator(timeProvider);
@@ -67,8 +64,7 @@ public sealed class PlayerAutoScrollCoordinatorTests
         Assert.True(coordinator.ShouldAutoCenter);
     }
 
-    [Fact]
-    public void Passive_scroll_change_during_programmatic_scroll_is_ignored()
+    private void Passive_scroll_change_during_programmatic_scroll_is_ignored()
     {
         var timeProvider = new ManualTimeProvider();
         var coordinator = new PlayerAutoScrollCoordinator(timeProvider);
@@ -81,8 +77,7 @@ public sealed class PlayerAutoScrollCoordinatorTests
         Assert.False(coordinator.ShowReturnToCurrentSegment);
     }
 
-    [Fact]
-    public void Explicit_user_scroll_input_is_not_ignored_during_programmatic_scroll()
+    private void Explicit_user_scroll_input_is_not_ignored_during_programmatic_scroll()
     {
         var coordinator = new PlayerAutoScrollCoordinator(new ManualTimeProvider());
 
@@ -94,8 +89,7 @@ public sealed class PlayerAutoScrollCoordinatorTests
         Assert.True(coordinator.ShowReturnToCurrentSegment);
     }
 
-    [Fact]
-    public void Resume_auto_center_cancels_pending_restore_and_returns_to_auto_center()
+    private void Resume_auto_center_cancels_pending_restore_and_returns_to_auto_center()
     {
         var timeProvider = new ManualTimeProvider();
         var coordinator = new PlayerAutoScrollCoordinator(timeProvider);
@@ -110,8 +104,7 @@ public sealed class PlayerAutoScrollCoordinatorTests
         Assert.False(coordinator.ShowReturnToCurrentSegment);
     }
 
-    [Fact]
-    public void Page_leave_reset_cancels_pending_restore_and_returns_to_auto_center()
+    private void Page_leave_reset_cancels_pending_restore_and_returns_to_auto_center()
     {
         var timeProvider = new ManualTimeProvider();
         var coordinator = new PlayerAutoScrollCoordinator(timeProvider);
@@ -124,5 +117,27 @@ public sealed class PlayerAutoScrollCoordinatorTests
         Assert.Equal(PlayerAutoScrollState.AutoCentering, coordinator.State);
         Assert.True(coordinator.ShouldAutoCenter);
         Assert.False(coordinator.ShowReturnToCurrentSegment);
+    }
+
+    [Fact]
+    public void Auto_scroll_restore_contracts_cover_user_input_timers_and_dragging()
+    {
+        User_scroll_input_enters_manual_browsing_and_restores_after_delay();
+        New_scroll_input_invalidates_previous_restore_timer();
+        Scrollbar_drag_blocks_restore_until_drag_completed();
+    }
+
+    [Fact]
+    public void Auto_scroll_programmatic_contracts_cover_passive_and_explicit_user_changes()
+    {
+        Passive_scroll_change_during_programmatic_scroll_is_ignored();
+        Explicit_user_scroll_input_is_not_ignored_during_programmatic_scroll();
+    }
+
+    [Fact]
+    public void Auto_scroll_lifecycle_contracts_cover_resume_and_page_leave_reset()
+    {
+        Resume_auto_center_cancels_pending_restore_and_returns_to_auto_center();
+        Page_leave_reset_cancels_pending_restore_and_returns_to_auto_center();
     }
 }
