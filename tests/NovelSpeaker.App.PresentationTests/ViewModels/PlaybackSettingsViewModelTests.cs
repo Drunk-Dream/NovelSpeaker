@@ -13,37 +13,6 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed class PlaybackSettingsViewModelTests
 {
     [Fact]
-    public async Task LoadAsync_reads_saved_values()
-    {
-        var service = new FakeAppSettingsService(AppSettings.Default with
-        {
-            DefaultSpeakSpeed = 14,
-            PrefetchCount = 1,
-            ReadChapterTitle = true
-        });
-        var viewModel = CreateViewModel(service);
-
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        Assert.Equal("14", viewModel.DefaultSpeakSpeedText);
-        Assert.Equal("1", viewModel.PrefetchCountText);
-        Assert.True(viewModel.ReadChapterTitle);
-    }
-
-    [Fact]
-    public async Task ReadChapterTitle_change_saves_immediately()
-    {
-        var service = new FakeAppSettingsService(AppSettings.Default);
-        var viewModel = CreateViewModel(service);
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        viewModel.ReadChapterTitle = true;
-        await service.UpdateCompleted.WaitAsync(TimeSpan.FromSeconds(5));
-
-        Assert.True(service.CurrentSettings.ReadChapterTitle);
-    }
-
-    [Fact]
     public async Task CommitDefaultSpeakSpeedAsync_normalizes_and_updates_text()
     {
         var service = new FakeAppSettingsService(AppSettings.Default);

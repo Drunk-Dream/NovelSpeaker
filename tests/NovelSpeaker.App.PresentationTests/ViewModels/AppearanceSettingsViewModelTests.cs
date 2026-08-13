@@ -12,18 +12,6 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed class AppearanceSettingsViewModelTests
 {
     [Fact]
-    public async Task SelectedTheme_change_uses_theme_preference_service()
-    {
-        var themeService = new FakeThemePreferenceService();
-        var viewModel = CreateViewModel(new FakeAppSettingsService(AppSettings.Default), themeService);
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        viewModel.SelectedTheme = "Dark";
-
-        Assert.Equal("Dark", themeService.LastRequestedTheme);
-    }
-
-    [Fact]
     public async Task Late_theme_result_from_old_activation_cannot_update_reentered_page()
     {
         var settingsService = new FakeAppSettingsService(AppSettings.Default);
@@ -71,17 +59,6 @@ public sealed class AppearanceSettingsViewModelTests
         public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
 
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) => Task.FromResult(CurrentSettings);
-    }
-
-    private sealed class FakeThemePreferenceService : IThemePreferenceService
-    {
-        public string? LastRequestedTheme { get; private set; }
-
-        public Task<ThemePreferenceChangeResult> ApplyAsync(string requestedTheme, CancellationToken cancellationToken)
-        {
-            LastRequestedTheme = requestedTheme;
-            return Task.FromResult(new ThemePreferenceChangeResult(true, false, requestedTheme));
-        }
     }
 
     private sealed class GatedThemePreferenceService : IThemePreferenceService

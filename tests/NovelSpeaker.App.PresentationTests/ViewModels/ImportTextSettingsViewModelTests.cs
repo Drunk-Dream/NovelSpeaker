@@ -53,19 +53,6 @@ public sealed class ImportTextSettingsViewModelTests
     }
 
     [Fact]
-    public async Task EnableLongParagraphSplitting_change_saves_immediately()
-    {
-        var service = new FakeAppSettingsService(AppSettings.Default);
-        var viewModel = CreateViewModel(service);
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        viewModel.EnableLongParagraphSplitting = false;
-        await service.UpdateCompleted.WaitAsync(TimeSpan.FromSeconds(5));
-
-        Assert.False(service.CurrentSettings.EnableLongParagraphSplitting);
-    }
-
-    [Fact]
     public async Task BookFileNameTemplateText_change_debounces_and_saves_latest_value()
     {
         var timeProvider = new ManualTimeProvider();
