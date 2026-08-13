@@ -6,27 +6,30 @@ namespace NovelSpeaker.Application.UnitTests.Desktop;
 
 public sealed class MediaControlCoordinatorTests
 {
-    [Theory]
-    [InlineData(MediaControlCommand.Play, "resume")]
-    [InlineData(MediaControlCommand.Pause, "pause")]
-    [InlineData(MediaControlCommand.Previous, "previous-segment")]
-    [InlineData(MediaControlCommand.Next, "next-segment")]
-    public async Task Platform_commands_map_to_playback_session_commands(
-        MediaControlCommand command,
-        string expectedCall)
+    [Fact]
+    public async Task Platform_commands_map_to_playback_session_commands()
     {
-        var platform = new FakeMediaControlPlatform();
-        var playback = new FakePlaybackSession();
-        var reporter = new RecordingFailureReporter();
-        await using var coordinator = new MediaControlCoordinator(platform, playback, reporter);
-        await coordinator.StartAsync(CancellationToken.None);
-        await platform.WaitForUpdatesAsync(1);
+        foreach (var (command, expectedCall) in new[]
+                 {
+                     (MediaControlCommand.Play, "resume"),
+                     (MediaControlCommand.Pause, "pause"),
+                     (MediaControlCommand.Previous, "previous-segment"),
+                     (MediaControlCommand.Next, "next-segment")
+                 })
+        {
+            var platform = new FakeMediaControlPlatform();
+            var playback = new FakePlaybackSession();
+            var reporter = new RecordingFailureReporter();
+            await using var coordinator = new MediaControlCoordinator(platform, playback, reporter);
+            await coordinator.StartAsync(CancellationToken.None);
+            await platform.WaitForUpdatesAsync(1);
 
-        platform.Raise(command);
-        await playback.WaitForCallsAsync(1);
+            platform.Raise(command);
+            await playback.WaitForCallsAsync(1);
 
-        Assert.Equal([expectedCall], playback.Calls);
-        Assert.Empty(reporter.CommandFailures);
+            Assert.Equal([expectedCall], playback.Calls);
+            Assert.Empty(reporter.CommandFailures);
+        }
     }
 
     [Fact]

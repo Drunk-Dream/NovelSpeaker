@@ -70,15 +70,8 @@ public sealed class PlaybackPositionResolverTests
                 false));
     }
 
-    [Theory]
-    [InlineData(0, -1, null)]
-    [InlineData(5, 1, null)]
-    [InlineData(0, 1, 2)]
-    [InlineData(5, -1, 2)]
-    public void FindAdjacentChapterIndex_observes_book_boundaries(
-        int chapterIndex,
-        int direction,
-        int? expectedChapterIndex)
+    [Fact]
+    public void FindAdjacentChapterIndex_observes_book_boundaries()
     {
         var chapters = new[]
         {
@@ -87,9 +80,18 @@ public sealed class PlaybackPositionResolverTests
             PlaybackChapterContent.FromLoaded(5, "第六章", [Speech(0, 20, "六")])
         };
 
-        Assert.Equal(
-            expectedChapterIndex,
-            PlaybackPositionResolver.FindAdjacentChapterIndex(chapters, chapterIndex, direction));
+        foreach (var (chapterIndex, direction, expectedChapterIndex) in new[]
+                 {
+                     (0, -1, (int?)null),
+                     (5, 1, (int?)null),
+                     (0, 1, (int?)2),
+                     (5, -1, (int?)2)
+                 })
+        {
+            Assert.Equal(
+                expectedChapterIndex,
+                PlaybackPositionResolver.FindAdjacentChapterIndex(chapters, chapterIndex, direction));
+        }
     }
 
     [Fact]
