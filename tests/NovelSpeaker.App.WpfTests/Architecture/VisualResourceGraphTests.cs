@@ -8,8 +8,7 @@ namespace NovelSpeaker.App.WpfTests.Architecture;
 
 public sealed class VisualResourceGraphTests
 {
-    [Fact]
-    public void Application_gallery_and_wpf_resource_graph_has_unique_closed_formal_keys()
+    private void Application_gallery_and_wpf_resource_graph_has_unique_closed_formal_keys()
     {
         var repositoryRoot = LocateRepositoryRoot();
         var graph = VisualResourceGraphScanner.ScanRepository(repositoryRoot);
@@ -40,8 +39,7 @@ public sealed class VisualResourceGraphTests
                 definition => definition.Key.Equals(reference.Key, StringComparison.Ordinal)));
     }
 
-    [Fact]
-    public void Application_resource_graph_preserves_provider_palette_token_style_control_theme_order()
+    private void Application_resource_graph_preserves_provider_palette_token_style_control_theme_order()
     {
         var graph = VisualResourceGraphScanner.ScanRepository(LocateRepositoryRoot());
         var order = graph.ApplicationMergeSources;
@@ -70,8 +68,7 @@ public sealed class VisualResourceGraphTests
         Assert.DoesNotContain(order, source => source.Contains("Legacy", StringComparison.OrdinalIgnoreCase));
     }
 
-    [Fact]
-    public void Resource_directory_has_only_formal_layers_and_no_root_or_legacy_dictionaries()
+    private void Resource_directory_has_only_formal_layers_and_no_root_or_legacy_dictionaries()
     {
         var repositoryRoot = LocateRepositoryRoot();
         var resourcesRoot = Path.Combine(
@@ -91,8 +88,7 @@ public sealed class VisualResourceGraphTests
         Assert.False(Directory.Exists(Path.Combine(resourcesRoot, "Legacy")));
     }
 
-    [Fact]
-    public void Product_gallery_and_tests_do_not_contain_legacy_resource_dictionaries()
+    private void Product_gallery_and_tests_do_not_contain_legacy_resource_dictionaries()
     {
         var repositoryRoot = LocateRepositoryRoot();
         var roots = new[] { "src", "tests", "tools" };
@@ -299,6 +295,20 @@ public sealed class VisualResourceGraphTests
 
         Assert.Equal(3, findings.Count);
         Assert.Equal([1, 3, 6], findings.Select(finding => finding.Line));
+    }
+
+    [Fact]
+    public void Resource_graph_contracts_cover_closed_keys_and_merge_order()
+    {
+        Application_gallery_and_wpf_resource_graph_has_unique_closed_formal_keys();
+        Application_resource_graph_preserves_provider_palette_token_style_control_theme_order();
+    }
+
+    [Fact]
+    public void Resource_directory_contracts_cover_formal_layers_and_legacy_boundaries()
+    {
+        Resource_directory_has_only_formal_layers_and_no_root_or_legacy_dictionaries();
+        Product_gallery_and_tests_do_not_contain_legacy_resource_dictionaries();
     }
 
     [Fact]

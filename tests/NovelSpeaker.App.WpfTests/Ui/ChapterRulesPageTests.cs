@@ -17,8 +17,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed partial class ChapterRulesPageTests
 {
-    [Fact]
-    public void ChapterRulesPage_toolbar_contains_distinct_default_actions_and_help_without_export()
+    private void ChapterRulesPage_toolbar_contains_distinct_default_actions_and_help_without_export()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -36,8 +35,7 @@ public sealed partial class ChapterRulesPageTests
         });
     }
 
-    [Fact]
-    public void ChapterRulesPage_keeps_rule_list_and_editor_scrollable_with_virtualization()
+    private void ChapterRulesPage_keeps_rule_list_and_editor_scrollable_with_virtualization()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -67,8 +65,7 @@ public sealed partial class ChapterRulesPageTests
         });
     }
 
-    [Fact]
-    public void ChapterRulesPage_context_menu_exposes_export_copy_move_and_capability_delete_without_ellipsis()
+    private void ChapterRulesPage_context_menu_exposes_export_copy_move_and_capability_delete_without_ellipsis()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -107,8 +104,7 @@ public sealed partial class ChapterRulesPageTests
         });
     }
 
-    [Fact]
-    public void ChapterRulesPage_projects_validation_through_form_fields_and_keeps_cancel_save_actions()
+    private void ChapterRulesPage_projects_validation_through_form_fields_and_keeps_cancel_save_actions()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -137,8 +133,7 @@ public sealed partial class ChapterRulesPageTests
         });
     }
 
-    [Fact]
-    public void ChapterRulesPage_help_drawer_explains_matching_and_sorting()
+    private void ChapterRulesPage_help_drawer_explains_matching_and_sorting()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -162,8 +157,7 @@ public sealed partial class ChapterRulesPageTests
         });
     }
 
-    [Fact]
-    public void ChapterRulesPage_constrains_workspace_height_to_page()
+    private void ChapterRulesPage_constrains_workspace_height_to_page()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -181,6 +175,27 @@ public sealed partial class ChapterRulesPageTests
                 provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
         });
+    }
+
+    [Fact]
+    public void Chapter_rules_page_toolbar_contracts_cover_default_actions_and_help()
+    {
+        ChapterRulesPage_toolbar_contains_distinct_default_actions_and_help_without_export();
+        ChapterRulesPage_help_drawer_explains_matching_and_sorting();
+    }
+
+    [Fact]
+    public void Chapter_rules_page_list_contracts_cover_virtualization_and_context_capabilities()
+    {
+        ChapterRulesPage_keeps_rule_list_and_editor_scrollable_with_virtualization();
+        ChapterRulesPage_context_menu_exposes_export_copy_move_and_capability_delete_without_ellipsis();
+    }
+
+    [Fact]
+    public void Chapter_rules_page_editor_contracts_cover_validation_actions_and_workspace_height()
+    {
+        ChapterRulesPage_projects_validation_through_form_fields_and_keeps_cancel_save_actions();
+        ChapterRulesPage_constrains_workspace_height_to_page();
     }
 
     private static ChapterRulesPage CreateView(

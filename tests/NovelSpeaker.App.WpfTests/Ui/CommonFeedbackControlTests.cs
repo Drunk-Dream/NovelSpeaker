@@ -19,8 +19,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed class CommonFeedbackControlTests
 {
-    [Fact]
-    public void Common_and_feedback_templates_are_type_implicit_and_owned_by_their_dictionaries()
+    private void Common_and_feedback_templates_are_type_implicit_and_owned_by_their_dictionaries()
     {
         var root = LocateRepositoryRoot();
         var common = XDocument.Load(Path.Combine(
@@ -61,8 +60,7 @@ public sealed class CommonFeedbackControlTests
             element => element.Name.LocalName == "ScrollViewer");
     }
 
-    [Fact]
-    public void Common_controls_apply_implicit_styles_and_preserve_content_slots()
+    private void Common_controls_apply_implicit_styles_and_preserve_content_slots()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -216,8 +214,7 @@ public sealed class CommonFeedbackControlTests
         });
     }
 
-    [Fact]
-    public void Status_view_exposes_all_states_actions_and_usable_layout()
+    private void Status_view_exposes_all_states_actions_and_usable_layout()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -339,8 +336,7 @@ public sealed class CommonFeedbackControlTests
         });
     }
 
-    [Fact]
-    public void Gallery_scenes_use_formal_controls_and_cover_required_variants()
+    private void Gallery_scenes_use_formal_controls_and_cover_required_variants()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -425,8 +421,7 @@ public sealed class CommonFeedbackControlTests
         });
     }
 
-    [Fact]
-    public void Production_common_feedback_controls_do_not_contain_gallery_fixture_content()
+    private void Production_common_feedback_controls_do_not_contain_gallery_fixture_content()
     {
         var root = LocateRepositoryRoot();
         foreach (var relativePath in new[]
@@ -441,6 +436,26 @@ public sealed class CommonFeedbackControlTests
             Assert.DoesNotContain("AutomationProperties", source, StringComparison.Ordinal);
             Assert.DoesNotContain("Content =", source, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public void Common_feedback_style_contracts_cover_templates_and_content_slots()
+    {
+        Common_and_feedback_templates_are_type_implicit_and_owned_by_their_dictionaries();
+        Common_controls_apply_implicit_styles_and_preserve_content_slots();
+    }
+
+    [Fact]
+    public void Common_feedback_status_contracts_cover_states_actions_and_layout()
+    {
+        Status_view_exposes_all_states_actions_and_usable_layout();
+    }
+
+    [Fact]
+    public void Common_feedback_gallery_contracts_cover_variants_and_production_boundaries()
+    {
+        Gallery_scenes_use_formal_controls_and_cover_required_variants();
+        Production_common_feedback_controls_do_not_contain_gallery_fixture_content();
     }
 
     private static string LocateRepositoryRoot()

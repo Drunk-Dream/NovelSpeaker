@@ -27,8 +27,7 @@ public sealed class ButtonStyleTests
         "App.Button.Floating"
     ];
 
-    [Fact]
-    public void Button_style_dictionary_contains_only_explicit_provider_based_styles_without_templates()
+    private void Button_style_dictionary_contains_only_explicit_provider_based_styles_without_templates()
     {
         var path = Path.Combine(
             LocateRepositoryRoot(),
@@ -67,8 +66,7 @@ public sealed class ButtonStyleTests
         });
     }
 
-    [Fact]
-    public void Danger_icon_style_is_neutral_until_hover_and_pressed_danger_states()
+    private void Danger_icon_style_is_neutral_until_hover_and_pressed_danger_states()
     {
         var path = Path.Combine(
             LocateRepositoryRoot(),
@@ -123,8 +121,7 @@ public sealed class ButtonStyleTests
             setter => (string?)setter.Attribute("Property") == "Background");
     }
 
-    [Fact]
-    public void Icon_button_style_has_shared_hit_area_and_disabled_tooltip_contract()
+    private void Icon_button_style_has_shared_hit_area_and_disabled_tooltip_contract()
     {
         var path = Path.Combine(
             LocateRepositoryRoot(),
@@ -158,8 +155,7 @@ public sealed class ButtonStyleTests
                       (string?)setter.Attribute("Value") == "{x:Null}");
     }
 
-    [Fact]
-    public void Icon_button_icon_inherits_owner_foreground_in_both_themes()
+    private void Icon_button_icon_inherits_owner_foreground_in_both_themes()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
         {
@@ -213,8 +209,7 @@ public sealed class ButtonStyleTests
         });
     }
 
-    [Fact]
-    public void Icon_button_owner_foreground_updates_in_place_when_theme_changes()
+    private void Icon_button_owner_foreground_updates_in_place_when_theme_changes()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -261,8 +256,7 @@ public sealed class ButtonStyleTests
         });
     }
 
-    [Fact]
-    public void Named_button_styles_keep_provider_templates_and_have_all_interaction_state_triggers()
+    private void Named_button_styles_keep_provider_templates_and_have_all_interaction_state_triggers()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -380,6 +374,27 @@ public sealed class ButtonStyleTests
         });
     }
 
+
+    [Fact]
+    public void Button_style_ownership_contracts_cover_dictionary_and_provider_states()
+    {
+        Button_style_dictionary_contains_only_explicit_provider_based_styles_without_templates();
+        Named_button_styles_keep_provider_templates_and_have_all_interaction_state_triggers();
+    }
+
+    [Fact]
+    public void Button_interaction_contracts_cover_danger_states_hit_area_and_tooltips()
+    {
+        Danger_icon_style_is_neutral_until_hover_and_pressed_danger_states();
+        Icon_button_style_has_shared_hit_area_and_disabled_tooltip_contract();
+    }
+
+    [Fact]
+    public void Button_foreground_contracts_cover_theme_inheritance_and_updates()
+    {
+        Icon_button_icon_inherits_owner_foreground_in_both_themes();
+        Icon_button_owner_foreground_updates_in_place_when_theme_changes();
+    }
 
     private static IReadOnlyList<T> FindDescendants<T>(DependencyObject root)
         where T : DependencyObject

@@ -18,8 +18,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed partial class RegexReplacementRulesPageTests
 {
-    [Fact]
-    public void RegexReplacementRulesPage_toolbar_has_import_and_help_actions_without_page_export()
+    private void RegexReplacementRulesPage_toolbar_has_import_and_help_actions_without_page_export()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -35,8 +34,7 @@ public sealed partial class RegexReplacementRulesPageTests
         });
     }
 
-    [Fact]
-    public void RegexReplacementRulesPage_keeps_rule_list_and_editor_scrollable_with_virtualization()
+    private void RegexReplacementRulesPage_keeps_rule_list_and_editor_scrollable_with_virtualization()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -71,8 +69,7 @@ public sealed partial class RegexReplacementRulesPageTests
         });
     }
 
-    [Fact]
-    public void RegexReplacementRulesPage_context_menu_has_export_copy_move_delete_without_handles_or_ellipsis()
+    private void RegexReplacementRulesPage_context_menu_has_export_copy_move_delete_without_handles_or_ellipsis()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -101,8 +98,7 @@ public sealed partial class RegexReplacementRulesPageTests
         });
     }
 
-    [Fact]
-    public void RegexReplacementRulesPage_busy_rule_disables_toggle_drag_and_menu_capabilities()
+    private void RegexReplacementRulesPage_busy_rule_disables_toggle_drag_and_menu_capabilities()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -124,8 +120,7 @@ public sealed partial class RegexReplacementRulesPageTests
         });
     }
 
-    [Fact]
-    public void RegexReplacementRulesPage_projects_editor_and_runtime_errors_through_formal_feedback()
+    private void RegexReplacementRulesPage_projects_editor_and_runtime_errors_through_formal_feedback()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -163,8 +158,7 @@ public sealed partial class RegexReplacementRulesPageTests
         });
     }
 
-    [Fact]
-    public void RegexReplacementRulesPage_help_explains_scope_order_and_empty_output()
+    private void RegexReplacementRulesPage_help_explains_scope_order_and_empty_output()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -184,6 +178,27 @@ public sealed partial class RegexReplacementRulesPageTests
             view.UpdateLayout();
             Assert.Equal(Visibility.Collapsed, ((UIElement)drawer.Parent).Visibility);
         });
+    }
+
+    [Fact]
+    public void Regex_rules_page_surface_contracts_cover_toolbar_and_scrollable_workspaces()
+    {
+        RegexReplacementRulesPage_toolbar_has_import_and_help_actions_without_page_export();
+        RegexReplacementRulesPage_keeps_rule_list_and_editor_scrollable_with_virtualization();
+    }
+
+    [Fact]
+    public void Regex_rules_page_item_contracts_cover_context_actions_and_busy_capabilities()
+    {
+        RegexReplacementRulesPage_context_menu_has_export_copy_move_delete_without_handles_or_ellipsis();
+        RegexReplacementRulesPage_busy_rule_disables_toggle_drag_and_menu_capabilities();
+    }
+
+    [Fact]
+    public void Regex_rules_page_feedback_contracts_cover_errors_and_help_guidance()
+    {
+        RegexReplacementRulesPage_projects_editor_and_runtime_errors_through_formal_feedback();
+        RegexReplacementRulesPage_help_explains_scope_order_and_empty_output();
     }
 
     private static RegexReplacementRulesPage CreateView(
