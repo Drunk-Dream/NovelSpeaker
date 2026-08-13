@@ -94,10 +94,16 @@ public sealed class SettingsPageViewTests
         });
     }
 
-    [Theory]
-    [InlineData(1d)]
-    [InlineData(1.5d)]
-    public void SettingsPage_navigation_rows_do_not_overlap_at_narrow_window_and_supported_dpi(double scale)
+    [Fact]
+    public void SettingsPage_navigation_rows_do_not_overlap_at_narrow_window_and_supported_dpi()
+    {
+        foreach (var scale in new[] { 1d, 1.5d })
+        {
+            SettingsPage_navigation_rows_do_not_overlap_at_narrow_window_and_supported_dpi_for_scale(scale);
+        }
+    }
+
+    private void SettingsPage_navigation_rows_do_not_overlap_at_narrow_window_and_supported_dpi_for_scale(double scale)
     {
         WpfTestHost.RunInSta(() =>
         {

@@ -9,11 +9,16 @@ namespace NovelSpeaker.App.WpfTests.Bootstrap;
 [Collection("WpfDispatcher")]
 public sealed class WpfStartupRuntimeTests
 {
-    [Theory]
-    [InlineData("desktop")]
-    [InlineData("media")]
-    [InlineData("background")]
-    public async Task Shell_failure_keeps_startup_status_open_for_error_projection(string failurePoint)
+    [Fact]
+    public async Task Shell_failure_keeps_startup_status_open_for_error_projection()
+    {
+        foreach (var failurePoint in new[] { "desktop", "media", "background" })
+        {
+            await Shell_failure_keeps_startup_status_open_for_error_projection_for_failure_point(failurePoint);
+        }
+    }
+
+    private async Task Shell_failure_keeps_startup_status_open_for_error_projection_for_failure_point(string failurePoint)
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {

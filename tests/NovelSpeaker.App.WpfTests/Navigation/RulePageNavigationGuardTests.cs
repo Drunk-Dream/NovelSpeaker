@@ -11,11 +11,16 @@ namespace NovelSpeaker.App.WpfTests.Navigation;
 [Collection("WpfDispatcher")]
 public sealed class RulePageNavigationGuardTests
 {
-    [Theory]
-    [InlineData(RulePageKind.Tts)]
-    [InlineData(RulePageKind.Chapter)]
-    [InlineData(RulePageKind.RegexReplacement)]
-    public async Task Rule_page_activation_registers_current_view_model_and_leave_unregisters_it(
+    [Fact]
+    public async Task Rule_page_activation_registers_current_view_model_and_leave_unregisters_it()
+    {
+        foreach (var pageKind in new[] { RulePageKind.Tts, RulePageKind.Chapter, RulePageKind.RegexReplacement })
+        {
+            await Rule_page_activation_registers_current_view_model_and_leave_unregisters_it_for_kind(pageKind);
+        }
+    }
+
+    private async Task Rule_page_activation_registers_current_view_model_and_leave_unregisters_it_for_kind(
         RulePageKind pageKind)
     {
         await WpfTestHost.RunInStaAsync(async () =>

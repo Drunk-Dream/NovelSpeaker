@@ -206,12 +206,22 @@ public sealed class MiniPlayerWindowTests
         });
     }
 
-    [Theory]
-    [InlineData(double.NaN, 20)]
-    [InlineData(10, double.PositiveInfinity)]
-    [InlineData(-1, 20)]
-    [InlineData(900, 20)]
-    public void Invalid_or_offscreen_placement_uses_safe_fallback(double left, double top)
+    [Fact]
+    public void Invalid_or_offscreen_placement_uses_safe_fallback()
+    {
+        foreach (var (left, top) in new[]
+        {
+            (double.NaN, 20d),
+            (10d, double.PositiveInfinity),
+            (-1d, 20d),
+            (900d, 20d)
+        })
+        {
+            Invalid_or_offscreen_placement_uses_safe_fallback_for_position(left, top);
+        }
+    }
+
+    private void Invalid_or_offscreen_placement_uses_safe_fallback_for_position(double left, double top)
     {
         Assert.False(MiniPlayerPlacementValidator.TryValidate(
             left,
