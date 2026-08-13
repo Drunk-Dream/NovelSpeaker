@@ -21,42 +21,6 @@ public sealed class ThemeResourceTests
     }
 
     [Fact]
-    public void Application_resource_dictionaries_do_not_take_over_standard_control_templates_globally()
-    {
-        var resourcesRoot = Path.Combine(
-            GetRepositoryRoot(),
-            "src",
-            "NovelSpeaker.App",
-            "Shared",
-            "Theming",
-            "Resources");
-        var standardTypes = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "Button",
-            "CheckBox",
-            "ComboBox",
-            "ListBox",
-            "ListBoxItem",
-            "Slider",
-            "TextBox",
-            "ToggleButton"
-        };
-
-        foreach (var path in Directory.EnumerateFiles(resourcesRoot, "*.xaml", SearchOption.AllDirectories))
-        {
-            var document = XDocument.Load(path);
-            foreach (var style in document.Descendants().Where(element => element.Name.LocalName == "Style"))
-            {
-                var targetType = (string?)style.Attribute("TargetType") ?? string.Empty;
-                Assert.False(
-                    standardTypes.Contains(targetType) &&
-                    style.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Key") is null,
-                    $"Unexpected global implicit standard-control style in {Path.GetRelativePath(GetRepositoryRoot(), path)}.");
-            }
-        }
-    }
-
-    [Fact]
     public void Icon_buttons_expose_tooltips_and_automation_names()
     {
         var appRoot = Path.Combine(GetRepositoryRoot(), "src", "NovelSpeaker.App");

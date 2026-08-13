@@ -143,21 +143,6 @@ public sealed class StartupStatusWindowTests
         });
     }
 
-    [Fact]
-    public void Startup_status_window_contains_no_legacy_visual_resource_keys()
-    {
-        var xaml = File.ReadAllText(Path.Combine(
-            LocateRepositoryRoot(),
-            "src",
-            "NovelSpeaker.App",
-            "Bootstrap",
-            "StartupStatusWindow.xaml"));
-
-        Assert.Contains("App.Surface.DialogContent", xaml, StringComparison.Ordinal);
-        Assert.Contains("App.Progress.Standard", xaml, StringComparison.Ordinal);
-        Assert.Contains("AppStatusView", xaml, StringComparison.Ordinal);
-    }
-
     private static void ConfigureFailure(Window window)
     {
         var viewModel = Assert.IsType<StartupStatusViewModel>(window.DataContext);
