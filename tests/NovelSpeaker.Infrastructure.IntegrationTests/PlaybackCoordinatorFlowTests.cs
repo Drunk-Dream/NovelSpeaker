@@ -189,11 +189,23 @@ public sealed partial class PlaybackCoordinatorTests
         await coordinator.DisposeAsync();
     }
 
-    [Theory]
-    [InlineData(0, 0)]
-    [InlineData(1, 1)]
-    [InlineData(2, 2)]
-    public async Task StartAsync_uses_settings_prefetch_count(int configuredPrefetchCount, int expectedRequests)
+    [Fact]
+    public async Task StartAsync_uses_settings_prefetch_count()
+    {
+        foreach (var (configuredPrefetchCount, expectedRequests) in new[]
+        {
+            (0, 0),
+            (1, 1),
+            (2, 2)
+        })
+        {
+            await StartAsync_uses_settings_prefetch_count_for_value(configuredPrefetchCount, expectedRequests);
+        }
+    }
+
+    private async Task StartAsync_uses_settings_prefetch_count_for_value(
+        int configuredPrefetchCount,
+        int expectedRequests)
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var prefetchScheduler = new FakePrefetchScheduler();

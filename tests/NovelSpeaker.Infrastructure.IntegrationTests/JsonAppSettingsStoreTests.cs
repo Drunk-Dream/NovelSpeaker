@@ -206,11 +206,17 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Empty(Directory.GetFiles(root, "*.tmp"));
     }
 
-    [Theory]
-    [InlineData(SettingsFileFailure.Write)]
-    [InlineData(SettingsFileFailure.Flush)]
-    [InlineData(SettingsFileFailure.Replace)]
-    public async Task SaveAsync_failure_preserves_existing_file_and_cleans_temporary_file(SettingsFileFailure failure)
+    [Fact]
+    public async Task SaveAsync_failure_preserves_existing_file_and_cleans_temporary_file()
+    {
+        foreach (var failure in new[] { SettingsFileFailure.Write, SettingsFileFailure.Flush, SettingsFileFailure.Replace })
+        {
+            await SaveAsync_failure_preserves_existing_file_and_cleans_temporary_file_for_failure(failure);
+        }
+    }
+
+    private async Task SaveAsync_failure_preserves_existing_file_and_cleans_temporary_file_for_failure(
+        SettingsFileFailure failure)
     {
         using var temporaryDirectory = new TemporaryDirectory();
         var root = temporaryDirectory.Path;

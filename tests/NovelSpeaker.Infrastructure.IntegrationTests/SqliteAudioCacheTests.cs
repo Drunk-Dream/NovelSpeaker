@@ -174,10 +174,16 @@ public sealed class SqliteAudioCacheTests
         Assert.Equal(ChapterCacheStatusKind.NoPlayableContent, withoutTitle[0].Kind);
     }
 
-    [Theory]
-    [InlineData(2_000)]
-    [InlineData(10_000)]
-    public async Task Current_configuration_query_aggregates_large_plan_without_file_or_decode_probe(
+    [Fact]
+    public async Task Current_configuration_query_aggregates_large_plan_without_file_or_decode_probe()
+    {
+        foreach (var segmentCount in new[] { 2_000, 10_000 })
+        {
+            await Current_configuration_query_aggregates_large_plan_without_file_or_decode_probe_for_count(segmentCount);
+        }
+    }
+
+    private async Task Current_configuration_query_aggregates_large_plan_without_file_or_decode_probe_for_count(
         int segmentCount)
     {
         var fixture = await CreateFixtureAsync();

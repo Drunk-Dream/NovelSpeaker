@@ -168,10 +168,16 @@ public sealed class ChapterMp3ExportWriterTests
             Assert.Single(result.Files).FilePath);
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task WriteAsync_cleans_staging_and_releases_cache_protection_on_cancel_or_failure(
+    [Fact]
+    public async Task WriteAsync_cleans_staging_and_releases_cache_protection_on_cancel_or_failure()
+    {
+        foreach (var cancel in new[] { true, false })
+        {
+            await WriteAsync_cleans_staging_and_releases_cache_protection_on_cancel_or_failure_for_mode(cancel);
+        }
+    }
+
+    private async Task WriteAsync_cleans_staging_and_releases_cache_protection_on_cancel_or_failure_for_mode(
         bool cancel)
     {
         var fixture = await CreateFixtureAsync();
