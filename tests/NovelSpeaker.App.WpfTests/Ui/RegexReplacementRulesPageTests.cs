@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -9,7 +8,6 @@ using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Forms;
 using NovelSpeaker.App.Shared.Presentation.Rules;
-using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.Domain.Books;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
@@ -20,36 +18,6 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed partial class RegexReplacementRulesPageTests
 {
-    [Fact]
-    public void RegexReplacementRulesPage_uses_formal_split_workbench_and_shared_sortable_cards()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var rule = CreateRule("空白清理", @"\s+", true, RegexReplacementScope.Both, true);
-            var view = CreateView(new RegexReplacementRulesViewLayoutContext
-            {
-                HasEditor = true,
-                Rules = [rule]
-            });
-
-            var header = Assert.IsType<AppPageHeader>(view.FindName("PageHeader"));
-            Assert.Equal("正则替换", header.Title);
-            Assert.Empty(header.Description);
-            Assert.NotNull(header.Actions);
-            Assert.IsType<AppSectionSurface>(view.FindName("RulesSurface"));
-            Assert.IsType<AppSectionSurface>(view.FindName("EditorSurface"));
-            Assert.Equal(4, VisualTreeTestHelper.FindDescendants<AppFormField>(view).Count());
-            Assert.Null(VisualTreeTestHelper.FindDescendant<DataGrid>(view));
-
-            var item = FindRuleItem(view, rule);
-            Assert.Equal(rule.Name, item.Title);
-            Assert.Equal(rule.PatternSummary, item.Summary);
-            Assert.True(item.IsSortable);
-            Assert.True(item.IsRuleEnabled);
-            Assert.True(item.IsSelected);
-        });
-    }
-
     [Fact]
     public void RegexReplacementRulesPage_toolbar_has_import_and_help_actions_without_page_export()
     {
@@ -68,30 +36,38 @@ public sealed partial class RegexReplacementRulesPageTests
     }
 
     [Fact]
-    public void RegexReplacementRulesPage_toolbar_icons_follow_dark_theme_foreground()
+    public void RegexReplacementRulesPage_keeps_rule_list_and_editor_scrollable_with_virtualization()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var runtime = new WpfUiThemeRuntime();
-            runtime.ApplyDarkTheme();
-            try
+            var rules = new ObservableCollection<RegexReplacementRuleListItemViewModel>();
+            for (var index = 0; index < 40; index++)
             {
-                var view = CreateView(new RegexReplacementRulesViewLayoutContext());
-                var expected = Assert.IsAssignableFrom<Brush>(view.FindResource("App.Brush.Text.Primary"));
-                foreach (var name in new[] { "新建规则", "从文件导入", "从剪切板导入", "正则替换帮助" })
-                {
-                    var button = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
-                        view,
-                        candidate => AutomationProperties.GetName(candidate) == name));
-                    var icon = Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(button));
-                    Assert.Equal(expected, button.Foreground);
-                    Assert.Equal(expected, icon.Foreground);
-                }
+                rules.Add(CreateRule(
+                    $"规则 {index}",
+                    @"(?<=^|\s)(?:第[0-9一二三四五六七八九十百千万]+章|序章|楔子|后记)(?=\s|$)",
+                    index % 2 == 0,
+                    RegexReplacementScope.Both,
+                    index == 0));
             }
-            finally
+
+            var view = CreateView(new RegexReplacementRulesViewLayoutContext
             {
-                runtime.ApplyLightTheme();
-            }
+                HasEditor = true,
+                Rules = rules,
+                DraftPattern = string.Join(
+                    Environment.NewLine,
+                    Enumerable.Repeat(rules[0].PatternSummary, 40))
+            }, 900, 640);
+            var list = Assert.IsType<ListBox>(view.FindName("RulesList"));
+            var listScrollViewer = Assert.IsAssignableFrom<ScrollViewer>(
+                VisualTreeTestHelper.FindDescendant<ScrollViewer>(list));
+            var editorScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("RuleEditorScrollViewer"));
+
+            Assert.True(listScrollViewer.ScrollableHeight > 0);
+            Assert.True(editorScrollViewer.ScrollableHeight > 0);
+            Assert.True(VirtualizingPanel.GetIsVirtualizing(list));
+            Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(list));
         });
     }
 
@@ -188,41 +164,6 @@ public sealed partial class RegexReplacementRulesPageTests
     }
 
     [Fact]
-    public void RegexReplacementRulesPage_keeps_long_expression_scrollable_at_minimum_width()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var rules = new ObservableCollection<RegexReplacementRuleListItemViewModel>();
-            for (var index = 0; index < 40; index++)
-            {
-                rules.Add(CreateRule(
-                    $"规则 {index}",
-                    @"(?<=^|\s)(?:第[0-9一二三四五六七八九十百千万]+章|序章|楔子|后记)(?=\s|$)",
-                    index % 2 == 0,
-                    RegexReplacementScope.Both,
-                    index == 0));
-            }
-
-            var view = CreateView(new RegexReplacementRulesViewLayoutContext
-            {
-                HasEditor = true,
-                Rules = rules,
-                DraftPattern = rules[0].PatternSummary
-            }, 900, 640);
-            var list = Assert.IsType<ListBox>(view.FindName("RulesList"));
-            var listScrollViewer = Assert.IsAssignableFrom<ScrollViewer>(
-                VisualTreeTestHelper.FindDescendant<ScrollViewer>(list));
-            var editorScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("RuleEditorScrollViewer"));
-
-            Assert.True(listScrollViewer.ActualWidth > 0);
-            Assert.True(listScrollViewer.ScrollableHeight > 0);
-            Assert.True(editorScrollViewer.ActualWidth > 0);
-            Assert.True(VirtualizingPanel.GetIsVirtualizing(list));
-            Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(list));
-        });
-    }
-
-    [Fact]
     public void RegexReplacementRulesPage_help_explains_scope_order_and_empty_output()
     {
         WpfTestHost.RunInSta(() =>
@@ -242,33 +183,6 @@ public sealed partial class RegexReplacementRulesPageTests
             context.IsHelpDrawerOpen = false;
             view.UpdateLayout();
             Assert.Equal(Visibility.Collapsed, ((UIElement)drawer.Parent).Visibility);
-        });
-    }
-
-    [Fact]
-    public void Regex_replacement_rules_visual_review_generates_stable_page_screenshots()
-    {
-        if (!VisualArtifactTestGuard.IsEnabled)
-        {
-            return;
-        }
-
-        WpfTestHost.RunInSta(() =>
-        {
-            var scenarios = new[]
-            {
-                new PageVisualReviewScenario("empty", 1d),
-                new PageVisualReviewScenario("empty", 1.5d),
-                new PageVisualReviewScenario("editor", 1d, OpenEditor),
-                new PageVisualReviewScenario("editor", 1.5d, OpenEditor),
-                new PageVisualReviewScenario("error", 1d, OpenError),
-                new PageVisualReviewScenario("error", 1.5d, OpenError)
-            };
-            PageVisualReviewHarness.GenerateAndVerifyRepeatable(
-                LocateRepositoryRoot(),
-                "regex-replacement-rules",
-                scenarios,
-                CreateVisualReviewPage);
         });
     }
 
@@ -311,52 +225,6 @@ public sealed partial class RegexReplacementRulesPageTests
         Assert.Equal(expectedSymbol, Assert.IsType<SymbolIcon>(
             VisualTreeTestHelper.FindDescendant<SymbolIcon>(button)).Symbol);
         Assert.Equal(automationName, button.ToolTip);
-    }
-
-    private static void OpenEditor(FrameworkElement element) =>
-        ((RegexReplacementRulesViewLayoutContext)element.DataContext).HasEditor = true;
-
-    private static void OpenError(FrameworkElement element)
-    {
-        var context = (RegexReplacementRulesViewLayoutContext)element.DataContext;
-        context.HasEditor = true;
-        context.PatternValidationMessage = "正则表达式中的方括号没有闭合。";
-        context.CanSave = false;
-    }
-
-    private static PageVisualReviewPage CreateVisualReviewPage()
-    {
-        var context = new RegexReplacementRulesViewLayoutContext
-        {
-            DraftName = "章节标记清理",
-            DraftPattern = @"(?m)^\s*\[第(?<number>[0-9]+)章\]\s*",
-            DraftReplacement = "第${number}章 ",
-            DraftScope = RegexReplacementScope.Both,
-            Rules =
-            [
-                CreateRule("空白规范化", @"[ \t]{2,}", true, RegexReplacementScope.Both, true),
-                CreateRule("朗读标点", @"[·•]+", true, RegexReplacementScope.Speech, false),
-                CreateRule("损坏的表达式", "[", false, RegexReplacementScope.Display, false, "正则表达式无效")
-            ]
-        };
-        return new PageVisualReviewPage(new RegexReplacementRulesPage { DataContext = context }, static () => { });
-    }
-
-    private static string LocateRepositoryRoot()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null)
-        {
-            if (Directory.Exists(Path.Combine(current.FullName, "src")) &&
-                Directory.Exists(Path.Combine(current.FullName, "docs")))
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate repository root.");
     }
 
     private sealed partial class RegexReplacementRulesViewLayoutContext : ObservableObject

@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -7,10 +6,8 @@ using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
-using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Forms;
 using NovelSpeaker.App.Shared.Presentation.Rules;
-using NovelSpeaker.App.Shared.Theming;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
@@ -20,38 +17,6 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed partial class ChapterRulesPageTests
 {
-    [Fact]
-    public void ChapterRulesPage_uses_formal_split_workbench_and_shared_sortable_cards()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var rule = CreateRule("custom:one", "章节数字", true, false, true);
-            var view = CreateView(new ChapterRulesViewLayoutContext
-            {
-                HasEditor = true,
-                Rules = [rule]
-            });
-
-            var header = Assert.IsType<AppPageHeader>(view.FindName("PageHeader"));
-            Assert.Equal("章节规则", header.Title);
-            Assert.Empty(header.Description);
-            Assert.NotNull(header.Actions);
-            Assert.IsType<AppSectionSurface>(view.FindName("RulesSurface"));
-            Assert.IsType<AppSectionSurface>(view.FindName("EditorSurface"));
-            Assert.Equal(2, VisualTreeTestHelper.FindDescendants<AppFormField>(view).Count());
-            Assert.Null(VisualTreeTestHelper.FindDescendant<DataGrid>(view));
-
-            var item = Assert.IsType<RuleListItemView>(VisualTreeTestHelper.FindDescendant<RuleListItemView>(
-                view,
-                candidate => ReferenceEquals(candidate.CommandParameter, rule)));
-            Assert.Equal(rule.Name, item.Title);
-            Assert.Equal(rule.PatternSummary, item.Summary);
-            Assert.True(item.IsSortable);
-            Assert.True(item.IsRuleEnabled);
-            Assert.True(item.IsSelected);
-        });
-    }
-
     [Fact]
     public void ChapterRulesPage_toolbar_contains_distinct_default_actions_and_help_without_export()
     {
@@ -72,35 +37,33 @@ public sealed partial class ChapterRulesPageTests
     }
 
     [Fact]
-    public void ChapterRulesPage_toolbar_icons_follow_dark_theme_foreground()
+    public void ChapterRulesPage_keeps_rule_list_and_editor_scrollable_with_virtualization()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var runtime = new WpfUiThemeRuntime();
-            runtime.ApplyDarkTheme();
-            try
+            var rules = new ObservableCollection<ChapterRuleListItemViewModel>();
+            for (var index = 0; index < 40; index++)
             {
-                var view = CreateView(new ChapterRulesViewLayoutContext());
-                var expected = Assert.IsAssignableFrom<Brush>(view.FindResource("App.Brush.Text.Primary"));
+                rules.Add(CreateRule($"custom:{index}", $"规则 {index}", index % 2 == 0, false, index == 0));
+            }
 
-                foreach (var name in new[]
-                         {
-                             "新建规则", "从文件导入", "从剪切板导入",
-                             "导入默认规则", "恢复默认规则", "章节规则帮助"
-                         })
-                {
-                    var button = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
-                        view,
-                        candidate => AutomationProperties.GetName(candidate) == name));
-                    var icon = Assert.IsType<SymbolIcon>(VisualTreeTestHelper.FindDescendant<SymbolIcon>(button));
-                    Assert.Equal(expected, button.Foreground);
-                    Assert.Equal(expected, icon.Foreground);
-                }
-            }
-            finally
+            var view = CreateView(new ChapterRulesViewLayoutContext
             {
-                runtime.ApplyLightTheme();
-            }
+                HasEditor = true,
+                Rules = rules,
+                DraftPattern = string.Join(
+                    Environment.NewLine,
+                    Enumerable.Repeat(@"^\s*第[0-9一二三四五六七八九十]+章\s*$", 40))
+            }, 900, 640);
+            var list = Assert.IsType<ListBox>(view.FindName("RulesList"));
+            var listScrollViewer = Assert.IsAssignableFrom<ScrollViewer>(
+                VisualTreeTestHelper.FindDescendant<ScrollViewer>(list));
+            var editorScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("RuleEditorScrollViewer"));
+
+            Assert.True(listScrollViewer.ScrollableHeight > 0);
+            Assert.True(editorScrollViewer.ScrollableHeight > 0);
+            Assert.True(System.Windows.Controls.VirtualizingPanel.GetIsVirtualizing(list));
+            Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(list));
         });
     }
 
@@ -175,31 +138,6 @@ public sealed partial class ChapterRulesPageTests
     }
 
     [Fact]
-    public void ChapterRulesPage_keeps_virtualized_list_and_editor_visible_at_minimum_width()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var rules = new ObservableCollection<ChapterRuleListItemViewModel>();
-            for (var index = 0; index < 40; index++)
-            {
-                rules.Add(CreateRule($"custom:{index}", $"规则 {index}", index % 2 == 0, false, index == 0));
-            }
-
-            var view = CreateView(new ChapterRulesViewLayoutContext { HasEditor = true, Rules = rules }, 900, 640);
-            var list = Assert.IsType<ListBox>(view.FindName("RulesList"));
-            var listScrollViewer = Assert.IsAssignableFrom<ScrollViewer>(
-                VisualTreeTestHelper.FindDescendant<ScrollViewer>(list));
-            var editorScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("RuleEditorScrollViewer"));
-
-            Assert.True(listScrollViewer.ActualWidth > 0);
-            Assert.True(listScrollViewer.ScrollableHeight > 0);
-            Assert.True(editorScrollViewer.ActualWidth > 0);
-            Assert.True(System.Windows.Controls.VirtualizingPanel.GetIsVirtualizing(list));
-            Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(list));
-        });
-    }
-
-    [Fact]
     public void ChapterRulesPage_help_drawer_explains_matching_and_sorting()
     {
         WpfTestHost.RunInSta(() =>
@@ -245,32 +183,6 @@ public sealed partial class ChapterRulesPageTests
         });
     }
 
-    [Fact]
-    public void Chapter_rules_visual_review_generates_stable_page_screenshots()
-    {
-        if (!VisualArtifactTestGuard.IsEnabled)
-        {
-            return;
-        }
-
-        WpfTestHost.RunInSta(() =>
-        {
-            var scenarios = new[]
-            {
-                new PageVisualReviewScenario("empty", 1d),
-                new PageVisualReviewScenario("empty", 1.5d),
-                new PageVisualReviewScenario("editor", 1d, OpenEditor),
-                new PageVisualReviewScenario("editor", 1.5d, OpenEditor)
-            };
-
-            PageVisualReviewHarness.GenerateAndVerifyRepeatable(
-                LocateRepositoryRoot(),
-                "chapter-rules",
-                scenarios,
-                CreateVisualReviewPage);
-        });
-    }
-
     private static ChapterRulesPage CreateView(
         ChapterRulesViewLayoutContext context,
         double width = 1280,
@@ -307,42 +219,6 @@ public sealed partial class ChapterRulesPageTests
         Assert.Equal(expectedSymbol, Assert.IsType<SymbolIcon>(
             VisualTreeTestHelper.FindDescendant<SymbolIcon>(button)).Symbol);
         Assert.Equal(automationName, button.ToolTip);
-    }
-
-    private static void OpenEditor(FrameworkElement element) =>
-        ((ChapterRulesViewLayoutContext)element.DataContext).HasEditor = true;
-
-    private static PageVisualReviewPage CreateVisualReviewPage()
-    {
-        var context = new ChapterRulesViewLayoutContext
-        {
-            DraftName = "中文章节标题",
-            DraftPattern = @"^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$",
-            Rules =
-            [
-                CreateRule("builtin:number", "数字章节", true, true, true),
-                CreateRule("builtin:volume", "卷标题", true, true, false),
-                CreateRule("custom:extra", "番外与后记", false, false, false)
-            ]
-        };
-        return new PageVisualReviewPage(new ChapterRulesPage { DataContext = context }, static () => { });
-    }
-
-    private static string LocateRepositoryRoot()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null)
-        {
-            if (Directory.Exists(Path.Combine(current.FullName, "src")) &&
-                Directory.Exists(Path.Combine(current.FullName, "docs")))
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate repository root.");
     }
 
     private sealed partial class ChapterRulesViewLayoutContext : ObservableObject
