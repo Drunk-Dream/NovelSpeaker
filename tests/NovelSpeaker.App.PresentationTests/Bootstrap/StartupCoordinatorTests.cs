@@ -6,17 +6,6 @@ namespace NovelSpeaker.App.PresentationTests.Bootstrap;
 
 public sealed class StartupCoordinatorTests
 {
-    public static TheoryData<int> RequiredStages =>
-        new()
-        {
-            (int)StartupStage.Directories,
-            (int)StartupStage.Settings,
-            (int)StartupStage.Logging,
-            (int)StartupStage.DependencyInjection,
-            (int)StartupStage.Database,
-            (int)StartupStage.Shell
-        };
-
     [Fact]
     public async Task StartAsync_runs_required_stages_in_order_and_uses_one_settings_snapshot()
     {
@@ -45,9 +34,24 @@ public sealed class StartupCoordinatorTests
         Assert.Equal(1, runtime.ShellCalls);
     }
 
-    [Theory]
-    [MemberData(nameof(RequiredStages))]
-    public async Task StartAsync_projects_each_required_stage_failure_and_blocks_shell(int stageValue)
+    [Fact]
+    public async Task StartAsync_projects_each_required_stage_failure_and_blocks_shell()
+    {
+        foreach (var stageValue in new[]
+        {
+            (int)StartupStage.Directories,
+            (int)StartupStage.Settings,
+            (int)StartupStage.Logging,
+            (int)StartupStage.DependencyInjection,
+            (int)StartupStage.Database,
+            (int)StartupStage.Shell
+        })
+        {
+            await StartAsync_projects_each_required_stage_failure_and_blocks_shell_for_stage(stageValue);
+        }
+    }
+
+    private async Task StartAsync_projects_each_required_stage_failure_and_blocks_shell_for_stage(int stageValue)
     {
         var stage = (StartupStage)stageValue;
         const string sensitive =
@@ -113,9 +117,25 @@ public sealed class StartupCoordinatorTests
         Assert.Empty(runtime.VisibleFailures);
     }
 
-    [Theory]
-    [MemberData(nameof(AllStages))]
-    public async Task StartAsync_treats_cancellation_at_any_stage_as_normal_control_flow(int stageValue)
+    [Fact]
+    public async Task StartAsync_treats_cancellation_at_any_stage_as_normal_control_flow()
+    {
+        foreach (var stageValue in new[]
+        {
+            (int)StartupStage.Directories,
+            (int)StartupStage.Settings,
+            (int)StartupStage.Logging,
+            (int)StartupStage.DependencyInjection,
+            (int)StartupStage.Database,
+            (int)StartupStage.Theme,
+            (int)StartupStage.Shell
+        })
+        {
+            await StartAsync_treats_cancellation_at_any_stage_as_normal_control_flow_for_stage(stageValue);
+        }
+    }
+
+    private async Task StartAsync_treats_cancellation_at_any_stage_as_normal_control_flow_for_stage(int stageValue)
     {
         var stage = (StartupStage)stageValue;
         using var cancellation = new CancellationTokenSource();
@@ -248,18 +268,6 @@ public sealed class StartupCoordinatorTests
         await Task.WhenAll(first, second);
         Assert.Equal(1, runtime.DisposeCalls);
     }
-
-    public static TheoryData<int> AllStages =>
-        new()
-        {
-            (int)StartupStage.Directories,
-            (int)StartupStage.Settings,
-            (int)StartupStage.Logging,
-            (int)StartupStage.DependencyInjection,
-            (int)StartupStage.Database,
-            (int)StartupStage.Theme,
-            (int)StartupStage.Shell
-        };
 
     private sealed class RecordingStartupRuntime : IStartupRuntime
     {
