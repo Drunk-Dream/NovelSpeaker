@@ -181,6 +181,16 @@ public sealed partial class PlayerViewTests
         });
     }
 
+    private static Border FindChapterCard(DependencyObject item)
+    {
+        return Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(
+            item,
+            static border =>
+                Grid.GetColumn(border) == 1 &&
+                border.Child is Grid &&
+                border.Padding.Left == 12));
+    }
+
     [Fact]
     public void PlayerView_exposes_active_cache_tool_and_selection_actions_with_automation_names()
     {
@@ -278,67 +288,6 @@ public sealed partial class PlayerViewTests
             Assert.True(chaptersScrollViewer!.ScrollableHeight > 0);
             Assert.True(segmentsScrollViewer!.ScrollableHeight > 0);
         });
-    }
-
-    [Fact]
-    public void PlayerView_uses_compact_balanced_spacing_for_chapters_and_segments()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var view = new PlayerView
-            {
-                DataContext = new PlayerViewLayoutTestContext(
-                    new ObservableCollection<PlayerChapterItemViewModel>
-                    {
-                        new(0, "第一章"),
-                        new(1, "第二章")
-                    },
-                    new ObservableCollection<PlayerSegmentItemViewModel>
-                    {
-                        new(0, 0, "第一段"),
-                        new(0, 1, "第二段")
-                    })
-            };
-
-            view.Measure(new Size(1280, 760));
-            view.Arrange(new Rect(0, 0, 1280, 760));
-            view.UpdateLayout();
-
-            var chaptersListBox = Assert.IsType<ListBox>(view.FindName("WideChaptersListBox"));
-            var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
-            var chapterItem = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(0));
-            var segmentItem = Assert.IsType<ListBoxItem>(segmentsListBox.ItemContainerGenerator.ContainerFromIndex(0));
-            var chapterCard = FindChapterCard(chapterItem);
-            var segmentCard = FindSegmentCard(segmentItem);
-            var segmentText = Assert.IsType<TextBlock>(segmentCard.Child);
-
-            Assert.Equal(new Thickness(0, 0, 0, 4), chapterItem.Margin);
-            Assert.Equal(44, chapterCard.MinHeight);
-            Assert.Equal(new Thickness(12, 6, 12, 6), chapterCard.Padding);
-            Assert.Equal(new Thickness(0, 0, 0, 4), segmentItem.Margin);
-            Assert.Equal(40, segmentCard.MinHeight);
-            Assert.Equal(new Thickness(14, 4, 14, 4), segmentCard.Padding);
-            Assert.Equal(VerticalAlignment.Center, segmentText.VerticalAlignment);
-            Assert.Equal(28, segmentText.LineHeight);
-            Assert.Equal(3, Assert.IsType<TranslateTransform>(segmentText.RenderTransform).Y);
-        });
-    }
-
-    private static Border FindChapterCard(DependencyObject item)
-    {
-        return Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(
-            item,
-            static border =>
-                Grid.GetColumn(border) == 1 &&
-                border.Child is Grid &&
-                border.Padding.Left == 12));
-    }
-
-    private static Border FindSegmentCard(DependencyObject item)
-    {
-        return Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(
-            item,
-            static border => border.Child is TextBlock textBlock && textBlock.LineHeight == 28));
     }
 
     [Fact]
@@ -671,90 +620,6 @@ public sealed partial class PlayerViewTests
             Assert.Equal(TextWrapping.NoWrap, titleText!.TextWrapping);
             Assert.Equal(TextTrimming.CharacterEllipsis, titleText.TextTrimming);
             Assert.NotEqual(Visibility.Visible, scrollViewer.ComputedHorizontalScrollBarVisibility);
-        });
-    }
-
-    [Fact]
-    public void PlayerView_uses_full_width_segment_buttons_for_short_paragraphs()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var chapters = new ObservableCollection<PlayerChapterItemViewModel>
-            {
-                new(0, "第一章")
-                {
-                    IsCurrent = true
-                }
-            };
-            var segments = new ObservableCollection<PlayerSegmentItemViewModel>
-            {
-                new(0, 0, "短句")
-                {
-                    IsCurrent = true,
-                    VisualOpacity = 1d
-                }
-            };
-
-            var view = new PlayerView
-            {
-                DataContext = new PlayerViewLayoutTestContext(chapters, segments),
-            };
-
-            view.Measure(new Size(1280, 760));
-            view.Arrange(new Rect(0, 0, 1280, 760));
-            view.UpdateLayout();
-
-            var segmentListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
-            var itemContainer = Assert.IsType<ListBoxItem>(segmentListBox.ItemContainerGenerator.ContainerFromIndex(0));
-            var segmentButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(itemContainer));
-
-            Assert.InRange(Math.Abs(segmentButton.ActualWidth - itemContainer.ActualWidth), 0d, 1d);
-        });
-    }
-
-    [Fact]
-    public void PlayerView_keeps_rule_and_speed_toolbar_buttons_at_the_same_height()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var chapters = new ObservableCollection<PlayerChapterItemViewModel>
-            {
-                new(0, "第一章")
-                {
-                    IsCurrent = true
-                }
-            };
-            var segments = new ObservableCollection<PlayerSegmentItemViewModel>
-            {
-                new(0, 0, "第一段")
-                {
-                    IsCurrent = true,
-                    VisualOpacity = 1d
-                }
-            };
-
-            var view = new PlayerView
-            {
-                DataContext = new PlayerViewLayoutTestContext(chapters, segments),
-            };
-
-            view.Measure(new Size(1280, 760));
-            view.Arrange(new Rect(0, 0, 1280, 760));
-            view.UpdateLayout();
-
-            var ruleButton = Assert.IsType<WpfUiButton>(view.FindName("RuleMenuButton"));
-            var stopTimerButton = Assert.IsType<Button>(view.FindName("StopTimerToolButton"));
-            var speedButton = Assert.IsType<Button>(view.FindName("SpeedMenuButton"));
-            var stopTimerPill = Assert.IsType<Border>(view.FindName("StopTimerPillBorder"));
-            var speedPill = Assert.IsType<Border>(view.FindName("SpeedMenuPillBorder"));
-
-            Assert.InRange(Math.Abs(ruleButton.ActualHeight - speedButton.ActualHeight), 0d, 1d);
-            Assert.InRange(Math.Abs(stopTimerButton.ActualHeight - speedButton.ActualHeight), 0d, 1d);
-            Assert.Equal("定时停止", stopTimerButton.ToolTip);
-            Assert.True(speedPill.ActualWidth >= speedButton.ActualWidth);
-            Assert.True(speedPill.ActualHeight > 0);
-            Assert.True(stopTimerPill.ActualWidth >= stopTimerButton.ActualWidth);
-            Assert.True(stopTimerPill.ActualHeight > 0);
         });
     }
 

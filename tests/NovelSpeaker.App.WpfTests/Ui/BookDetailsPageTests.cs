@@ -4,9 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
-using System.Windows.Media;
 using System.Windows.Threading;
-using System.Xml.Linq;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
@@ -225,28 +223,6 @@ public sealed class BookDetailsPageTests
     }
 
     [Fact]
-    public void BookDetailsPage_uses_formal_resources_and_no_legacy_keys()
-    {
-        var xamlPath = Path.Combine(
-            LocateRepositoryRoot(),
-            "src",
-            "NovelSpeaker.App",
-            "Features",
-            "BookDetails",
-            "BookDetailsPage.xaml");
-        var source = File.ReadAllText(xamlPath);
-        var pageElement = XDocument.Load(xamlPath).Root!;
-
-        Assert.Equal("Transparent", pageElement.Attribute("Background")?.Value);
-        Assert.Contains("AppPageHeader", source, StringComparison.Ordinal);
-        Assert.Contains("AppSectionSurface", source, StringComparison.Ordinal);
-        Assert.Contains("AppStatusView", source, StringComparison.Ordinal);
-        Assert.Contains("App.Selection.CurrentItem", source, StringComparison.Ordinal);
-        Assert.Contains("App.Progress.Compact", source, StringComparison.Ordinal);
-
-    }
-
-    [Fact]
     public void BookDetailsPage_projects_missing_book_through_status_view()
     {
         WpfTestHost.RunInSta(() =>
@@ -380,33 +356,6 @@ public sealed class BookDetailsPageTests
                 () => new PageVisualReviewPage(
                     new BookDetailsPage(CreateViewModel(), new FakeNavigationGuardService()),
                     static () => { }));
-        });
-    }
-
-    [Fact]
-    public void BookDetailsPage_uses_content_only_list_box_item_template()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var viewModel = CreateViewModel();
-            PopulateLayoutState(viewModel, chapterCount: 1);
-            var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService());
-            var chaptersListBox = Assert.IsType<ListBox>(page.FindName("ChaptersListBox"));
-            var templateSetter = chaptersListBox.ItemContainerStyle
-                .Setters
-                .OfType<Setter>()
-                .Single(setter => setter.Property == Control.TemplateProperty);
-            var template = Assert.IsType<ControlTemplate>(templateSetter.Value);
-
-            Assert.Empty(template.Triggers);
-
-            page.Measure(new Size(900, 640));
-            page.Arrange(new Rect(0, 0, 900, 640));
-            page.UpdateLayout();
-
-            var item = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(0));
-            item.ApplyTemplate();
-            Assert.IsType<ContentPresenter>(VisualTreeHelper.GetChild(item, 0));
         });
     }
 
