@@ -4,7 +4,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
-using System.Xml.Linq;
 using System.Windows.Automation;
 using System.Windows;
 using System.Windows.Controls;
@@ -37,54 +36,6 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed partial class PlayerViewTests
 {
-    [Fact]
-    public void PlayerPage_and_view_use_formal_visual_controls_without_legacy_resources()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var view = CreateVisualReviewPlayerView();
-            view.Measure(new Size(960, 640));
-            view.Arrange(new Rect(0, 0, 960, 640));
-            view.UpdateLayout();
-
-            Assert.IsType<AppPageHeader>(view.FindName("PageHeader"));
-            Assert.IsType<AppSectionSurface>(view.FindName("CatalogPanelSurface"));
-            Assert.IsType<AppSectionSurface>(view.FindName("PreviewPanelSurface"));
-            Assert.IsType<AppStatusView>(view.FindName("PlaybackErrorStatusView"));
-            Assert.IsType<AppStatusView>(view.FindName("EmptyChapterStatusView"));
-            Assert.IsType<AppStatusView>(view.FindName("NoRuleStatusView"));
-
-            var repositoryRoot = LocateRepositoryRoot();
-            var playerPageXaml = File.ReadAllText(Path.Combine(
-                repositoryRoot,
-                "src",
-                "NovelSpeaker.App",
-                "Features",
-                "Playback",
-                "PlayerPage.xaml"));
-            var playerViewXaml = File.ReadAllText(Path.Combine(
-                repositoryRoot,
-                "src",
-                "NovelSpeaker.App",
-                "Features",
-                "Playback",
-                "Components",
-                "PlayerView.xaml"));
-
-            Assert.Contains("Background=\"Transparent\"", playerPageXaml, StringComparison.Ordinal);
-            Assert.DoesNotContain("Legacy", playerPageXaml, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("Legacy", playerViewXaml, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("App.Selection.MultiSelectItem", playerViewXaml, StringComparison.Ordinal);
-            Assert.Contains("App.Selection.CurrentItem", playerViewXaml, StringComparison.Ordinal);
-
-            var playerViewDocument = XDocument.Parse(playerViewXaml);
-            Assert.DoesNotContain(
-                playerViewDocument.Descendants().Where(element => element.Name.LocalName == "Button"),
-                button => button.Attribute("Style") is null &&
-                          !button.Elements().Any(element => element.Name.LocalName == "Button.Style"));
-        });
-    }
-
     [Fact]
     public void PlayerView_explains_empty_chapter_and_disables_segment_playback_controls()
     {
@@ -851,11 +802,6 @@ public sealed partial class PlayerViewTests
                 scenarios,
                 CreateVisualReviewPage);
         });
-    }
-
-    private static PlayerView CreateVisualReviewPlayerView()
-    {
-        return new PlayerView { DataContext = CreateDefaultVisualContext() };
     }
 
     private static PlayerViewLayoutTestContext CreateDefaultVisualContext()

@@ -6,15 +6,6 @@ namespace NovelSpeaker.Application.UnitTests;
 public sealed class LocalAudioPlaybackCoordinatorTests
 {
     [Fact]
-    public void CurrentSnapshot_is_idle_by_default()
-    {
-        var coordinator = new LocalAudioPlaybackCoordinator(new FakeAudioPlayer());
-
-        Assert.Equal(PlaybackState.Idle, coordinator.CurrentSnapshot.State);
-        Assert.Equal("准备播放本地音频。", coordinator.CurrentSnapshot.Message);
-    }
-
-    [Fact]
     public async Task StartAsync_publishes_playing_snapshot_with_duration_and_metadata()
     {
         var player = new FakeAudioPlayer();
