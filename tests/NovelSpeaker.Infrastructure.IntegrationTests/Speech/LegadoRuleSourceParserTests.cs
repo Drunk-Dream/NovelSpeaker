@@ -36,29 +36,39 @@ public sealed class LegadoRuleSourceParserTests
             });
     }
 
-    [Theory]
-    [InlineData("", "没有可导入的 JSON 内容。")]
-    [InlineData("not-json", "JSON 解析失败，请检查规则内容。")]
-    [InlineData("42", "规则 JSON 必须是对象或对象数组。")]
-    public void Parse_reports_stable_top_level_errors(string json, string expectedMessage)
+    [Fact]
+    public void Parse_reports_stable_top_level_errors()
     {
-        var result = _parser.Parse(json);
+        foreach (var (json, expectedMessage) in new[]
+                 {
+                     (string.Empty, "没有可导入的 JSON 内容。"),
+                     ("not-json", "JSON 解析失败，请检查规则内容。"),
+                     ("42", "规则 JSON 必须是对象或对象数组。")
+                 })
+        {
+            var result = _parser.Parse(json);
 
-        Assert.Empty(result.Items);
-        Assert.Equal(expectedMessage, result.ErrorMessage);
+            Assert.Empty(result.Items);
+            Assert.Equal(expectedMessage, result.ErrorMessage);
+        }
     }
 
-    [Theory]
-    [InlineData("""{"name":"对象","url":"https://example.com/object"}""", 1)]
-    [InlineData("""[{"name":"数组一","url":"https://example.com/one"},{"name":"数组二","url":"https://example.com/two"}]""", 2)]
-    public void Source_adapter_converts_object_and_array_into_typed_candidates(string json, int expectedCount)
+    [Fact]
+    public void Source_adapter_converts_object_and_array_into_typed_candidates()
     {
-        var adapter = new LegadoRuleSourceAdapter(new LegadoRuleSourceParser(), new LegadoRuleConverter());
+        foreach (var (json, expectedCount) in new[]
+                 {
+                     ("""{"name":"对象","url":"https://example.com/object"}""", 1),
+                     ("""[{"name":"数组一","url":"https://example.com/one"},{"name":"数组二","url":"https://example.com/two"}]""", 2)
+                 })
+        {
+            var adapter = new LegadoRuleSourceAdapter(new LegadoRuleSourceParser(), new LegadoRuleConverter());
 
-        var result = adapter.Read(json);
+            var result = adapter.Read(json);
 
-        Assert.Null(result.ErrorMessage);
-        Assert.Equal(expectedCount, result.Items.Count);
-        Assert.All(result.Items, item => Assert.True(item.Conversion!.CanImport));
+            Assert.Null(result.ErrorMessage);
+            Assert.Equal(expectedCount, result.Items.Count);
+            Assert.All(result.Items, item => Assert.True(item.Conversion!.CanImport));
+        }
     }
 }

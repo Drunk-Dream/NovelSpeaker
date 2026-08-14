@@ -6,8 +6,7 @@ namespace NovelSpeaker.App.PresentationTests.Bootstrap;
 
 public sealed class BackgroundTaskRegistryTests
 {
-    [Fact]
-    public async Task Registered_failure_is_observed_and_recorded_safely()
+    private async Task Registered_failure_is_observed_and_recorded_safely()
     {
         var diagnostics = new RecordingLifecycleDiagnostics();
         var registry = new BackgroundTaskRegistry(diagnostics, TimeProvider.System);
@@ -28,8 +27,7 @@ public sealed class BackgroundTaskRegistryTests
         Assert.IsType<InvalidOperationException>(failure.Exception);
     }
 
-    [Fact]
-    public async Task Shutdown_timeout_is_reported_without_waiting_for_worker_completion()
+    private async Task Shutdown_timeout_is_reported_without_waiting_for_worker_completion()
     {
         var diagnostics = new RecordingLifecycleDiagnostics();
         var timeProvider = new ManualTimeProvider();
@@ -51,8 +49,7 @@ public sealed class BackgroundTaskRegistryTests
         worker.SetResult();
     }
 
-    [Fact]
-    public async Task Successful_worker_remains_observed_when_stage_diagnostic_throws()
+    private async Task Successful_worker_remains_observed_when_stage_diagnostic_throws()
     {
         var registry = new BackgroundTaskRegistry(
             new ThrowingLifecycleDiagnostics(throwOnStage: true),
@@ -68,8 +65,7 @@ public sealed class BackgroundTaskRegistryTests
             CancellationToken.None));
     }
 
-    [Fact]
-    public async Task Failed_worker_remains_observed_when_failure_diagnostic_throws()
+    private async Task Failed_worker_remains_observed_when_failure_diagnostic_throws()
     {
         var registry = new BackgroundTaskRegistry(
             new ThrowingLifecycleDiagnostics(throwOnFailure: true),
@@ -85,8 +81,7 @@ public sealed class BackgroundTaskRegistryTests
             CancellationToken.None));
     }
 
-    [Fact]
-    public async Task Timeout_returns_false_when_timeout_diagnostic_throws()
+    private async Task Timeout_returns_false_when_timeout_diagnostic_throws()
     {
         var timeProvider = new ManualTimeProvider();
         var registry = new BackgroundTaskRegistry(
@@ -103,6 +98,16 @@ public sealed class BackgroundTaskRegistryTests
 
         Assert.False(await waitTask);
         worker.SetResult();
+    }
+
+    [Fact]
+    public async Task Background_task_failure_and_timeout_contracts_are_observed_and_reported()
+    {
+        await Registered_failure_is_observed_and_recorded_safely();
+        await Shutdown_timeout_is_reported_without_waiting_for_worker_completion();
+        await Successful_worker_remains_observed_when_stage_diagnostic_throws();
+        await Failed_worker_remains_observed_when_failure_diagnostic_throws();
+        await Timeout_returns_false_when_timeout_diagnostic_throws();
     }
 
     private sealed class RecordingLifecycleDiagnostics : IProcessLifecycleDiagnostics

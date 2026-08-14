@@ -1,0 +1,70 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <!--
+        This dictionary is deliberately an alias-only boundary. Wpf.Ui owns the
+        implicit type styles and their templates; NovelSpeaker styles depend on
+        these stable keys instead of depending on provider lookup order.
+    -->
+    <Style x:Key="Provider.Button"
+           TargetType="{x:Type Button}"
+           BasedOn="{StaticResource {x:Type Button}}" />
+    <Style x:Key="Provider.UiButton"
+           TargetType="{x:Type ui:Button}"
+           BasedOn="{StaticResource {x:Type ui:Button}}" />
+
+    <Style x:Key="Provider.TextBox"
+           TargetType="{x:Type TextBox}"
+           BasedOn="{StaticResource {x:Type TextBox}}" />
+
+    <Style x:Key="Provider.PasswordBox"
+           TargetType="{x:Type PasswordBox}"
+           BasedOn="{StaticResource {x:Type PasswordBox}}" />
+
+    <Style x:Key="Provider.ComboBox"
+           TargetType="{x:Type ComboBox}"
+           BasedOn="{StaticResource {x:Type ComboBox}}" />
+    <Style x:Key="Provider.ComboBoxItem"
+           TargetType="{x:Type ComboBoxItem}"
+           BasedOn="{StaticResource {x:Type ComboBoxItem}}" />
+
+    <Style x:Key="Provider.CheckBox"
+           TargetType="{x:Type CheckBox}"
+           BasedOn="{StaticResource {x:Type CheckBox}}" />
+
+    <Style x:Key="Provider.ToggleSwitch"
+           TargetType="{x:Type ui:ToggleSwitch}"
+           BasedOn="{StaticResource {x:Type ui:ToggleSwitch}}" />
+
+    <Style x:Key="Provider.NavigationViewItem"
+           TargetType="{x:Type ui:NavigationViewItem}"
+           BasedOn="{StaticResource NavigationViewItemDefaultStyle}" />
+
+    <Style x:Key="Provider.ProgressBar"
+           TargetType="{x:Type ProgressBar}"
+           BasedOn="{StaticResource {x:Type ProgressBar}}" />
+
+    <Style x:Key="Provider.Slider"
+           TargetType="{x:Type Slider}"
+           BasedOn="{StaticResource {x:Type Slider}}" />
+
+    <Style x:Key="Provider.Menu"
+           TargetType="{x:Type Menu}"
+           BasedOn="{StaticResource {x:Type Menu}}" />
+
+    <Style x:Key="Provider.ContextMenu"
+           TargetType="{x:Type ContextMenu}"
+           BasedOn="{StaticResource {x:Type ContextMenu}}" />
+
+    <Style x:Key="Provider.MenuItem"
+           TargetType="{x:Type MenuItem}"
+           BasedOn="{StaticResource {x:Type MenuItem}}" />
+
+    <Style x:Key="Provider.Flyout"
+           TargetType="{x:Type ui:Flyout}"
+           BasedOn="{StaticResource {x:Type ui:Flyout}}" />
+
+    <Style x:Key="Provider.Snackbar"
+           TargetType="{x:Type ui:Snackbar}"
+           BasedOn="{StaticResource {x:Type ui:Snackbar}}" />
+</ResourceDictionary>

@@ -277,11 +277,23 @@ public sealed class PlaybackAudioProviderTests
         Assert.Equal("默认规则", compiler.LastContext!.Source.Name);
     }
 
-    [Theory]
-    [InlineData(PlaybackAudioPriority.Current, TtsAdmissionPriority.CurrentPlayback)]
-    [InlineData(PlaybackAudioPriority.Prefetch, TtsAdmissionPriority.Prefetch)]
-    [InlineData(PlaybackAudioPriority.ActiveCache, TtsAdmissionPriority.ActiveCache)]
-    public async Task GetAudioAsync_maps_playback_priority_to_shared_admission(
+    [Fact]
+    public async Task GetAudioAsync_maps_playback_priority_to_shared_admission()
+    {
+        foreach (var (playbackPriority, expectedAdmissionPriority) in new[]
+        {
+            (PlaybackAudioPriority.Current, TtsAdmissionPriority.CurrentPlayback),
+            (PlaybackAudioPriority.Prefetch, TtsAdmissionPriority.Prefetch),
+            (PlaybackAudioPriority.ActiveCache, TtsAdmissionPriority.ActiveCache)
+        })
+        {
+            await GetAudioAsync_maps_playback_priority_to_shared_admission_for_priority(
+                playbackPriority,
+                expectedAdmissionPriority);
+        }
+    }
+
+    private async Task GetAudioAsync_maps_playback_priority_to_shared_admission_for_priority(
         PlaybackAudioPriority playbackPriority,
         TtsAdmissionPriority expectedAdmissionPriority)
     {

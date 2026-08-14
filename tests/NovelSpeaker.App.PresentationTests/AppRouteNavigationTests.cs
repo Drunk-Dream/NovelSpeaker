@@ -8,42 +8,40 @@ namespace NovelSpeaker.App.PresentationTests;
 
 public sealed class AppRouteNavigationTests
 {
-    public static TheoryData<AppRoute, Type> Routes => new()
+    [Fact]
+    public async Task Every_app_route_maps_to_one_wpf_page_in_shell_adapter()
     {
-        { AppRoutes.Library, typeof(LibraryPage) },
-        { new BookDetailsRoute("book-1"), typeof(BookDetailsPage) },
-        { new PlayerRoute("book-1"), typeof(PlayerPage) },
-        { AppRoutes.Settings, typeof(SettingsPage) },
-        { AppRoutes.PlaybackSettings, typeof(PlaybackSettingsPage) },
-        { AppRoutes.TtsRules, typeof(TtsRulesPage) },
-        { AppRoutes.ImportTextSettings, typeof(ImportTextSettingsPage) },
-        { AppRoutes.RegexReplacementRules, typeof(RegexReplacementRulesPage) },
-        { AppRoutes.ChapterRules, typeof(ChapterRulesPage) },
-        { AppRoutes.CacheAndData, typeof(CacheAndDataPage) },
-        { AppRoutes.CacheManagement, typeof(CacheManagementPage) },
-        { AppRoutes.GeneralSettings, typeof(GeneralSettingsPage) },
-        { AppRoutes.AppearanceSettings, typeof(AppearanceSettingsPage) },
-        { AppRoutes.DiagnosticsAbout, typeof(DiagnosticsAboutPage) }
-    };
-
-    [Theory]
-    [MemberData(nameof(Routes))]
-    public async Task Every_app_route_maps_to_one_wpf_page_in_shell_adapter(
-        AppRoute route,
-        Type expectedPageType)
-    {
-        var navigation = new RecordingNavigationService();
-        var adapter = new ShellNavigationAdapter(new AllowNavigationGuard(), navigation);
-
-        Assert.True(await adapter.NavigateAsync(route, CancellationToken.None));
-        Assert.Equal(expectedPageType, navigation.LastPageType);
-        if (route is BookDetailsRoute or PlayerRoute)
+        foreach (var (route, expectedPageType) in new (AppRoute Route, Type PageType)[]
+                 {
+                     (AppRoutes.Library, typeof(LibraryPage)),
+                     (new BookDetailsRoute("book-1"), typeof(BookDetailsPage)),
+                     (new PlayerRoute("book-1"), typeof(PlayerPage)),
+                     (AppRoutes.Settings, typeof(SettingsPage)),
+                     (AppRoutes.PlaybackSettings, typeof(PlaybackSettingsPage)),
+                     (AppRoutes.TtsRules, typeof(TtsRulesPage)),
+                     (AppRoutes.ImportTextSettings, typeof(ImportTextSettingsPage)),
+                     (AppRoutes.RegexReplacementRules, typeof(RegexReplacementRulesPage)),
+                     (AppRoutes.ChapterRules, typeof(ChapterRulesPage)),
+                     (AppRoutes.CacheAndData, typeof(CacheAndDataPage)),
+                     (AppRoutes.CacheManagement, typeof(CacheManagementPage)),
+                     (AppRoutes.GeneralSettings, typeof(GeneralSettingsPage)),
+                     (AppRoutes.AppearanceSettings, typeof(AppearanceSettingsPage)),
+                     (AppRoutes.DiagnosticsAbout, typeof(DiagnosticsAboutPage))
+                 })
         {
-            Assert.Same(route, navigation.LastDataContext);
-        }
-        else
-        {
-            Assert.Null(navigation.LastDataContext);
+            var navigation = new RecordingNavigationService();
+            var adapter = new ShellNavigationAdapter(new AllowNavigationGuard(), navigation);
+
+            Assert.True(await adapter.NavigateAsync(route, CancellationToken.None));
+            Assert.Equal(expectedPageType, navigation.LastPageType);
+            if (route is BookDetailsRoute or PlayerRoute)
+            {
+                Assert.Same(route, navigation.LastDataContext);
+            }
+            else
+            {
+                Assert.Null(navigation.LastDataContext);
+            }
         }
     }
 

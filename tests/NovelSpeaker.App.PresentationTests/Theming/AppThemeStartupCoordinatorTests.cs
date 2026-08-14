@@ -7,22 +7,27 @@ namespace NovelSpeaker.App.PresentationTests.Theming;
 
 public sealed class AppThemeStartupCoordinatorTests
 {
-    [Theory]
-    [InlineData("System", 1, 0, 0)]
-    [InlineData("Light", 0, 1, 0)]
-    [InlineData("Dark", 0, 0, 1)]
-    public async Task ApplyAsync_maps_supported_theme_values(string theme, int systemCalls, int lightCalls, int darkCalls)
+    [Fact]
+    public async Task ApplyAsync_maps_supported_theme_values()
     {
-        var runtime = new FakeThemeRuntime();
-        var coordinator = new AppThemeStartupCoordinator(
-            new FakeAppSettingsStore(AppSettings.Default with { Theme = theme }),
-            runtime);
+        foreach (var (theme, systemCalls, lightCalls, darkCalls) in new[]
+                 {
+                     ("System", 1, 0, 0),
+                     ("Light", 0, 1, 0),
+                     ("Dark", 0, 0, 1)
+                 })
+        {
+            var runtime = new FakeThemeRuntime();
+            var coordinator = new AppThemeStartupCoordinator(
+                new FakeAppSettingsStore(AppSettings.Default with { Theme = theme }),
+                runtime);
 
-        await coordinator.ApplyAsync(CancellationToken.None);
+            await coordinator.ApplyAsync(CancellationToken.None);
 
-        Assert.Equal(systemCalls, runtime.SystemCalls);
-        Assert.Equal(lightCalls, runtime.LightCalls);
-        Assert.Equal(darkCalls, runtime.DarkCalls);
+            Assert.Equal(systemCalls, runtime.SystemCalls);
+            Assert.Equal(lightCalls, runtime.LightCalls);
+            Assert.Equal(darkCalls, runtime.DarkCalls);
+        }
     }
 
     [Fact]

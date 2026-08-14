@@ -6,19 +6,7 @@ namespace NovelSpeaker.App.PresentationTests.Bootstrap;
 
 public sealed class StartupCoordinatorTests
 {
-    public static TheoryData<int> RequiredStages =>
-        new()
-        {
-            (int)StartupStage.Directories,
-            (int)StartupStage.Settings,
-            (int)StartupStage.Logging,
-            (int)StartupStage.DependencyInjection,
-            (int)StartupStage.Database,
-            (int)StartupStage.Shell
-        };
-
-    [Fact]
-    public async Task StartAsync_runs_required_stages_in_order_and_uses_one_settings_snapshot()
+    private async Task StartAsync_runs_required_stages_in_order_and_uses_one_settings_snapshot()
     {
         var runtime = new RecordingStartupRuntime();
         await using var coordinator = new StartupCoordinator(runtime);
@@ -45,9 +33,23 @@ public sealed class StartupCoordinatorTests
         Assert.Equal(1, runtime.ShellCalls);
     }
 
-    [Theory]
-    [MemberData(nameof(RequiredStages))]
-    public async Task StartAsync_projects_each_required_stage_failure_and_blocks_shell(int stageValue)
+    private async Task StartAsync_projects_each_required_stage_failure_and_blocks_shell()
+    {
+        foreach (var stageValue in new[]
+        {
+            (int)StartupStage.Directories,
+            (int)StartupStage.Settings,
+            (int)StartupStage.Logging,
+            (int)StartupStage.DependencyInjection,
+            (int)StartupStage.Database,
+            (int)StartupStage.Shell
+        })
+        {
+            await StartAsync_projects_each_required_stage_failure_and_blocks_shell_for_stage(stageValue);
+        }
+    }
+
+    private async Task StartAsync_projects_each_required_stage_failure_and_blocks_shell_for_stage(int stageValue)
     {
         var stage = (StartupStage)stageValue;
         const string sensitive =
@@ -71,10 +73,10 @@ public sealed class StartupCoordinatorTests
         Assert.DoesNotContain("正文机密句", runtime.VisibleFailures[0], StringComparison.Ordinal);
         Assert.Equal(stage == StartupStage.Shell ? 1 : 0, runtime.ShellCalls);
         Assert.True(runtime.StatusClosed);
+        Assert.Equal(["show", "failure", "close"], runtime.StartupStatusEvents);
     }
 
-    [Fact]
-    public async Task StartAsync_database_or_recovery_failure_prevents_theme_and_shell()
+    private async Task StartAsync_database_or_recovery_failure_prevents_theme_and_shell()
     {
         var runtime = new RecordingStartupRuntime
         {
@@ -91,8 +93,7 @@ public sealed class StartupCoordinatorTests
         Assert.Equal(0, runtime.ShellCalls);
     }
 
-    [Fact]
-    public async Task StartAsync_theme_failure_records_safe_diagnostic_and_continues_to_shell()
+    private async Task StartAsync_theme_failure_records_safe_diagnostic_and_continues_to_shell()
     {
         var runtime = new RecordingStartupRuntime
         {
@@ -112,9 +113,24 @@ public sealed class StartupCoordinatorTests
         Assert.Empty(runtime.VisibleFailures);
     }
 
-    [Theory]
-    [MemberData(nameof(AllStages))]
-    public async Task StartAsync_treats_cancellation_at_any_stage_as_normal_control_flow(int stageValue)
+    private async Task StartAsync_treats_cancellation_at_any_stage_as_normal_control_flow()
+    {
+        foreach (var stageValue in new[]
+        {
+            (int)StartupStage.Directories,
+            (int)StartupStage.Settings,
+            (int)StartupStage.Logging,
+            (int)StartupStage.DependencyInjection,
+            (int)StartupStage.Database,
+            (int)StartupStage.Theme,
+            (int)StartupStage.Shell
+        })
+        {
+            await StartAsync_treats_cancellation_at_any_stage_as_normal_control_flow_for_stage(stageValue);
+        }
+    }
+
+    private async Task StartAsync_treats_cancellation_at_any_stage_as_normal_control_flow_for_stage(int stageValue)
     {
         var stage = (StartupStage)stageValue;
         using var cancellation = new CancellationTokenSource();
@@ -136,8 +152,7 @@ public sealed class StartupCoordinatorTests
         Assert.Equal(stage == StartupStage.Shell ? 1 : 0, runtime.ShellCalls);
     }
 
-    [Fact]
-    public async Task Cancel_cancels_process_token_used_by_startup_stages()
+    private async Task Cancel_cancels_process_token_used_by_startup_stages()
     {
         var runtime = new RecordingStartupRuntime();
         await using var coordinator = new StartupCoordinator(runtime);
@@ -156,8 +171,7 @@ public sealed class StartupCoordinatorTests
         Assert.Equal(0, runtime.ShellCalls);
     }
 
-    [Fact]
-    public async Task Cancel_after_success_cancels_token_retained_by_runtime_background_work()
+    private async Task Cancel_after_success_cancels_token_retained_by_runtime_background_work()
     {
         var runtime = new RecordingStartupRuntime();
         await using var coordinator = new StartupCoordinator(runtime);
@@ -173,8 +187,7 @@ public sealed class StartupCoordinatorTests
         Assert.True(runtime.ShellProcessToken.IsCancellationRequested);
     }
 
-    [Fact]
-    public async Task ShutdownAsync_orders_playback_process_background_flush_and_resource_release()
+    private async Task ShutdownAsync_orders_playback_process_background_flush_and_resource_release()
     {
         var runtime = new RecordingStartupRuntime();
         await using var coordinator = new StartupCoordinator(runtime);
@@ -188,8 +201,7 @@ public sealed class StartupCoordinatorTests
         Assert.True(runtime.ProcessCancelledBeforeBackgroundWait);
     }
 
-    [Fact]
-    public async Task ShutdownAsync_continues_after_playback_save_failure()
+    private async Task ShutdownAsync_continues_after_playback_save_failure()
     {
         var runtime = new RecordingStartupRuntime
         {
@@ -208,8 +220,7 @@ public sealed class StartupCoordinatorTests
             failure => failure.SafeMessage == "保存并结束播放失败，将继续关闭。");
     }
 
-    [Fact]
-    public async Task ShutdownAsync_continues_after_media_control_unregistration_failure()
+    private async Task ShutdownAsync_continues_after_media_control_unregistration_failure()
     {
         var runtime = new RecordingStartupRuntime
         {
@@ -228,8 +239,7 @@ public sealed class StartupCoordinatorTests
             failure => failure.SafeMessage == "注销系统媒体控制失败，将继续关闭。");
     }
 
-    [Fact]
-    public async Task Repeated_shutdown_requests_share_one_task_and_release_resources_once()
+    private async Task Repeated_shutdown_requests_share_one_task_and_release_resources_once()
     {
         var runtime = new RecordingStartupRuntime
         {
@@ -248,17 +258,31 @@ public sealed class StartupCoordinatorTests
         Assert.Equal(1, runtime.DisposeCalls);
     }
 
-    public static TheoryData<int> AllStages =>
-        new()
-        {
-            (int)StartupStage.Directories,
-            (int)StartupStage.Settings,
-            (int)StartupStage.Logging,
-            (int)StartupStage.DependencyInjection,
-            (int)StartupStage.Database,
-            (int)StartupStage.Theme,
-            (int)StartupStage.Shell
-        };
+    [Fact]
+    public async Task Startup_stage_contracts_cover_success_failure_recovery_and_theme_projection()
+    {
+        await StartAsync_runs_required_stages_in_order_and_uses_one_settings_snapshot();
+        await StartAsync_projects_each_required_stage_failure_and_blocks_shell();
+        await StartAsync_database_or_recovery_failure_prevents_theme_and_shell();
+        await StartAsync_theme_failure_records_safe_diagnostic_and_continues_to_shell();
+    }
+
+    [Fact]
+    public async Task Startup_cancellation_contracts_cover_stage_and_runtime_tokens()
+    {
+        await StartAsync_treats_cancellation_at_any_stage_as_normal_control_flow();
+        await Cancel_cancels_process_token_used_by_startup_stages();
+        await Cancel_after_success_cancels_token_retained_by_runtime_background_work();
+    }
+
+    [Fact]
+    public async Task Startup_shutdown_contracts_cover_order_failure_continuation_and_idempotence()
+    {
+        await ShutdownAsync_orders_playback_process_background_flush_and_resource_release();
+        await ShutdownAsync_continues_after_playback_save_failure();
+        await ShutdownAsync_continues_after_media_control_unregistration_failure();
+        await Repeated_shutdown_requests_share_one_task_and_release_resources_once();
+    }
 
     private sealed class RecordingStartupRuntime : IStartupRuntime
     {
@@ -296,6 +320,8 @@ public sealed class StartupCoordinatorTests
 
         public bool StatusClosed { get; private set; }
 
+        public List<string> StartupStatusEvents { get; } = [];
+
         public CancellationToken ShellProcessToken { get; private set; }
 
         public Task BackgroundCancellation => _backgroundCancellation.Task;
@@ -318,6 +344,7 @@ public sealed class StartupCoordinatorTests
 
         public void ShowStartupStatus()
         {
+            StartupStatusEvents.Add("show");
         }
 
         public Task ReportStageAsync(StartupStage stage, CancellationToken cancellationToken)
@@ -383,11 +410,13 @@ public sealed class StartupCoordinatorTests
 
         public void ShowStartupFailure(StartupFailure failure)
         {
+            StartupStatusEvents.Add("failure");
             VisibleFailures.Add($"{failure.Title} {failure.Message}");
         }
 
         public void CloseStartupStatus()
         {
+            StartupStatusEvents.Add("close");
             StatusClosed = true;
         }
 

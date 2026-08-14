@@ -394,6 +394,8 @@ internal sealed class DesktopLifecycleCoordinator :
                 _commands = null;
                 _lifetimeCancellation = null;
                 _commandProcessor = null;
+                _isMiniPlayerOpen = false;
+                _isMainWindowVisible = false;
             }
         }
 

@@ -44,8 +44,8 @@ public sealed partial class PlayerViewTests
             };
             var viewModel = new PlayerViewModel(
                 coordinator,
-                new FakePlaybackStopTimer(),
-                new FakeActiveCacheCoordinator(),
+                new WpfFakePlaybackStopTimer(),
+                new WpfFakeActiveCacheCoordinator(),
                 new ChapterMapPlaybackContentService(
                     new PlaybackBookContent(
                         "book-1",
@@ -59,7 +59,7 @@ public sealed partial class PlayerViewTests
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
                 new FakeCacheWorkspaceService(),
-                new FakeMiniPlayerLauncher());
+                new WpfFakeMiniPlayerLauncher());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
@@ -82,7 +82,7 @@ public sealed partial class PlayerViewTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 DoEvents();
                 view.UpdateLayout();
 

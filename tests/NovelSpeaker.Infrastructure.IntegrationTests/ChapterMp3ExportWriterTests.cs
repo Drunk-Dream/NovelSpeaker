@@ -168,10 +168,16 @@ public sealed class ChapterMp3ExportWriterTests
             Assert.Single(result.Files).FilePath);
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task WriteAsync_cleans_staging_and_releases_cache_protection_on_cancel_or_failure(
+    [Fact]
+    public async Task WriteAsync_cleans_staging_and_releases_cache_protection_on_cancel_or_failure()
+    {
+        foreach (var cancel in new[] { true, false })
+        {
+            await WriteAsync_cleans_staging_and_releases_cache_protection_on_cancel_or_failure_for_mode(cancel);
+        }
+    }
+
+    private async Task WriteAsync_cleans_staging_and_releases_cache_protection_on_cancel_or_failure_for_mode(
         bool cancel)
     {
         var fixture = await CreateFixtureAsync();
@@ -204,6 +210,36 @@ public sealed class ChapterMp3ExportWriterTests
         var cleanup = await fixture.Cache.ClearChapterAsync("book-1", 0, CancellationToken.None);
         Assert.Equal(1, cleanup.DeletedEntryCount);
         Assert.Equal(0, cleanup.ProtectedEntryCount);
+    }
+
+    [Fact]
+    public async Task WriteAsync_protects_source_cache_for_the_entire_background_batch()
+    {
+        var fixture = await CreateFixtureAsync();
+        var key = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "第一段");
+        await StoreAsync(fixture, key, 0, CreateWaveFile(silence: false));
+        var encoder = new BlockingChapterMp3Encoder();
+        var writer = CreateWriter(fixture, encoder);
+        var operation = writer.WriteAsync(
+            new ChapterMp3ExportBatch(
+                CreateExportRoot(),
+                "示例书",
+                [new ChapterMp3ExportPlan(0, "001_第一章", [key])]),
+            CancellationToken.None);
+
+        await encoder.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var cleanupWhileExporting = await fixture.Cache.ClearChapterAsync("book-1", 0, CancellationToken.None);
+
+        Assert.Equal(0, cleanupWhileExporting.DeletedEntryCount);
+        Assert.Equal(1, cleanupWhileExporting.ProtectedEntryCount);
+
+        encoder.Release.TrySetResult();
+        var result = await operation;
+        Assert.Equal(ChapterMp3ExportWriteStatus.Succeeded, result.Status);
+
+        var cleanupAfterExport = await fixture.Cache.ClearChapterAsync("book-1", 0, CancellationToken.None);
+        Assert.Equal(1, cleanupAfterExport.DeletedEntryCount);
+        Assert.Equal(0, cleanupAfterExport.ProtectedEntryCount);
     }
 
     [Fact]
@@ -354,6 +390,25 @@ public sealed class ChapterMp3ExportWriterTests
     private sealed class FixedAudioCacheLimitProvider : IAudioCacheLimitProvider
     {
         public long GetCurrentLimitBytes() => AppSettings.DefaultCacheLimitBytes;
+    }
+
+    private sealed class BlockingChapterMp3Encoder : IChapterMp3Encoder
+    {
+        public TaskCompletionSource Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task EncodeAsync(
+            IReadOnlyList<string> sourceFilePaths,
+            Stream destination,
+            CancellationToken cancellationToken)
+        {
+            Started.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            await destination.WriteAsync(new byte[] { 1, 2, 3, 4 }, cancellationToken);
+        }
     }
 
     private sealed class FailingChapterMp3Encoder(Action? beforeFailure) : IChapterMp3Encoder

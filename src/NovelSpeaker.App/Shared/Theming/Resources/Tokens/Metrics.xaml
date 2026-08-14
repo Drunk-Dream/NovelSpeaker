@@ -1,0 +1,30 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- Stable cross-component metrics. These resources are theme-independent and are
+         intentionally loaded once; theme changes update palette values only. -->
+    <sys:Double x:Key="App.Space.4">4</sys:Double>
+    <sys:Double x:Key="App.Space.8">8</sys:Double>
+    <sys:Double x:Key="App.Space.12">12</sys:Double>
+    <sys:Double x:Key="App.Space.16">16</sys:Double>
+    <sys:Double x:Key="App.Space.20">20</sys:Double>
+    <sys:Double x:Key="App.Space.24">24</sys:Double>
+    <sys:Double x:Key="App.Space.32">32</sys:Double>
+    <sys:Double x:Key="App.Space.40">40</sys:Double>
+    <sys:Double x:Key="App.Space.48">48</sys:Double>
+
+    <CornerRadius x:Key="App.Radius.Small">8</CornerRadius>
+    <CornerRadius x:Key="App.Radius.Medium">12</CornerRadius>
+    <CornerRadius x:Key="App.Radius.Large">16</CornerRadius>
+
+    <sys:Double x:Key="App.Size.Icon.Small">16</sys:Double>
+    <sys:Double x:Key="App.Size.Icon.Standard">20</sys:Double>
+    <sys:Double x:Key="App.Size.Icon.Large">24</sys:Double>
+    <sys:Double x:Key="App.Size.Icon.Touch">32</sys:Double>
+    <sys:Double x:Key="App.Size.MediaButton">48</sys:Double>
+
+    <sys:Double x:Key="App.Size.Control.Compact">32</sys:Double>
+    <sys:Double x:Key="App.Size.Control.Standard">40</sys:Double>
+
+    <sys:Double x:Key="App.Opacity.Disabled">0.5</sys:Double>
+</ResourceDictionary>

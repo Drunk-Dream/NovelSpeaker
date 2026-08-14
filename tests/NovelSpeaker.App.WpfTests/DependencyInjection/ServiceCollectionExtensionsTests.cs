@@ -26,6 +26,7 @@ using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.App.Shared.Presentation.Platform;
+using NovelSpeaker.App.Shared.Presentation.Rules;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using NovelSpeaker.Infrastructure.Diagnostics;
 using NovelSpeaker.Infrastructure.Playback;
@@ -86,6 +87,8 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAppFeedbackService>(provider.GetRequiredService<IAppFeedbackService>());
                 Assert.IsAssignableFrom<IPresentationFileDialogService>(
                     provider.GetRequiredService<IPresentationFileDialogService>());
+                Assert.IsAssignableFrom<IRuleDocumentInteraction>(
+                    provider.GetRequiredService<IRuleDocumentInteraction>());
                 Assert.IsAssignableFrom<IPresentationLauncher>(
                     provider.GetRequiredService<IPresentationLauncher>());
                 Assert.IsAssignableFrom<IAppDiagnosticsService>(provider.GetRequiredService<IAppDiagnosticsService>());
@@ -150,6 +153,8 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IPlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
                 Assert.IsType<PlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
                 Assert.IsType<ActiveCacheCoordinator>(provider.GetRequiredService<IActiveCacheCoordinator>());
+                Assert.IsType<ChapterExportCoordinator>(provider.GetRequiredService<IChapterExportCoordinator>());
+                Assert.IsType<ShellChapterExportController>(provider.GetRequiredService<ShellChapterExportController>());
                 Assert.IsType<PlaybackSegmentRunner>(provider.GetRequiredService<PlaybackSegmentRunner>());
                 Assert.IsType<PlaybackRecoveryPolicy>(provider.GetRequiredService<PlaybackRecoveryPolicy>());
                 Assert.IsType<PlaybackAudioFailureReporter>(provider.GetRequiredService<IPlaybackAudioFailureReporter>());
@@ -200,6 +205,9 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.Same(
                     provider.GetRequiredService<IActiveCacheCoordinator>(),
                     provider.GetRequiredService<IActiveCacheCoordinator>());
+                Assert.Same(
+                    provider.GetRequiredService<IChapterExportCoordinator>(),
+                    provider.GetRequiredService<IChapterExportCoordinator>());
                 Assert.Same(
                     provider.GetRequiredService<DesktopLifecycleCoordinator>(),
                     provider.GetRequiredService<IDesktopLifecycleCoordinator>());
@@ -275,6 +283,7 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(ICacheWorkspaceBackgroundTaskOwner),
             typeof(IPlaybackAudioProvider),
             typeof(IActiveCacheCoordinator),
+            typeof(IChapterExportCoordinator),
             typeof(ILocalAudioPlaybackCoordinator),
             typeof(IPlaybackPrefetchController),
             typeof(IPlaybackSession),

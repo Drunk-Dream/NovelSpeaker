@@ -1,19 +1,11 @@
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.App.Features.Cache;
-using NovelSpeaker.App.Shared.Presentation.Cache;
 using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests;
 
 public sealed class CacheCompletenessFormatterTests
 {
-    [Fact]
-    public void Directory_formatter_hides_zero_percent_and_unavailable_states()
-    {
-        Assert.Equal(string.Empty, ChapterCachePercentageFormatter.Format(0, 8));
-        Assert.Equal(string.Empty, ChapterCachePercentageFormatter.Format(0, null));
-    }
-
     [Fact]
     public void Cache_management_formatter_keeps_cached_chapter_visible_at_zero_percent()
     {

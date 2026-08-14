@@ -7,17 +7,27 @@ public sealed class WpfUiThemeRuntime : IThemeRuntime
 {
     public void ApplySystemTheme()
     {
-        InvokeOnUiThread(ApplicationThemeManager.ApplySystemTheme);
+        InvokeOnUiThread(() =>
+        {
+            ApplicationThemeManager.ApplySystemTheme();
+            NovelSpeakerPaletteRuntime.ApplySystemTheme();
+        });
     }
 
     public void ApplyLightTheme()
     {
-        InvokeOnUiThread(() => ApplicationThemeManager.Apply(ApplicationTheme.Light));
+        InvokeOnUiThread(() => ApplyTheme(ApplicationTheme.Light));
     }
 
     public void ApplyDarkTheme()
     {
-        InvokeOnUiThread(() => ApplicationThemeManager.Apply(ApplicationTheme.Dark));
+        InvokeOnUiThread(() => ApplyTheme(ApplicationTheme.Dark));
+    }
+
+    private static void ApplyTheme(ApplicationTheme theme)
+    {
+        ApplicationThemeManager.Apply(theme);
+        NovelSpeakerPaletteRuntime.Apply(theme);
     }
 
     private static void InvokeOnUiThread(Action action)

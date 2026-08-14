@@ -6,4 +6,6 @@ namespace NovelSpeaker.Application.Playback.Export;
 public sealed record ExportChaptersRequest(
     string BookId,
     IReadOnlyCollection<int> ChapterIndices,
-    string DestinationRootDirectory);
+    string DestinationRootDirectory,
+    string? FrozenBookTitle = null,
+    IReadOnlyDictionary<int, string>? FrozenChapterTitles = null);

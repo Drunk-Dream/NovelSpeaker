@@ -53,17 +53,17 @@ public sealed class BookFileNameMetadataParserTests
         Assert.Equal("魔性沧月", result.SuggestedAuthor);
     }
 
-    [Theory]
-    [InlineData("{{author}}")]
-    [InlineData("{{name}} {{name}}")]
-    [InlineData("{{title}} 作者：{{author}}")]
-    [InlineData("《{{name}}》 作者：{{author}}")]
-    public void Parse_falls_back_when_template_is_invalid_or_literal_does_not_match(string template)
+    [Fact]
+    public void Parse_falls_back_when_template_is_invalid_or_literal_does_not_match()
     {
-        var result = _parser.Parse("信息全知者 作者：魔性沧月", template);
+        foreach (var template in new[]
+                 { "{{author}}", "{{name}} {{name}}", "{{title}} 作者：{{author}}", "《{{name}}》 作者：{{author}}" })
+        {
+            var result = _parser.Parse("信息全知者 作者：魔性沧月", template);
 
-        Assert.False(result.IsMatched);
-        Assert.Equal("信息全知者 作者：魔性沧月", result.SuggestedTitle);
-        Assert.Null(result.SuggestedAuthor);
+            Assert.False(result.IsMatched);
+            Assert.Equal("信息全知者 作者：魔性沧月", result.SuggestedTitle);
+            Assert.Null(result.SuggestedAuthor);
+        }
     }
 }

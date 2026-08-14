@@ -45,13 +45,23 @@
 - Wpf.Ui provider dictionaries 先加载并在进程生命周期内保持稳定；主题切换不重新注入 Style。
 - `Application.Resources` 和全局合并字典禁止为标准 WPF/Wpf.Ui 控件定义 NovelSpeaker 隐式样式。
 - 公共外观使用带 `x:Key` 的 `App.*` 具名样式；需要继承 Wpf.Ui 时通过受测试的 Provider Style Bridge，而不是依赖不透明的加载顺序。
+- 同一标准控件族的 Style 集中在一个职责明确的资源字典中，不把 Button、Input、Selection、Media 或 Feedback 分散到多个综合文件。
 - 不在全局资源中替换标准控件完整 `ControlTemplate`。确需完全自定义时，使用应用自有 CustomControl/UserControl 或局部具名样式，并增加专项 WPF 测试。
+- 跨 Feature 的正式自有控件类位于 `Shared/Presentation/Controls`，默认模板位于 `Shared/Theming/Resources/ControlThemes`；业务领域视图留在对应 Feature。
+- 自有控件允许按类型应用默认 Style；标准 WPF/Wpf.Ui 控件仍必须显式引用 `App.*` Style。
+- 纯图标按钮统一使用 `Wpf.Ui.Controls.Button` + `App.Button.Icon`/`App.Button.DangerIcon`（媒体操作使用 `App.Media.Button`）并通过 `Button.Icon` 提供 `SymbolIcon`；不得把 `SymbolIcon` 直接放进 Button.Content，也不得在页面为 Button.Icon 内的图标单独设置 `Foreground` 或绑定祖先前景色。按钮样式是图标交互态颜色的唯一 owner。
+- 非 Button.Icon 的应用自有 `SymbolIcon` 使用显式 `App.Icon.Primary`/`Secondary`/`Accent`/`Danger` 语义样式；不得建立全局隐式 `SymbolIcon` Style。由 Wpf.Ui Navigation/Provider 模板拥有颜色的图标不额外覆盖。
+- Style Gallery 的 fixture、示例文本和演示状态不得进入生产控件构造函数。
+- Style Gallery 按稳定资源族组织场景；同一 Style/控件族只能有一个主要 Gallery scene，不按任务编号创建展示区。
+- Gallery 截图使用稳定 `family-id`；正式页面和窗口截图使用稳定 `page-id`/`window-id`，目录和文件名不得包含 backlog 任务编号。
+- 页面截图必须实例化正式 View 和确定性脱敏 fixture，不得以 Gallery 中的相似布局替代真实页面截图。
 - 全局 Design Token 只保存稳定标尺：颜色语义、间距刻度、圆角、图标尺寸、最小控件高度和动效时长。
 - 页面 Padding、列宽、规则列表宽度、设置编辑控件宽度等布局值由 Shell、页面或复合组件中的唯一 owner 管理。
 - 页面不得复制通用 Trigger/VisualState，但可以保留真实页面专用的 Grid、Margin、MinWidth 和滚动结构。
 - ViewModel 不返回 Brush、Style、ControlTemplate、Thickness、CornerRadius 或其它 WPF 视觉类型。
 - UI 平台能力通过 presentation port/adapter 暴露给可测试代码。
-- 视觉开发先在 Style Gallery 中实现，再以显式引用迁移到单个窗口或页面；一次改动不同时调整 palette、控件模板、页面密度和页面布局。
+- 页面视觉变更按纵向切片执行：先确认已有公共资源是否足够；确有复用价值时在正确控件族中补齐公共资源和 Gallery fixture，再修改一个窗口或页面。不得因局部调整重新建立页面同义 Style 或把同类 Style 分散到多个字典。
+- WPF 自动测试默认不在用户当前 Desktop 显示窗口；无窗口布局/渲染使用 `WpfControlHost`，真实 Window/Popup 生命周期只通过共享 TestKit 宿主进入隔离 Desktop。可见调试只在用户明确授权后启用。
 
 ## 7. 数据与文件
 

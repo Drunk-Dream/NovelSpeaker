@@ -1,215 +1,154 @@
 <Page x:Class="NovelSpeaker.App.Features.Cache.CacheAndDataPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:commonControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Common"
+      xmlns:settingsControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Settings"
       xmlns:theming="clr-namespace:NovelSpeaker.App.Shared.Theming"
-      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
-    <Page.Resources>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
-    </Page.Resources>
-
-    <Grid Margin="{StaticResource PagePadding}">
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Background="Transparent">
+    <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Button Style="{StaticResource BackIconButtonStyle}"
-                Command="{Binding BackCommand}"
-                ToolTip="返回"
-                AutomationProperties.Name="返回">
-            <ui:SymbolIcon Symbol="ChevronLeft24" />
-        </Button>
+        <commonControls:AppPageHeader x:Name="PageHeader"
+                                      Title="缓存与数据"
+                                      BackCommand="{Binding BackCommand}" />
 
         <ScrollViewer Grid.Row="1"
                       Margin="0,20,0,0"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
-            <StackPanel>
-                <TextBlock Style="{StaticResource PageTitleTextBlockStyle}"
-                           Text="缓存与数据" />
-
-                <Border Margin="{StaticResource SectionSpacing}"
-                        Style="{StaticResource SettingsRowsGroupBorderStyle}">
-                    <StackPanel>
-                        <Border x:Name="CacheOverviewItemBorder"
-                                Style="{StaticResource SettingsRowBorderStyle}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
-                                               Text="缓存总览" />
-                                    <TextBlock Style="{StaticResource SettingsRowDescriptionTextBlockStyle}"
-                                               Text="{Binding CacheEntryCountText}" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Column="1"
-                                            Margin="{StaticResource SettingsRowControlMargin}"
-                                            Width="{StaticResource SettingsRowControlWidth}"
-                                            VerticalAlignment="Center">
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding HasLoadError}" Value="True">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
-
-                                    <TextBlock HorizontalAlignment="Right"
-                                               Style="{StaticResource StrongTextBlockStyle}"
-                                               FontSize="22"
-                                               Text="{Binding TotalCacheSizeText}"
-                                               AutomationProperties.Name="当前缓存占用" />
-                                    <ProgressBar Margin="0,8,0,0"
-                                                 Height="8"
-                                                 Maximum="100"
-                                                 Value="{Binding UsagePercentage}"
-                                                 AutomationProperties.Name="缓存使用率" />
-                                    <TextBlock Margin="0,6,0,0"
-                                               HorizontalAlignment="Right"
-                                               Style="{StaticResource SecondaryTextBlockStyle}"
-                                               Text="{Binding UsageText}" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Column="1"
-                                            Margin="{StaticResource SettingsRowControlMargin}"
-                                            Width="{StaticResource SettingsRowControlWidth}"
-                                            VerticalAlignment="Center">
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
+            <settingsControls:AppSettingsList x:Name="SettingsList"
+                                              AutomationProperties.Name="缓存与数据设置">
+                <settingsControls:AppSettingsRow x:Name="CacheOverviewRow"
+                                                 Title="缓存总览"
+                                                 Description="{Binding CacheEntryCountText}"
+                                                 AutomationProperties.Name="缓存总览">
+                    <Grid Width="240">
+                        <StackPanel>
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasLoadError}" Value="True">
                                             <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding HasLoadError}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <TextBlock HorizontalAlignment="Right"
+                                       Style="{StaticResource App.Typography.ItemTitle}"
+                                       FontSize="22"
+                                       Text="{Binding TotalCacheSizeText}"
+                                       AutomationProperties.Name="当前缓存占用" />
+                            <ProgressBar Margin="0,8,0,0"
+                                         Style="{StaticResource App.Progress.Compact}"
+                                         Maximum="100"
+                                         Value="{Binding UsagePercentage}"
+                                         AutomationProperties.Name="缓存使用率" />
+                            <TextBlock Margin="0,6,0,0"
+                                       HorizontalAlignment="Right"
+                                       Style="{StaticResource App.Typography.Secondary}"
+                                       Text="{Binding UsageText}" />
+                        </StackPanel>
 
-                                    <TextBlock Style="{StaticResource SecondaryTextBlockStyle}"
-                                               Text="{Binding LoadErrorMessage}" />
-                                    <Button Margin="0,8,0,0"
-                                            Width="120"
-                                            HorizontalAlignment="Right"
-                                            Command="{Binding RetryCommand}"
-                                            Content="重试"
-                                            AutomationProperties.Name="重试加载缓存总览" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
+                        <StackPanel>
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasLoadError}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <TextBlock Style="{StaticResource App.Feedback.ValidationText}"
+                                       Text="{Binding LoadErrorMessage}"
+                                       TextWrapping="Wrap" />
+                            <Button Margin="0,8,0,0"
+                                    HorizontalAlignment="Right"
+                                    Style="{StaticResource App.Button.Secondary}"
+                                    Command="{Binding RetryCommand}"
+                                    Content="重试"
+                                    AutomationProperties.Name="重试加载缓存总览" />
+                        </StackPanel>
+                    </Grid>
+                </settingsControls:AppSettingsRow>
 
-                        <Border x:Name="CacheLimitItemBorder"
-                                Style="{StaticResource SettingsRowBorderStyle}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
-                                               Text="缓存上限" />
-                                    <TextBlock Style="{StaticResource SettingsRowDescriptionTextBlockStyle}"
-                                               Text="仅支持整数输入，最低为 256 MB。" />
-                                    <TextBlock Text="{Binding CacheLimitErrorText}">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock"
-                                                   BasedOn="{StaticResource ErrorTextBlockStyle}">
-                                                <Setter Property="Margin" Value="0,4,0,0" />
-                                                <Setter Property="Visibility" Value="Visible" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding CacheLimitErrorText}" Value="">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1"
-                                            Margin="{StaticResource SettingsRowControlMargin}"
-                                            VerticalAlignment="Center"
-                                            Orientation="Horizontal">
-                                    <TextBox x:Name="CacheLimitValueTextBox"
-                                             Width="160"
-                                             PreviewKeyDown="CacheLimitValueTextBox_OnPreviewKeyDown"
-                                             LostKeyboardFocus="CacheLimitValueTextBox_OnLostKeyboardFocus"
-                                             Text="{Binding CacheLimitValueText, UpdateSourceTrigger=PropertyChanged}"
-                                             AutomationProperties.Name="缓存上限数值" />
-                                    <ComboBox x:Name="CacheLimitUnitComboBox"
-                                              Width="100"
-                                              Margin="12,0,0,0"
-                                              SelectionChanged="CacheLimitUnitComboBox_OnSelectionChanged"
-                                              ItemsSource="{Binding CacheLimitUnits}"
-                                              SelectedItem="{Binding SelectedCacheLimitUnit}"
-                                              AutomationProperties.Name="缓存上限单位" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-
-                        <Border x:Name="CachePolicyItemBorder"
-                                Style="{StaticResource SettingsRowBorderStyle}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
-                                               Text="缓存策略" />
-                                    <TextBlock Style="{StaticResource SettingsRowDescriptionTextBlockStyle}"
-                                               Text="按最近最少使用顺序清理；正在播放或受保护的音频会暂时保留。" />
-                                </StackPanel>
-                                <Button Grid.Column="1"
-                                        Margin="{StaticResource SettingsRowControlMargin}"
-                                        VerticalAlignment="Center"
-                                        Style="{StaticResource SecondaryIconButtonStyle}"
-                                        Command="{Binding OpenAppDataDirectoryCommand}"
-                                        ToolTip="打开应用数据目录"
-                                        AutomationProperties.Name="打开应用数据目录">
-                                    <ui:SymbolIcon Symbol="FolderOpen24" />
-                                </Button>
-                            </Grid>
-                        </Border>
-
-                        <Border x:Name="ClearAllCacheItemBorder"
-                                Style="{StaticResource SettingsRowBorderStyle}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Style="{StaticResource SettingsRowTitleTextBlockStyle}"
-                                               Text="清理全部缓存" />
-                                    <TextBlock Style="{StaticResource SettingsRowDescriptionTextBlockStyle}"
-                                               Text="清理所有可清理的音频缓存；正在使用或受保护的条目会保留。" />
-                                </StackPanel>
-                                <Button Grid.Column="1"
-                                        Margin="{StaticResource SettingsRowControlMargin}"
-                                        VerticalAlignment="Center"
-                                        Padding="16,8"
-                                        Command="{Binding ClearAllCommand}"
-                                        Content="清理全部缓存"
-                                        ToolTip="清理全部缓存"
-                                        AutomationProperties.Name="清理全部缓存" />
-                            </Grid>
-                        </Border>
-
-                        <Button x:Name="OpenCacheManagementButton"
-                                Style="{StaticResource SettingsNavigationRowButtonStyle}"
-                                Command="{Binding OpenCacheManagementCommand}"
-                                Content="缓存管理"
-                                Tag="{x:Static theming:SettingsNavigationIcon.CacheManagement}"
-                                ToolTip="缓存管理"
-                                AutomationProperties.Name="缓存管理" />
+                <settingsControls:AppSettingsRow x:Name="CacheLimitRow"
+                                                 Title="缓存上限"
+                                                 Description="最低为 256 MB；超出上限时按最近最少使用顺序清理，正在播放或受保护的音频会暂时保留。"
+                                                 AutomationProperties.Name="缓存上限">
+                    <StackPanel Width="272">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox x:Name="CacheLimitValueTextBox"
+                                     Width="160"
+                                     Style="{StaticResource App.Input.TextBox.Standard}"
+                                     PreviewKeyDown="CacheLimitValueTextBox_OnPreviewKeyDown"
+                                     LostKeyboardFocus="CacheLimitValueTextBox_OnLostKeyboardFocus"
+                                     Text="{Binding CacheLimitValueText, UpdateSourceTrigger=PropertyChanged}"
+                                     AutomationProperties.Name="缓存上限数值" />
+                            <ComboBox x:Name="CacheLimitUnitComboBox"
+                                      Width="100"
+                                      Margin="12,0,0,0"
+                                      Style="{StaticResource App.Input.ComboBox.Standard}"
+                                      SelectionChanged="CacheLimitUnitComboBox_OnSelectionChanged"
+                                      ItemsSource="{Binding CacheLimitUnits}"
+                                      SelectedItem="{Binding SelectedCacheLimitUnit}"
+                                      AutomationProperties.Name="缓存上限单位" />
+                        </StackPanel>
+                        <TextBlock Margin="0,4,0,0"
+                                   Text="{Binding CacheLimitErrorText}"
+                                   TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock"
+                                       BasedOn="{StaticResource App.Feedback.ValidationText}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CacheLimitErrorText}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
-                </Border>
-            </StackPanel>
+                </settingsControls:AppSettingsRow>
+
+                <settingsControls:AppSettingsRow x:Name="AppDataDirectoryRow"
+                                                 Title="应用数据目录"
+                                                 Description="打开保存书籍副本、数据库、日志和音频缓存的位置。"
+                                                 AutomationProperties.Name="应用数据目录">
+                    <ui:Button x:Name="OpenAppDataDirectoryButton"
+                            Style="{StaticResource App.Button.Icon}"
+                            Command="{Binding OpenAppDataDirectoryCommand}"
+                            ToolTip="打开应用数据目录"
+                            AutomationProperties.Name="打开应用数据目录"
+                            Icon="{ui:SymbolIcon Symbol=FolderOpen24}" />
+                </settingsControls:AppSettingsRow>
+
+                <settingsControls:AppSettingsRow x:Name="ClearAllCacheRow"
+                                                 Title="清理全部缓存"
+                                                 Description="清理所有可清理的音频缓存；正在使用或受保护的条目会保留。"
+                                                 AutomationProperties.Name="清理全部缓存">
+                    <ui:Button x:Name="ClearAllCacheButton"
+                               Style="{StaticResource App.Button.DangerIcon}"
+                               Command="{Binding ClearAllCommand}"
+                               ToolTip="清理全部缓存"
+                               AutomationProperties.Name="清理全部缓存"
+                               Icon="{ui:SymbolIcon Symbol=Delete24}" />
+                </settingsControls:AppSettingsRow>
+
+                <settingsControls:AppSettingsNavigationRow
+                    x:Name="OpenCacheManagementRow"
+                    Icon="{x:Static theming:SettingsNavigationIcon.CacheManagement}"
+                    Title="缓存管理"
+                    Command="{Binding OpenCacheManagementCommand}"
+                    ToolTip="缓存管理" />
+            </settingsControls:AppSettingsList>
         </ScrollViewer>
     </Grid>
 </Page>

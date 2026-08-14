@@ -1,0 +1,122 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Stable typography variants owned by the shared explicit style layer. -->
+    <Style x:Key="App.Typography.PageTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.PageTitle}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.SemiBold}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Typography.SectionTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.SectionTitle}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.SemiBold}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Typography.GroupTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Body}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.SemiBold}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Typography.ItemTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.ItemTitle}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.SemiBold}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Typography.Body" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Body}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="LineHeight" Value="{StaticResource App.Text.LineHeight.Body}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Typography.Secondary" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Secondary}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Secondary}" />
+        <Setter Property="LineHeight" Value="{StaticResource App.Text.LineHeight.Secondary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Typography.Caption" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Caption}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Typography.FormLabel" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Secondary}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.SemiBold}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Typography.Validation" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Secondary}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.SemiBold}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+</ResourceDictionary>

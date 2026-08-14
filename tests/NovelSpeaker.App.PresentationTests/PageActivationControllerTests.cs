@@ -5,8 +5,7 @@ namespace NovelSpeaker.App.PresentationTests;
 
 public sealed class PageActivationControllerTests
 {
-    [Fact]
-    public void Rapid_reentry_cancels_old_activation_before_unregistering_page_resources()
+    private void Rapid_reentry_cancels_old_activation_before_unregistering_page_resources()
     {
         using var controller = new PageActivationController();
         var oldActivation = controller.Activate();
@@ -24,8 +23,7 @@ public sealed class PageActivationControllerTests
         Assert.True(newActivation.Version > oldActivation.Version);
     }
 
-    [Fact]
-    public async Task Late_result_from_old_activation_cannot_commit_into_new_activation()
+    private async Task Late_result_from_old_activation_cannot_commit_into_new_activation()
     {
         using var controller = new PageActivationController();
         var completion = new TaskCompletionSource<string>();
@@ -42,8 +40,7 @@ public sealed class PageActivationControllerTests
         Assert.Equal("new", projection);
     }
 
-    [Fact]
-    public void Leaving_page_cancels_operations_unregisters_guard_and_releases_scope()
+    private void Leaving_page_cancels_operations_unregisters_guard_and_releases_scope()
     {
         using var controller = new PageActivationController();
         var activation = controller.Activate();
@@ -66,8 +63,7 @@ public sealed class PageActivationControllerTests
         Assert.False(activation.IsCurrent);
     }
 
-    [Fact]
-    public async Task Registered_page_operation_forwards_failure_while_activation_is_current()
+    private async Task Registered_page_operation_forwards_failure_while_activation_is_current()
     {
         using var controller = new PageActivationController();
         var activation = controller.Activate();
@@ -83,8 +79,7 @@ public sealed class PageActivationControllerTests
         Assert.Equal(0, activation.PendingOperationCount);
     }
 
-    [Fact]
-    public async Task Registered_page_operation_observes_but_does_not_forward_late_failure()
+    private async Task Registered_page_operation_observes_but_does_not_forward_late_failure()
     {
         using var controller = new PageActivationController();
         var activation = controller.Activate();
@@ -101,8 +96,7 @@ public sealed class PageActivationControllerTests
         Assert.Equal(0, activation.PendingOperationCount);
     }
 
-    [Fact]
-    public async Task Registered_page_operation_treats_activation_cancellation_as_normal_control_flow()
+    private async Task Registered_page_operation_treats_activation_cancellation_as_normal_control_flow()
     {
         using var controller = new PageActivationController();
         var activation = controller.Activate();
@@ -132,6 +126,22 @@ public sealed class PageActivationControllerTests
 
         Assert.Equal(0, failureCount);
         Assert.Equal(0, activation.PendingOperationCount);
+    }
+
+    [Fact]
+    public async Task Page_activation_lifecycle_contracts_cover_reentry_and_leave_cleanup()
+    {
+        Rapid_reentry_cancels_old_activation_before_unregistering_page_resources();
+        await Late_result_from_old_activation_cannot_commit_into_new_activation();
+        Leaving_page_cancels_operations_unregisters_guard_and_releases_scope();
+    }
+
+    [Fact]
+    public async Task Page_activation_operation_contracts_cover_current_failures_late_results_and_cancellation()
+    {
+        await Registered_page_operation_forwards_failure_while_activation_is_current();
+        await Registered_page_operation_observes_but_does_not_forward_late_failure();
+        await Registered_page_operation_treats_activation_cancellation_as_normal_control_flow();
     }
 
     private static async Task CompleteAsync(

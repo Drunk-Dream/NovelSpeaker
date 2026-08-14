@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\..\src\NovelSpeaker.App\NovelSpeaker.App.csproj" />
+    <ProjectReference Include="..\..\tools\NovelSpeaker.StyleGallery\NovelSpeaker.StyleGallery.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\TestKit\Common\ManualTimeProvider.cs" Link="Common\ManualTimeProvider.cs" />

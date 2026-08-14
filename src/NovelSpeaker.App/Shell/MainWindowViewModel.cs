@@ -20,10 +20,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public MainWindowViewModel(
         IPlaybackSnapshotSource playbackCoordinator,
         ShellActiveCacheController activeCache,
+        ShellChapterExportController chapterExport,
         IAppNavigator navigator,
         IUiScheduler? uiScheduler = null)
     {
         ActiveCache = activeCache;
+        ChapterExport = chapterExport;
         _navigator = navigator;
         _uiScheduler = uiScheduler ?? new WpfUiScheduler();
         ApplySnapshot(playbackCoordinator.CurrentSnapshot);
@@ -31,6 +33,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
 
     public ShellActiveCacheController ActiveCache { get; }
+
+    public ShellChapterExportController ChapterExport { get; }
 
     [ObservableProperty]
     private bool isNowPlayingVisible;

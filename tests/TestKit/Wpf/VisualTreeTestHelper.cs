@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 
-namespace NovelSpeaker.UnitTests;
+namespace NovelSpeaker.TestKit.Wpf;
 
 internal static class VisualTreeTestHelper
 {

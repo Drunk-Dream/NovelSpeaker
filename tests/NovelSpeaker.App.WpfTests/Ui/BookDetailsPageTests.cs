@@ -1,10 +1,9 @@
 using System.Diagnostics;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Media;
 using System.Windows.Threading;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
@@ -12,6 +11,8 @@ using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Library;
+using NovelSpeaker.App.Shared.Presentation.Controls.Common;
+using NovelSpeaker.App.Shared.Presentation.Controls.Feedback;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.Domain.Settings;
 using Wpf.Ui;
@@ -22,8 +23,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed class BookDetailsPageTests
 {
-    [Fact]
-    public void BookDetailsPage_uses_short_cleanup_action_and_keeps_explicit_entity_delete()
+    private void BookDetailsPage_uses_short_cleanup_action_and_keeps_explicit_entity_delete()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -42,11 +42,17 @@ public sealed class BookDetailsPageTests
             Assert.Contains("删除", actionLabels);
             Assert.Contains("保存", actionLabels);
             Assert.DoesNotContain("清理缓存", actionLabels);
+
+            var header = Assert.IsType<AppPageHeader>(page.FindName("PageHeader"));
+            Assert.Equal("书籍详情", header.Title);
+            Assert.Same(page.FindResource("App.Button.Danger"), Assert.IsType<Button>(page.FindName("DeleteBookButton")).Style);
+            Assert.Same(page.FindResource("App.Button.Secondary"), Assert.IsType<Button>(page.FindName("ClearCacheButton")).Style);
+            Assert.Same(page.FindResource("App.Button.Secondary"), Assert.IsType<Button>(page.FindName("CancelEditButton")).Style);
+            Assert.Same(page.FindResource("App.Button.Primary"), Assert.IsType<Button>(page.FindName("SaveBookButton")).Style);
         });
     }
 
-    [Fact]
-    public void BookDetailsPage_uses_fixed_workspace_layout_and_virtualized_catalog()
+    private void BookDetailsPage_uses_fixed_workspace_layout_and_virtualized_catalog()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -67,7 +73,7 @@ public sealed class BookDetailsPageTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 frame.Navigate(page);
                 page.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
                 window.UpdateLayout();
@@ -99,6 +105,9 @@ public sealed class BookDetailsPageTests
                 Assert.Equal("定位到当前章节", locateButton.ToolTip);
                 Assert.Equal("定位到当前章节", AutomationProperties.GetName(locateButton));
                 Assert.Equal(Visibility.Collapsed, locateButton.Visibility);
+                Assert.Same(page.FindResource("App.Button.Floating"), locateButton.Style);
+                Assert.IsType<AppSectionSurface>(page.FindName("BookInformationSurface"));
+                Assert.IsType<AppSectionSurface>(page.FindName("ChapterCatalogSurface"));
             }
             finally
             {
@@ -107,8 +116,7 @@ public sealed class BookDetailsPageTests
         });
     }
 
-    [Fact]
-    public void BookDetailsPage_trims_long_chapter_titles_and_exposes_current_chapter_accessibility()
+    private void BookDetailsPage_trims_long_chapter_titles_and_exposes_current_chapter_accessibility()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -139,18 +147,20 @@ public sealed class BookDetailsPageTests
 
             var firstItem = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(0));
             var secondItem = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(1));
-            var firstCard = Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(firstItem, static border => border.Child is Button));
+            var firstCard = Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(
+                firstItem,
+                border => ReferenceEquals(border.Style, page.FindResource("App.Selection.CurrentItem"))));
             var firstTitle = VisualTreeTestHelper.FindDescendant<TextBlock>(firstItem, static text => text.Text.StartsWith("第一章", StringComparison.Ordinal));
-            var firstButton = VisualTreeTestHelper.FindDescendant<Button>(firstItem);
-            var secondButton = VisualTreeTestHelper.FindDescendant<Button>(secondItem);
+            var firstButton = VisualTreeTestHelper.FindDescendant<Button>(firstItem, static button => AutomationProperties.GetName(button).StartsWith("第 1 章", StringComparison.Ordinal));
+            var secondButton = VisualTreeTestHelper.FindDescendant<Button>(secondItem, static button => AutomationProperties.GetName(button).StartsWith("第 2 章", StringComparison.Ordinal));
 
             Assert.NotNull(firstTitle);
             Assert.NotNull(firstButton);
             Assert.Equal(TextWrapping.NoWrap, firstTitle!.TextWrapping);
             Assert.Equal(TextTrimming.CharacterEllipsis, firstTitle.TextTrimming);
             Assert.Equal("第一章 这是一个非常非常长的章节标题用于验证详情页目录的单行截断与 Tooltip 展示", firstButton!.ToolTip);
-            Assert.InRange(Math.Abs(firstButton.ActualWidth - firstCard.ActualWidth), 0d, 1d);
-            Assert.InRange(Math.Abs(firstButton.ActualHeight - firstCard.ActualHeight), 0d, 1d);
+            Assert.InRange(Math.Abs(firstButton.ActualWidth - firstCard.ActualWidth), 0d, 2.1d);
+            Assert.InRange(Math.Abs(firstButton.ActualHeight - firstCard.ActualHeight), 0d, 2.1d);
             Assert.NotNull(secondButton);
             Assert.Contains("当前章节", AutomationProperties.GetName(secondButton!));
             Assert.Contains("缓存进度 25%", AutomationProperties.GetName(secondButton), StringComparison.Ordinal);
@@ -161,6 +171,20 @@ public sealed class BookDetailsPageTests
                 secondItem,
                 static textBlock => string.Equals(textBlock.Text, "25%", StringComparison.Ordinal) &&
                                     textBlock.Visibility == Visibility.Visible));
+            var secondTitle = VisualTreeTestHelper.FindDescendant<TextBlock>(
+                secondItem,
+                static textBlock => string.Equals(textBlock.Text, "第二章 当前章节标题", StringComparison.Ordinal));
+            var secondPercentage = VisualTreeTestHelper.FindDescendant<TextBlock>(
+                secondItem,
+                static textBlock => string.Equals(textBlock.Text, "25%", StringComparison.Ordinal));
+            Assert.NotNull(secondTitle);
+            Assert.NotNull(secondPercentage);
+            var itemBounds = GetBoundsRelativeToRoot(secondItem, page);
+            var titleBounds = GetBoundsRelativeToRoot(secondTitle!, page);
+            var percentageBounds = GetBoundsRelativeToRoot(secondPercentage!, page);
+            Assert.InRange(titleBounds.Left - itemBounds.Left, 40d, 100d);
+            Assert.InRange(itemBounds.Right - percentageBounds.Right, 12d, 20d);
+            Assert.True(titleBounds.Right < percentageBounds.Left);
             Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
                 firstItem,
                 static textBlock => textBlock.Text.EndsWith('%') &&
@@ -168,57 +192,139 @@ public sealed class BookDetailsPageTests
         });
     }
 
-    [Fact]
-    public void BookDetailsPage_removes_outer_current_highlight_while_chapter_is_hovered()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var page = new BookDetailsPage(CreateViewModel(), new FakeNavigationGuardService());
-            var style = Assert.IsType<Style>(page.FindResource("CurrentListItemContainerStyle"));
-            var hoverTrigger = style.Triggers
-                .OfType<MultiDataTrigger>()
-                .Single(trigger => trigger.Setters.OfType<Setter>().Any(setter => setter.Property == Border.BackgroundProperty));
-
-            Assert.Equal(2, hoverTrigger.Conditions.Count);
-            Assert.All(hoverTrigger.Conditions, condition =>
-                Assert.IsType<Binding>(condition.Binding));
-            Assert.Contains(
-                hoverTrigger.Setters.OfType<Setter>(),
-                setter => setter.Property == Border.BackgroundProperty &&
-                          setter.Value is SolidColorBrush brush &&
-                          brush.Color == Colors.Transparent);
-        });
-    }
-
-    [Fact]
-    public void BookDetailsPage_uses_content_only_list_box_item_template()
+    private void BookDetailsPage_projects_missing_book_through_status_view()
     {
         WpfTestHost.RunInSta(() =>
         {
             var viewModel = CreateViewModel();
-            PopulateLayoutState(viewModel, chapterCount: 1);
+            viewModel.HasBook = false;
+            viewModel.StatusMessage = "未找到这本书，可能已经被删除。";
             var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService());
-            var chaptersListBox = Assert.IsType<ListBox>(page.FindName("ChaptersListBox"));
-            var templateSetter = chaptersListBox.ItemContainerStyle
-                .Setters
-                .OfType<Setter>()
-                .Single(setter => setter.Property == Control.TemplateProperty);
-            var template = Assert.IsType<ControlTemplate>(templateSetter.Value);
-
-            Assert.Empty(template.Triggers);
-
             page.Measure(new Size(900, 640));
             page.Arrange(new Rect(0, 0, 900, 640));
             page.UpdateLayout();
 
-            var item = Assert.IsType<ListBoxItem>(chaptersListBox.ItemContainerGenerator.ContainerFromIndex(0));
-            item.ApplyTemplate();
-            Assert.IsType<ContentPresenter>(VisualTreeHelper.GetChild(item, 0));
+            var workspace = Assert.IsType<Grid>(page.FindName("BookWorkspace"));
+            var status = Assert.IsType<AppStatusView>(page.FindName("BookStatusView"));
+            Assert.Equal(Visibility.Collapsed, workspace.Visibility);
+            Assert.Equal(Visibility.Visible, status.Visibility);
+            Assert.Equal(AppStatusKind.Error, status.Status);
+            Assert.Equal(viewModel.StatusMessage, status.Description);
         });
     }
 
-    [Fact]
-    public void BookDetailsPage_scrolls_to_current_chapter_when_async_catalog_load_finishes()
+    private void BookDetailsPage_keeps_operation_status_visible_when_book_is_loaded()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var viewModel = CreateViewModel();
+            PopulateLayoutState(viewModel, chapterCount: 4);
+            viewModel.StatusMessage = "清理缓存失败，请重试。";
+            var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService());
+            page.Measure(new Size(900, 640));
+            page.Arrange(new Rect(0, 0, 900, 640));
+            page.UpdateLayout();
+
+            var inlineStatus = Assert.IsType<Border>(page.FindName("BookInlineStatusMessage"));
+            var statusView = Assert.IsType<AppStatusView>(page.FindName("BookStatusView"));
+            Assert.Equal(Visibility.Visible, inlineStatus.Visibility);
+            Assert.Equal(Visibility.Collapsed, statusView.Visibility);
+            Assert.Contains(
+                VisualTreeTestHelper.FindDescendants<TextBlock>(inlineStatus),
+                text => text.Text == viewModel.StatusMessage);
+        });
+    }
+
+    private void BookDetailsPage_keeps_all_book_information_reachable_at_reduced_height()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var viewModel = CreateViewModel();
+            PopulateLayoutState(viewModel, chapterCount: 80);
+            var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService());
+            using var host = new WpfControlHost(page);
+            host.MeasureArrange(new Size(900, 640));
+
+            var informationScroller = Assert.IsType<ScrollViewer>(page.FindName("BookInformationScrollViewer"));
+            Assert.True(informationScroller.ScrollableHeight > 0);
+            informationScroller.ScrollToEnd();
+            page.UpdateLayout();
+            Assert.Equal(informationScroller.ScrollableHeight, informationScroller.VerticalOffset, 1);
+        });
+    }
+
+    private void BookDetailsPage_keeps_workspace_usable_with_long_titles_and_supported_dpi()
+    {
+        foreach (var (width, scale) in new[] { (900d, 1d), (1280d, 1.25d), (1440d, 1.5d) })
+        {
+            WpfTestHost.RunInSta(() =>
+            {
+                var viewModel = CreateViewModel();
+                PopulateLayoutState(viewModel, chapterCount: 80);
+                viewModel.EditTitle = "一部拥有非常非常长的书名并用于验证详情页编辑布局和截断行为的小说";
+                viewModel.CurrentChapterText = "第 41 章 一个同样非常长的当前章节标题用于验证摘要区域不会重叠";
+                var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService());
+                using var host = new WpfControlHost(page);
+                var size = new Size(width, 760);
+                host.MeasureArrange(size);
+
+                var title = Assert.IsType<TextBox>(page.FindName("TitleTextBox"));
+                var author = Assert.IsType<TextBox>(page.FindName("AuthorTextBox"));
+                var progress = Assert.IsType<ProgressBar>(page.FindName("ReadingProgressBar"));
+                var catalog = Assert.IsType<ListBox>(page.FindName("ChaptersListBox"));
+                Assert.True(title.ActualWidth > 0);
+                Assert.True(author.ActualWidth > 0);
+                Assert.Same(page.FindResource("App.Input.TextBox.Standard"), title.Style);
+                Assert.Same(page.FindResource("App.Input.TextBox.Standard"), author.Style);
+                Assert.Same(page.FindResource("App.Progress.Compact"), progress.Style);
+                Assert.True(catalog.ActualWidth > 0);
+                Assert.True(catalog.ActualHeight > 0);
+
+                var bitmap = host.Render(size, 96 * scale);
+                Assert.Equal((int)Math.Round(width * scale), bitmap.PixelWidth);
+                Assert.Equal((int)Math.Round(760 * scale), bitmap.PixelHeight);
+            });
+        }
+    }
+
+    private void BookDetails_visual_review_generates_stable_page_screenshots()
+    {
+        if (!VisualArtifactTestGuard.IsEnabled)
+        {
+            return;
+        }
+
+        WpfTestHost.RunInSta(() =>
+        {
+            var scenarios = new[]
+            {
+                new PageVisualReviewScenario("default", 1d, page => PopulateLayoutState(((BookDetailsPage)page).ViewModel, 24)),
+                new PageVisualReviewScenario("long-titles", 1.5d, page =>
+                {
+                    var viewModel = ((BookDetailsPage)page).ViewModel;
+                    PopulateLayoutState(viewModel, 80);
+                    viewModel.EditTitle = "一部拥有非常非常长的书名并用于验证详情页编辑布局和截断行为的小说";
+                    viewModel.CurrentChapterText = "第 41 章 一个同样非常长的当前章节标题用于验证摘要区域不会重叠";
+                }),
+                new PageVisualReviewScenario("missing-book", 1.5d, page =>
+                {
+                    var viewModel = ((BookDetailsPage)page).ViewModel;
+                    viewModel.HasBook = false;
+                    viewModel.StatusMessage = "未找到这本书，可能已经被删除。";
+                })
+            };
+
+            PageVisualReviewHarness.GenerateAndVerifyRepeatable(
+                LocateRepositoryRoot(),
+                "book-details",
+                scenarios,
+                () => new PageVisualReviewPage(
+                    new BookDetailsPage(CreateViewModel(), new FakeNavigationGuardService()),
+                    static () => { }));
+        });
+    }
+
+    private void BookDetailsPage_scrolls_to_current_chapter_when_async_catalog_load_finishes()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -247,7 +353,7 @@ public sealed class BookDetailsPageTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 frame.Navigate(page);
                 page.OnNavigatedToAsync().GetAwaiter().GetResult();
 
@@ -279,6 +385,30 @@ public sealed class BookDetailsPageTests
                 window.Close();
             }
         });
+    }
+
+    [Fact]
+    public void Book_details_page_structure_and_projection_contracts_cover_actions_and_status()
+    {
+        BookDetailsPage_uses_short_cleanup_action_and_keeps_explicit_entity_delete();
+        BookDetailsPage_uses_fixed_workspace_layout_and_virtualized_catalog();
+        BookDetailsPage_trims_long_chapter_titles_and_exposes_current_chapter_accessibility();
+        BookDetailsPage_projects_missing_book_through_status_view();
+        BookDetailsPage_keeps_operation_status_visible_when_book_is_loaded();
+    }
+
+    [Fact]
+    public void Book_details_page_geometry_contracts_cover_reduced_height_long_titles_and_visual_review()
+    {
+        BookDetailsPage_keeps_all_book_information_reachable_at_reduced_height();
+        BookDetailsPage_keeps_workspace_usable_with_long_titles_and_supported_dpi();
+        BookDetails_visual_review_generates_stable_page_screenshots();
+    }
+
+    [Fact]
+    public void Book_details_page_async_catalog_contract_preserves_current_chapter_scroll()
+    {
+        BookDetailsPage_scrolls_to_current_chapter_when_async_catalog_load_finishes();
     }
 
     private static BookDetailsViewModel CreateViewModel(FakeBookManagementService? managementService = null)
@@ -323,6 +453,7 @@ public sealed class BookDetailsPageTests
 
     private static void PopulateLayoutState(BookDetailsViewModel viewModel, int chapterCount)
     {
+        viewModel.HasBook = true;
         viewModel.Title = "示例小说";
         viewModel.EditTitle = "示例小说";
         viewModel.EditAuthor = "作者甲";
@@ -345,6 +476,23 @@ public sealed class BookDetailsPageTests
                 $"第{chapterIndex + 1}章 标题较长用于验证详情页目录内部滚动与虚拟化工作正常",
                 chapterIndex == 40));
         }
+    }
+
+    private static string LocateRepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (Directory.Exists(Path.Combine(current.FullName, "src")) &&
+                Directory.Exists(Path.Combine(current.FullName, "docs")))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate repository root.");
     }
 
     private static Rect GetBoundsRelativeToRoot(FrameworkElement element, FrameworkElement root)

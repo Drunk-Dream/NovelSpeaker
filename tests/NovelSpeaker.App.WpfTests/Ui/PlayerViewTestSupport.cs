@@ -16,6 +16,8 @@ using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation.Controls.Common;
+using NovelSpeaker.App.Shared.Presentation.Controls.Feedback;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Books;
@@ -47,6 +49,13 @@ public sealed partial class PlayerViewTests
         }
 
         return element;
+    }
+
+    private static Wpf.Ui.Controls.Button FindUiButtonByAutomationName(DependencyObject root, string name)
+    {
+        return Assert.IsType<Wpf.Ui.Controls.Button>(VisualTreeTestHelper.FindDescendant<Wpf.Ui.Controls.Button>(
+            root,
+            button => string.Equals(AutomationProperties.GetName(button), name, StringComparison.Ordinal)));
     }
 
     private static TextBlock? FindVisibleDescendantByText(DependencyObject root, string text)
@@ -148,8 +157,8 @@ public sealed partial class PlayerViewTests
         {
             Chapters = chapters;
             Segments = segments;
-            CurrentChapterItem = chapters.Count > 10 ? chapters[10] : chapters[0];
-            CurrentSegmentItem = (segments.Count > 32 ? segments[32] : segments[0])!;
+            CurrentChapterItem = chapters.Count == 0 ? null : chapters.Count > 10 ? chapters[10] : chapters[0];
+            CurrentSegmentItem = segments.Count == 0 ? null : segments.Count > 32 ? segments[32] : segments[0];
             ShowReturnToCurrentSegment = showReturnToCurrentSegment;
             ShowPlaybackControls = showPlaybackControls;
             ShowNoRuleState = showNoRuleState;
@@ -160,6 +169,14 @@ public sealed partial class PlayerViewTests
             IsActiveCacheSelectionMode = isActiveCacheSelectionMode;
             CanStartActiveCache = canStartActiveCache;
             ActiveCacheStatusText = activeCacheStatusText;
+            ShowEmptyChapterState = segments.Count == 0 && !showInlineLoadingState && !showNoRuleState;
+            CurrentChapterTitle = ShowEmptyChapterState ? "空章节" : "第二章 头铁的落款";
+            DisplayedSegmentCounterText = ShowEmptyChapterState ? "0 / 0" : "33 / 140";
+            CanTogglePlayPause = !ShowEmptyChapterState;
+            CanGoToPreviousSegment = !ShowEmptyChapterState;
+            CanGoToNextSegment = !ShowEmptyChapterState;
+            SegmentProgressMaximum = ShowEmptyChapterState ? 0d : 139d;
+            SegmentProgressValue = ShowEmptyChapterState ? 0d : 32d;
         }
 
         public IRelayCommand BackCommand { get; } = new RelayCommand(() => { });
@@ -214,7 +231,7 @@ public sealed partial class PlayerViewTests
 
         public string CurrentAuthor { get; } = "魔性沧月";
 
-        public string CurrentChapterTitle { get; } = "第二章 头铁的落款";
+        public string CurrentChapterTitle { get; }
 
         public string SpeakSpeedButtonText { get; } = "语速 10";
 
@@ -234,7 +251,7 @@ public sealed partial class PlayerViewTests
 
         public string ErrorText { get; }
 
-        public string DisplayedSegmentCounterText { get; } = "33 / 140";
+        public string DisplayedSegmentCounterText { get; }
 
         public string InlineLoadingText { get; }
 
@@ -250,6 +267,8 @@ public sealed partial class PlayerViewTests
 
         public bool IsSpeedMenuOpen { get; set; }
 
+        public bool IsStopTimerMenuOpen { get; set; }
+
         public bool IsVolumeMenuOpen { get; set; }
 
         public bool ShouldAutoCenterCurrentSegment { get; } = true;
@@ -262,6 +281,8 @@ public sealed partial class PlayerViewTests
 
         public bool ShowPlaybackErrorBar { get; }
 
+        public bool ShowEmptyChapterState { get; }
+
         public bool ShowInlineLoadingState { get; }
 
         public bool IsActiveCacheSelectionMode { get; }
@@ -272,7 +293,7 @@ public sealed partial class PlayerViewTests
 
         public bool HasAvailableRule { get; } = true;
 
-        public bool CanTogglePlayPause { get; } = true;
+        public bool CanTogglePlayPause { get; }
 
         public bool CanDecreaseSpeakSpeed { get; } = true;
 
@@ -286,15 +307,15 @@ public sealed partial class PlayerViewTests
 
         public bool CanGoToNextChapter { get; } = true;
 
-        public bool CanGoToPreviousSegment { get; } = true;
+        public bool CanGoToPreviousSegment { get; }
 
-        public bool CanGoToNextSegment { get; } = true;
+        public bool CanGoToNextSegment { get; }
 
         public string PrimaryActionText { get; } = "播放";
 
-        public double SegmentProgressMaximum { get; } = 139d;
+        public double SegmentProgressMaximum { get; }
 
-        public double SegmentProgressValue { get; } = 32d;
+        public double SegmentProgressValue { get; }
 
         public ObservableCollection<PlayerRuleItemViewModel> Rules { get; } = [];
 
@@ -302,9 +323,9 @@ public sealed partial class PlayerViewTests
 
         public ObservableCollection<PlayerSegmentItemViewModel> Segments { get; }
 
-        public PlayerChapterItemViewModel CurrentChapterItem { get; }
+        public PlayerChapterItemViewModel? CurrentChapterItem { get; }
 
-        public PlayerSegmentItemViewModel CurrentSegmentItem { get; }
+        public PlayerSegmentItemViewModel? CurrentSegmentItem { get; }
     }
 
     private sealed class FakePlaybackCoordinator : IPlaybackSession

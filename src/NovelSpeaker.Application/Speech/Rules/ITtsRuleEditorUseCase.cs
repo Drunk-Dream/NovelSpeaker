@@ -13,5 +13,7 @@ public interface ITtsRuleEditorUseCase
 
     Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken);
 
+    Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken);
+
     Task<string> ExportEditorJsonAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken);
 }

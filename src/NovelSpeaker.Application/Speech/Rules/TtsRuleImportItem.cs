@@ -11,6 +11,7 @@ public sealed record TtsRuleImportItem(
     string Url,
     TtsRuleCompatibilityStatus CompatibilityStatus,
     IReadOnlyList<string> UnsupportedFields,
+    bool IsCandidateValid,
     bool CanImport,
     bool IsDuplicate,
     bool HasSameNameConflict,

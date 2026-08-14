@@ -5,6 +5,7 @@
   <ItemGroup>
     <Compile Include="..\TestKit\Common\FixedTimeProvider.cs" Link="TestKit\Common\FixedTimeProvider.cs" />
     <Compile Include="..\TestKit\Common\ManualTimeProvider.cs" Link="TestKit\Common\ManualTimeProvider.cs" />
+    <Compile Include="..\TestKit\Audio\TestAudioCacheKey.cs" Link="TestKit\Audio\TestAudioCacheKey.cs" />
     <Compile Include="..\TestKit\Speech\TestHttpTtsRules.cs" Link="Speech\TestHttpTtsRules.cs" />
   </ItemGroup>
   <ItemGroup>

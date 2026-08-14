@@ -24,10 +24,10 @@ public partial class MiniPlayerWindow : Window
         ViewModel = viewModel;
         _screenBoundsProvider = screenBoundsProvider;
         DataContext = viewModel;
-        InitializeComponent();
         _progressController = new PlayerProgressInteractionController(
             () => ViewModel,
             () => ViewModel.LifetimeCancellationToken);
+        InitializeComponent();
         ViewModel.RestoreRequested += OnRestoreRequested;
         Loaded += OnLoaded;
         LocationChanged += OnLocationChanged;
@@ -37,6 +37,8 @@ public partial class MiniPlayerWindow : Window
     public MiniPlayerViewModel ViewModel { get; }
 
     public event EventHandler? RestoreRequested;
+
+    public event EventHandler? ExitRequested;
 
     internal void CloseForShutdown()
     {
@@ -60,6 +62,18 @@ public partial class MiniPlayerWindow : Window
         {
             // The window may have lost its mouse capture while the drag was starting.
         }
+    }
+
+    private void MiniPlayerWidthResizeThumb_OnDragDelta(object sender, DragDeltaEventArgs e)
+    {
+        var currentWidth = ActualWidth > 0 ? ActualWidth : Width;
+        if (!double.IsFinite(currentWidth))
+        {
+            return;
+        }
+
+        Width = Math.Clamp(currentWidth + e.HorizontalChange, MinWidth, MaxWidth);
+        e.Handled = true;
     }
 
     private void MiniPlayerProgressSlider_OnValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -179,8 +193,10 @@ public partial class MiniPlayerWindow : Window
         }
 
         e.Cancel = true;
-        ViewModel.RequestRestore();
+        ExitRequested?.Invoke(this, EventArgs.Empty);
     }
+
+    private void MiniPlayerCloseButton_OnClick(object sender, RoutedEventArgs e) => Close();
 
     private void OnRestoreRequested(object? sender, EventArgs e) =>
         RestoreRequested?.Invoke(this, EventArgs.Empty);
@@ -192,6 +208,7 @@ internal static class MiniPlayerWindowDragPolicy
     {
         return source is not null &&
                FindAncestor<ButtonBase>(source) is null &&
+               FindAncestor<Thumb>(source) is null &&
                FindAncestor<Slider>(source) is null &&
                FindAncestor<TextBoxBase>(source) is null;
     }

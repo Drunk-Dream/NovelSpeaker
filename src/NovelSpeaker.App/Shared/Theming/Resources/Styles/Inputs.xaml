@@ -1,0 +1,505 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib"
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <!--
+        These are explicit input-family variants. Provider.* remains the default
+        template owner for ordinary controls. ComboBox is the deliberate exception:
+        NovelSpeaker owns its family template because the popup surface, popup item
+        states, full-surface hit target and popup spacing are part of the approved
+        application visual contract and cannot be expressed through provider input
+        properties alone.
+
+        The ComboBox template is adapted from Wpf.Ui 4.3.0's MIT-licensed template
+        (see THIRD-PARTY-NOTICES.txt). It retains the provider keyboard/editable,
+        popup placement, scrolling and chevron animation structure while projecting
+        NovelSpeaker palette, radius and elevation semantics. Pure string items use
+        a local data template so constrained selected text trims on one line without
+        moving the chevron.
+
+        Wpf.Ui 4.3.0 ToggleSwitch keeps an Auto switch column plus a star-sized
+        content column whose transparent root remains hit-testable even when all
+        label content is absent. The app keeps the provider template and only
+        constrains truly unlabeled switches to the provider's 40 px track width.
+        Labeled switches remain content-sized.
+    -->
+
+    <sys:Double x:Key="App.Input.ToggleSwitch.TrackWidth">40</sys:Double>
+    <Style x:Key="App.Input.TextBox.Standard"
+           TargetType="{x:Type TextBox}"
+           BasedOn="{StaticResource Provider.TextBox}">
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Body}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource App.Brush.Accent}" />
+        <Setter Property="SelectionTextBrush" Value="{DynamicResource App.Brush.Accent.Text}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource App.Brush.Accent}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Strong}" />
+            </Trigger>
+            <Trigger Property="IsReadOnly" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Secondary}" />
+            </Trigger>
+            <Trigger Property="Validation.HasError" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Danger.Subtle}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Input.TextBox.Compact"
+           TargetType="{x:Type TextBox}"
+           BasedOn="{StaticResource App.Input.TextBox.Standard}">
+        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
+    </Style>
+
+    <Style x:Key="App.Input.PasswordBox.Standard"
+           TargetType="{x:Type PasswordBox}"
+           BasedOn="{StaticResource Provider.PasswordBox}">
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Body}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Strong}" />
+            </Trigger>
+            <Trigger Property="Validation.HasError" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Danger.Subtle}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Input.PasswordBox.Compact"
+           TargetType="{x:Type PasswordBox}"
+           BasedOn="{StaticResource App.Input.PasswordBox.Standard}">
+        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
+    </Style>
+
+    <Style x:Key="App.Input.ComboBox.Item"
+           TargetType="{x:Type ComboBoxItem}"
+           BasedOn="{StaticResource Provider.ComboBoxItem}">
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="10,8,8,8" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ComboBoxItem}">
+                    <Grid Background="Transparent">
+                        <Border x:Name="ContentBorder"
+                                Margin="6,4,6,0"
+                                Padding="0"
+                                VerticalAlignment="Stretch"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{StaticResource App.Radius.Small}"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <ContentPresenter x:Name="PART_ContentPresenter"
+                                                  Margin="{TemplateBinding Padding}"
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="Center"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}" />
+                                <Rectangle x:Name="ActiveRectangle"
+                                           Width="3"
+                                           Height="16"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Center"
+                                           Fill="{DynamicResource App.Brush.Accent.Default}"
+                                           RadiusX="2"
+                                           RadiusY="2"
+                                           Visibility="Collapsed" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="ContentBorder"
+                                    Property="Background"
+                                    Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="ContentBorder"
+                                    Property="Background"
+                                    Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                            <Setter TargetName="ActiveRectangle" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="PART_ContentPresenter"
+                                    Property="TextElement.Foreground"
+                                    Value="{DynamicResource App.Brush.Text.Primary}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                            <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="App.Input.ComboBox.Standard"
+           TargetType="{x:Type ComboBox}"
+           BasedOn="{StaticResource Provider.ComboBox}">
+        <Style.Resources>
+            <DataTemplate DataType="{x:Type sys:String}">
+                <TextBlock HorizontalAlignment="Stretch"
+                           VerticalAlignment="Center"
+                           Text="{Binding}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                            <Setter Property="TextWrapping" Value="NoWrap" />
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </DataTemplate>
+        </Style.Resources>
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Body}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource App.Input.ComboBox.Item}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ComboBox}">
+                    <Grid HorizontalAlignment="{TemplateBinding HorizontalAlignment}"
+                          VerticalAlignment="{TemplateBinding VerticalAlignment}">
+                        <Border x:Name="ContentBorder"
+                                Width="{TemplateBinding Width}"
+                                Height="{TemplateBinding Height}"
+                                MinWidth="{TemplateBinding MinWidth}"
+                                MinHeight="{TemplateBinding MinHeight}"
+                                Padding="0"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Stretch"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{StaticResource App.Radius.Small}">
+                            <Grid HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Grid Grid.Column="0" Margin="{TemplateBinding Padding}">
+                                        <ContentPresenter x:Name="PART_ContentPresenter"
+                                                          HorizontalAlignment="Stretch"
+                                                          VerticalAlignment="Stretch"
+                                                          Content="{TemplateBinding SelectionBoxItem}"
+                                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                          ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                                          IsHitTestVisible="False"
+                                                          TextElement.Foreground="{TemplateBinding Foreground}" />
+                                    </Grid>
+
+                                    <Grid Grid.Column="1" Margin="8,0,12,0">
+                                        <ui:SymbolIcon x:Name="ChevronIcon"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="11"
+                                                       Style="{StaticResource App.Icon.Secondary}"
+                                                       RenderTransformOrigin="0.5,0.5"
+                                                       Symbol="ChevronDown24">
+                                            <ui:SymbolIcon.RenderTransform>
+                                                <RotateTransform Angle="0" />
+                                            </ui:SymbolIcon.RenderTransform>
+                                        </ui:SymbolIcon>
+                                    </Grid>
+
+                                    <Grid Grid.Column="0" Grid.ColumnSpan="2">
+                                        <ToggleButton x:Name="ToggleButton"
+                                                      HorizontalAlignment="Stretch"
+                                                      VerticalAlignment="Stretch"
+                                                      ClickMode="Press"
+                                                      Focusable="False"
+                                                      Foreground="{TemplateBinding Foreground}"
+                                                      IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                                      Style="{StaticResource DefaultComboBoxToggleButtonStyle}" />
+                                    </Grid>
+
+                                    <Grid Grid.Column="0" Margin="{TemplateBinding Padding}">
+                                        <TextBox x:Name="PART_EditableTextBox"
+                                                 HorizontalAlignment="Stretch"
+                                                 VerticalAlignment="Stretch"
+                                                 FontSize="{TemplateBinding FontSize}"
+                                                 Foreground="{TemplateBinding Foreground}"
+                                                 IsReadOnly="{TemplateBinding IsReadOnly}"
+                                                 Text="{Binding Text, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource DefaultComboBoxTextBoxStyle}" />
+                                    </Grid>
+                                </Grid>
+
+                                <Popup x:Name="PART_Popup"
+                                       VerticalAlignment="Center"
+                                       AllowsTransparency="True"
+                                       Focusable="False"
+                                       IsOpen="{TemplateBinding IsDropDownOpen}"
+                                       Placement="Bottom"
+                                       PlacementTarget="{Binding ElementName=ContentBorder}"
+                                       PopupAnimation="None"
+                                       VerticalOffset="4">
+                                    <ui:EffectThicknessDecorator AnimationDelay="00:00:00.167"
+                                                                 AnimationElement="{Binding ElementName=DropDownBorder}"
+                                                                 Effect="{StaticResource App.Elevation.Medium}"
+                                                                 Thickness="30,0,30,30">
+                                        <Border x:Name="DropDownBorder"
+                                                MinWidth="{TemplateBinding ActualWidth}"
+                                                Padding="0,4,0,6"
+                                                Background="{DynamicResource App.Brush.Surface.Raised}"
+                                                BorderBrush="{DynamicResource App.Brush.Border.Subtle}"
+                                                BorderThickness="1"
+                                                CornerRadius="{StaticResource App.Radius.Medium}"
+                                                SnapsToDevicePixels="True">
+                                            <Border.RenderTransform>
+                                                <TranslateTransform />
+                                            </Border.RenderTransform>
+                                            <ui:DynamicScrollViewer MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                                                    HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
+                                                                    SnapsToDevicePixels="True"
+                                                                    TextElement.FontSize="{TemplateBinding FontSize}"
+                                                                    TextElement.FontWeight="{TemplateBinding FontWeight}"
+                                                                    TextElement.Foreground="{TemplateBinding Foreground}"
+                                                                    VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}">
+                                                <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"
+                                                                TextElement.FontSize="{TemplateBinding FontSize}" />
+                                            </ui:DynamicScrollViewer>
+                                        </Border>
+                                    </ui:EffectThicknessDecorator>
+                                </Popup>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsDropDownOpen" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="ChevronIcon"
+                                                         Storyboard.TargetProperty="(ui:SymbolIcon.RenderTransform).(RotateTransform.Angle)"
+                                                         From="0"
+                                                         To="180"
+                                                         Duration="00:00:00.167" />
+                                        <DoubleAnimation Storyboard.TargetName="DropDownBorder"
+                                                         Storyboard.TargetProperty="(Border.RenderTransform).(TranslateTransform.Y)"
+                                                         From="-24"
+                                                         To="0"
+                                                         Duration="00:00:00.167">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CircleEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="ChevronIcon"
+                                                         Storyboard.TargetProperty="(ui:SymbolIcon.RenderTransform).(RotateTransform.Angle)"
+                                                         From="180"
+                                                         To="0"
+                                                         Duration="00:00:00.167" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="HasItems" Value="False">
+                            <Setter TargetName="DropDownBorder"
+                                    Property="MinHeight"
+                                    Value="{StaticResource App.Size.Control.Compact}" />
+                        </Trigger>
+                        <Trigger SourceName="PART_Popup" Property="Popup.AllowsTransparency" Value="False">
+                            <Setter TargetName="DropDownBorder" Property="CornerRadius" Value="0" />
+                        </Trigger>
+                        <Trigger Property="IsGrouping" Value="True">
+                            <Setter Property="ScrollViewer.CanContentScroll" Value="False" />
+                        </Trigger>
+                        <Trigger Property="IsEditable" Value="True">
+                            <Setter Property="IsTabStop" Value="False" />
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="PART_ContentPresenter" Property="Visibility" Value="Hidden" />
+                        </Trigger>
+                        <Trigger Property="IsEditable" Value="False">
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="PART_ContentPresenter" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Strong}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+            </Trigger>
+            <Trigger Property="IsDropDownOpen" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
+            </Trigger>
+            <Trigger Property="Validation.HasError" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Danger.Subtle}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Input.ComboBox.Compact"
+           TargetType="{x:Type ComboBox}"
+           BasedOn="{StaticResource App.Input.ComboBox.Standard}">
+        <Style.Resources>
+            <DataTemplate DataType="{x:Type sys:String}">
+                <TextBlock HorizontalAlignment="Stretch"
+                           VerticalAlignment="Center"
+                           Text="{Binding}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                            <Setter Property="TextWrapping" Value="NoWrap" />
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </DataTemplate>
+        </Style.Resources>
+        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
+    </Style>
+
+    <Style x:Key="App.Input.CheckBox.Standard"
+           TargetType="{x:Type CheckBox}"
+           BasedOn="{StaticResource Provider.CheckBox}">
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Body}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
+        <Setter Property="Padding" Value="0,2" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+            </Trigger>
+            <Trigger Property="Validation.HasError" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Input.CheckBox.Compact"
+           TargetType="{x:Type CheckBox}"
+           BasedOn="{StaticResource App.Input.CheckBox.Standard}">
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
+        <Setter Property="Padding" Value="0" />
+    </Style>
+
+    <Style x:Key="App.Input.ToggleSwitch.Standard"
+           TargetType="{x:Type ui:ToggleSwitch}"
+           BasedOn="{StaticResource Provider.ToggleSwitch}">
+        <Setter Property="FontFamily" Value="{StaticResource App.Text.Family.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.Body}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.Regular}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Style.Triggers>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="Content" Value="{x:Null}" />
+                    <Condition Property="OnContent" Value="{x:Null}" />
+                    <Condition Property="OffContent" Value="{x:Null}" />
+                </MultiTrigger.Conditions>
+                <Setter Property="Width" Value="{StaticResource App.Input.ToggleSwitch.TrackWidth}" />
+            </MultiTrigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="Content" Value="" />
+                    <Condition Property="OnContent" Value="" />
+                    <Condition Property="OffContent" Value="" />
+                </MultiTrigger.Conditions>
+                <Setter Property="Width" Value="{StaticResource App.Input.ToggleSwitch.TrackWidth}" />
+            </MultiTrigger>
+            <Trigger Property="IsChecked" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Default}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Default}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+            </Trigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsMouseOver" Value="True" />
+                    <Condition Property="IsChecked" Value="False" />
+                </MultiTrigger.Conditions>
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Strong}" />
+            </MultiTrigger>
+            <Trigger Property="Validation.HasError" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Input.ToggleSwitch.Compact"
+           TargetType="{x:Type ui:ToggleSwitch}"
+           BasedOn="{StaticResource App.Input.ToggleSwitch.Standard}">
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
+    </Style>
+</ResourceDictionary>

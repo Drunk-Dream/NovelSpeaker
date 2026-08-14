@@ -5,19 +5,24 @@ namespace NovelSpeaker.Application.UnitTests;
 
 public sealed class ExportFileNameSanitizerTests
 {
-    [Theory]
-    [InlineData("正常名称", "正常名称")]
-    [InlineData("A<B>:C\"D/E\\F|G?H*I", "A_B__C_D_E_F_G_H_I")]
-    [InlineData("控制\u0001字符", "控制_字符")]
-    [InlineData("尾部.  ", "尾部")]
-    [InlineData("CON", "_CON")]
-    [InlineData("con.txt", "_con.txt")]
-    [InlineData("CON .txt", "_CON .txt")]
-    [InlineData("..", "_")]
-    [InlineData("   ", "未命名")]
-    public void Sanitize_replaces_windows_unsafe_names(string input, string expected)
+    [Fact]
+    public void Sanitize_replaces_windows_unsafe_names()
     {
-        Assert.Equal(expected, new ExportFileNameSanitizer().Sanitize(input, 100));
+        foreach (var (input, expected) in new[]
+                 {
+                     ("正常名称", "正常名称"),
+                     ("A<B>:C\"D/E\\F|G?H*I", "A_B__C_D_E_F_G_H_I"),
+                     ("控制\u0001字符", "控制_字符"),
+                     ("尾部.  ", "尾部"),
+                     ("CON", "_CON"),
+                     ("con.txt", "_con.txt"),
+                     ("CON .txt", "_CON .txt"),
+                     ("..", "_"),
+                     ("   ", "未命名")
+                 })
+        {
+            Assert.Equal(expected, new ExportFileNameSanitizer().Sanitize(input, 100));
+        }
     }
 
     [Fact]

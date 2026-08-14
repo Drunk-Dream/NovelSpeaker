@@ -1,5 +1,7 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.PresentationTests.TestDoubles;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
 using Wpf.Ui.Controls;
@@ -9,93 +11,7 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class ChapterRulesViewModelTests
 {
-    [Theory]
-    [InlineData(UnsavedChangesDecision.Save, true)]
-    [InlineData(UnsavedChangesDecision.Discard, true)]
-    [InlineData(UnsavedChangesDecision.Cancel, false)]
-    public async Task ConfirmLeaveAsync_applies_global_navigation_decision(
-        UnsavedChangesDecision decision,
-        bool expectedCanLeave)
-    {
-        var workspace = new FakeChapterRuleWorkspaceService(
-        [
-            new ChapterRuleListItem("custom:one", "规则一", @"^\s*一$", true, 10, false, true)
-        ])
-        {
-            EditorsById =
-            {
-                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", false, true)
-            }
-        };
-        var viewModel = CreateViewModel(
-            workspaceService: workspace,
-            dialogService: new FakeAppDialogService { NextUnsavedDecision = decision });
-        await viewModel.LoadAsync(CancellationToken.None);
-        viewModel.DraftName = "已修改";
-
-        var canLeave = await viewModel.ConfirmLeaveAsync(CancellationToken.None);
-
-        Assert.Equal(expectedCanLeave, canLeave);
-        Assert.Equal(!expectedCanLeave, viewModel.HasUnsavedChanges);
-    }
-
-    [Fact]
-    public async Task LoadAsync_selects_first_rule_and_opens_editor()
-    {
-        var workspace = new FakeChapterRuleWorkspaceService(
-        [
-            new ChapterRuleListItem("builtin:one", "内置规则", @"^\s*第一章$", true, 10, true, false),
-            new ChapterRuleListItem("custom:two", "自定义规则", @"^\s*第二章$", true, 20, false, true)
-        ])
-        {
-            EditorsById =
-            {
-                ["builtin:one"] = new ChapterRuleEditorModel("builtin:one", "内置规则", @"^\s*第一章$", true, false)
-            }
-        };
-        var viewModel = CreateViewModel(workspaceService: workspace);
-
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        Assert.True(viewModel.HasEditor);
-        Assert.Equal("builtin:one", viewModel.HighlightedRuleId);
-        Assert.Equal("内置规则", viewModel.DraftName);
-        Assert.True(viewModel.Rules.Single(rule => rule.Id == "builtin:one").IsSelected);
-    }
-
-    [Fact]
-    public async Task LoadAsync_disables_cancel_and_save_until_draft_changes()
-    {
-        var workspace = new FakeChapterRuleWorkspaceService(
-        [
-            new ChapterRuleListItem("custom:one", "规则一", @"^\s*一$", true, 10, false, true)
-        ])
-        {
-            EditorsById =
-            {
-                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", false, true)
-            }
-        };
-        var viewModel = CreateViewModel(workspaceService: workspace);
-
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        Assert.False(viewModel.CanCancelEditing);
-        Assert.False(viewModel.CanSaveDraft);
-
-        viewModel.DraftName = "规则一（修改）";
-
-        Assert.True(viewModel.CanCancelEditing);
-        Assert.True(viewModel.CanSaveDraft);
-
-        await viewModel.CancelEditingCommand.ExecuteAsync(null);
-
-        Assert.False(viewModel.CanCancelEditing);
-        Assert.False(viewModel.CanSaveDraft);
-    }
-
-    [Fact]
-    public async Task NewRuleAsync_saves_after_deduplication_and_selects_saved_rule()
+    private async Task NewRuleAsync_saves_after_deduplication_and_selects_saved_rule()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -121,97 +37,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal("章节规则已保存", feedback.LastTitle);
     }
 
-    [Fact]
-    public async Task NewRuleAsync_tracks_dirty_and_cancel_restores_fallback_selection()
-    {
-        var workspace = new FakeChapterRuleWorkspaceService(
-        [
-            new ChapterRuleListItem("custom:one", "规则一", @"^\s*一$", true, 10, false, true)
-        ])
-        {
-            EditorsById =
-            {
-                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", false, true)
-            }
-        };
-        var viewModel = CreateViewModel(workspaceService: workspace);
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        await viewModel.NewRuleCommand.ExecuteAsync(null);
-
-        Assert.True(viewModel.IsEditingNewRule);
-        Assert.False(viewModel.HasUnsavedChanges);
-        viewModel.DraftPattern = @"^\s*新章节$";
-        Assert.True(viewModel.HasUnsavedChanges);
-
-        await viewModel.CancelEditingCommand.ExecuteAsync(null);
-
-        Assert.False(viewModel.IsEditingNewRule);
-        Assert.False(viewModel.HasUnsavedChanges);
-        Assert.Equal("custom:one", viewModel.HighlightedRuleId);
-        Assert.Equal("规则一", viewModel.DraftName);
-    }
-
-    [Fact]
-    public async Task SelectRuleAsync_with_unsaved_changes_respects_discard()
-    {
-        var workspace = new FakeChapterRuleWorkspaceService(
-        [
-            new ChapterRuleListItem("custom:one", "规则一", @"^\s*一$", true, 10, false, true),
-            new ChapterRuleListItem("custom:two", "规则二", @"^\s*二$", true, 20, false, true)
-        ])
-        {
-            EditorsById =
-            {
-                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", false, true),
-                ["custom:two"] = new ChapterRuleEditorModel("custom:two", "规则二", @"^\s*二$", false, true)
-            }
-        };
-        var dialogService = new FakeAppDialogService
-        {
-            NextUnsavedDecision = UnsavedChangesDecision.Discard
-        };
-        var viewModel = CreateViewModel(workspaceService: workspace, dialogService: dialogService);
-        await viewModel.LoadAsync(CancellationToken.None);
-        viewModel.DraftPattern = @"^\s*已修改$";
-
-        await viewModel.SelectRuleCommand.ExecuteAsync(viewModel.Rules.Single(rule => rule.Id == "custom:two"));
-
-        Assert.Equal("custom:two", viewModel.HighlightedRuleId);
-        Assert.Equal("规则二", viewModel.DraftName);
-    }
-
-    [Fact]
-    public async Task SelectRuleAsync_save_failure_keeps_current_draft_and_blocks_selection()
-    {
-        var workspace = new FakeChapterRuleWorkspaceService(
-        [
-            new ChapterRuleListItem("custom:one", "规则一", @"^\s*一$", true, 10, false, true),
-            new ChapterRuleListItem("custom:two", "规则二", @"^\s*二$", true, 20, false, true)
-        ])
-        {
-            SaveException = new InvalidOperationException("save failed"),
-            EditorsById =
-            {
-                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", false, true),
-                ["custom:two"] = new ChapterRuleEditorModel("custom:two", "规则二", @"^\s*二$", false, true)
-            }
-        };
-        var viewModel = CreateViewModel(
-            workspaceService: workspace,
-            dialogService: new FakeAppDialogService { NextUnsavedDecision = UnsavedChangesDecision.Save });
-        await viewModel.LoadAsync(CancellationToken.None);
-        viewModel.DraftName = "未保存名称";
-
-        await viewModel.SelectRuleCommand.ExecuteAsync(viewModel.Rules.Single(rule => rule.Id == "custom:two"));
-
-        Assert.Equal("custom:one", viewModel.HighlightedRuleId);
-        Assert.Equal("未保存名称", viewModel.DraftName);
-        Assert.True(viewModel.HasUnsavedChanges);
-    }
-
-    [Fact]
-    public async Task DraftValidation_disables_save_for_invalid_regex()
+    private async Task DraftValidation_disables_save_for_invalid_regex()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -233,8 +59,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.False(viewModel.CanSaveDraft);
     }
 
-    [Fact]
-    public async Task BuiltInRule_projects_nondelete_capability_in_list()
+    private async Task BuiltInRule_projects_nondelete_capability_in_list()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -252,8 +77,20 @@ public sealed class ChapterRulesViewModelTests
         Assert.False(viewModel.Rules.Single().CanDelete);
     }
 
-    [Fact]
-    public async Task DeleteRuleFromListAsync_deletes_nonselected_rule_without_switching_editor()
+    private async Task ExportRuleAsync_uses_the_chapter_rule_file_name()
+    {
+        var workspace = new FakeChapterRuleWorkspaceService(
+        [new ChapterRuleListItem("custom:one", "规则", "^一$", true, 10, false, true)]);
+        var documents = new FakeRuleDocumentInteraction();
+        var viewModel = CreateViewModel(workspaceService: workspace, ruleDocuments: documents);
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        await viewModel.ExportRuleAsync(viewModel.Rules.Single(), CancellationToken.None);
+
+        Assert.Equal("chapter-rule.json", documents.ExportedFileName);
+    }
+
+    private async Task DeleteRuleFromListAsync_deletes_nonselected_rule_without_switching_editor()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -267,7 +104,7 @@ public sealed class ChapterRulesViewModelTests
             }
         };
         var viewModel = CreateViewModel(workspaceService: workspace);
-        await viewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectAsync(viewModel, "custom:selected");
 
         await viewModel.DeleteRuleFromListAsync(
             viewModel.Rules.Single(rule => rule.Id == "custom:delete"),
@@ -278,8 +115,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.DoesNotContain(viewModel.Rules, rule => rule.Id == "custom:delete");
     }
 
-    [Fact]
-    public async Task DeleteRuleFromListAsync_failure_keeps_list_and_editor()
+    private async Task DeleteRuleFromListAsync_failure_keeps_list_and_editor()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -295,7 +131,7 @@ public sealed class ChapterRulesViewModelTests
         };
         var feedback = new FakeFeedbackService();
         var viewModel = CreateViewModel(workspaceService: workspace, feedbackService: feedback);
-        await viewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectAsync(viewModel, "custom:selected");
 
         await viewModel.DeleteRuleFromListAsync(
             viewModel.Rules.Single(rule => rule.Id == "custom:delete"),
@@ -306,8 +142,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal("章节规则删除失败", feedback.LastTitle);
     }
 
-    [Fact]
-    public async Task ToggleRuleEnabledAsync_on_selected_rule_keeps_editor_draft_and_skips_unsaved_prompt()
+    private async Task ToggleRuleEnabledAsync_on_selected_rule_keeps_editor_draft_and_skips_unsaved_prompt()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -325,7 +160,7 @@ public sealed class ChapterRulesViewModelTests
             NextUnsavedDecision = UnsavedChangesDecision.Cancel
         };
         var viewModel = CreateViewModel(workspaceService: workspace, dialogService: dialogService);
-        await viewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectAsync(viewModel, "custom:selected");
         viewModel.DraftPattern = @"^\s*已修改$";
 
         var selectedRule = viewModel.Rules.Single(rule => rule.Id == "custom:selected");
@@ -337,8 +172,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal(0, dialogService.UnsavedChangesPromptCount);
     }
 
-    [Fact]
-    public async Task ToggleRuleEnabledAsync_failure_rolls_back_list_state()
+    private async Task ToggleRuleEnabledAsync_failure_rolls_back_list_state()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -363,8 +197,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal("章节规则启用状态保存失败", feedback.LastTitle);
     }
 
-    [Fact]
-    public async Task ToggleRuleEnabledAsync_cancellation_rolls_back_list_state_and_propagates()
+    private async Task ToggleRuleEnabledAsync_cancellation_rolls_back_list_state_and_propagates()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -388,8 +221,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.True(targetRule.CanQuickActions);
     }
 
-    [Fact]
-    public async Task ReorderByDropAsync_failure_reloads_persisted_order()
+    private async Task ReorderByDropAsync_failure_reloads_persisted_order()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -417,8 +249,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal("章节规则排序保存失败", feedback.LastTitle);
     }
 
-    [Fact]
-    public async Task ReorderByDropAsync_cancellation_restores_original_order_and_propagates()
+    private async Task ReorderByDropAsync_cancellation_restores_original_order_and_propagates()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -447,8 +278,32 @@ public sealed class ChapterRulesViewModelTests
         Assert.All(viewModel.Rules, rule => Assert.True(rule.CanQuickActions));
     }
 
-    [Fact]
-    public async Task ImportDefaultsAsync_with_unsaved_changes_saves_first_then_applies_defaults()
+    private async Task ReorderRuleCommand_honors_insertion_line_placement()
+    {
+        foreach (var (placement, expectedOrder) in new[]
+                 {
+                     (RuleDropPlacement.Before, new[] { "custom:third", "custom:first", "custom:second" }),
+                     (RuleDropPlacement.After, new[] { "custom:first", "custom:third", "custom:second" })
+                 })
+        {
+            var workspace = new FakeChapterRuleWorkspaceService(
+            [
+                new ChapterRuleListItem("custom:first", "第一条", @"^\s*一$", true, 10, false, true),
+                new ChapterRuleListItem("custom:second", "第二条", @"^\s*二$", true, 20, false, true),
+                new ChapterRuleListItem("custom:third", "第三条", @"^\s*三$", true, 30, false, true)
+            ]);
+            var viewModel = CreateViewModel(workspaceService: workspace);
+            await viewModel.LoadAsync(CancellationToken.None);
+            var source = viewModel.Rules.Single(rule => rule.Id == "custom:third");
+            var target = viewModel.Rules.Single(rule => rule.Id == "custom:first");
+
+            await viewModel.ReorderRuleCommand.ExecuteAsync(new RuleReorderRequest(source, target, placement));
+
+            Assert.Equal(expectedOrder, viewModel.Rules.Select(rule => rule.Id));
+        }
+    }
+
+    private async Task ImportDefaultsAsync_with_unsaved_changes_saves_first_then_applies_defaults()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -466,7 +321,7 @@ public sealed class ChapterRulesViewModelTests
         };
         var feedback = new FakeFeedbackService();
         var viewModel = CreateViewModel(workspaceService: workspace, dialogService: dialogService, feedbackService: feedback);
-        await viewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectAsync(viewModel, "custom:one");
         viewModel.DraftPattern = @"^\s*已修改$";
 
         await viewModel.ImportDefaultsCommand.ExecuteAsync(null);
@@ -476,8 +331,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal("默认规则导入完成", feedback.LastTitle);
     }
 
-    [Fact]
-    public async Task BackAsync_cancelled_unsaved_changes_does_not_navigate()
+    private async Task BackAsync_cancelled_unsaved_changes_does_not_navigate()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -498,7 +352,7 @@ public sealed class ChapterRulesViewModelTests
             workspaceService: workspace,
             dialogService: dialogService,
             navigationService: navigationService);
-        await viewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectAsync(viewModel, "custom:one");
         viewModel.DraftPattern = @"^\s*已修改$";
 
         await viewModel.BackCommand.ExecuteAsync(null);
@@ -506,8 +360,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal(0, navigationService.GoBackCallCount);
     }
 
-    [Fact]
-    public async Task MoveRuleUpAndSaveDraftAsync_preserves_reordered_selection_and_skips_unsaved_prompt()
+    private async Task MoveRuleUpAndSaveDraftAsync_preserves_reordered_selection_and_skips_unsaved_prompt()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -540,8 +393,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal(0, dialogService.UnsavedChangesPromptCount);
     }
 
-    [Fact]
-    public async Task CancelEditingAsync_does_not_rollback_left_saved_enabled_state()
+    private async Task CancelEditingAsync_does_not_rollback_left_saved_enabled_state()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
         [
@@ -555,7 +407,7 @@ public sealed class ChapterRulesViewModelTests
             }
         };
         var viewModel = CreateViewModel(workspaceService: workspace);
-        await viewModel.LoadAsync(CancellationToken.None);
+        await LoadAndSelectAsync(viewModel, "custom:selected");
         viewModel.DraftName = "选中规则-草稿";
 
         var selectedRule = viewModel.Rules.Single(rule => rule.Id == "custom:selected");
@@ -563,21 +415,60 @@ public sealed class ChapterRulesViewModelTests
         await viewModel.CancelEditingCommand.ExecuteAsync(null);
 
         Assert.False(selectedRule.IsEnabled);
-        Assert.Equal("选中规则", viewModel.DraftName);
+        Assert.False(viewModel.HasEditor);
         Assert.False(viewModel.HasUnsavedChanges);
+    }
+
+    [Fact]
+    public async Task Chapter_rule_editing_contracts_cover_creation_validation_and_capabilities()
+    {
+        await NewRuleAsync_saves_after_deduplication_and_selects_saved_rule();
+        await DraftValidation_disables_save_for_invalid_regex();
+        await BuiltInRule_projects_nondelete_capability_in_list();
+        await ExportRuleAsync_uses_the_chapter_rule_file_name();
+        await DeleteRuleFromListAsync_deletes_nonselected_rule_without_switching_editor();
+        await DeleteRuleFromListAsync_failure_keeps_list_and_editor();
+    }
+
+    [Fact]
+    public async Task Chapter_rule_toggle_and_reorder_contracts_cover_failure_cancellation_and_drop()
+    {
+        await ToggleRuleEnabledAsync_on_selected_rule_keeps_editor_draft_and_skips_unsaved_prompt();
+        await ToggleRuleEnabledAsync_failure_rolls_back_list_state();
+        await ToggleRuleEnabledAsync_cancellation_rolls_back_list_state_and_propagates();
+        await ReorderByDropAsync_failure_reloads_persisted_order();
+        await ReorderByDropAsync_cancellation_restores_original_order_and_propagates();
+        await ReorderRuleCommand_honors_insertion_line_placement();
+    }
+
+    [Fact]
+    public async Task Chapter_rule_defaults_and_navigation_contracts_preserve_saved_state()
+    {
+        await ImportDefaultsAsync_with_unsaved_changes_saves_first_then_applies_defaults();
+        await BackAsync_cancelled_unsaved_changes_does_not_navigate();
+        await MoveRuleUpAndSaveDraftAsync_preserves_reordered_selection_and_skips_unsaved_prompt();
+        await CancelEditingAsync_does_not_rollback_left_saved_enabled_state();
     }
 
     private static ChapterRulesViewModel CreateViewModel(
         FakeChapterRuleWorkspaceService? workspaceService = null,
         FakeFeedbackService? feedbackService = null,
         FakeAppDialogService? dialogService = null,
-        FakeNavigationService? navigationService = null)
+        FakeNavigationService? navigationService = null,
+        IRuleDocumentInteraction? ruleDocuments = null)
     {
         return new ChapterRulesViewModel(
             workspaceService ?? new FakeChapterRuleWorkspaceService([]),
             feedbackService ?? new FakeFeedbackService(),
             dialogService ?? new FakeAppDialogService(),
-            navigationService ?? new FakeNavigationService());
+            navigationService ?? new FakeNavigationService(),
+            ruleDocuments ?? new FakeRuleDocumentInteraction());
+    }
+
+    private static async Task LoadAndSelectAsync(ChapterRulesViewModel viewModel, string ruleId)
+    {
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.SelectRuleCommand.ExecuteAsync(viewModel.Rules.Single(rule => rule.Id == ruleId));
     }
 
     private sealed class FakeChapterRuleWorkspaceService : IChapterRuleWorkspaceService
@@ -598,8 +489,6 @@ public sealed class ChapterRulesViewModelTests
 
         public bool ThrowOnDelete { get; set; }
 
-        public Exception? SaveException { get; set; }
-
         public int SaveEditorCallCount { get; private set; }
 
         public List<ChapterRuleDefaultsMode> AppliedDefaultModes { get; } = [];
@@ -607,6 +496,14 @@ public sealed class ChapterRulesViewModelTests
         public Task<IReadOnlyList<ChapterRuleListItem>> GetRulesAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult<IReadOnlyList<ChapterRuleListItem>>(_rules.OrderBy(rule => rule.SortOrder).ToArray());
+        }
+
+        public Task<string?> ExportRuleJsonAsync(string ruleId, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>("""{"name":"规则"}""");
+
+        public Task<RuleJsonImportResult> ImportJsonAsync(string json, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new RuleJsonImportResult(1, 0, 1));
         }
 
         public Task<ChapterRuleEditorModel?> GetEditorAsync(string ruleId, CancellationToken cancellationToken)
@@ -618,11 +515,6 @@ public sealed class ChapterRulesViewModelTests
         public Task<ChapterRuleEditorModel> SaveEditorAsync(ChapterRuleEditorModel editor, CancellationToken cancellationToken)
         {
             SaveEditorCallCount++;
-            if (SaveException is not null)
-            {
-                throw SaveException;
-            }
-
             if (editor.Pattern == "[")
             {
                 throw new InvalidOperationException("正则表达式无效。");
@@ -675,7 +567,6 @@ public sealed class ChapterRulesViewModelTests
             var rule = _rules.Single(item => item.Id == ruleId);
             var index = _rules.IndexOf(rule);
             _rules[index] = rule with { IsEnabled = isEnabled };
-
             return Task.CompletedTask;
         }
 

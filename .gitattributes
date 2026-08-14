@@ -1,0 +1,14 @@
+# Store and check out recognized text files with LF line endings.
+* text=auto eol=lf
+
+# Keep binary assets out of text normalization.
+*.7z binary
+*.bmp binary
+*.gif binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.mp3 binary
+*.pdf binary
+*.png binary
+*.zip binary

@@ -1,3 +1,5 @@
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Application.Books.RuleEditing;
 
@@ -100,6 +102,49 @@ public sealed class ChapterRuleWorkspaceService : IChapterRuleWorkspaceService
         }, cancellationToken);
     }
 
+    public async Task<string?> ExportRuleJsonAsync(string ruleId, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ruleId);
+        var rule = (await _repository.GetAllAsync(cancellationToken)).FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, ruleId, StringComparison.Ordinal));
+        return rule is null ? null : SerializePortableRule(rule);
+    }
+
+    public async Task<RuleJsonImportResult> ImportJsonAsync(
+        string json,
+        CancellationToken cancellationToken)
+    {
+        var candidates = ParsePortableRules(json);
+        var existing = (await _repository.GetAllAsync(cancellationToken)).ToList();
+        var imported = 0;
+        var skipped = 0;
+
+        foreach (var candidate in candidates)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (existing.Any(rule => PortableFieldsEqual(rule, candidate)))
+            {
+                skipped++;
+                continue;
+            }
+
+            var now = _timeProvider.GetUtcNow();
+            var rule = new ChapterRule(
+                $"custom:{Guid.NewGuid():N}",
+                candidate.Name,
+                candidate.Pattern,
+                GetNextSortOrder(existing),
+                candidate.IsEnabled,
+                now,
+                now);
+            await _repository.SaveAsync(rule, cancellationToken);
+            existing.Add(rule);
+            imported++;
+        }
+
+        return new RuleJsonImportResult(imported, skipped, candidates.Count);
+    }
+
     public async Task SaveOrderAsync(IReadOnlyList<string> orderedRuleIds, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(orderedRuleIds);
@@ -148,6 +193,89 @@ public sealed class ChapterRuleWorkspaceService : IChapterRuleWorkspaceService
     {
         return allRules.Count == 0 ? SortOrderStep : allRules.Max(rule => rule.SortOrder) + SortOrderStep;
     }
+
+    private static IReadOnlyList<PortableChapterRule> ParsePortableRules(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            throw new InvalidOperationException("规则 JSON 不能为空。");
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            var elements = document.RootElement.ValueKind switch
+            {
+                JsonValueKind.Object => [document.RootElement.Clone()],
+                JsonValueKind.Array => document.RootElement.EnumerateArray().Select(element => element.Clone()).ToArray(),
+                _ => throw new InvalidOperationException("规则 JSON 必须是单条对象或对象数组。")
+            };
+            var rules = elements.Select(ParsePortableRule).ToArray();
+            return rules;
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidOperationException("规则 JSON 格式无效。", exception);
+        }
+    }
+
+    private static PortableChapterRule ParsePortableRule(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidOperationException("规则数组只能包含对象。");
+        }
+
+        var name = RulePatternValidation.NormalizeRequired(ReadRequiredString(element, "name"), "规则名称");
+        var pattern = RulePatternValidation.NormalizeRequired(ReadRequiredString(element, "pattern"), "正则表达式");
+        RulePatternValidation.Validate(pattern);
+        return new PortableChapterRule(name, pattern, ReadBoolean(element, "isEnabled", true));
+    }
+
+    private static string SerializePortableRule(ChapterRule rule)
+    {
+        using var stream = new MemoryStream();
+        using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions
+        {
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        });
+        writer.WriteStartObject();
+        writer.WriteString("name", rule.Name);
+        writer.WriteString("pattern", rule.Pattern);
+        writer.WriteBoolean("isEnabled", rule.IsEnabled);
+        writer.WriteEndObject();
+        writer.Flush();
+        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static bool PortableFieldsEqual(ChapterRule rule, PortableChapterRule candidate) =>
+        string.Equals(rule.Name, candidate.Name, StringComparison.Ordinal) &&
+        string.Equals(rule.Pattern, candidate.Pattern, StringComparison.Ordinal) &&
+        rule.IsEnabled == candidate.IsEnabled;
+
+    private static string ReadRequiredString(JsonElement element, string propertyName)
+    {
+        var property = element.EnumerateObject().FirstOrDefault(candidate =>
+            candidate.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase));
+        return property.Value.ValueKind == JsonValueKind.String
+            ? property.Value.GetString() ?? string.Empty
+            : string.Empty;
+    }
+
+    private static bool ReadBoolean(JsonElement element, string propertyName, bool defaultValue)
+    {
+        var property = element.EnumerateObject().FirstOrDefault(candidate =>
+            candidate.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase));
+        return property.Value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Undefined => defaultValue,
+            _ => throw new InvalidOperationException($"字段 {propertyName} 必须是布尔值。")
+        };
+    }
+
+    private sealed record PortableChapterRule(string Name, string Pattern, bool IsEnabled);
 
     private static string DeduplicateName(
         string normalizedName,

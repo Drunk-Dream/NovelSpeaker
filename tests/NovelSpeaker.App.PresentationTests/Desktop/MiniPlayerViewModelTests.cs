@@ -12,7 +12,21 @@ namespace NovelSpeaker.App.PresentationTests.Desktop;
 public sealed class MiniPlayerViewModelTests
 {
     [Fact]
-    public async Task Snapshot_is_projected_and_commands_use_the_shared_playback_session()
+    public async Task Mini_player_projection_contracts_cover_snapshot_commands_and_segment_progress()
+    {
+        await Snapshot_is_projected_and_commands_use_the_shared_playback_session();
+        await Segment_progress_commit_jumps_to_the_selected_segment_and_updates_tooltip_projection();
+    }
+
+    [Fact]
+    public async Task Mini_player_lifecycle_contracts_cover_coalesced_placement_flush_and_disposal()
+    {
+        await Position_and_topmost_are_coalesced_and_final_state_is_persisted();
+        await Flush_cancels_throttle_and_saves_latest_placement_once_before_shutdown();
+        await Dispose_cancels_and_drains_owned_snapshot_projection();
+    }
+
+    private async Task Snapshot_is_projected_and_commands_use_the_shared_playback_session()
     {
         var playback = new FakePlaybackSession();
         var viewModel = CreateViewModel(playback);
@@ -60,8 +74,7 @@ public sealed class MiniPlayerViewModelTests
         await viewModel.DisposeAsync();
     }
 
-    [Fact]
-    public async Task Segment_progress_commit_jumps_to_the_selected_segment_and_updates_tooltip_projection()
+    private async Task Segment_progress_commit_jumps_to_the_selected_segment_and_updates_tooltip_projection()
     {
         var playback = new FakePlaybackSession();
         playback.Publish(PlaybackSnapshot.Idle with
@@ -85,8 +98,7 @@ public sealed class MiniPlayerViewModelTests
         await viewModel.DisposeAsync();
     }
 
-    [Fact]
-    public async Task Position_and_topmost_are_coalesced_and_final_state_is_persisted()
+    private async Task Position_and_topmost_are_coalesced_and_final_state_is_persisted()
     {
         var timeProvider = new ManualTimeProvider();
         var settings = new FakeSettingsService(AppSettings.Default);
@@ -107,8 +119,7 @@ public sealed class MiniPlayerViewModelTests
         await viewModel.DisposeAsync();
     }
 
-    [Fact]
-    public async Task Flush_cancels_throttle_and_saves_latest_placement_once_before_shutdown()
+    private async Task Flush_cancels_throttle_and_saves_latest_placement_once_before_shutdown()
     {
         var timeProvider = new ManualTimeProvider();
         var settings = new FakeSettingsService(AppSettings.Default);
@@ -124,8 +135,7 @@ public sealed class MiniPlayerViewModelTests
         await viewModel.DisposeAsync();
     }
 
-    [Fact]
-    public async Task Dispose_cancels_and_drains_owned_snapshot_projection()
+    private async Task Dispose_cancels_and_drains_owned_snapshot_projection()
     {
         var playback = new FakePlaybackSession();
         var scheduler = new GatedUiScheduler();

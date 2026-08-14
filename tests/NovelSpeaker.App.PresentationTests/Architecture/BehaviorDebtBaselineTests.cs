@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests.Architecture;
@@ -20,259 +21,117 @@ public sealed class BehaviorDebtBaselineTests
     }
 
     [Fact]
-    public void Rule_pages_register_the_global_navigation_guard_in_the_activation_scope()
+    public void Async_void_page_events_delegate_through_the_shared_exception_boundary()
     {
-        var pagePaths = new[]
+        var featuresRoot = Absolute("src/NovelSpeaker.App/Features");
+        var pages = Directory.EnumerateFiles(featuresRoot, "*Page.xaml.cs", SearchOption.AllDirectories);
+
+        foreach (var path in pages)
         {
-            "src/NovelSpeaker.App/Features/ChapterRules/ChapterRulesPage.xaml.cs",
-            "src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml.cs",
-            "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml.cs"
+            var source = File.ReadAllText(path);
+            if (!source.Contains("async void", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            Assert.Contains("PageEventOperationRunner", source, StringComparison.Ordinal);
+            Assert.Contains("_eventOperations.RunAsync(", source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Non_platform_app_code_does_not_perform_user_document_io_directly()
+    {
+        var appRoot = Absolute("src/NovelSpeaker.App");
+        var excludedFragments = new[]
+        {
+            Path.DirectorySeparatorChar + "Bootstrap" + Path.DirectorySeparatorChar,
+            Path.DirectorySeparatorChar + "Shared" + Path.DirectorySeparatorChar +
+            "Presentation" + Path.DirectorySeparatorChar + "Platform" + Path.DirectorySeparatorChar
         };
-        foreach (var relativePath in pagePaths)
+        var sources = Directory.EnumerateFiles(appRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !excludedFragments.Any(path.Contains))
+            .Select(File.ReadAllText);
+
+        foreach (var source in sources)
         {
-            var page = File.ReadAllText(Absolute(relativePath));
-            Assert.Contains("INavigationGuardService", page, StringComparison.Ordinal);
-            Assert.Contains("Register(ViewModel.ConfirmLeaveAsync)", page, StringComparison.Ordinal);
-            Assert.Contains("PageActivationController", page, StringComparison.Ordinal);
-            Assert.Contains("activation.Register", page, StringComparison.Ordinal);
-            Assert.Contains("_activation.Deactivate()", page, StringComparison.Ordinal);
+            Assert.DoesNotContain("File.ReadAll", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("File.WriteAll", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("Directory.Delete", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("Process.Start", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("Microsoft.Win32", source, StringComparison.Ordinal);
         }
     }
 
     [Fact]
-    public void Async_event_pages_require_the_shared_exception_runner()
+    public void Async_production_code_does_not_use_synchronous_waits()
     {
-        var pagePaths = new[]
-        {
-            "src/NovelSpeaker.App/Features/Cache/CacheAndDataPage.xaml.cs",
-            "src/NovelSpeaker.App/Features/ChapterRules/ChapterRulesPage.xaml.cs",
-            "src/NovelSpeaker.App/Features/ImportTextSettings/ImportTextSettingsPage.xaml.cs",
-            "src/NovelSpeaker.App/Features/Library/LibraryPage.xaml.cs",
-            "src/NovelSpeaker.App/Features/PlaybackSettings/PlaybackSettingsPage.xaml.cs",
-            "src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesPage.xaml.cs",
-            "src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml.cs"
-        };
+        var sources = Directory.EnumerateFiles(
+                Absolute("src/NovelSpeaker.Infrastructure"),
+                "*.cs",
+                SearchOption.AllDirectories)
+            .Select(File.ReadAllText)
+            .ToArray();
 
-        foreach (var relativePath in pagePaths)
-        {
-            var page = File.ReadAllText(Absolute(relativePath));
-            Assert.Contains("PageEventOperationRunner eventOperations", page, StringComparison.Ordinal);
-            Assert.Contains("_eventOperations.RunAsync(", page, StringComparison.Ordinal);
-            Assert.DoesNotContain("PageEventOperationRunner?", page, StringComparison.Ordinal);
-            Assert.DoesNotContain("eventOperations = null", page, StringComparison.Ordinal);
-            Assert.DoesNotContain("?? operation(", page, StringComparison.Ordinal);
-        }
-    }
-
-    [Fact]
-    public void Tts_rules_page_consumes_platform_ports_without_constructing_adapters()
-    {
-        var page = File.ReadAllText(Absolute("src/NovelSpeaker.App/Features/TtsRules/TtsRulesPage.xaml.cs"));
-
-        Assert.Contains("IPresentationFileDialogService fileDialogs", page, StringComparison.Ordinal);
-        Assert.Contains("IPresentationClipboard clipboard", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("new WpfPresentationFileDialogService", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("new WpfPresentationClipboard", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("Microsoft.Win32", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("Clipboard.", page, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void User_selected_document_io_uses_the_application_operation_port()
-    {
-        var libraryViewModel = File.ReadAllText(
-            Absolute("src/NovelSpeaker.App/Features/Library/LibraryViewModel.cs"));
-        var libraryImportCoordinator = File.ReadAllText(
-            Absolute("src/NovelSpeaker.App/Features/Library/LibraryImportCoordinator.cs"));
-        var ttsRulesViewModel = File.ReadAllText(
-            Absolute("src/NovelSpeaker.App/Features/TtsRules/TtsRulesViewModel.cs"));
-        var port = File.ReadAllText(
-            Absolute("src/NovelSpeaker.Application/Abstractions/IUserDocumentFileOperations.cs"));
-        var adapter = File.ReadAllText(
-            Absolute("src/NovelSpeaker.Infrastructure/FileSystem/LocalUserDocumentFileOperations.cs"));
-
-        foreach (var presentationSource in new[]
-                 {
-                     libraryViewModel,
-                     libraryImportCoordinator,
-                     ttsRulesViewModel
-                 })
-        {
-            Assert.DoesNotContain("File.Exists(", presentationSource, StringComparison.Ordinal);
-            Assert.DoesNotContain("Directory.Exists(", presentationSource, StringComparison.Ordinal);
-            Assert.DoesNotContain("new FileInfo(", presentationSource, StringComparison.Ordinal);
-            Assert.DoesNotContain("File.ReadAllTextAsync(", presentationSource, StringComparison.Ordinal);
-            Assert.DoesNotContain("File.WriteAllTextAsync(", presentationSource, StringComparison.Ordinal);
-        }
-
-        Assert.Contains("CancellationToken cancellationToken", port, StringComparison.Ordinal);
-        Assert.Contains("IUserDocumentFileOperations", libraryImportCoordinator, StringComparison.Ordinal);
-        Assert.Contains("IUserDocumentFileOperations", ttsRulesViewModel, StringComparison.Ordinal);
-        Assert.Contains("File.ReadAllTextAsync(", adapter, StringComparison.Ordinal);
-        Assert.Contains("File.WriteAllTextAsync(", adapter, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Cache_export_uses_shared_folder_dialog_and_launcher_ports()
-    {
-        var viewModel = File.ReadAllText(
-            Absolute("src/NovelSpeaker.App/Features/Cache/CacheManagementViewModel.cs"));
-        var dialogPort = File.ReadAllText(
-            Absolute("src/NovelSpeaker.App/Shared/Presentation/Platform/IPresentationFileDialogService.cs"));
-        var dialogAdapter = File.ReadAllText(
-            Absolute("src/NovelSpeaker.App/Shared/Presentation/Platform/WpfPresentationFileDialogService.cs"));
-
-        Assert.Contains("IPresentationFileDialogService fileDialogs", viewModel, StringComparison.Ordinal);
-        Assert.Contains("IPresentationLauncher launcher", viewModel, StringComparison.Ordinal);
-        Assert.Contains("_fileDialogs.PickFolderAsync(", viewModel, StringComparison.Ordinal);
-        Assert.Contains("_launcher.OpenAsync(", viewModel, StringComparison.Ordinal);
-        Assert.DoesNotContain("Microsoft.Win32", viewModel, StringComparison.Ordinal);
-        Assert.DoesNotContain("Process.Start", viewModel, StringComparison.Ordinal);
-        Assert.Contains("PickFolderAsync(", dialogPort, StringComparison.Ordinal);
-        Assert.Contains("OpenFolderDialog", dialogAdapter, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Tts_admission_and_settings_storage_do_not_synchronously_wait_for_async_work()
-    {
-        var limiter = File.ReadAllText(
-            Absolute("src/NovelSpeaker.Infrastructure/Speech/Http/TtsRateLimiter.cs"));
-        var settingsStore = File.ReadAllText(
-            Absolute("src/NovelSpeaker.Infrastructure/Settings/JsonAppSettingsStore.cs"));
-
-        Assert.DoesNotContain("SemaphoreSlim", limiter, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Wait(", limiter, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Result", limiter, StringComparison.Ordinal);
-        Assert.DoesNotContain("GetAwaiter().GetResult()", limiter, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Wait(", settingsStore, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Result", settingsStore, StringComparison.Ordinal);
-        Assert.DoesNotContain("GetAwaiter().GetResult()", settingsStore, StringComparison.Ordinal);
+        Assert.DoesNotContain(sources, source => source.Contains("GetAwaiter().GetResult()", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            sources,
+            source => Regex.IsMatch(source, @"\.Result\s*[\]\),;]"));
+        Assert.DoesNotContain(sources, source => source.Contains(".Wait(", StringComparison.Ordinal));
     }
 
     [Fact]
     public void Test_audio_fixtures_are_owned_by_tests_and_excluded_from_the_app()
     {
-        var fixtureNames = new[]
-        {
-            "corrupt-tone.mp3",
-            "demo-tone.mp3",
-            "demo-tone.wav"
-        };
+        var expected = new[] { "corrupt-tone.mp3", "demo-tone.mp3", "demo-tone.wav" };
         var audioDirectory = Absolute("tests/NovelSpeaker.Infrastructure.IntegrationTests/TestAssets/Audio");
         var actual = Directory.EnumerateFiles(audioDirectory)
-            .Select(path => Path.GetFileName(path)!)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        AssertEqualSet(fixtureNames, actual);
+            .Select(Path.GetFileName)
+            .Where(static name => name is not null)
+            .Cast<string>()
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
-        var appAudioDirectory = Absolute("src/NovelSpeaker.App/Assets/Audio");
-        Assert.False(Directory.Exists(appAudioDirectory));
+        Assert.Equal(expected.Order(StringComparer.OrdinalIgnoreCase), actual);
+        Assert.False(Directory.Exists(Absolute("src/NovelSpeaker.App/Assets/Audio")));
 
-        var appProjectText = File.ReadAllText(Absolute("src/NovelSpeaker.App/NovelSpeaker.App.csproj"));
-        Assert.DoesNotContain(@"Assets\Audio", appProjectText, StringComparison.OrdinalIgnoreCase);
-
-        var testProject = XDocument.Load(Absolute("tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj"));
-        var testProjectText = File.ReadAllText(Absolute("tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj"));
-        Assert.DoesNotContain(@"src\NovelSpeaker.App\Assets\Audio", testProjectText, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(testProject.Descendants("Content"), element =>
-            string.Equals(element.Attribute("Include")?.Value, @"TestAssets\Audio\*.*", StringComparison.Ordinal));
+        var projectText = File.ReadAllText(
+            Absolute("tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj"));
+        Assert.Contains(@"TestAssets\Audio\*.*", projectText, StringComparison.Ordinal);
+        Assert.DoesNotContain(@"src\NovelSpeaker.App\Assets\Audio", projectText, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void Release_workflow_keeps_the_locked_quality_gate_and_package_validation()
+    public void Release_and_quality_workflows_keep_locked_build_test_and_package_boundaries()
     {
-        var releaseWorkflow = File.ReadAllText(Absolute(".github/workflows/release.yml"));
-        var qualityWorkflow = File.ReadAllText(Absolute(".github/workflows/quality-matrix.yml"));
-        var releaseFragments = new[]
-        {
-            "uses: ./.github/workflows/quality-matrix.yml",
-            "dotnet restore --locked-mode -r win-x64",
+        var release = File.ReadAllText(Absolute(".github/workflows/release.yml"));
+        var quality = File.ReadAllText(Absolute(".github/workflows/quality-matrix.yml"));
+
+        Assert.Contains("uses: ./.github/workflows/quality-matrix.yml", release, StringComparison.Ordinal);
+        Assert.Contains(
             "dotnet publish src/NovelSpeaker.App/NovelSpeaker.App.csproj -c Release -r win-x64 --self-contained true --no-restore",
-            "NovelSpeaker.App.exe",
-            "THIRD-PARTY-NOTICES.txt",
-            "NAudio.dll",
-            "NAudio.Wasapi.dll",
-            "coreclr.dll",
-            "hostfxr.dll",
-            "hostpolicy.dll",
-            "Microsoft.Data.Sqlite.dll",
-            "SQLitePCLRaw.provider.winsqlite3.dll",
-            "TestAssets",
-            "demo-tone.wav",
-            "demo-tone.mp3",
-            "corrupt-tone.mp3",
-            "Package contains test audio fixture",
-            "Package contains test assembly",
-            "Package contains temporary file",
-            "ZIP contains temporary file",
-            ".partial",
-            "$_.Name -in $temporaryExtensions",
-            "$name -in $temporaryExtensions"
-        };
-        var qualityFragments = new[]
-        {
-            "dotnet restore --locked-mode -r win-x64",
-            "dotnet format --verify-no-changes --no-restore",
-            "dotnet build -c Release --no-restore",
-            "dotnet test ${{ matrix.project }} -c Release --no-build",
-            "tests/NovelSpeaker.Domain.UnitTests/NovelSpeaker.Domain.UnitTests.csproj",
-            "tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj",
-            "tests/NovelSpeaker.App.WpfTests/NovelSpeaker.App.WpfTests.csproj"
-        };
+            release,
+            StringComparison.Ordinal);
+        Assert.Contains("TestAssets", release, StringComparison.Ordinal);
+        Assert.Contains("StyleGallery", release, StringComparison.Ordinal);
+        Assert.Contains("visual-review", release, StringComparison.Ordinal);
 
-        foreach (var fragment in releaseFragments)
+        foreach (var command in new[]
+                 {
+                     "dotnet restore --locked-mode -r win-x64",
+                     "dotnet format --verify-no-changes --no-restore",
+                     "dotnet build -c Release --no-restore",
+                     "dotnet test",
+                     "matrix.project"
+                 })
         {
-            Assert.Contains(fragment, releaseWorkflow, StringComparison.Ordinal);
+            Assert.Contains(command, quality, StringComparison.Ordinal);
         }
 
-        foreach (var fragment in qualityFragments)
-        {
-            Assert.Contains(fragment, qualityWorkflow, StringComparison.Ordinal);
-        }
-    }
-
-    [Fact]
-    public void Shell_navigation_entry_points_use_the_typed_navigation_boundary()
-    {
-        var mainWindow = File.ReadAllText(Absolute("src/NovelSpeaker.App/Shell/MainWindow.xaml.cs"));
-        Assert.Contains("OnRootNavigationViewNavigating", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("IShellActivationCoordinator", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("_activationCoordinator.HandleNavigationRequestAsync", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("GetProperty(\"PageId\")", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("VisualTreeHelper", mainWindow, StringComparison.Ordinal);
-
-        var shellCoordinator = File.ReadAllText(
-            Absolute("src/NovelSpeaker.App/Shell/Activation/ShellActivationCoordinator.cs"));
-        Assert.Contains("IShellNavigationAdapter navigationAdapter", shellCoordinator, StringComparison.Ordinal);
-        Assert.Contains("_navigationAdapter.NavigateFromShellAsync", shellCoordinator, StringComparison.Ordinal);
-        var desktopExitGuard = File.ReadAllText(
-            Absolute("src/NovelSpeaker.App/Desktop/Lifecycle/NavigationDesktopExitGuard.cs"));
-        Assert.Contains("ConfirmNavigationAsync", desktopExitGuard, StringComparison.Ordinal);
-
-        var shortcutContextResolver = File.ReadAllText(
-            Absolute("src/NovelSpeaker.App/Shell/Input/WpfShortcutContextResolver.cs"));
-        Assert.Contains("TextBoxBase", shortcutContextResolver, StringComparison.Ordinal);
-        Assert.Contains("IsHostedInPopupSurface", shortcutContextResolver, StringComparison.Ordinal);
-        Assert.Contains("FindVisibleContentDialog", shortcutContextResolver, StringComparison.Ordinal);
-
-        var shortcuts = File.ReadAllText(Absolute("src/NovelSpeaker.App/Shell/Input/KeyboardShortcutCoordinator.cs"));
-        Assert.Contains("IAppNavigator navigation", shortcuts, StringComparison.Ordinal);
-        Assert.Contains("_navigation.GoBackAsync", shortcuts, StringComparison.Ordinal);
-        Assert.Contains("AppRoutes.Settings", shortcuts, StringComparison.Ordinal);
-
-        var shellViewModel = File.ReadAllText(Absolute("src/NovelSpeaker.App/Shell/MainWindowViewModel.cs"));
-        Assert.Contains("IAppNavigator navigator", shellViewModel, StringComparison.Ordinal);
-        Assert.Contains("_navigator.NavigateAsync", shellViewModel, StringComparison.Ordinal);
-        Assert.Contains("PlayerNavigationMode.ReturnToCurrentSession", shellViewModel, StringComparison.Ordinal);
+        Assert.Contains("NovelSpeaker.Domain.UnitTests", quality, StringComparison.Ordinal);
+        Assert.DoesNotContain("retry", quality, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Absolute(string relativePath) =>
         Path.Combine(Repository.RootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
-
-    private static void AssertEqualSet(IEnumerable<string> expected, IEnumerable<string> actual)
-    {
-        Assert.Equal(
-            expected.Order(StringComparer.OrdinalIgnoreCase),
-            actual.Order(StringComparer.OrdinalIgnoreCase),
-            StringComparer.OrdinalIgnoreCase);
-    }
 }

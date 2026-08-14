@@ -1,0 +1,8 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Stable motion durations. These resources are theme-independent and are
+         intentionally loaded once; theme changes update palette values only. -->
+    <Duration x:Key="App.Motion.Fast">0:0:0.10</Duration>
+    <Duration x:Key="App.Motion.Standard">0:0:0.16</Duration>
+    <Duration x:Key="App.Motion.Slow">0:0:0.22</Duration>
+</ResourceDictionary>

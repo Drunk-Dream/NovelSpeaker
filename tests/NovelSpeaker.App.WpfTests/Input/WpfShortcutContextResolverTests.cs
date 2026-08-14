@@ -10,7 +10,21 @@ namespace NovelSpeaker.App.WpfTests.Input;
 public sealed class WpfShortcutContextResolverTests
 {
     [Fact]
-    public void Text_input_and_editable_combo_are_editing_contexts()
+    public void Shortcut_context_contracts_cover_editing_and_player_contexts()
+    {
+        Text_input_and_editable_combo_are_editing_contexts();
+        Plain_window_content_preserves_player_context_without_suppression();
+    }
+
+    [Fact]
+    public void Shortcut_context_contracts_cover_transient_menu_popup_and_dialog_contexts()
+    {
+        Menu_item_is_a_transient_context();
+        Focus_inside_generic_popup_is_a_transient_context();
+        Visible_content_dialog_is_a_transient_context();
+    }
+
+    private void Text_input_and_editable_combo_are_editing_contexts()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -28,8 +42,7 @@ public sealed class WpfShortcutContextResolverTests
         });
     }
 
-    [Fact]
-    public void Menu_item_is_a_transient_context()
+    private void Menu_item_is_a_transient_context()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -42,8 +55,7 @@ public sealed class WpfShortcutContextResolverTests
         });
     }
 
-    [Fact]
-    public void Focus_inside_generic_popup_is_a_transient_context()
+    private void Focus_inside_generic_popup_is_a_transient_context()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -59,7 +71,7 @@ public sealed class WpfShortcutContextResolverTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 popup.IsOpen = true;
                 popupContent.Focus();
 
@@ -78,8 +90,7 @@ public sealed class WpfShortcutContextResolverTests
         });
     }
 
-    [Fact]
-    public void Visible_content_dialog_is_a_transient_context()
+    private void Visible_content_dialog_is_a_transient_context()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -89,7 +100,7 @@ public sealed class WpfShortcutContextResolverTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 window.UpdateLayout();
 
                 var context = new WpfShortcutContextResolver().Resolve(
@@ -106,8 +117,7 @@ public sealed class WpfShortcutContextResolverTests
         });
     }
 
-    [Fact]
-    public void Plain_window_content_preserves_player_context_without_suppression()
+    private void Plain_window_content_preserves_player_context_without_suppression()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -117,7 +127,7 @@ public sealed class WpfShortcutContextResolverTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
 
                 var context = new WpfShortcutContextResolver().Resolve(
                     true,

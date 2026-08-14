@@ -43,34 +43,35 @@ public sealed class PlaybackRecoveryPolicyTests
         Assert.Equal("音频再次损坏。", decision.Message);
     }
 
-    [Theory]
-    [InlineData(TtsErrorKind.Unauthorized)]
-    [InlineData(TtsErrorKind.RateLimited)]
-    [InlineData(TtsErrorKind.ServerError)]
-    public void Http_classified_failures_are_not_retried_by_playback_policy(TtsErrorKind failureKind)
+    [Fact]
+    public void Http_classified_failures_are_not_retried_by_playback_policy()
     {
-        var policy = new PlaybackRecoveryPolicy();
+        foreach (var failureKind in new[]
+                 { TtsErrorKind.Unauthorized, TtsErrorKind.RateLimited, TtsErrorKind.ServerError })
+        {
+            var policy = new PlaybackRecoveryPolicy();
 
-        var firstFailure = policy.Decide(new PlaybackRecoveryInput(
-            failureKind,
-            "服务暂时不可用。",
-            ConsecutiveSegmentFailureCount: 0,
-            IsCorruptAudio: false,
-            CorruptAudioRecoveryAttempted: false));
+            var firstFailure = policy.Decide(new PlaybackRecoveryInput(
+                failureKind,
+                "服务暂时不可用。",
+                ConsecutiveSegmentFailureCount: 0,
+                IsCorruptAudio: false,
+                CorruptAudioRecoveryAttempted: false));
 
-        var thresholdFailure = policy.Decide(new PlaybackRecoveryInput(
-            failureKind,
-            "服务暂时不可用。",
-            firstFailure.ConsecutiveSegmentFailureCount,
-            IsCorruptAudio: false,
-            CorruptAudioRecoveryAttempted: false));
+            var thresholdFailure = policy.Decide(new PlaybackRecoveryInput(
+                failureKind,
+                "服务暂时不可用。",
+                firstFailure.ConsecutiveSegmentFailureCount,
+                IsCorruptAudio: false,
+                CorruptAudioRecoveryAttempted: false));
 
-        Assert.False(firstFailure.ShouldRetryCurrentSegment);
-        Assert.False(firstFailure.ShouldPause);
-        Assert.Equal(1, firstFailure.ConsecutiveSegmentFailureCount);
-        Assert.True(thresholdFailure.ShouldPause);
-        Assert.Equal(2, thresholdFailure.ConsecutiveSegmentFailureCount);
-        Assert.Contains("连续 2 段", thresholdFailure.Message, StringComparison.Ordinal);
+            Assert.False(firstFailure.ShouldRetryCurrentSegment);
+            Assert.False(firstFailure.ShouldPause);
+            Assert.Equal(1, firstFailure.ConsecutiveSegmentFailureCount);
+            Assert.True(thresholdFailure.ShouldPause);
+            Assert.Equal(2, thresholdFailure.ConsecutiveSegmentFailureCount);
+            Assert.Contains("连续 2 段", thresholdFailure.Message, StringComparison.Ordinal);
+        }
     }
 
     [Fact]

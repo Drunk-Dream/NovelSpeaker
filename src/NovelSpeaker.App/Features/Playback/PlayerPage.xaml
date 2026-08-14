@@ -1,7 +1,8 @@
 <Page x:Class="NovelSpeaker.App.Features.Playback.PlayerPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-      xmlns:views="clr-namespace:NovelSpeaker.App.Features.Playback.Components">
+      xmlns:views="clr-namespace:NovelSpeaker.App.Features.Playback.Components"
+      Background="Transparent">
     <Grid x:Name="RootViewport"
           MinHeight="0"
           ClipToBounds="True">

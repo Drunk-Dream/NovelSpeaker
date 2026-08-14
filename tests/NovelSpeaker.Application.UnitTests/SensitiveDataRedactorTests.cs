@@ -5,15 +5,16 @@ namespace NovelSpeaker.Application.UnitTests;
 
 public sealed class SensitiveDataRedactorTests
 {
-    [Theory]
-    [InlineData("cookie=session-secret")]
-    [InlineData("loginInfo=login-secret")]
-    public void RedactPlainText_removes_cookie_and_login_info_values(string value)
+    [Fact]
+    public void RedactPlainText_removes_cookie_and_login_info_values()
     {
-        var redacted = SensitiveDataRedactor.RedactPlainText(value);
+        foreach (var value in new[] { "cookie=session-secret", "loginInfo=login-secret" })
+        {
+            var redacted = SensitiveDataRedactor.RedactPlainText(value);
 
-        Assert.Contains("***", redacted, StringComparison.Ordinal);
-        Assert.DoesNotContain("secret", redacted, StringComparison.Ordinal);
+            Assert.Contains("***", redacted, StringComparison.Ordinal);
+            Assert.DoesNotContain("secret", redacted, StringComparison.Ordinal);
+        }
     }
 
     [Fact]

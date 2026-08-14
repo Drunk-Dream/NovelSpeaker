@@ -85,27 +85,30 @@ public sealed class LibraryImportCoordinatorTests
         Assert.Equal("large-demo.txt", progressDialog.FileName);
     }
 
-    [Theory]
-    [InlineData("missing.txt", null)]
-    [InlineData("novel.epub", ".epub")]
-    public async Task ImportAsync_rejects_missing_or_non_txt_sources(
-        string filePath,
-        string? extension)
+    [Fact]
+    public async Task ImportAsync_rejects_missing_or_non_txt_sources()
     {
-        var directImportService = new FakeDirectBookImportService();
-        var fileOperations = extension is null
-            ? new FakeUserDocumentFileOperations()
-            : FakeUserDocumentFileOperations.ForFile(filePath, 256, extension);
-        var coordinator = new LibraryImportCoordinator(
-            directImportService,
-            new FakeEncodingSelectionDialogService(),
-            new FakeImportProgressDialogService(),
-            fileOperations);
+        foreach (var (filePath, extension) in new[]
+                 {
+                     ("missing.txt", (string?)null),
+                     ("novel.epub", ".epub")
+                 })
+        {
+            var directImportService = new FakeDirectBookImportService();
+            var fileOperations = extension is null
+                ? new FakeUserDocumentFileOperations()
+                : FakeUserDocumentFileOperations.ForFile(filePath, 256, extension);
+            var coordinator = new LibraryImportCoordinator(
+                directImportService,
+                new FakeEncodingSelectionDialogService(),
+                new FakeImportProgressDialogService(),
+                fileOperations);
 
-        var result = await coordinator.ImportAsync(filePath, inlineProgress: null, CancellationToken.None);
+            var result = await coordinator.ImportAsync(filePath, inlineProgress: null, CancellationToken.None);
 
-        Assert.Equal(LibraryImportCoordinatorStatus.InvalidSource, result.Status);
-        Assert.Empty(directImportService.Requests);
+            Assert.Equal(LibraryImportCoordinatorStatus.InvalidSource, result.Status);
+            Assert.Empty(directImportService.Requests);
+        }
     }
 
     [Fact]

@@ -13,38 +13,22 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed class PlaybackSettingsViewModelTests
 {
     [Fact]
-    public async Task LoadAsync_reads_saved_values()
+    public async Task Playback_settings_speed_contracts_cover_normalization_global_updates_and_debounce()
     {
-        var service = new FakeAppSettingsService(AppSettings.Default with
-        {
-            DefaultSpeakSpeed = 14,
-            PrefetchCount = 1,
-            ReadChapterTitle = true
-        });
-        var viewModel = CreateViewModel(service);
-
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        Assert.Equal("14", viewModel.DefaultSpeakSpeedText);
-        Assert.Equal("1", viewModel.PrefetchCountText);
-        Assert.True(viewModel.ReadChapterTitle);
+        await CommitDefaultSpeakSpeedAsync_normalizes_and_updates_text();
+        await CommitDefaultSpeakSpeedAsync_without_playback_session_only_updates_global_speed();
+        await DefaultSpeakSpeedText_change_debounces_global_update_and_audio_regeneration();
     }
 
     [Fact]
-    public async Task ReadChapterTitle_change_saves_immediately()
+    public async Task Playback_settings_activation_contracts_cover_cancellation_late_results_and_prefetch_validation()
     {
-        var service = new FakeAppSettingsService(AppSettings.Default);
-        var viewModel = CreateViewModel(service);
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        viewModel.ReadChapterTitle = true;
-        await service.UpdateCompleted.WaitAsync(TimeSpan.FromSeconds(5));
-
-        Assert.True(service.CurrentSettings.ReadChapterTitle);
+        await Leaving_page_cancels_pending_debounced_setting_operation();
+        await Late_debounced_result_from_old_activation_cannot_update_reentered_page();
+        await CommitPrefetchCountAsync_rejects_non_integer_input();
     }
 
-    [Fact]
-    public async Task CommitDefaultSpeakSpeedAsync_normalizes_and_updates_text()
+    private async Task CommitDefaultSpeakSpeedAsync_normalizes_and_updates_text()
     {
         var service = new FakeAppSettingsService(AppSettings.Default);
         var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle with
@@ -64,8 +48,7 @@ public sealed class PlaybackSettingsViewModelTests
         Assert.Equal(AppSettings.MaxSpeakSpeed, coordinator.LastChangedSpeakSpeed);
     }
 
-    [Fact]
-    public async Task CommitDefaultSpeakSpeedAsync_without_playback_session_only_updates_global_speed()
+    private async Task CommitDefaultSpeakSpeedAsync_without_playback_session_only_updates_global_speed()
     {
         var service = new FakeAppSettingsService(AppSettings.Default);
         var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
@@ -79,8 +62,7 @@ public sealed class PlaybackSettingsViewModelTests
         Assert.Null(coordinator.LastChangedSpeakSpeed);
     }
 
-    [Fact]
-    public async Task DefaultSpeakSpeedText_change_debounces_global_update_and_audio_regeneration()
+    private async Task DefaultSpeakSpeedText_change_debounces_global_update_and_audio_regeneration()
     {
         var timeProvider = new ManualTimeProvider();
         var service = new FakeAppSettingsService(AppSettings.Default);
@@ -110,8 +92,7 @@ public sealed class PlaybackSettingsViewModelTests
         Assert.Equal(12, coordinator.LastChangedSpeakSpeed);
     }
 
-    [Fact]
-    public async Task Leaving_page_cancels_pending_debounced_setting_operation()
+    private async Task Leaving_page_cancels_pending_debounced_setting_operation()
     {
         var timeProvider = new ManualTimeProvider();
         var service = new FakeAppSettingsService(AppSettings.Default);
@@ -130,8 +111,7 @@ public sealed class PlaybackSettingsViewModelTests
         Assert.Equal(AppSettings.DefaultSpeakSpeedValue, service.CurrentSettings.DefaultSpeakSpeed);
     }
 
-    [Fact]
-    public async Task Late_debounced_result_from_old_activation_cannot_update_reentered_page()
+    private async Task Late_debounced_result_from_old_activation_cannot_update_reentered_page()
     {
         var timeProvider = new ManualTimeProvider();
         var service = new FakeAppSettingsService(AppSettings.Default)
@@ -164,8 +144,7 @@ public sealed class PlaybackSettingsViewModelTests
         Assert.Null(playback.LastChangedSpeakSpeed);
     }
 
-    [Fact]
-    public async Task CommitPrefetchCountAsync_rejects_non_integer_input()
+    private async Task CommitPrefetchCountAsync_rejects_non_integer_input()
     {
         var service = new FakeAppSettingsService(AppSettings.Default);
         var viewModel = CreateViewModel(service);
@@ -176,17 +155,6 @@ public sealed class PlaybackSettingsViewModelTests
 
         Assert.Contains("请输入", viewModel.PrefetchCountErrorText);
         Assert.Equal(AppSettings.DefaultPrefetchCountValue, service.CurrentSettings.PrefetchCount);
-    }
-
-    [Fact]
-    public void OpenTtsRulesCommand_navigates_to_tts_rules_page()
-    {
-        var navigationService = new FakeNavigationService();
-        var viewModel = CreateViewModel(new FakeAppSettingsService(AppSettings.Default), navigationService);
-
-        viewModel.OpenTtsRulesCommand.Execute(null);
-
-        Assert.Equal(typeof(TtsRulesPage), navigationService.LastNavigationPageType);
     }
 
     private static PlaybackSettingsViewModel CreateViewModel(

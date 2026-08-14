@@ -5,8 +5,7 @@ namespace NovelSpeaker.App.PresentationTests.Selection;
 
 public sealed class DesktopSelectionControllerTests
 {
-    [Fact]
-    public void Click_replaces_selection_and_updates_anchor_and_primary_item()
+    private void Click_replaces_selection_and_updates_anchor_and_primary_item()
     {
         var controller = CreateController();
 
@@ -18,8 +17,7 @@ public sealed class DesktopSelectionControllerTests
         Assert.Equal("Delta", controller.PrimaryItem);
     }
 
-    [Fact]
-    public void Control_click_adds_and_removes_items_without_using_visual_containers()
+    private void Control_click_adds_and_removes_items_without_using_visual_containers()
     {
         var controller = CreateController();
 
@@ -34,8 +32,7 @@ public sealed class DesktopSelectionControllerTests
         Assert.Equal("Alpha", controller.PrimaryItem);
     }
 
-    [Fact]
-    public void Shift_click_selects_anchor_range_and_control_shift_adds_a_range()
+    private void Shift_click_selects_anchor_range_and_control_shift_adds_a_range()
     {
         var controller = CreateController();
 
@@ -53,8 +50,7 @@ public sealed class DesktopSelectionControllerTests
         Assert.Equal("Alpha", controller.PrimaryItem);
     }
 
-    [Fact]
-    public void Select_all_and_escape_clear_selection_metadata()
+    private void Select_all_and_escape_clear_selection_metadata()
     {
         var controller = CreateController();
 
@@ -71,8 +67,7 @@ public sealed class DesktopSelectionControllerTests
         Assert.False(controller.HasPrimary);
     }
 
-    [Fact]
-    public void Replacing_items_preserves_live_keys_and_reconciles_removed_metadata()
+    private void Replacing_items_preserves_live_keys_and_reconciles_removed_metadata()
     {
         var controller = CreateController();
         controller.Click("Bravo");
@@ -86,8 +81,7 @@ public sealed class DesktopSelectionControllerTests
         Assert.False(controller.IsSelected("Delta"));
     }
 
-    [Fact]
-    public void Logical_selection_survives_virtualized_container_recycling_and_ignores_stale_clicks()
+    private void Logical_selection_survives_virtualized_container_recycling_and_ignores_stale_clicks()
     {
         var controller = new DesktopSelectionController<int>();
         controller.SetItems(Enumerable.Range(0, 10_000));
@@ -105,12 +99,33 @@ public sealed class DesktopSelectionControllerTests
         Assert.Equal(9_999, controller.PrimaryItem);
     }
 
-    [Fact]
-    public void Set_items_rejects_duplicate_keys_because_ranges_must_be_unambiguous()
+    private void Set_items_rejects_duplicate_keys_because_ranges_must_be_unambiguous()
     {
         var controller = new DesktopSelectionController<string>();
 
         Assert.Throws<ArgumentException>(() => controller.SetItems(["Alpha", "Alpha"]));
+    }
+
+    [Fact]
+    public void Selection_click_contracts_cover_replacement_modifiers_and_ranges()
+    {
+        Click_replaces_selection_and_updates_anchor_and_primary_item();
+        Control_click_adds_and_removes_items_without_using_visual_containers();
+        Shift_click_selects_anchor_range_and_control_shift_adds_a_range();
+    }
+
+    [Fact]
+    public void Selection_state_contracts_cover_clear_reconciliation_and_virtualization()
+    {
+        Select_all_and_escape_clear_selection_metadata();
+        Replacing_items_preserves_live_keys_and_reconciles_removed_metadata();
+        Logical_selection_survives_virtualized_container_recycling_and_ignores_stale_clicks();
+    }
+
+    [Fact]
+    public void Selection_input_contracts_reject_ambiguous_duplicate_keys()
+    {
+        Set_items_rejects_duplicate_keys_because_ranges_must_be_unambiguous();
     }
 
     private static DesktopSelectionController<string> CreateController()

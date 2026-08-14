@@ -3,6 +3,7 @@ global using NovelSpeaker.App.Shared.Dialogs;
 global using NovelSpeaker.App.Shared.Feedback;
 global using NovelSpeaker.App.Shared.Presentation;
 global using NovelSpeaker.App.Shared.Presentation.Books;
+global using NovelSpeaker.App.Shared.Presentation.Rules;
 global using NovelSpeaker.App.Shared.Theming;
 global using NovelSpeaker.App.Features.Appearance;
 global using NovelSpeaker.App.Features.BookDetails;
@@ -28,4 +29,5 @@ global using PlayerNavigationRequest = NovelSpeaker.App.Shell.Navigation.PlayerR
 global using BookDetailsNavigationRequest = NovelSpeaker.App.Shell.Navigation.BookDetailsRoute;
 global using NovelSpeaker.TestKit.Common;
 global using NovelSpeaker.TestKit.Navigation;
-global using NovelSpeaker.UnitTests;
+global using NovelSpeaker.TestKit.Wpf;
+global using NovelSpeaker.App.WpfTests.TestDoubles;

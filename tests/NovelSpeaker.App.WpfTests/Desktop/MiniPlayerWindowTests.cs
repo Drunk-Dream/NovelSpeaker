@@ -1,21 +1,32 @@
+using System.IO;
+using System.Security.Cryptography;
+using System.Text.Json;
 using System.Windows.Automation;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.App.Desktop.MiniPlayer;
+using NovelSpeaker.App.Shared.Presentation.Platform;
+using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Domain.Settings;
+using Wpf.Ui.Appearance;
 using Xunit;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
+using WpfUiButton = Wpf.Ui.Controls.Button;
 
 namespace NovelSpeaker.App.WpfTests.Desktop;
 
 [Collection("WpfDispatcher")]
 public sealed class MiniPlayerWindowTests
 {
-    [Fact]
-    public void Window_exposes_required_controls_and_accessibility_contract()
+    private void Window_exposes_required_controls_and_accessibility_contract()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -26,29 +37,57 @@ public sealed class MiniPlayerWindowTests
                 Assert.Equal(WindowStyle.None, window.WindowStyle);
                 Assert.True(window.AllowsTransparency);
                 Assert.Equal(Brushes.Transparent, window.Background);
+                Assert.Equal(ResizeMode.NoResize, window.ResizeMode);
+                Assert.True(window.Width >= window.MinWidth);
+                Assert.True(window.Height >= window.MinHeight);
+                Assert.True(window.MinWidth > 0);
+                Assert.True(window.MinHeight > 0);
+                Assert.True(window.MaxWidth >= window.MinWidth);
+                Assert.True(window.MaxHeight >= window.MinHeight);
+
+                var surface = Assert.IsType<Border>(window.FindName("MiniPlayerSurface"));
+                Assert.Same(window.FindResource("App.Brush.Surface.Raised"), surface.Background);
+                Assert.Same(window.FindResource("App.Brush.Border.Subtle"), surface.BorderBrush);
+                Assert.True(surface.BorderThickness.Left >= 0);
+                Assert.True(surface.CornerRadius.TopLeft >= 0);
+                Assert.Null(surface.Effect);
 
                 var bookTitle = Assert.IsType<TextBlock>(window.FindName("MiniPlayerBookTitle"));
                 Assert.NotNull(bookTitle.GetBindingExpression(TextBlock.TextProperty));
+                Assert.Equal(FontWeights.Normal, bookTitle.FontWeight);
+                Assert.Equal(TextWrapping.NoWrap, bookTitle.TextWrapping);
                 var chapterTitle = Assert.IsType<TextBlock>(window.FindName("MiniPlayerChapterTitle"));
                 Assert.NotNull(chapterTitle.GetBindingExpression(TextBlock.TextProperty));
-                AssertControl<Button>(window, "MiniPlayerPreviousChapterButton", "上一章");
-                AssertControl<Button>(window, "MiniPlayerPreviousSegmentButton", "上一段");
-                AssertControl<Button>(window, "MiniPlayerPlaybackButton", "播放");
-                var playbackIcon = Assert.IsType<SymbolIcon>(
-                    Assert.IsType<Button>(window.FindName("MiniPlayerPlaybackButton")).Content);
+                Assert.Equal(FontWeights.SemiBold, chapterTitle.FontWeight);
+                Assert.Equal(TextWrapping.NoWrap, chapterTitle.TextWrapping);
+                Assert.NotNull(chapterTitle.GetBindingExpression(FrameworkElement.ToolTipProperty));
+                var segmentCounter = Assert.IsType<TextBlock>(window.FindName("MiniPlayerSegmentCounterText"));
+                Assert.NotNull(segmentCounter.GetBindingExpression(TextBlock.TextProperty));
+                AssertControl<WpfUiButton>(window, "MiniPlayerPreviousChapterButton", "上一章");
+                AssertControl<WpfUiButton>(window, "MiniPlayerPreviousSegmentButton", "上一段");
+                AssertControl<WpfUiButton>(window, "MiniPlayerPlaybackButton", "播放");
+                var playbackButton = Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerPlaybackButton"));
+                Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(playbackButton.Background).Color);
+                Assert.Equal(new Thickness(0), playbackButton.BorderThickness);
+                var playbackIcon = Assert.IsType<SymbolIcon>(Assert.IsType<WpfUiButton>(playbackButton).Icon);
                 var playbackTrigger = Assert.Single(playbackIcon.Style!.Triggers.OfType<DataTrigger>());
                 var playbackBinding = Assert.IsType<Binding>(playbackTrigger.Binding);
                 Assert.Equal("PlaybackActionText", playbackBinding.Path.Path);
-                AssertControl<Button>(window, "MiniPlayerNextSegmentButton", "下一段");
-                AssertControl<Button>(window, "MiniPlayerNextChapterButton", "下一章");
-                var volumeButton = Assert.IsType<Button>(window.FindName("MiniPlayerVolumeMenuButton"));
+                AssertControl<WpfUiButton>(window, "MiniPlayerNextSegmentButton", "下一段");
+                AssertControl<WpfUiButton>(window, "MiniPlayerNextChapterButton", "下一章");
+                var volumeButton = Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerVolumeMenuButton"));
                 Assert.Equal("播放音量", volumeButton.ToolTip);
                 Assert.Equal("播放音量 100%", AutomationProperties.GetName(volumeButton));
-                AssertControl<Button>(window, "MiniPlayerRestoreButton", "恢复主窗口");
-                AssertControl<Button>(window, "MiniPlayerTopmostButton", "置顶");
-                var topmostStateBorder = Assert.IsType<Border>(window.FindName("MiniPlayerTopmostStateBorder"));
-                Assert.Equal(Brushes.Transparent, topmostStateBorder.Background);
-                var topmostTrigger = Assert.Single(topmostStateBorder.Style!.Triggers.OfType<DataTrigger>());
+                AssertControl<WpfUiButton>(window, "MiniPlayerRestoreButton", "恢复主窗口");
+                Assert.Equal(
+                    SymbolRegular.ArrowMaximize24,
+                    Assert.IsType<SymbolIcon>(
+                        Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerRestoreButton")).Icon).Symbol);
+                AssertControl<WpfUiButton>(window, "MiniPlayerCloseButton", "退出应用");
+                AssertControl<WpfUiButton>(window, "MiniPlayerTopmostButton", "置顶");
+                var topmostButton = Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerTopmostButton"));
+                Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(topmostButton.Background).Color);
+                var topmostTrigger = Assert.Single(topmostButton.Style!.Triggers.OfType<DataTrigger>());
                 var topmostBinding = Assert.IsType<Binding>(topmostTrigger.Binding);
                 Assert.Equal("IsTopmost", topmostBinding.Path.Path);
                 Assert.Equal(
@@ -60,22 +99,44 @@ public sealed class MiniPlayerWindowTests
                 var progressToolTip = Assert.IsType<ToolTip>(progressSlider.ToolTip);
                 Assert.True(progressToolTip.StaysOpen);
                 Assert.False(ToolTipService.GetIsEnabled(progressSlider));
-                Assert.Same(window.FindResource("PlaybackProgressSliderStyle"), progressSlider.Style);
+                Assert.Same(window.FindResource("App.Media.Slider"), progressSlider.Style);
 
-                var volumePopup = Assert.IsType<Popup>(window.FindName("MiniPlayerVolumeMenuPopup"));
+                var volumePopup = Assert.IsType<Wpf.Ui.Controls.Flyout>(window.FindName("MiniPlayerVolumeFlyout"));
                 var volumeSlider = Assert.IsType<Slider>(window.FindName("MiniPlayerVolumeSlider"));
                 Assert.False(volumePopup.IsOpen);
                 Assert.Equal(0d, volumeSlider.Minimum);
                 Assert.Equal(1d, volumeSlider.Maximum);
                 Assert.Equal("播放音量", AutomationProperties.GetName(volumeSlider));
-                Assert.Same(window.FindResource("PlaybackProgressSliderStyle"), volumeSlider.Style);
+                Assert.Same(window.FindResource("App.Media.Slider"), volumeSlider.Style);
 
                 Assert.IsType<Grid>(window.FindName("MiniPlayerControlBar"));
+                var mediaSurface = Assert.IsType<Border>(window.FindName("MiniPlayerMediaSurface"));
+                Assert.Same(window.FindResource("App.Brush.Surface.Secondary"), mediaSurface.Background);
+                Assert.Equal(
+                    Assert.IsType<CornerRadius>(window.FindResource("App.Radius.Small")),
+                    mediaSurface.CornerRadius);
+                Assert.True(mediaSurface.ClipToBounds);
                 var mediaControls = Assert.IsType<StackPanel>(window.FindName("MiniPlayerMediaControls"));
                 Assert.Equal(1, Grid.GetColumn(mediaControls));
                 Assert.Equal(HorizontalAlignment.Center, mediaControls.HorizontalAlignment);
                 Assert.Equal(2, Grid.GetColumn(volumeButton));
                 Assert.Equal(HorizontalAlignment.Right, volumeButton.HorizontalAlignment);
+                Assert.Same(window.FindResource("App.Media.Button"), playbackButton.Style);
+                Assert.Same(window.FindResource("App.Media.Button"),
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerPreviousSegmentButton")).Style);
+                Assert.Same(window.FindResource("App.Media.Button"),
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerPreviousChapterButton")).Style);
+                Assert.Same(window.FindResource("App.Button.Icon"),
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerRestoreButton")).Style);
+                Assert.Same(window.FindResource("App.Media.Button"),
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerNextSegmentButton")).Style);
+                Assert.Same(window.FindResource("App.Media.Button"),
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerNextChapterButton")).Style);
+                Assert.Same(window.FindResource("App.Media.Button"), volumeButton.Style);
+                Assert.Equal(typeof(WpfUiButton), topmostButton.Style.TargetType);
+                Assert.Same(window.FindResource("App.Button.Icon"), topmostButton.Style.BasedOn);
+                Assert.Same(window.FindResource("App.Button.DangerIcon"),
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerCloseButton")).Style);
                 Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
                     volumePopup,
                     textBlock => textBlock.Text == "仅调整应用内播放音量，不改变系统音量。"));
@@ -87,29 +148,76 @@ public sealed class MiniPlayerWindowTests
         });
     }
 
-    [Fact]
-    public void Drag_policy_allows_blank_surface_but_excludes_interactive_controls()
+    private void Drag_policy_allows_blank_surface_but_excludes_interactive_controls()
     {
         WpfTestHost.RunInSta(() =>
         {
             var blankSurface = new Border();
             var button = new Button();
+            var resizeThumb = new Thumb();
             var slider = new Slider();
             var textBox = new TextBox();
 
             Assert.True(MiniPlayerWindowDragPolicy.CanStartDrag(blankSurface));
             Assert.False(MiniPlayerWindowDragPolicy.CanStartDrag(button));
+            Assert.False(MiniPlayerWindowDragPolicy.CanStartDrag(resizeThumb));
             Assert.False(MiniPlayerWindowDragPolicy.CanStartDrag(slider));
             Assert.False(MiniPlayerWindowDragPolicy.CanStartDrag(textBox));
         });
     }
 
-    [Theory]
-    [InlineData(double.NaN, 20)]
-    [InlineData(10, double.PositiveInfinity)]
-    [InlineData(-1, 20)]
-    [InlineData(900, 20)]
-    public void Invalid_or_offscreen_placement_uses_safe_fallback(double left, double top)
+    private void Width_resize_thumb_changes_only_width_within_window_bounds()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var fixture = CreateWindow(PlaybackSnapshot.Idle);
+            try
+            {
+                WpfWindowHost.Show(fixture.Window);
+                fixture.Window.UpdateLayout();
+
+                var resizeThumb = Assert.IsType<Thumb>(fixture.Window.FindName("MiniPlayerWidthResizeThumb"));
+                Assert.Equal(0, resizeThumb.Opacity);
+                var initialHeight = fixture.Window.ActualHeight;
+
+                resizeThumb.RaiseEvent(new DragDeltaEventArgs(12, 40)
+                {
+                    RoutedEvent = Thumb.DragDeltaEvent
+                });
+
+                Assert.InRange(fixture.Window.Width, fixture.Window.MinWidth, fixture.Window.MaxWidth);
+                Assert.Equal(initialHeight, fixture.Window.ActualHeight);
+
+                resizeThumb.RaiseEvent(new DragDeltaEventArgs(100, 40)
+                {
+                    RoutedEvent = Thumb.DragDeltaEvent
+                });
+
+                Assert.Equal(fixture.Window.MaxWidth, fixture.Window.Width);
+                Assert.Equal(initialHeight, fixture.Window.ActualHeight);
+            }
+            finally
+            {
+                CloseFixture(fixture);
+            }
+        });
+    }
+
+    private void Invalid_or_offscreen_placement_uses_safe_fallback()
+    {
+        foreach (var (left, top) in new[]
+        {
+            (double.NaN, 20d),
+            (10d, double.PositiveInfinity),
+            (-1d, 20d),
+            (900d, 20d)
+        })
+        {
+            Invalid_or_offscreen_placement_uses_safe_fallback_for_position(left, top);
+        }
+    }
+
+    private void Invalid_or_offscreen_placement_uses_safe_fallback_for_position(double left, double top)
     {
         Assert.False(MiniPlayerPlacementValidator.TryValidate(
             left,
@@ -120,8 +228,7 @@ public sealed class MiniPlayerWindowTests
             out _));
     }
 
-    [Fact]
-    public void Valid_placement_is_preserved()
+    private void Valid_placement_is_preserved()
     {
         Assert.True(MiniPlayerPlacementValidator.TryValidate(
             100,
@@ -133,8 +240,7 @@ public sealed class MiniPlayerWindowTests
         Assert.Equal(new MiniPlayerPlacement(100, 120), placement);
     }
 
-    [Fact]
-    public void User_close_requests_main_window_restore_instead_of_exiting()
+    private void User_close_requests_application_exit_instead_of_restoring_main_window()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -142,13 +248,13 @@ public sealed class MiniPlayerWindowTests
             try
             {
                 var window = provider.GetRequiredService<MiniPlayerWindow>();
-                var restoreRequested = false;
-                window.RestoreRequested += (_, _) => restoreRequested = true;
-                window.Show();
+                var exitRequested = false;
+                window.ExitRequested += (_, _) => exitRequested = true;
+                WpfWindowHost.Show(window);
 
                 window.Close();
 
-                Assert.True(restoreRequested);
+                Assert.True(exitRequested);
                 Assert.True(window.IsVisible);
                 window.CloseForShutdown();
             }
@@ -159,8 +265,269 @@ public sealed class MiniPlayerWindowTests
         });
     }
 
-    [Fact]
-    public void Placement_in_gap_between_monitors_is_rejected()
+    private void Close_button_requests_application_exit_without_restoring_main_window()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var fixture = CreateWindow(PlaybackSnapshot.Idle);
+            try
+            {
+                var exitRequested = false;
+                fixture.Window.ExitRequested += (_, _) => exitRequested = true;
+                WpfWindowHost.Show(fixture.Window);
+
+                FindButton(fixture.Window, "MiniPlayerCloseButton")
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+                Assert.True(exitRequested);
+                Assert.True(fixture.Window.IsVisible);
+            }
+            finally
+            {
+                CloseFixture(fixture);
+            }
+        });
+    }
+
+    private void Playback_context_projection_keeps_window_actions_and_media_command_contract()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var snapshot = PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Paused,
+                BookId = "book-1",
+                BookTitle = "一部很长的测试小说名称，用于验证迷你播放器标题不会改变窗口结构",
+                ChapterTitle = "第十二章 这是一个很长的章节标题，用于验证省略和窗口动作仍然可用",
+                ChapterIndex = 11,
+                SegmentIndex = 2,
+                SegmentCount = 8
+            };
+            var fixture = CreateWindow(snapshot);
+            try
+            {
+                WpfWindowHost.Show(fixture.Window);
+                fixture.Window.UpdateLayout();
+
+                Assert.True(FindButton(fixture.Window, "MiniPlayerPreviousChapterButton").IsEnabled);
+                Assert.True(FindButton(fixture.Window, "MiniPlayerNextChapterButton").IsEnabled);
+                Assert.True(FindButton(fixture.Window, "MiniPlayerPlaybackButton").IsEnabled);
+                Assert.Equal("一部很长的测试小说名称，用于验证迷你播放器标题不会改变窗口结构", fixture.ViewModel.BookTitle);
+                Assert.Equal(
+                    "第十二章 这是一个很长的章节标题，用于验证省略和窗口动作仍然可用",
+                    fixture.ViewModel.ChapterTitle);
+
+                var restoreRequested = false;
+                fixture.Window.RestoreRequested += (_, _) => restoreRequested = true;
+                FindButton(fixture.Window, "MiniPlayerTopmostButton").Command!.Execute(null);
+
+                Assert.True(fixture.ViewModel.IsTopmost);
+                Assert.True(fixture.Window.Topmost);
+                Assert.Equal("取消置顶", FindButton(fixture.Window, "MiniPlayerTopmostButton").ToolTip);
+
+                FindButton(fixture.Window, "MiniPlayerRestoreButton").Command!.Execute(null);
+                Assert.True(restoreRequested);
+            }
+            finally
+            {
+                CloseFixture(fixture);
+            }
+        });
+    }
+
+    private void Idle_projection_keeps_window_surface_and_media_controls_safe_without_playback_context()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var fixture = CreateWindow(PlaybackSnapshot.Idle);
+            try
+            {
+                WpfWindowHost.Show(fixture.Window);
+                fixture.Window.UpdateLayout();
+
+                Assert.False(fixture.ViewModel.HasPlaybackContext);
+                Assert.False(FindButton(fixture.Window, "MiniPlayerPreviousChapterButton").IsEnabled);
+                Assert.False(FindButton(fixture.Window, "MiniPlayerNextChapterButton").IsEnabled);
+                Assert.False(FindButton(fixture.Window, "MiniPlayerPlaybackButton").IsEnabled);
+                Assert.Equal("未打开书籍", fixture.ViewModel.BookTitle);
+                Assert.Equal("尚未定位章节", fixture.ViewModel.ChapterTitle);
+            }
+            finally
+            {
+                CloseFixture(fixture);
+            }
+        });
+    }
+
+    private void Default_layout_keeps_progress_and_control_bar_close_without_overlap()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var themeRuntime = new WpfUiThemeRuntime();
+            var scenarios = new[]
+            {
+                (Name: "no-context", Snapshot: PlaybackSnapshot.Idle),
+                (Name: "with-context", Snapshot: PlaybackSnapshot.Idle with
+                {
+                    State = PlaybackState.Paused,
+                    BookId = "geometry-book",
+                    BookTitle = "几何测试书名",
+                    ChapterTitle = "几何测试章节",
+                    ChapterIndex = 1,
+                    SegmentIndex = 1,
+                    SegmentCount = 4
+                })
+            };
+
+            try
+            {
+                foreach (var (themeName, applyTheme) in new (string Name, Action Apply)[]
+                         {
+                             ("light", themeRuntime.ApplyLightTheme),
+                             ("dark", themeRuntime.ApplyDarkTheme)
+                         })
+                {
+                    applyTheme();
+                    foreach (var (_, snapshot) in scenarios)
+                    {
+                        var fixture = CreateWindow(snapshot);
+                        try
+                        {
+                            WpfWindowHost.Show(fixture.Window);
+                            fixture.Window.UpdateLayout();
+
+                            var surface = Assert.IsType<Border>(fixture.Window.FindName("MiniPlayerSurface"));
+                            var progress = Assert.IsType<Slider>(fixture.Window.FindName("MiniPlayerProgressSlider"));
+                            var controlBar = Assert.IsType<Grid>(fixture.Window.FindName("MiniPlayerControlBar"));
+                            var playbackButton = Assert.IsType<WpfUiButton>(fixture.Window.FindName("MiniPlayerPlaybackButton"));
+                            var progressBounds = GetBoundsIn(progress, surface);
+                            var controlBarBounds = GetBoundsIn(controlBar, surface);
+                            var gap = controlBarBounds.Top - progressBounds.Bottom;
+
+                            Assert.True(
+                                gap is >= 0.5 and <= 24,
+                                $"Progress/control-bar gap was {gap:0.##} DIP in {themeName}.");
+                            Assert.False(progressBounds.IntersectsWith(controlBarBounds));
+                            Assert.True(progress.IsVisible);
+                            Assert.True(progress.ActualWidth > 0);
+                            Assert.True(progress.ActualHeight > 0);
+                            Assert.True(controlBar.IsVisible);
+                            Assert.True(controlBar.ActualWidth > 0);
+                            Assert.True(controlBar.ActualHeight > 0);
+                            var previousSegmentButton = Assert.IsType<WpfUiButton>(
+                                fixture.Window.FindName("MiniPlayerPreviousSegmentButton"));
+                            var nextSegmentButton = Assert.IsType<WpfUiButton>(
+                                fixture.Window.FindName("MiniPlayerNextSegmentButton"));
+                            Assert.Equal(previousSegmentButton.ActualWidth, playbackButton.ActualWidth);
+                            Assert.Equal(previousSegmentButton.ActualHeight, playbackButton.ActualHeight);
+                            Assert.Equal(nextSegmentButton.ActualWidth, playbackButton.ActualWidth);
+                            Assert.Equal(nextSegmentButton.ActualHeight, playbackButton.ActualHeight);
+
+                            foreach (var name in new[]
+                                     {
+                                         "MiniPlayerPreviousChapterButton",
+                                         "MiniPlayerPreviousSegmentButton",
+                                         "MiniPlayerPlaybackButton",
+                                         "MiniPlayerNextSegmentButton",
+                                         "MiniPlayerNextChapterButton",
+                                         "MiniPlayerVolumeMenuButton"
+                                     })
+                            {
+                                var button = Assert.IsType<WpfUiButton>(fixture.Window.FindName(name));
+                                Assert.True(button.IsVisible);
+                                Assert.True(button.ActualWidth > 0);
+                                Assert.True(button.ActualHeight > 0);
+                                Assert.Equal(
+                                    Colors.Transparent,
+                                    Assert.IsType<SolidColorBrush>(button.Background).Color);
+                            }
+                        }
+                        finally
+                        {
+                            CloseFixture(fixture);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                themeRuntime.ApplyLightTheme();
+            }
+        });
+    }
+
+    private void Saved_position_is_available_and_a_user_move_is_persisted()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var fixture = CreateWindow(
+                PlaybackSnapshot.Idle,
+                AppSettings.Default with
+                {
+                    MiniPlayerLeft = 120,
+                    MiniPlayerTop = 140,
+                    MiniPlayerTopmost = true
+                },
+                new FakeScreenBoundsProvider(new MiniPlayerScreenBounds(0, 0, 1200, 900)));
+            try
+            {
+                Assert.Equal(120d, fixture.ViewModel.SavedLeft!.Value);
+                Assert.Equal(140d, fixture.ViewModel.SavedTop!.Value);
+                WpfWindowHost.Show(fixture.Window);
+                fixture.Window.UpdateLayout();
+
+                Assert.Equal(0d, fixture.Window.Left);
+                Assert.Equal(0d, fixture.Window.Top);
+                Assert.True(fixture.Window.Topmost);
+
+                fixture.Window.Left = 260;
+                fixture.Window.Top = 280;
+                fixture.Window.UpdateLayout();
+                fixture.ViewModel.FlushPlacementAsync(CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+
+                Assert.Equal(260, fixture.Settings.Current.MiniPlayerLeft);
+                Assert.Equal(280, fixture.Settings.Current.MiniPlayerTop);
+                Assert.True(fixture.Settings.Current.MiniPlayerTopmost);
+            }
+            finally
+            {
+                CloseFixture(fixture);
+            }
+        });
+    }
+
+    private void Mini_player_visual_review_generates_stable_window_screenshots()
+    {
+        if (!VisualArtifactTestGuard.IsEnabled)
+        {
+            return;
+        }
+
+        WpfTestHost.RunInSta(() =>
+        {
+            var outputDirectory = Path.Combine(
+                LocateRepositoryRoot(),
+                "artifacts",
+                "visual-review",
+                "windows",
+                "mini-player");
+            Directory.CreateDirectory(outputDirectory);
+            var expectedGitCommit = ReadGitCommit(LocateRepositoryRoot());
+            GenerateVisualReview(outputDirectory, expectedGitCommit);
+            var firstManifest = ReadVisualReviewManifest(outputDirectory);
+            AssertManifestMatchesPngs(firstManifest, outputDirectory, expectedGitCommit);
+            var firstSnapshot = CreateVisualReviewSnapshot(firstManifest);
+
+            GenerateVisualReview(outputDirectory, expectedGitCommit);
+            var secondManifest = ReadVisualReviewManifest(outputDirectory);
+            AssertManifestMatchesPngs(secondManifest, outputDirectory, expectedGitCommit);
+            Assert.Equal(firstSnapshot, CreateVisualReviewSnapshot(secondManifest));
+        });
+    }
+
+    private void Placement_in_gap_between_monitors_is_rejected()
     {
         Assert.False(MiniPlayerPlacementValidator.TryValidate(
             700,
@@ -174,11 +541,497 @@ public sealed class MiniPlayerWindowTests
             out _));
     }
 
+    [Fact]
+    public void Mini_player_surface_contracts_cover_controls_drag_and_layout()
+    {
+        Window_exposes_required_controls_and_accessibility_contract();
+        Drag_policy_allows_blank_surface_but_excludes_interactive_controls();
+        Width_resize_thumb_changes_only_width_within_window_bounds();
+        Default_layout_keeps_progress_and_control_bar_close_without_overlap();
+    }
+
+    [Fact]
+    public void Mini_player_placement_contracts_cover_valid_invalid_and_monitor_gap_positions()
+    {
+        Invalid_or_offscreen_placement_uses_safe_fallback();
+        Valid_placement_is_preserved();
+        Placement_in_gap_between_monitors_is_rejected();
+    }
+
+    [Fact]
+    public void Mini_player_lifecycle_contracts_cover_close_and_persisted_position_commands()
+    {
+        User_close_requests_application_exit_instead_of_restoring_main_window();
+        Close_button_requests_application_exit_without_restoring_main_window();
+        Saved_position_is_available_and_a_user_move_is_persisted();
+    }
+
+    [Fact]
+    public void Mini_player_projection_contracts_cover_playback_idle_and_visual_review()
+    {
+        Playback_context_projection_keeps_window_actions_and_media_command_contract();
+        Idle_projection_keeps_window_surface_and_media_controls_safe_without_playback_context();
+        Mini_player_visual_review_generates_stable_window_screenshots();
+    }
+
     private static void AssertControl<T>(MiniPlayerWindow window, string name, string automationName)
         where T : FrameworkElement
     {
         var control = Assert.IsType<T>(window.FindName(name));
         Assert.Equal(automationName, AutomationProperties.GetName(control));
         Assert.Equal(automationName, control.ToolTip);
+    }
+
+    private static MiniPlayerFixture CreateWindow(
+        PlaybackSnapshot snapshot,
+        AppSettings? settings = null,
+        IMiniPlayerScreenBoundsProvider? screenBoundsProvider = null)
+    {
+        var playback = new FakePlaybackSession(snapshot);
+        var settingsService = new FakeAppSettingsService(settings ?? AppSettings.Default);
+        var viewModel = new MiniPlayerViewModel(
+            playback,
+            settingsService,
+            new InlineUiScheduler(),
+            NullLogger<MiniPlayerViewModel>.Instance);
+        var window = new MiniPlayerWindow(
+            viewModel,
+            screenBoundsProvider ?? new FakeScreenBoundsProvider(new MiniPlayerScreenBounds(0, 0, 1920, 1080)));
+        return new MiniPlayerFixture(window, viewModel, settingsService);
+    }
+
+    private static void CloseFixture(MiniPlayerFixture fixture)
+    {
+        if (fixture.Window.IsVisible)
+        {
+            fixture.Window.CloseForShutdown();
+        }
+
+        fixture.ViewModel.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    }
+
+    private static void AssertUsableLayout(MiniPlayerWindow window, double scale)
+    {
+        Assert.True(FindButton(window, "MiniPlayerTopmostButton").ActualWidth >= 32 * 0.9, $"Topmost button collapsed at {scale:0.##}x.");
+        Assert.True(FindButton(window, "MiniPlayerRestoreButton").ActualWidth >= 32 * 0.9, $"Restore button collapsed at {scale:0.##}x.");
+        Assert.True(FindButton(window, "MiniPlayerPlaybackButton").ActualWidth >= 48 * 0.9, $"Playback button collapsed at {scale:0.##}x.");
+        Assert.True(FindButton(window, "MiniPlayerVolumeMenuButton").ActualWidth >= 48 * 0.9, $"Volume button collapsed at {scale:0.##}x.");
+        Assert.True(Assert.IsType<TextBlock>(window.FindName("MiniPlayerBookTitle")).ActualWidth > 0);
+        Assert.True(Assert.IsType<TextBlock>(window.FindName("MiniPlayerChapterTitle")).ActualWidth > 0);
+    }
+
+    private static void GenerateVisualReview(string outputDirectory, string gitCommit)
+    {
+        var entries = new List<MiniPlayerVisualReviewEntry>();
+        var themeRuntime = new WpfUiThemeRuntime();
+        var scenarios = new Dictionary<string, PlaybackSnapshot>(StringComparer.Ordinal)
+        {
+            ["no-context"] = PlaybackSnapshot.Idle,
+            ["long-context"] = PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Paused,
+                BookId = "visual-review-book",
+                BookTitle = "一部非常非常长的小说名称，用于迷你播放器视觉回归截图和文本省略场景",
+                ChapterTitle = "第九十九章 这是一个非常非常长的章节名称，用于 Light Dark 和 DPI 回归",
+                ChapterIndex = 98,
+                SegmentIndex = 4,
+                SegmentCount = 12
+            },
+            ["volume-flyout"] = PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Paused,
+                BookId = "visual-review-book",
+                BookTitle = "示例小说",
+                ChapterTitle = "第三章",
+                ChapterIndex = 2,
+                SegmentIndex = 4,
+                SegmentCount = 12
+            }
+        };
+
+        try
+        {
+            foreach (var (themeName, applyTheme) in new (string Name, Action Apply)[]
+                     {
+                         ("light", themeRuntime.ApplyLightTheme),
+                         ("dark", themeRuntime.ApplyDarkTheme)
+                     })
+            {
+                applyTheme();
+                foreach (var (scenarioName, snapshot) in scenarios)
+                {
+                    var fixture = CreateWindow(snapshot);
+                    try
+                    {
+                        WpfWindowHost.Show(fixture.Window);
+                        if (scenarioName == "volume-flyout")
+                        {
+                            Assert.IsType<Wpf.Ui.Controls.Flyout>(
+                                fixture.Window.FindName("MiniPlayerVolumeFlyout")).IsOpen = true;
+                        }
+
+                        fixture.Window.UpdateLayout();
+                        var surface = Assert.IsType<Border>(fixture.Window.FindName("MiniPlayerSurface"));
+                        Assert.True(surface.ActualWidth > 0);
+
+                        foreach (var scale in new[] { 1d, 1.25d, 1.5d })
+                        {
+                            fixture.Window.UpdateLayout();
+                            AssertUsableLayout(fixture.Window, scale);
+                            var png = EncodePng(Render(fixture.Window, scale));
+                            var fileName = $"mini-player.{themeName}.{scenarioName}.{scale * 100:0}.png";
+                            var frame = DecodePng(png);
+                            File.WriteAllBytes(Path.Combine(outputDirectory, fileName), png);
+                            entries.Add(new MiniPlayerVisualReviewEntry(
+                                themeName,
+                                scenarioName,
+                                scale,
+                                96 * scale,
+                                frame.PixelWidth,
+                                frame.PixelHeight,
+                                fileName,
+                                Convert.ToHexString(SHA256.HashData(png)).ToLowerInvariant()));
+                        }
+                    }
+                    finally
+                    {
+                        CloseFixture(fixture);
+                    }
+                }
+            }
+
+            var manifest = new MiniPlayerVisualReviewManifest(
+                "mini-player",
+                "NovelSpeaker.App.WpfTests",
+                gitCommit,
+                480,
+                150,
+                entries);
+            File.WriteAllText(
+                Path.Combine(outputDirectory, "manifest.json"),
+                JsonSerializer.Serialize(
+                    manifest,
+                    new JsonSerializerOptions { WriteIndented = true }));
+        }
+        finally
+        {
+            themeRuntime.ApplyLightTheme();
+        }
+    }
+
+    private static MiniPlayerVisualReviewManifest ReadVisualReviewManifest(string outputDirectory)
+    {
+        using var stream = File.OpenRead(Path.Combine(outputDirectory, "manifest.json"));
+        return JsonSerializer.Deserialize<MiniPlayerVisualReviewManifest>(stream)
+            ?? throw new InvalidDataException("Mini player visual review manifest was empty.");
+    }
+
+    private static void AssertManifestMatchesPngs(
+        MiniPlayerVisualReviewManifest manifest,
+        string outputDirectory,
+        string expectedGitCommit)
+    {
+        Assert.Equal("mini-player", manifest.ArtifactId);
+        Assert.Equal("NovelSpeaker.App.WpfTests", manifest.Tool);
+        Assert.Equal(expectedGitCommit, manifest.GitCommit);
+        Assert.True(IsValidGitCommit(manifest.GitCommit));
+        Assert.Equal(480, manifest.WindowWidth);
+        Assert.Equal(150, manifest.WindowHeight);
+        Assert.Equal(18, manifest.Scenarios.Count);
+
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var entry in manifest.Scenarios)
+        {
+            Assert.True(entry.Theme is "light" or "dark");
+            Assert.True(entry.Scenario is "no-context" or "long-context" or "volume-flyout");
+            Assert.True(entry.Scale is 1d or 1.25d or 1.5d);
+            Assert.Equal(96 * entry.Scale, entry.Dpi);
+            Assert.True(keys.Add($"{entry.Theme}|{entry.Scenario}|{entry.Scale:R}"));
+            Assert.Equal(32, Convert.FromHexString(entry.Sha256).Length);
+
+            var pngPath = Path.Combine(outputDirectory, entry.Png);
+            Assert.True(File.Exists(pngPath), $"Missing visual review PNG '{entry.Png}'.");
+            var png = File.ReadAllBytes(pngPath);
+            Assert.Equal(
+                entry.Sha256,
+                Convert.ToHexString(SHA256.HashData(png)).ToLowerInvariant());
+
+            using var stream = new MemoryStream(png, writable: false);
+            var frame = BitmapFrame.Create(
+                stream,
+                BitmapCreateOptions.PreservePixelFormat,
+                BitmapCacheOption.OnLoad);
+            Assert.True(entry.Width > 0);
+            Assert.True(entry.Height > 0);
+            Assert.Equal(entry.Width, frame.PixelWidth);
+            Assert.Equal(entry.Height, frame.PixelHeight);
+            Assert.InRange(frame.DpiX, entry.Dpi - 0.1, entry.Dpi + 0.1);
+            Assert.InRange(frame.DpiY, entry.Dpi - 0.1, entry.Dpi + 0.1);
+        }
+
+        Assert.Equal(18, keys.Count);
+    }
+
+    private static string[] CreateVisualReviewSnapshot(MiniPlayerVisualReviewManifest manifest) =>
+        new[]
+        {
+            JsonSerializer.Serialize(new
+            {
+                manifest.ArtifactId,
+                manifest.Tool,
+                manifest.GitCommit,
+                manifest.WindowWidth,
+                manifest.WindowHeight
+            })
+        }
+        .Concat(manifest.Scenarios
+            .OrderBy(entry => entry.Theme, StringComparer.Ordinal)
+            .ThenBy(entry => entry.Scenario, StringComparer.Ordinal)
+            .ThenBy(entry => entry.Scale)
+            .Select(entry => JsonSerializer.Serialize(entry)))
+            .ToArray();
+
+    private static BitmapSource Render(MiniPlayerWindow window, double scale)
+    {
+        var dpi = 96 * scale;
+        var size = new Size(window.Width, window.Height);
+        var bitmap = new RenderTargetBitmap(
+            Pixels(window.Width, scale),
+            Pixels(window.Height, scale),
+            dpi,
+            dpi,
+            PixelFormats.Pbgra32);
+        bitmap.Render(window);
+        bitmap.Freeze();
+        return TransientPopupVisualRenderer.Composite(
+            bitmap,
+            size,
+            dpi,
+            TransientPopupVisualRenderer.CaptureOpenLayers(window, dpi));
+    }
+
+    private static int Pixels(double dip, double scale) =>
+        (int)Math.Round(dip * scale, MidpointRounding.AwayFromZero);
+
+    private static Button FindButton(MiniPlayerWindow window, string name) =>
+        Assert.IsAssignableFrom<Button>(window.FindName(name));
+
+    private static Rect GetBoundsIn(FrameworkElement element, UIElement ancestor)
+    {
+        var topLeft = element.TranslatePoint(new Point(0, 0), ancestor);
+        return new Rect(topLeft, new Size(element.ActualWidth, element.ActualHeight));
+    }
+
+    private static byte[] EncodePng(BitmapSource bitmap)
+    {
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = new MemoryStream();
+        encoder.Save(stream);
+        return stream.ToArray();
+    }
+
+    private static BitmapFrame DecodePng(byte[] png)
+    {
+        using var stream = new MemoryStream(png, writable: false);
+        return BitmapFrame.Create(
+            stream,
+            BitmapCreateOptions.PreservePixelFormat,
+            BitmapCacheOption.OnLoad);
+    }
+
+    private static string LocateRepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (Directory.Exists(Path.Combine(current.FullName, "src")) &&
+                Directory.Exists(Path.Combine(current.FullName, "docs")))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate repository root.");
+    }
+
+    private static string ReadGitCommit(string repositoryRoot)
+    {
+        var gitDirectory = ResolveGitDirectory(repositoryRoot);
+        var head = File.ReadAllText(Path.Combine(gitDirectory, "HEAD")).Trim();
+        var commit = head.StartsWith("ref: ", StringComparison.Ordinal)
+            ? ReadGitReference(gitDirectory, head[5..].Trim())
+            : head;
+
+        if (!IsValidGitCommit(commit))
+        {
+            throw new InvalidDataException("Repository HEAD does not contain a valid Git commit.");
+        }
+
+        return commit!;
+    }
+
+    private static string? ReadGitReference(string gitDirectory, string referenceName)
+    {
+        var referencePath = Path.Combine(
+            gitDirectory,
+            referenceName.Replace('/', Path.DirectorySeparatorChar));
+        if (File.Exists(referencePath))
+        {
+            return File.ReadAllText(referencePath).Trim();
+        }
+
+        var packedRefsPath = Path.Combine(gitDirectory, "packed-refs");
+        if (!File.Exists(packedRefsPath))
+        {
+            return null;
+        }
+
+        foreach (var line in File.ReadLines(packedRefsPath))
+        {
+            if (line.StartsWith('#') || line.StartsWith('^'))
+            {
+                continue;
+            }
+
+            var parts = line.Split(' ', 2, StringSplitOptions.TrimEntries);
+            if (parts.Length == 2 && parts[1].Equals(referenceName, StringComparison.Ordinal))
+            {
+                return parts[0];
+            }
+        }
+
+        return null;
+    }
+
+    private static string ResolveGitDirectory(string repositoryRoot)
+    {
+        var dotGitPath = Path.Combine(repositoryRoot, ".git");
+        if (Directory.Exists(dotGitPath))
+        {
+            return dotGitPath;
+        }
+
+        if (File.Exists(dotGitPath))
+        {
+            var gitDirLine = File.ReadAllText(dotGitPath).Trim();
+            const string prefix = "gitdir: ";
+            if (gitDirLine.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var gitDirectory = gitDirLine[prefix.Length..].Trim();
+                return Path.GetFullPath(
+                    Path.IsPathRooted(gitDirectory)
+                        ? gitDirectory
+                        : Path.Combine(repositoryRoot, gitDirectory));
+            }
+        }
+
+        throw new DirectoryNotFoundException("Could not locate the repository Git directory.");
+    }
+
+    private static bool IsValidGitCommit(string? commit) =>
+        commit is not null &&
+        (commit.Length == 40 || commit.Length == 64) &&
+        commit.All(Uri.IsHexDigit);
+
+    private sealed record MiniPlayerFixture(
+        MiniPlayerWindow Window,
+        MiniPlayerViewModel ViewModel,
+        FakeAppSettingsService Settings);
+
+    private sealed record MiniPlayerVisualReviewManifest(
+        string ArtifactId,
+        string Tool,
+        string GitCommit,
+        int WindowWidth,
+        int WindowHeight,
+        IReadOnlyList<MiniPlayerVisualReviewEntry> Scenarios);
+
+    private sealed record MiniPlayerVisualReviewEntry(
+        string Theme,
+        string Scenario,
+        double Scale,
+        double Dpi,
+        int Width,
+        int Height,
+        string Png,
+        string Sha256);
+
+    private sealed class FakeScreenBoundsProvider(MiniPlayerScreenBounds bounds) : IMiniPlayerScreenBoundsProvider
+    {
+        public IReadOnlyList<MiniPlayerScreenBounds> GetWorkAreas() => [bounds];
+    }
+
+    private sealed class InlineUiScheduler : IUiScheduler
+    {
+        public bool CheckAccess() => true;
+
+        public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            action();
+            return Task.CompletedTask;
+        }
+
+        public Task InvokeAsync(Func<Task> action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return action();
+        }
+    }
+
+    private sealed class FakeAppSettingsService(AppSettings settings) : IAppSettingsService
+    {
+        public AppSettings Current { get; private set; } = settings;
+
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed;
+
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var previous = Current;
+            Current = Current with
+            {
+                MiniPlayerLeft = update.ClearMiniPlayerLeft ? null : update.MiniPlayerLeft ?? Current.MiniPlayerLeft,
+                MiniPlayerTop = update.ClearMiniPlayerTop ? null : update.MiniPlayerTop ?? Current.MiniPlayerTop,
+                MiniPlayerTopmost = update.MiniPlayerTopmost ?? Current.MiniPlayerTopmost
+            };
+            Changed?.Invoke(this, new AppSettingsChangedEventArgs(previous, Current));
+            return Task.FromResult(Current);
+        }
+    }
+
+    private sealed class FakePlaybackSession(PlaybackSnapshot snapshot) : IPlaybackSession
+    {
+        public PlaybackSnapshot CurrentSnapshot { get; private set; } = snapshot;
+
+        public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
+
+        public void Publish(PlaybackSnapshot nextSnapshot)
+        {
+            CurrentSnapshot = nextSnapshot;
+            SnapshotChanged?.Invoke(this, nextSnapshot);
+        }
+
+        public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task OpenPausedAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PauseAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ResumeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task NextSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PreviousSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task NextChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PreviousChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
+        public void SetVolume(double volume)
+        {
+        }
     }
 }

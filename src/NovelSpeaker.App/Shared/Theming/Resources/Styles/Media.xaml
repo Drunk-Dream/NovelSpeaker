@@ -1,0 +1,42 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <!--
+        Media controls reuse the common icon-button template and interaction
+        states. This dictionary owns the shared media hit area, editable
+        position slider and secondary control surface.
+    -->
+    <Style x:Key="App.Media.Button"
+           TargetType="{x:Type ui:Button}"
+           BasedOn="{StaticResource App.Button.Icon}">
+        <Setter Property="Width" Value="{StaticResource App.Size.MediaButton}" />
+        <Setter Property="Height" Value="{StaticResource App.Size.MediaButton}" />
+        <Setter Property="MinWidth" Value="{StaticResource App.Size.MediaButton}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.MediaButton}" />
+    </Style>
+
+    <Style x:Key="App.Media.Slider"
+           TargetType="{x:Type Slider}"
+           BasedOn="{StaticResource Provider.Slider}">
+        <Setter Property="Height" Value="24" />
+        <Setter Property="MinHeight" Value="24" />
+        <Setter Property="MinWidth" Value="280" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Focusable" Value="True" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Hover}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Media.ControlSurface"
+           TargetType="{x:Type Border}"
+           BasedOn="{StaticResource App.Surface.Secondary}" />
+</ResourceDictionary>

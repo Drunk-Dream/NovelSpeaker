@@ -9,7 +9,7 @@
 - 文档入口和阅读顺序：`docs/README.md`
 - 产品范围：`docs/00_PROJECT_BRIEF.md`、`docs/01_PRODUCT_SCOPE.md`
 - 架构与代码组织：`docs/02_TECH_STACK_AND_ARCHITECTURE.md`
-- 专项设计：`docs/03_HTTP_TTS_COMPATIBILITY.md` 至 `docs/08_RUNTIME_AND_LIFECYCLE.md`、`docs/12_REGEX_REPLACEMENT_PIPELINE.md`
+- 专项设计：`docs/03_HTTP_TTS_COMPATIBILITY.md` 至 `docs/08_RUNTIME_AND_LIFECYCLE.md`、`docs/12_REGEX_REPLACEMENT_PIPELINE.md`、`docs/13_VISUAL_DESIGN_SYSTEM.md`
 - 测试与工程约定：`docs/09_TESTING_AND_QUALITY.md`、`docs/10_ENGINEERING_CONVENTIONS.md`
 - 决策和风险：`docs/11_DECISIONS_RISKS_OPEN_QUESTIONS.md`
 - 当前任务、依赖和状态：`docs/TASK_BACKLOG.md`
@@ -23,6 +23,8 @@
 3. 检查工作区已有改动并保留用户修改；不得覆盖、回滚或格式化无关文件。
 4. 确认任务是否改变产品行为、数据格式、公共接口、安全边界或发布内容；若改变，先明确设计依据和验收条件。
 5. 优先使用 `rg`、`rg --files` 和小范围读取，不遍历 `bin`、`obj`、`TestResults` 等生成物。
+
+Codex 配置目录直接读取 `~/.codex/`。
 
 ## 修改范围
 
@@ -60,11 +62,14 @@
 
 - `docs/06_UI_AND_USER_FLOWS.md`
 - `docs/07_SETTINGS_PAGES.md`
+- `docs/13_VISUAL_DESIGN_SYSTEM.md`
 - 正则替换相关任务另读 `docs/12_REGEX_REPLACEMENT_PIPELINE.md`
 
 若需求与设计文档冲突，先更新设计或记录经用户确认的偏离原因，再修改代码。不得通过新增并行页面、局部导航或重复交互绕过既有设计。
 
 UI 事件和平台能力通过可测试的 presentation port 转交；不得在不同页面分别直接实现文件选择、剪贴板、目录打开、错误投影或播放协调。
+
+Dialog、Flyout、Popup 和独立状态浮窗遵循 `docs/13_VISUAL_DESIGN_SYSTEM.md` 的 Single Surface 约束：宿主已经拥有完整浮层时，内容不得再默认嵌套完整 Card/Section/Raised Surface；`AppStatusView` 只有在外层已拥有主 Surface 时才使用 Embedded 模式。
 
 ## 数据、安全与兼容约束
 
@@ -85,6 +90,11 @@ UI 事件和平台能力通过可测试的 presentation port 转交；不得在�
 - 测试按 `docs/09_TESTING_AND_QUALITY.md` 分层；纯测试不得依赖 WPF STA 或真实第三方服务。
 - 测试等待明确事件、状态版本或可控时间，不使用任意 `Task.Delay`/`Thread.Sleep` 猜测完成。
 - migration、fixture、损坏音频、规则样本和 WPF Test Host 属于受保护测试资产，不能仅因无生产引用而删除。
+- 自动 WPF 测试默认不得在用户当前交互桌面显示任何顶层窗口；普通 Page/UserControl 优先使用 `WpfControlHost`，真实 Window/Popup/Focus/HWND 生命周期只能通过 `tests/TestKit/Wpf` 的共享宿主进入隔离测试 Desktop。
+- 测试宿主无法建立隔离 Desktop 时必须失败，不得回退到当前用户 Desktop。不得通过“移到屏幕外”作为长期无窗口保证。
+- 未经用户在当前任务中明确授权，Codex 不得设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`，也不得设置旧的 `NOVELSPEAKER_TEST_SHOW_WINDOWS=1`、直接运行会显示 NovelSpeaker UI 的调试流程，或采用其它方式绕过隐藏 Desktop。
+- `NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 只授权生成确定性截图/manifest，不授权显示窗口。
+- 当前阶段的测试数量目标只存在于 `docs/TASK_BACKLOG.md`；不得建立永久的测试总数上限，也不得通过把无关行为塞进单一测试来规避数量。
 
 ## 文件和文档规则
 
@@ -95,6 +105,8 @@ UI 事件和平台能力通过可测试的 presentation port 转交；不得在�
 - 已完成历史只在必要时移入 `docs/archives/`，归档不作为新实现依据。
 - 根目录 `README.md` 只描述当前已经实现的能力；规划中的功能不得提前写成可用能力。
 - 新的 backlog/任务验收不得把“手动验证”作为关闭条件；尽量用自动测试、架构检查、WPF 契约测试和发布包检查建立可重复证据。
+- Style Gallery 场景和截图按稳定资源族命名；正式界面截图按稳定页面/窗口身份命名。任何视觉产物路径不得使用 backlog 任务编号。
+- 页面截图必须来自正式 View 与确定性脱敏 fixture；Gallery 只展示资源族、控件族和样式族，不制作正式页面副本。
 
 ## 日常验证
 
@@ -119,6 +131,8 @@ dotnet test -c Release --no-build
 ```powershell
 dotnet run --project src/NovelSpeaker.App
 ```
+
+`dotnet run` 会显示正式应用窗口，属于可见 UI 操作；Codex 只有在用户当前任务明确允许时才可执行。普通测试和视觉产物生成不得以此替代自动宿主。
 
 只有依赖或版本确实变化时才允许：
 

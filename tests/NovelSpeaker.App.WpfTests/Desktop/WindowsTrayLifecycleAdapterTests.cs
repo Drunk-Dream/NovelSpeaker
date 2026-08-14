@@ -9,8 +9,7 @@ namespace NovelSpeaker.App.WpfTests.Desktop;
 [Collection("WpfDispatcher")]
 public sealed class WindowsTrayLifecycleAdapterTests
 {
-    [Fact]
-    public async Task Start_requires_main_window_attachment()
+    private async Task Start_requires_main_window_attachment()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -31,8 +30,7 @@ public sealed class WindowsTrayLifecycleAdapterTests
         });
     }
 
-    [Fact]
-    public void Repeated_attachment_of_same_window_is_idempotent()
+    private void Repeated_attachment_of_same_window_is_idempotent()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -54,8 +52,7 @@ public sealed class WindowsTrayLifecycleAdapterTests
         });
     }
 
-    [Fact]
-    public void Stop_cleanup_completes_without_dispatcher_continuation()
+    private void Stop_cleanup_completes_without_dispatcher_continuation()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -86,8 +83,7 @@ public sealed class WindowsTrayLifecycleAdapterTests
         });
     }
 
-    [Fact]
-    public void Tray_menu_exposes_required_commands_and_enables_mini_player()
+    private void Tray_menu_exposes_required_commands_and_enables_mini_player()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -116,8 +112,7 @@ public sealed class WindowsTrayLifecycleAdapterTests
         });
     }
 
-    [Fact]
-    public void Tray_menu_click_only_publishes_platform_command()
+    private void Tray_menu_click_only_publishes_platform_command()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -149,8 +144,36 @@ public sealed class WindowsTrayLifecycleAdapterTests
         });
     }
 
-    [Fact]
-    public async Task Owned_extracted_icon_is_destroyed_once_after_repeated_stop()
+    private void Mini_player_close_publishes_exit_application_command()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var miniPlayer = provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.MiniPlayerWindow>();
+                var adapter = new WindowsTrayLifecycleAdapter(
+                    miniPlayer,
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.IMiniPlayerPlacementPersistence>());
+                adapter.AttachMainWindow(provider.GetRequiredService<MainWindow>());
+                DesktopLifecycleCommand? received = null;
+                adapter.CommandReceived += (_, command) => received = command;
+
+                WpfWindowHost.Show(miniPlayer);
+                miniPlayer.Close();
+
+                Assert.Equal(DesktopLifecycleCommand.ExitApplication, received);
+                Assert.True(miniPlayer.IsVisible);
+                miniPlayer.CloseForShutdown();
+            }
+            finally
+            {
+                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    private async Task Owned_extracted_icon_is_destroyed_once_after_repeated_stop()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -187,8 +210,7 @@ public sealed class WindowsTrayLifecycleAdapterTests
         });
     }
 
-    [Fact]
-    public async Task Shared_fallback_icon_is_never_destroyed()
+    private async Task Shared_fallback_icon_is_never_destroyed()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -221,8 +243,7 @@ public sealed class WindowsTrayLifecycleAdapterTests
         });
     }
 
-    [Fact]
-    public async Task Failed_tray_registration_releases_owned_icon_and_repeated_stop_is_safe()
+    private async Task Failed_tray_registration_releases_owned_icon_and_repeated_stop_is_safe()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -255,6 +276,30 @@ public sealed class WindowsTrayLifecycleAdapterTests
                 await provider.DisposeAsync();
             }
         });
+    }
+
+    [Fact]
+    public async Task Windows_tray_lifecycle_contracts_cover_attachment_and_cleanup()
+    {
+        await Start_requires_main_window_attachment();
+        Repeated_attachment_of_same_window_is_idempotent();
+        Stop_cleanup_completes_without_dispatcher_continuation();
+    }
+
+    [Fact]
+    public void Windows_tray_command_contracts_cover_menu_actions_and_mini_player_exit()
+    {
+        Tray_menu_exposes_required_commands_and_enables_mini_player();
+        Tray_menu_click_only_publishes_platform_command();
+        Mini_player_close_publishes_exit_application_command();
+    }
+
+    [Fact]
+    public async Task Windows_tray_icon_ownership_contracts_cover_owned_shared_and_failed_paths()
+    {
+        await Owned_extracted_icon_is_destroyed_once_after_repeated_stop();
+        await Shared_fallback_icon_is_never_destroyed();
+        await Failed_tray_registration_releases_owned_icon_and_repeated_stop_is_safe();
     }
 
     private sealed class FakeNativeApi : IWindowsTrayNativeApi

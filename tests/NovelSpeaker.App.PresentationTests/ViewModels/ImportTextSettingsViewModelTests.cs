@@ -39,16 +39,17 @@ public sealed class ImportTextSettingsViewModelTests
     }
 
     [Fact]
-    public async Task EnableLongParagraphSplitting_change_saves_immediately()
+    public async Task CommitLongParagraphThresholdAsync_rejects_non_integer_input()
     {
         var service = new FakeAppSettingsService(AppSettings.Default);
         var viewModel = CreateViewModel(service);
         await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.LongParagraphThresholdText = "invalid";
 
-        viewModel.EnableLongParagraphSplitting = false;
-        await service.UpdateCompleted.WaitAsync(TimeSpan.FromSeconds(5));
+        await viewModel.CommitLongParagraphThresholdAsync(CancellationToken.None);
 
-        Assert.False(service.CurrentSettings.EnableLongParagraphSplitting);
+        Assert.Equal("请输入整数。", viewModel.LongParagraphThresholdErrorText);
+        Assert.Equal(AppSettings.Default.LongParagraphThreshold, service.CurrentSettings.LongParagraphThreshold);
     }
 
     [Fact]
@@ -121,11 +122,12 @@ public sealed class ImportTextSettingsViewModelTests
         public INavigationView GetNavigationControl() => throw new NotSupportedException();
         public bool GoBack() => false;
         public bool Navigate(Type pageType) => true;
-        public bool Navigate(Type pageType, object? dataContext) => true;
+
+        public bool Navigate(Type pageType, object? dataContext) => Navigate(pageType);
         public bool Navigate(string pageIdOrTargetTag) => true;
         public bool Navigate(string pageIdOrTargetTag, object? dataContext) => true;
-        public bool NavigateWithHierarchy(Type pageType) => true;
-        public bool NavigateWithHierarchy(Type pageType, object? dataContext) => true;
+        public bool NavigateWithHierarchy(Type pageType) => Navigate(pageType);
+        public bool NavigateWithHierarchy(Type pageType, object? dataContext) => Navigate(pageType);
         public void SetNavigationControl(INavigationView navigation) { }
     }
 }

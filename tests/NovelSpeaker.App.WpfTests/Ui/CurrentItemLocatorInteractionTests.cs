@@ -46,7 +46,7 @@ public sealed class CurrentItemLocatorInteractionTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 DoEvents();
                 interaction.OnLoaded();
                 WaitUntil(

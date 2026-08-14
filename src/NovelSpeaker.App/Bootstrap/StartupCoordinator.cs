@@ -85,8 +85,8 @@ internal sealed class StartupCoordinator : IAsyncDisposable
         {
             var failure = StartupFailureProjector.Project(exception.Stage);
             TryRecordFailure(exception.Stage, failure.Message, exception.InnerException!);
-            _runtime.CloseStartupStatus();
             _runtime.ShowStartupFailure(failure);
+            _runtime.CloseStartupStatus();
             return StartupResult.Failed(failure);
         }
     }

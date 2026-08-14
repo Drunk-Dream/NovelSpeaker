@@ -13,7 +13,7 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Speech;
 public sealed class TtsRuleUseCaseTests
 {
     [Fact]
-    public async Task Import_skips_exact_duplicate_renames_same_name_and_selects_first_enabled_rule()
+    public async Task Import_skips_exact_duplicate_renames_same_name_and_does_not_select_imported_rule()
     {
         var existing = Rule(1, "同名", "https://example.com/old");
         var repository = new FakeRepository([existing]);
@@ -27,11 +27,89 @@ public sealed class TtsRuleUseCaseTests
         var result = await provider.GetRequiredService<ITtsRuleImportUseCase>()
             .ImportJsonTextAsync("source", "剪贴板", CancellationToken.None);
 
+        Assert.Equal(0, result.ImportedCount);
+        Assert.Equal(1, result.SkippedCount);
+        Assert.Equal(2, result.FailedCount);
+        Assert.DoesNotContain(repository.Rules, rule => rule.Name == "同名 (2)");
+        Assert.Null(provider.GetRequiredService<IAppSettingsService>().Current.SelectedTtsRuleId);
+    }
+
+    [Fact]
+    public async Task Import_treats_enabled_state_as_portable_duplicate_content()
+    {
+        var existing = Rule(1, "同名", "https://example.com/tts");
+        var repository = new FakeRepository([existing]);
+        var adapter = new LegadoRuleSourceAdapter(new LegadoRuleSourceParser(), new LegadoRuleConverter());
+        using var provider = CreateProvider(repository, adapter, AppSettings.Default);
+
+        var result = await provider.GetRequiredService<ITtsRuleImportUseCase>().ImportJsonTextAsync(
+            """
+            [
+              {"name":"同名","url":"https://example.com/tts","isEnabled":true},
+              {"name":"同名","url":"https://example.com/tts","isEnabled":false}
+            ]
+            """,
+            "clipboard",
+            CancellationToken.None);
+
         Assert.Equal(1, result.ImportedCount);
         Assert.Equal(1, result.SkippedCount);
-        Assert.Equal(1, result.FailedCount);
-        Assert.Contains(repository.Rules, rule => rule.Name == "同名 (2)");
-        Assert.Equal(result.FirstImportedRuleId, provider.GetRequiredService<IAppSettingsService>().Current.SelectedTtsRuleId);
+        Assert.Contains(repository.Rules, rule => !rule.IsEnabled && rule.Name == "同名 (2)");
+        Assert.Null(provider.GetRequiredService<IAppSettingsService>().Current.SelectedTtsRuleId);
+    }
+
+    [Fact]
+    public async Task Import_duplicate_comparison_ignores_header_order_and_key_casing()
+    {
+        var existing = Rule(1, "规则", "https://example.com/tts") with
+        {
+            Headers = new Dictionary<string, string>
+            {
+                ["X-First"] = "1",
+                ["X-Second"] = "2"
+            }
+        };
+        var candidate = Rule(0, "规则", "https://example.com/tts") with
+        {
+            Headers = new Dictionary<string, string>
+            {
+                ["x-second"] = "2",
+                ["x-first"] = "1"
+            }
+        };
+        var repository = new FakeRepository([existing]);
+        var source = new FakeSourceAdapter(new TtsRuleSourceReadResult([Item(0, candidate)], null));
+        using var provider = CreateProvider(repository, source, AppSettings.Default);
+
+        var result = await provider.GetRequiredService<ITtsRuleImportUseCase>()
+            .ImportJsonTextAsync("source", "file", CancellationToken.None);
+
+        Assert.Equal(0, result.ImportedCount);
+        Assert.Equal(1, result.SkippedCount);
+        Assert.Single(repository.Rules);
+    }
+
+    [Fact]
+    public async Task Import_reclassifies_preview_duplicates_against_latest_repository_snapshot()
+    {
+        var duplicate = Rule(1, "原重复", "https://example.com/duplicate");
+        var repository = new FakeRepository([duplicate]);
+        var source = new FakeSourceAdapter(new TtsRuleSourceReadResult(
+        [
+            Item(0, duplicate with { Id = 0 }),
+            Item(1, Rule(0, "另一条", "https://example.com/other"))
+        ], null));
+        using var provider = CreateProvider(repository, source, AppSettings.Default);
+        var import = provider.GetRequiredService<ITtsRuleImportUseCase>();
+        var preview = await import.CreateImportPreviewAsync("source", "file", CancellationToken.None);
+        Assert.True(preview.Items[0].IsDuplicate);
+        repository.Rules.Clear();
+
+        var result = await import.ImportAsync(preview, CancellationToken.None);
+
+        Assert.Equal(2, result.ImportedCount);
+        Assert.Equal(0, result.SkippedCount);
+        Assert.Equal(["原重复", "另一条"], repository.Rules.Select(rule => rule.Name));
     }
 
     [Fact]
@@ -48,6 +126,28 @@ public sealed class TtsRuleUseCaseTests
         var saved = await editorUseCase.SaveEditorAsync(changed, CancellationToken.None);
         Assert.Equal("修改后", saved.Name);
         Assert.Equal("https://example.com/changed", saved.Url);
+    }
+
+    [Fact]
+    public async Task Editor_save_preserves_latest_enabled_state_and_new_rule_does_not_become_current()
+    {
+        var existing = Rule(4, "原规则", "https://example.com/original");
+        var repository = new FakeRepository([existing]);
+        using var provider = CreateProvider(repository, new FakeSourceAdapter(new([], null)), AppSettings.Default);
+        var editorUseCase = provider.GetRequiredService<ITtsRuleEditorUseCase>();
+        var staleDraft = await editorUseCase.GetEditorAsync(4, CancellationToken.None);
+        repository.Rules[0] = existing with { IsEnabled = false };
+
+        var saved = await editorUseCase.SaveEditorAsync(staleDraft! with { Name = "已修改" }, CancellationToken.None);
+        await editorUseCase.SetRuleEnabledAsync(4, true, CancellationToken.None);
+        var created = await editorUseCase.SaveEditorAsync(
+            new TtsRuleEditorModel(null, "新规则", true, "https://example.com/new", null, null, null, [], new("GET", null)),
+            CancellationToken.None);
+
+        Assert.False(saved.IsEnabled);
+        Assert.True(repository.Rules.Single(rule => rule.Id == 4).IsEnabled);
+        Assert.True(created.IsEnabled);
+        Assert.Null(provider.GetRequiredService<IAppSettingsService>().Current.SelectedTtsRuleId);
     }
 
     [Theory]
@@ -100,7 +200,7 @@ public sealed class TtsRuleUseCaseTests
 
         var json = await provider.GetRequiredService<ITtsRuleQueries>().ExportRuleJsonAsync(7, CancellationToken.None);
 
-        Assert.Equal("""{"name":"结构化","url":"https://example.com","header":"{\"X-Test\":\"1\"}","requestOptions":{"method":"POST","body":{"text":"{{speakText}}"}}}""", json);
+        Assert.Equal("""{"name":"结构化","url":"https://example.com","isEnabled":true,"header":"{\"X-Test\":\"1\"}","requestOptions":{"method":"POST","body":{"text":"{{speakText}}"}}}""", json);
     }
 
     [Fact]
@@ -113,7 +213,7 @@ public sealed class TtsRuleUseCaseTests
 
         var exported = await editorUseCase.ExportEditorJsonAsync(draft, CancellationToken.None);
         Assert.Single(repository.Rules);
-        Assert.Equal("""{"name":"重复","url":"https://example.com/two","concurrentRate":"2/1000"}""", exported);
+        Assert.Equal("""{"name":"重复","url":"https://example.com/two","isEnabled":true,"concurrentRate":"2/1000"}""", exported);
 
         var saved = await editorUseCase.SaveEditorAsync(draft, CancellationToken.None);
         Assert.Equal("重复 (2)", saved.Name);
@@ -260,7 +360,7 @@ public sealed class TtsRuleUseCaseTests
     public async Task Canonical_json_import_export_roundtrip_preserves_bytes_and_structure()
     {
         const string canonical =
-            """{"name":"结构化","url":"https://example.com","header":"{\"Authorization\":\"Bearer demo\"}","requestOptions":{"method":"POST","body":{"text":"{{speakText}}"}},"lastUpdateTime":123}""";
+            """{"name":"结构化","url":"https://example.com","isEnabled":false,"header":"{\"Authorization\":\"Bearer demo\"}","requestOptions":{"method":"POST","body":{"text":"{{speakText}}"}},"lastUpdateTime":123}""";
         var repository = new FakeRepository([]);
         var adapter = new LegadoRuleSourceAdapter(new LegadoRuleSourceParser(), new LegadoRuleConverter());
         using var provider = CreateProvider(repository, adapter, AppSettings.Default);
@@ -275,7 +375,7 @@ public sealed class TtsRuleUseCaseTests
     }
 
     [Fact]
-    public async Task Import_rejects_cookie_and_login_info_items_while_committing_valid_item()
+    public async Task Import_rejects_entire_batch_when_cookie_or_login_info_item_is_invalid()
     {
         var repository = new FakeRepository([]);
         var adapter = new LegadoRuleSourceAdapter(new LegadoRuleSourceParser(), new LegadoRuleConverter());
@@ -291,9 +391,9 @@ public sealed class TtsRuleUseCaseTests
         var result = await provider.GetRequiredService<ITtsRuleImportUseCase>()
             .ImportJsonTextAsync(json, "file.json", CancellationToken.None);
 
-        Assert.Equal(1, result.ImportedCount);
-        Assert.Equal(2, result.FailedCount);
-        Assert.Equal("有效", Assert.Single(repository.Rules).Name);
+        Assert.Equal(0, result.ImportedCount);
+        Assert.Equal(3, result.FailedCount);
+        Assert.Empty(repository.Rules);
     }
 
     private static ServiceProvider CreateProvider(FakeRepository repository, ITtsRuleSourceAdapter source, AppSettings settings)

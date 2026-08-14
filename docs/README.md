@@ -56,8 +56,10 @@
 
 - 浅色与深色主题的颜色、表面层级和整体质感。
 - Wpf.Ui 与 NovelSpeaker 的模板、资源和主题所有权。
-- 全局令牌、具名样式、自有组件和页面布局的作用域。
-- Style Gallery、自动截图、WPF 契约和视觉回归工具。
+- Palette、Token、按控件族集中维护的具名样式、自有控件、Feature 组件和页面布局的作用域。
+- `Shared/Theming/Resources` 与 `Shared/Presentation/Controls` 的最终目录、加载顺序和依赖方向。
+- 正式自有控件与 Style Gallery fixture 的边界。
+- Style Gallery 作为按资源族组织的长期样式目录，以及按稳定 page/window 身份组织的自动截图、WPF 契约和视觉回归工具。
 - 主窗口、各功能页、对话框和迷你播放器的最终形态。
 
-当前自动实施顺序、Git 回退方法和逐步迁移任务见 `TASK_BACKLOG.md`。
+当前公共视觉资源与正式 UI 迁移阶段已经完成并归档。当前测试宿主加固、测试精简和阶段收口顺序见 `TASK_BACKLOG.md`。

@@ -43,32 +43,35 @@ public sealed class GuardedNavigationServiceTests
         Assert.True(await service.ConfirmNavigationAsync(CancellationToken.None));
     }
 
-    [Theory]
-    [InlineData(NavigationOperation.GoBack, true)]
-    [InlineData(NavigationOperation.Route, true)]
-    [InlineData(NavigationOperation.GoBack, false)]
-    [InlineData(NavigationOperation.Route, false)]
-    public async Task Navigation_operations_confirm_the_active_guard_before_navigating(
-        NavigationOperation operation,
-        bool allowNavigation)
+    [Fact]
+    public async Task Navigation_operations_confirm_the_active_guard_before_navigating()
     {
-        var guard = new ConfigurableNavigationGuardService(allowNavigation);
-        var inner = new RecordingNavigationService();
-        var service = new ShellNavigationAdapter(guard, inner);
-
-        var result = operation switch
+        foreach (var (operation, allowNavigation) in new[]
+                 {
+                     (NavigationOperation.GoBack, true),
+                     (NavigationOperation.Route, true),
+                     (NavigationOperation.GoBack, false),
+                     (NavigationOperation.Route, false)
+                 })
         {
-            NavigationOperation.GoBack => await service.GoBackAsync(CancellationToken.None),
-            NavigationOperation.Route => await service.NavigateAsync(
-                AppRoutes.Settings,
-                CancellationToken.None),
-            _ => throw new ArgumentOutOfRangeException(nameof(operation))
-        };
+            var guard = new ConfigurableNavigationGuardService(allowNavigation);
+            var inner = new RecordingNavigationService();
+            var service = new ShellNavigationAdapter(guard, inner);
 
-        Assert.Equal(allowNavigation, result);
-        Assert.Equal(1, guard.ConfirmationCount);
-        Assert.Equal(allowNavigation ? 1 : 0, inner.NavigationCount);
-        Assert.False(service.IsBypassingGuard);
+            var result = operation switch
+            {
+                NavigationOperation.GoBack => await service.GoBackAsync(CancellationToken.None),
+                NavigationOperation.Route => await service.NavigateAsync(
+                    AppRoutes.Settings,
+                    CancellationToken.None),
+                _ => throw new ArgumentOutOfRangeException(nameof(operation))
+            };
+
+            Assert.Equal(allowNavigation, result);
+            Assert.Equal(1, guard.ConfirmationCount);
+            Assert.Equal(allowNavigation ? 1 : 0, inner.NavigationCount);
+            Assert.False(service.IsBypassingGuard);
+        }
     }
 
     public enum NavigationOperation

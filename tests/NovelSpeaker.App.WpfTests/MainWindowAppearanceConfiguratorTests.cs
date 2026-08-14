@@ -13,7 +13,7 @@ public sealed class MainWindowAppearanceConfiguratorTests
     {
         var adapter = new FakeFluentWindowAppearanceAdapter();
 
-        RunSta(() =>
+        WpfTestHost.RunInSta(() =>
         {
             var configurator = new MainWindowAppearanceConfigurator(adapter, NullLogger<MainWindowAppearanceConfigurator>.Instance);
             configurator.Configure(new Wpf.Ui.Controls.FluentWindow());
@@ -29,7 +29,7 @@ public sealed class MainWindowAppearanceConfiguratorTests
     {
         var adapter = new FakeFluentWindowAppearanceAdapter();
 
-        RunSta(() =>
+        WpfTestHost.RunInSta(() =>
         {
             var configurator = new MainWindowAppearanceConfigurator(adapter, NullLogger<MainWindowAppearanceConfigurator>.Instance);
             configurator.Configure(new Window());
@@ -44,7 +44,7 @@ public sealed class MainWindowAppearanceConfiguratorTests
         var adapter = new FakeFluentWindowAppearanceAdapter { ThrowOnMica = true };
         Exception? exception = null;
 
-        RunSta(() =>
+        WpfTestHost.RunInSta(() =>
         {
             var configurator = new MainWindowAppearanceConfigurator(adapter, NullLogger<MainWindowAppearanceConfigurator>.Instance);
             exception = Record.Exception(() => configurator.Configure(new Wpf.Ui.Controls.FluentWindow()));
@@ -54,29 +54,6 @@ public sealed class MainWindowAppearanceConfiguratorTests
         Assert.False(adapter.ExtendsContentIntoTitleBarValue);
         Assert.Null(adapter.LastBackdropType);
         Assert.Equal([WindowBackdropType.Mica], adapter.AttemptedBackdropTypes);
-    }
-
-    private static void RunSta(Action action)
-    {
-        Exception? capturedException = null;
-
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception exception)
-            {
-                capturedException = exception;
-            }
-        });
-
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-
-        Assert.Null(capturedException);
     }
 
     private sealed class FakeFluentWindowAppearanceAdapter : IFluentWindowAppearanceAdapter

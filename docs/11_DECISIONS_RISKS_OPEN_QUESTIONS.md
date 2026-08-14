@@ -33,13 +33,16 @@
 - 自动创建书名目录，安全清理文件名，同名使用编号后缀且不覆盖。
 - MP3 统一使用现有 NAudio 2.2.1 的 Windows Media Foundation 编码适配器：输入规范化为
   44.1 kHz 双声道 PCM，输出 128 kbps MP3，不新增或随包携带第三方 native encoder。
+- 章节导出提交后由独立进程级 coordinator 持有，全应用最多一个批次；页面离开/托盘隐藏不取消，真正退出应用才取消并有界等待。
+- 导出进度只在 Shell Footer/Flyout 投影。成功后保留“导出完成 · N 章”直到用户打开目录或关闭；失败/取消 Snackbar 后清除。当前不建设通用后台任务中心。
+- 缓存管理页 PageHeader 使用“已选择 N 章”+ 清理/导出图标；右侧不显示重复二级 Header，章节卡片统一铺满可用宽度。
 
 ### 桌面体验
 
 - 系统 Previous/Next 映射上一/下一段。
 - Windows 系统媒体控制使用 `SystemMediaTransportControls`，由 App 中的 Windows adapter 接入 Application port。
 - 托盘使用 App 中基于 `Shell_NotifyIconW` 的小型 Windows adapter，不新增托盘框架依赖。
-- 迷你播放器隐藏主窗口，关闭迷你窗口恢复主窗口。
+- 迷你播放器隐藏主窗口；恢复主窗口是独立动作，关闭迷你窗口统一退出应用。
 - 记忆迷你窗口位置和置顶，不记忆迷你模式。
 - 定时停止支持固定/自定义时长，触发后只暂停播放。
 - 关闭主窗口行为支持托盘、退出、每次询问。
@@ -53,17 +56,25 @@
 - 全局令牌只保存跨组件稳定标尺；页面密度、分栏和固定宽度由对应布局 owner 管理。
 - 普通图标按钮 Hover 使用圆角状态层，不使用突兀方形边框。
 - 二/三级入口使用 `icon + 标题 + Chevron` 导航行。
-- 规则工作台把启用、当前、导出、删除等管理动作放在左侧卡片/更多菜单。
-- 未修改时“取消”“保存”禁用。
+- 三类规则卡片统一为左右布局：左侧名称/摘要，右侧 ToggleSwitch；启用状态是列表级即时设置，不属于编辑草稿或 Dirty State。
+- 规则页进入时不自动打开任何规则。单击卡片才打开编辑器；编辑器打开后“取消”始终可用并关闭编辑器，“保存”只在草稿修改且校验通过时可用。切换规则或离开页面仍受 Dirty State 导航保护。
+- 规则页不显示 `⋮` 更多按钮。单规则导出和删除使用卡片右键菜单；章节/正则的上移/下移也位于右键菜单。右键不切换当前编辑对象，键盘仍可打开同一 ContextMenu。
+- “从文件导入”“从剪切板导入”属于页面级动作并放入 `AppPageHeader.Actions`；不提供页面级导出。导入采用合并策略：完全重复跳过，同名不同内容作为新规则，不覆盖现有规则。
+- TTS 规则页不再提供“当前规则/设为当前”。播放页只显示已启用 TTS 规则并独占当前规则切换；当前规则被禁用或删除时清空选择，不自动回退，导入、新建或重新启用也不自动成为当前规则。
+- 章节规则和正则替换取消拖动手柄，使用整卡长按约 300 ms 后拖动；采用插入线、轻量拖动态反馈和边缘自动滚动，不实现相邻卡片位移动画，排序只在 Drop 后持久化。
 - 播放页和书籍详情目录中的 0% 缓存完整度继续不显示。
 - 缓存管理页显示全部有缓存章节，当前配置为 0% 时也显示该章节和 `0%`。
 - 开发用 Style Gallery 和自动截图工具不进入正式导航和发布包。
+- Dialog、Flyout、Popup 和独立状态浮窗采用 Single Surface 原则。ContentDialog 自身是唯一主 Surface，内部使用透明 `App.Feedback.DialogBody`；`StartupStatusWindow` 由 Window 自身承担 Raised Surface，并使用 `AppStatusView.IsEmbedded=true` 避免第二层 Section 卡片。复杂 Dialog 只有在存在明确独立二级信息分组时才允许弱背景或 Divider，默认不使用完整 Card-in-Dialog。
 
 ### 架构与测试
 
 - 允许激进清理内部 API、目录、重复抽象和低价值测试，只要书籍、规则、阅读进度等持久数据与目标行为受测试保护；音频缓存属于明确可重置数据。
 - `IServiceProvider` 只留在组合根/框架桥接。
 - 共享 TTS admission 使用进程内、按规则隔离的异步优先级队列；当前播放和预取已通过 `TtsAdmissionPriority` 接入，主动缓存由 CACHE-402 复用同一入口并以 `ActiveCache` 优先级接入。
+- 当前测试精简阶段以完整自动测试总数 `<800` 作为一次性验收目标，不建立永久测试数量上限；后续有价值的回归测试允许总数重新增长到 800 以上。
+- WPF 自动测试默认不得在用户当前交互 Desktop 显示窗口。普通控件/页面优先无 Window 宿主；真实 Window/Popup/Focus/HWND 生命周期统一进入 TestKit 创建的隔离隐藏 Windows Desktop，隔离初始化失败时 fail closed。
+- 只有用户在当前任务明确允许可见窗口时才可启用 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`；视觉产物生成不构成该授权。
 - 不为下一阶段规划依赖人工验证才能关闭的任务。
 
 ## 2. 主要实现风险
@@ -87,6 +98,10 @@ Ctrl/Shift 选择、anchor、滚动定位和虚拟化容器可能产生边界问
 ### WPF 样式作用域与 Provider 漂移
 
 WPF Style 不是 CSS。应用级隐式样式、合并字典顺序和完整模板替换可能同时改变 Wpf.Ui 默认模板、测量和交互状态。实现必须通过 Provider Style Bridge、具名样式、局部组件和架构测试限制影响范围；Wpf.Ui 升级必须单独执行并重新运行 Style Gallery 与资源契约。
+
+### WPF 测试 Desktop 隔离
+
+独立 Windows Desktop 涉及 Win32 Desktop handle、STA thread 绑定和 WPF Application/Dispatcher 初始化顺序。测试宿主必须在线程进入 WPF 初始化前完成 Desktop 绑定，确定性释放 native handle，并在 CI/非交互会话中保持 fail-closed 行为；任何初始化异常都不得退回用户当前 Desktop。可见调试模式只改变 Desktop/显示策略，不应形成第二套测试生命周期或绕过清理与诊断。
 
 ### 布局所有权冲突
 

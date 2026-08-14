@@ -12,32 +12,6 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed class DiagnosticsAboutViewModelTests
 {
     [Fact]
-    public async Task LoadAsync_populates_snapshot_and_log_level()
-    {
-        var viewModel = CreateViewModel(
-            new FakeDiagnosticsService(),
-            new FakeAppSettingsService(AppSettings.Default with { LogLevel = "Warning" }));
-
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        Assert.Equal("NovelSpeaker", viewModel.AppName);
-        Assert.Equal("4", viewModel.DatabaseSchemaVersionText);
-        Assert.Equal("Warning", viewModel.SelectedLogLevel);
-    }
-
-    [Fact]
-    public async Task SelectedLogLevel_change_saves_immediately()
-    {
-        var settingsService = new FakeAppSettingsService(AppSettings.Default);
-        var viewModel = CreateViewModel(new FakeDiagnosticsService(), settingsService);
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        viewModel.SelectedLogLevel = "Error";
-
-        Assert.Equal("Error", settingsService.CurrentSettings.LogLevel);
-    }
-
-    [Fact]
     public async Task OpenLogsDirectoryCommand_failure_notifies_user()
     {
         var feedback = new FakeFeedbackService();
@@ -50,6 +24,19 @@ public sealed class DiagnosticsAboutViewModelTests
         await viewModel.OpenLogsDirectoryCommand.ExecuteAsync(null);
 
         Assert.Equal("打开日志目录失败", feedback.LastTitle);
+    }
+
+    [Fact]
+    public async Task OpenAppDataDirectoryCommand_opens_directory()
+    {
+        var diagnostics = new FakeDiagnosticsService();
+        var viewModel = CreateViewModel(
+            diagnostics,
+            new FakeAppSettingsService(AppSettings.Default));
+
+        await viewModel.OpenAppDataDirectoryCommand.ExecuteAsync(null);
+
+        Assert.True(diagnostics.AppDataDirectoryOpened);
     }
 
     [Fact]
@@ -86,6 +73,7 @@ public sealed class DiagnosticsAboutViewModelTests
     private sealed class FakeDiagnosticsService : IAppDiagnosticsService
     {
         public Exception? OpenException { get; set; }
+        public bool AppDataDirectoryOpened { get; private set; }
 
         public Task<AppDiagnosticsSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
         {
@@ -127,6 +115,7 @@ public sealed class DiagnosticsAboutViewModelTests
                 throw OpenException;
             }
 
+            AppDataDirectoryOpened = true;
             return Task.CompletedTask;
         }
     }

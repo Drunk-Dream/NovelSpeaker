@@ -48,6 +48,7 @@ internal sealed class WindowsTrayLifecycleAdapter : IDesktopLifecyclePlatform
         _nativeApi = nativeApi;
         _trayMenu = CreateTrayMenu();
         _miniPlayerWindow.RestoreRequested += OnMiniPlayerRestoreRequested;
+        _miniPlayerWindow.ExitRequested += OnMiniPlayerExitRequested;
     }
 
     private MainWindow Window =>
@@ -239,6 +240,9 @@ internal sealed class WindowsTrayLifecycleAdapter : IDesktopLifecyclePlatform
 
     private void OnMiniPlayerRestoreRequested(object? sender, EventArgs e) =>
         CommandReceived?.Invoke(this, DesktopLifecycleCommand.ShowMainWindow);
+
+    private void OnMiniPlayerExitRequested(object? sender, EventArgs e) =>
+        CommandReceived?.Invoke(this, DesktopLifecycleCommand.ExitApplication);
 
     private IntPtr WindowMessageHook(
         IntPtr hwnd,

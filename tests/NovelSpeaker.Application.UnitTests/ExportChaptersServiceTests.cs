@@ -56,6 +56,73 @@ public sealed class ExportChaptersServiceTests
     }
 
     [Fact]
+    public async Task ExportAsync_forwards_background_progress_to_writer_batch()
+    {
+        var metadata = CreateMetadata();
+        var planStore = new FakeChapterSpeechPlanStore();
+        planStore.Plans["chapter-0"] = CreatePlan(
+            "chapter-0",
+            [CreatePlanSegment(0, 0, "正文。")]);
+        var writer = new FakeChapterMp3ExportWriter();
+        var service = CreateService(
+            metadata,
+            planStore,
+            writer,
+            AppSettings.Default with { SelectedTtsRuleId = 7 });
+        var progress = new CaptureProgress();
+
+        await service.ExportAsync(
+            new ExportChaptersRequest("book-1", [0], @"D:\exports"),
+            progress,
+            CancellationToken.None);
+
+        Assert.Same(progress, writer.LastBatch?.Progress);
+    }
+
+    [Fact]
+    public async Task ExportAsync_uses_frozen_names_for_directory_file_and_title_audio()
+    {
+        var metadata = CreateMetadata();
+        var planStore = new FakeChapterSpeechPlanStore();
+        planStore.Plans["chapter-0"] = CreatePlan(
+            "chapter-0",
+            [CreatePlanSegment(0, 0, "正文。")]);
+        var writer = new FakeChapterMp3ExportWriter();
+        var service = CreateService(
+            metadata,
+            planStore,
+            writer,
+            AppSettings.Default with
+            {
+                SelectedTtsRuleId = 7,
+                ReadChapterTitle = true
+            });
+
+        var result = await service.ExportAsync(
+            new ExportChaptersRequest(
+                "book-1",
+                [0],
+                @"D:\exports",
+                "提交时的书名",
+                new Dictionary<int, string> { [0] = "提交时的章节名" }),
+            CancellationToken.None);
+
+        Assert.Equal(ExportChaptersStatus.Succeeded, result.Status);
+        Assert.NotNull(writer.LastBatch);
+        var batch = writer.LastBatch!;
+        Assert.Equal("提交时的书名", batch.BookDirectoryName);
+        var plan = Assert.Single(batch.Chapters);
+        Assert.Equal("001_提交时的章节名", plan.FileNameBase);
+        Assert.Equal(
+            AudioCacheKey.FromSpeechTextHash(
+                "chapter-0",
+                StableSpeechSegmentIdentity.ChapterTitle(),
+                Fingerprint.Sha256("提交时的章节名"),
+                ExpectedProfile(10)),
+            plan.OrderedSegmentKeys[0]);
+    }
+
+    [Fact]
     public async Task ExportAsync_inserts_title_key_without_changing_body_order_or_identity()
     {
         var metadata = CreateMetadata();
@@ -540,6 +607,13 @@ public sealed class ExportChaptersServiceTests
 
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class CaptureProgress : IProgress<ExportChaptersProgress>
+    {
+        public void Report(ExportChaptersProgress value)
+        {
+        }
     }
 
     private sealed class FakeChapterMp3ExportWriter : IChapterMp3ExportWriter

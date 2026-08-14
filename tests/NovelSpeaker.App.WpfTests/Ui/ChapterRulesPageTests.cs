@@ -3,8 +3,11 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
-using Microsoft.Extensions.DependencyInjection;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
+using NovelSpeaker.App.Shared.Presentation.Controls.Forms;
+using NovelSpeaker.App.Shared.Presentation.Rules;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
@@ -14,391 +17,147 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed partial class ChapterRulesPageTests
 {
-    [Fact]
-    public void ChapterRulesPage_uses_accessible_icons_for_low_frequency_toolbar_tools()
+    private void ChapterRulesPage_toolbar_contains_distinct_default_actions_and_help_without_export()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var view = new ChapterRulesPage
-            {
-                DataContext = new ChapterRulesViewLayoutContext()
-            };
-
-            view.Measure(new Size(960, 680));
-            view.Arrange(new Rect(0, 0, 960, 680));
-            view.UpdateLayout();
+            var view = CreateView(new ChapterRulesViewLayoutContext());
 
             AssertToolbarIcon(view, "新建规则", SymbolRegular.DocumentAdd24);
+            AssertToolbarIcon(view, "从文件导入", SymbolRegular.ArrowImport24);
+            AssertToolbarIcon(view, "从剪切板导入", SymbolRegular.ClipboardPaste24);
             AssertToolbarIcon(view, "导入默认规则", SymbolRegular.ArrowDownload24);
             AssertToolbarIcon(view, "恢复默认规则", SymbolRegular.ArrowReset24);
+            AssertToolbarIcon(view, "章节规则帮助", SymbolRegular.QuestionCircle24);
+            Assert.DoesNotContain(
+                VisualTreeTestHelper.FindDescendants<Button>(view),
+                button => AutomationProperties.GetName(button).Contains("导出", StringComparison.Ordinal));
         });
     }
 
-    private static void AssertToolbarIcon(
-        FrameworkElement view,
-        string accessibleName,
-        SymbolRegular expectedSymbol)
-    {
-        var button = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(
-            view,
-            candidate => AutomationProperties.GetName(candidate) == accessibleName));
-
-        Assert.Equal(accessibleName, button.ToolTip);
-        Assert.Equal(expectedSymbol, Assert.IsType<SymbolIcon>(button.Content).Symbol);
-        Assert.Same(view.FindResource("SecondaryIconButtonStyle"), button.Style);
-    }
-
-    [Fact]
-    public void ChapterRulesPage_uses_split_scrollable_workspace_without_datagrid()
+    private void ChapterRulesPage_keeps_rule_list_and_editor_scrollable_with_virtualization()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var context = new ChapterRulesViewLayoutContext
+            var rules = new ObservableCollection<ChapterRuleListItemViewModel>();
+            for (var index = 0; index < 40; index++)
             {
-                HasEditor = true,
-                Rules =
-                [
-                    new ChapterRuleListItemViewModel("builtin:one", "内置规则", @"^\s*第一章$", true, true, true),
-                    new ChapterRuleListItemViewModel("custom:two", "自定义规则", @"^\s*第二章$", false, false, false)
-                ]
-            };
-            for (var index = 0; index < 30; index++)
-            {
-                context.Rules.Add(new ChapterRuleListItemViewModel($"custom:{index + 3}", $"规则 {index + 3}", $@"^\s*第{index + 3}章$", true, false, false));
+                rules.Add(CreateRule($"custom:{index}", $"规则 {index}", index % 2 == 0, false, index == 0));
             }
 
-            var view = new ChapterRulesPage
+            var view = CreateView(new ChapterRulesViewLayoutContext
             {
-                DataContext = context
-            };
+                HasEditor = true,
+                Rules = rules,
+                DraftPattern = string.Join(
+                    Environment.NewLine,
+                    Enumerable.Repeat(@"^\s*第[0-9一二三四五六七八九十]+章\s*$", 40))
+            }, 900, 640);
+            var list = Assert.IsType<ListBox>(view.FindName("RulesList"));
+            var listScrollViewer = Assert.IsAssignableFrom<ScrollViewer>(
+                VisualTreeTestHelper.FindDescendant<ScrollViewer>(list));
+            var editorScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("RuleEditorScrollViewer"));
 
-            view.Measure(new Size(1280, 760));
-            view.Arrange(new Rect(0, 0, 1280, 760));
-            view.UpdateLayout();
-
-            var leftScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("RulesListScrollViewer"));
-            var rightScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("RuleEditorScrollViewer"));
-
-            Assert.True(leftScrollViewer.ScrollableHeight > 0);
-            Assert.True(rightScrollViewer.ActualWidth > 0);
-            Assert.Null(VisualTreeTestHelper.FindDescendant<DataGrid>(view));
+            Assert.True(listScrollViewer.ScrollableHeight > 0);
+            Assert.True(editorScrollViewer.ScrollableHeight > 0);
+            Assert.True(System.Windows.Controls.VirtualizingPanel.GetIsVirtualizing(list));
+            Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(list));
         });
     }
 
-    [Fact]
-    public void ChapterRulesPage_exposes_rule_item_automation_name()
+    private void ChapterRulesPage_context_menu_exposes_export_copy_move_and_capability_delete_without_ellipsis()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var item = new ChapterRuleListItemViewModel("builtin:one", "内置规则", @"^\s*第一章$", false, true, true);
-            var view = new ChapterRulesPage
-            {
-                DataContext = new ChapterRulesViewLayoutContext
-                {
-                    Rules = [item]
-                }
-            };
+            var custom = CreateRule("custom:one", "自定义规则", true, false, true);
+            custom.CanMoveUp = false;
+            custom.CanMoveDown = true;
+            var builtIn = CreateRule("builtin:two", "内置规则", true, true, false);
+            var view = CreateView(new ChapterRulesViewLayoutContext { Rules = [custom, builtIn] });
 
-            view.Measure(new Size(960, 680));
-            view.Arrange(new Rect(0, 0, 960, 680));
-            view.UpdateLayout();
-
-            var border = VisualTreeTestHelper.FindDescendant<Border>(
-                view,
-                candidate => AutomationProperties.GetName(candidate) == item.AutomationName);
-            var button = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(border!, candidate =>
-                AutomationProperties.GetName(candidate) == item.AutomationName));
-
-            Assert.NotNull(border);
-            Assert.Equal("内置规则，已禁用，已选中", AutomationProperties.GetName(border!));
-            Assert.InRange(Math.Abs(button.ActualWidth - border!.ActualWidth), 0d, 1d);
-            Assert.True(
-                Math.Abs(button.ActualHeight - border.ActualHeight) <= 2d,
-                $"buttonHeight={button.ActualHeight}, cardHeight={border.ActualHeight}");
-        });
-    }
-
-    [Fact]
-    public void ChapterRulesPage_keeps_rule_summary_above_quick_actions_at_narrow_width()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var item = new ChapterRuleListItemViewModel(
-                "custom:narrow",
-                "章节数字",
-                @"^\s*第[0-9一二三四五六七八九十百千万]+章\s*$",
-                true,
-                false,
-                false);
-            var view = new ChapterRulesPage
-            {
-                DataContext = new ChapterRulesViewLayoutContext
-                {
-                    Rules = [item]
-                }
-            };
-
-            view.Measure(new Size(368, 640));
-            view.Arrange(new Rect(0, 0, 368, 640));
-            view.UpdateLayout();
-
-            var border = Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(view, candidate =>
-                AutomationProperties.GetName(candidate) == item.AutomationName));
-            var pattern = Assert.IsType<TextBlock>(VisualTreeTestHelper.FindDescendant<TextBlock>(border, candidate =>
-                candidate.Text == item.PatternSummary));
-            var checkBox = Assert.IsType<CheckBox>(VisualTreeTestHelper.FindDescendant<CheckBox>(border));
-            var patternBounds = GetBoundsRelativeTo(pattern, border);
-            var checkBoxBounds = GetBoundsRelativeTo(checkBox, border);
-
-            Assert.True(
-                patternBounds.Bottom <= checkBoxBounds.Top,
-                $"patternBottom={patternBounds.Bottom}, quickActionsTop={checkBoxBounds.Top}");
-        });
-    }
-
-    [Fact]
-    public void ChapterRulesPage_shows_enable_checkbox_only_in_left_rule_list()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var view = new ChapterRulesPage
-            {
-                DataContext = new ChapterRulesViewLayoutContext
-                {
-                    HasEditor = true,
-                    Rules =
-                    [
-                        new ChapterRuleListItemViewModel("custom:one", "规则一", @"^\s*一$", true, false, true)
-                    ]
-                }
-            };
-
-            view.Measure(new Size(960, 680));
-            view.Arrange(new Rect(0, 0, 960, 680));
-            view.UpdateLayout();
-
-            var checkBoxes = VisualTreeTestHelper.FindDescendants<CheckBox>(view).ToArray();
-
-            Assert.Single(checkBoxes);
-            Assert.Equal("启用", checkBoxes[0].Content);
-            Assert.Equal("切换规则启用状态：规则一", AutomationProperties.GetName(checkBoxes[0]));
-        });
-    }
-
-    [Fact]
-    public void ChapterRulesPage_card_contains_summary_enable_drag_handle_and_more_menu()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var customRule = new ChapterRuleListItemViewModel(
-                "custom:one",
-                "规则一",
-                @"^\s*第一章$",
-                true,
-                false,
-                true,
-                true)
-            {
-                CanMoveUp = false,
-                CanMoveDown = true
-            };
-            var builtInRule = new ChapterRuleListItemViewModel(
-                "builtin:two",
-                "规则二",
-                @"^\s*第二章$",
-                true,
-                true,
-                false,
-                false);
-            var view = new ChapterRulesPage
-            {
-                DataContext = new ChapterRulesViewLayoutContext
-                {
-                    Rules = [customRule, builtInRule]
-                }
-            };
-
-            view.Measure(new Size(960, 680));
-            view.Arrange(new Rect(0, 0, 960, 680));
-            view.UpdateLayout();
-
-            Assert.NotNull(VisualTreeTestHelper.FindDescendant<TextBlock>(
-                view,
-                candidate => candidate.Text == customRule.PatternSummary));
-            Assert.NotNull(VisualTreeTestHelper.FindDescendant<Button>(
-                view,
-                candidate => AutomationProperties.GetName(candidate) == "拖动排序：规则一"));
-
-            var customMore = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(
-                view,
-                candidate => AutomationProperties.GetName(candidate) == "更多操作：规则一"));
-            var customItems = customMore.ContextMenu!.Items.OfType<MenuItem>().ToArray();
-            Assert.Equal(["上移", "下移", "删除"], customItems.Select(item => item.Header));
+            var customItem = FindRuleItem(view, custom);
+            customItem.ContextMenu!.PlacementTarget = customItem;
+            customItem.ContextMenu.IsOpen = true;
+            var menuItems = customItem.ContextMenu.Items.OfType<MenuItem>().ToArray();
             Assert.Equal(
-                ["CanMoveUp", "CanMoveDown", "CanDeleteAction"],
-                customItems
-                    .Select(item => System.Windows.Data.BindingOperations
-                        .GetBinding(item, MenuItem.IsEnabledProperty)!.Path.Path!)
-                    .ToArray());
+                ["导出到文件", "复制到剪切板", "上移", "下移", "删除"],
+                menuItems.Where(item => item.Visibility == Visibility.Visible).Select(item => item.Header));
+            Assert.False(menuItems.Single(item => Equals(item.Header, "上移")).IsEnabled);
+            Assert.True(menuItems.Single(item => Equals(item.Header, "下移")).IsEnabled);
+            Assert.True(menuItems.Single(item => Equals(item.Header, "删除")).IsEnabled);
+            customItem.ContextMenu.IsOpen = false;
 
-            var builtInMore = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(
-                view,
-                candidate => AutomationProperties.GetName(candidate) == "更多操作：规则二"));
-            var delete = builtInMore.ContextMenu!.Items.OfType<MenuItem>().Single(item => Equals(item.Header, "删除"));
-            Assert.Equal("CanDeleteAction", System.Windows.Data.BindingOperations
-                .GetBinding(delete, MenuItem.IsEnabledProperty)?.Path.Path);
-            Assert.False(builtInRule.CanDeleteAction);
-
+            var builtInItem = FindRuleItem(view, builtIn);
+            builtInItem.ContextMenu!.PlacementTarget = builtInItem;
+            builtInItem.ContextMenu.IsOpen = true;
+            Assert.False(builtInItem.ContextMenu.Items
+                .OfType<MenuItem>()
+                .Single(item => Equals(item.Header, "删除"))
+                .IsEnabled);
+            builtInItem.ContextMenu.IsOpen = false;
             Assert.DoesNotContain(
-                VisualTreeTestHelper.FindDescendants<TextBlock>(view),
-                textBlock => textBlock.Text is "内置" or "自定义");
+                VisualTreeTestHelper.FindDescendants<Button>(view),
+                button => AutomationProperties.GetName(button).Contains("更多操作", StringComparison.Ordinal));
+            Assert.DoesNotContain(
+                VisualTreeTestHelper.FindDescendants<FrameworkElement>(view),
+                element => AutomationProperties.GetName(element).Contains("拖动排序", StringComparison.Ordinal));
         });
     }
 
-    [Fact]
-    public void ChapterRulesPage_right_editor_keeps_only_help_cancel_and_save_actions()
+    private void ChapterRulesPage_projects_validation_through_form_fields_and_keeps_cancel_save_actions()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var view = new ChapterRulesPage
+            var view = CreateView(new ChapterRulesViewLayoutContext
             {
-                DataContext = new ChapterRulesViewLayoutContext
-                {
-                    HasEditor = true,
-                    CanSaveDraft = false,
-                    CanCancelEditing = false,
-                    Rules =
-                    [
-                        new ChapterRuleListItemViewModel(
-                            "custom:one",
-                            "规则一",
-                            @"^\s*第一章$",
-                            true,
-                            false,
-                            true)
-                    ]
-                }
-            };
+                HasEditor = true,
+                CanCancelEditing = true,
+                CanSaveDraft = false,
+                NameValidationMessage = "名称不能为空。",
+                PatternValidationMessage = "正则表达式无效。"
+            });
 
-            view.Measure(new Size(960, 680));
-            view.Arrange(new Rect(0, 0, 960, 680));
-            view.UpdateLayout();
-
-            var help = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
+            var fields = VisualTreeTestHelper.FindDescendants<AppFormField>(view).ToArray();
+            Assert.Equal(["名称", "正则表达式"], fields.Select(field => field.Label));
+            Assert.Equal("名称不能为空。", fields[0].Error);
+            Assert.Equal("正则表达式无效。", fields[1].Error);
+            Assert.True(Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
                 view,
-                candidate => AutomationProperties.GetName(candidate) == "章节规则帮助"));
-            var cancel = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
+                button => Equals(button.Content, "取消"))).IsEnabled);
+            Assert.False(Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
                 view,
-                candidate => Equals(candidate.Content, "取消")));
-            var save = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
-                view,
-                candidate => Equals(candidate.Content, "保存")));
-
-            Assert.Equal("章节规则帮助", help.ToolTip);
-            Assert.False(cancel.IsEnabled);
-            Assert.False(save.IsEnabled);
+                button => Equals(button.Content, "保存"))).IsEnabled);
             Assert.Null(VisualTreeTestHelper.FindDescendant<Button>(
                 view,
-                candidate => Equals(candidate.Content, "删除")));
+                button => Equals(button.Content, "删除")));
         });
     }
 
-    [Fact]
-    public void ChapterRulesPage_toggles_help_drawer_visibility()
+    private void ChapterRulesPage_help_drawer_explains_matching_and_sorting()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var context = new ChapterRulesViewLayoutContext
-            {
-                IsHelpDrawerOpen = true
-            };
-            var view = new ChapterRulesPage
-            {
-                DataContext = context
-            };
-
-            view.Measure(new Size(1000, 700));
-            view.Arrange(new Rect(0, 0, 1000, 700));
-            view.UpdateLayout();
-
+            var context = new ChapterRulesViewLayoutContext { IsHelpDrawerOpen = true };
+            var view = CreateView(context, 1000, 700);
             var helpDrawer = Assert.IsType<Border>(view.FindName("HelpDrawerBorder"));
-            var dismissOverlay = Assert.IsType<Button>(view.FindName("HelpDrawerDismissOverlay"));
-            Assert.Equal(Visibility.Visible, helpDrawer.Visibility);
             Assert.Equal(Visibility.Visible, ((UIElement)helpDrawer.Parent).Visibility);
             Assert.NotEqual(Brushes.Transparent, helpDrawer.Background);
-            Assert.Equal(1d, dismissOverlay.Opacity);
+
+            var texts = VisualTreeTestHelper.FindDescendants<TextBlock>(view)
+                .Select(textBlock => textBlock.Text)
+                .ToHashSet(StringComparer.Ordinal);
+            Assert.Contains("规则如何生效", texts);
+            Assert.Contains("从一个规则开始", texts);
+            Assert.Contains(@"^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$", texts);
+            Assert.Contains("排序与误识别", texts);
 
             context.IsHelpDrawerOpen = false;
             view.UpdateLayout();
-
-            Assert.Equal(Visibility.Visible, helpDrawer.Visibility);
             Assert.Equal(Visibility.Collapsed, ((UIElement)helpDrawer.Parent).Visibility);
         });
     }
 
-    [Fact]
-    public void ChapterRulesPage_help_drawer_explains_matching_order_and_regex_starting_point()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var view = new ChapterRulesPage
-            {
-                DataContext = new ChapterRulesViewLayoutContext
-                {
-                    IsHelpDrawerOpen = true
-                }
-            };
-
-            view.Measure(new Size(1000, 700));
-            view.Arrange(new Rect(0, 0, 1000, 700));
-            view.UpdateLayout();
-
-            var helpTexts = VisualTreeTestHelper.FindDescendants<TextBlock>(view)
-                .Select(textBlock => textBlock.Text)
-                .ToHashSet(StringComparer.Ordinal);
-
-            Assert.Contains("规则如何生效", helpTexts);
-            Assert.Contains("从一个规则开始", helpTexts);
-            Assert.Contains(@"^\s*第[0-9一二三四五六七八九十百千零两]+章(?:\s+.+)?\s*$", helpTexts);
-            Assert.Contains("排序与误识别", helpTexts);
-        });
-    }
-
-    [Fact]
-    public void ChapterRulesPage_marks_drag_target_visually()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var first = new ChapterRuleListItemViewModel("custom:one", "规则一", @"^\s*一$", true, false, false);
-            var second = new ChapterRuleListItemViewModel("custom:two", "规则二", @"^\s*二$", true, false, false)
-            {
-                IsDropTarget = true
-            };
-            var view = new ChapterRulesPage
-            {
-                DataContext = new ChapterRulesViewLayoutContext
-                {
-                    Rules = [first, second]
-                }
-            };
-
-            view.Measure(new Size(960, 680));
-            view.Arrange(new Rect(0, 0, 960, 680));
-            view.UpdateLayout();
-
-            var firstBorder = Assert.Single(VisualTreeTestHelper.FindDescendants<Border>(
-                view,
-                candidate => ReferenceEquals(candidate.DataContext, first) && candidate.Child is Grid));
-            var secondBorder = Assert.Single(VisualTreeTestHelper.FindDescendants<Border>(
-                view,
-                candidate => ReferenceEquals(candidate.DataContext, second) && candidate.Child is Grid));
-
-            Assert.NotEqual(firstBorder.Background, secondBorder.Background);
-        });
-    }
-
-    [Fact]
-    public void ChapterRulesPage_constrains_workspace_height_to_page()
+    private void ChapterRulesPage_constrains_workspace_height_to_page()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -406,11 +165,9 @@ public sealed partial class ChapterRulesPageTests
             try
             {
                 var page = provider.GetRequiredService<ChapterRulesPage>();
-
                 page.Measure(new Size(1280, 760));
                 page.Arrange(new Rect(0, 0, 1280, 760));
                 page.UpdateLayout();
-
                 Assert.InRange(Math.Abs(page.ActualHeight - 760d), 0d, 1d);
             }
             finally
@@ -420,14 +177,81 @@ public sealed partial class ChapterRulesPageTests
         });
     }
 
-    private static Rect GetBoundsRelativeTo(FrameworkElement element, FrameworkElement root)
+    [Fact]
+    public void Chapter_rules_page_toolbar_contracts_cover_default_actions_and_help()
     {
-        var topLeft = element.TranslatePoint(new Point(0, 0), root);
-        return new Rect(topLeft.X, topLeft.Y, element.ActualWidth, element.ActualHeight);
+        ChapterRulesPage_toolbar_contains_distinct_default_actions_and_help_without_export();
+        ChapterRulesPage_help_drawer_explains_matching_and_sorting();
+    }
+
+    [Fact]
+    public void Chapter_rules_page_list_contracts_cover_virtualization_and_context_capabilities()
+    {
+        ChapterRulesPage_keeps_rule_list_and_editor_scrollable_with_virtualization();
+        ChapterRulesPage_context_menu_exposes_export_copy_move_and_capability_delete_without_ellipsis();
+    }
+
+    [Fact]
+    public void Chapter_rules_page_editor_contracts_cover_validation_actions_and_workspace_height()
+    {
+        ChapterRulesPage_projects_validation_through_form_fields_and_keeps_cancel_save_actions();
+        ChapterRulesPage_constrains_workspace_height_to_page();
+    }
+
+    private static ChapterRulesPage CreateView(
+        ChapterRulesViewLayoutContext context,
+        double width = 1280,
+        double height = 760)
+    {
+        var view = new ChapterRulesPage { DataContext = context };
+        view.Measure(new Size(width, height));
+        view.Arrange(new Rect(0, 0, width, height));
+        view.UpdateLayout();
+        return view;
+    }
+
+    private static ChapterRuleListItemViewModel CreateRule(
+        string id,
+        string name,
+        bool isEnabled,
+        bool isBuiltIn,
+        bool isSelected) =>
+        new(id, name, @"^\s*第[0-9一二三四五六七八九十]+章\s*$", isEnabled, isBuiltIn, isSelected);
+
+    private static RuleListItemView FindRuleItem(ChapterRulesPage view, ChapterRuleListItemViewModel rule) =>
+        Assert.IsType<RuleListItemView>(VisualTreeTestHelper.FindDescendant<RuleListItemView>(
+            view,
+            candidate => ReferenceEquals(candidate.CommandParameter, rule)));
+
+    private static void AssertToolbarIcon(
+        ChapterRulesPage view,
+        string automationName,
+        SymbolRegular expectedSymbol)
+    {
+        var button = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
+            view,
+            candidate => AutomationProperties.GetName(candidate) == automationName));
+        Assert.Equal(expectedSymbol, Assert.IsType<SymbolIcon>(
+            VisualTreeTestHelper.FindDescendant<SymbolIcon>(button)).Symbol);
+        Assert.Equal(automationName, button.ToolTip);
     }
 
     private sealed partial class ChapterRulesViewLayoutContext : ObservableObject
     {
+        public RelayCommand NewRuleCommand { get; } = new(static () => { });
+        public RelayCommand ImportDefaultsCommand { get; } = new(static () => { });
+        public RelayCommand RestoreDefaultsCommand { get; } = new(static () => { });
+        public RelayCommand OpenHelpCommand { get; } = new(static () => { });
+        public RelayCommand CloseHelpCommand { get; } = new(static () => { });
+        public RelayCommand<object> SelectRuleCommand { get; } = new(static _ => { });
+        public RelayCommand<object> ToggleRuleEnabledCommand { get; } = new(static _ => { });
+        public RelayCommand<object> ExportRuleCommand { get; } = new(static _ => { });
+        public RelayCommand<object> CopyRuleCommand { get; } = new(static _ => { });
+        public RelayCommand<object> MoveRuleUpCommand { get; } = new(static _ => { });
+        public RelayCommand<object> MoveRuleDownCommand { get; } = new(static _ => { });
+        public RelayCommand<object> DeleteRuleCommand { get; } = new(static _ => { });
+        public RelayCommand<object> ReorderRuleCommand { get; } = new(static _ => { });
+
         public ObservableCollection<ChapterRuleListItemViewModel> Rules { get; init; } = [];
 
         [ObservableProperty]
@@ -437,16 +261,10 @@ public sealed partial class ChapterRulesPageTests
         private bool isHelpDrawerOpen;
 
         public string DraftName { get; init; } = "当前规则";
-
         public string DraftPattern { get; init; } = @"^\s*第一章$";
-
         public bool CanSaveDraft { get; init; } = true;
-
         public bool CanCancelEditing { get; init; } = true;
-
         public string NameValidationMessage { get; init; } = string.Empty;
-
         public string PatternValidationMessage { get; init; } = string.Empty;
-
     }
 }

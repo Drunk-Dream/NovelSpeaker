@@ -351,5 +351,8 @@ public sealed class TtsRuleTestServiceTests
             SaveCallCount++;
             throw new NotSupportedException();
         }
+
+        public Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }

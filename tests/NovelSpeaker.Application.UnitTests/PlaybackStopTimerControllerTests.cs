@@ -144,19 +144,19 @@ public sealed class PlaybackStopTimerControllerTests
         Assert.Equal([1L, 3L, 2L], observedVersions);
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    [InlineData(1441)]
-    public async Task Duration_rejects_out_of_range_minutes(int minutes)
+    [Fact]
+    public async Task Duration_rejects_out_of_range_minutes()
     {
-        await using var controller = new PlaybackStopTimerController(
-            TimeProvider.System,
-            _ => Task.CompletedTask,
-            () => { });
+        foreach (var minutes in new[] { 0, -1, 1441 })
+        {
+            await using var controller = new PlaybackStopTimerController(
+                TimeProvider.System,
+                _ => Task.CompletedTask,
+                () => { });
 
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            controller.ScheduleAfter(TimeSpan.FromMinutes(minutes)));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                controller.ScheduleAfter(TimeSpan.FromMinutes(minutes)));
+        }
     }
 
     [Fact]

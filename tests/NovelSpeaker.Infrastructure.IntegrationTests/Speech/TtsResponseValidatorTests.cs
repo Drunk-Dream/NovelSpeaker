@@ -11,28 +11,33 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Speech;
 
 public sealed class TtsResponseValidatorTests
 {
-    [Theory]
-    [InlineData(401, TtsErrorKind.Unauthorized)]
-    [InlineData(403, TtsErrorKind.Unauthorized)]
-    [InlineData(429, TtsErrorKind.RateLimited)]
-    [InlineData(503, TtsErrorKind.ServerError)]
-    public async Task ValidateAsync_classifies_terminal_http_statuses(int statusCode, TtsErrorKind expectedKind)
+    [Fact]
+    public async Task ValidateAsync_classifies_terminal_http_statuses()
     {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
-        await directories.EnsureCreatedAsync(CancellationToken.None);
-        var validator = new TtsResponseValidator(new TemporaryAudioStore(directories), new AudioProbe());
-        await using var response = new TtsTransportResponse(
-            statusCode,
-            "application/json",
-            new MemoryStream("{\"token\":\"secret\"}"u8.ToArray()),
-            statusCode == 429 ? TimeSpan.FromSeconds(3) : null);
+        foreach (var (statusCode, expectedKind) in new[]
+                 {
+                     (401, TtsErrorKind.Unauthorized),
+                     (403, TtsErrorKind.Unauthorized),
+                     (429, TtsErrorKind.RateLimited),
+                     (503, TtsErrorKind.ServerError)
+                 })
+        {
+            var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            var directories = new LocalAppDataDirectoryProvider(root);
+            await directories.EnsureCreatedAsync(CancellationToken.None);
+            var validator = new TtsResponseValidator(new TemporaryAudioStore(directories), new AudioProbe());
+            await using var response = new TtsTransportResponse(
+                statusCode,
+                "application/json",
+                new MemoryStream("{\"token\":\"secret\"}"u8.ToArray()),
+                statusCode == 429 ? TimeSpan.FromSeconds(3) : null);
 
-        var result = await validator.ValidateAsync(CreateRequest(), response, CancellationToken.None);
+            var result = await validator.ValidateAsync(CreateRequest(), response, CancellationToken.None);
 
-        Assert.Equal(expectedKind, result.Failure!.Kind);
-        Assert.DoesNotContain("secret", result.Failure.ResponseSummary, StringComparison.Ordinal);
-        Assert.Equal(statusCode == 429 ? TimeSpan.FromSeconds(3) : null, result.Failure.RetryAfter);
+            Assert.Equal(expectedKind, result.Failure!.Kind);
+            Assert.DoesNotContain("secret", result.Failure.ResponseSummary, StringComparison.Ordinal);
+            Assert.Equal(statusCode == 429 ? TimeSpan.FromSeconds(3) : null, result.Failure.RetryAfter);
+        }
     }
 
     [Fact]

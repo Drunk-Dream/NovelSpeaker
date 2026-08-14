@@ -1,0 +1,220 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <!--
+        These are explicit, gallery-first variants. Wpf.Ui owns the Button
+        templates through the Provider bridge; this dictionary only supplies
+        stable semantic values and state setters.
+    -->
+    <Style x:Key="App.Button.Primary"
+           TargetType="Button"
+           BasedOn="{StaticResource Provider.Button}">
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Default}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Text}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Hover}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Pressed}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Button.Secondary"
+           TargetType="Button"
+           BasedOn="{StaticResource Provider.Button}">
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Button.Subtle"
+           TargetType="Button"
+           BasedOn="{StaticResource Provider.Button}">
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Button.Icon"
+           TargetType="{x:Type ui:Button}"
+           BasedOn="{StaticResource Provider.UiButton}">
+        <Setter Property="Width" Value="{StaticResource App.Size.Icon.Touch}" />
+        <Setter Property="Height" Value="{StaticResource App.Size.Icon.Touch}" />
+        <Setter Property="MinWidth" Value="{StaticResource App.Size.Icon.Touch}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Icon.Touch}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FontSize" Value="{StaticResource App.Size.Icon.Standard}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+        <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="MouseOverBorderBrush" Value="Transparent" />
+        <Setter Property="PressedBorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Button.Danger"
+           TargetType="Button"
+           BasedOn="{StaticResource Provider.Button}">
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Danger}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger.Text}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Danger.Subtle}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Danger.Pressed}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger.Pressed.Text}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger.Pressed}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Button.DangerIcon"
+           TargetType="{x:Type ui:Button}"
+           BasedOn="{StaticResource Provider.UiButton}">
+        <Setter Property="Width" Value="{StaticResource App.Size.Icon.Touch}" />
+        <Setter Property="Height" Value="{StaticResource App.Size.Icon.Touch}" />
+        <Setter Property="MinWidth" Value="{StaticResource App.Size.Icon.Touch}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Icon.Touch}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FontSize" Value="{StaticResource App.Size.Icon.Standard}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Danger}" />
+        <Setter Property="MouseOverBorderBrush" Value="Transparent" />
+        <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Danger.Pressed}" />
+        <Setter Property="PressedBorderBrush" Value="Transparent" />
+        <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Danger.Pressed.Text}" />
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger.Text}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger.Pressed.Text}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Button.ToolbarValue"
+           TargetType="Button"
+           BasedOn="{StaticResource Provider.Button}">
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
+        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Button.Floating"
+           TargetType="Button"
+           BasedOn="{StaticResource Provider.Button}">
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Raised}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Effect" Value="{StaticResource App.Elevation.Low}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="Effect" Value="{StaticResource App.Elevation.Medium}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                <Setter Property="Effect" Value="{StaticResource App.Elevation.Low}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+</ResourceDictionary>

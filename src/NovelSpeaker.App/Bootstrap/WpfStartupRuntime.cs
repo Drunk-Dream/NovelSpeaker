@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Playback.Export;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Desktop.MediaControls;
 using NovelSpeaker.App.Desktop.Lifecycle;
@@ -42,6 +43,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     private readonly StartupStatusViewModel _statusViewModel = new();
     private readonly ProcessShutdownGate _shutdownGate = new();
     private readonly BackgroundTaskRegistry _backgroundTasks;
+    private readonly TimeSpan _backgroundShutdownTimeout;
     private StartupStatusWindow? _statusWindow;
     private LocalAppDataDirectoryProvider? _directories;
     private JsonAppSettingsStore? _settingsStore;
@@ -50,9 +52,24 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
 
     public WpfStartupRuntime(Dispatcher dispatcher, Action<MainWindow> setMainWindow)
     {
+        _backgroundShutdownTimeout = BackgroundShutdownTimeout;
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _setMainWindow = setMainWindow ?? throw new ArgumentNullException(nameof(setMainWindow));
         _backgroundTasks = new BackgroundTaskRegistry(this, TimeProvider.System);
+    }
+
+    internal WpfStartupRuntime(
+        Dispatcher dispatcher,
+        Action<MainWindow> setMainWindow,
+        TimeSpan backgroundShutdownTimeout)
+        : this(dispatcher, setMainWindow)
+    {
+        if (backgroundShutdownTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(backgroundShutdownTimeout));
+        }
+
+        _backgroundShutdownTimeout = backgroundShutdownTimeout;
     }
 
     public Func<CancellationToken, Task>? ShutdownRequestedAsync { get; set; }
@@ -72,8 +89,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         await _dispatcher.InvokeAsync(
             () =>
             {
-                _statusViewModel.StatusText = text.Status;
-                _statusViewModel.DetailText = text.Detail;
+                _statusViewModel.ReportStage(text.Status, text.Detail);
             },
             DispatcherPriority.Background,
             cancellationToken);
@@ -168,13 +184,30 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
             desktopLifecycle.RequestMainWindowCloseAsync,
             () => desktopLifecycle.IsExitApproved);
         _setMainWindow(window);
-        CloseStartupStatus();
-        await desktopLifecycle.StartAsync(cancellationToken).ConfigureAwait(true);
-        await RequireServices()
-            .GetRequiredService<IMediaControlCoordinator>()
-            .StartAsync(cancellationToken)
-            .ConfigureAwait(true);
-        StartBackgroundCacheMaintenance(cancellationToken);
+        await CompleteShellStartupAsync(
+            desktopLifecycle.StartAsync,
+            RequireServices().GetRequiredService<IMediaControlCoordinator>().StartAsync,
+            StartBackgroundCacheMaintenance,
+            CloseStartupStatus,
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    internal static async Task CompleteShellStartupAsync(
+        Func<CancellationToken, Task> startDesktopLifecycleAsync,
+        Func<CancellationToken, Task> startMediaControlsAsync,
+        Action<CancellationToken> startBackgroundMaintenance,
+        Action closeStartupStatus,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(startDesktopLifecycleAsync);
+        ArgumentNullException.ThrowIfNull(startMediaControlsAsync);
+        ArgumentNullException.ThrowIfNull(startBackgroundMaintenance);
+        ArgumentNullException.ThrowIfNull(closeStartupStatus);
+
+        await startDesktopLifecycleAsync(cancellationToken).ConfigureAwait(true);
+        await startMediaControlsAsync(cancellationToken).ConfigureAwait(true);
+        startBackgroundMaintenance(cancellationToken);
+        closeStartupStatus();
     }
 
     public void BeginShutdown()
@@ -231,26 +264,54 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     {
         if (_serviceProvider is not null)
         {
-            try
-            {
-                await _serviceProvider
-                    .GetRequiredService<ICacheWorkspaceBackgroundTaskOwner>()
-                    .StopBackgroundOperationsAsync(cancellationToken)
-                    .WaitAsync(BackgroundShutdownTimeout, TimeProvider.System, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (TimeoutException exception)
-            {
-                RecordLifecycleFailure(
-                    "chapter-speech-plan-shutdown",
-                    "等待章节朗读清单后台任务退出超时，将继续关闭。",
-                    exception);
-            }
+            await WaitForBackgroundTasksAsync(
+                _serviceProvider.GetRequiredService<IChapterExportCoordinator>(),
+                _serviceProvider.GetRequiredService<ICacheWorkspaceBackgroundTaskOwner>(),
+                cancellationToken).ConfigureAwait(false);
         }
 
         await _backgroundTasks.WaitForCompletionAsync(
             BackgroundShutdownTimeout,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    internal async Task WaitForBackgroundTasksAsync(
+        IChapterExportCoordinator chapterExportCoordinator,
+        ICacheWorkspaceBackgroundTaskOwner cacheWorkspaceBackgroundTaskOwner,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(chapterExportCoordinator);
+        ArgumentNullException.ThrowIfNull(cacheWorkspaceBackgroundTaskOwner);
+
+        try
+        {
+            await chapterExportCoordinator
+                .CancelAsync(cancellationToken)
+                .WaitAsync(_backgroundShutdownTimeout, TimeProvider.System, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (TimeoutException exception)
+        {
+            RecordLifecycleFailure(
+                "chapter-export-shutdown",
+                "等待章节导出后台任务退出超时，将继续关闭。",
+                exception);
+        }
+
+        try
+        {
+            await cacheWorkspaceBackgroundTaskOwner
+                .StopBackgroundOperationsAsync(cancellationToken)
+                .WaitAsync(_backgroundShutdownTimeout, TimeProvider.System, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (TimeoutException exception)
+        {
+            RecordLifecycleFailure(
+                "chapter-speech-plan-shutdown",
+                "等待章节朗读清单后台任务退出超时，将继续关闭。",
+                exception);
+        }
     }
 
     public Task FlushAsync(CancellationToken cancellationToken)
@@ -286,6 +347,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
 
     public void ShowStartupFailure(StartupFailure failure)
     {
+        _statusViewModel.ShowFailure(failure);
         MessageBox.Show(
             failure.Message,
             failure.Title,

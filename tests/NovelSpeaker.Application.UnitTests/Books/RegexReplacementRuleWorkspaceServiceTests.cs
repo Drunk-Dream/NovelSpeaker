@@ -65,6 +65,51 @@ public sealed class RegexReplacementRuleWorkspaceServiceTests
         Assert.Equal(cancellation.Token, repository.ObservedToken);
     }
 
+    [Fact]
+    public async Task Json_export_and_array_import_preserve_fields_ignore_ids_and_append_in_source_order()
+    {
+        var existingId = Guid.NewGuid();
+        var repository = new FakeRepository(
+        [
+            new RegexReplacementRule(existingId, "同名", false, 40, "旧", "甲", RegexReplacementScope.Display, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
+        ]);
+        var service = CreateService(repository);
+
+        var exported = await service.ExportRuleJsonAsync(existingId, CancellationToken.None);
+        var result = await service.ImportJsonAsync(
+            $$"""
+            [
+              {"id":"{{existingId}}","name":"同名","pattern":"旧","replacement":"甲","scope":"Display","isEnabled":false},
+              {"id":"{{existingId}}","name":"同名","pattern":"新一","replacement":"乙","scope":"Speech","isEnabled":true},
+              {"name":"第二条","pattern":"新二","replacement":"丙","scope":"Both","isEnabled":false}
+            ]
+            """,
+            CancellationToken.None);
+
+        Assert.Equal("""{"name":"同名","pattern":"旧","replacement":"甲","scope":"Display","isEnabled":false}""", exported);
+        Assert.Equal(new RuleJsonImportResult(2, 1, 3), result);
+        var ordered = repository.Rules.OrderBy(rule => rule.SortOrder).ToArray();
+        Assert.Equal(existingId, ordered[0].Id);
+        Assert.NotEqual(existingId, ordered[1].Id);
+        Assert.NotEqual(existingId, ordered[2].Id);
+        Assert.Equal(["旧", "新一", "新二"], ordered.Select(rule => rule.Pattern));
+        Assert.Equal([RegexReplacementScope.Display, RegexReplacementScope.Speech, RegexReplacementScope.Both], ordered.Select(rule => rule.Scope));
+        Assert.Equal([false, true, false], ordered.Select(rule => rule.IsEnabled));
+    }
+
+    [Fact]
+    public async Task Json_import_validates_entire_source_before_writing()
+    {
+        var repository = new FakeRepository([]);
+        var service = CreateService(repository);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ImportJsonAsync(
+            """[{"name":"有效","pattern":"ok","scope":"Both"},{"name":"无效","pattern":"[","scope":"Both"}]""",
+            CancellationToken.None));
+
+        Assert.Empty(repository.Rules);
+    }
+
     private static RegexReplacementRuleWorkspaceService CreateService(IRegexReplacementRuleRepository repository)
     {
         return new RegexReplacementRuleWorkspaceService(

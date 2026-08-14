@@ -52,7 +52,7 @@ public sealed class MouseWheelScrollBehaviorTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 window.UpdateLayout();
 
                 Assert.True(scrollViewer.ScrollableHeight > 0);
@@ -110,7 +110,7 @@ public sealed class MouseWheelScrollBehaviorTests
 
             try
             {
-                window.Show();
+                WpfWindowHost.Show(window);
                 window.UpdateLayout();
 
                 Assert.True(scrollViewer.ScrollableHeight > 0);

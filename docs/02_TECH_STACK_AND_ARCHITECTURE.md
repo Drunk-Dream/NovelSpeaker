@@ -76,12 +76,13 @@ App 的业务页面不得直接依赖 Infrastructure；所有业务动作通过 
 | 当前音频输出 | Local audio coordinator | Playback session |
 | 页面加载/编辑副本 | 对应 Page/ViewModel | Page activation |
 | 主动缓存批次 | Application background cache coordinator | Process/background job |
+| 章节 MP3 导出批次 | Application chapter export coordinator | Process/background job |
 | 章节朗读清单构建与完整度补建 | 播放、预取、主动缓存、导出用例及缓存工作区的进程级后台 owner；同章 in-flight 任务负责并发合并 | Process/background job or operation |
 | 托盘/迷你窗口 | Desktop shell coordinator | Process |
 | 当前设置快照 | Settings service | Process |
 | 短操作 | 发起用例/控制器 | Operation |
 
-页面离开只能取消页面拥有的工作，不能误取消正在播放或已经启动的主动缓存任务。
+页面离开只能取消页面拥有的工作，不能误取消正在播放、已经启动的主动缓存任务或已经提交给章节导出协调器的 MP3 导出批次。缓存管理页只拥有导出前的确认与目录选择。
 
 ## 7. 播放与主动缓存架构
 
@@ -110,6 +111,8 @@ Current playback > Playback prefetch > Active cache
 
 主动缓存协调器负责批次快照、章节队列、进度、取消和状态发布；播放器只提交缓存请求，不拥有后台批次。
 
+章节 MP3 导出采用独立的进程级 `IChapterExportCoordinator`：缓存管理页完成可导出性预检、跳过确认和目录选择后提交不可变批次参数，协调器拥有批次 CTS、执行 Task、章节级进度和终态快照。Shell 只投影协调器状态并提供取消/打开目录/关闭完成状态，不拥有导出任务。当前阶段不抽象通用后台任务中心。
+
 章节朗读清单由播放、预取、主动缓存和导出等真正消费章节内容的用例按需建立或更新；完整度读取发现过期计划时由进程级缓存工作区 owner 异步补建，缓存管理页对有缓存但缺失计划的章节同样补建，同章请求合并为一个后台任务。普通目录遇到缺失计划不建立清单；所有页面首轮查询只聚合 SQLite 计划和 `Ready` 索引，不重新处理正文、不逐文件解码。正式缓存写入前必须先提交对应计划。删除某章最后一条缓存索引时同步回收其朗读清单。
 
 ## 8. 桌面平台边界
@@ -136,14 +139,18 @@ Wpf.Ui 是标准 WPF/Wpf.Ui 控件的基础视觉提供者，NovelSpeaker 不复
 1. Wpf.Ui provider dictionaries：默认控件模板、Fluent 交互状态和框架主题资源。
 2. NovelSpeaker palette/tokens：语义颜色、稳定间距标尺、圆角、图标尺寸、最小控件尺寸和动效时长。
 3. Provider style bridge：将确实需要扩展的 Wpf.Ui 基础样式映射为显式、稳定的具名资源。
-4. NovelSpeaker explicit variants：`App.*` 具名样式，只覆盖必要属性，不以应用级隐式样式接管标准控件。
-5. NovelSpeaker components：书籍卡片、设置行、媒体控制条、页面标题等应用自有复合组件。
-6. Page layout：列宽、页面边距、工作台分栏和页面专用几何由 Shell、页面或组件中的唯一 owner 管理。
+4. NovelSpeaker explicit variants：按控件族集中维护的 `App.*` 具名样式，只覆盖必要属性，不以应用级隐式样式接管标准控件。
+5. NovelSpeaker shared controls：页面标题、设置行、表单字段和状态视图等跨 Feature 的应用自有控件；控件类位于 `Shared/Presentation/Controls`，默认模板位于 `Shared/Theming/Resources/ControlThemes`。
+6. Feature components：书籍卡片、规则列表项、播放视图和缓存章节项等领域视图，由对应 Feature 拥有。
+7. Page layout：列宽、页面边距、工作台分栏和页面专用几何由 Shell、页面或组件中的唯一 owner 管理。
 
 约束：
 
 - `Application.Resources` 和全局合并字典不得为标准 WPF/Wpf.Ui 控件定义 NovelSpeaker 隐式样式。
 - NovelSpeaker 自有 CustomControl 可以使用默认样式键；局部组件内部可使用受控隐式样式，但作用域不能逃逸。
+- Style Gallery fixture 只存在于开发工具，生产控件不得硬编码演示文本、命令或状态。
+- Style Gallery 按稳定资源族注册 scene，用于集中展示正式资源和自有控件；scene 身份不依赖 backlog 任务编号。
+- 正式页面截图由视觉测试宿主实例化真实 View，按稳定 page/window 身份输出；不得用 Gallery 页面仿制品替代。
 - 标准控件完整 `ControlTemplate` 由 Wpf.Ui 所有。确需替换时必须使用局部具名样式或应用自有组件，并有专项 WPF 契约测试。
 - 主题切换只更新 Wpf.Ui 主题和 NovelSpeaker palette；样式字典、模板字典和类型资源键保持加载稳定。
 - ViewModel 只投影语义状态，不返回 Brush、Style、Thickness、CornerRadius 或其它视觉类型。
@@ -180,4 +187,4 @@ Wpf.Ui 是标准 WPF/Wpf.Ui 控件的基础视觉提供者，NovelSpeaker 不复
 - 文件名、主公共类型和命名空间保持一致。
 - 非组合根代码不新增 `IServiceProvider` 依赖。
 
-架构收口任务见 `TASK_BACKLOG.md`，本文件不记录迁移过程。
+当前实施任务见 `TASK_BACKLOG.md`，本文件只记录稳定架构边界，不记录执行过程。

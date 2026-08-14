@@ -1,16 +1,20 @@
+using System.Windows;
 using System.Windows.Controls;
+using NovelSpeaker.Application.Books;
+using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Shared.Feedback;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Xunit;
+using WpfButton = System.Windows.Controls.Button;
+using WpfTextBlock = System.Windows.Controls.TextBlock;
 
 namespace NovelSpeaker.App.WpfTests.Feedback;
 
 [Collection("WpfDispatcher")]
 public sealed class FeedbackServicesTests
 {
-    [Fact]
-    public void AppDialogService_maps_confirmation_and_unsaved_changes_results()
+    private void AppDialogService_maps_confirmation_and_unsaved_changes_results()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -26,11 +30,131 @@ public sealed class FeedbackServicesTests
 
             Assert.Equal(AppConfirmationDecision.Confirm, confirm);
             Assert.Equal(UnsavedChangesDecision.Discard, unsaved);
+            AssertStandardDialogVisuals(dialogService.LastDialog!);
+            Assert.Equal("放弃", dialogService.LastDialog!.SecondaryButtonText);
         });
     }
 
-    [Fact]
-    public void AppNotificationService_routes_messages_to_snackbar_service()
+    private void EncodingSelectionDialogService_uses_standard_dialog_content_and_input_styles()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var dialogService = new FakeContentDialogService
+            {
+                NextResult = ContentDialogResult.Primary
+            };
+            var service = new EncodingSelectionDialogService(dialogService);
+
+            var selected = service.ShowAsync(
+                    new EncodingSelectionPrompt(
+                        "C:\\fixture.txt",
+                        "fixture.txt",
+                        "请选择编码。",
+                        "UTF-8",
+                        ["UTF-8", "GB18030"]),
+                    CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+
+            Assert.Equal("UTF-8", selected);
+            AssertStandardDialogVisuals(dialogService.LastDialog!);
+            var content = Assert.IsType<StackPanel>(Assert.IsType<Border>(dialogService.LastDialog!.Content).Child);
+            var comboBox = Assert.IsType<ComboBox>(content.Children[2]);
+            Assert.Same(global::System.Windows.Application.Current.FindResource("App.Input.ComboBox.Standard"), comboBox.Style);
+        });
+    }
+
+    private void ImportProgressDialogService_uses_standard_content_progress_and_cancel_styles()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var dialogService = new FakeContentDialogService();
+            var service = new ImportProgressDialogService(dialogService, new ImmediateUiScheduler());
+
+            var result = service.RunAsync(
+                    "fixture.txt",
+                    (_, _) => Task.FromResult(new LibraryImportCoordinatorResult(LibraryImportCoordinatorStatus.Imported)),
+                    CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+
+            Assert.Equal(LibraryImportCoordinatorStatus.Imported, result.Status);
+            var dialog = dialogService.LastDialog!;
+            Assert.False(dialog.IsFooterVisible);
+            var surface = Assert.IsType<Border>(dialog.Content);
+            Assert.Same(global::System.Windows.Application.Current.FindResource("App.Feedback.DialogBody"), surface.Style);
+            var content = Assert.IsType<StackPanel>(surface.Child);
+            Assert.Same(
+                global::System.Windows.Application.Current.FindResource("App.Feedback.DialogMessage"),
+                Assert.IsType<WpfTextBlock>(content.Children[1]).Style);
+            Assert.Same(
+                global::System.Windows.Application.Current.FindResource("App.Progress.Standard"),
+                Assert.IsType<ProgressBar>(content.Children[2]).Style);
+            Assert.Same(
+                global::System.Windows.Application.Current.FindResource("App.Button.Secondary"),
+                Assert.IsType<WpfButton>(content.Children[3]).Style);
+        });
+    }
+
+    private void ImportProgressDialogService_cancels_operation_when_host_closes_dialog()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var dialogService = new FakeContentDialogService
+            {
+                OnShow = dialog =>
+                {
+                    var closedEventArgs = (ContentDialogClosedEventArgs)global::System.Runtime.CompilerServices.RuntimeHelpers
+                        .GetUninitializedObject(typeof(ContentDialogClosedEventArgs));
+                    closedEventArgs.RoutedEvent = ContentDialog.ClosedEvent;
+                    dialog.RaiseEvent(closedEventArgs);
+                }
+            };
+            var service = new ImportProgressDialogService(dialogService, new ImmediateUiScheduler());
+            var operationObservedCancellation = false;
+
+            var result = service.RunAsync(
+                    "fixture.txt",
+                    (_, cancellationToken) =>
+                    {
+                        operationObservedCancellation = cancellationToken.IsCancellationRequested;
+                        return Task.FromCanceled<LibraryImportCoordinatorResult>(cancellationToken);
+                    },
+                    CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+
+            Assert.True(operationObservedCancellation);
+            Assert.Equal(LibraryImportCoordinatorStatus.Cancelled, result.Status);
+        });
+    }
+
+    private void ImportProgressDialogService_closes_dialog_and_preserves_operation_failure()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var closingWasRaised = false;
+            var dialogService = new FakeContentDialogService
+            {
+                OnShow = dialog => dialog.Closing += (_, _) => closingWasRaised = true
+            };
+            var service = new ImportProgressDialogService(dialogService, new ImmediateUiScheduler());
+            var expected = new InvalidOperationException("fixture failure");
+
+            var actual = Assert.Throws<InvalidOperationException>(() =>
+                service.RunAsync(
+                        "fixture.txt",
+                        (_, _) => Task.FromException<LibraryImportCoordinatorResult>(expected),
+                        CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult());
+
+            Assert.Same(expected, actual);
+            Assert.True(closingWasRaised);
+        });
+    }
+
+    private void AppNotificationService_routes_messages_to_snackbar_service()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -45,8 +169,7 @@ public sealed class FeedbackServicesTests
         });
     }
 
-    [Fact]
-    public void AppFeedbackService_confirms_deletion_and_routes_projected_notifications()
+    private void AppFeedbackService_confirms_deletion_and_routes_projected_notifications()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -71,6 +194,7 @@ public sealed class FeedbackServicesTests
             Assert.Equal(AppConfirmationDecision.Confirm, decision);
             Assert.Equal("删除", dialogService.LastDialog?.PrimaryButtonText);
             Assert.Equal("取消", dialogService.LastDialog?.CloseButtonText);
+            AssertStandardDialogVisuals(dialogService.LastDialog!);
             Assert.Equal("提示", snackbarService.LastTitle);
             Assert.Equal("普通警告", snackbarService.LastMessage);
             Assert.Equal(ControlAppearance.Caution, snackbarService.LastAppearance);
@@ -78,7 +202,42 @@ public sealed class FeedbackServicesTests
     }
 
     [Fact]
-    public void ExceptionProjector_hides_unexpected_error_details_and_silences_cancellation()
+    public void Feedback_dialog_contracts_cover_confirmation_encoding_and_progress_lifecycle()
+    {
+        AppDialogService_maps_confirmation_and_unsaved_changes_results();
+        EncodingSelectionDialogService_uses_standard_dialog_content_and_input_styles();
+        ImportProgressDialogService_uses_standard_content_progress_and_cancel_styles();
+        ImportProgressDialogService_cancels_operation_when_host_closes_dialog();
+        ImportProgressDialogService_closes_dialog_and_preserves_operation_failure();
+    }
+
+    [Fact]
+    public void Feedback_notification_contracts_route_messages_and_projected_notifications()
+    {
+        AppNotificationService_routes_messages_to_snackbar_service();
+        AppFeedbackService_confirms_deletion_and_routes_projected_notifications();
+    }
+
+    [Fact]
+    public void Feedback_exception_projection_contracts_hide_details_and_cancellation()
+    {
+        ExceptionProjector_hides_unexpected_error_details_and_silences_cancellation();
+        ExceptionProjector_does_not_expose_invalid_operation_messages();
+    }
+
+    private static void AssertStandardDialogVisuals(ContentDialog dialog)
+    {
+        var body = Assert.IsType<Border>(dialog.Content);
+        Assert.Same(global::System.Windows.Application.Current.FindResource("App.Feedback.DialogBody"), body.Style);
+        Assert.Equal(new Thickness(0), body.BorderThickness);
+        Assert.Equal(new Thickness(0), body.Padding);
+        Assert.Null(body.Effect);
+        Assert.Equal(ContentDialogButton.Primary, dialog.DefaultButton);
+        Assert.Equal(ControlAppearance.Primary, dialog.PrimaryButtonAppearance);
+        Assert.Equal(ControlAppearance.Secondary, dialog.CloseButtonAppearance);
+    }
+
+    private void ExceptionProjector_hides_unexpected_error_details_and_silences_cancellation()
     {
         var projector = new ExceptionProjector();
 
@@ -89,8 +248,7 @@ public sealed class FeedbackServicesTests
         Assert.Equal("操作失败，请稍后重试。", unexpected.UserMessage);
     }
 
-    [Fact]
-    public void ExceptionProjector_does_not_expose_invalid_operation_messages()
+    private void ExceptionProjector_does_not_expose_invalid_operation_messages()
     {
         var projected = new ExceptionProjector().Project(new InvalidOperationException("Token=secret"));
 
@@ -106,6 +264,8 @@ public sealed class FeedbackServicesTests
         public ContentDialogResult NextResult { get; set; }
 
         public ContentDialog? LastDialog { get; private set; }
+
+        public Action<ContentDialog>? OnShow { get; init; }
 
         public void SetDialogHost(ContentPresenter contentPresenter)
         {
@@ -128,7 +288,26 @@ public sealed class FeedbackServicesTests
         public Task<ContentDialogResult> ShowAsync(ContentDialog dialog, CancellationToken cancellationToken)
         {
             LastDialog = dialog;
+            OnShow?.Invoke(dialog);
             return Task.FromResult(NextResult);
+        }
+    }
+
+    private sealed class ImmediateUiScheduler : NovelSpeaker.App.Shared.Presentation.Platform.IUiScheduler
+    {
+        public bool CheckAccess() => true;
+
+        public Task InvokeAsync(Action action, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            action();
+            return Task.CompletedTask;
+        }
+
+        public Task InvokeAsync(Func<Task> action, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return action();
         }
     }
 

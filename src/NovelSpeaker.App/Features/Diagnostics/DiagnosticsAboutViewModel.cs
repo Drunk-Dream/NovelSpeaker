@@ -82,6 +82,22 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task OpenAppDataDirectoryAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _diagnosticsService.OpenAppDataDirectoryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            ShowSaveFailure("打开应用数据目录失败", exception);
+        }
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task OpenLogsDirectoryAsync(CancellationToken cancellationToken)
     {
         try
