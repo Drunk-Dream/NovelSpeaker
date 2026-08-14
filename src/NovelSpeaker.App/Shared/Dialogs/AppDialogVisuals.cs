@@ -36,14 +36,14 @@ internal static class AppDialogVisuals
         return dialog;
     }
 
-    public static Border Wrap(FrameworkElement content)
+    public static Border CreateBody(FrameworkElement content)
     {
-        var surface = new Border
+        var body = new Border
         {
             Child = content
         };
-        surface.SetResourceReference(FrameworkElement.StyleProperty, "App.Feedback.DialogContent");
-        return surface;
+        body.SetResourceReference(FrameworkElement.StyleProperty, "App.Feedback.DialogBody");
+        return body;
     }
 
     public static WpfTextBlock CreateTitle(string text)

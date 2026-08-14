@@ -27,7 +27,7 @@ public sealed class EncodingSelectionDialogService : IEncodingSelectionDialogSer
         var comboBox = new global::System.Windows.Controls.ComboBox
         {
             ItemsSource = prompt.AvailableEncodings,
-            Margin = new Thickness(0, 12, 0, 0),
+            Margin = new Thickness(0, 16, 0, 0),
             MinWidth = 160
         };
         comboBox.SetResourceReference(FrameworkElement.StyleProperty, "App.Input.ComboBox.Standard");
@@ -46,7 +46,7 @@ public sealed class EncodingSelectionDialogService : IEncodingSelectionDialogSer
         };
         var dialog = AppDialogVisuals.Create(
             "选择文本编码",
-            AppDialogVisuals.Wrap(content),
+            AppDialogVisuals.CreateBody(content),
             "继续导入",
             null,
             "取消");

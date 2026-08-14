@@ -123,7 +123,7 @@ internal static class GallerySceneBuilders
         CreateSceneRoot(
             "feedback",
             "Feedback content styles",
-            "Dialog, Flyout, inline validation and Snackbar content resources keep Wpf.Ui hosts and lifecycles outside the resource dictionary.",
+            "Dialog body stays flat inside the Wpf.Ui host; Flyout, inline validation and Snackbar resources keep their existing host boundaries.",
             GalleryFeedbackScene.Create);
 
     public static FrameworkElement CreateProviderStyleProbe() =>
@@ -653,8 +653,7 @@ internal static class GallerySceneBuilders
             ("App.Surface.Card", "surface-card", "Card · 普通静态卡片"),
             ("App.Surface.Secondary", "surface-secondary", "Secondary · 次级控制条"),
             ("App.Surface.Raised", "surface-raised", "Raised · 轻抬升表面"),
-            ("App.Surface.Popup", "surface-popup", "Popup · 临时浮层"),
-            ("App.Surface.DialogContent", "surface-dialog-content", "DialogContent · 对话框内容")
+            ("App.Surface.Popup", "surface-popup", "Popup · 临时浮层")
         };
         for (var index = 0; index < keys.Length; index++)
         {

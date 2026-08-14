@@ -55,12 +55,4 @@
         <Setter Property="Effect" Value="{StaticResource App.Elevation.Medium}" />
     </Style>
 
-    <Style x:Key="App.Surface.DialogContent" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Raised}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource App.Radius.Large}" />
-        <Setter Property="Padding" Value="24" />
-        <Setter Property="Effect" Value="{StaticResource App.Elevation.High}" />
-    </Style>
 </ResourceDictionary>

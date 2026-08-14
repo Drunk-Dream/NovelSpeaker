@@ -82,7 +82,7 @@ public sealed class FeedbackServicesTests
             var dialog = dialogService.LastDialog!;
             Assert.False(dialog.IsFooterVisible);
             var surface = Assert.IsType<Border>(dialog.Content);
-            Assert.Same(global::System.Windows.Application.Current.FindResource("App.Feedback.DialogContent"), surface.Style);
+            Assert.Same(global::System.Windows.Application.Current.FindResource("App.Feedback.DialogBody"), surface.Style);
             var content = Assert.IsType<StackPanel>(surface.Child);
             Assert.Same(
                 global::System.Windows.Application.Current.FindResource("App.Feedback.DialogMessage"),
@@ -227,8 +227,11 @@ public sealed class FeedbackServicesTests
 
     private static void AssertStandardDialogVisuals(ContentDialog dialog)
     {
-        var surface = Assert.IsType<Border>(dialog.Content);
-        Assert.Same(global::System.Windows.Application.Current.FindResource("App.Feedback.DialogContent"), surface.Style);
+        var body = Assert.IsType<Border>(dialog.Content);
+        Assert.Same(global::System.Windows.Application.Current.FindResource("App.Feedback.DialogBody"), body.Style);
+        Assert.Equal(new Thickness(0), body.BorderThickness);
+        Assert.Equal(new Thickness(0), body.Padding);
+        Assert.Null(body.Effect);
         Assert.Equal(ContentDialogButton.Primary, dialog.DefaultButton);
         Assert.Equal(ControlAppearance.Primary, dialog.PrimaryButtonAppearance);
         Assert.Equal(ControlAppearance.Secondary, dialog.CloseButtonAppearance);

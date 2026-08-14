@@ -59,12 +59,18 @@ internal static class GalleryFeedbackScene
 
     private static Border CreateDialogContent()
     {
-        var surface = new Border
+        var host = new Border
         {
             Margin = new Thickness(0, 0, 8, 8),
-            Style = FindStyle("App.Feedback.DialogContent")
+            Style = FindStyle("App.Surface.Raised")
         };
-        AutomationProperties.SetAutomationId(surface, "feedback-dialog");
+        AutomationProperties.SetAutomationId(host, "feedback-dialog-host");
+
+        var body = new Border
+        {
+            Style = FindStyle("App.Feedback.DialogBody")
+        };
+        AutomationProperties.SetAutomationId(body, "feedback-dialog-body");
         var content = new StackPanel();
         content.Children.Add(new TextBlock
         {
@@ -77,8 +83,9 @@ internal static class GalleryFeedbackScene
             Style = FindStyle("App.Feedback.DialogMessage"),
             TextWrapping = TextWrapping.Wrap
         });
-        surface.Child = content;
-        return surface;
+        body.Child = content;
+        host.Child = body;
+        return host;
     }
 
     private static Border CreateSnackbarContent()

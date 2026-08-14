@@ -33,8 +33,7 @@ public sealed class TypographySurfaceStyleTests
         "App.Surface.Card",
         "App.Surface.Secondary",
         "App.Surface.Raised",
-        "App.Surface.Popup",
-        "App.Surface.DialogContent"
+        "App.Surface.Popup"
     ];
 
     [Fact]
@@ -154,7 +153,7 @@ public sealed class TypographySurfaceStyleTests
                     "surface-",
                     StringComparison.Ordinal))
                 .ToArray();
-            Assert.Equal(9, surfaces.Length);
+            Assert.Equal(8, surfaces.Length);
             Assert.All(surfaces, surface =>
             {
                 Assert.NotNull(surface.Style);
@@ -179,12 +178,8 @@ public sealed class TypographySurfaceStyleTests
                 AutomationProperties.GetAutomationId(surface) == "surface-raised");
             var popup = surfaces.Single(surface =>
                 AutomationProperties.GetAutomationId(surface) == "surface-popup");
-            var dialog = surfaces.Single(surface =>
-                AutomationProperties.GetAutomationId(surface) == "surface-dialog-content");
             Assert.IsType<DropShadowEffect>(raised.Effect);
             Assert.IsType<DropShadowEffect>(popup.Effect);
-            Assert.IsType<DropShadowEffect>(dialog.Effect);
-            Assert.True(((DropShadowEffect)dialog.Effect).BlurRadius > ((DropShadowEffect)popup.Effect).BlurRadius);
         });
     }
 

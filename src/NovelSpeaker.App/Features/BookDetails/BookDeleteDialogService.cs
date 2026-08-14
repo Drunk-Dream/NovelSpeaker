@@ -35,7 +35,7 @@ public sealed class BookDeleteDialogService : IBookDeleteDialogService
         {
             Content = "同时清理音频缓存",
             IsChecked = request.DeleteAudioCacheByDefault,
-            Margin = new Thickness(0, 12, 0, 0)
+            Margin = new Thickness(0, 16, 0, 0)
         };
         deleteCacheCheckBox.SetResourceReference(FrameworkElement.StyleProperty, "App.Input.CheckBox.Standard");
         var content = new global::System.Windows.Controls.StackPanel
@@ -54,7 +54,7 @@ public sealed class BookDeleteDialogService : IBookDeleteDialogService
         };
         var dialog = AppDialogVisuals.Create(
             "删除书籍",
-            AppDialogVisuals.Wrap(content),
+            AppDialogVisuals.CreateBody(content),
             "删除",
             null,
             "取消",

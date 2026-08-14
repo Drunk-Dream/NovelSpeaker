@@ -28,6 +28,13 @@ public sealed class AppStatusView : ContentControl
         VerticalContentAlignment = VerticalAlignment.Stretch;
     }
 
+    public static readonly DependencyProperty IsEmbeddedProperty =
+        DependencyProperty.Register(
+            nameof(IsEmbedded),
+            typeof(bool),
+            typeof(AppStatusView),
+            new FrameworkPropertyMetadata(false));
+
     public static readonly DependencyProperty StatusProperty =
         DependencyProperty.Register(
             nameof(Status),
@@ -69,6 +76,12 @@ public sealed class AppStatusView : ContentControl
             typeof(object),
             typeof(AppStatusView),
             new FrameworkPropertyMetadata(null));
+
+    public bool IsEmbedded
+    {
+        get => (bool)GetValue(IsEmbeddedProperty);
+        set => SetValue(IsEmbeddedProperty, value);
+    }
 
     public AppStatusKind Status
     {

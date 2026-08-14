@@ -59,9 +59,11 @@ public sealed class BookDeleteDialogServiceTests
             Assert.Equal(ContentDialogButton.Primary, dialog.DefaultButton);
             Assert.Equal(ControlAppearance.Danger, dialog.PrimaryButtonAppearance);
             Assert.Equal(ControlAppearance.Secondary, dialog.CloseButtonAppearance);
-            var surface = Assert.IsType<Border>(dialog.Content);
-            Assert.Same(global::System.Windows.Application.Current.FindResource("App.Feedback.DialogContent"), surface.Style);
-            var stackPanel = Assert.IsType<StackPanel>(surface.Child);
+            var body = Assert.IsType<Border>(dialog.Content);
+            Assert.Same(global::System.Windows.Application.Current.FindResource("App.Feedback.DialogBody"), body.Style);
+            Assert.Equal(new Thickness(0), body.BorderThickness);
+            Assert.Null(body.Effect);
+            var stackPanel = Assert.IsType<StackPanel>(body.Child);
             var deleteCacheCheckBox = Assert.IsType<CheckBox>(stackPanel.Children[4]);
             Assert.Equal("同时清理音频缓存", deleteCacheCheckBox.Content);
             Assert.Same(global::System.Windows.Application.Current.FindResource("App.Input.CheckBox.Standard"), deleteCacheCheckBox.Style);

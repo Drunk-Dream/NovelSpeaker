@@ -30,7 +30,7 @@ public sealed class AppDialogService : IAppDialogService
 
         var dialog = AppDialogVisuals.Create(
             title,
-            AppDialogVisuals.Wrap(AppDialogVisuals.CreateMessage(message)),
+            AppDialogVisuals.CreateBody(AppDialogVisuals.CreateMessage(message)),
             primaryButtonText,
             null,
             closeButtonText);
@@ -60,7 +60,7 @@ public sealed class AppDialogService : IAppDialogService
 
         var dialog = AppDialogVisuals.Create(
             title,
-            AppDialogVisuals.Wrap(AppDialogVisuals.CreateMessage(message)),
+            AppDialogVisuals.CreateBody(AppDialogVisuals.CreateMessage(message)),
             saveButtonText,
             discardButtonText,
             cancelButtonText);

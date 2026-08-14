@@ -45,7 +45,8 @@ public sealed class ImportProgressDialogService : IImportProgressDialogService
         {
             Minimum = 0,
             Maximum = 100,
-            IsIndeterminate = true
+            IsIndeterminate = true,
+            Margin = new Thickness(0, 16, 0, 0)
         };
         progressBar.SetResourceReference(FrameworkElement.StyleProperty, "App.Progress.Standard");
 
@@ -76,7 +77,7 @@ public sealed class ImportProgressDialogService : IImportProgressDialogService
         dialog = new ContentDialog
         {
             Title = "正在导入小说",
-            Content = AppDialogVisuals.Wrap(content),
+            Content = AppDialogVisuals.CreateBody(content),
             IsFooterVisible = false,
             DefaultButton = ContentDialogButton.Close
         };

@@ -60,6 +60,14 @@
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="IsEmbedded" Value="True">
+                            <Setter TargetName="Surface" Property="Background" Value="Transparent" />
+                            <Setter TargetName="Surface" Property="BorderBrush" Value="Transparent" />
+                            <Setter TargetName="Surface" Property="BorderThickness" Value="0" />
+                            <Setter TargetName="Surface" Property="CornerRadius" Value="0" />
+                            <Setter TargetName="Surface" Property="Padding" Value="0" />
+                            <Setter TargetName="Surface" Property="Effect" Value="{x:Null}" />
+                        </Trigger>
                         <Trigger Property="Description" Value="{x:Null}">
                             <Setter TargetName="DescriptionPresenter" Property="Visibility" Value="Collapsed" />
                         </Trigger>

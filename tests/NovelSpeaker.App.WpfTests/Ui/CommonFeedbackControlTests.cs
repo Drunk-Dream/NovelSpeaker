@@ -333,6 +333,28 @@ public sealed class CommonFeedbackControlTests
                 VerticalAlignment.Center,
                 Assert.IsType<Border>(
                     emptyDescription.Template.FindName("IconSurface", emptyDescription)).VerticalAlignment);
+
+            var embedded = new AppStatusView
+            {
+                IsEmbedded = true,
+                Status = AppStatusKind.Loading,
+                Title = "嵌入式状态",
+                Description = "已有浮层拥有主 Surface 时，状态控件不得再绘制完整卡片。"
+            };
+            using var embeddedHost = WpfWindowHost.Show(new Window
+            {
+                Content = embedded,
+                Width = 480,
+                Height = 180,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            });
+            embeddedHost.Window.UpdateLayout();
+            var embeddedSurface = Assert.IsType<Border>(embedded.Template!.FindName("Surface", embedded));
+            Assert.Equal(new Thickness(0), embeddedSurface.BorderThickness);
+            Assert.Equal(new Thickness(0), embeddedSurface.Padding);
+            Assert.Null(embeddedSurface.Effect);
+            Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(embeddedSurface.Background).Color);
         });
     }
 

@@ -23,7 +23,7 @@ public sealed class ProgressFeedbackStyleContractTests
         {
             "App.Feedback.PopupSurface",
             "App.Feedback.FlyoutHost",
-            "App.Feedback.DialogContent",
+            "App.Feedback.DialogBody",
             "App.Feedback.DialogTitle",
             "App.Feedback.DialogMessage",
             "App.Feedback.ValidationText",
@@ -89,6 +89,18 @@ public sealed class ProgressFeedbackStyleContractTests
             "{StaticResource Provider.Snackbar}",
             feedbackStyles.Single(style => (string?)style.Attribute(xaml + "Key") == "App.Feedback.Snackbar")
                 .Attribute("BasedOn")?.Value);
+        var dialogBody = feedbackStyles.Single(style =>
+            (string?)style.Attribute(xaml + "Key") == "App.Feedback.DialogBody");
+        Assert.Null(dialogBody.Attribute("BasedOn"));
+        var dialogBodySetters = dialogBody.Elements()
+            .Where(element => element.Name.LocalName == "Setter")
+            .ToDictionary(
+                element => (string)element.Attribute("Property")!,
+                element => (string?)element.Attribute("Value"));
+        Assert.Equal("0", dialogBodySetters["BorderThickness"]);
+        Assert.Equal("0", dialogBodySetters["Padding"]);
+        Assert.Equal("Transparent", dialogBodySetters["Background"]);
+        Assert.Equal("{x:Null}", dialogBodySetters["Effect"]);
 
         var templates = feedbackResources
             .Where(resource => resource.Name.LocalName == "DataTemplate")
