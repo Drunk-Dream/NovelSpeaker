@@ -65,6 +65,7 @@
 - 播放页和书籍详情目录中的 0% 缓存完整度继续不显示。
 - 缓存管理页显示全部有缓存章节，当前配置为 0% 时也显示该章节和 `0%`。
 - 开发用 Style Gallery 和自动截图工具不进入正式导航和发布包。
+- Dialog、Flyout、Popup 和独立状态浮窗采用 Single Surface 原则。ContentDialog 自身是唯一主 Surface，内部使用透明 `App.Feedback.DialogBody`；`StartupStatusWindow` 由 Window 自身承担 Raised Surface，并使用 `AppStatusView.IsEmbedded=true` 避免第二层 Section 卡片。复杂 Dialog 只有在存在明确独立二级信息分组时才允许弱背景或 Divider，默认不使用完整 Card-in-Dialog。
 
 ### 架构与测试
 

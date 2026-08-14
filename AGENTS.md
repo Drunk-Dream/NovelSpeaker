@@ -69,6 +69,8 @@ Codex 配置目录直接读取 `~/.codex/`。
 
 UI 事件和平台能力通过可测试的 presentation port 转交；不得在不同页面分别直接实现文件选择、剪贴板、目录打开、错误投影或播放协调。
 
+Dialog、Flyout、Popup 和独立状态浮窗遵循 `docs/13_VISUAL_DESIGN_SYSTEM.md` 的 Single Surface 约束：宿主已经拥有完整浮层时，内容不得再默认嵌套完整 Card/Section/Raised Surface；`AppStatusView` 只有在外层已拥有主 Surface 时才使用 Embedded 模式。
+
 ## 数据、安全与兼容约束
 
 - 已发布 SQLite migration 只能追加，不能为整理代码而修改、合并或重编号。

@@ -286,6 +286,8 @@ TTS、章节规则和正则替换共享一套交互骨架。
 
 错误信息只给用户可操作内容，不展示技术堆栈或敏感请求信息。
 
+Dialog、Flyout、Popup 和独立状态浮窗遵循单一主 Surface 原则：宿主已经形成完整浮层时，内容保持平面，不再嵌套第二张带完整背景、边框、圆角和阴影的卡片。ContentDialog 内部以标题、正文、字段/选项和 Footer 建立层级；StartupStatusWindow 由窗口自身承担 Raised Surface，内部状态控件使用 Embedded 模式。复杂对话框确有独立二级信息分组时，优先使用 Divider 或弱背景，而不是完整 Card-in-Dialog。
+
 ## 16. 键盘与可访问性
 
 现有播放快捷键继续保留，并加入桌面列表选择语义：

@@ -160,6 +160,7 @@
 - UI 测试优先保护用户可观察行为：导航、命令启用、选择、Dirty State、缓存状态、页面生命周期、键盘焦点、Automation 和关键几何下限。
 - 公共视觉资源只在其唯一 owner 层建立主合同；页面不重复冻结 Button、Icon、Input、Surface、Typography 等公共控件的内部实现。
 - Style/ControlTheme、Palette/Token、Provider Bridge、主题切换、Icon Foreground、输入控件、设置组件、Shell、媒体控件等最终视觉规则统一以 `13_VISUAL_DESIGN_SYSTEM.md` 为定义来源。
+- Feedback/Transient UI 测试必须保护 Single Surface 合同：`App.Feedback.DialogBody` 无背景、边框、圆角、Padding 和阴影；ContentDialog 不再套完整 Surface；`AppStatusView.IsEmbedded=true` 时自身 Section chrome 必须消失；StartupStatusWindow 由 Window 自身承担唯一 Raised Surface。
 - WPF 自动合同应证明资源键唯一性、加载顺序、主题热切换、关键状态、最小点击区域、非零可用宽度、不重叠、核心内容可见、AutomationName 和关键键盘行为。
 - 几何测试只固定稳定下限和业务布局边界，不冻结仍可调整的精确 Padding、Margin、Width 或 Height。
 - 100%、125%、150% DPI 和适用的长文本/窄宽度场景用于发现布局退化，但同一公共合同不在每个页面重复建立等价 case。

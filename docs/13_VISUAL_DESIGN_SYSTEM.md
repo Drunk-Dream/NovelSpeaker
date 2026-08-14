@@ -391,7 +391,6 @@ App.Surface.Card
 App.Surface.Secondary
 App.Surface.Raised
 App.Surface.Popup
-App.Surface.DialogContent
 ```
 
 Surface Style 只处理背景、边界、圆角、Padding 和效果，不包含业务内容。
@@ -496,7 +495,7 @@ ProgressBar 与 Slider 保持不同控件语义和测试，不共用模板。
 ```text
 App.Feedback.PopupSurface
 App.Feedback.FlyoutHost
-App.Feedback.DialogContent
+App.Feedback.DialogBody
 App.Feedback.DialogTitle
 App.Feedback.DialogMessage
 App.Feedback.ValidationText
@@ -507,7 +506,7 @@ App.Feedback.SnackbarMessageTemplate
 App.Feedback.Snackbar
 ```
 
-Dialog、Flyout 和 Snackbar 的宿主及生命周期由 Wpf.Ui 持有；NovelSpeaker 资源只定义内容表面、排版、语义前景色和键盘导航输入。加载、空状态、无结果和错误使用 `AppStatusView`，不分别建立四套硬编码控件类。
+Dialog、Flyout 和 Snackbar 的宿主及生命周期由 Wpf.Ui 持有。`App.Feedback.DialogBody` 只是透明、无边框、无阴影的 Dialog 内容布局容器，不再拥有独立 Surface；Flyout/Popup 的 `App.Feedback.PopupSurface` 继续作为其唯一可见 Surface。加载、空状态、无结果和错误使用 `AppStatusView`，不分别建立四套硬编码控件类。
 
 ## 8. 基础视觉规范
 
@@ -556,6 +555,10 @@ Accent 至少提供 Default、Hover、Pressed、Subtle 和 Focus。浅色 Accent
 - Hover 卡片可使用低抬升。
 - Menu/Flyout 使用中抬升。
 - Dialog 使用高抬升。
+- transient UI 遵循 **Single Surface**：一个 Dialog、Flyout、Popup 或独立状态浮窗默认只允许一个主可见 Surface。宿主已经提供完整 Surface 时，内容不得再次套 `Card`、`Section`、`Raised` 或其它带完整背景、边框、圆角和阴影的 Surface。
+- ContentDialog 自身是 Dialog 的唯一主 Surface；内部使用透明的 `App.Feedback.DialogBody`，通过 Typography、间距和必要的 Divider 建立信息层级，不使用 Card-in-Dialog。
+- StartupStatusWindow 等独立 transient Window 由 Window 自身承担 Raised Surface；内部状态内容使用 `AppStatusView` 的 Embedded 模式，不再增加第二层 Section Surface。
+- 复杂 Dialog 确有二级信息分组时，可以使用无阴影的弱背景或 Divider；完整 Card-in-Dialog 只能作为有明确独立语义的例外，不能成为默认布局。
 - FocusRing 独立于普通 Border，不通过改变尺寸造成布局抖动。
 - 深色主题降低纯黑阴影强度，并用低透明度浅色描边补充边缘。
 
@@ -699,6 +702,9 @@ sans-serif
 
 - 通过状态种类和页面提供的 Title、Description、图标及操作槽渲染。
 - 支持 PrimaryAction 和 SecondaryAction。
+- 默认模式拥有一个 `App.Surface.Section`，适合页面内 Loading、Empty、NoResult、Error 和轻量 Success 状态。
+- `IsEmbedded=true` 时移除自身背景、边框、圆角、Padding 和阴影，只保留状态图标、Title、Description 与操作槽；只用于外层已经拥有唯一主 Surface 的 Dialog/Window/Popup 内容。
+- Embedded 模式不得被页面用来规避正常 Section Surface；是否嵌入由外层 Surface 所有权决定。
 - 不硬编码“导入”“重试”等业务文案。
 - 不替代 Snackbar 或需要立即决策的 Dialog。
 
@@ -719,7 +725,7 @@ sans-serif
 
 | 页面/区域 | 公共资源 | 自有控件 | Feature/页面所有内容 |
 |---|---|---|---|
-| StartupStatusWindow | Typography、Surface、Progress、Feedback | AppStatusView | 启动阶段文本与状态切换 |
+| StartupStatusWindow | Typography、Progress、Feedback | AppStatusView（Embedded） | Window 自身作为唯一 Raised Surface；启动阶段文本与状态切换 |
 | MainWindow | Navigation、Button、Surface、Menu | 无强制页面壳控件 | Window Chrome、一级导航、内容宿主、托盘入口 |
 | Settings 首页 | Typography、Navigation、Surface | AppPageHeader、AppSettingsGroup、AppSettingsNavigationRow | 导航项集合和页面 Padding |
 | 各设置子页 | Typography、Input、Button、Feedback | AppPageHeader、AppSettingsList、AppSettingsRow；需要三级入口时可用 AppSettingsNavigationRow | 无标题列表 Surface、设置绑定、保存时机、危险操作语义 |
@@ -730,7 +736,7 @@ sans-serif
 | Cache Management | Typography、Selection、Menu、Feedback、Button | AppPageHeader、AppSectionSurface、AppStatusView | 单书分栏、全宽章节项和 PageHeader 多选动作；导出后台状态由 Shell 投影 |
 | Player | Typography、Surface、Button、Media、Progress、Feedback | AppPageHeader、AppSectionSurface、AppStatusView | PlayerView、正文、侧栏、滚动追随和 Flyout 内容 |
 | Mini Player | Typography、Surface、Button、Media | 无强制复合控件 | 固定横向布局、窗口动作和尺寸约束 |
-| Dialog/Flyout/Snackbar | Button、Surface、Typography、Feedback | AppStatusView 仅用于内容状态 | Wpf.Ui host、真实文案、命令和生命周期 |
+| Dialog/Flyout/Snackbar | Button、Surface、Typography、Feedback | AppStatusView 仅在已有主 Surface 时使用 Embedded 模式 | Wpf.Ui host、真实文案、命令和生命周期；ContentDialog 内部保持 Flat Body |
 
 ## 12. 页面最终视觉要求
 

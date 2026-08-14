@@ -2,7 +2,7 @@
 
 ## 1. 阶段定位
 
-当前阶段只处理测试体系收口与文档同步，不新增产品功能，也不重新设计已经完成的 UI。
+测试体系收口任务 1–4 已完成；当前继续保留该阶段记录，并追加 transient UI Single Surface 初版的自动调试收口任务。除任务 5 明确涉及的 Dialog/StartupStatusWindow/Feedback 视觉边界外，不新增产品功能，也不重新设计其它已完成 UI。
 
 阶段目标：
 
@@ -12,6 +12,7 @@
 - 普通 Page/UserControl 测试优先使用不显示 Window 的 `WpfControlHost`；只有确实依赖 Window、Popup、Focus、Loaded、PresentationSource 或 HWND 生命周期的测试才进入窗口宿主。
 - 必须使用真实 Window 生命周期的测试默认运行在隔离的隐藏 Windows Desktop 中；隔离环境建立失败时必须 fail closed，不得回退到用户当前 Desktop。
 - 只有用户在当前任务中明确允许可见窗口时，Codex 才能启用交互式窗口调试；视觉截图生成本身不构成该授权。
+- ContentDialog、StartupStatusWindow 等 transient UI 按 `13_VISUAL_DESIGN_SYSTEM.md` 的 Single Surface 终态调试，不允许通过重新增加内嵌完整卡片解决布局问题。
 
 稳定测试原则以 `09_TESTING_AND_QUALITY.md` 为准。本文件只描述实施顺序、任务边界和自动验收。
 
@@ -179,3 +180,38 @@ dotnet test -c Release --no-build
 - 稳定文档与最终实现一致，当前 Backlog 不包含需要人工视觉验收才能关闭的任务。
 
 结果：完整测试计数为 Domain 2、Application 174、Infrastructure 320、Presentation 150、WPF 152，总计 798（小于 800）。完整质量门禁按 restore、format、build、test 固定顺序执行并通过；测试未设置可见窗口授权变量，受保护回归类别未删除。
+
+## [ ] 5（P1）：调试并收口 transient UI Single Surface 初版
+
+目标：
+
+- 对本次 ContentDialog、StartupStatusWindow 和 `AppStatusView` Embedded 模式的初版实现进行 Codex 自动调试、修复和代码审阅。
+- 保证去除 Card-in-Dialog / Card-in-Window 后，不引入布局裁切、主题失配、Focus/Automation 回归或新的重复 Surface。
+- 不把人工视觉验收作为任务关闭条件；如需要截图，只能通过现有隐藏 Desktop 视觉产物宿主生成。
+
+实施：
+
+- 复查 `AppDialogVisuals.CreateBody(...)`、`App.Feedback.DialogBody` 及所有调用点，确认 ContentDialog 内容容器保持透明、无边框、无阴影、无额外 Surface Padding，同时保留稳定的 MinWidth/MaxWidth 和现有按钮语义。
+- 复查删除书籍、普通确认、未保存修改、编码选择和导入进度 Dialog，在长中文/英文、输入控件、CheckBox、进度条和 Danger 主按钮场景下都保持合理布局；不得为单个 Dialog 重新引入专属 Card。
+- 复查 `AppStatusView.IsEmbedded` 的模板触发器，确认 Embedded 只移除自身 Section chrome，不改变图标状态、Title、Description、Action、Automation 或状态颜色语义；默认非 Embedded 状态仍保持原有 Section Surface。
+- 复查 `StartupStatusWindow` 的单 Surface 结构、Light/Dark、Loading/Error、100%/125%/150% DPI 和紧凑尺寸；窗口自身是唯一 Raised Surface，内部不得出现第二层完整卡片。
+- 复查 Style Gallery 的 `surfaces` 与 `feedback` 场景，删除已失效的 `DialogContent` Surface 展示，并让 Dialog 示例表达“host surface + flat body”的最终结构，而不是在 Canvas 上孤立展示透明 Body。
+- 保留 Flyout/Popup/Snackbar 当前唯一 Surface 边界，不为了统一结构做无关重构。
+- 增补或修正现有 WPF 契约测试，优先在已有聚合测试中覆盖 Single Surface、DialogBody flat chrome、Embedded 状态和 Startup 布局，不为了形式增加大量独立测试数量。
+- 执行代码审阅，检查资源键唯一性、旧键零引用、Theme DynamicResource、命名、可访问性和窗口测试隔离边界；发现问题直接修复。
+
+验收：
+
+- `rg` 证明稳定源码、测试和稳定设计文档中不存在 `App.Surface.DialogContent`、`App.Feedback.DialogContent`、`AppDialogVisuals.Wrap` 或旧 `StartupSurface` 引用；本任务说明和历史归档中的迁移名称不要求改写。
+- ContentDialog 自动契约证明 Body 无可见 chrome，StartupStatusWindow 自动契约证明 Embedded 状态没有第二层 Section Surface。
+- 默认测试不设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`；视觉产物如需生成仍运行在隐藏 Desktop。
+- 完整质量门禁按固定顺序通过：
+
+```powershell
+dotnet restore --locked-mode -r win-x64
+dotnet format --verify-no-changes --no-restore
+dotnet build -c Release --no-restore
+dotnet test -c Release --no-build
+```
+
+- 若调试过程中修改实现，在任务结果中记录修复项、测试结果和剩余风险；如用户同时要求提交，再按可回溯性拆分原子提交。
