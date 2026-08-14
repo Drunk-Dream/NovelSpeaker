@@ -4,20 +4,21 @@
         xmlns:feedbackControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Feedback"
         Title="{Binding Title}"
         Width="420"
-        Height="220"
+        Height="190"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         WindowStyle="ToolWindow"
         ShowInTaskbar="False"
-        Background="{DynamicResource App.Brush.Window.Background}">
-    <Border x:Name="StartupSurface"
-            Margin="12"
-            Padding="12"
-            Style="{StaticResource App.Surface.DialogContent}">
+        Background="{DynamicResource App.Brush.Surface.Raised}">
+    <Border x:Name="StartupBody"
+            Padding="24,20"
+            Background="Transparent"
+            BorderThickness="0">
         <StackPanel VerticalAlignment="Center">
             <feedbackControls:AppStatusView x:Name="StartupStatusView"
                                             Title="{Binding StatusText}"
                                             Description="{Binding DetailText}"
+                                            IsEmbedded="True"
                                             AutomationProperties.Name="{Binding StatusText}">
                 <feedbackControls:AppStatusView.Style>
                     <Style TargetType="feedbackControls:AppStatusView"

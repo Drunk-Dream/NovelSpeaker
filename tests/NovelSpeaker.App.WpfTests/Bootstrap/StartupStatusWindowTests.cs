@@ -16,7 +16,7 @@ public sealed class StartupStatusWindowTests
     [Fact]
     public void Startup_status_state_contracts_cover_loading_failure_and_projected_copy()
     {
-        Loading_state_uses_formal_surface_status_and_progress_resources();
+        Loading_state_uses_single_surface_embedded_status_and_progress_resources();
         Failure_state_uses_only_projected_copy_and_replaces_loading_progress();
     }
 
@@ -27,7 +27,7 @@ public sealed class StartupStatusWindowTests
         Startup_status_visual_review_generates_stable_window_screenshots();
     }
 
-    private void Loading_state_uses_formal_surface_status_and_progress_resources()
+    private void Loading_state_uses_single_surface_embedded_status_and_progress_resources()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -38,10 +38,12 @@ public sealed class StartupStatusWindowTests
             {
                 window.UpdateLayout();
 
-                var surface = Assert.IsType<Border>(window.FindName("StartupSurface"));
+                var body = Assert.IsType<Border>(window.FindName("StartupBody"));
                 var status = Assert.IsType<AppStatusView>(window.FindName("StartupStatusView"));
                 var progress = Assert.IsType<ProgressBar>(window.FindName("StartupProgressBar"));
-                Assert.Same(window.FindResource("App.Surface.DialogContent"), surface.Style);
+                Assert.Equal(new Thickness(0), body.BorderThickness);
+                Assert.Null(body.Effect);
+                Assert.True(status.IsEmbedded);
                 Assert.Same(
                     window.FindResource("App.Progress.Standard"),
                     progress.Style.BasedOn);
@@ -51,10 +53,14 @@ public sealed class StartupStatusWindowTests
                 Assert.Equal(Visibility.Visible, progress.Visibility);
                 Assert.True(progress.IsIndeterminate);
 
-                AssertContained(surface, status);
-                AssertContained(surface, progress);
+                AssertContained(body, status);
+                AssertContained(body, progress);
                 Assert.True(status.ActualWidth > 0);
                 Assert.True(status.ActualHeight > 0);
+                var statusSurface = Assert.IsType<Border>(status.Template.FindName("Surface", status));
+                Assert.Equal(new Thickness(0), statusSurface.BorderThickness);
+                Assert.Equal(new Thickness(0), statusSurface.Padding);
+                Assert.Null(statusSurface.Effect);
             }
             finally
             {
@@ -137,7 +143,7 @@ public sealed class StartupStatusWindowTests
                 LocateRepositoryRoot(),
                 "startup-status-window",
                 420,
-                220,
+                190,
                 [
                     new WindowVisualReviewScenario("loading", 1d),
                     new WindowVisualReviewScenario("loading", 1.25d),
@@ -179,7 +185,7 @@ public sealed class StartupStatusWindowTests
             window.Content = null;
 
             var dpiRoot = new Border { Child = content, DataContext = viewModel };
-            dpiRoot.SetResourceReference(Border.BackgroundProperty, "App.Brush.Window.Background");
+            dpiRoot.SetResourceReference(Border.BackgroundProperty, "App.Brush.Surface.Raised");
             VisualTreeHelper.SetRootDpi(dpiRoot, new DpiScale(scale, scale));
             dpiRoot.Measure(clientSize);
             dpiRoot.Arrange(new Rect(new Point(), clientSize));
@@ -188,15 +194,15 @@ public sealed class StartupStatusWindowTests
             var actualDpi = VisualTreeHelper.GetDpi(dpiRoot);
             Assert.Equal(scale, actualDpi.DpiScaleX, 3);
             Assert.Equal(scale, actualDpi.DpiScaleY, 3);
-            var surface = Assert.IsType<Border>(window.FindName("StartupSurface"));
+            var body = Assert.IsType<Border>(window.FindName("StartupBody"));
             var status = Assert.IsType<AppStatusView>(window.FindName("StartupStatusView"));
             var progress = Assert.IsType<ProgressBar>(window.FindName("StartupProgressBar"));
             var title = Assert.IsType<TextBlock>(status.Template.FindName("TitlePresenter", status));
             var description = Assert.IsType<TextBlock>(status.Template.FindName("DescriptionPresenter", status));
             var icon = Assert.IsType<SymbolIcon>(status.Template.FindName("IconPresenter", status));
 
-            AssertContained(dpiRoot, surface);
-            AssertContained(surface, status);
+            AssertContained(dpiRoot, body);
+            AssertContained(body, status);
             AssertContained(status, title);
             AssertContained(status, description);
             AssertContained(status, icon);
@@ -211,9 +217,9 @@ public sealed class StartupStatusWindowTests
             else
             {
                 Assert.Equal(Visibility.Visible, progress.Visibility);
-                AssertContained(surface, progress);
-                var statusOrigin = status.TranslatePoint(new Point(), surface);
-                var progressOrigin = progress.TranslatePoint(new Point(), surface);
+                AssertContained(body, progress);
+                var statusOrigin = status.TranslatePoint(new Point(), body);
+                var progressOrigin = progress.TranslatePoint(new Point(), body);
                 Assert.True(statusOrigin.Y + status.ActualHeight <= progressOrigin.Y);
             }
 
