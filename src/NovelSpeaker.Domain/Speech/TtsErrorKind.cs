@@ -15,5 +15,6 @@ public enum TtsErrorKind
     InvalidResponse = 7,
     AudioDecode = 8,
     Cancelled = 9,
-    Unknown = 10
+    Unknown = 10,
+    EmptyAudioResponse = 11
 }

@@ -109,7 +109,7 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
                     loaded.ChapterId,
                     loaded.Title,
                     loaded.Segments
-                        .Where(segment => !string.IsNullOrWhiteSpace(segment.SpeechText))
+                        .Where(segment => NarratableText.HasContent(segment.SpeechText))
                         .Select(segment => new FrozenSegment(
                             segment.SegmentIndex,
                             segment.StableIdentity,

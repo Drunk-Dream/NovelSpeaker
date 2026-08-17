@@ -9,7 +9,7 @@ public sealed record TextProfileFingerprint(
     int SchemaVersion,
     Fingerprint Value)
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public ReadOnlyMemory<byte> Bytes => Value.Bytes;
 
@@ -25,6 +25,7 @@ public sealed record TextProfileFingerprint(
         var writer = new CanonicalIdentityWriter();
         writer.Add("schema", CurrentSchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
         writer.Add("segmenter", "text-segmenter-v1");
+        writer.Add("narratable-text", "unicode-letter-or-number-v1");
         writer.Add("split", normalized.EnableLongParagraphSplitting ? "1" : "0");
         writer.Add("threshold", normalized.LongParagraphThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture));
 

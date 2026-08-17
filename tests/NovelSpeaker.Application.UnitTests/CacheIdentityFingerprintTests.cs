@@ -9,6 +9,14 @@ namespace NovelSpeaker.Application.UnitTests;
 public sealed class CacheIdentityFingerprintTests
 {
     [Fact]
+    public void Text_profile_uses_the_current_narratable_content_contract()
+    {
+        var profile = TextProfileFingerprint.Create(TextSegmentationOptions.Default, []);
+
+        Assert.Equal(2, profile.SchemaVersion);
+    }
+
+    [Fact]
     public void Body_identity_does_not_use_runtime_segment_index_and_title_has_its_own_kind()
     {
         var body = new SpeechSegment(42, 17, 8, "正文", "正文");

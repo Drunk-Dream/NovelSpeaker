@@ -12,6 +12,26 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Speech;
 public sealed class TtsResponseValidatorTests
 {
     [Fact]
+    public async Task ValidateAsync_classifies_an_empty_success_response_separately()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new LocalAppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var validator = new TtsResponseValidator(
+            new TemporaryAudioStore(directories),
+            new AudioProbe());
+        await using var response = new TtsTransportResponse(
+            200,
+            "audio/mpeg",
+            new MemoryStream());
+
+        var result = await validator.ValidateAsync(CreateRequest(), response, CancellationToken.None);
+
+        Assert.Equal(TtsErrorKind.EmptyAudioResponse, result.Failure!.Kind);
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(directories.CacheDirectoryPath, "RuleTests")));
+    }
+
+    [Fact]
     public async Task ValidateAsync_classifies_terminal_http_statuses()
     {
         foreach (var (statusCode, expectedKind) in new[]

@@ -14,7 +14,7 @@ internal static class PlaybackSpeechSegmentComposer
     {
         ArgumentNullException.ThrowIfNull(contentSegments);
 
-        if (!readChapterTitle || string.IsNullOrWhiteSpace(chapterTitle))
+        if (!readChapterTitle || !NarratableText.HasContent(chapterTitle))
         {
             return contentSegments;
         }

@@ -55,7 +55,7 @@ public sealed class ChapterSpeechPlanService : IChapterSpeechPlanService
         var bodySegments = replaced.Segments
             .Where(segment =>
                 !segment.IsChapterTitle &&
-                !string.IsNullOrWhiteSpace(segment.SpeechText))
+                NarratableText.HasContent(segment.SpeechText))
             .ToArray();
         var planSegments = bodySegments
             .Select((segment, orderIndex) => new ChapterSpeechPlanSegment(

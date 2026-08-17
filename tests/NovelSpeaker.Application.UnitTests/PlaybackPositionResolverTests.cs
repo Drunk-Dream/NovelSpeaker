@@ -47,7 +47,8 @@ public sealed class PlaybackPositionResolverTests
             [
                 Speech(0, 0, "", ""),
                 Speech(1, 4, " ", "仅展示"),
-                Speech(2, 8, "可播放", "可播放")
+                Speech(2, 8, "………", "章节分隔符"),
+                Speech(3, 12, "可播放", "可播放")
             ]);
 
         Assert.Null(PlaybackPositionResolver.ResolvePlayablePositionInChapter(
@@ -58,7 +59,7 @@ public sealed class PlaybackPositionResolverTests
             false));
 
         Assert.Equal(
-            new PlaybackPosition(1, 2),
+            new PlaybackPosition(1, 3),
             PlaybackPositionResolver.ResolvePlayablePositionInChapter(
                 chapter,
                 1,
