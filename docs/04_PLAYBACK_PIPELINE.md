@@ -28,7 +28,7 @@ Resolve current chapter/segment
   → load/build and commit current chapter speech plan
   → compose optional chapter-title segment without renumbering body identity
   → resolve DisplayText/SpeechText and stable segment identity
-  → empty SpeechText? skip audio
+  → SpeechText 没有字母或数字等可朗读内容？保留显示并跳过音频
   → build SynthesisProfileFingerprint and AudioCacheKey
   → cache hit? validate/open
   → otherwise acquire playback-priority rule permit
@@ -40,6 +40,8 @@ Resolve current chapter/segment
 ```
 
 缓存损坏时删除该条目并允许一次正常重新生成；不能把损坏文件反复重试为成功。
+
+HTTP TTS 对单个有可朗读内容的段落返回零字节音频时，播放状态机自动推进到下一可播放段并保存推进后的阅读位置。若连续段落都返回零字节结果，则进入可重试错误态并停止自动推进，防止服务故障时跳过大量正文。其它鉴权、规则、网络、文本/JSON 响应和解码失败不使用该跳过路径。
 
 正文段缓存身份不使用运行时 `SegmentIndex`。章节标题是独立合成段，因此开启或关闭“朗读标题”只改变播放序列和标题缓存需求，不使正文缓存失效。
 

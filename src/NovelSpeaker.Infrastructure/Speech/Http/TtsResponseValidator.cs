@@ -85,7 +85,7 @@ public sealed class TtsResponseValidator : ITtsResponseValidator
             temporaryPath = await _temporaryStore.WriteAsync(request.RuleId, response.Content, cancellationToken).ConfigureAwait(false);
             if (new FileInfo(temporaryPath).Length == 0)
             {
-                return Failure(TtsErrorKind.InvalidResponse, "服务返回了空响应，无法生成音频。", response, null);
+                return Failure(TtsErrorKind.EmptyAudioResponse, "服务返回了空响应，无法生成音频。", response, null);
             }
 
             var header = await ReadHeaderAsync(temporaryPath, cancellationToken).ConfigureAwait(false);

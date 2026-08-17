@@ -272,7 +272,7 @@ public sealed class CacheWorkspaceService :
                     chapter.ChapterId!,
                     chapter.ChapterIndex,
                     settings.ReadChapterTitle,
-                    settings.ReadChapterTitle && !string.IsNullOrWhiteSpace(chapter.Title)
+                    settings.ReadChapterTitle && NarratableText.HasContent(chapter.Title)
                         ? Fingerprint.Sha256(chapter.Title)
                         : null,
                     textProfile))

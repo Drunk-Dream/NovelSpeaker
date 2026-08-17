@@ -177,7 +177,7 @@ public sealed class ExportChaptersService : IExportChaptersService
                                request.FrozenChapterTitles.TryGetValue(chapterIndex, out var frozenTitle)
                 ? frozenTitle
                 : metadata.Title;
-            if (settings.ReadChapterTitle && !string.IsNullOrWhiteSpace(chapterTitle))
+            if (settings.ReadChapterTitle && NarratableText.HasContent(chapterTitle))
             {
                 keys.Insert(
                     0,

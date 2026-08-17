@@ -7,6 +7,30 @@ namespace NovelSpeaker.Application.UnitTests;
 public sealed class PlaybackRecoveryPolicyTests
 {
     [Fact]
+    public void First_empty_audio_response_is_skipped_but_the_threshold_pauses_recovery()
+    {
+        var policy = new PlaybackRecoveryPolicy();
+
+        var first = policy.Decide(new PlaybackRecoveryInput(
+            TtsErrorKind.EmptyAudioResponse,
+            "空响应。",
+            ConsecutiveSegmentFailureCount: 0,
+            IsCorruptAudio: false,
+            CorruptAudioRecoveryAttempted: false));
+        var second = policy.Decide(new PlaybackRecoveryInput(
+            TtsErrorKind.EmptyAudioResponse,
+            "空响应。",
+            first.ConsecutiveSegmentFailureCount,
+            IsCorruptAudio: false,
+            CorruptAudioRecoveryAttempted: false));
+
+        Assert.True(first.ShouldSkipCurrentSegment);
+        Assert.False(first.ShouldPause);
+        Assert.False(second.ShouldSkipCurrentSegment);
+        Assert.True(second.ShouldPause);
+    }
+
+    [Fact]
     public void First_corrupt_audio_failure_requests_one_invalidation_and_retry()
     {
         var policy = new PlaybackRecoveryPolicy();

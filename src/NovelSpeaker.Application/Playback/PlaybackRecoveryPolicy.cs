@@ -18,6 +18,7 @@ internal sealed record PlaybackRecoveryInput(
 internal sealed record PlaybackRecoveryDecision(
     bool ShouldInvalidateAudio,
     bool ShouldRetryCurrentSegment,
+    bool ShouldSkipCurrentSegment,
     bool ShouldPause,
     int ConsecutiveSegmentFailureCount,
     string Message,
@@ -40,6 +41,7 @@ internal sealed class PlaybackRecoveryPolicy
             return new PlaybackRecoveryDecision(
                 ShouldInvalidateAudio: false,
                 ShouldRetryCurrentSegment: false,
+                ShouldSkipCurrentSegment: false,
                 ShouldPause: false,
                 input.ConsecutiveSegmentFailureCount,
                 input.FailureMessage,
@@ -51,9 +53,26 @@ internal sealed class PlaybackRecoveryPolicy
             return new PlaybackRecoveryDecision(
                 ShouldInvalidateAudio: true,
                 ShouldRetryCurrentSegment: true,
+                ShouldSkipCurrentSegment: false,
                 ShouldPause: false,
                 input.ConsecutiveSegmentFailureCount,
                 input.FailureMessage,
+                CanRetry: true);
+        }
+
+        if (input.FailureKind == TtsErrorKind.EmptyAudioResponse)
+        {
+            var emptyResponseCount = checked(input.ConsecutiveSegmentFailureCount + 1);
+            var shouldPauseAfterEmptyResponse = emptyResponseCount >= FailurePauseThreshold;
+            return new PlaybackRecoveryDecision(
+                ShouldInvalidateAudio: false,
+                ShouldRetryCurrentSegment: false,
+                ShouldSkipCurrentSegment: !shouldPauseAfterEmptyResponse,
+                shouldPauseAfterEmptyResponse,
+                emptyResponseCount,
+                shouldPauseAfterEmptyResponse
+                    ? $"已连续 {emptyResponseCount} 段未生成音频，请重试、切换规则或停止。"
+                    : input.FailureMessage,
                 CanRetry: true);
         }
 
@@ -71,6 +90,7 @@ internal sealed class PlaybackRecoveryPolicy
         return new PlaybackRecoveryDecision(
             ShouldInvalidateAudio: false,
             ShouldRetryCurrentSegment: false,
+            ShouldSkipCurrentSegment: false,
             shouldPause,
             failureCount,
             message,

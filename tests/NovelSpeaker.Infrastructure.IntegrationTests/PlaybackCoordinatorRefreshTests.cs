@@ -13,6 +13,72 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 public sealed partial class PlaybackCoordinatorTests
 {
     [Fact]
+    public async Task Empty_audio_response_skips_one_segment_and_continues_playback()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var audioProvider = new FakePlaybackAudioProvider();
+        var readingProgressStore = new FakeReadingProgressStore();
+        audioProvider.EnqueueFailure(TtsErrorKind.EmptyAudioResponse, "服务返回了空响应，无法生成音频。");
+        audioProvider.EnqueueSuccess("second-segment.mp3");
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            audioProvider: audioProvider,
+            readingProgressStore: readingProgressStore,
+            book: CreateThreeSegmentBook());
+
+        await coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", 0, 0, null, 10),
+            CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal([0, 1], audioProvider.Requests.Select(request => request.SegmentIndex));
+        Assert.Contains(readingProgressStore.SavedProgress, progress => progress.SegmentIndex == 1);
+    }
+
+    [Fact]
+    public async Task Empty_audio_response_on_the_last_segment_ends_playback_cleanly()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var audioProvider = new FakePlaybackAudioProvider();
+        audioProvider.EnqueueFailure(TtsErrorKind.EmptyAudioResponse, "服务返回了空响应，无法生成音频。");
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            audioProvider: audioProvider,
+            book: CreateThreeSegmentBook());
+
+        await coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", 0, 2, null, 10),
+            CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Stopped, coordinator.CurrentSnapshot.State);
+        Assert.Contains("已跳过并结束播放", coordinator.CurrentSnapshot.Message, StringComparison.Ordinal);
+        Assert.Single(audioProvider.Requests);
+    }
+
+    [Fact]
+    public async Task Consecutive_empty_audio_responses_stop_automatic_skipping()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var audioProvider = new FakePlaybackAudioProvider();
+        audioProvider.EnqueueFailure(TtsErrorKind.EmptyAudioResponse, "第一个空响应。");
+        audioProvider.EnqueueFailure(TtsErrorKind.EmptyAudioResponse, "第二个空响应。");
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            audioProvider: audioProvider,
+            book: CreateThreeSegmentBook());
+
+        await coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", 0, 0, null, 10),
+            CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Faulted, coordinator.CurrentSnapshot.State);
+        Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Contains("连续 2 段未生成音频", coordinator.CurrentSnapshot.Message, StringComparison.Ordinal);
+        Assert.Equal(2, audioProvider.Requests.Count);
+    }
+
+    [Fact]
     public async Task RetryCurrentSegment_replays_failed_segment()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();

@@ -75,7 +75,8 @@ public sealed class ChapterSpeechPlanServiceTests
         var pipeline = new FixedPipeline(
             [
                 new SpeechSegment(0, 0, 1, "显示但被清空", "   "),
-                new SpeechSegment(1, 1, 1, "可播放", "可播放")
+                new SpeechSegment(1, 1, 3, "章节分隔符", "………"),
+                new SpeechSegment(2, 4, 1, "可播放", "可播放")
             ]);
         var store = new RecordingStore();
         var service = CreateService(pipeline, store);
@@ -88,7 +89,7 @@ public sealed class ChapterSpeechPlanServiceTests
 
         Assert.Equal(1, result.Plan.BodySegmentCount);
         var segment = Assert.Single(result.Plan.Segments);
-        Assert.Equal(1, segment.SourceStartOffset);
+        Assert.Equal(4, segment.SourceStartOffset);
         Assert.Equal(Fingerprint.Sha256("可播放"), segment.SpeechTextHash);
     }
 

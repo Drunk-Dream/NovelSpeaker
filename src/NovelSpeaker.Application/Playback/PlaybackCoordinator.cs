@@ -1107,7 +1107,7 @@ public sealed class PlaybackCoordinator :
         while (chapter is not null &&
                session.SegmentIndex >= 0 &&
                session.SegmentIndex < chapter.Segments.Count &&
-               string.IsNullOrWhiteSpace(chapter.Segments[session.SegmentIndex].SpeechText))
+               !NarratableText.HasContent(chapter.Segments[session.SegmentIndex].SpeechText))
         {
             var next = await ResolveRelativeSegmentAsync(
                 _currentBook,
@@ -1224,7 +1224,10 @@ public sealed class PlaybackCoordinator :
                 return;
             }
 
-            HandleSegmentFailure(audio.Failure!);
+            await HandleSegmentFailureAsync(
+                session,
+                audio.Failure!,
+                linkedCts.Token).ConfigureAwait(false);
             return;
         }
 
@@ -1257,28 +1260,74 @@ public sealed class PlaybackCoordinator :
         await RefreshPrefetchWindowAsync(session, maxCountOverride: null, linkedCts.Token);
     }
 
-    private void HandleSegmentFailure(TtsExecutionFailure failure)
+    private async Task HandleSegmentFailureAsync(
+        PlaybackSessionState session,
+        TtsExecutionFailure failure,
+        CancellationToken cancellationToken)
     {
-        if (_currentSession is null)
+        if (!IsSessionCurrent(session.SessionId))
         {
-            PublishPlaybackFailure(failure.Message, failure.Kind);
             return;
         }
 
         var decision = _recoveryPolicy.Decide(new PlaybackRecoveryInput(
             failure.Kind,
             failure.Message,
-            _currentSession.ConsecutiveSegmentFailureCount,
+            session.ConsecutiveSegmentFailureCount,
             IsCorruptAudio: false,
             CorruptAudioRecoveryAttempted: false));
-        _currentSession.ConsecutiveSegmentFailureCount = decision.ConsecutiveSegmentFailureCount;
+        session.ConsecutiveSegmentFailureCount = decision.ConsecutiveSegmentFailureCount;
         _lastFailureKind = failure.Kind;
+        if (decision.ShouldSkipCurrentSegment)
+        {
+            await SkipEmptyAudioSegmentAsync(session, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         PublishSnapshot(_currentSnapshot with
         {
             State = PlaybackState.Faulted,
             Message = decision.Message,
             CanRetry = decision.CanRetry
         });
+    }
+
+    private async Task SkipEmptyAudioSegmentAsync(
+        PlaybackSessionState session,
+        CancellationToken cancellationToken)
+    {
+        if (_currentBook is null)
+        {
+            return;
+        }
+
+        var next = await ResolveRelativeSegmentAsync(
+            _currentBook,
+            session.ChapterIndex,
+            session.SegmentIndex,
+            1,
+            cancellationToken).ConfigureAwait(false);
+        if (next is null)
+        {
+            await SaveProgressAsync(session, 0, cancellationToken).ConfigureAwait(false);
+            await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
+            await DisposeSessionAsync().ConfigureAwait(false);
+            PublishSnapshot(_currentSnapshot with
+            {
+                State = PlaybackState.Stopped,
+                PositionMilliseconds = 0,
+                Message = "当前段未生成音频，已跳过并结束播放。",
+                CanRetry = false
+            });
+            return;
+        }
+
+        _currentBook = next.Value.Book;
+        session.ChapterIndex = next.Value.ChapterIndex;
+        session.SegmentIndex = next.Value.SegmentIndex;
+        session.ResumePositionMilliseconds = 0;
+        await SaveProgressAsync(session, 0, cancellationToken).ConfigureAwait(false);
+        await PlayCurrentSegmentAsync(session, 0, forceInvalidate: false, cancellationToken).ConfigureAwait(false);
     }
 
     private void PublishPlaybackFailure(string message, TtsErrorKind failureKind)
@@ -1363,7 +1412,7 @@ public sealed class PlaybackCoordinator :
         }
 
         var speechText = chapter.Segments[segmentIndex].SpeechText;
-        if (string.IsNullOrWhiteSpace(speechText))
+        if (!NarratableText.HasContent(speechText))
         {
             return;
         }

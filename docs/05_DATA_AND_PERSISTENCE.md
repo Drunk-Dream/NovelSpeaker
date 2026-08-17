@@ -74,7 +74,7 @@ analyze source
 - 正则替换只改变 DisplayText/SpeechText，不重写原始章节范围。
 - “未加载”“已加载但无可播放段落”必须是不同状态。
 - 每章只持久化一份当前有效的正文朗读清单，不保存 `TextProfile` 历史版本。
-- `ChapterSpeechPlans` 保存章节正文版本、当前文本配置指纹、计划输出指纹、状态和正文段数。
+- `ChapterSpeechPlans` 保存章节正文版本、当前文本配置指纹、计划输出指纹、状态和可朗读正文段数；只有包含 Unicode 字母或数字的最终 `SpeechText` 才进入朗读清单，纯空白、标点、分隔符或装饰符号仍保留显示/定位身份，但不进入缓存完整度分母。
 - `ChapterSpeechPlanSegments` 只保存播放顺序、稳定来源身份、段类型和最终 `SpeechText` 哈希，不保存完整小说文本。
 - 章节标题属于可选合成段，不写入正文朗读清单；开启或关闭“朗读标题”不得改变正文段身份。
 
@@ -101,6 +101,7 @@ analyze source
 `TextProfileFingerprint` 使用版本化规范序列化，包含：
 
 - 分段算法合同版本。
+- 可朗读文本判定合同版本。
 - 长段落切分开关和阈值等会影响正文段落的设置。
 - 按稳定顺序排列、会影响 `SpeechText` 的正则规则有效字段。
 

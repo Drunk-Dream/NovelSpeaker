@@ -38,7 +38,7 @@ public sealed class ActiveCacheCoordinatorTests
 
         Assert.Equal(ActiveCacheStartStatus.Accepted, start.Status);
         Assert.Equal(
-            [(3, 0, "三-一"), (3, 1, "三-二"), (8, 0, "八-一")],
+            [(3, 0, "三-一"), (3, 2, "三-二"), (8, 0, "八-一")],
             audio.Calls.Select(call => (
                 call.Request.ChapterIndex,
                 call.Request.SegmentIndex,
@@ -210,7 +210,8 @@ public sealed class ActiveCacheCoordinatorTests
                 3 =>
                 [
                     new SpeechSegment(0, 0, 3, "三-一", $"三-一{SpeechTextSuffix}"),
-                    new SpeechSegment(1, 4, 3, "三-二", $"三-二{SpeechTextSuffix}")
+                    new SpeechSegment(1, 4, 3, "章节分隔符", "………"),
+                    new SpeechSegment(2, 8, 3, "三-二", $"三-二{SpeechTextSuffix}")
                 ],
                 8 => [new SpeechSegment(0, 0, 3, "八-一", $"八-一{SpeechTextSuffix}")],
                 _ => []

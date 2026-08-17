@@ -1,3 +1,5 @@
+using NovelSpeaker.Domain.Books;
+
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
@@ -84,7 +86,7 @@ internal static class PlaybackPositionResolver
              index >= 0 && index < chapter.Segments.Count;
              index += step)
         {
-            if (!string.IsNullOrWhiteSpace(chapter.Segments[index].SpeechText))
+            if (NarratableText.HasContent(chapter.Segments[index].SpeechText))
             {
                 return new PlaybackPosition(chapter.ChapterIndex, index);
             }
@@ -122,7 +124,7 @@ internal static class PlaybackPositionResolver
         var index = segmentIndex + delta;
         while (index >= 0 && index < chapter.Segments.Count)
         {
-            if (!string.IsNullOrWhiteSpace(chapter.Segments[index].SpeechText))
+            if (NarratableText.HasContent(chapter.Segments[index].SpeechText))
             {
                 return new PlaybackPosition(chapter.ChapterIndex, index);
             }
@@ -147,7 +149,7 @@ internal static class PlaybackPositionResolver
         {
             if (!chapter.Segments[index].IsChapterTitle &&
                 chapter.Segments[index].StartOffset >= characterOffset &&
-                !string.IsNullOrWhiteSpace(chapter.Segments[index].SpeechText))
+                NarratableText.HasContent(chapter.Segments[index].SpeechText))
             {
                 return index;
             }
@@ -155,7 +157,7 @@ internal static class PlaybackPositionResolver
 
         for (var index = chapter.Segments.Count - 1; index >= 0; index--)
         {
-            if (!string.IsNullOrWhiteSpace(chapter.Segments[index].SpeechText))
+            if (NarratableText.HasContent(chapter.Segments[index].SpeechText))
             {
                 return index;
             }
