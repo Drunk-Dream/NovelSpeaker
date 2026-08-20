@@ -123,6 +123,11 @@ public sealed partial class PlayerViewTests
             Assert.Null(FindVisibleDescendantByText(listBox, "当前"));
             Assert.NotNull(FindVisibleDescendantByText(firstItem, "25%"));
             Assert.NotNull(FindVisibleDescendantByText(secondItem, "50%"));
+            var firstPercentage = Assert.IsType<TextBlock>(FindVisibleDescendantByText(firstItem, "25%"));
+            Assert.Same(view.FindResource("App.Brush.Accent.Default"), firstPercentage.Foreground);
+            Assert.Null(VisualTreeTestHelper.FindDescendant<Border>(
+                firstItem,
+                static border => border.CornerRadius.TopLeft >= 999));
             Assert.Contains("当前章节", AutomationProperties.GetName(firstButton), StringComparison.Ordinal);
             Assert.Contains("已选择缓存", AutomationProperties.GetName(firstButton), StringComparison.Ordinal);
             Assert.Contains("缓存进度 25%", AutomationProperties.GetName(firstButton), StringComparison.Ordinal);
@@ -350,6 +355,13 @@ public sealed partial class PlayerViewTests
             Assert.Equal(Visibility.Visible, returnButton.Visibility);
             Assert.Equal("返回当前段落", returnButton.ToolTip);
             Assert.Equal("返回当前段落", AutomationProperties.GetName(returnButton));
+            Assert.Equal(new Thickness(0), returnButton.BorderThickness);
+            Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(returnButton.Background).Color);
+            var floatingSurface = VisualTreeTestHelper.FindDescendant<Border>(
+                returnButton,
+                static border => border.CornerRadius.TopLeft >= 999);
+            Assert.NotNull(floatingSurface);
+            Assert.Same(view.FindResource("App.Surface.FloatingAction"), floatingSurface!.Style);
         });
     }
 

@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
@@ -106,6 +107,10 @@ public sealed class BookDetailsPageTests
                 Assert.Equal("定位到当前章节", AutomationProperties.GetName(locateButton));
                 Assert.Equal(Visibility.Collapsed, locateButton.Visibility);
                 Assert.Same(page.FindResource("App.Button.Floating"), locateButton.Style);
+                Assert.Equal(new Thickness(0), locateButton.BorderThickness);
+                Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(locateButton.Background).Color);
+                var locateSurface = Assert.IsType<Border>(locateButton.Content);
+                Assert.Same(page.FindResource("App.Surface.FloatingAction"), locateSurface.Style);
                 Assert.IsType<AppSectionSurface>(page.FindName("BookInformationSurface"));
                 Assert.IsType<AppSectionSurface>(page.FindName("ChapterCatalogSurface"));
             }

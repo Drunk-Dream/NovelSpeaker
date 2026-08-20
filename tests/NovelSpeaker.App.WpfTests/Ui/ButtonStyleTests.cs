@@ -155,6 +155,40 @@ public sealed class ButtonStyleTests
                       (string?)setter.Attribute("Value") == "{x:Null}");
     }
 
+    private void Floating_button_style_keeps_the_outer_hit_area_borderless()
+    {
+        var path = Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "Styles",
+            "Buttons.xaml");
+        var document = XDocument.Load(path);
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var style = document.Root?.Elements()
+            .Single(resource => (string?)resource.Attribute(xaml + "Key") == "App.Button.Floating");
+
+        Assert.NotNull(style);
+        var setters = style!.Elements()
+            .Where(element => element.Name.LocalName == "Setter")
+            .ToDictionary(
+                element => (string)element.Attribute("Property")!,
+                element => (string?)element.Attribute("Value"));
+        Assert.Equal("Transparent", setters["Background"]);
+        Assert.Equal("Transparent", setters["BorderBrush"]);
+        Assert.Equal("0", setters["BorderThickness"]);
+        Assert.Equal("{x:Null}", setters["Effect"]);
+        Assert.All(
+            style.Elements().Single(element => element.Name.LocalName == "Style.Triggers").Elements(),
+            trigger => Assert.DoesNotContain(
+                trigger.Elements(),
+                setter => (string?)setter.Attribute("Property") == "Background" &&
+                          (string?)setter.Attribute("Value") != "Transparent"));
+    }
+
     private void Icon_button_icon_inherits_owner_foreground_in_both_themes()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
@@ -387,6 +421,7 @@ public sealed class ButtonStyleTests
     {
         Danger_icon_style_is_neutral_until_hover_and_pressed_danger_states();
         Icon_button_style_has_shared_hit_area_and_disabled_tooltip_contract();
+        Floating_button_style_keeps_the_outer_hit_area_borderless();
     }
 
     [Fact]

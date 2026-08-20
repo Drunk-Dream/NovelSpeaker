@@ -646,6 +646,7 @@ internal static class GallerySceneBuilders
         variants.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         variants.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         variants.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        variants.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         var keys = new[]
         {
@@ -653,6 +654,7 @@ internal static class GallerySceneBuilders
             ("App.Surface.Card", "surface-card", "Card · 普通静态卡片"),
             ("App.Surface.Secondary", "surface-secondary", "Secondary · 次级控制条"),
             ("App.Surface.Raised", "surface-raised", "Raised · 轻抬升表面"),
+            ("App.Surface.FloatingAction", "surface-floating-action", "FloatingAction · 圆形悬浮操作表面"),
             ("App.Surface.Popup", "surface-popup", "Popup · 临时浮层")
         };
         for (var index = 0; index < keys.Length; index++)

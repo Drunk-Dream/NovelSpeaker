@@ -390,10 +390,12 @@ App.Surface.Section
 App.Surface.Card
 App.Surface.Secondary
 App.Surface.Raised
+App.Surface.FloatingAction
 App.Surface.Popup
 ```
 
 Surface Style 只处理背景、边界、圆角、Padding 和效果，不包含业务内容。
+`App.Surface.FloatingAction` 是透明悬浮 Button 内部的圆形视觉表面，统一承载 Normal、Hover 与 Pressed 状态；外层 Button 只保留命中区域、焦点和可访问性语义，不绘制方形外框。
 
 ### 7.4 Button
 
