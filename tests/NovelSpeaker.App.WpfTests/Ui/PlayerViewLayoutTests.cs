@@ -606,14 +606,32 @@ public sealed partial class PlayerViewTests
             var fillBar = Assert.IsType<ProgressBar>(view.FindName("SegmentProgressFillBar"));
             var slider = Assert.IsType<Slider>(view.FindName("SegmentProgressSlider"));
             var accentBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.FindResource("App.Brush.Accent"));
-            var trackBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.FindResource("App.Brush.Surface.Secondary"));
+            var trackBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.FindResource("App.Brush.Border.Subtle"));
             var fillBarForeground = Assert.IsType<SolidColorBrush>(fillBar.Foreground);
             var fillBarBackground = Assert.IsType<SolidColorBrush>(fillBar.Background);
 
             Assert.Equal(accentBrush.Color, fillBarForeground.Color);
             Assert.Equal(trackBrush.Color, fillBarBackground.Color);
+            Assert.Same(view.FindResource("App.Progress.MediaTrack"), fillBar.Style);
+            Assert.Same(view.FindResource("App.Media.ProgressSlider"), slider.Style);
+            var renderedTrack = VisualTreeTestHelper.FindDescendant<Border>(
+                fillBar,
+                border => border.Background is SolidColorBrush brush && brush.Color == trackBrush.Color);
+            Assert.NotNull(renderedTrack);
+            Assert.True(renderedTrack!.ActualWidth > 0);
+            Assert.True(renderedTrack.ActualHeight > 0);
+            Assert.Equal(6, fillBar.Height);
+            Assert.Equal(6, fillBar.MinHeight);
+            Assert.Equal(Colors.Transparent,
+                Assert.IsType<SolidColorBrush>(slider.Style.Resources["SliderTrackFill"]).Color);
+            Assert.Equal(Colors.Transparent,
+                Assert.IsType<SolidColorBrush>(slider.Style.Resources["SliderTrackFillPointerOver"]).Color);
             Assert.Equal(slider.Maximum, fillBar.Maximum);
-            Assert.Equal(slider.Value, fillBar.Value);
+            Assert.Equal(48d, fillBar.Value);
+            Assert.Equal(32d, slider.Value);
+            Assert.Equal(
+                "SegmentProgressPreviewValue",
+                fillBar.GetBindingExpression(RangeBase.ValueProperty)?.ParentBinding.Path.Path);
             Assert.True(fillBar.Value > 0);
             Assert.True(fillBar.Maximum > fillBar.Value);
             var progressToolTip = Assert.IsType<ToolTip>(slider.ToolTip);

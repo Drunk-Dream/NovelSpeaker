@@ -177,6 +177,7 @@ public sealed partial class PlayerViewTests
             CanGoToNextSegment = !ShowEmptyChapterState;
             SegmentProgressMaximum = ShowEmptyChapterState ? 0d : 139d;
             SegmentProgressValue = ShowEmptyChapterState ? 0d : 32d;
+            SegmentProgressPreviewValue = ShowEmptyChapterState ? 0d : 48d;
         }
 
         public IRelayCommand BackCommand { get; } = new RelayCommand(() => { });
@@ -316,6 +317,8 @@ public sealed partial class PlayerViewTests
         public double SegmentProgressMaximum { get; }
 
         public double SegmentProgressValue { get; }
+
+        public double SegmentProgressPreviewValue { get; }
 
         public ObservableCollection<PlayerRuleItemViewModel> Rules { get; } = [];
 

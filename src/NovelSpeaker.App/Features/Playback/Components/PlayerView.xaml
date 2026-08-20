@@ -906,12 +906,12 @@
                         <ProgressBar x:Name="SegmentProgressFillBar"
                                      VerticalAlignment="Center"
                                      IsHitTestVisible="False"
-                                     Style="{StaticResource App.Progress.Compact}"
+                                     Style="{StaticResource App.Progress.MediaTrack}"
                                      Minimum="0"
                                      Maximum="{Binding SegmentProgressMaximum}"
-                                     Value="{Binding SegmentProgressValue, Mode=OneWay}" />
+                                     Value="{Binding SegmentProgressPreviewValue, Mode=OneWay}" />
                         <Slider x:Name="SegmentProgressSlider"
-                                Style="{StaticResource App.Media.Slider}"
+                                Style="{StaticResource App.Media.ProgressSlider}"
                                 Minimum="0"
                                 Maximum="{Binding SegmentProgressMaximum}"
                                 Value="{Binding SegmentProgressValue, Mode=OneWay}"

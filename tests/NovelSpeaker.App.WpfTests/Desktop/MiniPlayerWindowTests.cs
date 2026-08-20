@@ -99,7 +99,13 @@ public sealed class MiniPlayerWindowTests
                 var progressToolTip = Assert.IsType<ToolTip>(progressSlider.ToolTip);
                 Assert.True(progressToolTip.StaysOpen);
                 Assert.False(ToolTipService.GetIsEnabled(progressSlider));
-                Assert.Same(window.FindResource("App.Media.Slider"), progressSlider.Style);
+                Assert.Same(window.FindResource("App.Media.ProgressSlider"), progressSlider.Style);
+                var progressFillBar = Assert.IsType<ProgressBar>(window.FindName("MiniPlayerProgressFillBar"));
+                Assert.False(progressFillBar.IsHitTestVisible);
+                Assert.Same(window.FindResource("App.Progress.MediaTrack"), progressFillBar.Style);
+                Assert.Equal(
+                    "SegmentProgressPreviewValue",
+                    progressFillBar.GetBindingExpression(RangeBase.ValueProperty)?.ParentBinding.Path.Path);
 
                 var volumePopup = Assert.IsType<Wpf.Ui.Controls.Flyout>(window.FindName("MiniPlayerVolumeFlyout"));
                 var volumeSlider = Assert.IsType<Slider>(window.FindName("MiniPlayerVolumeSlider"));
