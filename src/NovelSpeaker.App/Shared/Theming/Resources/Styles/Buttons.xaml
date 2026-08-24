@@ -198,19 +198,18 @@
         <Setter Property="Padding" Value="12,8" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Raised}" />
+        <!-- The circular content surface owns the floating chrome. The Button is only a transparent hit area. -->
+        <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Effect" Value="{StaticResource App.Elevation.Low}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Effect" Value="{x:Null}" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
-                <Setter Property="Effect" Value="{StaticResource App.Elevation.Medium}" />
+                <Setter Property="Background" Value="Transparent" />
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-                <Setter Property="Effect" Value="{StaticResource App.Elevation.Low}" />
+                <Setter Property="Background" Value="Transparent" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />

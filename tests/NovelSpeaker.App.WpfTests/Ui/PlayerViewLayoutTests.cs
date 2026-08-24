@@ -123,6 +123,11 @@ public sealed partial class PlayerViewTests
             Assert.Null(FindVisibleDescendantByText(listBox, "当前"));
             Assert.NotNull(FindVisibleDescendantByText(firstItem, "25%"));
             Assert.NotNull(FindVisibleDescendantByText(secondItem, "50%"));
+            var firstPercentage = Assert.IsType<TextBlock>(FindVisibleDescendantByText(firstItem, "25%"));
+            Assert.Same(view.FindResource("App.Brush.Accent.Default"), firstPercentage.Foreground);
+            Assert.Null(VisualTreeTestHelper.FindDescendant<Border>(
+                firstItem,
+                static border => border.CornerRadius.TopLeft >= 999));
             Assert.Contains("当前章节", AutomationProperties.GetName(firstButton), StringComparison.Ordinal);
             Assert.Contains("已选择缓存", AutomationProperties.GetName(firstButton), StringComparison.Ordinal);
             Assert.Contains("缓存进度 25%", AutomationProperties.GetName(firstButton), StringComparison.Ordinal);
@@ -350,6 +355,13 @@ public sealed partial class PlayerViewTests
             Assert.Equal(Visibility.Visible, returnButton.Visibility);
             Assert.Equal("返回当前段落", returnButton.ToolTip);
             Assert.Equal("返回当前段落", AutomationProperties.GetName(returnButton));
+            Assert.Equal(new Thickness(0), returnButton.BorderThickness);
+            Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(returnButton.Background).Color);
+            var floatingSurface = VisualTreeTestHelper.FindDescendant<Border>(
+                returnButton,
+                static border => border.CornerRadius.TopLeft >= 999);
+            Assert.NotNull(floatingSurface);
+            Assert.Same(view.FindResource("App.Surface.FloatingAction"), floatingSurface!.Style);
         });
     }
 
@@ -594,14 +606,32 @@ public sealed partial class PlayerViewTests
             var fillBar = Assert.IsType<ProgressBar>(view.FindName("SegmentProgressFillBar"));
             var slider = Assert.IsType<Slider>(view.FindName("SegmentProgressSlider"));
             var accentBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.FindResource("App.Brush.Accent"));
-            var trackBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.FindResource("App.Brush.Surface.Secondary"));
+            var trackBrush = Assert.IsType<SolidColorBrush>(System.Windows.Application.Current.FindResource("App.Brush.Border.Subtle"));
             var fillBarForeground = Assert.IsType<SolidColorBrush>(fillBar.Foreground);
             var fillBarBackground = Assert.IsType<SolidColorBrush>(fillBar.Background);
 
             Assert.Equal(accentBrush.Color, fillBarForeground.Color);
             Assert.Equal(trackBrush.Color, fillBarBackground.Color);
+            Assert.Same(view.FindResource("App.Progress.MediaTrack"), fillBar.Style);
+            Assert.Same(view.FindResource("App.Media.ProgressSlider"), slider.Style);
+            var renderedTrack = VisualTreeTestHelper.FindDescendant<Border>(
+                fillBar,
+                border => border.Background is SolidColorBrush brush && brush.Color == trackBrush.Color);
+            Assert.NotNull(renderedTrack);
+            Assert.True(renderedTrack!.ActualWidth > 0);
+            Assert.True(renderedTrack.ActualHeight > 0);
+            Assert.Equal(6, fillBar.Height);
+            Assert.Equal(6, fillBar.MinHeight);
+            Assert.Equal(Colors.Transparent,
+                Assert.IsType<SolidColorBrush>(slider.Style.Resources["SliderTrackFill"]).Color);
+            Assert.Equal(Colors.Transparent,
+                Assert.IsType<SolidColorBrush>(slider.Style.Resources["SliderTrackFillPointerOver"]).Color);
             Assert.Equal(slider.Maximum, fillBar.Maximum);
-            Assert.Equal(slider.Value, fillBar.Value);
+            Assert.Equal(48d, fillBar.Value);
+            Assert.Equal(32d, slider.Value);
+            Assert.Equal(
+                "SegmentProgressPreviewValue",
+                fillBar.GetBindingExpression(RangeBase.ValueProperty)?.ParentBinding.Path.Path);
             Assert.True(fillBar.Value > 0);
             Assert.True(fillBar.Maximum > fillBar.Value);
             var progressToolTip = Assert.IsType<ToolTip>(slider.ToolTip);

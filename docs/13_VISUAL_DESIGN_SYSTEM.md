@@ -390,10 +390,12 @@ App.Surface.Section
 App.Surface.Card
 App.Surface.Secondary
 App.Surface.Raised
+App.Surface.FloatingAction
 App.Surface.Popup
 ```
 
 Surface Style 只处理背景、边界、圆角、Padding 和效果，不包含业务内容。
+`App.Surface.FloatingAction` 是透明悬浮 Button 内部的圆形视觉表面，统一承载 Normal、Hover 与 Pressed 状态；外层 Button 只保留命中区域、焦点和可访问性语义，不绘制方形外框。
 
 ### 7.4 Button
 
@@ -482,12 +484,15 @@ App.Menu.GroupHeader
 ```text
 App.Progress.Standard
 App.Progress.Compact
+App.Progress.MediaTrack
 App.Media.Slider
+App.Media.ProgressSlider
 App.Media.Button
 App.Media.ControlSurface
 ```
 
 ProgressBar 与 Slider 保持不同控件语义和测试，不共用模板。
+`App.Progress.MediaTrack` 用于播放页和迷你播放器：已播放部分使用 Accent，未播放部分使用可见的 Subtle Border 轨道；`App.Media.ProgressSlider` 只保留拖动和滑块交互，Provider 自带轨道保持透明。
 播放页和迷你播放器的媒体按钮使用统一尺寸和中性状态；播放/暂停不建立独立的 Accent 主按钮变体。
 
 ### 7.9 Feedback

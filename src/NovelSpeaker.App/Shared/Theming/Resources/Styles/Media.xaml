@@ -4,7 +4,8 @@
     <!--
         Media controls reuse the common icon-button template and interaction
         states. This dictionary owns the shared media hit area, editable
-        position slider and secondary control surface.
+        position slider and secondary control surface. Playback progress uses
+        a transparent provider track over an explicit ProgressBar fill.
     -->
     <Style x:Key="App.Media.Button"
            TargetType="{x:Type ui:Button}"
@@ -34,6 +35,19 @@
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Media.ProgressSlider"
+           TargetType="{x:Type Slider}"
+           BasedOn="{StaticResource App.Media.Slider}">
+        <Style.Resources>
+            <!-- The provider track is intentionally transparent here; the paired ProgressBar owns the six-pixel fill. -->
+            <SolidColorBrush x:Key="SliderTrackFill" Color="Transparent" />
+            <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="Transparent" />
+        </Style.Resources>
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
     </Style>
 
     <Style x:Key="App.Media.ControlSurface"

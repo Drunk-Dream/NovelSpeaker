@@ -109,8 +109,15 @@
 
             <Grid Grid.Row="2"
                   Margin="0,2,0,0">
+                <ProgressBar x:Name="MiniPlayerProgressFillBar"
+                             VerticalAlignment="Center"
+                             IsHitTestVisible="False"
+                             Style="{StaticResource App.Progress.MediaTrack}"
+                             Minimum="0"
+                             Maximum="{Binding SegmentProgressMaximum}"
+                             Value="{Binding SegmentProgressPreviewValue, Mode=OneWay}" />
                 <Slider x:Name="MiniPlayerProgressSlider"
-                        Style="{StaticResource App.Media.Slider}"
+                        Style="{StaticResource App.Media.ProgressSlider}"
                         Minimum="0"
                         Maximum="{Binding SegmentProgressMaximum}"
                         Value="{Binding SegmentProgressValue, Mode=OneWay}"

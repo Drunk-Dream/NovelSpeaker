@@ -33,6 +33,7 @@ public sealed class TypographySurfaceStyleTests
         "App.Surface.Card",
         "App.Surface.Secondary",
         "App.Surface.Raised",
+        "App.Surface.FloatingAction",
         "App.Surface.Popup"
     ];
 
@@ -83,6 +84,23 @@ public sealed class TypographySurfaceStyleTests
                 element.Name.LocalName == "Button" ||
                 element.Name.LocalName == "ContentControl");
         });
+
+        var floatingAction = surfaces.Single(resource =>
+            (string?)resource.Attribute(xaml + "Key") == "App.Surface.FloatingAction");
+        Assert.Equal("{StaticResource App.Surface.Raised}", floatingAction.Attribute("BasedOn")?.Value);
+        var interactionTriggers = floatingAction.Elements()
+            .Single(element => element.Name.LocalName == "Style.Triggers")
+            .Elements()
+            .ToArray();
+        Assert.Equal(2, interactionTriggers.Length);
+        Assert.Contains(
+            interactionTriggers,
+            trigger => (string?)trigger.Attribute("Value") == "True" &&
+                       trigger.Attribute("Binding")?.Value.Contains("IsMouseOver", StringComparison.Ordinal) == true);
+        Assert.Contains(
+            interactionTriggers,
+            trigger => (string?)trigger.Attribute("Value") == "True" &&
+                       trigger.Attribute("Binding")?.Value.Contains("IsPressed", StringComparison.Ordinal) == true);
     }
 
     [Fact]
@@ -153,7 +171,7 @@ public sealed class TypographySurfaceStyleTests
                     "surface-",
                     StringComparison.Ordinal))
                 .ToArray();
-            Assert.Equal(8, surfaces.Length);
+            Assert.Equal(9, surfaces.Length);
             Assert.All(surfaces, surface =>
             {
                 Assert.NotNull(surface.Style);

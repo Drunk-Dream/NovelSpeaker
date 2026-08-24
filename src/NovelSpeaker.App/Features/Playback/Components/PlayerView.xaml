@@ -502,25 +502,14 @@
                                                            TextWrapping="NoWrap"
                                                            TextTrimming="CharacterEllipsis"
                                                            VerticalAlignment="Center" />
-                                                <Border Grid.Column="1"
-                                                        Margin="10,0,0,0"
-                                                        Padding="8,2"
-                                                        CornerRadius="999"
-                                                        Background="{DynamicResource App.Brush.Surface.Secondary}">
-                                                    <Border.Style>
-                                                        <Style TargetType="Border">
-                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsCachePercentageVisible}" Value="True">
-                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Border.Style>
-                                                    <TextBlock Style="{StaticResource App.Typography.Secondary}"
-                                                               FontWeight="SemiBold"
-                                                               Text="{Binding CachePercentageText}" />
-                                                </Border>
+                                                <TextBlock Grid.Column="1"
+                                                           Margin="10,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           Style="{StaticResource App.Typography.Secondary}"
+                                                           Foreground="{DynamicResource App.Brush.Accent.Default}"
+                                                           FontWeight="SemiBold"
+                                                           Text="{Binding CachePercentageText}"
+                                                           Visibility="{Binding IsCachePercentageVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                             </Grid>
                                         </Border>
                                     </Grid>
@@ -544,10 +533,7 @@
                                 AutomationProperties.Name="定位到当前章节">
                             <Border Width="40"
                                     Height="40"
-                                    Background="{DynamicResource App.Brush.Surface.Primary}"
-                                    BorderBrush="{DynamicResource App.Brush.Border.Subtle}"
-                                    BorderThickness="1"
-                                    CornerRadius="999">
+                                    Style="{StaticResource App.Surface.FloatingAction}">
                                 <ui:SymbolIcon HorizontalAlignment="Center"
                                                VerticalAlignment="Center"
                                                Symbol="TargetArrow24" />
@@ -775,10 +761,7 @@
                                     AutomationProperties.Name="返回当前段落">
                                 <Border Width="40"
                                         Height="40"
-                                        Background="{DynamicResource App.Brush.Surface.Primary}"
-                                        BorderBrush="{DynamicResource App.Brush.Border.Subtle}"
-                                        BorderThickness="1"
-                                        CornerRadius="999">
+                                        Style="{StaticResource App.Surface.FloatingAction}">
                                     <ui:SymbolIcon HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"
                                                    Symbol="TargetArrow24" />
@@ -923,12 +906,12 @@
                         <ProgressBar x:Name="SegmentProgressFillBar"
                                      VerticalAlignment="Center"
                                      IsHitTestVisible="False"
-                                     Style="{StaticResource App.Progress.Compact}"
+                                     Style="{StaticResource App.Progress.MediaTrack}"
                                      Minimum="0"
                                      Maximum="{Binding SegmentProgressMaximum}"
-                                     Value="{Binding SegmentProgressValue, Mode=OneWay}" />
+                                     Value="{Binding SegmentProgressPreviewValue, Mode=OneWay}" />
                         <Slider x:Name="SegmentProgressSlider"
-                                Style="{StaticResource App.Media.Slider}"
+                                Style="{StaticResource App.Media.ProgressSlider}"
                                 Minimum="0"
                                 Maximum="{Binding SegmentProgressMaximum}"
                                 Value="{Binding SegmentProgressValue, Mode=OneWay}"

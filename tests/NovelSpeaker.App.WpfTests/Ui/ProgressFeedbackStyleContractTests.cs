@@ -18,7 +18,7 @@ public sealed class ProgressFeedbackStyleContractTests
             "Theming",
             "Resources",
             "Styles");
-        var progressKeys = new[] { "App.Progress.Standard", "App.Progress.Compact" };
+        var progressKeys = new[] { "App.Progress.Standard", "App.Progress.Compact", "App.Progress.MediaTrack" };
         var feedbackKeys = new[]
         {
             "App.Feedback.PopupSurface",
@@ -50,7 +50,8 @@ public sealed class ProgressFeedbackStyleContractTests
         var progressStyles = progress.Root!.Elements()
             .Concat(media.Root!.Elements())
             .Where(element => (string?)element.Attribute(xaml + "Key") is
-                "App.Progress.Standard" or "App.Progress.Compact" or "App.Media.Slider")
+                "App.Progress.Standard" or "App.Progress.Compact" or "App.Progress.MediaTrack" or
+                "App.Media.Slider" or "App.Media.ProgressSlider")
             .ToArray();
         Assert.All(progressStyles, AssertProviderStyleWithoutTemplate);
         Assert.Equal(
@@ -61,10 +62,28 @@ public sealed class ProgressFeedbackStyleContractTests
             "{x:Type ProgressBar}",
             progressStyles.Single(style => (string?)style.Attribute(xaml + "Key") == "App.Progress.Compact")
                 .Attribute("TargetType")?.Value);
+        var mediaTrack = progressStyles.Single(style =>
+            (string?)style.Attribute(xaml + "Key") == "App.Progress.MediaTrack");
+        Assert.Equal("{x:Type ProgressBar}", mediaTrack.Attribute("TargetType")?.Value);
+        Assert.Equal("{StaticResource App.Progress.Standard}", mediaTrack.Attribute("BasedOn")?.Value);
+        Assert.Contains(
+            mediaTrack.Elements(),
+            setter => setter.Name.LocalName == "Setter" &&
+                      (string?)setter.Attribute("Property") == "Background" &&
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Border.Subtle}");
         Assert.Equal(
             "{x:Type Slider}",
             progressStyles.Single(style => (string?)style.Attribute(xaml + "Key") == "App.Media.Slider")
                 .Attribute("TargetType")?.Value);
+        var progressSlider = progressStyles.Single(style =>
+            (string?)style.Attribute(xaml + "Key") == "App.Media.ProgressSlider");
+        Assert.Equal("{x:Type Slider}", progressSlider.Attribute("TargetType")?.Value);
+        Assert.Equal("{StaticResource App.Media.Slider}", progressSlider.Attribute("BasedOn")?.Value);
+        Assert.Equal(
+            ["SliderTrackFill", "SliderTrackFillPointerOver"],
+            progressSlider.Elements().Single(element => element.Name.LocalName == "Style.Resources").Elements()
+                .Select(resource => resource.Attribute(xaml + "Key")?.Value ?? string.Empty)
+                .ToArray());
 
         var feedback = XDocument.Load(Path.Combine(stylesDirectory, "Feedback.xaml"));
         var feedbackResources = feedback.Root!.Elements().ToArray();

@@ -19,6 +19,7 @@ public sealed class MediaControlStyleTests
     [
         "App.Media.Button",
         "App.Media.Slider",
+        "App.Media.ProgressSlider",
         "App.Media.ControlSurface"
     ];
 
@@ -58,8 +59,10 @@ public sealed class MediaControlStyleTests
         Assert.Equal("{StaticResource App.Button.Icon}", (string?)resources[0].Attribute("BasedOn"));
         Assert.Equal("{x:Type Slider}", (string?)resources[1].Attribute("TargetType"));
         Assert.Equal("{StaticResource Provider.Slider}", (string?)resources[1].Attribute("BasedOn"));
-        Assert.Equal("{x:Type Border}", (string?)resources[2].Attribute("TargetType"));
-        Assert.Equal("{StaticResource App.Surface.Secondary}", (string?)resources[2].Attribute("BasedOn"));
+        Assert.Equal("{x:Type Slider}", (string?)resources[2].Attribute("TargetType"));
+        Assert.Equal("{StaticResource App.Media.Slider}", (string?)resources[2].Attribute("BasedOn"));
+        Assert.Equal("{x:Type Border}", (string?)resources[3].Attribute("TargetType"));
+        Assert.Equal("{StaticResource App.Surface.Secondary}", (string?)resources[3].Attribute("BasedOn"));
     }
 
     private void Media_button_style_dictionary_contains_icon_based_style_without_template()
