@@ -764,7 +764,7 @@
       "theme": "dark",
       "dpi": 96,
       "png": "pages/book-details/book-details.default.dark.100.png",
-      "sha256": "f34f74727d9bfba8ad48d62fcf7af46c4b4882e8296e8a0d5b856620e01bc3dd"
+      "sha256": "0dd98125dc128924d61eea648ae61d2c7c5b0055ad629fab961666bdc8ca0d0b"
     },
     {
       "category": "pages",
@@ -773,7 +773,7 @@
       "theme": "light",
       "dpi": 96,
       "png": "pages/book-details/book-details.default.light.100.png",
-      "sha256": "316ebb5195526ca481009810136e6fd0ed859b4499c1971a458bece5f5ee8bd7"
+      "sha256": "85ec2e4f890fb20c98794eab5b0ef7ff2fa27950e1a7a3abd54d31d6abfae943"
     },
     {
       "category": "pages",
@@ -782,7 +782,7 @@
       "theme": "dark",
       "dpi": 144,
       "png": "pages/book-details/book-details.long-titles.dark.150.png",
-      "sha256": "11dab7a91050ba40502efe75354f2037d8c9ffa7dc16990ddd9170b7c2d4939d"
+      "sha256": "262562de85edd8e87b1b5f5c56d7e5e77f0e7b02a0dd248bcf29ee32441e8fcc"
     },
     {
       "category": "pages",
@@ -791,7 +791,7 @@
       "theme": "light",
       "dpi": 144,
       "png": "pages/book-details/book-details.long-titles.light.150.png",
-      "sha256": "5f200d97d466f1dba4fbda82f956e2900ec8164db60056d29b987f7d1ef46d47"
+      "sha256": "3410d3b5019e7229affa501dbee9732a21fa3a7cb33b84a6ea93294d49642f64"
     },
     {
       "category": "pages",
@@ -800,7 +800,7 @@
       "theme": "dark",
       "dpi": 144,
       "png": "pages/book-details/book-details.missing-book.dark.150.png",
-      "sha256": "fd7c992f1b590639343919a1f8ff379d00b4dda05e07dfb5a7d9dc261ffcdbb0"
+      "sha256": "83be5373a0565141b53cf743495fadeefe1815a43a7cb0a5484404f573ac1d29"
     },
     {
       "category": "pages",
@@ -809,7 +809,7 @@
       "theme": "light",
       "dpi": 144,
       "png": "pages/book-details/book-details.missing-book.light.150.png",
-      "sha256": "b85f33a3520750acf5ade88006142009ce78f28375a196a407f01033b6541ab7"
+      "sha256": "ff45304b76ca07de68e0debda286de3316f8f3487be1f1ac9277de77b5422e79"
     },
     {
       "category": "pages",
@@ -1268,7 +1268,7 @@
       "theme": "dark",
       "dpi": 96,
       "png": "pages/library/library.books.dark.100.png",
-      "sha256": "b0d256f6dbc030e3b61dd8cfe3af645fc05c88c1cd773ecccfd85af729618082"
+      "sha256": "78cf2b3842e05eed3f4cb41b3f4ba8803d460e21ce85fd805414433ecdbee8a8"
     },
     {
       "category": "pages",
@@ -1277,7 +1277,7 @@
       "theme": "light",
       "dpi": 96,
       "png": "pages/library/library.books.light.100.png",
-      "sha256": "6a174b9cb6437e9cdb9cb9d7c69891633f0b9fca086c761fc376347463d78b98"
+      "sha256": "23276e0dab833aba0a90c512042cc397a356304411c30befaeedb7e861588dfd"
     },
     {
       "category": "pages",
@@ -1286,7 +1286,7 @@
       "theme": "dark",
       "dpi": 96,
       "png": "pages/library/library.empty.dark.100.png",
-      "sha256": "afa7a96d320420774410a8e7c409435fd013915b53fcbeb9f5decbb7e3f2bef3"
+      "sha256": "8a84b0c93ac7c813dfcda6fe2beaebb604a0ba028888b7d34b999eea6a1e05a9"
     },
     {
       "category": "pages",
@@ -1295,7 +1295,7 @@
       "theme": "light",
       "dpi": 96,
       "png": "pages/library/library.empty.light.100.png",
-      "sha256": "5d933b6b22c4eaa6bce73d387b341d48c94dcf8203086532b4663fc19bb7deaa"
+      "sha256": "f129b6d2582fa7acb73c23b8a38aaf15e04c0f64ed2d125ce15809400b707849"
     },
     {
       "category": "pages",
@@ -1304,7 +1304,7 @@
       "theme": "dark",
       "dpi": 144,
       "png": "pages/library/library.long-titles.dark.150.png",
-      "sha256": "a373eed31b387c6cde2b84975ec8d4673f2a11e910275c3907eab054832ae20f"
+      "sha256": "b1161a1e6085dba5b3dc56c98bfdcdf87f277430851a3737aace51fc85a3164f"
     },
     {
       "category": "pages",
@@ -1313,7 +1313,7 @@
       "theme": "light",
       "dpi": 144,
       "png": "pages/library/library.long-titles.light.150.png",
-      "sha256": "c557e55601401fcf8f7113d676eb63722dd5a6087fae606c47e7a717d8fb1efc"
+      "sha256": "4fdfbb7b7efce992cf79dbf66cacbf53bdbaa6c91139a15b5f9afdb17b7be510"
     },
     {
       "category": "pages",
@@ -1322,7 +1322,7 @@
       "theme": "dark",
       "dpi": 144,
       "png": "pages/library/library.no-results.dark.150.png",
-      "sha256": "0f297e9d59c9b9677cc41970e82b1da67f89c37358c06c4fb3065e43bd791c9f"
+      "sha256": "13309abebff1f6c08092da3b100eabc969d1270cc6ae960d8ceb8eef0a0ff228"
     },
     {
       "category": "pages",
@@ -1331,7 +1331,7 @@
       "theme": "light",
       "dpi": 144,
       "png": "pages/library/library.no-results.light.150.png",
-      "sha256": "727495fcd32ba70529d1c6ed224661825e8ddcc2f5b9a037a23f293551911c04"
+      "sha256": "691b40b3d9bbeca8167800b9492e86d8bcfa440ec8e65886f93282e4093ad976"
     },
     {
       "category": "pages",
@@ -1844,7 +1844,7 @@
       "theme": "dark",
       "dpi": 96,
       "png": "windows/main-window/main-window.book-details-book-delete-dialog.dark.100.png",
-      "sha256": "2856cc9d97837eb0457fb49698ab80467c471c9983395fe2556def899eabe734"
+      "sha256": "4701204bb47c8526054a505dfc0198ddc470df0676a9492c5dc5b54d8d1c02ed"
     },
     {
       "category": "windows",
@@ -1853,7 +1853,7 @@
       "theme": "light",
       "dpi": 96,
       "png": "windows/main-window/main-window.book-details-book-delete-dialog.light.100.png",
-      "sha256": "25ebffbd96343f9fb38b89fac2846b779db89f684852daee8241adde2e276ae4"
+      "sha256": "02d0f9fe5d623b25fbff0008a7684ef50ff50d55678deac51d583d1b827099fd"
     },
     {
       "category": "windows",
@@ -1880,7 +1880,7 @@
       "theme": "dark",
       "dpi": 96,
       "png": "windows/main-window/main-window.close-dialog.dark.100.png",
-      "sha256": "073fb7722657c2106b2dabb178dab8b0386e07b1dd653d63c60739f7988b73d3"
+      "sha256": "dc3bf37790e468314dece7a9cb4a5ae0c424f34a9c0523a955a3087f7aff0a90"
     },
     {
       "category": "windows",
@@ -1889,7 +1889,7 @@
       "theme": "light",
       "dpi": 96,
       "png": "windows/main-window/main-window.close-dialog.light.100.png",
-      "sha256": "3522b21698e013d056d9af944e380f56f1fc5805861964d80ea87e68bd4bd956"
+      "sha256": "16efbc1a100c4c989137978ed4d7027eba893d475ef5a9526b4c2dd22e93b097"
     },
     {
       "category": "windows",
@@ -1952,7 +1952,7 @@
       "theme": "dark",
       "dpi": 96,
       "png": "windows/main-window/main-window.library-encoding-dialog.dark.100.png",
-      "sha256": "f790f5f2b6c0c1c25b5604aa344674461a1ef272333da4d9404a6992222b43f8"
+      "sha256": "ca5ca361adc0e2e08be6dbc22c6ab5e3a7c792c815fa79d63561b02f3d2a1908"
     },
     {
       "category": "windows",
@@ -1961,7 +1961,7 @@
       "theme": "light",
       "dpi": 96,
       "png": "windows/main-window/main-window.library-encoding-dialog.light.100.png",
-      "sha256": "52910f17a6a13b32b2444c98fb0f55714a9441bbdc1c020a31f70d02fb1d5516"
+      "sha256": "6304939d7821f459818cdea1318e7eae228fd4f8da35a7c7d1a06cb849ad672e"
     },
     {
       "category": "windows",
@@ -1970,7 +1970,7 @@
       "theme": "dark",
       "dpi": 96,
       "png": "windows/main-window/main-window.library-import-progress-dialog.dark.100.png",
-      "sha256": "2b422dc42da3f9bd7a540765481345a4dd39c7905c03106f304dfc9b49c5a1d7"
+      "sha256": "32483879cb1f34851361e34ea1c93bde2ba97f17b9dfb8a95180a3fa97b5e412"
     },
     {
       "category": "windows",
@@ -1979,7 +1979,7 @@
       "theme": "light",
       "dpi": 96,
       "png": "windows/main-window/main-window.library-import-progress-dialog.light.100.png",
-      "sha256": "876aa0e13bd9ace9874c4279dabb7c5a13b71ef4f958cc687b89add2b2a3995a"
+      "sha256": "8786002538f1b8a9787be88b1cbd329618e7dadbd811f42cbb8d309e917480e0"
     },
     {
       "category": "windows",
@@ -2006,7 +2006,7 @@
       "theme": "dark",
       "dpi": 96,
       "png": "windows/main-window/main-window.tts-rules-unsaved-dialog.dark.100.png",
-      "sha256": "38aabda404fe2a77784857dd253d70f89a20e7b82188ac668b41cf9a51bd60d4"
+      "sha256": "f145eaa4f4ce2c2b66d68ae1ed600c894db7bb8c30ccdcd0991701af9d5d742b"
     },
     {
       "category": "windows",
@@ -2015,7 +2015,7 @@
       "theme": "light",
       "dpi": 96,
       "png": "windows/main-window/main-window.tts-rules-unsaved-dialog.light.100.png",
-      "sha256": "e90c9d45e45ed23685dc8d087c0806cfadb1f056778bfc55651cc17e12f70e95"
+      "sha256": "f9ad270d81bd18496882efdfd2f73a80c5059af73c628e676b437de31b56b704"
     },
     {
       "category": "windows",
@@ -2186,7 +2186,7 @@
       "theme": "dark",
       "dpi": 96,
       "png": "windows/startup-status-window/startup-status-window.error.dark.100.png",
-      "sha256": "2c222e7911033e8d29394ccde80c98d401afa7aa7a11b3fd9c3d5070881aa57c"
+      "sha256": "a521d8a669afff78446ccc2d1e5e464757b880ea5437647f8be06d9d9790e61b"
     },
     {
       "category": "windows",
@@ -2195,7 +2195,7 @@
       "theme": "dark",
       "dpi": 120,
       "png": "windows/startup-status-window/startup-status-window.error.dark.125.png",
-      "sha256": "3c1d1861bd97e1a59d8b4d048a5daade9e8adfa5ff53e815f789e01652965472"
+      "sha256": "bba802c714b0fb1b02c3f6813c78002906ab7deded5f0fc835e46a8869ed2f35"
     },
     {
       "category": "windows",
@@ -2204,7 +2204,7 @@
       "theme": "dark",
       "dpi": 144,
       "png": "windows/startup-status-window/startup-status-window.error.dark.150.png",
-      "sha256": "5c6830cc3ed1dd1e5c2d2fe8da7411bace89c365f2794c29abd081fa1c8a2ea3"
+      "sha256": "d337f7d9278a052d305bd72b5d7eb7bf489f2ae83d8368854d95a68ab2909be3"
     },
     {
       "category": "windows",
@@ -2213,7 +2213,7 @@
       "theme": "light",
       "dpi": 96,
       "png": "windows/startup-status-window/startup-status-window.error.light.100.png",
-      "sha256": "9ab6f4a338ad7b36630cffe7173724eccc446a8b4ccf48ef0fe478725ebf2ae8"
+      "sha256": "1dfdf37037f64ea3dafb5d5e0173d573f1ef92b94f77484bb35eda70b5849904"
     },
     {
       "category": "windows",
@@ -2222,7 +2222,7 @@
       "theme": "light",
       "dpi": 120,
       "png": "windows/startup-status-window/startup-status-window.error.light.125.png",
-      "sha256": "f20c2d436c1ff84102a6c36fd5b0ee00c4ba581824780d7dc7aca294fddb2d48"
+      "sha256": "291822069ba07bd32044f9aa159db17e263ac73a8c4aa6cccc47ef9df5c1cc1d"
     },
     {
       "category": "windows",
@@ -2231,7 +2231,7 @@
       "theme": "light",
       "dpi": 144,
       "png": "windows/startup-status-window/startup-status-window.error.light.150.png",
-      "sha256": "7e92cb2af32d00741849c16ea44654445c4ef40c44eca6f090b984ab251632c8"
+      "sha256": "aa690e8106f6436a89b893251fd578a1f7b38cfa88a3dff7e69f8ebfc47c0e14"
     },
     {
       "category": "windows",
@@ -2240,7 +2240,7 @@
       "theme": "dark",
       "dpi": 96,
       "png": "windows/startup-status-window/startup-status-window.loading.dark.100.png",
-      "sha256": "e573bd7986fcb42a132d3d7bc9f7f64309023ecb9aca89aa18bf9f7f265c4d4a"
+      "sha256": "55b6b85b9e3d1d73f9c32a631b3ab089ef5cddf7298e7f4d715f61a870d29afb"
     },
     {
       "category": "windows",
@@ -2249,7 +2249,7 @@
       "theme": "dark",
       "dpi": 120,
       "png": "windows/startup-status-window/startup-status-window.loading.dark.125.png",
-      "sha256": "3ccfef74c3c9986f386166a5fd1df0b090000e573233df6447f1b3b4ff9799b2"
+      "sha256": "9c5441887d336aaa3aab769de4fc738cf004eb25f8c0bd0e1b12eb08cde87e52"
     },
     {
       "category": "windows",
@@ -2258,7 +2258,7 @@
       "theme": "dark",
       "dpi": 144,
       "png": "windows/startup-status-window/startup-status-window.loading.dark.150.png",
-      "sha256": "3efed130bc594d76f7da2fc4ac94fc57939f1809280b17bfa58cbc37425c3a14"
+      "sha256": "e2a6e9fad298c3fa46ff1a322a8ede7fa1e7a4b8b28c9eac75909c4e494aecb7"
     },
     {
       "category": "windows",
@@ -2267,7 +2267,7 @@
       "theme": "light",
       "dpi": 96,
       "png": "windows/startup-status-window/startup-status-window.loading.light.100.png",
-      "sha256": "9590d5810db5c47d5aef3ae090bd8cc1f36b4c1272a651a4fab8b8b175c35fb0"
+      "sha256": "d3393fac208870a91eac11418d7bb358d6369034f9db1f34cdcdca9f9f9835c5"
     },
     {
       "category": "windows",
@@ -2276,7 +2276,7 @@
       "theme": "light",
       "dpi": 120,
       "png": "windows/startup-status-window/startup-status-window.loading.light.125.png",
-      "sha256": "a7a699ae10cf99e43bbb9500769e48e3747263e926dae376519ec7aec9c2add5"
+      "sha256": "069e3ea5c4a6adfc3971cd9499fb5437690b7e66f3d72ad291453651c917b878"
     },
     {
       "category": "windows",
@@ -2285,7 +2285,7 @@
       "theme": "light",
       "dpi": 144,
       "png": "windows/startup-status-window/startup-status-window.loading.light.150.png",
-      "sha256": "4a19de9c35763f2b3ecb91c9b8114761683b59489fdc4c379a9ac92eba6e6aa0"
+      "sha256": "034da3ca2d56464c409bf2450a6602691943767c0329f834ef8b0930e3896c69"
     }
   ]
 }
