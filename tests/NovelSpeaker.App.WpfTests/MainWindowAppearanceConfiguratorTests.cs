@@ -6,6 +6,7 @@ using Xunit;
 
 namespace NovelSpeaker.App.WpfTests;
 
+[Collection("WpfDispatcher")]
 public sealed class MainWindowAppearanceConfiguratorTests
 {
     [Fact]

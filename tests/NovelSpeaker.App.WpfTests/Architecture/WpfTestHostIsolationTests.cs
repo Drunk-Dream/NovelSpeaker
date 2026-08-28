@@ -1,3 +1,4 @@
+using System.Windows.Threading;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Architecture;
@@ -129,6 +130,172 @@ public sealed class WpfTestHostIsolationTests
         });
 
         Assert.Equal(0, WpfTestHost.TrackedWindowCount);
+    }
+
+    [Fact]
+    public void Dispatcher_shutdown_request_unwinds_a_nested_dispatcher_frame()
+    {
+        var dispatcherReady = new ManualResetEventSlim();
+        var frameEntered = new ManualResetEventSlim();
+        var dispatcherExited = new ManualResetEventSlim();
+        Dispatcher? dispatcher = null;
+        Exception? threadException = null;
+
+        var thread = WindowsTestDesktopThread.Start(() =>
+        {
+            try
+            {
+                dispatcher = Dispatcher.CurrentDispatcher;
+                dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
+                {
+                    frameEntered.Set();
+                    Dispatcher.PushFrame(new DispatcherFrame());
+                }));
+                dispatcherReady.Set();
+                Dispatcher.Run();
+            }
+            catch (Exception exception)
+            {
+                threadException = exception;
+            }
+            finally
+            {
+                dispatcherExited.Set();
+            }
+        });
+
+        try
+        {
+            Assert.True(dispatcherReady.Wait(TimeSpan.FromSeconds(5)));
+            Assert.True(frameEntered.Wait(TimeSpan.FromSeconds(5)));
+            WpfTestHost.RequestDispatcherShutdown(dispatcher!, static () => { });
+            Assert.True(dispatcherExited.Wait(TimeSpan.FromSeconds(5)));
+            Assert.True(thread.WaitForExit(TimeSpan.FromSeconds(5)));
+            Assert.Null(threadException);
+        }
+        finally
+        {
+            if (!dispatcherExited.IsSet && dispatcher is not null)
+            {
+                try
+                {
+                    WpfTestHost.RequestDispatcherShutdown(dispatcher, static () => { });
+                }
+                catch
+                {
+                    // Preserve the original assertion or thread failure.
+                }
+            }
+
+            if (!thread.WaitForExit(TimeSpan.FromSeconds(5)))
+            {
+                throw new TimeoutException(
+                    "Nested Dispatcher regression thread did not exit during cleanup.");
+            }
+
+            try
+            {
+                thread.Dispose();
+            }
+            finally
+            {
+                dispatcherExited.Dispose();
+                frameEntered.Dispose();
+                dispatcherReady.Dispose();
+            }
+        }
+    }
+
+    [Fact]
+    public void Isolated_desktop_dispatcher_shutdown_restores_and_releases_the_desktop()
+    {
+        var dispatcherReady = new ManualResetEventSlim();
+        var dispatcherExited = new ManualResetEventSlim();
+        Dispatcher? dispatcher = null;
+        WindowsTestDesktop? desktop = null;
+        Exception? threadException = null;
+
+        var thread = WindowsTestDesktopThread.Start(() =>
+        {
+            try
+            {
+                desktop = WindowsTestDesktop.Attach(allowVisibleWindows: false);
+                desktop.InitializeSta();
+                dispatcher = Dispatcher.CurrentDispatcher;
+                dispatcherReady.Set();
+                Dispatcher.Run();
+            }
+            catch (Exception exception)
+            {
+                threadException = exception;
+            }
+            finally
+            {
+                try
+                {
+                    desktop?.PrepareThreadShutdown();
+                }
+                catch (Exception exception)
+                {
+                    threadException = threadException is null
+                        ? exception
+                        : new AggregateException(threadException, exception);
+                }
+                finally
+                {
+                    dispatcherExited.Set();
+                }
+            }
+        });
+
+        try
+        {
+            Assert.True(WpfTestHost.CurrentDesktop.IsIsolated);
+            Assert.True(dispatcherReady.Wait(TimeSpan.FromSeconds(5)));
+            WpfTestHost.RequestDispatcherShutdown(dispatcher!, static () => { });
+            Assert.True(dispatcherExited.Wait(TimeSpan.FromSeconds(5)));
+            Assert.True(thread.WaitForExit(TimeSpan.FromSeconds(5)));
+            Assert.Null(threadException);
+            Assert.NotNull(desktop);
+            Assert.True(desktop!.ThreadDesktopRestored);
+
+            desktop.ReleaseDesktopHandle();
+            Assert.True(desktop.IsDesktopHandleReleased);
+        }
+        finally
+        {
+            if (!dispatcherExited.IsSet && dispatcher is not null)
+            {
+                try
+                {
+                    WpfTestHost.RequestDispatcherShutdown(dispatcher, static () => { });
+                }
+                catch
+                {
+                    // Preserve the original assertion or thread failure.
+                }
+            }
+
+            if (!thread.WaitForExit(TimeSpan.FromSeconds(5)))
+            {
+                throw new TimeoutException(
+                    "Isolated Desktop regression thread did not exit during cleanup.");
+            }
+
+            try
+            {
+                thread.Dispose();
+                if (desktop is not null && !desktop.IsDesktopHandleReleased)
+                {
+                    desktop.ReleaseDesktopHandle();
+                }
+            }
+            finally
+            {
+                dispatcherExited.Dispose();
+                dispatcherReady.Dispose();
+            }
+        }
     }
 
     private sealed class FakeWindowsTestDesktopNativeApi : IWindowsTestDesktopNativeApi

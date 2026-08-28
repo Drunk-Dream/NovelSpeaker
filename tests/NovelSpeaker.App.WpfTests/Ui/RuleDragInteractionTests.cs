@@ -4,6 +4,7 @@ using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
 
+[Collection("WpfDispatcher")]
 public sealed class RuleDragInteractionTests
 {
     private void Gesture_requires_hold_threshold_followed_by_movement()

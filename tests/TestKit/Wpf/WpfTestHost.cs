@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
@@ -25,6 +26,7 @@ internal static class WpfTestHost
     private static readonly object WindowGate = new();
     private static readonly HashSet<Window> TestWindows = [];
     private static readonly HashSet<DependencyObject> DiagnosticRoots = [];
+    private static readonly TimeSpan DispatcherShutdownTimeout = TimeSpan.FromSeconds(5);
     private static WindowsTestDesktopThread? _dispatcherThread;
     private static WindowsTestDesktop? _desktop;
     private static WindowsTestDesktopInfo? _desktopInfo;
@@ -208,6 +210,54 @@ internal static class WpfTestHost
     internal static bool IsVisibleWindowsAllowedValue(string? value) =>
         string.Equals(value, "1", StringComparison.Ordinal);
 
+    internal static void RequestDispatcherShutdown(Dispatcher dispatcher, Action shutdownApplication)
+    {
+        ArgumentNullException.ThrowIfNull(dispatcher);
+        ArgumentNullException.ThrowIfNull(shutdownApplication);
+
+        // CancellationToken.None is intentional: this is final test-host cleanup;
+        // the synchronous dispatcher request itself remains explicitly time-bound.
+        dispatcher.Invoke(
+            () =>
+            {
+                Exception? shutdownException = null;
+                try
+                {
+                    shutdownApplication();
+                }
+                catch (Exception exception)
+                {
+                    shutdownException = exception;
+                }
+                finally
+                {
+                    try
+                    {
+                        CaptureException(ref shutdownException, Dispatcher.ExitAllFrames);
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            CaptureException(ref shutdownException, dispatcher.InvokeShutdown);
+                        }
+                        finally
+                        {
+                            CaptureException(ref shutdownException, () => PostQuitMessage(0));
+                        }
+                    }
+                }
+
+                if (shutdownException is not null)
+                {
+                    ExceptionDispatchInfo.Capture(shutdownException).Throw();
+                }
+            },
+            DispatcherPriority.Send,
+            CancellationToken.None,
+            DispatcherShutdownTimeout);
+    }
+
     internal static void Shutdown()
     {
         Dispatcher? dispatcher = null;
@@ -235,10 +285,9 @@ internal static class WpfTestHost
         {
             CaptureException(
                 ref shutdownException,
-                () => dispatcher.Invoke(() => global::System.Windows.Application.Current?.Shutdown()));
-            CaptureException(
-                ref shutdownException,
-                () => dispatcher.BeginInvokeShutdown(DispatcherPriority.Normal));
+                () => RequestDispatcherShutdown(
+                    dispatcher,
+                    () => global::System.Windows.Application.Current?.Shutdown()));
         }
 
         CaptureException(
@@ -678,4 +727,7 @@ internal static class WpfTestHost
 
         public void Dispose() => _event.Dispose();
     }
+
+    [DllImport("user32.dll")]
+    private static extern void PostQuitMessage(int exitCode);
 }
