@@ -101,7 +101,7 @@ Codex 执行任务时不得删除已完成任务：完成后将状态改为 `[x]
 
 ## Phase B：主程序命名与发布产物
 
-## [ ] T003（P0）：统一主程序为 `NovelSpeaker.exe`
+## [x] T003（P0）：统一主程序为 `NovelSpeaker.exe`
 
 目标：
 
@@ -129,6 +129,12 @@ Codex 执行任务时不得删除已完成任务：完成后将状态改为 `[x]
 - self-contained `win-x64` publish 成功。
 - 自动包内容检查通过：主程序、LICENSE、THIRD-PARTY-NOTICES 和既有运行时依赖完整，且不包含测试/开发资产。
 - 受影响项目 build/test 通过。
+
+完成成果：
+
+- 已通过项目 `AssemblyName` 统一发布输出为 `NovelSpeaker.exe`，并将托盘图标解析切换为实际当前进程路径。
+- 已更新发布包校验、README 与托盘路径合同测试，发布目录及 ZIP 均拒绝旧 executable 名称。
+- 已执行 T003 定向 build/test 与 self-contained `win-x64` publish 检查；详细结果见交付说明。
 
 ## Phase C：Transient UI 自动调试收口
 

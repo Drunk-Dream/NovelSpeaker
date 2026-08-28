@@ -168,7 +168,7 @@ public static class GalleryThemeRuntime
         var application = System.Windows.Application.Current!;
         var sourcePrefix = IsStyleGalleryPalette(application)
             ? "/NovelSpeaker.StyleGallery;component/Resources/Palettes/Palette."
-            : "/NovelSpeaker.App;component/Shared/Theming/Palettes/Palette.";
+            : "/NovelSpeaker;component/Shared/Theming/Palettes/Palette.";
         SemanticPaletteRuntime.Apply(
             application,
             theme.ToWpfUiTheme(),

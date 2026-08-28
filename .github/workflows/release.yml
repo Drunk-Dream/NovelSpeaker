@@ -62,7 +62,7 @@ jobs:
           $forbiddenFixtures = @('demo-tone.wav', 'demo-tone.mp3', 'corrupt-tone.mp3')
           $temporaryExtensions = @('.tmp', '.temp', '.partial', '.bak', '.orig', '.rej')
           $requiredRootFiles = @(
-            'NovelSpeaker.App.exe',
+            'NovelSpeaker.exe',
             'LICENSE',
             'THIRD-PARTY-NOTICES.txt',
             'NAudio.dll',
@@ -76,6 +76,9 @@ jobs:
           foreach ($required in $requiredRootFiles) {
             if (-not (Test-Path (Join-Path artifacts/publish $required) -PathType Leaf)) { throw "Package is missing $required" }
           }
+          $publishedLegacyExecutables = Get-ChildItem artifacts/publish -Recurse -File |
+            Where-Object { $_.Name -eq 'NovelSpeaker.App.exe' }
+          if ($publishedLegacyExecutables) { throw "Package contains the legacy executable name: $($publishedLegacyExecutables.FullName -join ', ')" }
           $publishedTestAssets = Get-ChildItem artifacts/publish -Recurse -Force | Where-Object { $_.FullName -match '[\\/]TestAssets([\\/]|$)' }
           if ($publishedTestAssets) { throw "Package contains TestAssets: $($publishedTestAssets.FullName -join ', ')" }
           $publishedFixtures = Get-ChildItem artifacts/publish -Recurse -File | Where-Object { $_.Name -in $forbiddenFixtures }
@@ -96,6 +99,9 @@ jobs:
           foreach ($required in $requiredRootFiles) {
             if ($entries -notcontains $required) { throw "Package is missing $required" }
           }
+          $packagedLegacyExecutables = $entries |
+            Where-Object { [System.IO.Path]::GetFileName($_) -eq 'NovelSpeaker.App.exe' }
+          if ($packagedLegacyExecutables) { throw "ZIP contains the legacy executable name: $($packagedLegacyExecutables -join ', ')" }
           $packagedTestAssets = $entries | Where-Object { $_ -match '(^|/)TestAssets(/|$)' }
           if ($packagedTestAssets) { throw "Package contains TestAssets: $($packagedTestAssets -join ', ')" }
           $packagedFixtures = $entries | Where-Object { [System.IO.Path]::GetFileName($_) -in $forbiddenFixtures }

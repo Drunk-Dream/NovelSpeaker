@@ -18,7 +18,7 @@ NovelSpeaker 专注于一条清晰可靠的链路：导入本地 TXT 小说，�
 
 ## 下载与安装
 
-从 [Releases](https://github.com/Drunk-Dream/NovelSpeaker/releases/latest) 下载 `NovelSpeaker-vX.Y.Z-win-x64.zip`，解压到任意有写入权限的目录后运行 `NovelSpeaker.App.exe`。
+从 [Releases](https://github.com/Drunk-Dream/NovelSpeaker/releases/latest) 下载 `NovelSpeaker-vX.Y.Z-win-x64.zip`，解压到任意有写入权限的目录后运行 `NovelSpeaker.exe`。
 
 - Windows 10 22H2+ 或 Windows 11，x64。
 - 发布包自包含，不需要另装 .NET Runtime。

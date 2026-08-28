@@ -7,28 +7,28 @@
             <ResourceDictionary.MergedDictionaries>
                 <ui:ThemesDictionary Theme="Light" />
                 <ui:ControlsDictionary />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Provider/ProviderStyleBridge.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Palettes/Palette.Light.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Tokens/Metrics.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Tokens/TypographyTokens.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Tokens/Motion.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Tokens/Elevation.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Typography.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Surfaces.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Buttons.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Icons.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Inputs.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Selection.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Navigation.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Menus.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Progress.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Media.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/Styles/Feedback.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/Common.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/Settings.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/Forms.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/Feedback.xaml" />
-                <ResourceDictionary Source="/NovelSpeaker.App;component/Shared/Theming/Resources/ControlThemes/Rules.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Provider/ProviderStyleBridge.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Palettes/Palette.Light.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/Tokens/Metrics.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/Tokens/TypographyTokens.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/Tokens/Motion.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/Tokens/Elevation.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/Styles/Typography.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/Styles/Surfaces.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/Styles/Buttons.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/Styles/Icons.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/Styles/Inputs.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/Styles/Selection.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/Styles/Navigation.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/Styles/Menus.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/Styles/Progress.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/Styles/Media.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/Styles/Feedback.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/ControlThemes/Common.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/ControlThemes/Settings.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/ControlThemes/Forms.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/ControlThemes/Feedback.xaml" />
+                <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/ControlThemes/Rules.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

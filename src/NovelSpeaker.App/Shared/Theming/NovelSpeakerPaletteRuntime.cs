@@ -8,9 +8,9 @@ namespace NovelSpeaker.App.Shared.Theming;
 internal static class NovelSpeakerPaletteRuntime
 {
     private const string LightPaletteSource =
-        "/NovelSpeaker.App;component/Shared/Theming/Palettes/Palette.Light.xaml";
+        "/NovelSpeaker;component/Shared/Theming/Palettes/Palette.Light.xaml";
     private const string DarkPaletteSource =
-        "/NovelSpeaker.App;component/Shared/Theming/Palettes/Palette.Dark.xaml";
+        "/NovelSpeaker;component/Shared/Theming/Palettes/Palette.Dark.xaml";
 
     public static ApplicationTheme? CurrentTheme { get; private set; }
 

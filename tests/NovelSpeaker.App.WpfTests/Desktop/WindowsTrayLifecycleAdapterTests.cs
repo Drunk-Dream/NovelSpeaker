@@ -210,6 +210,37 @@ public sealed class WindowsTrayLifecycleAdapterTests
         });
     }
 
+    private async Task Tray_icon_uses_the_actual_current_process_path()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var window = provider.GetRequiredService<MainWindow>();
+                var native = new FakeNativeApi { ExtractedIcon = new IntPtr(42) };
+                var adapter = new WindowsTrayLifecycleAdapter(
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.MiniPlayerWindow>(),
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.IMiniPlayerPlacementPersistence>(),
+                    native);
+                adapter.AttachMainWindow(window);
+
+                await adapter.StartAsync(CancellationToken.None);
+
+                Assert.NotNull(Environment.ProcessPath);
+                Assert.Equal(Environment.ProcessPath, native.ExtractedExecutablePath);
+
+                await adapter.StopAsync(CancellationToken.None);
+                window.ConfigureDesktopLifecycle(_ => Task.CompletedTask, () => true);
+                window.Close();
+            }
+            finally
+            {
+                await provider.DisposeAsync();
+            }
+        });
+    }
+
     private async Task Shared_fallback_icon_is_never_destroyed()
     {
         await WpfTestHost.RunInStaAsync(async () =>
@@ -297,6 +328,7 @@ public sealed class WindowsTrayLifecycleAdapterTests
     [Fact]
     public async Task Windows_tray_icon_ownership_contracts_cover_owned_shared_and_failed_paths()
     {
+        await Tray_icon_uses_the_actual_current_process_path();
         await Owned_extracted_icon_is_destroyed_once_after_repeated_stop();
         await Shared_fallback_icon_is_never_destroyed();
         await Failed_tray_registration_releases_owned_icon_and_repeated_stop_is_safe();
@@ -310,8 +342,13 @@ public sealed class WindowsTrayLifecycleAdapterTests
         public int AddCount { get; private set; }
         public int DeleteCount { get; private set; }
         public List<IntPtr> DestroyedIcons { get; } = [];
+        public string? ExtractedExecutablePath { get; private set; }
 
-        public IntPtr ExtractLargeIcon(string executablePath) => ExtractedIcon;
+        public IntPtr ExtractLargeIcon(string executablePath)
+        {
+            ExtractedExecutablePath = executablePath;
+            return ExtractedIcon;
+        }
 
         public IntPtr LoadSharedApplicationIcon() => SharedIcon;
 

@@ -85,8 +85,9 @@ internal sealed class WindowsTrayLifecycleAdapter : IDesktopLifecyclePlatform
 
                 try
                 {
-                    var icon = _nativeApi.ExtractLargeIcon(
-                        Path.Combine(AppContext.BaseDirectory, "NovelSpeaker.App.exe"));
+                    var icon = Environment.ProcessPath is { } processPath
+                        ? _nativeApi.ExtractLargeIcon(processPath)
+                        : IntPtr.Zero;
                     _iconResource = icon != IntPtr.Zero
                         ? TrayIconResource.Owned(icon, _nativeApi.DestroyIcon)
                         : CreateSharedIconResource();

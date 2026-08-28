@@ -236,7 +236,7 @@ internal static class VisualStyleOwnershipScanner
 {
     private const string XamlNamespace = "http://schemas.microsoft.com/winfx/2006/xaml";
     private const string WpfUiNamespace = "http://schemas.lepo.co/wpfui/2022/xaml";
-    private const string WpfUiComponentPrefix = "/NovelSpeaker.App;component/";
+    private const string WpfUiComponentPrefix = "/NovelSpeaker;component/";
 
     private static readonly HashSet<string> StandardWpfTargetTypes =
     [

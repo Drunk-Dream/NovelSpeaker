@@ -30,6 +30,8 @@
   </ItemGroup>
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <AssemblyName>NovelSpeaker</AssemblyName>
+    <PackageId>NovelSpeaker.App</PackageId>
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <UseWPF>true</UseWPF>
     <ApplicationIcon>Assets\Branding\app.ico</ApplicationIcon>
