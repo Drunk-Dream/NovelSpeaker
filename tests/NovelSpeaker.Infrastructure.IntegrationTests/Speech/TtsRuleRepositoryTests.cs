@@ -194,7 +194,7 @@ public sealed class TtsRuleRepositoryTests
         CreateRepositoryFixtureAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var factory = new SqliteConnectionFactory(directories);
         var runner = new SqliteMigrationRunner(factory);
         var seederRepository = new ChapterRuleRepository(factory);

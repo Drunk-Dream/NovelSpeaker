@@ -343,7 +343,7 @@ public sealed class ChapterMp3ExportWriterTests
     private static async Task<CacheFixture> CreateFixtureAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var connectionFactory = new SqliteConnectionFactory(directories);
         var initializer = new StartupDatabaseInitializer(
             directories,

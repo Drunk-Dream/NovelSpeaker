@@ -64,7 +64,7 @@ public sealed class ChapterRuleManagementServiceTests
     private static async Task<(ChapterRuleRepository Repository, ChapterRuleManagementService Service)> CreateServiceAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var factory = new SqliteConnectionFactory(directories);
         var runner = new SqliteMigrationRunner(factory);
         var repository = new ChapterRuleRepository(factory);

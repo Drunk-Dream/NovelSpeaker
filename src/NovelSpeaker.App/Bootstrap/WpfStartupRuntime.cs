@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,6 +14,7 @@ using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shell.Activation;
+using NovelSpeaker.Domain.Common;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using NovelSpeaker.Infrastructure.FileSystem;
@@ -45,7 +47,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     private readonly BackgroundTaskRegistry _backgroundTasks;
     private readonly TimeSpan _backgroundShutdownTimeout;
     private StartupStatusWindow? _statusWindow;
-    private LocalAppDataDirectoryProvider? _directories;
+    private AppDataDirectoryProvider? _directories;
     private JsonAppSettingsStore? _settingsStore;
     private StartupDiagnosticsRecorder? _diagnostics;
     private ServiceProvider? _serviceProvider;
@@ -97,7 +99,10 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
 
     public async Task PrepareDirectoriesAsync(CancellationToken cancellationToken)
     {
-        _directories = new LocalAppDataDirectoryProvider();
+        var rootPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            AppInfo.ProductName);
+        _directories = new AppDataDirectoryProvider(rootPath);
         await _directories.EnsureCreatedAsync(cancellationToken).ConfigureAwait(true);
     }
 
@@ -373,7 +378,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         _shutdownGate.Dispose();
     }
 
-    private LocalAppDataDirectoryProvider RequireDirectories() =>
+    private AppDataDirectoryProvider RequireDirectories() =>
         _directories ?? throw new InvalidOperationException("应用数据目录尚未初始化。");
 
     private ServiceProvider RequireServices() =>

@@ -109,10 +109,10 @@ public sealed class SqliteChapterSpeechPlanStoreTests
             length,
             Fingerprint.Sha256(speechText));
 
-    private static async Task<(SqliteConnectionFactory Factory, LocalAppDataDirectoryProvider Directories)> CreateDatabaseAsync()
+    private static async Task<(SqliteConnectionFactory Factory, AppDataDirectoryProvider Directories)> CreateDatabaseAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var factory = new SqliteConnectionFactory(directories);
         var runner = new SqliteMigrationRunner(factory);
         var repository = new ChapterRuleRepository(factory);

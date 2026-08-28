@@ -16,7 +16,7 @@ public sealed class RegexReplacementRuleRepositoryTests
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         try
         {
-            var directories = new LocalAppDataDirectoryProvider(root);
+            var directories = new AppDataDirectoryProvider(root);
             var factory = new SqliteConnectionFactory(directories);
             await directories.EnsureCreatedAsync(CancellationToken.None);
             await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);

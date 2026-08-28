@@ -59,6 +59,6 @@ public sealed class AppStoragePathResolverTests
         Assert.Throws<InvalidDataException>(() => resolver.ResolvePath("Books/linked/content.txt"));
     }
 
-    private static LocalAppDataDirectoryProvider CreateDirectories() =>
+    private static AppDataDirectoryProvider CreateDirectories() =>
         new(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()));
 }

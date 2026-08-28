@@ -11,7 +11,7 @@ public sealed class ChapterRuleRepositoryTests
     public async Task ImportDefaultsAsync_skips_exact_duplicates_and_preserves_existing_rows()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var factory = new SqliteConnectionFactory(directories);
         var runner = new SqliteMigrationRunner(factory);
         var seederRepository = new ChapterRuleRepository(factory);
@@ -45,7 +45,7 @@ public sealed class ChapterRuleRepositoryTests
     public async Task SaveOrderAsync_updates_multiple_rule_sort_orders()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var factory = new SqliteConnectionFactory(directories);
         var runner = new SqliteMigrationRunner(factory);
         var seederRepository = new ChapterRuleRepository(factory);
@@ -95,7 +95,7 @@ public sealed class ChapterRuleRepositoryTests
     public async Task GetAllAsync_accepts_legacy_utc_times_and_skips_damaged_history()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var factory = new SqliteConnectionFactory(directories);
         var runner = new SqliteMigrationRunner(factory);
         var seederRepository = new ChapterRuleRepository(factory);

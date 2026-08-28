@@ -1180,7 +1180,7 @@ public sealed class SqliteAudioCacheTests
         TimeProvider? timeProvider = null)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var factory = new SqliteConnectionFactory(directories);
         var runner = new SqliteMigrationRunner(factory);
         var repository = new ChapterRuleRepository(factory);
@@ -1266,7 +1266,7 @@ public sealed class SqliteAudioCacheTests
     }
 
     private sealed record CacheFixture(
-        LocalAppDataDirectoryProvider Directories,
+        AppDataDirectoryProvider Directories,
         SqliteConnectionFactory ConnectionFactory,
         CountingSqliteConnectionFactory CacheConnectionFactory,
         AudioCacheFacade Cache,

@@ -158,7 +158,7 @@ internal static class WpfTestHost
         services.RemoveAll<IAppDataDirectoryProvider>();
         services.AddSingleton(isolatedDataDirectory);
         services.AddSingleton<IAppDataDirectoryProvider>(
-            new LocalAppDataDirectoryProvider(isolatedDataDirectory.Path));
+            new AppDataDirectoryProvider(isolatedDataDirectory.Path));
 
         var provider = validate
             ? WpfStartupRuntime.BuildValidatedServiceProvider(services)

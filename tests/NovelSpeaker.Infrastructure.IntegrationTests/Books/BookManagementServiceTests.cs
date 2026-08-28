@@ -337,7 +337,7 @@ public sealed class BookLibraryPersistenceTests
     private static async Task<TestFixture> CreateFixtureAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var factory = new SqliteConnectionFactory(directories);
         var runner = new SqliteMigrationRunner(factory);
         var repository = new ChapterRuleRepository(factory);
@@ -407,7 +407,7 @@ public sealed class BookLibraryPersistenceTests
     }
 
     private sealed record TestFixture(
-        LocalAppDataDirectoryProvider Directories,
+        AppDataDirectoryProvider Directories,
         SqliteConnectionFactory Factory,
         AudioCacheFacade Cache,
         SqliteReadingProgressStore ProgressStore,

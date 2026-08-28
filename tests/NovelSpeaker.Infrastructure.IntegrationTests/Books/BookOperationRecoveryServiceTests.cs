@@ -184,7 +184,7 @@ public sealed class BookOperationRecoveryServiceTests
 
     private static async Task<TestFixture> CreateFixtureAsync()
     {
-        var directories = new LocalAppDataDirectoryProvider(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()));
+        var directories = new AppDataDirectoryProvider(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()));
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var factory = new SqliteConnectionFactory(directories);
         await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);
@@ -222,7 +222,7 @@ public sealed class BookOperationRecoveryServiceTests
     }
 
     private sealed record TestFixture(
-        LocalAppDataDirectoryProvider Directories,
+        AppDataDirectoryProvider Directories,
         SqliteConnectionFactory Factory,
         SqliteBookOperationJournal Journal,
         BookOperationRecoveryService Recovery);

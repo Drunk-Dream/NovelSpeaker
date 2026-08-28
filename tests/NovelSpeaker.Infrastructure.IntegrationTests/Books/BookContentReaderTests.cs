@@ -41,7 +41,7 @@ public sealed class BookContentReaderTests
     public async Task ReadChapterTextAsync_throws_when_file_is_missing()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         IBookContentReader reader = new BookContentReader(new AppStoragePathResolver(directories));
         var path = Path.Combine(root, "missing.txt");
 
@@ -68,7 +68,7 @@ public sealed class BookContentReaderTests
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, "content.txt");
         await File.WriteAllTextAsync(path, content, CancellationToken.None);
-        var directories = new LocalAppDataDirectoryProvider(directory);
+        var directories = new AppDataDirectoryProvider(directory);
         return (path, new BookContentReader(new AppStoragePathResolver(directories)));
     }
 }

@@ -12,7 +12,7 @@ public sealed class StartupDiagnosticsRecorderTests
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         try
         {
-            var directories = new LocalAppDataDirectoryProvider(root);
+            var directories = new AppDataDirectoryProvider(root);
             var recorder = new StartupDiagnosticsRecorder(directories);
 
             recorder.RecordFailure(

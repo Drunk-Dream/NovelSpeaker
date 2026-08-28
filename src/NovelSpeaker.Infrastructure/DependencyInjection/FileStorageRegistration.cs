@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Domain.Common;
 using NovelSpeaker.Infrastructure.Books.FileStorage;
 using NovelSpeaker.Infrastructure.Books.Text;
 using NovelSpeaker.Infrastructure.FileSystem;
@@ -14,7 +15,11 @@ public static class FileStorageRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddSingleton<IAppDataDirectoryProvider, LocalAppDataDirectoryProvider>();
+        services.TryAddSingleton<IAppDataDirectoryProvider>(static serviceProvider =>
+            new AppDataDirectoryProvider(
+                Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    AppInfo.ProductName)));
         services.TryAddSingleton<IAppStoragePathResolver, AppStoragePathResolver>();
         services.TryAddSingleton<IUserDocumentFileOperations, LocalUserDocumentFileOperations>();
         services.TryAddSingleton<ITextFileAnalyzer, TextFileAnalyzer>();

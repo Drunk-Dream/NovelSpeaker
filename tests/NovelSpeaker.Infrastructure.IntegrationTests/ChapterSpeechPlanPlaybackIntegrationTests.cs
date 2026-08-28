@@ -19,7 +19,7 @@ public sealed class ChapterSpeechPlanPlaybackIntegrationTests
     public async Task Playback_content_service_reuses_the_shared_plan_builder_and_persists_one_current_plan()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var factory = new SqliteConnectionFactory(directories);
         var runner = new SqliteMigrationRunner(factory);
         var chapterRuleRepository = new ChapterRuleRepository(factory);

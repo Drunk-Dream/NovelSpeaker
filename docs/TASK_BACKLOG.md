@@ -49,45 +49,6 @@
 
 ## Phase A：数据根目录与开发隔离
 
-## [ ] T001（P0）：建立统一的数据根目录解析合同
-
-目标：
-
-- 建立唯一的数据根目录解析入口，明确正式运行、开发运行和显式覆盖三种路径来源。
-- 将“数据根在哪里”与“根目录内部有哪些文件/子目录”拆成两个职责，避免现有 `LocalAppDataDirectoryProvider` 同时承担环境判断和目录布局。
-
-实施：
-
-- 新增或重构为职责明确的数据根 resolver；推荐保持以下优先级：
-  1. `NOVELSPEAKER_DATA_ROOT` 显式覆盖。
-  2. `NOVELSPEAKER_ENVIRONMENT=Development` 时使用 `%LocalAppData%/NovelSpeaker.Dev`。
-  3. 其它情况使用 `AppContext.BaseDirectory/Data`。
-- 不使用编译符号决定运行数据位置；`Debug`/`Release` 构建本身不改变根目录合同。
-- 将现有 `LocalAppDataDirectoryProvider` 重构为与具体 LocalAppData 无关的名称和职责；`IAppDataDirectoryProvider` 若仍能准确表达合同可保留。
-- 根目录内部稳定布局保持：
-  - `app.db`
-  - `settings.json`
-  - `Books/`
-  - `Cache/`
-  - `Operations/`
-  - `Logs/`
-- 保留可显式注入 root path 的构造/测试边界，避免测试依赖实际机器目录。
-- 不在本任务切换 Bootstrap 默认行为；先把 resolver 和 provider 合同建立完整，再由 T002 接入生产组合根。
-
-自动测试：
-
-- 覆盖默认正式根为 `<base-directory>/Data`。
-- 覆盖 Development 根为 `%LocalAppData%/NovelSpeaker.Dev`。
-- 覆盖 `NOVELSPEAKER_DATA_ROOT` 优先于 Development/default。
-- 覆盖 Debug/Release 概念不会改变 resolver 结果。
-- 覆盖 provider 生成的数据库、设置、Books、Cache、Operations、Logs 路径均位于注入根目录内。
-
-验收：
-
-- 数据根选择逻辑只有一个生产 owner，没有并行 `LocalAppData`/portable provider。
-- 定向 Application/Infrastructure 测试通过。
-- 不新增旧数据目录兼容逻辑。
-
 ## [ ] T002（P0）：切换生产 Bootstrap 并隔离默认开发运行
 
 依赖：T001。

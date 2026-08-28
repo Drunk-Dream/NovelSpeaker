@@ -15,7 +15,7 @@ public sealed class AppDiagnosticsServiceTests
     public async Task GetSnapshotAsync_reads_schema_version_and_paths()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
 
         await using (var connection = new SqliteConnection($"Data Source={directories.DatabasePath}"))

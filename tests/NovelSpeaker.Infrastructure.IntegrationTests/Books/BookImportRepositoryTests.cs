@@ -13,7 +13,7 @@ public sealed class BookImportRepositoryTests
     public async Task SaveAsync_rolls_back_when_a_chapter_insert_breaks_the_unique_index()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var factory = new SqliteConnectionFactory(directories);
         var runner = new SqliteMigrationRunner(factory);
         var seederRepository = new ChapterRuleRepository(factory);
@@ -44,7 +44,7 @@ public sealed class BookImportRepositoryTests
     public async Task SaveAsync_persists_last_import_timestamps_and_chapter_sort_order()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var factory = new SqliteConnectionFactory(directories);
         var runner = new SqliteMigrationRunner(factory);
         var seederRepository = new ChapterRuleRepository(factory);

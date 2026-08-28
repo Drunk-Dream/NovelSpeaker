@@ -305,7 +305,7 @@ public sealed class BookPlaybackContentServiceTests
 
     private static BookContentReader CreateContentReader(TestDatabase database)
     {
-        var directories = new LocalAppDataDirectoryProvider(database.DirectoryPath);
+        var directories = new AppDataDirectoryProvider(database.DirectoryPath);
         return new BookContentReader(new AppStoragePathResolver(directories));
     }
 

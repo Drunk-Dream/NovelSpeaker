@@ -11,7 +11,7 @@ public sealed class RollingFileLoggerProviderTests
     public async Task Logger_redacts_sensitive_values_and_rotates_bounded_files()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
 
         using var provider = new RollingFileLoggerProvider(directories, maxFileBytes: 80, maxFileCount: 3);

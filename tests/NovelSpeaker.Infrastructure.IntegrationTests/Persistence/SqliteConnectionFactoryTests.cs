@@ -37,7 +37,7 @@ public sealed class SqliteConnectionFactoryTests
     private static async Task<SqliteConnectionFactory> CreateFactoryAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         return new SqliteConnectionFactory(directories);
     }

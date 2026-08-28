@@ -15,7 +15,7 @@ public sealed class JsonAppSettingsStoreTests
     {
         using var temporaryDirectory = new TemporaryDirectory();
         var root = temporaryDirectory.Path;
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var store = new JsonAppSettingsStore(directories);
 
         var settings = await store.LoadAsync(CancellationToken.None);
@@ -37,7 +37,7 @@ public sealed class JsonAppSettingsStoreTests
     {
         using var temporaryDirectory = new TemporaryDirectory();
         var root = temporaryDirectory.Path;
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var store = new JsonAppSettingsStore(directories);
 
@@ -79,7 +79,7 @@ public sealed class JsonAppSettingsStoreTests
     {
         using var temporaryDirectory = new TemporaryDirectory();
         var root = temporaryDirectory.Path;
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var store = new JsonAppSettingsStore(directories);
 
@@ -96,7 +96,7 @@ public sealed class JsonAppSettingsStoreTests
     {
         using var temporaryDirectory = new TemporaryDirectory();
         var root = temporaryDirectory.Path;
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         await File.WriteAllTextAsync(
             directories.SettingsPath,
@@ -133,7 +133,7 @@ public sealed class JsonAppSettingsStoreTests
     {
         using var temporaryDirectory = new TemporaryDirectory();
         var root = temporaryDirectory.Path;
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         await File.WriteAllTextAsync(
             directories.SettingsPath,
@@ -160,7 +160,7 @@ public sealed class JsonAppSettingsStoreTests
     {
         using var temporaryDirectory = new TemporaryDirectory();
         var root = temporaryDirectory.Path;
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         await File.WriteAllTextAsync(directories.SettingsPath, "{ invalid json", CancellationToken.None);
         var store = new JsonAppSettingsStore(directories);
@@ -177,7 +177,7 @@ public sealed class JsonAppSettingsStoreTests
     {
         using var temporaryDirectory = new TemporaryDirectory();
         var root = temporaryDirectory.Path;
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var time = new FixedTimeProvider(new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero));
         var store = new JsonAppSettingsStore(directories, time);
@@ -195,7 +195,7 @@ public sealed class JsonAppSettingsStoreTests
     {
         using var temporaryDirectory = new TemporaryDirectory();
         var root = temporaryDirectory.Path;
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         await File.WriteAllTextAsync(directories.SettingsPath, "old", CancellationToken.None);
         var store = new JsonAppSettingsStore(directories);
@@ -220,7 +220,7 @@ public sealed class JsonAppSettingsStoreTests
     {
         using var temporaryDirectory = new TemporaryDirectory();
         var root = temporaryDirectory.Path;
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         const string original = "original-settings";
         await File.WriteAllTextAsync(directories.SettingsPath, original, CancellationToken.None);
@@ -246,7 +246,7 @@ public sealed class JsonAppSettingsStoreTests
     {
         using var temporaryDirectory = new TemporaryDirectory();
         var root = temporaryDirectory.Path;
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         const string original = "original-settings";
         await File.WriteAllTextAsync(directories.SettingsPath, original, CancellationToken.None);
@@ -268,7 +268,7 @@ public sealed class JsonAppSettingsStoreTests
     {
         using var temporaryDirectory = new TemporaryDirectory();
         var root = temporaryDirectory.Path;
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         await File.WriteAllTextAsync(directories.SettingsPath, "original", CancellationToken.None);
         var store = new JsonAppSettingsStore(directories);
@@ -287,7 +287,7 @@ public sealed class JsonAppSettingsStoreTests
     {
         using var temporaryDirectory = new TemporaryDirectory();
         var root = temporaryDirectory.Path;
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var store = new JsonAppSettingsStore(directories);
         await store.SaveAsync(AppSettings.Default with

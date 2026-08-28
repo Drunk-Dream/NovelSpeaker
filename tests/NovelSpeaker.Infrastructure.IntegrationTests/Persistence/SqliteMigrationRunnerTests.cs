@@ -132,7 +132,7 @@ public sealed class SqliteMigrationRunnerTests
     public async Task Version_6_upgrade_discards_old_cache_index_but_preserves_book_and_progress()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var factory = new SqliteConnectionFactory(directories);
         var version6Runner = new SqliteMigrationRunner(
@@ -186,7 +186,7 @@ public sealed class SqliteMigrationRunnerTests
     public async Task InitializeAsync_is_idempotent()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var factory = new SqliteConnectionFactory(directories);
         var runner = new SqliteMigrationRunner(factory);
         var repository = new ChapterRuleRepository(factory);
@@ -208,7 +208,7 @@ public sealed class SqliteMigrationRunnerTests
     public async Task Path_migration_converts_valid_legacy_absolute_paths_and_leaves_unsafe_values_rejected()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var factory = new SqliteConnectionFactory(directories);
         await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);
@@ -248,7 +248,7 @@ public sealed class SqliteMigrationRunnerTests
     public async Task InitializeAsync_rejects_unsupported_version_3_database()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
 
         await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={directories.DatabasePath}"))
@@ -451,7 +451,7 @@ public sealed class SqliteMigrationRunnerTests
     public async Task InitializeAsync_honors_pre_cancelled_token()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var factory = new SqliteConnectionFactory(directories);
         var runner = new SqliteMigrationRunner(factory);
         using var cancellation = new CancellationTokenSource();
@@ -464,7 +464,7 @@ public sealed class SqliteMigrationRunnerTests
     private static async Task<SqliteConnectionFactory> CreateInitializedFactoryAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         var factory = new SqliteConnectionFactory(directories);
         var runner = new SqliteMigrationRunner(factory);
         var repository = new ChapterRuleRepository(factory);
@@ -475,10 +475,10 @@ public sealed class SqliteMigrationRunnerTests
         return factory;
     }
 
-    private static async Task<(SqliteConnectionFactory Factory, LocalAppDataDirectoryProvider Directories)> CreateDatabaseAtVersionAsync(int version)
+    private static async Task<(SqliteConnectionFactory Factory, AppDataDirectoryProvider Directories)> CreateDatabaseAtVersionAsync(int version)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var factory = new SqliteConnectionFactory(directories);
 

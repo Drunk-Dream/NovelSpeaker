@@ -10,7 +10,7 @@ public sealed class BookFileStoreTests
     public async Task StageNormalizedTextAsync_and_finalizeAsync_create_content_txt_inside_book_directory()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
 
         var store = new BookFileStore(directories, new AppStoragePathResolver(directories));

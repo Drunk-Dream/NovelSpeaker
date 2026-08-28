@@ -15,7 +15,7 @@ public sealed class TtsResponseValidatorTests
     public async Task ValidateAsync_classifies_an_empty_success_response_separately()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var validator = new TtsResponseValidator(
             new TemporaryAudioStore(directories),
@@ -43,7 +43,7 @@ public sealed class TtsResponseValidatorTests
                  })
         {
             var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-            var directories = new LocalAppDataDirectoryProvider(root);
+            var directories = new AppDataDirectoryProvider(root);
             await directories.EnsureCreatedAsync(CancellationToken.None);
             var validator = new TtsResponseValidator(new TemporaryAudioStore(directories), new AudioProbe());
             await using var response = new TtsTransportResponse(
@@ -64,7 +64,7 @@ public sealed class TtsResponseValidatorTests
     public async Task ValidateAsync_deletes_all_temporary_files_when_audio_decode_fails()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+            var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var store = new TemporaryAudioStore(directories);
         var validator = new TtsResponseValidator(store, new AudioProbe());
@@ -84,7 +84,7 @@ public sealed class TtsResponseValidatorTests
     public async Task ValidateAsync_returns_decodable_audio_and_removes_staging_file()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var validator = new TtsResponseValidator(new TemporaryAudioStore(directories), new AudioProbe());
         var bytes = await File.ReadAllBytesAsync(
@@ -108,7 +108,7 @@ public sealed class TtsResponseValidatorTests
         const string token = "validator-token-9274";
         const string body = "validator-body-1385";
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var logger = new CapturingLogger<TtsResponseValidator>();
         var validator = new TtsResponseValidator(
@@ -142,7 +142,7 @@ public sealed class TtsResponseValidatorTests
     public async Task ValidateAsync_propagates_copy_cancellation_for_execution_boundary()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var validator = new TtsResponseValidator(new TemporaryAudioStore(directories), new AudioProbe());
         using var cancellation = new CancellationTokenSource();
@@ -160,7 +160,7 @@ public sealed class TtsResponseValidatorTests
     public async Task CreateCandidate_removes_partial_file_when_copy_fails()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var operations = new PartialCopyThenThrowOperations();
         var store = new TemporaryAudioStore(directories, operations);

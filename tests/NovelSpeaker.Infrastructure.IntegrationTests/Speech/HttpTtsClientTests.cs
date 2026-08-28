@@ -298,7 +298,7 @@ public sealed class HttpTtsClientTests
     private static ExecutionHarness CreateClient(TimeSpan? requestTimeout = null)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         directories.EnsureCreatedAsync(CancellationToken.None).GetAwaiter().GetResult();
         return CreateHarness(directories, new HttpTtsClient(requestTimeout: requestTimeout));
     }
@@ -308,21 +308,21 @@ public sealed class HttpTtsClientTests
         Microsoft.Extensions.Logging.ILogger<HttpTtsClient> logger)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         directories.EnsureCreatedAsync(CancellationToken.None).GetAwaiter().GetResult();
         return CreateHarness(directories, new HttpTtsClient(handler, logger: logger));
     }
 
-    private static LocalAppDataDirectoryProvider CreateDirectories()
+    private static AppDataDirectoryProvider CreateDirectories()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new LocalAppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         directories.EnsureCreatedAsync(CancellationToken.None).GetAwaiter().GetResult();
         return directories;
     }
 
     private static ExecutionHarness CreateHarness(
-        LocalAppDataDirectoryProvider directories,
+        AppDataDirectoryProvider directories,
         HttpTtsClient transport)
     {
         var validator = new TtsResponseValidator(new TemporaryAudioStore(directories), new AudioProbe());
