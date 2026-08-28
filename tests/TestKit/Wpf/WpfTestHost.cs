@@ -5,7 +5,6 @@ using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.App;
@@ -145,20 +144,25 @@ internal static class WpfTestHost
 
     public static ServiceProvider BuildServiceProvider(bool validate = false)
     {
-        var services = CreateServices();
-        return validate
-            ? WpfStartupRuntime.BuildValidatedServiceProvider(services)
-            : services.BuildServiceProvider();
+        var isolatedDataDirectory = new IsolatedTestDataDirectory();
+        try
+        {
+            var services = CreateServices(isolatedDataDirectory);
+            return validate
+                ? WpfStartupRuntime.BuildValidatedServiceProvider(services)
+                : services.BuildServiceProvider();
+        }
+        catch
+        {
+            isolatedDataDirectory.Dispose();
+            throw;
+        }
     }
 
     public static async Task<ServiceProvider> BuildInitializedServiceProviderAsync(bool validate = false)
     {
         var isolatedDataDirectory = new IsolatedTestDataDirectory();
-        var services = CreateServices();
-        services.RemoveAll<IAppDataDirectoryProvider>();
-        services.AddSingleton(isolatedDataDirectory);
-        services.AddSingleton<IAppDataDirectoryProvider>(
-            new AppDataDirectoryProvider(isolatedDataDirectory.Path));
+        var services = CreateServices(isolatedDataDirectory);
 
         var provider = validate
             ? WpfStartupRuntime.BuildValidatedServiceProvider(services)
@@ -272,12 +276,15 @@ internal static class WpfTestHost
         }
     }
 
-    private static ServiceCollection CreateServices()
+    private static ServiceCollection CreateServices(IsolatedTestDataDirectory isolatedDataDirectory)
     {
         EnsureApplicationResources();
 
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddSingleton(isolatedDataDirectory);
+        services.AddSingleton<IAppDataDirectoryProvider>(
+            new AppDataDirectoryProvider(isolatedDataDirectory.Path));
         services.AddNovelSpeakerApplication();
         services.AddNovelSpeakerInfrastructure();
         services.AddNovelSpeakerDesktop();

@@ -1,4 +1,3 @@
-using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,7 +13,6 @@ using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shell.Activation;
-using NovelSpeaker.Domain.Common;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using NovelSpeaker.Infrastructure.FileSystem;
@@ -99,11 +97,14 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
 
     public async Task PrepareDirectoriesAsync(CancellationToken cancellationToken)
     {
-        var rootPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            AppInfo.ProductName);
-        _directories = new AppDataDirectoryProvider(rootPath);
+        _directories = CreateAppDataDirectoryProvider(new AppDataRootResolver());
         await _directories.EnsureCreatedAsync(cancellationToken).ConfigureAwait(true);
+    }
+
+    internal static AppDataDirectoryProvider CreateAppDataDirectoryProvider(AppDataRootResolver rootResolver)
+    {
+        ArgumentNullException.ThrowIfNull(rootResolver);
+        return new AppDataDirectoryProvider(rootResolver.ResolveRootDirectoryPath());
     }
 
     public async Task<AppSettings> LoadSettingsAsync(CancellationToken cancellationToken)

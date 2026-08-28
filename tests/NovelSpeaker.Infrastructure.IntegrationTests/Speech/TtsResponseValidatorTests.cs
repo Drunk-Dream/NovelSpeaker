@@ -64,7 +64,7 @@ public sealed class TtsResponseValidatorTests
     public async Task ValidateAsync_deletes_all_temporary_files_when_audio_decode_fails()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-            var directories = new AppDataDirectoryProvider(root);
+        var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var store = new TemporaryAudioStore(directories);
         var validator = new TtsResponseValidator(store, new AudioProbe());

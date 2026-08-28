@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "NovelSpeaker.App": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "NOVELSPEAKER_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

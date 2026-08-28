@@ -24,7 +24,7 @@ NovelSpeaker 专注于一条清晰可靠的链路：导入本地 TXT 小说，�
 - 发布包自包含，不需要另装 .NET Runtime。
 - 当前发布未进行代码签名；SmartScreen 首次运行可能提示，请仅从本仓库 Release 获取程序。
 
-应用数据保存在 `%LocalAppData%\NovelSpeaker`；删除程序目录不会自动删除书籍、缓存和设置。
+正式应用数据保存在程序目录下的 `Data/`；默认开发启动使用 `%LocalAppData%\NovelSpeaker.Dev`。删除程序目录会同时删除其中的便携数据，请在删除前备份需要保留的书籍、缓存和设置。
 
 ## 快速开始
 

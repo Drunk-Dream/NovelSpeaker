@@ -1,7 +1,9 @@
+using System.IO;
 using System.Windows.Threading;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Playback.Export;
 using NovelSpeaker.App.Bootstrap;
+using NovelSpeaker.Infrastructure.FileSystem;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Bootstrap;
@@ -9,6 +11,23 @@ namespace NovelSpeaker.App.WpfTests.Bootstrap;
 [Collection("WpfDispatcher")]
 public sealed class WpfStartupRuntimeTests
 {
+    [Fact]
+    public void Composition_root_uses_formal_data_directory_for_default_environment()
+    {
+        var baseDirectory = Path.Combine(Path.GetTempPath(), "formal-base");
+        var localAppDataDirectory = Path.Combine(Path.GetTempPath(), "local-app-data");
+        var resolver = new AppDataRootResolver(
+            baseDirectory,
+            localAppDataDirectory,
+            _ => null);
+
+        var provider = WpfStartupRuntime.CreateAppDataDirectoryProvider(resolver);
+
+        Assert.Equal(
+            Path.Combine(Path.GetFullPath(baseDirectory), "Data"),
+            provider.RootDirectoryPath);
+    }
+
     [Fact]
     public async Task Shell_failure_keeps_startup_status_open_for_error_projection()
     {

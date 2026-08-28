@@ -58,6 +58,29 @@ public sealed class AppDataRootResolverTests
             releaseResolver.ResolveRootDirectoryPath());
     }
 
+    [Fact]
+    public void ResolveRootDirectoryPath_does_not_fallback_to_existing_legacy_root()
+    {
+        var baseDirectory = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var localAppDataDirectory = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var legacyRoot = Path.Combine(localAppDataDirectory, "NovelSpeaker");
+        Directory.CreateDirectory(legacyRoot);
+
+        try
+        {
+            var resolver = CreateResolver(baseDirectory, localAppDataDirectory);
+
+            Assert.Equal(
+                Path.Combine(Path.GetFullPath(baseDirectory), "Data"),
+                resolver.ResolveRootDirectoryPath());
+            Assert.NotEqual(Path.GetFullPath(legacyRoot), resolver.ResolveRootDirectoryPath());
+        }
+        finally
+        {
+            Directory.Delete(localAppDataDirectory, recursive: true);
+        }
+    }
+
     private static AppDataRootResolver CreateResolver(
         string baseDirectory,
         string localAppDataDirectory,

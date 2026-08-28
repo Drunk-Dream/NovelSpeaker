@@ -1,9 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.App;
 using NovelSpeaker.Infrastructure.DependencyInjection;
+using NovelSpeaker.Infrastructure.FileSystem;
 using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests;
@@ -71,19 +73,31 @@ public sealed class PlaybackInterfaceContractTests
     [Fact]
     public async Task Playback_role_registrations_resolve_to_one_coordinator_instance()
     {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
         services.AddLogging();
+        services.AddSingleton<IAppDataDirectoryProvider>(new AppDataDirectoryProvider(root));
         services.AddNovelSpeakerApplication();
         services.AddNovelSpeakerInfrastructure();
         services.AddNovelSpeakerDesktop();
 
-        await using var provider = services.BuildServiceProvider();
-        var coordinator = provider.GetRequiredService<PlaybackCoordinator>();
+        try
+        {
+            await using var provider = services.BuildServiceProvider();
+            var coordinator = provider.GetRequiredService<PlaybackCoordinator>();
 
-        Assert.Same(coordinator, provider.GetRequiredService<IPlaybackSnapshotSource>());
-        Assert.Same(coordinator, provider.GetRequiredService<IPlaybackSession>());
-        Assert.Same(coordinator, provider.GetRequiredService<IPlaybackBookCommands>());
-        Assert.Same(coordinator, provider.GetRequiredService<IPlaybackRegexReplacementRefresher>());
+            Assert.Same(coordinator, provider.GetRequiredService<IPlaybackSnapshotSource>());
+            Assert.Same(coordinator, provider.GetRequiredService<IPlaybackSession>());
+            Assert.Same(coordinator, provider.GetRequiredService<IPlaybackBookCommands>());
+            Assert.Same(coordinator, provider.GetRequiredService<IPlaybackRegexReplacementRefresher>());
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
     }
 
     private static string[] GetPublicMemberNames(System.Reflection.Assembly assembly, string interfaceName)

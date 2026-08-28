@@ -49,41 +49,6 @@
 
 ## Phase A：数据根目录与开发隔离
 
-## [ ] T002（P0）：切换生产 Bootstrap 并隔离默认开发运行
-
-依赖：T001。
-
-目标：
-
-- 将 NovelSpeaker 正式运行真正切换到 `<application-directory>/Data`。
-- 确保仓库默认 `dotnet run` / IDE 开发启动使用 `%LocalAppData%/NovelSpeaker.Dev`，不会污染正式便携数据。
-- 清理旧 `%LocalAppData%/NovelSpeaker` 的生产依赖和兼容残留。
-
-实施：
-
-- 在组合根中使用 T001 的统一 resolver 构建 `IAppDataDirectoryProvider`，删除直接实例化旧 `LocalAppDataDirectoryProvider` 的路径。
-- 增加/调整 `Properties/launchSettings.json`，让仓库默认开发 profile 明确设置 `NOVELSPEAKER_ENVIRONMENT=Development`。
-- 默认开发 profile 不设置固定绝对数据路径；实际路径继续由 resolver 计算为 `%LocalAppData%/NovelSpeaker.Dev`。
-- 首次正式运行时按需创建 `Data/` 与必要子目录；不要求发布 ZIP 预置空 `Data/`。
-- 全仓检查并删除旧 `%LocalAppData%/NovelSpeaker` 的探测、迁移、复制、fallback 或兼容入口；没有此类入口时不要为了“迁移”新增任何代码。
-- 审计数据根安全检查：允许数据根作为已选定的根边界正常工作，但数据库记录或根目录内部的子级路径仍不得通过 `..`、绝对路径替换或 reparse point 逃逸根目录。
-- 不改变用户外部 TXT 永不写入的既有边界。
-
-自动测试：
-
-- Bootstrap/组合根测试证明正式默认路径解析到 `AppContext.BaseDirectory/Data`。
-- 开发 profile 可由静态/配置测试证明设置了 Development 环境，不依赖人工运行应用观察。
-- 测试证明旧 `%LocalAppData%/NovelSpeaker` 即使存在也不会被读取或作为 fallback。
-- 路径安全回归覆盖便携根内正常路径与子级逃逸/reparse-point 拒绝场景。
-- 测试代码静态守卫确保没有测试访问正式、开发或旧数据目录。
-
-验收：
-
-- `rg` 不存在生产代码直接拼接旧 `%LocalAppData%/NovelSpeaker` 的路径。
-- `dotnet run` 的默认开发配置与正式数据根隔离合同可由自动检查证明。
-- SQLite migration 测试仍通过，且 migration 文件没有因本任务被改写/重编号。
-- 受影响项目 build/test 通过。
-
 ## Phase B：主程序命名与发布产物
 
 ## [ ] T003（P0）：统一主程序为 `NovelSpeaker.exe`
