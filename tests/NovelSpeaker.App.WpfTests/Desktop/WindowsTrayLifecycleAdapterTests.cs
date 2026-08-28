@@ -83,6 +83,38 @@ public sealed class WindowsTrayLifecycleAdapterTests
         });
     }
 
+    private async Task Stop_closes_an_unshown_mini_player_window()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var provider = WpfTestHost.BuildServiceProvider();
+            try
+            {
+                var window = provider.GetRequiredService<MainWindow>();
+                var miniPlayer = provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.MiniPlayerWindow>();
+                var native = new FakeNativeApi { ExtractedIcon = new IntPtr(42) };
+                var adapter = new WindowsTrayLifecycleAdapter(
+                    miniPlayer,
+                    provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.IMiniPlayerPlacementPersistence>(),
+                    native);
+                var closedCount = 0;
+                miniPlayer.Closed += (_, _) => closedCount++;
+                adapter.AttachMainWindow(window);
+
+                await adapter.StartAsync(CancellationToken.None);
+                Assert.False(miniPlayer.IsLoaded);
+
+                await adapter.StopAsync(CancellationToken.None);
+
+                Assert.Equal(1, closedCount);
+            }
+            finally
+            {
+                await provider.DisposeAsync();
+            }
+        });
+    }
+
     private void Tray_menu_exposes_required_commands_and_enables_mini_player()
     {
         WpfTestHost.RunInSta(() =>
@@ -315,6 +347,7 @@ public sealed class WindowsTrayLifecycleAdapterTests
         await Start_requires_main_window_attachment();
         Repeated_attachment_of_same_window_is_idempotent();
         Stop_cleanup_completes_without_dispatcher_continuation();
+        await Stop_closes_an_unshown_mini_player_window();
     }
 
     [Fact]

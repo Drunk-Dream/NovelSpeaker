@@ -115,10 +115,7 @@ internal sealed class WindowsTrayLifecycleAdapter : IDesktopLifecyclePlatform
         var cleanupTask = InvokeAsync(
             () =>
             {
-                if (_miniPlayerWindow.IsLoaded)
-                {
-                    _miniPlayerWindow.CloseForShutdown();
-                }
+                _miniPlayerWindow.CloseForShutdown();
 
                 if (!_started)
                 {
