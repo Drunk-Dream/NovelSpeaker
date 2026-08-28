@@ -820,7 +820,7 @@ sans-serif
 
 ### 13.1 Gallery 定位
 
-`NovelSpeaker.StyleGallery` 是公共视觉资源的长期展示目录、开发检查工具和截图入口。它按稳定的资源族组织，而不是按开发任务、提交或页面迁移阶段组织。
+`NovelSpeaker.StyleGallery` 是公共视觉资源的长期展示目录、开发检查工具和按需截图入口。它按稳定的资源族组织，而不是按开发任务、提交或页面迁移阶段组织。
 
 Gallery 展示三类内容：
 
@@ -851,7 +851,7 @@ Gallery 必须：
 
 ### 13.2 Gallery 截图目录
 
-Gallery 截图按资源族长期保存：
+Gallery 截图按资源族使用稳定路径生成：
 
 ```text
 artifacts/visual-review/gallery/<family-id>/
@@ -865,12 +865,12 @@ artifacts/visual-review/gallery/<family-id>/
 
 - 目录和文件名不得包含 `TASK_BACKLOG.md` 任务编号。
 - `scenario-id` 描述稳定状态组合，例如 `states`、`long-content`、`validation` 或 `compact`。
-- 同一资源族的截图始终写入同一目录；任务重排或拆分不得导致目录改名。
+- 同一资源族的截图始终写入同一逻辑目录；任务重排或拆分不得导致目录改名。
 - family manifest 记录 family、scenario、主题、DPI、viewport、文本缩放、资源版本和 PNG 哈希。
 
 ### 13.3 正式页面与窗口截图
 
-正式界面截图按真实页面或窗口保存，不按任务编号保存：
+正式界面截图按真实页面或窗口使用稳定路径生成，不按任务编号保存：
 
 ```text
 artifacts/visual-review/pages/<page-id>/<scenario-id>.<theme>.<dpi>.png
@@ -912,7 +912,15 @@ artifacts/visual-review/windows/<window-id>/<scenario-id>.<theme>.<dpi>.png
 - `library-encoding-dialog` 与 `library-import-progress-dialog` 分别覆盖编码选择和无 Footer 的导入进度结构。
 - `active-cache-flyout`、`chapter-export-flyout`、`snackbar` 归属 `windows/main-window/`；播放器定时停止和音量归属 `pages/player/`，迷你播放器音量归属 `windows/mini-player/`。
 
-根清单 `artifacts/visual-review/manifest.json` 汇总全部 Gallery family、页面、窗口、scenario、主题、DPI 和截图哈希，供用户稳定比较。
+`artifacts/visual-review/` 整体是显式 UI 开发/验收时生成的本地临时目录。需要一次完整视觉检查时，可以生成根清单 `artifacts/visual-review/manifest.json` 汇总本次 Gallery family、页面、窗口、scenario、主题、DPI 和截图哈希，便于当前工作阶段比较；PNG、子 manifest 和根 manifest 都不是仓库长期基线，删除后应可由工具重新生成。
+
+长期维护边界：
+
+- 长期保留 Style Gallery、正式 Page/Window fixture、稳定 family/page/window/scenario ID、截图 harness 和 manifest 生成工具。
+- 不长期维护 `artifacts/visual-review/` 中某一次生成的 PNG、manifest 或 SHA256，不用历史像素哈希阻塞普通功能开发。
+- 默认 `dotnet test` 必须与 `artifacts/visual-review/` 是否存在完全解耦；只有显式视觉验收流程才读取或生成该目录。
+- 生成器自身的自动测试如需验证 PNG/manifest/hash，应使用测试临时目录，不读取仓库历史资产。
+- WPF 测试失败诊断继续输出到 `TestResults/wpf-diagnostics/`，不与成功视觉验收资产合并。
 
 ## 14. 自动验收标准
 
@@ -928,10 +936,10 @@ artifacts/visual-review/windows/<window-id>/<scenario-id>.<theme>.<dpi>.png
 - 生产公共控件不包含 fixture 文本、演示命令或固定演示状态。
 - 自有控件默认 Style 可按类型解析，具名变体只用于真实差异。
 - 页面不引用已废弃或兼容资源键。
-- Style Gallery 在浅色/深色下可重复渲染，并按稳定 family-id 生成 PNG/manifest。
-- 正式页面和窗口按稳定 page-id/window-id 生成截图，路径不依赖 backlog 任务编号。
+- Style Gallery 在浅色/深色下可重复渲染，并可在显式视觉生成流程中按稳定 family-id 生成 PNG/manifest。
+- 正式页面和窗口可在显式视觉生成流程中按稳定 page-id/window-id 生成截图，路径不依赖 backlog 任务编号。
 - 页面截图使用正式 View，而不是 Gallery 中的页面仿制品。
-- 根视觉 manifest 可以唯一索引全部 family、页面、窗口和 scenario。
+- 显式生成完整视觉资产时，根视觉 manifest 可以唯一索引本次生成的全部 family、页面、窗口和 scenario；默认测试不要求仓库存在该 manifest。
 - `App.Button.Icon`、`App.Button.DangerIcon` 与 `App.Media.Button` 的生产调用方只能使用 `ui:Button` + `Button.Icon`，不得退回标准 WPF Button 的直接 `SymbolIcon` Content；静态 XAML 契约必须阻止该模式回归。
 - 浅色/深色运行时测试必须证明 Icon Button 的 `SymbolIcon.Foreground` 跟随 owning Button 的前景色；`button-styles` 与 `media-controls` Gallery 场景持续覆盖普通、危险、媒体 Icon Button 的主题与状态组合。
 - 最小点击区域、关键非零宽度、不重叠和核心内容可见测试通过。

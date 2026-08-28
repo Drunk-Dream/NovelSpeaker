@@ -179,9 +179,12 @@
 
 ## 8. WPF 视觉产物与失败诊断
 
-- 默认 `dotnet test` 不生成成功截图、manifest 或仓库内审计文件。
-- 只有设置 `NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 时才生成明确请求的 Style Gallery、页面或窗口视觉产物。
-- 视觉产物使用固定 DPI、viewport、主题和脱敏 fixture，输出到明确目录并带可重复校验信息。
+- 默认 `dotnet test` 不生成成功截图、manifest 或仓库内审计文件，并且必须在 `artifacts/visual-review/` 完全不存在时仍可通过。
+- `artifacts/visual-review/` 是显式 UI 开发/验收时按需生成的本地临时资产，不属于仓库默认测试输入、长期截图基线或发布资产。
+- 只有设置 `NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 或显式运行视觉生成工具时，才生成明确请求的 Style Gallery、页面或窗口视觉产物。
+- 视觉产物使用固定 DPI、viewport、主题和脱敏 fixture，输出到明确目录并带可重复校验信息；PNG、子 manifest 与根 manifest 都属于该次生成结果，可随时删除并重新生成。
+- 默认测试不得读取仓库中的历史截图、根 manifest、截图哈希或 child manifest 来判定功能回归。需要验证截图/manifest 生成器本身时，应在测试拥有的临时目录中生成最小资产并验证格式、哈希和可重复性，测试结束后清理。
+- Style Gallery、正式 Page/Window fixture、截图 harness、稳定场景 ID 和生成脚本属于可长期维护的开发能力；取消长期维护的是生成结果，而不是视觉测试能力本身。
 - 成功视觉产物与失败诊断分开；测试失败时共享 WPF Test Host 可写入 `TestResults/wpf-diagnostics/<test-name>/` 的 PNG、视觉树和窗口状态。
 - 视觉产物生成仍受默认隐藏 Desktop 约束，不因为需要截图而获得显示到用户 Desktop 的权限。
 
@@ -214,4 +217,4 @@ dotnet test -c Release --no-build
 - 受影响项目的 build/test。
 - 行为、数据或安全边界改变时的专项回归。
 
-阶段收口运行完整质量门禁。视觉任务可以额外生成 Style Gallery 或正式 View 的稳定截图供用户后续查看，但任务完成条件使用自动构建、契约、几何、可访问性和渲染检查，不依赖人工视觉判断。
+阶段收口运行完整质量门禁。视觉任务可以额外按需生成 Style Gallery 或正式 View 截图供用户查看或比较，但这些生成结果不进入默认质量门禁；任务完成条件使用自动构建、契约、几何、可访问性和渲染检查，不依赖人工视觉判断或历史像素基线。

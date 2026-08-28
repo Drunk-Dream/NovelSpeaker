@@ -150,7 +150,7 @@ Wpf.Ui 是标准 WPF/Wpf.Ui 控件的基础视觉提供者，NovelSpeaker 不复
 - NovelSpeaker 自有 CustomControl 可以使用默认样式键；局部组件内部可使用受控隐式样式，但作用域不能逃逸。
 - Style Gallery fixture 只存在于开发工具，生产控件不得硬编码演示文本、命令或状态。
 - Style Gallery 按稳定资源族注册 scene，用于集中展示正式资源和自有控件；scene 身份不依赖 backlog 任务编号。
-- 正式页面截图由视觉测试宿主实例化真实 View，按稳定 page/window 身份输出；不得用 Gallery 页面仿制品替代。
+- 正式页面截图由视觉测试宿主在显式视觉验收时实例化真实 View，并按稳定 page/window 身份按需输出；不得用 Gallery 页面仿制品替代，也不得把生成截图作为默认测试输入。
 - 标准控件完整 `ControlTemplate` 由 Wpf.Ui 所有。确需替换时必须使用局部具名样式或应用自有组件，并有专项 WPF 契约测试。
 - 主题切换只更新 Wpf.Ui 主题和 NovelSpeaker palette；样式字典、模板字典和类型资源键保持加载稳定。
 - ViewModel 只投影语义状态，不返回 Brush、Style、Thickness、CornerRadius 或其它视觉类型。
