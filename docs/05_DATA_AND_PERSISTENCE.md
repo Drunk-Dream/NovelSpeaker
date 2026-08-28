@@ -15,17 +15,33 @@
 
 ## 2. 数据目录
 
+正式运行时，应用数据与程序放在同一便携目录中，并统一收敛到 `Data/`：
+
 ```text
-%LocalAppData%/NovelSpeaker/
-├─ novelspeaker.db
-├─ settings.json
-├─ Books/
-├─ Cache/Tts/
-├─ Operations/
-└─ Logs/
+<application-directory>/
+├─ NovelSpeaker.exe
+└─ Data/
+   ├─ app.db
+   ├─ settings.json
+   ├─ Books/
+   ├─ Cache/Tts/
+   ├─ Operations/
+   └─ Logs/
 ```
 
-所有数据库记录的内部路径都必须通过集中 resolver 规范化和验证。删除、移动、覆盖前必须确认目标仍位于应用数据根目录，并拒绝可逃逸根目录的路径/reparse-point 情况。
+正式数据根目录固定为 `AppContext.BaseDirectory/Data`。首次运行时按需创建 `Data/` 及其子目录；发布包不依赖预置空数据目录。
+
+开发运行必须与正式数据隔离。仓库提供的默认开发启动配置使用：
+
+```text
+%LocalAppData%/NovelSpeaker.Dev/
+```
+
+开发/诊断场景允许通过 `NOVELSPEAKER_DATA_ROOT` 显式覆盖数据根目录；显式覆盖优先于开发默认目录。自动测试继续使用每个测试自己拥有的临时数据根，不读取正式或开发数据。
+
+旧的 `%LocalAppData%/NovelSpeaker` 不属于新版数据发现范围。新版不探测、不复制、不导入、不回退读取旧目录，也不提供这次目录切换的迁移或兼容入口。
+
+所有数据库记录的内部路径都必须通过集中 resolver 规范化和验证。数据根目录本身是已确定的信任边界；删除、移动、覆盖其内部对象前仍必须确认解析后的目标位于该根目录内，并拒绝可通过子级路径或 reparse point 逃逸根目录的情况。
 
 ## 3. SQLite 兼容
 

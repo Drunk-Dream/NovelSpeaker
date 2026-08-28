@@ -65,6 +65,10 @@
 
 ## 7. 数据与文件
 
+- 正式运行的数据根目录固定为 `AppContext.BaseDirectory/Data`，不得重新隐式回退到 `%LocalAppData%/NovelSpeaker`。
+- 默认开发启动必须使用独立的 `%LocalAppData%/NovelSpeaker.Dev`；需要特殊根目录时通过 `NOVELSPEAKER_DATA_ROOT` 显式覆盖，不使用 `#if DEBUG` 决定持久化位置。
+- 数据根目录解析与根目录内部的路径布局是两个职责：前者决定“数据放在哪里”，后者只负责 `app.db`、`settings.json`、`Books/`、`Cache/`、`Operations/` 和 `Logs/` 等稳定布局。
+- 自动测试必须显式注入临时数据根，不得读取或写入正式 `Data/`、开发目录或旧数据目录。
 - 所有内部路径经过集中 resolver；不直接相信数据库绝对路径。
 - 文件写入使用 staging + atomic move/replace。
 - 多资源操作设计补偿或 journal。
@@ -83,6 +87,7 @@
 - 数字编号文档描述终态，不写执行 Wave。
 - `TASK_BACKLOG.md` 是唯一任务计划。
 - 根 `README.md` 只写当前已实现能力。
+- 已完成任务直接从 `TASK_BACKLOG.md` 删除，历史状态由 Git 记录；仓库不再维护任务归档目录或归档文档。
 - 行为/架构/数据边界变化时同步对应文档；纯重命名不制造无意义文档改动。
 
 ## 10. 依赖与格式

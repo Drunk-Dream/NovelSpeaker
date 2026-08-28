@@ -865,7 +865,7 @@ artifacts/visual-review/gallery/<family-id>/
 
 - 目录和文件名不得包含 `TASK_BACKLOG.md` 任务编号。
 - `scenario-id` 描述稳定状态组合，例如 `states`、`long-content`、`validation` 或 `compact`。
-- 同一资源族的截图始终写入同一目录；任务重排、拆分或归档不得导致目录改名。
+- 同一资源族的截图始终写入同一目录；任务重排或拆分不得导致目录改名。
 - family manifest 记录 family、scenario、主题、DPI、viewport、文本缩放、资源版本和 PNG 哈希。
 
 ### 13.3 正式页面与窗口截图
@@ -927,7 +927,7 @@ artifacts/visual-review/windows/<window-id>/<scenario-id>.<theme>.<dpi>.png
 - 全局 Token 不包含页面专用 Padding、列宽或补偿性 Margin。
 - 生产公共控件不包含 fixture 文本、演示命令或固定演示状态。
 - 自有控件默认 Style 可按类型解析，具名变体只用于真实差异。
-- 页面不引用已归档或兼容资源键。
+- 页面不引用已废弃或兼容资源键。
 - Style Gallery 在浅色/深色下可重复渲染，并按稳定 family-id 生成 PNG/manifest。
 - 正式页面和窗口按稳定 page-id/window-id 生成截图，路径不依赖 backlog 任务编号。
 - 页面截图使用正式 View，而不是 Gallery 中的页面仿制品。

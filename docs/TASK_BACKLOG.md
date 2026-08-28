@@ -2,190 +2,164 @@
 
 ## 1. 阶段定位
 
-测试体系收口任务 1–4 已完成；当前继续保留该阶段记录，并追加 transient UI Single Surface 初版的自动调试收口任务。除任务 5 明确涉及的 Dialog/StartupStatusWindow/Feedback 视觉边界外，不新增产品功能，也不重新设计其它已完成 UI。
+当前阶段围绕发布目录与数据根目录合同收口，并继续完成 transient UI Single Surface 初版的自动调试。
 
-阶段目标：
+本轮目标：
 
-- 将当前完整自动测试总数从约 1,400 项收敛到 **800 项以下**，优先删除迁移期、重复覆盖和低价值实现细节测试。
-- `<800` 仅是本阶段一次性验收目标，不建立永久测试数量上限；后续新增高价值测试允许总数重新超过 800。
-- 所有自动 WPF 测试默认不得在用户当前交互桌面显示任何顶层窗口。
-- 普通 Page/UserControl 测试优先使用不显示 Window 的 `WpfControlHost`；只有确实依赖 Window、Popup、Focus、Loaded、PresentationSource 或 HWND 生命周期的测试才进入窗口宿主。
-- 必须使用真实 Window 生命周期的测试默认运行在隔离的隐藏 Windows Desktop 中；隔离环境建立失败时必须 fail closed，不得回退到用户当前 Desktop。
-- 只有用户在当前任务中明确允许可见窗口时，Codex 才能启用交互式窗口调试；视觉截图生成本身不构成该授权。
-- ContentDialog、StartupStatusWindow 等 transient UI 按 `13_VISUAL_DESIGN_SYSTEM.md` 的 Single Surface 终态调试，不允许通过重新增加内嵌完整卡片解决布局问题。
+- 将正式运行数据根目录切换为程序目录下的 `Data/`，不保留旧 `%LocalAppData%/NovelSpeaker` 的迁移、探测或回退逻辑。
+- 将默认开发运行数据隔离到 `%LocalAppData%/NovelSpeaker.Dev`，自动测试继续使用测试自身的临时目录。
+- 将发布主程序从 `NovelSpeaker.App.exe` 统一改名为 `NovelSpeaker.exe`，并清除运行时代码对主程序文件名的硬编码。
+- 保持现有 SQLite schema migration 体系；本轮“无兼容”只针对数据根目录切换。
+- 调试并收口 ContentDialog、StartupStatusWindow 与 `AppStatusView` Embedded 模式的 Single Surface 初版。
+- 完成发布产物、数据安全边界、文档一致性和完整自动质量门禁验收。
 
-稳定测试原则以 `09_TESTING_AND_QUALITY.md` 为准。本文件只描述实施顺序、任务边界和自动验收。
+稳定产品、架构、数据、测试与视觉约束分别以数字编号文档为准。本文件只描述尚未完成的实施顺序和自动验收。
 
 ## 2. 状态与优先级
 
 - `[ ]`：未开始。
 - `[-]`：进行中。
-- `[x]`：已完成并通过自动验收。
 - `[!]`：存在阻塞，必须在任务结果中记录可复现原因。
-- `P0`：测试安全边界、默认无可见窗口、完整质量门禁。
-- `P1`：测试去重、职责收敛和低价值测试清理。
+- `P0`：数据安全、运行隔离、发布产物或完整质量门禁。
+- `P1`：结构清理、视觉收口和长期可维护性。
+
+任务完成后直接从本文件删除，不保留仓库内历史归档；历史追溯使用 Git。
 
 ## 3. Codex 执行规则
 
 1. 默认一次只执行一个编号任务；完成后停止，不自动开始下一项。
 2. 执行前至少阅读：
    - `AGENTS.md`
+   - `docs/02_TECH_STACK_AND_ARCHITECTURE.md`
+   - `docs/05_DATA_AND_PERSISTENCE.md`
    - `docs/09_TESTING_AND_QUALITY.md`
-   - 当前任务涉及的生产代码、现有测试和 `tests/TestKit`。
-3. 本阶段不通过“把多个独立行为塞进一个 `[Fact]`”或其它只改变测试发现数量的方式凑 `<800`。允许在同一稳定契约下合理合并重复参数场景，但必须保持失败定位清晰。
-4. 测试精简按价值排序：先删除迁移期测试、公共视觉合同的页面级重复验证、只验证 getter/setter 或属性转发的测试、旧接口/compat wrapper 测试和重复 helper；缺陷回归、migration、缓存身份、并发/取消、路径安全、脚本沙箱、TTS parser/compiler、损坏数据/音频和关键生命周期测试优先保留。
-5. 不为了达到数量目标机械削减 `Application` 或 `Infrastructure` 的高价值行为测试。若 WPF/Presentation 精简后已经 `<800`，立即停止按数量继续删除。
-6. 默认测试命令不得设置任何允许可见窗口的环境变量。目标环境变量为 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`；现有 `NOVELSPEAKER_TEST_SHOW_WINDOWS=1` 属于待删除旧入口，同样不得由 Codex 自行设置。
-7. 只有用户在当前任务中明确允许测试显示窗口时，Codex 才能设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`。授权只对该次明确任务有效，不跨任务继承。
-8. `NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 只允许生成确定性视觉产物，不代表允许在用户 Desktop 显示窗口。
-9. 每个任务都必须更新直接受影响的测试和必要文档，但不得顺手重写无关产品文档。
-10. 每个任务完成后将状态改为 `[x]`，在任务末尾追加简短“结果”，记录删除/合并类别、各测试项目数量、实际验证命令和任何剩余风险。
-11. 用户要求提交时，仍按可回溯性拆分多个原子提交，不把整个编号任务机械压成一个大提交。
+   - `docs/10_ENGINEERING_CONVENTIONS.md`
+   - `docs/11_DECISIONS_RISKS_OPEN_QUESTIONS.md`
+   - 当前任务直接涉及的生产代码和测试。
+3. 不为旧 `%LocalAppData%/NovelSpeaker` 增加自动发现、复制、迁移提示、fallback、双读/双写或兼容 wrapper；发现现有相关入口时直接按目标合同清理。
+4. 不删除、合并或重编号现有 SQLite schema migration；数据根目录切换与数据库 schema 升级是独立问题。
+5. 数据根目录选择不得依赖 `#if DEBUG`。开发/诊断行为必须通过明确运行配置或显式数据根覆盖表达。
+6. 自动测试不得读取或写入正式 `Data/`、`%LocalAppData%/NovelSpeaker.Dev` 或旧 `%LocalAppData%/NovelSpeaker`；测试必须显式拥有临时数据根。
+7. 运行时代码不得硬编码 `NovelSpeaker.exe` 或 `NovelSpeaker.App.exe` 来寻找当前进程；需要当前 executable 路径时使用平台/运行时提供的实际进程路径。
+8. 根 `README.md` 只描述当前已经实现的行为。涉及 README 的更新必须与对应实现任务一起完成，不能提前声明未落地能力。
+9. 每个任务都优先补充/修改已有自动测试，不为了形式制造大量细粒度重复 case。
+10. 默认测试不得设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`；视觉产物生成仍运行在隔离隐藏 Desktop。
+11. 用户要求提交时，按逻辑目的拆分原子提交，不把整个编号任务机械压成一个大提交。
 
-## 4. 测试数量口径
+## Phase A：数据根目录与开发隔离
 
-阶段基线以完整 `dotnet test -c Release --no-build` 实际发现并执行的测试为准。当前文档基线约为：
-
-| 测试项目 | 基线 |
-| --- | ---: |
-| `NovelSpeaker.Domain.UnitTests` | 2 |
-| `NovelSpeaker.Application.UnitTests` | 219 |
-| `NovelSpeaker.Infrastructure.IntegrationTests` | 348 |
-| `NovelSpeaker.App.PresentationTests` | 407 |
-| `NovelSpeaker.App.WpfTests` | 443 |
-| **总计** | **1,419** |
-
-说明：
-
-- 基线只用于衡量本阶段收敛幅度；实际执行任务前应重新记录一次完整测试结果，若源码已有变化则以重新记录的结果为准。
-- 阶段最终要求是完整测试全部通过且总数 `<800`。
-- 不新增 CI、架构测试或其它永久机制限制仓库未来测试总数不得超过 800。
-
-## [x] 1（P0）：加固 WPF Test Host，默认隔离所有可见窗口
+## [ ] T001（P0）：建立统一的数据根目录解析合同
 
 目标：
 
-- 将当前“真实 `Window.Show()` + 移到虚拟屏幕外”的默认策略改为隔离 Windows Desktop。
-- 普通自动测试即使必须真实执行 `Window.Show()`、Popup、Focus 或 HWND 生命周期，也不得把窗口显示在用户当前交互 Desktop。
-- 只有显式用户授权的调试运行才允许可见窗口。
+- 建立唯一的数据根目录解析入口，明确正式运行、开发运行和显式覆盖三种路径来源。
+- 将“数据根在哪里”与“根目录内部有哪些文件/子目录”拆成两个职责，避免现有 `LocalAppDataDirectoryProvider` 同时承担环境判断和目录布局。
 
 实施：
 
-- 在 `tests/TestKit/Wpf` 建立唯一的 Windows Desktop 隔离边界；共享 STA Dispatcher 在线程进入 WPF 初始化前绑定到专用隐藏 Desktop。
-- 默认模式创建独立测试 Desktop，并让 `WpfTestHost`、`WpfWindowHost`、视觉渲染宿主和临时 Popup 都运行在该 Desktop。
-- 隔离 Desktop 创建/绑定失败时直接让测试宿主初始化失败；禁止静默退回当前交互 Desktop。
-- 将可见调试开关统一为 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`；删除 `NOVELSPEAKER_TEST_SHOW_WINDOWS` 的实现与文档入口，不长期保留双变量兼容。
-- 可见调试模式只改变 Desktop/显示策略，不绕过窗口清理、失败诊断、测试串行化和资源释放。
-- `WpfControlHost` 继续作为无 Window 的默认页面/控件宿主；对不依赖窗口生命周期的测试不得为了方便改用 `WpfWindowHost`。
-- 扩展架构守卫：
-  - `NovelSpeaker.App.WpfTests` 不得直接调用 `Window.Show()`、`ShowDialog()`、自行创建 STA Dispatcher/Thread 或直接调用 Win32 Desktop 切换 API。
-  - 真实 `Window.Show()` 与 Desktop API 只允许出现在指定 TestKit 宿主实现中。
-  - 测试代码不得读取/设置旧的 `NOVELSPEAKER_TEST_SHOW_WINDOWS`。
-- 为 TestKit 增加专项测试/可自动验证的契约，至少覆盖默认隔离、显式可见模式分支、fail-closed 初始化和窗口清理边界；测试不得依赖人工观察“有没有弹窗”。
+- 新增或重构为职责明确的数据根 resolver；推荐保持以下优先级：
+  1. `NOVELSPEAKER_DATA_ROOT` 显式覆盖。
+  2. `NOVELSPEAKER_ENVIRONMENT=Development` 时使用 `%LocalAppData%/NovelSpeaker.Dev`。
+  3. 其它情况使用 `AppContext.BaseDirectory/Data`。
+- 不使用编译符号决定运行数据位置；`Debug`/`Release` 构建本身不改变根目录合同。
+- 将现有 `LocalAppDataDirectoryProvider` 重构为与具体 LocalAppData 无关的名称和职责；`IAppDataDirectoryProvider` 若仍能准确表达合同可保留。
+- 根目录内部稳定布局保持：
+  - `app.db`
+  - `settings.json`
+  - `Books/`
+  - `Cache/`
+  - `Operations/`
+  - `Logs/`
+- 保留可显式注入 root path 的构造/测试边界，避免测试依赖实际机器目录。
+- 不在本任务切换 Bootstrap 默认行为；先把 resolver 和 provider 合同建立完整，再由 T002 接入生产组合根。
+
+自动测试：
+
+- 覆盖默认正式根为 `<base-directory>/Data`。
+- 覆盖 Development 根为 `%LocalAppData%/NovelSpeaker.Dev`。
+- 覆盖 `NOVELSPEAKER_DATA_ROOT` 优先于 Development/default。
+- 覆盖 Debug/Release 概念不会改变 resolver 结果。
+- 覆盖 provider 生成的数据库、设置、Books、Cache、Operations、Logs 路径均位于注入根目录内。
 
 验收：
 
-- 不设置任何可见窗口环境变量时，完整 WPF 测试可运行，并由自动契约证明 WPF Dispatcher 绑定到非交互测试 Desktop。
-- TestKit 隔离初始化失败的受控场景能得到明确失败，不会退回当前 Desktop。
-- `rg`/架构测试证明普通 WPF 测试没有直接 `Show()`/`ShowDialog()`/Desktop API 绕过路径。
-- `NOVELSPEAKER_TEST_SHOW_WINDOWS` 在源码、测试和稳定文档中零引用。
-- 定向 WPF/TestKit 测试和完整质量门禁通过。
+- 数据根选择逻辑只有一个生产 owner，没有并行 `LocalAppData`/portable provider。
+- 定向 Application/Infrastructure 测试通过。
+- 不新增旧数据目录兼容逻辑。
 
-结果：
+## [ ] T002（P0）：切换生产 Bootstrap 并隔离默认开发运行
 
-- 在 `tests/TestKit/Wpf` 建立唯一隔离 Desktop 边界；原生线程入口先绑定 Desktop，再初始化 STA 和 WPF Dispatcher，句柄在测试线程退出后由宿主线程释放；创建或绑定失败保持 fail-closed。
-- `WpfWindowHost` 使用 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1` 作为唯一显式可见调试分支；默认不再移动窗口到虚拟屏幕外，窗口登记、诊断、串行化和清理继续由共享宿主负责。
-- 新增默认隔离、可见策略、创建/绑定失败、成功释放和清理边界契约；WPF 测试中的物理光标与操作系统键盘注入依赖改为确定性状态契约。WPF 定向测试通过 49 项，Presentation 架构守卫通过 6 项。
-- 完整质量门禁按固定顺序通过：`dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore`、`dotnet test -c Release --no-build`；实际通过 Domain 2、Application 219、Infrastructure 348、Presentation 408、WPF 454，共 1,431 项。
-- 未设置可见窗口授权变量执行验证；稳定测试文档已是最终隔离 Desktop 约束，无需额外行为说明。
-
-## [x] 2（P1）：精简 WPF 测试并收敛 UI 契约所有权
+依赖：T001。
 
 目标：
 
-- 以 `NovelSpeaker.App.WpfTests` 为主要削减对象，删除 UI 统一与迁移阶段留下的重复视觉/结构测试。
-- 保留真正依赖 WPF visual tree、资源、布局、主题、Focus、Popup、窗口生命周期和关键交互的契约。
+- 将 NovelSpeaker 正式运行真正切换到 `<application-directory>/Data`。
+- 确保仓库默认 `dotnet run` / IDE 开发启动使用 `%LocalAppData%/NovelSpeaker.Dev`，不会污染正式便携数据。
+- 清理旧 `%LocalAppData%/NovelSpeaker` 的生产依赖和兼容残留。
 
 实施：
 
-- 按测试文件和契约族盘点 WPF 测试，标记：保留、合并、删除、迁往 Presentation/TestKit。
-- 公共视觉语义只在资源/控件族层验证一次；页面不重复验证公共 Button、Icon、ToggleSwitch、Typography、Surface、Input 等已经由共享契约覆盖的内部属性。
-- 页面级 WPF 测试只保留页面自身结构、命令/绑定边界、键盘/选择/滚动、关键几何下限、Automation、主题切换和该页面独有交互。
-- 删除 UI 迁移过程中的 Legacy 清零、旧资源替换、逐页面同义样式存在性等历史性测试；最终“无 Legacy/无旧聚合资源”保留一处架构契约即可。
-- Style Gallery 和正式页面截图相关测试保留少量 registry/manifest/可重复渲染契约，不把每个展示场景都长期拆成独立回归 case。
-- 能使用 `WpfControlHost` 的 Page/UserControl 测试迁离 `WpfWindowHost`；只有真实生命周期需求才保留窗口宿主。
-- 删除重复 visual-tree helper/setup，跨测试共用能力回收到 `tests/TestKit/Wpf`，但不得建立新的万能 helper。
+- 在组合根中使用 T001 的统一 resolver 构建 `IAppDataDirectoryProvider`，删除直接实例化旧 `LocalAppDataDirectoryProvider` 的路径。
+- 增加/调整 `Properties/launchSettings.json`，让仓库默认开发 profile 明确设置 `NOVELSPEAKER_ENVIRONMENT=Development`。
+- 默认开发 profile 不设置固定绝对数据路径；实际路径继续由 resolver 计算为 `%LocalAppData%/NovelSpeaker.Dev`。
+- 首次正式运行时按需创建 `Data/` 与必要子目录；不要求发布 ZIP 预置空 `Data/`。
+- 全仓检查并删除旧 `%LocalAppData%/NovelSpeaker` 的探测、迁移、复制、fallback 或兼容入口；没有此类入口时不要为了“迁移”新增任何代码。
+- 审计数据根安全检查：允许数据根作为已选定的根边界正常工作，但数据库记录或根目录内部的子级路径仍不得通过 `..`、绝对路径替换或 reparse point 逃逸根目录。
+- 不改变用户外部 TXT 永不写入的既有边界。
+
+自动测试：
+
+- Bootstrap/组合根测试证明正式默认路径解析到 `AppContext.BaseDirectory/Data`。
+- 开发 profile 可由静态/配置测试证明设置了 Development 环境，不依赖人工运行应用观察。
+- 测试证明旧 `%LocalAppData%/NovelSpeaker` 即使存在也不会被读取或作为 fallback。
+- 路径安全回归覆盖便携根内正常路径与子级逃逸/reparse-point 拒绝场景。
+- 测试代码静态守卫确保没有测试访问正式、开发或旧数据目录。
 
 验收：
 
-- WPF 测试数量相对任务开始时显著下降，且删除清单能按“迁移期/重复合同/低价值实现细节”解释，而不是按数字随机删除。
-- `docs/13_VISUAL_DESIGN_SYSTEM.md` 中的最终视觉边界仍有对应自动守卫，但同一合同没有大量页面级重复测试。
-- WPF 定向测试、Presentation 架构测试和完整质量门禁通过。
-- 默认运行不设置可见窗口授权变量。
+- `rg` 不存在生产代码直接拼接旧 `%LocalAppData%/NovelSpeaker` 的路径。
+- `dotnet run` 的默认开发配置与正式数据根隔离合同可由自动检查证明。
+- SQLite migration 测试仍通过，且 migration 文件没有因本任务被改写/重编号。
+- 受影响项目 build/test 通过。
 
-结果：已按视觉资源、控件族、页面结构、Style Gallery、窗口生命周期和输入上下文收敛重复契约；保留 visual tree、资源、布局、主题、Focus、Popup、Automation、截图守卫和隔离宿主覆盖。最终 WPF 测试 152 项，未设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`。
+## Phase B：主程序命名与发布产物
 
-## [x] 3（P1）：精简 Presentation 测试并去除属性转发型重复覆盖
+## [ ] T003（P0）：统一主程序为 `NovelSpeaker.exe`
 
 目标：
 
-- 以 `NovelSpeaker.App.PresentationTests` 为第二主要削减对象，保留用户可观察状态转换和 presentation boundary，删除迁移/重构期累积的低价值细粒度测试。
+- 将发布后的主程序文件名从 `NovelSpeaker.App.exe` 改为 `NovelSpeaker.exe`。
+- 项目目录、项目名和命名空间保持现状，不为输出文件名做无关大规模重命名。
+- 消除源码、测试和发布脚本对旧 executable 名称的硬编码。
 
 实施：
 
-- 盘点 ViewModel、Controller、Coordinator、Navigation/Activation 测试，优先保留状态转换、Command 启用、Dirty State、取消/迟到结果、页面生命周期、选择模型、滚动协调和错误投影。
-- 删除只验证简单 getter/setter、构造参数赋值、无分支属性转发或与更高层契约完全重复的 case。
-- 对 TTS/Chapter/Regex 等共享 Workbench 行为使用共享 contract/factory 覆盖共性，各 Feature 只保留自身差异；不得为减少计数把互不相关行为塞入单一测试。
-- 将纯 presentation 行为从 WPF 测试中迁入本项目时，以最终总测试价值为准；如果迁移只会产生重复覆盖则直接删除旧 WPF case，不机械一一重建。
-- 清理重复 fake/helper，已有 `tests/TestKit` 能表达的跨项目测试资产不重复实现。
+- 在 `NovelSpeaker.App.csproj` 通过正式项目属性统一 assembly/output 名为 `NovelSpeaker`，不要在 publish 后执行临时文件重命名。
+- 审计托盘、图标、进程路径、启动/诊断等所有需要 executable path 的代码；需要当前进程路径时改用 `Environment.ProcessPath` 或同等可靠运行时入口，不把硬编码从旧名称替换成新名称。
+- 更新 `.github/workflows/release.yml` 的发布包内容校验，使其要求 `NovelSpeaker.exe` 且拒绝旧 `NovelSpeaker.App.exe`。
+- 保持发布 ZIP 的既有版本化文件名合同，除非源码中已有与主程序名直接冲突的错误逻辑。
+- 实现完成后同步根 `README.md` 的启动文件名和数据目录说明，使 README 与实际发布行为一致。
+
+自动测试/检查：
+
+- 增加或调整项目/发布合同测试，确认 publish 输出包含 `NovelSpeaker.exe`。
+- 确认 publish 输出不包含 `NovelSpeaker.App.exe`。
+- `rg` 确认生产源码、测试、workflow 和当前 README 不再把旧 executable 名称作为运行合同。
+- 托盘/图标路径相关测试不依赖硬编码文件名。
 
 验收：
 
-- Presentation 测试数量相对任务开始时显著下降，同时关键导航、activation、Dirty State、选择、缓存/导出投影和错误处理仍有明确回归保护。
-- 不新增 WPF 依赖或真实技术 adapter 依赖。
-- Presentation 定向测试、相关 WPF 测试和完整质量门禁通过。
+- self-contained `win-x64` publish 成功。
+- 自动包内容检查通过：主程序、LICENSE、THIRD-PARTY-NOTICES 和既有运行时依赖完整，且不包含测试/开发资产。
+- 受影响项目 build/test 通过。
 
-结果：已按架构边界、Library/TTS Workbench、页面 activation、缓存/导出投影、播放滚动、启动关闭、选择模型、MiniPlayer 和设置激活状态收敛重复入口；保留取消、迟到结果、Dirty State、错误投影、状态机和关键生命周期回归。最终 Presentation 测试 150 项。
+## Phase C：Transient UI 自动调试收口
 
-## [x] 4（P0）：跨项目复查并完成 `<800` 阶段收口
-
-目标：
-
-- 在前两轮主削减后复查完整测试体系，只做达到 `<800` 所必需且有明确重复证据的剩余清理。
-- 完成数量、无可见窗口和文档一致性的阶段验收。
-
-实施：
-
-- 重新执行完整测试并记录五个测试项目的实际数量。
-- 若已经 `<800`，不得继续为了更低数字删除高价值测试。
-- 若仍 `>=800`，优先继续寻找跨 WPF/Presentation 的重复契约、迁移期残留、重复 Theory 数据和低价值实现细节测试；只有有明确重复证据时才触及 Application/Infrastructure。
-- 复查 migration、缓存身份/朗读清单、播放/主动缓存/导出状态机、并发/取消、路径安全、脚本沙箱、TTS parser/compiler、损坏数据/音频 fixture 和关键 WPF 生命周期等受保护覆盖没有因精简丢失。
-- 复查 `AGENTS.md`、`docs/09_TESTING_AND_QUALITY.md`、`docs/10_ENGINEERING_CONVENTIONS.md`、README 和 TestKit 实现术语一致；若实现过程中发生必要设计调整，只更新直接相关稳定文档。
-- 不新增“测试总数 <=800”的永久 CI/架构门禁。
-
-验收：
-
-- 完整质量门禁按固定顺序通过：
-
-```powershell
-dotnet restore --locked-mode -r win-x64
-dotnet format --verify-no-changes --no-restore
-dotnet build -c Release --no-restore
-dotnet test -c Release --no-build
-```
-
-- 最终完整测试总数 `<800`，并在任务结果中记录各项目数量和总数。
-- 默认测试运行没有设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`，且自动守卫证明 WPF 测试使用隔离 Desktop/无 Window 控件宿主边界。
-- 受保护的关键回归类别仍有自动覆盖。
-- 稳定文档与最终实现一致，当前 Backlog 不包含需要人工视觉验收才能关闭的任务。
-
-结果：完整测试计数为 Domain 2、Application 174、Infrastructure 320、Presentation 150、WPF 152，总计 798（小于 800）。完整质量门禁按 restore、format、build、test 固定顺序执行并通过；测试未设置可见窗口授权变量，受保护回归类别未删除。
-
-## [ ] 5（P1）：调试并收口 transient UI Single Surface 初版
+## [ ] T004（P1）：调试并收口 transient UI Single Surface 初版
 
 目标：
 
-- 对本次 ContentDialog、StartupStatusWindow 和 `AppStatusView` Embedded 模式的初版实现进行 Codex 自动调试、修复和代码审阅。
+- 对当前 ContentDialog、StartupStatusWindow 和 `AppStatusView` Embedded 模式的初版实现进行自动调试、修复和代码审阅。
 - 保证去除 Card-in-Dialog / Card-in-Window 后，不引入布局裁切、主题失配、Focus/Automation 回归或新的重复 Surface。
 - 不把人工视觉验收作为任务关闭条件；如需要截图，只能通过现有隐藏 Desktop 视觉产物宿主生成。
 
@@ -195,17 +169,41 @@ dotnet test -c Release --no-build
 - 复查删除书籍、普通确认、未保存修改、编码选择和导入进度 Dialog，在长中文/英文、输入控件、CheckBox、进度条和 Danger 主按钮场景下都保持合理布局；不得为单个 Dialog 重新引入专属 Card。
 - 复查 `AppStatusView.IsEmbedded` 的模板触发器，确认 Embedded 只移除自身 Section chrome，不改变图标状态、Title、Description、Action、Automation 或状态颜色语义；默认非 Embedded 状态仍保持原有 Section Surface。
 - 复查 `StartupStatusWindow` 的单 Surface 结构、Light/Dark、Loading/Error、100%/125%/150% DPI 和紧凑尺寸；窗口自身是唯一 Raised Surface，内部不得出现第二层完整卡片。
-- 复查 Style Gallery 的 `surfaces` 与 `feedback` 场景，删除已失效的 `DialogContent` Surface 展示，并让 Dialog 示例表达“host surface + flat body”的最终结构，而不是在 Canvas 上孤立展示透明 Body。
+- 复查 Style Gallery 的 `surfaces` 与 `feedback` 场景，删除已失效的旧 Dialog Surface 展示，并让 Dialog 示例表达“host surface + flat body”的最终结构。
 - 保留 Flyout/Popup/Snackbar 当前唯一 Surface 边界，不为了统一结构做无关重构。
-- 增补或修正现有 WPF 契约测试，优先在已有聚合测试中覆盖 Single Surface、DialogBody flat chrome、Embedded 状态和 Startup 布局，不为了形式增加大量独立测试数量。
+- 增补或修正现有 WPF 契约测试，优先在已有聚合测试中覆盖 Single Surface、DialogBody flat chrome、Embedded 状态和 Startup 布局。
 - 执行代码审阅，检查资源键唯一性、旧键零引用、Theme DynamicResource、命名、可访问性和窗口测试隔离边界；发现问题直接修复。
 
 验收：
 
-- `rg` 证明稳定源码、测试和稳定设计文档中不存在 `App.Surface.DialogContent`、`App.Feedback.DialogContent`、`AppDialogVisuals.Wrap` 或旧 `StartupSurface` 引用；本任务说明和历史归档中的迁移名称不要求改写。
+- `rg` 证明稳定源码、测试和稳定设计文档中不存在 `App.Surface.DialogContent`、`App.Feedback.DialogContent`、`AppDialogVisuals.Wrap` 或旧 `StartupSurface` 引用。
 - ContentDialog 自动契约证明 Body 无可见 chrome，StartupStatusWindow 自动契约证明 Embedded 状态没有第二层 Section Surface。
 - 默认测试不设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`；视觉产物如需生成仍运行在隐藏 Desktop。
-- 完整质量门禁按固定顺序通过：
+- WPF/Presentation 定向测试通过。
+
+## Phase D：整体质量与发布合同验收
+
+## [ ] T005（P0）：执行跨模块审阅并完成阶段质量门禁
+
+依赖：T001–T004。
+
+目标：
+
+- 对数据根切换、开发隔离、主程序改名和 transient UI 收口做一次跨模块自动复查。
+- 确保最终源码、测试、README、数字编号文档与发布产物表达同一套合同。
+
+实施：
+
+- 复查数据根解析只存在一个生产 owner，正式/开发/测试三类数据不会互相读取。
+- 复查旧 `%LocalAppData%/NovelSpeaker` 没有迁移、探测、fallback 或兼容入口；同时确认 SQLite schema migration runner 与既有 migration 保持完整。
+- 复查 `NOVELSPEAKER_DATA_ROOT` 和 Development 环境只承担明确的开发/诊断职责，不泄漏为隐藏的多套生产存储模式。
+- 复查正式 Data 根的路径安全、书籍删除、缓存维护、Operations journal、日志和 settings 全部使用同一个根目录 provider。
+- 复查生产运行不依赖 `NovelSpeaker.App.exe` 硬编码；需要 executable path 的功能均使用实际当前进程路径。
+- 复查根 `README.md` 只描述已经落地的 `NovelSpeaker.exe`、便携 `Data/` 与开发命令，不保留旧运行说明。
+- 复查 `AGENTS.md`、`docs/README.md` 和 `TASK_BACKLOG.md` 不再要求创建任务归档；仓库中不存在 `docs/archives/`。
+- 复查 transient UI Single Surface 自动合同仍通过。
+
+完整验收：
 
 ```powershell
 dotnet restore --locked-mode -r win-x64
@@ -214,4 +212,17 @@ dotnet build -c Release --no-restore
 dotnet test -c Release --no-build
 ```
 
-- 若调试过程中修改实现，在任务结果中记录修复项、测试结果和剩余风险；如用户同时要求提交，再按可回溯性拆分原子提交。
+随后执行 self-contained `win-x64` publish 与自动包内容检查，至少确认：
+
+- `NovelSpeaker.exe` 存在，`NovelSpeaker.App.exe` 不存在。
+- 主程序可从 publish 根目录解析其正式数据根为同级 `Data/`。
+- 发布包不预置用户数据库、设置、书籍、缓存、日志或开发 profile 产物。
+- LICENSE、THIRD-PARTY-NOTICES 和既有必需 runtime assemblies 存在。
+- 不包含测试程序集、TestAssets、Style Gallery、视觉调试输出或临时文件。
+
+验收：
+
+- 完整质量门禁和 publish 包合同全部通过。
+- 默认测试未设置可见窗口授权变量。
+- 稳定文档、README 与实现一致。
+- 若发现可以自动修复的问题，在本任务内修复并重新执行受影响门禁；无法自动解决的真实阻塞标记为 `[!]` 并记录可复现证据。

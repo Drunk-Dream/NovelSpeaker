@@ -77,6 +77,14 @@
 - 只有用户在当前任务明确允许可见窗口时才可启用 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`；视觉产物生成不构成该授权。
 - 不为下一阶段规划依赖人工验证才能关闭的任务。
 
+### 数据目录与运行产物
+
+- 正式版统一使用程序目录下的 `Data/` 作为应用数据根目录，数据库文件名保持为 `app.db`。
+- 默认开发启动使用 `%LocalAppData%/NovelSpeaker.Dev`，自动测试继续使用测试自己的临时目录；三者不得互相复用数据。
+- `NOVELSPEAKER_DATA_ROOT` 作为开发/诊断场景的显式根目录覆盖入口，优先级高于默认开发目录；不使用编译配置隐式切换数据位置。
+- 旧 `%LocalAppData%/NovelSpeaker` 数据不迁移、不探测、不回退读取；该决策只针对数据根目录切换，不删除 SQLite schema migration 能力。
+- 发布主程序统一命名为 `NovelSpeaker.exe`；项目名、命名空间和源码目录无需因此改名。运行时代码不得硬编码主程序文件名，应从当前进程路径获取实际可执行文件位置。
+
 ## 2. 主要实现风险
 
 ### TTS admission 公平性

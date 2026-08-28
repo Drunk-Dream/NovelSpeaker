@@ -74,7 +74,7 @@ Dialog、Flyout、Popup 和独立状态浮窗遵循 `docs/13_VISUAL_DESIGN_SYSTE
 ## 数据、安全与兼容约束
 
 - 已发布 SQLite migration 只能追加，不能为整理代码而修改、合并或重编号。
-- 数据格式、数据目录、章节偏移、阅读进度和音频缓存键变化必须有独立迁移/兼容设计与回归测试。
+- 数据格式、章节偏移、阅读进度和音频缓存键变化必须有独立迁移/兼容设计与回归测试；数据目录切换是否迁移以 `docs/05_DATA_AND_PERSISTENCE.md` 的明确合同为准，不得自行增加兼容路径。
 - 不得绕过应用数据根目录约束读取、移动或删除任意路径；永不修改用户外部源文件。
 - 规则脚本是不可信输入。不得放宽 CLR、文件、进程、反射、任意网络、宿主对象或资源限制，除非有明确设计和安全回归测试。
 - 不直接复制或翻译 Legado 源代码，只参考公开行为和数据格式独立实现。
@@ -102,7 +102,7 @@ Dialog、Flyout、Popup 和独立状态浮窗遵循 `docs/13_VISUAL_DESIGN_SYSTE
 - 目录、命名空间、文件名和主公共类型保持一致。
 - 数字编号文档只描述稳定产品/架构终态；迁移过程、执行波次和任务状态只写入 `docs/TASK_BACKLOG.md`。
 - 行为变化后同步对应设计、测试策略、决策、README 和 backlog；不要更新无关文档。
-- 已完成历史只在必要时移入 `docs/archives/`，归档不作为新实现依据。
+- 已完成任务直接从 `docs/TASK_BACKLOG.md` 删除；历史由 Git 记录，不创建或维护任务归档目录、归档文档或归档索引。
 - 根目录 `README.md` 只描述当前已经实现的能力；规划中的功能不得提前写成可用能力。
 - 新的 backlog/任务验收不得把“手动验证”作为关闭条件；尽量用自动测试、架构检查、WPF 契约测试和发布包检查建立可重复证据。
 - Style Gallery 场景和截图按稳定资源族命名；正式界面截图按稳定页面/窗口身份命名。任何视觉产物路径不得使用 backlog 任务编号。
@@ -132,7 +132,7 @@ dotnet test -c Release --no-build
 dotnet run --project src/NovelSpeaker.App
 ```
 
-`dotnet run` 会显示正式应用窗口，属于可见 UI 操作；Codex 只有在用户当前任务明确允许时才可执行。普通测试和视觉产物生成不得以此替代自动宿主。
+仓库默认开发启动配置使用 `%LocalAppData%/NovelSpeaker.Dev`，不得读写正式便携数据目录。`dotnet run` 会显示正式应用窗口，属于可见 UI 操作；Codex 只有在用户当前任务明确允许时才可执行。普通测试和视觉产物生成不得以此替代自动宿主。
 
 只有依赖或版本确实变化时才允许：
 
@@ -150,7 +150,7 @@ dotnet restore -r win-x64 --force-evaluate
 - 每个 commit 只包含一个清晰目的的改动；不同性质的修改尽量分开提交。
 - 实现与直接对应、用于固定同一行为的测试通常放在同一个 commit；不要为了“测试单独提交”人为拆散一个不可独立理解的改动。
 - 纯重命名/移动尽量与行为变化分开提交，避免 diff 中同时混入大规模搬运和逻辑修改。
-- 文档只有在与对应行为不可分割时跟随实现提交；独立的文档整理、归档和规划使用独立 commit。
+- 文档只有在与对应行为不可分割时跟随实现提交；独立的文档整理和规划使用独立 commit。
 - commit message 简洁准确，描述该提交的实际目的，不使用“update/fix stuff”等模糊描述。
 - Commit messages use English Conventional Commits, such as `type(scope): describe the change`.
 - Unless the user explicitly requests otherwise, use fast-forward merge mode when merging branches.
