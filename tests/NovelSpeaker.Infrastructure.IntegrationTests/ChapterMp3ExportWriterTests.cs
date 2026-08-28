@@ -373,11 +373,13 @@ public sealed class ChapterMp3ExportWriterTests
         var pathResolver = new AppStoragePathResolver(directories);
         var index = new SqliteAudioCacheIndex(connectionFactory, TimeProvider.System);
         var fileStore = new AudioCacheFileStore(directories, pathResolver, protection);
+        var planStore = new SqliteChapterSpeechPlanStore(connectionFactory);
         var maintenance = new AudioCacheMaintenance(
             index,
             fileStore,
             new FixedAudioCacheLimitProvider(),
-            protection);
+            protection,
+            planStore);
         var cache = new AudioCacheFacade(
             index,
             fileStore,

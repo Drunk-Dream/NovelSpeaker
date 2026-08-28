@@ -191,28 +191,28 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
             () => desktopLifecycle.IsExitApproved);
         _setMainWindow(window);
         await CompleteShellStartupAsync(
+            RunStartupCacheMaintenanceAsync,
             desktopLifecycle.StartAsync,
             RequireServices().GetRequiredService<IMediaControlCoordinator>().StartAsync,
-            StartBackgroundCacheMaintenance,
             CloseStartupStatus,
             cancellationToken).ConfigureAwait(true);
     }
 
     internal static async Task CompleteShellStartupAsync(
+        Func<CancellationToken, Task> runStartupMaintenanceAsync,
         Func<CancellationToken, Task> startDesktopLifecycleAsync,
         Func<CancellationToken, Task> startMediaControlsAsync,
-        Action<CancellationToken> startBackgroundMaintenance,
         Action closeStartupStatus,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(runStartupMaintenanceAsync);
         ArgumentNullException.ThrowIfNull(startDesktopLifecycleAsync);
         ArgumentNullException.ThrowIfNull(startMediaControlsAsync);
-        ArgumentNullException.ThrowIfNull(startBackgroundMaintenance);
         ArgumentNullException.ThrowIfNull(closeStartupStatus);
 
+        await runStartupMaintenanceAsync(cancellationToken).ConfigureAwait(true);
         await startDesktopLifecycleAsync(cancellationToken).ConfigureAwait(true);
         await startMediaControlsAsync(cancellationToken).ConfigureAwait(true);
-        startBackgroundMaintenance(cancellationToken);
         closeStartupStatus();
     }
 
@@ -385,13 +385,34 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     private ServiceProvider RequireServices() =>
         _serviceProvider ?? throw new InvalidOperationException("应用服务容器尚未初始化。");
 
-    private void StartBackgroundCacheMaintenance(CancellationToken processToken)
+    private async Task RunStartupCacheMaintenanceAsync(CancellationToken cancellationToken)
     {
-        var cacheWorkspace = RequireServices().GetRequiredService<ICacheWorkspaceService>();
-        _backgroundTasks.Register(
-            "audio-cache-maintenance",
-            cacheWorkspace.TrimToConfiguredLimitAsync,
-            processToken);
+        try
+        {
+            var cacheStore = RequireServices().GetRequiredService<IAudioCacheStore>();
+            await cacheStore
+                .RunStartupMaintenanceAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            try
+            {
+                RecordLifecycleFailure(
+                    "audio-cache-maintenance",
+                    "启动缓存维护失败，将继续启动。",
+                    exception);
+            }
+            catch
+            {
+                // Startup maintenance is best effort; diagnostics must not prevent the shell
+                // from becoming interactive when their own sink is unavailable.
+            }
+        }
     }
 
     private static LogLevel ParseLogLevel(string? value)

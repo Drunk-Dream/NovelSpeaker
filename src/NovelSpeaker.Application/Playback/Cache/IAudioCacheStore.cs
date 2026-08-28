@@ -48,4 +48,11 @@ public interface IAudioCacheStore
     Task<AudioCacheStoreCleanupResult> ClearAllAsync(CancellationToken cancellationToken);
 
     Task RunMaintenanceAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Runs the startup-only cache maintenance pass, including cleanup of plans without
+    /// any persisted cache index entry. This must complete before interactive playback
+    /// or cache work can create a new plan.
+    /// </summary>
+    Task RunStartupMaintenanceAsync(CancellationToken cancellationToken);
 }

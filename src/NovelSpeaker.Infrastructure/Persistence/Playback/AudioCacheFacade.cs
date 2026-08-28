@@ -243,6 +243,22 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
 
     public async Task RunMaintenanceAsync(CancellationToken cancellationToken)
     {
+        await RunMaintenanceCoreAsync(
+            cleanupOrphanedPlans: false,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task RunStartupMaintenanceAsync(CancellationToken cancellationToken)
+    {
+        await RunMaintenanceCoreAsync(
+            cleanupOrphanedPlans: true,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task RunMaintenanceCoreAsync(
+        bool cleanupOrphanedPlans,
+        CancellationToken cancellationToken)
+    {
         var changes = new List<CacheChangedEventArgs>();
         var seenChanges = new HashSet<CacheChangedEventArgs>();
         try
@@ -250,6 +266,7 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
             await RunExclusiveAsync(
                 ct => _maintenance.RunAsync(
                     ct,
+                    cleanupOrphanedPlans,
                     change =>
                     {
                         if (seenChanges.Add(change))

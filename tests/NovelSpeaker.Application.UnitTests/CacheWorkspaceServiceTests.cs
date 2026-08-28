@@ -800,6 +800,8 @@ public sealed class CacheWorkspaceServiceTests
 
         public bool MaintenanceRequested { get; private set; }
 
+        public bool StartupMaintenanceRequested { get; private set; }
+
         public (string BookId, int ChapterIndex)? ClearedChapter { get; private set; }
 
         public (string BookId, int[] ChapterIndices)? ClearedChapters { get; private set; }
@@ -861,6 +863,12 @@ public sealed class CacheWorkspaceServiceTests
         public Task RunMaintenanceAsync(CancellationToken cancellationToken)
         {
             MaintenanceRequested = true;
+            return Task.CompletedTask;
+        }
+
+        public Task RunStartupMaintenanceAsync(CancellationToken cancellationToken)
+        {
+            StartupMaintenanceRequested = true;
             return Task.CompletedTask;
         }
 
@@ -1119,6 +1127,9 @@ public sealed class CacheWorkspaceServiceTests
             _plans[plan.ChapterId] = plan;
             return Task.CompletedTask;
         }
+
+        public Task<int> DeletePlansWithoutCacheEntriesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(0);
     }
 
     private sealed class BlockingStableProfileRepository(

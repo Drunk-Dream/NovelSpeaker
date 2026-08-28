@@ -141,6 +141,9 @@ public sealed class ChapterSpeechPlanServiceTests
             SavedPlans.Add(plan);
             return Task.CompletedTask;
         }
+
+        public Task<int> DeletePlansWithoutCacheEntriesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(0);
     }
 
     private sealed class FixedPipeline(IReadOnlyList<SpeechSegment> segments) : IRegexReplacementPipeline

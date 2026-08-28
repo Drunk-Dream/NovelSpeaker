@@ -628,6 +628,119 @@ public sealed class SqliteAudioCacheTests
     }
 
     [Fact]
+    public async Task RunStartupMaintenanceAsync_removes_plans_without_cache_entries_and_cascades_segments()
+    {
+        var fixture = await CreateFixtureAsync();
+        var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
+        await planStore.SaveAsync(
+            CreatePlan(
+                "cache-chapter-1-0",
+                ChapterSpeechPlanState.Ready,
+                [CreatePlanSegment(0, 0, "从未缓存")]),
+            CancellationToken.None);
+
+        await fixture.Cache.RunMaintenanceAsync(CancellationToken.None);
+
+        Assert.NotNull(await planStore.GetAsync("cache-chapter-1-0", CancellationToken.None));
+
+        await fixture.Cache.RunStartupMaintenanceAsync(CancellationToken.None);
+
+        Assert.Null(await planStore.GetAsync("cache-chapter-1-0", CancellationToken.None));
+        await using var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT COUNT(*) FROM ChapterSpeechPlanSegments WHERE ChapterId = 'cache-chapter-1-0';";
+        Assert.Equal(0L, (long)(await command.ExecuteScalarAsync(CancellationToken.None))!);
+
+        await fixture.Cache.RunStartupMaintenanceAsync(CancellationToken.None);
+        Assert.Null(await planStore.GetAsync("cache-chapter-1-0", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RunStartupMaintenanceAsync_keeps_plan_when_an_old_profile_cache_entry_is_protected()
+    {
+        var registry = new AudioCacheProtectionRegistry();
+        var fixture = await CreateFixtureAsync(registry: registry);
+        var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
+        await planStore.SaveAsync(
+            CreatePlan(
+                "cache-chapter-1-0",
+                ChapterSpeechPlanState.Ready,
+                [CreatePlanSegment(0, 0, "旧配置缓存")]),
+            CancellationToken.None);
+        var key = TestAudioCacheKey.Create("book-1", 0, 0, 99, 13, "旧配置缓存");
+        var stored = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                key,
+                "book-1",
+                0,
+                99,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+
+        using (registry.Protect(stored.FilePath))
+        {
+            fixture.LimitProvider.CurrentLimitBytes = 0;
+            await fixture.Cache.RunStartupMaintenanceAsync(CancellationToken.None);
+        }
+
+        Assert.NotNull(await planStore.GetAsync("cache-chapter-1-0", CancellationToken.None));
+        Assert.NotNull(await fixture.Cache.TryGetAsync(key, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RunStartupMaintenanceAsync_runs_plan_cleanup_after_lru_eviction()
+    {
+        var registry = new AudioCacheProtectionRegistry();
+        var planStore = new RecordingChapterSpeechPlanStore();
+        var fixture = await CreateFixtureAsync(registry: registry, speechPlanStore: planStore);
+        var retainedKey = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "保留段");
+        var evictedKey = TestAudioCacheKey.Create("book-1", 1, 0, 1, 10, "淘汰段");
+        var retained = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                retainedKey,
+                "book-1",
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                evictedKey,
+                "book-1",
+                1,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoWavPath),
+                "audio/wav"),
+            CancellationToken.None);
+
+        var evictedEntryCountAtCleanup = -1L;
+        planStore.DeleteHandler = async cancellationToken =>
+        {
+            await using var connection = await fixture.ConnectionFactory
+                .OpenConnectionAsync(cancellationToken);
+            var command = connection.CreateCommand();
+            command.CommandText =
+                "SELECT COUNT(*) FROM AudioCacheEntries WHERE CacheKey = $cacheKey;";
+            command.Parameters.AddWithValue("$cacheKey", Encoding.UTF8.GetBytes(evictedKey.Value));
+            evictedEntryCountAtCleanup = (long)(await command
+                .ExecuteScalarAsync(cancellationToken))!;
+            return 0;
+        };
+
+        using (registry.Protect(retained.FilePath))
+        {
+            fixture.LimitProvider.CurrentLimitBytes = new FileInfo(retained.FilePath).Length + 1;
+            await fixture.Cache.RunStartupMaintenanceAsync(CancellationToken.None);
+        }
+
+        Assert.Equal(1, planStore.DeleteCallCount);
+        Assert.Equal(0L, evictedEntryCountAtCleanup);
+    }
+
+    [Fact]
     public async Task RunMaintenanceAsync_removes_missing_and_long_unused_corrupt_entries_with_chapter_notifications()
     {
         var timeProvider = new ManualTimeProvider();
@@ -1177,7 +1290,8 @@ public sealed class SqliteAudioCacheTests
     private static async Task<CacheFixture> CreateFixtureAsync(
         long? cacheLimitBytes = null,
         AudioCacheProtectionRegistry? registry = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IChapterSpeechPlanStore? speechPlanStore = null)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var directories = new AppDataDirectoryProvider(root);
@@ -1218,7 +1332,14 @@ public sealed class SqliteAudioCacheTests
         var cacheConnectionFactory = new CountingSqliteConnectionFactory(factory);
         var index = new SqliteAudioCacheIndex(cacheConnectionFactory, timeProvider ?? TimeProvider.System);
         var fileStore = new AudioCacheFileStore(directories, pathResolver, registry);
-        var maintenance = new AudioCacheMaintenance(index, fileStore, limitProvider, registry, timeProvider);
+        var planStore = speechPlanStore ?? new SqliteChapterSpeechPlanStore(factory);
+        var maintenance = new AudioCacheMaintenance(
+            index,
+            fileStore,
+            limitProvider,
+            registry,
+            planStore,
+            timeProvider);
         var cache = new AudioCacheFacade(index, fileStore, maintenance, registry, new AudioProbe());
         return new CacheFixture(directories, factory, cacheConnectionFactory, cache, limitProvider);
     }
@@ -1263,6 +1384,30 @@ public sealed class SqliteAudioCacheTests
         var tempPath = Path.Combine(Path.GetTempPath(), $"{Path.GetRandomFileName()}{extension}");
         File.Copy(sourcePath, tempPath, overwrite: true);
         return tempPath;
+    }
+
+    private sealed class RecordingChapterSpeechPlanStore : IChapterSpeechPlanStore
+    {
+        public Func<CancellationToken, Task<int>>? DeleteHandler { get; set; }
+
+        public int DeleteCallCount { get; private set; }
+
+        public Task<ChapterSpeechPlan?> GetAsync(
+            string chapterId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task SaveAsync(
+            ChapterSpeechPlan plan,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<int> DeletePlansWithoutCacheEntriesAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            DeleteCallCount++;
+            return DeleteHandler?.Invoke(cancellationToken) ?? Task.FromResult(0);
+        }
     }
 
     private sealed record CacheFixture(

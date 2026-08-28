@@ -31,7 +31,7 @@ public sealed class WpfStartupRuntimeTests
     [Fact]
     public async Task Shell_failure_keeps_startup_status_open_for_error_projection()
     {
-        foreach (var failurePoint in new[] { "desktop", "media", "background" })
+        foreach (var failurePoint in new[] { "maintenance", "desktop", "media" })
         {
             await Shell_failure_keeps_startup_status_open_for_error_projection_for_failure_point(failurePoint);
         }
@@ -45,19 +45,15 @@ public sealed class WpfStartupRuntimeTests
 
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 WpfStartupRuntime.CompleteShellStartupAsync(
+                    _ => failurePoint == "maintenance"
+                        ? Task.FromException(new InvalidOperationException("maintenance"))
+                        : Task.CompletedTask,
                     _ => failurePoint == "desktop"
                         ? Task.FromException(new InvalidOperationException("desktop"))
                         : Task.CompletedTask,
                     _ => failurePoint == "media"
                         ? Task.FromException(new InvalidOperationException("media"))
                         : Task.CompletedTask,
-                    _ =>
-                    {
-                        if (failurePoint == "background")
-                        {
-                            throw new InvalidOperationException("background");
-                        }
-                    },
                     () => statusCloseCalls++,
                     CancellationToken.None));
 
@@ -75,6 +71,11 @@ public sealed class WpfStartupRuntimeTests
             await WpfStartupRuntime.CompleteShellStartupAsync(
                 _ =>
                 {
+                    events.Add("maintenance");
+                    return Task.CompletedTask;
+                },
+                _ =>
+                {
                     events.Add("desktop");
                     return Task.CompletedTask;
                 },
@@ -83,11 +84,10 @@ public sealed class WpfStartupRuntimeTests
                     events.Add("media");
                     return Task.CompletedTask;
                 },
-                _ => events.Add("background"),
                 () => events.Add("close"),
                 CancellationToken.None);
 
-            Assert.Equal(["desktop", "media", "background", "close"], events);
+            Assert.Equal(["maintenance", "desktop", "media", "close"], events);
         });
     }
 

@@ -117,6 +117,23 @@ public sealed class SqliteChapterSpeechPlanStore : IChapterSpeechPlanStore
         }
     }
 
+    public async Task<int> DeletePlansWithoutCacheEntriesAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory
+            .OpenConnectionAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            DELETE FROM ChapterSpeechPlans
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM AudioCacheEntries
+                WHERE AudioCacheEntries.ChapterId = ChapterSpeechPlans.ChapterId);
+            """;
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private static async Task UpdateHeaderAsync(
         SqliteConnection connection,
         SqliteTransaction transaction,

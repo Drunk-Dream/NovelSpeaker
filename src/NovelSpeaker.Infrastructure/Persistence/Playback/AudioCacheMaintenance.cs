@@ -15,6 +15,7 @@ internal sealed class AudioCacheMaintenance
     private readonly IAudioCacheLimitProvider _limitProvider;
     private readonly IAudioCacheProtectionRegistry _protectionRegistry;
     private readonly AudioProbe _audioProbe;
+    private readonly IChapterSpeechPlanStore _speechPlanStore;
     private readonly TimeProvider _timeProvider;
     private static readonly TimeSpan LongUnusedValidationAge = TimeSpan.FromDays(30);
 
@@ -23,6 +24,7 @@ internal sealed class AudioCacheMaintenance
         AudioCacheFileStore fileStore,
         IAudioCacheLimitProvider limitProvider,
         IAudioCacheProtectionRegistry protectionRegistry,
+        IChapterSpeechPlanStore speechPlanStore,
         TimeProvider? timeProvider = null,
         AudioProbe? audioProbe = null)
     {
@@ -32,10 +34,12 @@ internal sealed class AudioCacheMaintenance
         _protectionRegistry = protectionRegistry;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _audioProbe = audioProbe ?? new AudioProbe();
+        _speechPlanStore = speechPlanStore ?? throw new ArgumentNullException(nameof(speechPlanStore));
     }
 
     public async Task<bool> RunAsync(
         CancellationToken cancellationToken,
+        bool cleanupOrphanedPlans,
         Action<CacheChangedEventArgs>? cacheChanged = null)
     {
         var changed = false;
@@ -90,9 +94,18 @@ internal sealed class AudioCacheMaintenance
             cacheChanged?.Invoke(new CacheChangedEventArgs(null, null));
         }
 
-        return await EnforceLimitAsync(
+        var limitChanged = await EnforceLimitAsync(
             cancellationToken,
-            () => cacheChanged?.Invoke(new CacheChangedEventArgs(null, null))).ConfigureAwait(false) || changed;
+            () => cacheChanged?.Invoke(new CacheChangedEventArgs(null, null))).ConfigureAwait(false);
+        if (cleanupOrphanedPlans && await _speechPlanStore
+                .DeletePlansWithoutCacheEntriesAsync(cancellationToken)
+                .ConfigureAwait(false) > 0)
+        {
+            changed = true;
+            cacheChanged?.Invoke(new CacheChangedEventArgs(null, null));
+        }
+
+        return changed || limitChanged;
     }
 
     public async Task<bool> EnforceLimitAsync(
