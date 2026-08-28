@@ -1,6 +1,7 @@
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
+using NovelSpeaker.TestKit.Wpf;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Architecture;
@@ -10,6 +11,11 @@ public sealed class VisualReviewManifestTests
     [Fact]
     public void Root_manifest_covers_every_family_page_window_scene_and_verified_screenshot()
     {
+        if (!VisualArtifactTestGuard.IsEnabled)
+        {
+            return;
+        }
+
         var repositoryRoot = LocateRepositoryRoot();
         var visualRoot = Path.Combine(repositoryRoot, "artifacts", "visual-review");
         var rootManifestPath = Path.Combine(visualRoot, "manifest.json");

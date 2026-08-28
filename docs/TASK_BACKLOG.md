@@ -138,7 +138,7 @@ Codex 执行任务时不得删除已完成任务：完成后将状态改为 `[x]
 
 ## Phase C：Transient UI 自动调试收口
 
-## [ ] T004（P1）：调试并收口 transient UI Single Surface 初版
+## [x] T004（P1）：调试并收口 transient UI Single Surface 初版
 
 目标：
 
@@ -163,6 +163,12 @@ Codex 执行任务时不得删除已完成任务：完成后将状态改为 `[x]
 - ContentDialog 自动契约证明 Body 无可见 chrome，StartupStatusWindow 自动契约证明 Embedded 状态没有第二层 Section Surface。
 - 默认测试不设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`；视觉产物如需生成仍运行在隐藏 Desktop。
 - WPF/Presentation 定向测试通过。
+
+完成成果：
+
+- 已保留 ContentDialog、AppStatusView Embedded、StartupStatusWindow 与 Style Gallery 的 Single Surface 契约，并修复默认 WPF 测试错误读取被忽略视觉产物的问题。
+- 已让视觉 manifest 校验仅在显式 `NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 时运行，默认测试不依赖本地 PNG 或子 manifest。
+- 已执行 T004 定向及完整 WPF/Presentation 测试；详细结果见交付说明。
 
 ## Phase D：朗读清单持久化收口
 
