@@ -11,6 +11,7 @@
 - 将发布主程序从 `NovelSpeaker.App.exe` 统一改名为 `NovelSpeaker.exe`，并清除运行时代码对主程序文件名的硬编码。
 - 保持现有 SQLite schema migration 体系；本轮“无兼容”只针对数据根目录切换。
 - 调试并收口 ContentDialog、StartupStatusWindow 与 `AppStatusView` Embedded 模式的 Single Surface 初版。
+- 收口朗读清单生命周期：启动缓存维护后不长期保留任何无缓存索引章节的 `ChapterSpeechPlans` / `ChapterSpeechPlanSegments`。
 - 完成发布产物、数据安全边界、文档一致性和完整自动质量门禁验收。
 
 稳定产品、架构、数据、测试与视觉约束分别以数字编号文档为准。本文件只描述尚未完成的实施顺序和自动验收。
@@ -181,11 +182,46 @@
 - 默认测试不设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`；视觉产物如需生成仍运行在隐藏 Desktop。
 - WPF/Presentation 定向测试通过。
 
-## Phase D：整体质量与发布合同验收
+## Phase D：朗读清单持久化收口
 
-## [ ] T005（P0）：执行跨模块审阅并完成阶段质量门禁
+## [ ] T005（P0）：清理无缓存索引的残留章节朗读清单
 
-依赖：T001–T004。
+目标：
+
+- 避免仅加载/生成过朗读计划但从未留下音频缓存的章节长期占用 `ChapterSpeechPlans` 与 `ChapterSpeechPlanSegments`。
+- 保持现有“删除最后一条缓存时同步删除计划”的即时回收机制，同时增加启动维护的最终兜底收敛。
+- 不在计划提交到音频缓存落盘之间的活动窗口执行即时孤立计划删除，避免播放、预取、主动缓存或导出产生竞态。
+
+实施：
+
+- 为 SQLite 朗读清单 store/repository 增加集合式清理能力，删除所有不存在任何 `AudioCacheEntries` 的 `ChapterSpeechPlans`；优先使用单条集合 SQL / 等价常数级数据库操作，不逐章查询。
+- `ChapterSpeechPlanSegments` 继续依靠既有 `ON DELETE CASCADE` 回收，不新增第二套手工段删除流程。
+- 将该清理接入启动缓存维护流程，并明确顺序：先完成缺失/损坏缓存索引修复及容量/LRU 淘汰，再清理最终无任何缓存索引的残留计划。
+- 保持现有缓存删除事务语义：某章最后一条缓存索引在运行时被删除时仍立即同步删除计划，不等待下一次启动。
+- 只要章节仍存在任意缓存索引（包括旧合成配置或当前受保护条目），启动维护不得删除其朗读清单。
+- 不读取章节正文、不执行正则、不重新生成朗读清单，也不为了判断孤立状态扫描音频目录；孤立判断只基于 SQLite `AudioCacheEntries`。
+- 清理必须幂等；数据库为空、无孤立计划或重复执行均安全。
+
+自动测试：
+
+- seed 仅有 `ChapterSpeechPlans` + `ChapterSpeechPlanSegments`、无 `AudioCacheEntries` 的章节，启动维护后计划与段均删除。
+- seed 至少一条缓存索引的章节，启动维护后计划与段保留；覆盖旧 synthesis profile / 非当前配置缓存仍属于“有缓存”。
+- 缓存文件缺失或损坏导致索引在同轮健康维护中被删除后，对应计划随后被孤立清理回收，证明维护顺序正确。
+- 重复执行维护保持幂等，不产生异常或额外数据变化。
+- 保持既有“删除最后一条缓存索引时同事务删除计划”的测试，不把它退化为仅启动时清理。
+- 测试不依赖真实用户数据目录或可见窗口。
+
+验收：
+
+- 数据库不会因反复加载但从未形成缓存的章节跨启动无限积累朗读清单。
+- 清理实现为集合式/常数级数据库维护，不形成逐章 N+1。
+- 相关 Infrastructure/Application 定向测试通过。
+
+## Phase E：整体质量与发布合同验收
+
+## [ ] T006（P0）：执行跨模块审阅并完成阶段质量门禁
+
+依赖：T001–T005。
 
 目标：
 
@@ -198,6 +234,7 @@
 - 复查旧 `%LocalAppData%/NovelSpeaker` 没有迁移、探测、fallback 或兼容入口；同时确认 SQLite schema migration runner 与既有 migration 保持完整。
 - 复查 `NOVELSPEAKER_DATA_ROOT` 和 Development 环境只承担明确的开发/诊断职责，不泄漏为隐藏的多套生产存储模式。
 - 复查正式 Data 根的路径安全、书籍删除、缓存维护、Operations journal、日志和 settings 全部使用同一个根目录 provider。
+- 复查启动缓存维护在索引修复/LRU 淘汰后会集合式清除无任何 `AudioCacheEntries` 的残留朗读清单，并且仍有缓存的章节不会被误删。
 - 复查生产运行不依赖 `NovelSpeaker.App.exe` 硬编码；需要 executable path 的功能均使用实际当前进程路径。
 - 复查根 `README.md` 只描述已经落地的 `NovelSpeaker.exe`、便携 `Data/` 与开发命令，不保留旧运行说明。
 - 复查 `AGENTS.md`、`docs/README.md` 和 `TASK_BACKLOG.md` 不再要求创建任务归档；仓库中不存在 `docs/archives/`。
