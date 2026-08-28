@@ -213,7 +213,7 @@ Codex 执行任务时不得删除已完成任务：完成后将状态改为 `[x]
 
 ## Phase E：视觉验收资产与默认测试解耦
 
-## [ ] T006（P1）：将 `visual-review` 降级为按需生成资产
+## [x] T006（P1）：将 `visual-review` 降级为按需生成资产
 
 目标：
 
@@ -246,6 +246,13 @@ Codex 执行任务时不得删除已完成任务：完成后将状态改为 `[x]
 - 显式 UI 开发仍可以生成 Light/Dark、页面/窗口和 Gallery 视觉资产进行人工比较。
 - Style Gallery、fixture、截图宿主和失败诊断能力没有因清理历史资产而被删除。
 - 受影响 WPF/Presentation 定向测试通过。
+
+完成成果：
+
+- 删除已跟踪的根 visual-review manifest，并让整个 `artifacts/visual-review/` 仅作为可删除、可重建的本地生成目录；默认测试不再读取历史视觉资产。
+- 移除依赖仓库历史 PNG/manifest/hash 的 `VisualReviewManifestTests`，保留 Page/Window/Style Gallery 生成器、显式 guard 和失败诊断边界。
+- 根 manifest 工具会按需创建输出目录，并兼容 Windows PowerShell 5；README 已说明视觉产物不是测试基线或发布输入。
+- 已在目录完全不存在时通过受影响 WPF/Presentation 测试，并以显式 guard 在临时目录重复生成 Style Gallery 截图；全 WPF 套件主体 152 个测试通过，但两次均在既有 `WpfDispatcher` 集合清理阶段超时，详见交付说明。
 
 ## Phase F：整体质量与发布合同验收
 

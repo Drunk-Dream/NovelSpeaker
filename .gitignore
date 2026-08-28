@@ -31,7 +31,6 @@ artifacts/
 artifacts/*
 !artifacts/visual-review/
 artifacts/visual-review/*
-!artifacts/visual-review/manifest.json
 
 # OS files
 .DS_Store
