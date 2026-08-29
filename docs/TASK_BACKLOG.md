@@ -2,281 +2,226 @@
 
 ## 1. 阶段定位
 
-当前阶段围绕发布目录与数据根目录合同收口，继续完成 transient UI Single Surface 初版的自动调试，并把历史视觉截图资产从默认质量门禁中解耦。
+当前阶段只围绕 **UI 交互样式收口** 展开，以 `docs/13_VISUAL_DESIGN_SYSTEM.md` 定义的“克制型 Fluent”为最终视觉合同。上一轮已完成任务不在本文件继续保留，历史由 Git 追溯。
 
 本轮目标：
 
-- 将正式运行数据根目录切换为程序目录下的 `Data/`，不保留旧 `%LocalAppData%/NovelSpeaker` 的迁移、探测或回退逻辑。
-- 将默认开发运行数据隔离到 `%LocalAppData%/NovelSpeaker.Dev`，自动测试继续使用测试自身的临时目录。
-- 将发布主程序从 `NovelSpeaker.App.exe` 统一改名为 `NovelSpeaker.exe`，并清除运行时代码对主程序文件名的硬编码。
-- 保持现有 SQLite schema migration 体系；本轮“无兼容”只针对数据根目录切换。
-- 调试并收口 ContentDialog、StartupStatusWindow 与 `AppStatusView` Embedded 模式的 Single Surface 初版。
-- 收口朗读清单生命周期：启动缓存维护后不长期保留任何无缓存索引章节的 `ChapterSpeechPlans` / `ChapterSpeechPlanSegments`。
-- 将 `artifacts/visual-review/` 降级为显式 UI 开发/验收时按需生成的本地临时资产，保留视觉工具能力但移除默认测试对历史 PNG/manifest/hash 的依赖。
-- 完成发布产物、数据安全边界、文档一致性和完整自动质量门禁验收。
+- 建立统一的 Hover / Pressed / Keyboard Focus / Selected/Checked 交互语义与 Light / Dark / High Contrast 主题资源。
+- 消除播放器媒体按钮悬浮时出现的大面积方框、ToolbarValue 外层 Button 与内部 Pill 的双层反馈等典型问题。
+- 统一播放进度、竖向音量、语速、定时停止等播放器交互样式，并保持现有 TTS 变量、缓存和播放业务语义不变。
+- 收口 TextBox、ComboBox、ToggleSwitch、列表项、ContextMenu/MenuItem、Separator 等公共控件族的状态边界。
+- 消除页面局部硬编码交互色、重复 Hover owner 和不完整/依附 MenuItem 的分隔线。
+- 通过 WPF 契约、Style Gallery、确定性页面渲染和完整质量门禁建立可重复验收证据；人工视觉判断可以用于后续设计反馈，但不是任务关闭条件。
 
-稳定产品、架构、数据、测试与视觉约束分别以数字编号文档为准。本文件描述当前实施顺序、任务状态和自动验收；Codex 完成的任务在下一次任务规划前继续保留，便于直接查看本轮成果。
+稳定产品、架构、测试与视觉终态分别以数字编号文档为准。本文件只描述实施顺序、任务状态和自动验收。
 
 ## 2. 状态与优先级
 
 - `[ ]`：未开始。
 - `[-]`：进行中。
 - `[x]`：已完成；任务末尾必须附简短“完成成果”。
-- `[!]`：存在阻塞，必须在任务结果中记录可复现原因。
-- `P0`：数据安全、运行隔离、发布产物或完整质量门禁。
-- `P1`：结构清理、视觉收口和长期可维护性。
+- `[!]`：存在阻塞，必须记录可复现原因。
+- `P0`：会影响全局交互一致性、主题/可访问性、核心播放器操作或完整质量门禁。
+- `P1`：局部样式迁移、视觉收口和长期可维护性。
 
-Codex 执行任务时不得删除已完成任务：完成后将状态改为 `[x]`，并在任务末尾记录主要实现、测试/门禁结果和必要的限制说明。
-
-删除、重写或插入任务只发生在新的任务规划阶段：
-
-- **插入任务**：保留现有任务、状态和成果，在合适依赖位置新增任务；必要时可顺延尚未完成任务编号并同步依赖。本次规划采用该方式。
-- **删除/重写任务**：仅在新的规划明确要求清理或重新制定计划时使用；不建立 `archives/`，被替换历史由 Git 保存。
-- 已完成任务不会因为 Codex 刚刚完成就自动消失；是否在后续规划中清理，由该次规划决定。
+Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才允许再次删除或重写 Backlog。
 
 ## 3. Codex 执行规则
 
 1. 默认一次只执行一个编号任务；完成后停止，不自动开始下一项。
-2. 执行前至少阅读：
+2. UI 任务至少阅读：
    - `AGENTS.md`
-   - `docs/02_TECH_STACK_AND_ARCHITECTURE.md`
-   - `docs/05_DATA_AND_PERSISTENCE.md`
+   - `docs/06_UI_AND_USER_FLOWS.md`
    - `docs/09_TESTING_AND_QUALITY.md`
    - `docs/10_ENGINEERING_CONVENTIONS.md`
-   - `docs/11_DECISIONS_RISKS_OPEN_QUESTIONS.md`
-   - 当前任务直接涉及的生产代码和测试。
-3. 不为旧 `%LocalAppData%/NovelSpeaker` 增加自动发现、复制、迁移提示、fallback、双读/双写或兼容 wrapper；发现现有相关入口时直接按目标合同清理。
-4. 不删除、合并或重编号现有 SQLite schema migration；数据根目录切换与数据库 schema 升级是独立问题。
-5. 数据根目录选择不得依赖 `#if DEBUG`。开发/诊断行为必须通过明确运行配置或显式数据根覆盖表达。
-6. 自动测试不得读取或写入正式 `Data/`、`%LocalAppData%/NovelSpeaker.Dev` 或旧 `%LocalAppData%/NovelSpeaker`；测试必须显式拥有临时数据根。
-7. 运行时代码不得硬编码 `NovelSpeaker.exe` 或 `NovelSpeaker.App.exe` 来寻找当前进程；需要当前 executable 路径时使用平台/运行时提供的实际进程路径。
-8. 根 `README.md` 只描述当前已经实现的行为。涉及 README 的更新必须与对应实现任务一起完成，不能提前声明未落地能力。
-9. 每个任务都优先补充/修改已有自动测试，不为了形式制造大量细粒度重复 case。
-10. 默认测试不得设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`；视觉产物生成仍运行在隔离隐藏 Desktop。
-11. 用户要求提交时，按逻辑目的拆分原子提交，不把整个编号任务机械压成一个大提交。
-12. 任务完成时将自身状态更新为 `[x]`，在该任务末尾增加 `完成成果：`，用 1–4 个短项记录主要改动与自动验收；不要自行删除任务、重排其它任务或创建归档。
+   - `docs/13_VISUAL_DESIGN_SYSTEM.md`
+   - 当前任务直接涉及的生产 XAML、code-behind/ViewModel 和现有 WPF 测试。
+3. 不重做整套应用主题，不引入新的 UI 框架；继续以 Wpf.Ui Provider + NovelSpeaker 公共资源层为基础。
+4. 先修正公共 owner，再迁移页面调用方。不得在页面局部复制 Hover/Pressed/Focus/Selected Trigger 来快速绕过公共样式缺口。
+5. 页面和 Feature XAML 不得新增硬编码交互颜色；主题差异必须由 Palette/语义 Brush 处理。
+6. 一个控件树只允许一个主要 Hover owner。发现 Button + Border/Pill、ListItem + Card 等双层反馈时，明确唯一 owner 后删除重复状态层。
+7. Mouse Hover/Pressed 不得伪装 Keyboard Focus；键盘导航、Automation、Disabled、Validation 和 High Contrast 语义不能为了“更干净”被弱化掉。
+8. 不改变 `speakSpeed` 的领域范围、步进、TTS 规则变量语义、缓存身份和现有异步提交逻辑；本轮只调整交互呈现和必要的 presentation state。
+9. 不改变播放、定时停止、音量和规则选择的业务行为；若实现新视觉需要新增 ViewModel 状态，只允许加入纯 presentation 状态，并增加对应测试。
+10. WPF 自动测试默认运行在隐藏 Desktop，不设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`。需要视觉产物时使用现有显式视觉生成机制。
+11. 每个任务优先扩展已有 Gallery scene 和聚合契约测试，避免为每个控件/页面复制大量等价 case。
+12. 用户要求提交时按逻辑目的拆分原子提交，不把整个编号任务机械压成一个大提交。
+13. 任务完成时将自身状态更新为 `[x]`，在末尾增加 `完成成果：`，记录主要实现与自动验收结果；不得自行删除其它任务或创建任务归档。
 
-## Phase A：数据根目录与开发隔离
+## Phase A：交互资源与状态模型
 
-## [x] T001（P0）：建立统一的数据根目录解析合同
+## [ ] T001（P0）：建立 Interaction Palette、Motion 与状态优先级合同
 
 目标：
 
-- 建立唯一的数据根目录解析入口，明确正式运行、开发运行和显式覆盖三种路径来源。
-- 将“数据根在哪里”与“根目录内部有哪些文件/子目录”拆成两个职责，避免目录 provider 同时承担环境判断和目录布局。
+- 为后续所有控件提供唯一的 Hover / Pressed / SelectedHover / Focus / Disabled 主题资源入口。
+- 保持 Light、Dark 的感知强度一致，并为 Windows High Contrast 提供可辨识 fallback/映射。
+- 将现有零散动效时长收敛到 Fast / Standard / Slow Token，不在控件族中继续出现近似但不同的硬编码时长。
 
 实施：
 
-- 数据根 resolver 使用 `NOVELSPEAKER_DATA_ROOT` → Development `%LocalAppData%/NovelSpeaker.Dev` → 默认 `<base-directory>/Data` 的明确优先级。
-- 不使用编译符号决定运行数据位置；Debug/Release 不改变根目录合同。
-- 将旧 LocalAppData 专用 provider 重构为与具体宿主位置无关的应用数据目录 provider，并保留测试可注入根目录边界。
-- 根目录内部稳定布局保持 `app.db`、`settings.json`、`Books/`、`Cache/`、`Operations/`、`Logs/`。
+- 审计 `Palette.Light.xaml`、`Palette.Dark.xaml`、Provider bridge、主题切换和 `Motion.xaml`，新增/整理 `App.Brush.Interaction.*` 与 `App.Brush.Accent.Subtle.Hover` 等公共语义资源。
+- High Contrast 下优先投影到系统 Highlight/WindowText/GrayText/Focus 等可辨识语义；不得只依赖低透明度 Brush。
+- 将公共 Hover/Pressed/Selected/Focus 的颜色所有权从页面/Feature 局部资源迁回 Palette/Style owner，并删除已失效同义键。
+- 将公共动画统一到约 `100 ms` Fast、`160 ms` Standard、`220 ms` Slow；Popup/Flyout 的出现/退出只保留克制的淡入与轻微位移。
+- 更新 Style Gallery 的 Palette/Motion/基础状态场景，用稳定 family-id 展示 Light/Dark 与关键状态。
 
-完成成果：
+自动测试/验收：
 
-- 已引入 `AppDataRootResolver` 与通用 `AppDataDirectoryProvider`，统一数据根选择与内部目录布局职责。
-- 已补充 resolver/provider 定向测试并迁移相关测试调用方；未引入旧数据目录兼容逻辑。
+- 资源唯一性和主题热切换合同通过；已打开测试控件在 Light/Dark 切换后不保留旧 Brush。
+- High Contrast 模拟/系统资源投影测试证明 Focus、Selection、Disabled 仍可区分。
+- `rg` 不再发现生产 Page/Feature 为通用 Hover/Pressed/Focus 写死十六进制色或同义局部 Brush。
+- 受影响 WPF/Style Gallery 定向测试通过。
 
-## [x] T002（P0）：切换生产 Bootstrap 并隔离默认开发运行
+## Phase B：按钮与播放器样板
+
+## [ ] T002（P0）：收口 Button family 与播放器顶部/媒体按钮交互
 
 依赖：T001。
 
 目标：
 
-- 将 NovelSpeaker 正式运行切换到 `<application-directory>/Data`。
-- 确保仓库默认 `dotnet run` / IDE 开发启动使用 `%LocalAppData%/NovelSpeaker.Dev`，不会污染正式便携数据。
-- 清理旧 `%LocalAppData%/NovelSpeaker` 的生产依赖和兼容残留。
+- 消除媒体按钮 Hover 时出现的大面积方框。
+- 建立“内容反馈型媒体按钮”和“弱 Surface 型工具按钮”的稳定差异。
+- 去除播放器语速/定时入口中外层 Button + 内层 Pill 的双层 Hover/Pressed。
 
 实施：
 
-- 组合根使用统一 resolver 构建 `IAppDataDirectoryProvider`，不再直接依赖旧 LocalAppData provider。
-- 默认开发 profile 通过 `NOVELSPEAKER_ENVIRONMENT=Development` 表达开发模式，不硬编码机器绝对路径。
-- 正式数据目录按需创建，不要求发布包预置空 `Data/`。
-- 保持路径逃逸/reparse-point 防护与 SQLite schema migration 合同不变。
+- 调整 `Buttons.xaml` / `Media.xaml`：`App.Media.Button` Rest 透明、Hover 只增强 Foreground、Pressed 使用轻微内容反馈；Keyboard Focus 保留独立 Focus Ring。
+- `App.Button.Icon` / PageHeader 工具按钮继续使用弱 Hover Surface，但不使用明显 Hover Border。
+- 保持播放/暂停、上一/下一段、上一/下一章、音量入口图标尺寸一致；播放/暂停仅通过中心位置表达主操作。
+- 将 `App.Button.ToolbarValue` 与播放器语速/定时 Pill 重构为单一交互 Surface，避免宿主与内部 Border 分别高亮。
+- 同步迷你播放器的共享媒体 Button 行为，不改变其现有布局尺寸与窗口行为。
+- 更新 Button/Media Gallery scene 与 Player/MiniPlayer WPF 契约。
 
-完成成果：
+自动测试/验收：
 
-- 已切换 Bootstrap 到统一数据根解析，并新增 `launchSettings.json` 开发 profile 隔离默认开发数据。
-- 已增加 Launch Profile、Bootstrap 与数据根相关自动合同测试，并同步当前 README 的开发运行说明。
+- 媒体 Button Hover/Pressed 状态下 Background 保持透明或无大面积 Surface，Foreground 状态正确；Keyboard Focus 仍可见。
+- Player 的 Speed/Timer 入口只有一个主要 Hover owner，不存在外层与内层同时切换背景的视觉树合同。
+- Light/Dark/High Contrast 下按钮前景、Disabled、Focus 资源可解析。
+- Player/MiniPlayer 相关 WPF 定向测试通过。
 
-## Phase B：主程序命名与发布产物
+## [ ] T003（P0）：统一播放进度、竖向音量与语速/定时 Flyout
 
-## [x] T003（P0）：统一主程序为 `NovelSpeaker.exe`
+依赖：T002。
 
 目标：
 
-- 将发布后的主程序文件名从 `NovelSpeaker.App.exe` 改为 `NovelSpeaker.exe`。
-- 项目目录、项目名和命名空间保持现状，不为输出文件名做无关大规模重命名。
-- 消除源码、测试和发布脚本对旧 executable 名称的硬编码。
+- 建立播放器 Media Slider 统一视觉语言。
+- 完成用户确认的竖向音量、隐藏式播放进度 Thumb、语速原始整数和定时 Choice 交互。
+- 保持 Flyout/Popup Single Surface，不重新引入卡片嵌套。
 
 实施：
 
-- 在 `NovelSpeaker.App.csproj` 通过正式项目属性统一 assembly/output 名为 `NovelSpeaker`，不要在 publish 后执行临时文件重命名。
-- 审计托盘、图标、进程路径、启动/诊断等所有需要 executable path 的代码；需要当前进程路径时改用 `Environment.ProcessPath` 或同等可靠运行时入口，不把硬编码从旧名称替换成新名称。
-- 更新 `.github/workflows/release.yml` 的发布包内容校验，使其要求 `NovelSpeaker.exe` 且拒绝旧 `NovelSpeaker.App.exe`。
-- 保持发布 ZIP 的既有版本化文件名合同，除非源码中已有与主程序名直接冲突的错误逻辑。
-- 实现完成后同步根 `README.md` 的启动文件名和数据目录说明，使 README 与实际发布行为一致。
+- 在 `Media.xaml` 建立共享 Track/Thumb 基础，提供 `App.Media.ProgressSlider` 与 `App.Media.VolumeSlider`；不在 Player/MiniPlayer 页面复制 Slider 模板。
+- 播放进度使用 Accent 已播放轨道 + 弱中性未播放轨道；Thumb Rest 隐藏，Hover/Keyboard Focus/Dragging 显示，Dragging 时略强化。
+- Player 与 MiniPlayer 的音量 Flyout 统一为竖向 Slider，Thumb 默认显示，已设置/剩余轨道具有对比，0 音量图标保持静音语义。
+- 语速 Flyout 保留原始整数输入与 `−/+` 步进 1；Step Button 改为轻量紧凑反馈，TextBox 保留现有范围校验和提交逻辑。
+- 定时 Flyout 将 `15/30/45/60/90` 改为轻量 Choice；Active Timer 入口使用弱 Accent 持续状态，自定义时间和关闭定时保持次级/中性层级。
+- Popup/Flyout 内不增加完整 Card；仅使用现有 PopupSurface + 内容控件。
 
-自动测试/检查：
+自动测试/验收：
 
-- 增加或调整项目/发布合同测试，确认 publish 输出包含 `NovelSpeaker.exe`。
-- 确认 publish 输出不包含 `NovelSpeaker.App.exe`。
-- `rg` 确认生产源码、测试、workflow 和当前 README 不再把旧 executable 名称作为运行合同。
-- 托盘/图标路径相关测试不依赖硬编码文件名。
+- ProgressSlider 在 Rest/Hover/Focus/Dragging 的 Thumb 可见性与 Track 两段语义通过 WPF 契约。
+- VolumeSlider 为 Vertical、Thumb 默认可见、轨道两段资源独立，Player/MiniPlayer 使用同一公共样式。
+- `speakSpeed` 的 `1..20` 范围、默认值、步进和现有 TTS/cache 相关测试保持通过；UI 不出现 `1.0×` 等伪倍速映射。
+- 定时预设 Choice、Active 状态、自定义输入和取消命令保持原有业务结果。
+- Player/MiniPlayer 确定性渲染与定向测试通过。
 
-验收：
+## Phase C：输入、列表与菜单交互统一
 
-- self-contained `win-x64` publish 成功。
-- 自动包内容检查通过：主程序、LICENSE、THIRD-PARTY-NOTICES 和既有运行时依赖完整，且不包含测试/开发资产。
-- 受影响项目 build/test 通过。
+## [ ] T004（P0）：收口 Input、Selection 与设置行状态边界
 
-完成成果：
-
-- 已通过项目 `AssemblyName` 统一发布输出为 `NovelSpeaker.exe`，并将托盘图标解析切换为实际当前进程路径。
-- 已更新发布包校验、README 与托盘路径合同测试，发布目录及 ZIP 均拒绝旧 executable 名称。
-- 已执行 T003 定向 build/test 与 self-contained `win-x64` publish 检查；详细结果见交付说明。
-
-## Phase C：Transient UI 自动调试收口
-
-## [x] T004（P1）：调试并收口 transient UI Single Surface 初版
+依赖：T001。
 
 目标：
 
-- 对当前 ContentDialog、StartupStatusWindow 和 `AppStatusView` Embedded 模式的初版实现进行自动调试、修复和代码审阅。
-- 保证去除 Card-in-Dialog / Card-in-Window 后，不引入布局裁切、主题失配、Focus/Automation 回归或新的重复 Surface。
-- 不把人工视觉验收作为任务关闭条件；如需要截图，只能通过现有隐藏 Desktop 视觉产物宿主生成。
+- 让输入控件主要通过 Border 表达 Hover/Focus。
+- 消除 Selected 被普通 Hover 覆盖以及设置行空白区域产生错误 Hover 暗示的问题。
+- 保持 ToggleSwitch 已修复的 40 px 纯开关 Focus/HitTest 边界。
 
 实施：
 
-- 复查 `AppDialogVisuals.CreateBody(...)`、`App.Feedback.DialogBody` 及所有调用点，确认 ContentDialog 内容容器保持透明、无边框、无阴影、无额外 Surface Padding，同时保留稳定的 MinWidth/MaxWidth 和现有按钮语义。
-- 复查删除书籍、普通确认、未保存修改、编码选择和导入进度 Dialog，在长中文/英文、输入控件、CheckBox、进度条和 Danger 主按钮场景下都保持合理布局；不得为单个 Dialog 重新引入专属 Card。
-- 复查 `AppStatusView.IsEmbedded` 的模板触发器，确认 Embedded 只移除自身 Section chrome，不改变图标状态、Title、Description、Action、Automation 或状态颜色语义；默认非 Embedded 状态仍保持原有 Section Surface。
-- 复查 `StartupStatusWindow` 的单 Surface 结构、Light/Dark、Loading/Error、100%/125%/150% DPI 和紧凑尺寸；窗口自身是唯一 Raised Surface，内部不得出现第二层完整卡片。
-- 复查 Style Gallery 的 `surfaces` 与 `feedback` 场景，删除已失效的旧 Dialog Surface 展示，并让 Dialog 示例表达“host surface + flat body”的最终结构。
-- 保留 Flyout/Popup/Snackbar 当前唯一 Surface 边界，不为了统一结构做无关重构。
-- 增补或修正现有 WPF 契约测试，优先在已有聚合测试中覆盖 Single Surface、DialogBody flat chrome、Embedded 状态和 Startup 布局。
-- 执行代码审阅，检查资源键唯一性、旧键零引用、Theme DynamicResource、命名、可访问性和窗口测试隔离边界；发现问题直接修复。
+- TextBox/PasswordBox/ComboBox Rest 使用 Subtle Border，Hover 只增强 Border 并最多使用极弱 Surface，Open/Keyboard Focus 使用统一 Focus/Accent Border，Validation Error 优先级最高。
+- ToggleSwitch Hover/Pressed 只增强轨道/Thumb；On + Hover 在 Accent 持续状态上增强，不添加外围矩形。
+- Selection family 统一 `Disabled > Selected/Current+Hover > Selected/Current > Hover > Rest`，新增/复用 SelectedHover Accent 资源，禁止普通 Hover 把选中项改成中性灰。
+- 整行可点击列表由行容器拥有唯一 Hover；普通 `AppSettingsRow` 不提供整行 Hover，`AppSettingsNavigationRow` 保留整行导航反馈。
+- 审计规则卡片、章节列表、缓存管理、书库/详情等调用方，删除与公共 Selection/Input 重复的局部 Trigger。
 
-验收：
+自动测试/验收：
 
-- `rg` 证明稳定源码、测试和稳定设计文档中不存在 `App.Surface.DialogContent`、`App.Feedback.DialogContent`、`AppDialogVisuals.Wrap` 或旧 `StartupSurface` 引用。
-- ContentDialog 自动契约证明 Body 无可见 chrome，StartupStatusWindow 自动契约证明 Embedded 状态没有第二层 Section Surface。
-- 默认测试不设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`；视觉产物如需生成仍运行在隐藏 Desktop。
+- ComboBox/TextBox/ToggleSwitch 的 Hover/Focus/Validation/Checked 状态 WPF 合同通过。
+- 纯 ToggleSwitch 的可见轨道、Focus 和 HitTest 宽度继续保持 40 px 合同；带 Content 时自然扩展。
+- Selected/Current + Hover 不回退为普通 Hover Brush。
+- 设置行仅真实控件/导航行产生交互反馈；普通设置空白不成为可点击目标。
+- 受影响设置、规则、列表 WPF 定向测试通过。
+
+## [ ] T005（P1）：统一 ContextMenu/MenuItem 与独立 Separator
+
+依赖：T001。
+
+目标：
+
+- 建立菜单项单层 Hover/Pressed/Checked 反馈。
+- 修复当前菜单分组线长度/透明度不稳定、依附菜单项导致“分隔线不完整”的问题。
+
+实施：
+
+- 在 `Menus.xaml` 统一 Menu Surface、Item、DangerItem、Checked/Selected 和 Disabled 状态；MenuItem 不再叠加内部按钮式 Hover。
+- 新增/整理 `App.Menu.Separator`：独立 Separator、统一左右 inset、与文字列视觉对齐，不依附前/后 MenuItem Border。
+- Separator 不继承相邻项的 Disabled/Opacity/Hover 状态；首尾和连续分隔线按菜单结构规整。
+- ContextMenu、规则菜单、章节/缓存菜单和其它下拉菜单迁移到公共 Menu/Separator 资源；不在页面继续手工画分组底边。
+- 更新 Menu Gallery scene，覆盖普通、Hover、Pressed、Checked、Disabled、Danger 和多组 Separator。
+
+自动测试/验收：
+
+- Visual tree/资源合同证明 Separator 为独立元素并使用统一 inset，不是 MenuItem Bottom Border。
+- Disabled 菜单项不会改变相邻 Separator 的 Opacity/长度。
+- MenuItem 只有一个主要 Hover owner，Checked/Selected + Hover 保持持续状态。
+- ContextMenu 键盘打开、Focus、`Shift+F10`/Menu Key 等既有交互测试保持通过。
+
+## Phase D：全项目迁移与质量收口
+
+## [ ] T006（P1）：审计并迁移剩余交互样式调用方
+
+依赖：T002–T005。
+
+目标：
+
+- 将本轮交互语言从播放器样板扩展到全项目，清除局部同义样式、硬编码颜色和重复状态层。
+- 不进行与交互样式无关的页面重构。
+
+实施：
+
+- 全仓库审计 Button、IconButton、ListBoxItem、Card、Input、Menu、Popup/Flyout、Slider、ToggleSwitch 的局部 Trigger/Brush/Border。
+- 对可点击整行、不可点击设置行、持续 Selected/Current、行内按钮分别按设计系统迁移。
+- PageHeader、规则页、缓存管理、书库/详情、设置页和其它页面统一复用公共交互资源。
+- 检查 Light/Dark/High Contrast、Disabled、长文本、窄宽度、100/125/150% DPI 下的布局和状态，不为修视觉扩大 HitTest 区域。
+- 删除迁移后零引用的旧键、局部 Style 和兼容资源；不保留 V2/Legacy 别名。
+
+自动测试/验收：
+
+- `rg`/架构测试确认生产页面不存在通用交互色硬编码、旧同义资源和明显的 Button+Border 双 Hover 模式。
+- 公共资源键唯一、主题热切换、Icon Foreground、Input、Selection、Menu、Media 聚合合同通过。
+- 主要正式页面使用确定性 fixture 完成 Light/Dark 渲染；High Contrast 关键控件状态合同通过。
 - WPF/Presentation 定向测试通过。
 
-完成成果：
-
-- 已保留 ContentDialog、AppStatusView Embedded、StartupStatusWindow 与 Style Gallery 的 Single Surface 契约，并修复默认 WPF 测试错误读取被忽略视觉产物的问题。
-- 已让视觉 manifest 校验仅在显式 `NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 时运行，默认测试不依赖本地 PNG 或子 manifest。
-- 已执行 T004 定向及完整 WPF/Presentation 测试；详细结果见交付说明。
-
-## Phase D：朗读清单持久化收口
-
-## [x] T005（P0）：清理无缓存索引的残留章节朗读清单
-
-目标：
-
-- 避免仅加载/生成过朗读计划但从未留下音频缓存的章节长期占用 `ChapterSpeechPlans` 与 `ChapterSpeechPlanSegments`。
-- 保持现有“删除最后一条缓存时同步删除计划”的即时回收机制，同时增加启动维护的最终兜底收敛。
-- 不在计划提交到音频缓存落盘之间的活动窗口执行即时孤立计划删除，避免播放、预取、主动缓存或导出产生竞态。
-
-实施：
-
-- 为 SQLite 朗读清单 store/repository 增加集合式清理能力，删除所有不存在任何 `AudioCacheEntries` 的 `ChapterSpeechPlans`；优先使用单条集合 SQL / 等价常数级数据库操作，不逐章查询。
-- `ChapterSpeechPlanSegments` 继续依靠既有 `ON DELETE CASCADE` 回收，不新增第二套手工段删除流程。
-- 将该清理接入启动缓存维护流程，并明确顺序：先完成缺失/损坏缓存索引修复及容量/LRU 淘汰，再清理最终无任何缓存索引的残留计划。
-- 保持现有缓存删除事务语义：某章最后一条缓存索引在运行时被删除时仍立即同步删除计划，不等待下一次启动。
-- 只要章节仍存在任意缓存索引（包括旧合成配置或当前受保护条目），启动维护不得删除其朗读清单。
-- 不读取章节正文、不执行正则、不重新生成朗读清单，也不为了判断孤立状态扫描音频目录；孤立判断只基于 SQLite `AudioCacheEntries`。
-- 清理必须幂等；数据库为空、无孤立计划或重复执行均安全。
-
-自动测试：
-
-- seed 仅有 `ChapterSpeechPlans` + `ChapterSpeechPlanSegments`、无 `AudioCacheEntries` 的章节，启动维护后计划与段均删除。
-- seed 至少一条缓存索引的章节，启动维护后计划与段保留；覆盖旧 synthesis profile / 非当前配置缓存仍属于“有缓存”。
-- 缓存文件缺失或损坏导致索引在同轮健康维护中被删除后，对应计划随后被孤立清理回收，证明维护顺序正确。
-- 重复执行维护保持幂等，不产生异常或额外数据变化。
-- 保持既有“删除最后一条缓存索引时同事务删除计划”的测试，不把它退化为仅启动时清理。
-- 测试不依赖真实用户数据目录或可见窗口。
-
-验收：
-
-- 数据库不会因反复加载但从未形成缓存的章节跨启动无限积累朗读清单。
-- 清理实现为集合式/常数级数据库维护，不形成逐章 N+1。
-- 相关 Infrastructure/Application 定向测试通过。
-
-完成成果：
-
-- 为朗读清单 store 增加单条 `DELETE ... NOT EXISTS` 集合清理，并将其接入索引健康修复与 LRU 淘汰之后、Shell 交互前的启动维护流程。
-- 保留运行时删除最后一条缓存索引时的同事务计划回收，并覆盖无缓存清理、旧配置/受保护缓存保留、LRU 后清理和重复维护幂等回归。
-- 已通过相关 Infrastructure 集成测试和 Application 单元测试。
-
-## Phase E：视觉验收资产与默认测试解耦
-
-## [x] T006（P1）：将 `visual-review` 降级为按需生成资产
-
-目标：
-
-- 让普通 `dotnet test` 与仓库历史视觉 PNG、manifest 和截图哈希完全解耦，解决 UI 历史副产物导致全量测试在常规功能开发后失败的问题。
-- 保留 Style Gallery、正式 Page/Window fixture、截图 harness、稳定场景 ID 和显式视觉生成能力，确保以后重新进行 UI 开发时仍能快速恢复视觉验收流程。
-- 保留 WPF 失败诊断能力；不要把“成功视觉验收资产”和“测试失败诊断”混成一套机制。
-
-实施：
-
-- 删除仓库当前跟踪的 `artifacts/visual-review/manifest.json`，调整 `.gitignore`，使整个 `artifacts/visual-review/` 仅作为本地生成目录，不再特例跟踪根 manifest、PNG 或子 manifest。
-- 移除/重构 `VisualReviewManifestTests` 以及其它默认测试中“仓库必须存在历史 manifest/PNG/hash”的合同。默认测试在 `artifacts/visual-review/` 完全不存在时仍必须通过。
-- 不删除 `PageVisualReviewHarness`、`WindowVisualReviewHarness`、MiniPlayer/Style Gallery 的显式截图能力，也不删除 `NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` guard；这些能力继续只在显式视觉流程中使用。
-- 保留 `Generate-VisualReviewManifest.ps1` 或等价根 manifest 生成能力，使一次显式完整视觉生成仍能产出可校验的本轮索引；工具不得假设仓库预先存在历史根 manifest。
-- 若需要继续自动验证截图/manifest/hash 生成器自身，把测试改为使用测试拥有的临时目录生成最小视觉资产，验证 schema、路径、hash 和可重复性后清理；不得读取仓库历史视觉资产。
-- `StyleGallerySceneTests` 等稳定 scene registry、Measure/Arrange/Render、资源解析和显式 guard 合同继续留在默认测试，只清理其对固定仓库输出目录/历史生成物的不必要依赖。
-- 保持 `TestResults/wpf-diagnostics/<test-name>/` 的失败截图、视觉树和窗口状态机制不变；它仍只在失败诊断时按测试策略生成。
-- 更新 `tools/NovelSpeaker.StyleGallery/README.md` 及与视觉生成命令直接相关的开发说明，明确输出是可删除、可重建的本地验收资产，而不是提交到 Git 的 baseline。
-
-自动测试/检查：
-
-- 在删除整个本地 `artifacts/visual-review/` 后运行受影响 WPF/Presentation 测试，默认路径全部通过，且不会因为目录缺失自动生成视觉资产。
-- `rg` 确认默认测试不存在要求 repository `artifacts/visual-review/manifest.json`、固定 PNG 或历史 SHA256 必须存在的断言。
-- 显式视觉 guard 测试继续证明：未设置 `NOVELSPEAKER_GENERATE_VISUAL_ARTIFACTS=1` 时不生成资产；设置后可在测试临时目录或显式目标目录重复生成。
-- 如保留 manifest 工具测试，证明同一组本轮 child manifests 可生成一致根索引，缺失引用 PNG 时仍给出明确错误。
-- `.gitignore` 证明 `artifacts/visual-review/` 下的 PNG 和各级 manifest 均不会被 Git 跟踪。
-
-验收：
-
-- 默认 `dotnet test` 不依赖、读取或维护任何历史视觉截图基线。
-- 显式 UI 开发仍可以生成 Light/Dark、页面/窗口和 Gallery 视觉资产进行人工比较。
-- Style Gallery、fixture、截图宿主和失败诊断能力没有因清理历史资产而被删除。
-- 受影响 WPF/Presentation 定向测试通过。
-
-完成成果：
-
-- 删除已跟踪的根 visual-review manifest，并让整个 `artifacts/visual-review/` 仅作为可删除、可重建的本地生成目录；默认测试不再读取历史视觉资产。
-- 移除依赖仓库历史 PNG/manifest/hash 的 `VisualReviewManifestTests`，保留 Page/Window/Style Gallery 生成器、显式 guard 和失败诊断边界。
-- 根 manifest 工具会按需创建输出目录，并兼容 Windows PowerShell 5；README 已说明视觉产物不是测试基线或发布输入。
-- 已在目录完全不存在时通过受影响 WPF/Presentation 测试，并以显式 guard 在临时目录重复生成 Style Gallery 截图；全 WPF 套件主体 152 个测试通过，但两次均在既有 `WpfDispatcher` 集合清理阶段超时，详见交付说明。
-
-## Phase F：整体质量与发布合同验收
-
-## [x] T007（P0）：执行跨模块审阅并完成阶段质量门禁
+## [ ] T007（P0）：完成交互样式阶段的跨模块审阅与完整质量门禁
 
 依赖：T001–T006。
 
 目标：
 
-- 对数据根切换、开发隔离、主程序改名和 transient UI 收口做一次跨模块自动复查。
-- 确保最终源码、测试、README、数字编号文档与发布产物表达同一套合同。
+- 对“克制型 Fluent”实施结果进行一次跨控件族自动审阅。
+- 确保视觉优化没有改变播放、TTS、定时、音量、规则、选择和设置业务语义。
 
-实施：
+审阅：
 
-- 复查数据根解析只存在一个生产 owner，正式/开发/测试三类数据不会互相读取。
-- 复查旧 `%LocalAppData%/NovelSpeaker` 没有迁移、探测、fallback 或兼容入口；同时确认 SQLite schema migration runner 与既有 migration 保持完整。
-- 复查 `NOVELSPEAKER_DATA_ROOT` 和 Development 环境只承担明确的开发/诊断职责，不泄漏为隐藏的多套生产存储模式。
-- 复查正式 Data 根的路径安全、书籍删除、缓存维护、Operations journal、日志和 settings 全部使用同一个根目录 provider。
-- 复查启动缓存维护在索引修复/LRU 淘汰后会集合式清除无任何 `AudioCacheEntries` 的残留朗读清单，并且仍有缓存的章节不会被误删。
-- 复查生产运行不依赖 `NovelSpeaker.App.exe` 硬编码；需要 executable path 的功能均使用实际当前进程路径。
-- 复查根 `README.md` 只描述已经落地的 `NovelSpeaker.exe`、便携 `Data/` 与开发命令，不保留旧运行说明。
-- 复查 `AGENTS.md`、`docs/README.md` 和 `TASK_BACKLOG.md` 不再要求创建任务归档；仓库中不存在 `docs/archives/`。
-- 复查默认测试与 `artifacts/visual-review/` 历史生成物完全解耦；删除该目录后完整质量门禁仍可运行，显式视觉生成能力和失败诊断能力仍保留。
-- 复查 transient UI Single Surface 自动合同仍通过。
+- 复查 Hover/Pressed/Focus/Selected 状态所有权和优先级，确认没有 Mouse Hover Focus Ring、Selected 被 Hover 覆盖或父子双层大面积高亮。
+- 复查 Player/MiniPlayer 媒体按钮、ProgressSlider、VolumeSlider、Speed/Timer Flyout 与 Single Surface 合同。
+- 复查 Input/ToggleSwitch、Settings Row、规则/章节/缓存列表以及 Menu Separator 的关键几何和键盘/Automation 行为。
+- 复查 Light/Dark/High Contrast 资源映射和运行时主题切换。
+- 复查数字编号文档、Gallery scene、生产资源和测试表达同一套终态合同。
 
 完整验收：
 
@@ -287,23 +232,15 @@ dotnet build -c Release --no-restore
 dotnet test -c Release --no-build
 ```
 
-随后执行 self-contained `win-x64` publish 与自动包内容检查，至少确认：
+并执行交互样式专项静态/视觉合同检查，至少确认：
 
-- `NovelSpeaker.exe` 存在，`NovelSpeaker.App.exe` 不存在。
-- 主程序可从 publish 根目录解析其正式数据根为同级 `Data/`。
-- 发布包不预置用户数据库、设置、书籍、缓存、日志或开发 profile 产物。
-- LICENSE、THIRD-PARTY-NOTICES 和既有必需 runtime assemblies 存在。
-- 不包含测试程序集、TestAssets、Style Gallery、视觉调试输出或临时文件。
+- 生产 Page/Feature 未重新引入通用交互色硬编码。
+- 媒体按钮 Hover 无大面积背景方框，进度 Thumb/竖向音量状态符合合同。
+- Separator 独立且完整，Disabled MenuItem 不影响分隔线。
+- ToggleSwitch 纯开关宽度、Selected+Hover、Keyboard Focus 和 High Contrast 关键状态保持可访问。
+- 默认测试未设置可见窗口授权；如生成视觉产物，仅通过隐藏 Desktop 的显式生成流程。
 
 验收：
 
-- 完整质量门禁和 publish 包合同全部通过。
-- 默认测试未设置可见窗口授权变量。
-- 稳定文档、README 与实现一致。
-- 若发现可以自动修复的问题，在本任务内修复并重新执行受影响门禁；无法自动解决的真实阻塞标记为 `[!]` 并记录可复现证据。
-
-完成成果：
-
-- 完成数据根、开发隔离、主程序命名、缓存维护、瞬态浮层、视觉资产和发布内容的跨模块复查；未发现旧数据根探测/迁移/fallback、归档目录或生产程序集硬编码旧 executable 的残留。
-- 修复两个遗漏的 WPF 测试集合归属，并让隐藏 Desktop 测试宿主在同一个 Dispatcher 操作内同步退出、投递专用线程级退出消息；新增嵌套 Dispatcher 与隐藏 Desktop 组合生命周期回归测试，完整 WPF 套件 154 项通过。
-- 已通过锁定还原、格式、Release 编译和全量测试；self-contained `win-x64` 发布包合同通过，默认测试未设置可见窗口授权变量。
+- 完整质量门禁全部通过。
+- 若发现可自动修复的问题，在本任务内修复并重跑受影响门禁；真实阻塞标记 `[!]` 并记录可复现证据。

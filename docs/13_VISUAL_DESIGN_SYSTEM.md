@@ -2,7 +2,7 @@
 
 ## 1. 设计定位
 
-NovelSpeaker 是适合长期驻留桌面的轻量听书工具。界面采用柔和表面层级、克制强调色和轻量悬浮质感，并保持 Windows 与 Wpf.Ui 的原生交互习惯。
+NovelSpeaker 是适合长期驻留桌面的轻量听书工具。界面采用柔和表面层级、克制强调色和轻量悬浮质感，并以 **克制型 Fluent** 作为统一交互语言：保留 Windows/Wpf.Ui 的熟悉操作模型，但减少无意义的矩形 Hover、重复状态层和装饰性动效。
 
 视觉系统的目标不是让所有页面使用同一套固定布局，也不是把所有标准控件替换成自定义模板，而是建立稳定、可搜索、可组合的公共资源，使相同语义只定义一次，同时允许页面根据真实任务调整密度和结构。
 
@@ -13,6 +13,7 @@ NovelSpeaker 是适合长期驻留桌面的轻量听书工具。界面采用柔�
 - Wpf.Ui 继续拥有标准控件的基础模板和交互。
 - NovelSpeaker 通过语义 Palette、稳定 Token、具名 Style、自有控件和 Feature 组件逐层扩展。
 - 公共资源只抽取已经具有稳定复用价值的内容，不为假想需求提前建立万能组件。
+- Hover、Pressed、Focus、Selected/Checked 分别表达“指向”“按压”“键盘定位”“持续状态”，不得用同一种高亮替代全部交互状态。
 
 ## 2. 核心原则
 
@@ -41,7 +42,11 @@ Accent 只用于：
 
 ### 2.4 主题结构一致
 
-浅色和深色模式使用同一控件树、布局、尺寸和组件结构，只切换 Wpf.Ui theme 与 NovelSpeaker Palette。页面不复制两套 XAML。
+浅色、深色和高对比度模式使用同一控件树、布局、尺寸和组件结构，只切换 Wpf.Ui theme、系统高对比度状态与 NovelSpeaker Palette。页面不复制主题专用 XAML。
+
+- Light 下弱交互面通常通过轻微变深建立对比，Dark 下通常通过轻微变亮建立对比；目标是保持相近的感知强度，而不是机械反相同一颜色。
+- High Contrast 下优先使用系统可辨识颜色和系统 Focus/Selection 语义，不以低透明度 Surface 作为唯一状态证据。
+- 主题切换后已经打开的 Window、Popup、Flyout、ContextMenu 和媒体控件必须立即更新，不允许缓存固定 Brush。
 
 ### 2.5 单一资源所有者
 
@@ -72,10 +77,16 @@ App.Brush.Text.Secondary
 App.Brush.Text.Tertiary
 App.Brush.Border.Subtle
 App.Brush.Border.Strong
+App.Brush.Interaction.Surface.Hover
+App.Brush.Interaction.Surface.Pressed
+App.Brush.Interaction.Border.Hover
+App.Brush.Interaction.Foreground.Hover
+App.Brush.Interaction.Foreground.Disabled
 App.Brush.Accent
 App.Brush.Accent.Hover
 App.Brush.Accent.Pressed
 App.Brush.Accent.Subtle
+App.Brush.Accent.Subtle.Hover
 App.Brush.Focus
 App.Brush.Success
 App.Brush.Warning
@@ -86,7 +97,7 @@ App.Brush.Danger.Pressed
 App.Brush.Danger.Pressed.Text
 ```
 
-页面不得直接引用 Wpf.Ui 的主题色来表达 NovelSpeaker 业务语义，也不得写业务无关的十六进制颜色。
+页面不得直接引用 Wpf.Ui 的主题色来表达 NovelSpeaker 业务语义，也不得写业务无关的十六进制颜色。Hover、Pressed、Selected、Focus 等交互颜色必须由 Palette 中的语义 Brush 统一拥有，不能在 Page、DataTemplate 或 Feature 局部资源中重复定义同义颜色。
 
 `App.Brush.Window.Background` 只属于 Window/Shell 壳层。主窗口中的 `NavigationView` 内容宿主拥有 `App.Brush.Canvas`、Shell 内容边界和左上圆角；正式 `Page` 根节点保持透明，只拥有页面 Padding、滚动和内容布局。页面不得再绘制一块不透明 Canvas 覆盖 Shell 内容宿主，否则会遮住 Shell 的圆角边界。`NavigationViewContentBackground` 与 `NavigationViewContentGridBorderBrush` 是 Provider 模板所需的适配投影键，分别跟随 `App.Brush.Canvas` 与应用边界语义，并由主题 Palette 保持 Light/Dark 同步；它们不是新增业务语义色：Palette 通过现有语义 Brush 的 `Color` 绑定定义投影，运行时再将投影解析为对应的 canonical Brush。正式页面不得直接引用这些 Provider 键。
 
@@ -410,13 +421,20 @@ App.Button.ToolbarValue
 App.Button.Floating
 ```
 
+Button family 按交互反馈分为两类：
+
+- **内容反馈型**：`App.Media.Button` 以及其它纯媒体操作默认保持透明，Hover 只增强 Foreground，Pressed 允许极轻微缩放或前景增强，不出现与命中区同尺寸的矩形/圆角背景块。
+- **弱 Surface 型**：`App.Button.Icon`、PageHeader/Toolbar 工具按钮等需要可发现性的入口，Rest 透明，Hover 使用 `App.Brush.Interaction.Surface.Hover`，Pressed 使用 `App.Brush.Interaction.Surface.Pressed`，不通过新增 Border 表达 Hover。
+
+鼠标 Hover/Pressed 与 Keyboard Focus 必须分离。Button 的外轮廓 Focus Ring 只用于键盘焦点，不因鼠标进入或普通鼠标点击长期显示。一个按钮只允许一个主要 Hover owner；外层 Button 与内部 Border/Pill 不得同时绘制两个独立状态层。
+
 `App.Button.DangerIcon` 的默认图标和背景保持中性；Hover 时背景进入 `App.Brush.Danger`，Pressed 时进入 `App.Brush.Danger.Pressed` 并切换到可读的危险文本色。它表达危险动作，而不是让危险色常驻。
 
 `App.Button.Icon` 与 `App.Button.DangerIcon` 的宿主统一为 `Wpf.Ui.Controls.Button`。纯图标按钮必须通过 `Button.Icon` 提供 `SymbolIcon`，图标的 Normal、Hover、Pressed、Disabled 前景色由 owning Button 的 `Foreground`/Provider 状态属性统一拥有；页面只负责 Symbol、Command、Tooltip 和 AutomationName，不在 `SymbolIcon` 上手工绑定、硬编码或覆盖 `Foreground`。`App.Media.Button` 继承同一 owner-foreground 合同。
 
 应用自有、且不位于 Button.Icon 中的独立 `SymbolIcon` 使用显式语义样式：`App.Icon.Primary`、`App.Icon.Secondary`、`App.Icon.Accent`、`App.Icon.Danger`。NavigationView 等由 Wpf.Ui Provider 自己拥有颜色的图标继续交给 Provider，不强制覆盖。禁止增加全局隐式 `SymbolIcon` Style，以免破坏 Button、Navigation 和状态图标各自的颜色所有权。
 
-媒体按钮从 Button 基础变体派生，不在 Media 字典复制完整 Button 模板。
+媒体按钮从 Button 基础变体派生，不在 Media 字典复制完整 Button 模板。播放/暂停、上一/下一段、上一/下一章和音量入口使用一致的图标尺寸与命中区，播放/暂停的重要性由中心位置和操作语义表达，不通过更大的图标或常驻 Accent 背景表达。
 
 ### 7.5 Input
 
@@ -438,14 +456,16 @@ App.Input.ToggleSwitch.Compact
 
 - 整个控件表面都是同一个点击/按压目标，不得只允许选中文案和 Chevron 附近响应。
 - 选中文案占据左侧可用空间并左对齐，Chevron 固定靠右；控件变宽时，新增空间进入文案与 Chevron 之间，而不是留在 Chevron 右侧。
-- Hover、Pressed/Open、Focus、Disabled 与 Validation 反馈作用于整个控件表面，Chevron 不形成独立按钮底色。
+- Hover、Pressed/Open、Focus、Disabled 与 Validation 反馈作用于整个控件表面，Chevron 不形成独立按钮底色。字段型输入主要通过 Border 强度表达 Hover/Focus：Hover 只增强边界并最多伴随极弱 Surface 变化，Open/Keyboard Focus 使用统一 Focus/Accent 边界，不让整个字段突然出现明显亮块。
 - Popup 是 ComboBox 控件族的一部分，统一使用 `App.Brush.Surface.Raised`、`App.Brush.Border.Subtle`、1 px 边界、`App.Radius.Medium` 和 `App.Elevation.Medium`；闭合态与 Popup 之间保留约 4 px 视觉间隔。
 - Popup 最小宽度不得小于闭合态 ComboBox；选项内容更长时允许 Popup 在合理范围内自然扩展，不强制压缩到闭合态宽度。
-- `App.Input.ComboBox.Item` 的 Normal 背景透明，Hover 使用 `App.Brush.Surface.Secondary`，Selected 使用弱 `App.Brush.Accent.Subtle` 背景并保留左侧 `App.Brush.Accent.Default` 状态条，Disabled 文本使用 `App.Brush.Text.Tertiary`；Item 使用 `App.Radius.Small`。
+- `App.Input.ComboBox.Item` 的 Normal 背景透明，Hover 使用 `App.Brush.Interaction.Surface.Hover`，Selected 使用弱 `App.Brush.Accent.Subtle` 背景并保留左侧 `App.Brush.Accent.Default` 状态条，Selected+Hover 使用 `App.Brush.Accent.Subtle.Hover`，Disabled 文本使用 `App.Brush.Text.Tertiary`；Item 使用 `App.Radius.Small`。
 - 纯字符串选项在闭合态空间不足时保持单行，并使用 `CharacterEllipsis`；Chevron 的位置不得随文案长度变化。该行为由 `Inputs.xaml` 中 ComboBox Style 自身的局部 `String` DataTemplate 提供，不建立页面专属模板。
 - 使用对象项、`DisplayMemberPath` 或自定义 `ItemTemplate` 的页面，若显示文本可能超长，则对应显示模板必须提供等价的单行截断；不得为此复制 ComboBox 控件族模板。
 - `App.Input.ComboBox.*` 必须保持 `HorizontalContentAlignment=Stretch`。将其改为 `Left` 会使 Provider 内部布局按内容宽度收缩，造成 Chevron 靠近文案、右侧出现无效空白以及空白区域无法点击。
 - 页面不得覆盖 ComboBox Popup Palette、Popup CornerRadius、ItemContainerStyle 或 Selection 状态；新的 ComboBox 视觉能力必须回到 `Inputs.xaml` 的同一控件族中维护。
+
+`App.Input.TextBox.*` / `PasswordBox.*` 同样以 Border 作为主要交互状态：Rest 使用 Subtle Border，Hover 使用 Interaction Border，编辑/Keyboard Focus 使用 Focus/Accent Border，Validation Error 具有最高视觉优先级；Hover 不通过改变字段背景制造高亮。
 
 `App.Input.ToggleSwitch.Standard` 与 `App.Input.ToggleSwitch.Compact` 遵循以下尺寸与布局契约：
 
@@ -454,6 +474,7 @@ App.Input.ToggleSwitch.Compact
 - Standard/Compact 可以继续通过 `MinHeight` 维持一致的纵向可操作尺寸；纯开关的横向 Focus/HitTest 边界必须贴合 40 px 可见轨道，带标签时再随真实内容扩展，不以 Gallery 对齐或页面排版为理由人为拉宽。
 - ToggleSwitch 自身不强制 `HorizontalAlignment=Right`。控件负责自身 DesiredSize，`AppSettingsRow`、表单、Dialog 等宿主负责决定其 Left/Center/Right 布局；设置项右侧纯开关由 ValuePresenter 右对齐后，应以开关可见本体的右边缘与其他字段的右边缘对齐。
 - Input family 的宽度所有权按交互语义区分：ComboBox、TextBox、PasswordBox 等字段型控件可以由页面/表单提供明确宽度或合理 MinWidth；ToggleSwitch、CheckBox 等内容型状态控件默认内容自适应；Icon Button 等固定点击目标由对应控件族定义方形尺寸。不得仅为“看起来整齐”向内容型控件加入无语义的横向空白命中区域。
+- ToggleSwitch 的 Hover/Pressed 只增强轨道或 Thumb；On 状态由 Accent 轨道持续表达，On+Hover 在该持续状态上轻微增强，不再叠加外围矩形。纯开关的 Keyboard Focus Ring 与 HitTest 范围都贴合实际 40 px 开关区域。
 
 ### 7.6 Selection 与列表容器
 
@@ -467,6 +488,13 @@ App.Selection.MultiSelectItem
 
 这些 Style 只表达容器状态，不承载书籍、章节或规则内容。
 
+列表交互按 owner 划分：
+
+- 整行可点击的 Item/Card 由整行容器拥有唯一弱 Hover Surface；内部仅允许真正独立的行内按钮在自身小命中区提供局部反馈。
+- `AppSettingsRow` 等整行不可点击、只有右侧输入控件可操作的设置行不提供整行 Hover，避免制造错误的点击暗示。
+- Selected/Current 是持续状态，Hover 不能覆盖为普通中性色。状态优先级统一为 `Disabled > Selected/Current + Hover > Selected/Current > Hover > Rest`。
+- Selected/Current + Hover 使用 AccentSubtle 的轻微增强，而不是从 Accent 状态跳回普通 `Surface.Secondary`。
+
 ### 7.7 Navigation 与 Menu
 
 ```text
@@ -477,22 +505,32 @@ App.Menu.ContextSurface
 App.Menu.Item
 App.Menu.DangerItem
 App.Menu.GroupHeader
+App.Menu.Separator
 ```
+
+菜单与下拉选项遵循单一状态层：MenuItem Rest 透明，Hover 使用弱圆角 Surface，Pressed 稍强，Checked/Selected 使用弱 Accent。危险命令默认保持中性或仅使用 Danger Foreground，Hover 时才进入弱 Danger Surface。
+
+菜单分组必须使用独立 `Separator`，不得把分隔线实现为某个 MenuItem 的 Bottom Border。Separator 不继承相邻 MenuItem 的 Hover/Pressed/Disabled Opacity，左右 inset 统一并与菜单文字列视觉对齐；首尾不绘制无意义分隔线。
 
 ### 7.8 Progress 与 Media
 
 ```text
 App.Progress.Standard
 App.Progress.Compact
-App.Progress.MediaTrack
 App.Media.Slider
 App.Media.ProgressSlider
+App.Media.VolumeSlider
 App.Media.Button
 App.Media.ControlSurface
 ```
 
 ProgressBar 与 Slider 保持不同控件语义和测试，不共用模板。
-`App.Progress.MediaTrack` 用于播放页和迷你播放器：已播放部分使用 Accent，未播放部分使用可见的 Subtle Border 轨道；`App.Media.ProgressSlider` 只保留拖动和滑块交互，Provider 自带轨道保持透明。
+媒体 Slider 共享同一套 Track/Thumb 语义：已填充部分使用 Accent，未填充部分使用可辨识的弱中性色轨道，Track 为圆角 Pill；Hover/Dragging 只增强 Track/Thumb，不给整个控件增加矩形外框。
+
+- `App.Media.ProgressSlider` 用于播放进度：Thumb 在 Rest 隐藏，Mouse Hover、Keyboard Focus 或 Dragging 时出现；Dragging 时保持显示并略强化。进度位置 Tooltip 在 Hover/Dragging 时提供文本证据。
+- `App.Media.VolumeSlider` 使用竖向布局，Thumb 默认可见；下方已设置音量为 Accent，上方剩余范围为弱中性色，Hover/Dragging 时增强 Thumb。音量为 0 时由对应入口图标切换为静音状态。
+- ProgressSlider 与 VolumeSlider 可以共享 Track/Thumb 基础模板或 helper，但必须保留横向/竖向的独立几何与可访问性测试。
+
 播放页和迷你播放器的媒体按钮使用统一尺寸和中性状态；播放/暂停不建立独立的 Accent 主按钮变体。
 
 ### 7.9 Feedback
@@ -536,7 +574,9 @@ Dialog、Flyout 和 Snackbar 的宿主及生命周期由 Wpf.Ui 持有。`App.Fe
 | Warning | `#A66A00` | `#F2B84B` | 风险提示 |
 | Success | `#2E7D5B` | `#66C99A` | 完成和健康状态 |
 
-Accent 至少提供 Default、Hover、Pressed、Subtle 和 Focus。浅色 AccentSubtle 约为 Accent 的 `10%–14%`，深色约为 `16%–20%`。
+Accent 至少提供 Default、Hover、Pressed、Subtle、`Subtle.Hover` 和 Focus。浅色 AccentSubtle 约为 Accent 的 `10%–14%`，深色约为 `16%–20%`；High Contrast 不固定透明度比例，而映射到系统可区分的 Highlight/Focus 语义。
+
+Interaction Surface 不与普通内容 Surface 混用：Hover/Pressed 是短暂状态层，Selected/Checked/Current 是持续 Accent 状态。Light 与 Dark 可以采用不同亮度方向，但同一状态的相对强弱顺序必须一致。
 
 ### 8.2 表面、描边与阴影
 
@@ -583,6 +623,8 @@ Accent 至少提供 Default、Hover、Pressed、Subtle 和 Focus。浅色 Accent
 
 页面最终宽度、Padding 和间距由页面拥有，不由这些最小合同替代。
 
+圆角只保留小/中/大三个长期等级：紧凑按钮、Choice/MenuItem 使用 Small，字段/Pill/普通 Button 使用 Medium，Card/Popup/ContextMenu 使用 Large。页面不得为同义控件继续引入大量只差 1–2 px 的局部圆角值。
+
 ### 8.4 排版
 
 默认字体栈：
@@ -608,12 +650,14 @@ sans-serif
 
 ### 8.5 状态与动效
 
-- Hover 与 Selected 必须能同时表达。
-- Error、Selected 和 Disabled 不能只依赖颜色。
-- Pressed 和图标切换使用 `80–100 ms`。
-- Hover、展开和状态层使用 `140–180 ms`。
-- Flyout、Dialog 和局部进入使用 `200–240 ms`。
-- 减少动画模式保留最终状态，移除位移和缩放。
+- Hover、Pressed、Keyboard Focus、Selected/Checked 必须具有不同语义；Mouse Hover 不绘制 Focus Ring。
+- Hover 与 Selected 必须能同时表达；Error、Selected 和 Disabled 不能只依赖颜色。
+- Hover/离开使用 `App.Motion.Fast`，目标约 `100 ms`；Pressed 与图标切换使用 `80–100 ms`。
+- Selected/Checked 等持续状态切换使用 `App.Motion.Standard`，目标约 `160 ms`。
+- Popup/Flyout/ContextMenu 出现使用约 `160 ms` 的淡入 + `2–4 px` 轻微位移，消失约 `100 ms`；不使用弹跳或明显缩放。
+- 播放进度 Thumb 的 Hover 显隐使用 Fast；Dragging 必须立即保持显示，不等待动画结束。
+- Toggle、列表项、字段和菜单不增加装饰性位移动画；动画只用于解释状态变化。
+- 减少动画模式保留最终状态，移除非必要位移和缩放；High Contrast 下不得依赖动画作为唯一交互反馈。
 
 ## 9. 正式自有控件
 
@@ -768,7 +812,13 @@ sans-serif
 - 正文为视觉中心，章节侧栏和媒体控制保持克制。
 - 播放/暂停、上一段/下一段、上一章/下一章和音量使用统一 `48 × 48` 的中性媒体按钮。
 - 播放/暂停不通过 Accent 背景或更大的按钮制造额外层级；媒体语义由图标、位置和 Tooltip 表达。
-- 语速、定时停止、缓存等低频控制使用 Flyout。
+- 媒体按钮 Rest 透明，Hover 仅增强图标 Foreground，Pressed 允许极轻微缩放/前景增强；不出现 `48 × 48` 的方形或圆角 Hover 背景。Keyboard Focus 才显示清晰 Focus Ring。
+- 播放进度使用 `App.Media.ProgressSlider`：Accent 已播放轨道与弱中性未播放轨道形成对比，Thumb 默认隐藏，Hover/Focus/Dragging 时出现。
+- 语速入口使用轻量 Pill，Pill 自身是唯一交互 Surface；显示 TTS 规则变量使用的原始整数 `speakSpeed`，不映射为 `1.0×` 等播放器倍速。Flyout 保留 `− / 可编辑整数 / +`，每次步进 1，并遵守领域层定义的有效范围。
+- 定时停止入口使用轻量 Pill；未启用时保持中性，启用后使用弱 Accent Active 状态并显示剩余分钟。Flyout 中 `15 / 30 / 45 / 60 / 90` 使用轻量 Choice 样式，Selected 使用弱 Accent，自定义时间为次级操作，关闭定时保持中性。
+- 音量入口使用中性媒体按钮，Flyout 使用竖向 `App.Media.VolumeSlider`；已设置音量与剩余轨道保持明显但克制的对比，Thumb 默认显示，0 音量切换静音图标。
+- 语速、定时、音量等 Popup/Flyout 保持 Single Surface，内部按钮、Choice、Slider、TextBox 不再套完整 Card；`−/+` 等 Step 操作使用紧凑弱反馈按钮。
+- 缓存等其它低频控制继续使用 Flyout/Popup，不因本轮交互统一改变功能入口。
 - 当前段使用轻微 AccentSubtle，不使用高饱和背景。
 
 ### 12.4 规则工作台

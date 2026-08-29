@@ -48,6 +48,7 @@
 全局视觉目标和长期样式边界统一以 `13_VISUAL_DESIGN_SYSTEM.md` 为依据。该文档同时定义：
 
 - 浅色与深色主题的颜色、表面层级和整体质感。
+- “克制型 Fluent”的 Hover、Pressed、Keyboard Focus、Selected/Checked 状态语义，以及 Light/Dark/High Contrast 的主题适配原则。
 - Wpf.Ui 与 NovelSpeaker 的模板、资源和主题所有权。
 - Palette、Token、按控件族集中维护的具名样式、自有控件、Feature 组件和页面布局的作用域。
 - `Shared/Theming/Resources` 与 `Shared/Presentation/Controls` 的最终目录、加载顺序和依赖方向。

@@ -56,6 +56,10 @@
 - Gallery 截图使用稳定 `family-id`；正式页面和窗口截图使用稳定 `page-id`/`window-id`，目录和文件名不得包含 backlog 任务编号。
 - 页面截图必须实例化正式 View 和确定性脱敏 fixture，不得以 Gallery 中的相似布局替代真实页面截图。
 - 全局 Design Token 只保存稳定标尺：颜色语义、间距刻度、圆角、图标尺寸、最小控件高度和动效时长。
+- Hover、Pressed、Selected/Checked、Focus 等交互颜色只能通过 `App.Brush.Interaction.*`、`App.Brush.Accent.*`、`App.Brush.Focus` 等公共语义资源表达；页面和 Feature XAML 不得硬编码交互色或建立同义局部 Brush。
+- 一个控件树只允许一个主要 Hover owner。外层 Button/ListItem 与内部 Border/Pill 不得同时绘制大面积 Hover/Pressed Surface；确有独立行内按钮时，局部反馈必须限制在自身命中区。
+- Mouse Hover/Pressed 与 Keyboard Focus 分离；不得用 IsMouseOver 触发 Focus Ring，也不得为了隐藏鼠标焦点而破坏 Tab/方向键导航和 Automation 语义。
+- Menu 分组使用独立 Separator，不把分隔线伪装为 MenuItem Border；媒体 Slider 的 Track/Thumb 状态必须回到 `Media.xaml` 统一维护，不在 Player/MiniPlayer 页面复制模板。
 - 页面 Padding、列宽、规则列表宽度、设置编辑控件宽度等布局值由 Shell、页面或复合组件中的唯一 owner 管理。
 - 页面不得复制通用 Trigger/VisualState，但可以保留真实页面专用的 Grid、Margin、MinWidth 和滚动结构。
 - ViewModel 不返回 Brush、Style、ControlTemplate、Thickness、CornerRadius 或其它 WPF 视觉类型。
