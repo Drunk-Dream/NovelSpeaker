@@ -209,7 +209,7 @@ internal static class GallerySelectionScene
         title.SetValue(WpfTextBlock.TextWrappingProperty, TextWrapping.Wrap);
         title.SetValue(WpfTextBlock.MarginProperty, new Thickness(0, 0, 0, 2));
         title.SetResourceReference(WpfTextBlock.FontFamilyProperty, "App.Text.Family.Ui");
-        title.SetResourceReference(WpfTextBlock.ForegroundProperty, "App.Brush.Text.Primary");
+        title.SetValue(WpfTextBlock.StyleProperty, FindResource("App.Selection.Content.Primary"));
         stack.AppendChild(title);
 
         var metadata = new FrameworkElementFactory(typeof(WpfTextBlock));
@@ -217,7 +217,7 @@ internal static class GallerySelectionScene
         metadata.SetValue(WpfTextBlock.FontSizeProperty, 12.0);
         metadata.SetValue(WpfTextBlock.TextWrappingProperty, TextWrapping.Wrap);
         metadata.SetResourceReference(WpfTextBlock.FontFamilyProperty, "App.Text.Family.Ui");
-        metadata.SetResourceReference(WpfTextBlock.ForegroundProperty, "App.Brush.Text.Secondary");
+        metadata.SetValue(WpfTextBlock.StyleProperty, FindResource("App.Selection.Content.Secondary"));
         stack.AppendChild(metadata);
 
         border.AppendChild(stack);
@@ -264,7 +264,7 @@ internal static class GallerySelectionScene
         {
             trigger.Setters.Add(new Setter(
                 Border.BackgroundProperty,
-                new DynamicResourceExtension("App.Brush.Surface.Secondary")));
+                new DynamicResourceExtension("App.Brush.Interaction.Surface.Hover")));
         }
         else if (state == "Focus")
         {
@@ -310,8 +310,8 @@ internal static class GallerySelectionScene
             Margin = new Thickness(0, 0, 8, 8)
         };
         var content = new StackPanel();
-        content.Children.Add(CreateText(item.Title, 14, FontWeights.SemiBold));
-        content.Children.Add(CreateText(item.Metadata, 12, FontWeights.Regular));
+        content.Children.Add(CreateSelectionText(item.Title, 14, FontWeights.SemiBold, "App.Selection.Content.Primary"));
+        content.Children.Add(CreateSelectionText(item.Metadata, 12, FontWeights.Regular, "App.Selection.Content.Secondary"));
         border.Child = content;
         AutomationProperties.SetAutomationId(border, automationId);
         AutomationProperties.SetName(border, name);
@@ -371,6 +371,25 @@ internal static class GallerySelectionScene
         };
         block.SetResourceReference(WpfTextBlock.FontFamilyProperty, "App.Text.Family.Ui");
         block.SetResourceReference(WpfTextBlock.ForegroundProperty, "App.Brush.Text.Primary");
+        return block;
+    }
+
+    private static WpfTextBlock CreateSelectionText(
+        string text,
+        double fontSize,
+        FontWeight fontWeight,
+        string styleKey)
+    {
+        var block = new WpfTextBlock
+        {
+            Text = text,
+            FontSize = fontSize,
+            FontWeight = fontWeight,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 2),
+            Style = FindResource(styleKey)
+        };
+        block.SetResourceReference(WpfTextBlock.FontFamilyProperty, "App.Text.Family.Ui");
         return block;
     }
 

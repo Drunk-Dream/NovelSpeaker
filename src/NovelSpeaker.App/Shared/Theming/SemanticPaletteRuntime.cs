@@ -30,11 +30,20 @@ internal static class SemanticPaletteRuntime
         "App.Brush.Text.Tertiary",
         "App.Brush.Border.Subtle",
         "App.Brush.Border.Strong",
+        "App.Brush.Interaction.Surface.Hover",
+        "App.Brush.Interaction.Surface.Pressed",
+        "App.Brush.Interaction.Border.Hover",
+        "App.Brush.Interaction.Border.Pressed",
+        "App.Brush.Interaction.Foreground.Hover",
+        "App.Brush.Interaction.Foreground.Pressed",
+        "App.Brush.Interaction.Foreground.Selected",
+        "App.Brush.Interaction.Foreground.Disabled",
         "App.Brush.Accent",
         "App.Brush.Accent.Default",
         "App.Brush.Accent.Hover",
         "App.Brush.Accent.Pressed",
         "App.Brush.Accent.Subtle",
+        "App.Brush.Accent.Subtle.Hover",
         "App.Brush.Accent.Text",
         "App.Brush.Focus",
         "App.Brush.Danger",
@@ -50,51 +59,28 @@ internal static class SemanticPaletteRuntime
         "App.Brush.Success.Text",
         // Provider projections used by the NavigationView shell content host.
         "NavigationViewContentBackground",
-        "NavigationViewContentGridBorderBrush",
-        // Migration-compat keys kept for pages that have not been migrated yet.
-        "AppBackgroundBrush",
-        "CanvasSurfaceBrush",
-        "PrimarySurfaceBrush",
-        "SecondarySurfaceBrush",
-        "RaisedSurfaceBrush",
-        "PrimaryTextBrush",
-        "SecondaryTextBrush",
-        "TertiaryTextBrush",
-        "SubtleBorderBrush",
-        "StrongBorderBrush",
-        "AccentBrush",
-        "AccentDefaultBrush",
-        "AccentHoverBrush",
-        "AccentPressedBrush",
-        "AccentSubtleBrush",
-        "AccentFocusRingBrush",
-        "AccentTextBrush",
-        "DangerBrush",
-        "DangerSubtleBrush",
-        "DangerTextBrush",
-        "DangerPressedBrush",
-        "DangerPressedTextBrush",
-        "WarningBrush",
-        "WarningSubtleBrush",
-        "WarningTextBrush",
-        "SuccessBrush",
-        "SuccessSubtleBrush",
-        "SuccessTextBrush"
+        "NavigationViewContentGridBorderBrush"
     ];
 
     internal static void Apply(
         global::System.Windows.Application application,
         ApplicationTheme theme,
         string lightPaletteSource,
-        string darkPaletteSource)
+        string darkPaletteSource,
+        string? highContrastPaletteSource = null,
+        bool useHighContrast = false)
     {
         ArgumentNullException.ThrowIfNull(application);
 
+        var paletteSource = useHighContrast
+            ? highContrastPaletteSource ??
+              throw new ArgumentNullException(nameof(highContrastPaletteSource))
+            : theme == ApplicationTheme.Dark
+                ? darkPaletteSource
+                : lightPaletteSource;
         var palette = new ResourceDictionary
         {
-            Source = new Uri(
-                theme == ApplicationTheme.Dark ? darkPaletteSource : lightPaletteSource,
-                UriKind.Relative)
+            Source = new Uri(paletteSource, UriKind.Relative)
         };
         var paletteKeys = palette.Keys.Cast<object>().OfType<string>().Order(StringComparer.Ordinal).ToArray();
         var expectedKeys = Keys.Order(StringComparer.Ordinal).ToArray();
@@ -127,6 +113,14 @@ internal static class SemanticPaletteRuntime
                 }
 
                 targetDictionary[key] = canonicalBrush;
+                continue;
+            }
+
+            if (useHighContrast)
+            {
+                // Keep the source Freezable so its DynamicResource Color expression
+                // continues to follow Windows system color changes.
+                targetDictionary[key] = sourceBrush;
                 continue;
             }
 

@@ -107,6 +107,8 @@ public sealed partial class PlayerViewTests
             var thirdCard = FindChapterCard(thirdItem);
             var firstButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(firstItem));
             var secondButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(secondItem));
+            Assert.Same(view.FindResource("App.Button.Floating"), firstButton.Style);
+            Assert.Same(view.FindResource("App.Button.Floating"), secondButton.Style);
             var currentAccent = VisualTreeTestHelper.FindDescendant<Border>(
                 firstItem,
                 static border => Grid.GetColumn(border) == 0 &&
@@ -124,7 +126,7 @@ public sealed partial class PlayerViewTests
             Assert.NotNull(FindVisibleDescendantByText(firstItem, "25%"));
             Assert.NotNull(FindVisibleDescendantByText(secondItem, "50%"));
             var firstPercentage = Assert.IsType<TextBlock>(FindVisibleDescendantByText(firstItem, "25%"));
-            Assert.Same(view.FindResource("App.Brush.Accent.Default"), firstPercentage.Foreground);
+            Assert.Same(view.FindResource("App.Brush.Interaction.Foreground.Selected"), firstPercentage.Foreground);
             Assert.Null(VisualTreeTestHelper.FindDescendant<Border>(
                 firstItem,
                 static border => border.CornerRadius.TopLeft >= 999));

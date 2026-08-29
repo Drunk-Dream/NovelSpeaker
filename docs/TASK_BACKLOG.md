@@ -50,7 +50,7 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 
 ## Phase A：交互资源与状态模型
 
-## [ ] T001（P0）：建立 Interaction Palette、Motion 与状态优先级合同
+## [x] T001（P0）：建立 Interaction Palette、Motion 与状态优先级合同
 
 目标：
 
@@ -72,6 +72,12 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 - High Contrast 模拟/系统资源投影测试证明 Focus、Selection、Disabled 仍可区分。
 - `rg` 不再发现生产 Page/Feature 为通用 Hover/Pressed/Focus 写死十六进制色或同义局部 Brush。
 - 受影响 WPF/Style Gallery 定向测试通过。
+
+完成成果：
+
+- 新增 Light/Dark/High Contrast Interaction Palette 与系统颜色投影，统一公共 Hover、Pressed、Selected+Hover、Focus、Disabled 资源；移除已无生产引用的旧同义键。
+- 保留 Fast/Standard/Slow 为唯一视觉动效时长 owner，并将 ComboBox 动效及播放器/章节自动居中时长接入共享 Token；新增 `interaction-states` Gallery family-id 场景。
+- 自动验收：`dotnet format --verify-no-changes --no-restore`、Release 全量 build、Interaction/Style Gallery/Input/Semantic Palette/Provider 定向测试通过；虚拟化选择数据测试在隔离 WPF Desktop 中仍触发既有测试主机挂起，最小回归确认与本次组合状态触发器无关。
 
 ## Phase B：按钮与播放器样板
 

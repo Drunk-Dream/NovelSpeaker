@@ -9,6 +9,12 @@
     <Style x:Key="App.Icon.Primary"
            TargetType="{x:Type ui:SymbolIcon}">
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type ContentPresenter}}, Path=IsEnabled}"
+                         Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="App.Icon.Secondary"

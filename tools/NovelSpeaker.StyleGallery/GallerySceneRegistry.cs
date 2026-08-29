@@ -22,6 +22,11 @@ public static class GallerySceneRegistry
             "Complete semantic palette with text and icon contrast samples.",
             GallerySceneBuilders.CreatePaletteProbe),
         new GallerySceneDefinition(
+            "interaction-states",
+            GallerySceneGroup.ThemeFoundations,
+            "Interaction Palette states, precedence and stable motion durations.",
+            GalleryInteractionScene.Create),
+        new GallerySceneDefinition(
             "token-components",
             GallerySceneGroup.ThemeFoundations,
             "Stable token-based PageHeader, SectionSurface and StatusView samples.",

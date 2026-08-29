@@ -264,7 +264,8 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <ContentPresenter Grid.Column="0"
+                            <ContentPresenter x:Name="IconPresenter"
+                                              Grid.Column="0"
                                               Margin="0,0,12,0"
                                               Width="{StaticResource App.Size.Icon.Large}"
                                               Height="{StaticResource App.Size.Icon.Large}"
@@ -284,7 +285,8 @@
                                            Style="{StaticResource App.Typography.Secondary}"
                                            AutomationProperties.Name="{TemplateBinding Description}" />
                             </StackPanel>
-                            <ui:SymbolIcon Grid.Column="2"
+                            <ui:SymbolIcon x:Name="ChevronIcon"
+                                           Grid.Column="2"
                                            Margin="16,0,0,0"
                                            VerticalAlignment="Center"
                                            Style="{StaticResource App.Icon.Secondary}"
@@ -299,15 +301,22 @@
                             <Setter TargetName="DescriptionPresenter" Property="Visibility" Value="Collapsed" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
                             <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                            <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                            <Setter TargetName="TitlePresenter" Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                            <Setter TargetName="DescriptionPresenter" Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                            <Setter TargetName="IconPresenter" Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                            <Setter TargetName="ChevronIcon" Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                            <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                             <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
                         </Trigger>
                     </ControlTemplate.Triggers>

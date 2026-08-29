@@ -80,7 +80,10 @@ App.Brush.Border.Strong
 App.Brush.Interaction.Surface.Hover
 App.Brush.Interaction.Surface.Pressed
 App.Brush.Interaction.Border.Hover
+App.Brush.Interaction.Border.Pressed
 App.Brush.Interaction.Foreground.Hover
+App.Brush.Interaction.Foreground.Pressed
+App.Brush.Interaction.Foreground.Selected
 App.Brush.Interaction.Foreground.Disabled
 App.Brush.Accent
 App.Brush.Accent.Hover
@@ -301,7 +304,8 @@ src/NovelSpeaker.App/Shared/
    │  └─ ProviderStyleBridge.xaml
    ├─ Palettes/
    │  ├─ Palette.Light.xaml
-   │  └─ Palette.Dark.xaml
+   │  ├─ Palette.Dark.xaml
+   │  └─ Palette.HighContrast.xaml
    └─ Resources/
       ├─ Tokens/
       │  ├─ Metrics.xaml
@@ -367,7 +371,7 @@ Global resources → Feature components → Pages
 - ControlTheme 不引用 Feature 或页面资源。
 - 全局资源不引用具体 ViewModel、命令或业务模型。
 
-主题切换只更新 Wpf.Ui theme 和 Palette。Token、Style、ControlTheme 和资源字典实例保持稳定。
+主题切换只更新 Wpf.Ui theme 和 Palette。Token、Style、ControlTheme 和资源字典实例保持稳定。Windows High Contrast 开启时，运行时选择 `Palette.HighContrast.xaml`；该字典将 Window/Control/Text/GrayText/Highlight/HighlightText 等语义投影到系统动态颜色键，不使用低透明度状态层作为唯一证据。关闭 High Contrast 后恢复当前 Light/Dark palette，已打开的控件继续通过 DynamicResource 更新；系统高对比度颜色变化也会重新投影到已打开控件。
 
 ## 7. 资源命名规则
 
@@ -459,7 +463,7 @@ App.Input.ToggleSwitch.Compact
 - Hover、Pressed/Open、Focus、Disabled 与 Validation 反馈作用于整个控件表面，Chevron 不形成独立按钮底色。字段型输入主要通过 Border 强度表达 Hover/Focus：Hover 只增强边界并最多伴随极弱 Surface 变化，Open/Keyboard Focus 使用统一 Focus/Accent 边界，不让整个字段突然出现明显亮块。
 - Popup 是 ComboBox 控件族的一部分，统一使用 `App.Brush.Surface.Raised`、`App.Brush.Border.Subtle`、1 px 边界、`App.Radius.Medium` 和 `App.Elevation.Medium`；闭合态与 Popup 之间保留约 4 px 视觉间隔。
 - Popup 最小宽度不得小于闭合态 ComboBox；选项内容更长时允许 Popup 在合理范围内自然扩展，不强制压缩到闭合态宽度。
-- `App.Input.ComboBox.Item` 的 Normal 背景透明，Hover 使用 `App.Brush.Interaction.Surface.Hover`，Selected 使用弱 `App.Brush.Accent.Subtle` 背景并保留左侧 `App.Brush.Accent.Default` 状态条，Selected+Hover 使用 `App.Brush.Accent.Subtle.Hover`，Disabled 文本使用 `App.Brush.Text.Tertiary`；Item 使用 `App.Radius.Small`。
+- `App.Input.ComboBox.Item` 的 Normal 背景透明，Hover 使用 `App.Brush.Interaction.Surface.Hover`，Selected 使用弱 `App.Brush.Accent.Subtle` 背景并保留左侧 `App.Brush.Accent.Default` 状态条，Selected+Hover 使用 `App.Brush.Accent.Subtle.Hover`，Disabled 文本使用 `App.Brush.Interaction.Foreground.Disabled`；Item 使用 `App.Radius.Small`。
 - 纯字符串选项在闭合态空间不足时保持单行，并使用 `CharacterEllipsis`；Chevron 的位置不得随文案长度变化。该行为由 `Inputs.xaml` 中 ComboBox Style 自身的局部 `String` DataTemplate 提供，不建立页面专属模板。
 - 使用对象项、`DisplayMemberPath` 或自定义 `ItemTemplate` 的页面，若显示文本可能超长，则对应显示模板必须提供等价的单行截断；不得为此复制 ComboBox 控件族模板。
 - `App.Input.ComboBox.*` 必须保持 `HorizontalContentAlignment=Stretch`。将其改为 `Left` 会使 Provider 内部布局按内容宽度收缩，造成 Chevron 靠近文案、右侧出现无效空白以及空白区域无法点击。
@@ -492,7 +496,7 @@ App.Selection.MultiSelectItem
 
 - 整行可点击的 Item/Card 由整行容器拥有唯一弱 Hover Surface；内部仅允许真正独立的行内按钮在自身小命中区提供局部反馈。
 - `AppSettingsRow` 等整行不可点击、只有右侧输入控件可操作的设置行不提供整行 Hover，避免制造错误的点击暗示。
-- Selected/Current 是持续状态，Hover 不能覆盖为普通中性色。状态优先级统一为 `Disabled > Selected/Current + Hover > Selected/Current > Hover > Rest`。
+- Selected/Current 是持续状态，Hover 不能覆盖为普通中性色。状态优先级统一为 `Disabled > Selected/Current + Hover > Selected/Current > Hover > Rest`；Selected/Current、DropTarget 和 Checked 的文字使用 `App.Brush.Interaction.Foreground.Selected`，Disabled 使用 `App.Brush.Interaction.Foreground.Disabled`。
 - Selected/Current + Hover 使用 AccentSubtle 的轻微增强，而不是从 Accent 状态跳回普通 `Surface.Secondary`。
 
 ### 7.7 Navigation 与 Menu
@@ -577,6 +581,8 @@ Dialog、Flyout 和 Snackbar 的宿主及生命周期由 Wpf.Ui 持有。`App.Fe
 Accent 至少提供 Default、Hover、Pressed、Subtle、`Subtle.Hover` 和 Focus。浅色 AccentSubtle 约为 Accent 的 `10%–14%`，深色约为 `16%–20%`；High Contrast 不固定透明度比例，而映射到系统可区分的 Highlight/Focus 语义。
 
 Interaction Surface 不与普通内容 Surface 混用：Hover/Pressed 是短暂状态层，Selected/Checked/Current 是持续 Accent 状态。Light 与 Dark 可以采用不同亮度方向，但同一状态的相对强弱顺序必须一致。
+
+Interaction Palette 的公共入口为 `App.Brush.Interaction.Surface.Hover`、`App.Brush.Interaction.Surface.Pressed`、`App.Brush.Interaction.Border.Hover`、`App.Brush.Interaction.Border.Pressed`、`App.Brush.Interaction.Foreground.Hover`、`App.Brush.Interaction.Foreground.Pressed`、`App.Brush.Interaction.Foreground.Selected` 和 `App.Brush.Interaction.Foreground.Disabled`。Selected/Current + Hover 使用 `App.Brush.Accent.Subtle.Hover`，不回退为普通 Hover Surface；状态优先级固定为 `Disabled > Selected/Current + Hover > Selected/Current > Hover > Rest`。
 
 ### 8.2 表面、描边与阴影
 

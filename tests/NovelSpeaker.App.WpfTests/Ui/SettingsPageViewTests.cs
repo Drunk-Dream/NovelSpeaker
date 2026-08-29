@@ -84,6 +84,13 @@ public sealed class SettingsPageViewTests
                     Assert.Equal(SymbolRegular.ChevronRight24, icons[1].Symbol);
                 }
 
+                rows[0].IsEnabled = false;
+                var disabledIconBrush = Assert.IsType<SolidColorBrush>(
+                    page.FindResource("App.Brush.Interaction.Foreground.Disabled"));
+                Assert.All(
+                    VisualTreeTestHelper.FindDescendants<SymbolIcon>(rows[0]),
+                    icon => Assert.Same(disabledIconBrush, icon.Foreground));
+
                 Assert.Empty(VisualTreeTestHelper.FindDescendants<TextBox>(page));
                 Assert.Empty(VisualTreeTestHelper.FindDescendants<ComboBox>(page));
             }

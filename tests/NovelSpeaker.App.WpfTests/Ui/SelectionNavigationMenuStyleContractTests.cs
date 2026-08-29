@@ -102,7 +102,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
                     BrushColor("App.Brush.Accent.Subtle"),
                     ColorOf(GetRow(rows, "selection-listitem-selected").Background));
                 Assert.Equal(
-                    BrushColor("App.Brush.Surface.Secondary"),
+                    BrushColor("App.Brush.Interaction.Surface.Hover"),
                     ColorOf(GetRow(rows, "selection-listitem-hover").Background));
                 Assert.Equal(
                     BrushColor("App.Brush.Focus"),
@@ -116,6 +116,9 @@ public sealed class SelectionNavigationMenuStyleContractTests
                 Assert.Equal(
                     BrushColor("App.Brush.Accent.Subtle"),
                     ColorOf(GetRow(rows, "selection-multiselectitem-multiselect").Background));
+                Assert.Equal(
+                    BrushColor("App.Brush.Surface.Secondary"),
+                    ColorOf(GetRow(rows, "selection-carditem-disabled").Background));
                 Assert.Equal(0.5, GetRow(rows, "selection-carditem-disabled").Opacity, 2);
 
                 var list = FindDescendants<ItemsControl>(scene).Single(control =>
@@ -207,6 +210,18 @@ public sealed class SelectionNavigationMenuStyleContractTests
                 Assert.Equal(
                     BrushColor("App.Brush.Accent.Subtle"),
                     ColorOf(topSelected.Background));
+                Assert.All(
+                    FindDescendants<WpfTextBlock>(topSelected),
+                    text => Assert.Equal(
+                        BrushColor("App.Brush.Interaction.Foreground.Selected"),
+                        ColorOf(text.Foreground)));
+
+                var disabled = GetRow(FindMatrixRows(scene), "selection-listitem-disabled");
+                Assert.All(
+                    FindDescendants<WpfTextBlock>(disabled),
+                    text => Assert.Equal(
+                        BrushColor("App.Brush.Interaction.Foreground.Disabled"),
+                        ColorOf(text.Foreground)));
 
                 viewport.ScrollToEnd();
                 PumpDispatcher();
@@ -354,7 +369,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
 
                 var hoverEntry = GetEntry(entries, "settings-entry-playback");
                 Assert.Equal(
-                    BrushColor("App.Brush.Surface.Secondary"),
+                    BrushColor("App.Brush.Interaction.Surface.Hover"),
                     ColorOf(hoverEntry.Background));
                 var focusEntry = GetEntry(entries, "settings-entry-appearance");
                 Assert.Equal(

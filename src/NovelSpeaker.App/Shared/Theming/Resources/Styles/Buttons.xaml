@@ -25,6 +25,9 @@
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Pressed}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
@@ -43,12 +46,15 @@
         <Setter Property="BorderThickness" Value="1" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
@@ -67,12 +73,15 @@
         <Setter Property="BorderThickness" Value="1" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
@@ -90,10 +99,10 @@
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Background" Value="Transparent" />
-        <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-        <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+        <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
+        <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
-        <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="MouseOverBorderBrush" Value="Transparent" />
         <Setter Property="PressedBorderBrush" Value="Transparent" />
@@ -101,6 +110,11 @@
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
         <Style.Triggers>
             <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="MouseOverBackground" Value="Transparent" />
+                <Setter Property="PressedBackground" Value="Transparent" />
+                <Setter Property="MouseOverBorderBrush" Value="Transparent" />
+                <Setter Property="PressedBorderBrush" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
@@ -128,6 +142,9 @@
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger.Pressed}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
@@ -162,6 +179,13 @@
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger.Pressed.Text}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="MouseOverBackground" Value="Transparent" />
+                <Setter Property="PressedBackground" Value="Transparent" />
+                <Setter Property="MouseOverBorderBrush" Value="Transparent" />
+                <Setter Property="PressedBorderBrush" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
@@ -180,12 +204,15 @@
         <Setter Property="BorderThickness" Value="1" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
@@ -212,6 +239,9 @@
                 <Setter Property="Background" Value="Transparent" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>

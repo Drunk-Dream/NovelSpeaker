@@ -407,8 +407,21 @@ internal static class GallerySceneBuilders
                 ("App.Brush.Accent.Hover", "App.Brush.Accent.Text", "Accent hover"),
                 ("App.Brush.Accent.Pressed", "App.Brush.Accent.Text", "Accent pressed"),
                 ("App.Brush.Accent.Subtle", "App.Brush.Text.Primary", "Accent subtle"),
+                ("App.Brush.Accent.Subtle.Hover", "App.Brush.Text.Primary", "Accent subtle hover"),
                 ("App.Brush.Focus", "App.Brush.Accent.Text", "Focus ring"),
                 ("App.Brush.Accent.Text", "App.Brush.Accent", "Accent text")
+            ]);
+        AddPaletteGroup(
+            left,
+            "交互状态",
+            [
+                ("App.Brush.Interaction.Surface.Hover", "App.Brush.Interaction.Foreground.Hover", "Interaction hover surface"),
+                ("App.Brush.Interaction.Surface.Pressed", "App.Brush.Interaction.Foreground.Pressed", "Interaction pressed surface"),
+                ("App.Brush.Interaction.Border.Hover", "App.Brush.Text.Primary", "Interaction hover border"),
+                ("App.Brush.Interaction.Border.Pressed", "App.Brush.Text.Primary", "Interaction pressed border"),
+                ("App.Brush.Interaction.Foreground.Hover", "App.Brush.Surface.Primary", "Interaction hover foreground"),
+                ("App.Brush.Interaction.Foreground.Pressed", "App.Brush.Surface.Primary", "Interaction pressed foreground"),
+                ("App.Brush.Interaction.Foreground.Disabled", "App.Brush.Surface.Primary", "Interaction disabled foreground")
             ]);
         AddContrastGroup(right);
         AddPaletteGroup(

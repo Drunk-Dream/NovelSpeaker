@@ -2,6 +2,7 @@ using System.ComponentModel;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Shared.Presentation.Scrolling;
+using NovelSpeaker.App.Shared.Theming;
 using System.Windows;
 using System.Windows.Threading;
 using Wpf.Ui.Abstractions.Controls;
@@ -28,7 +29,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
             () => ViewModel.CurrentChapterItem,
             () => IsLoaded && ChaptersListBox.ActualHeight > 0,
             () => !SystemParameters.ClientAreaAnimation,
-            () => TimeSpan.FromMilliseconds(220),
+            () => MotionTokenRuntime.Slow,
             isVisible => LocateCurrentChapterButton.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;

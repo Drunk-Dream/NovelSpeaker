@@ -44,7 +44,7 @@
         <Setter Property="CaretBrush" Value="{DynamicResource App.Brush.Accent}" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Strong}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Interaction.Border.Hover}" />
             </Trigger>
             <Trigger Property="IsReadOnly" Value="True">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
@@ -56,9 +56,17 @@
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsEnabled" Value="False" />
+                    <Condition Property="Validation.HasError" Value="True" />
+                </MultiTrigger.Conditions>
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
+            </MultiTrigger>
         </Style.Triggers>
     </Style>
 
@@ -85,7 +93,7 @@
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Strong}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Interaction.Border.Hover}" />
             </Trigger>
             <Trigger Property="Validation.HasError" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
@@ -93,9 +101,17 @@
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsEnabled" Value="False" />
+                    <Condition Property="Validation.HasError" Value="True" />
+                </MultiTrigger.Conditions>
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
+            </MultiTrigger>
         </Style.Triggers>
     </Style>
 
@@ -147,7 +163,7 @@
                         <Trigger Property="IsHighlighted" Value="True">
                             <Setter TargetName="ContentBorder"
                                     Property="Background"
-                                    Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                                    Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="ContentBorder"
@@ -156,10 +172,29 @@
                             <Setter TargetName="ActiveRectangle" Property="Visibility" Value="Visible" />
                             <Setter TargetName="PART_ContentPresenter"
                                     Property="TextElement.Foreground"
-                                    Value="{DynamicResource App.Brush.Text.Primary}" />
+                                    Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
                         </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsHighlighted" Value="True" />
+                                <Condition Property="IsSelected" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="ContentBorder"
+                                    Property="Background"
+                                    Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                        </MultiTrigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                            <Setter TargetName="ContentBorder"
+                                    Property="Background"
+                                    Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                            <Setter TargetName="ContentBorder"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource App.Brush.Border.Subtle}" />
+                            <Setter TargetName="ActiveRectangle" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="PART_ContentPresenter"
+                                    Property="TextElement.Foreground"
+                                    Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                            <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                             <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -276,10 +311,10 @@
                                        IsOpen="{TemplateBinding IsDropDownOpen}"
                                        Placement="Bottom"
                                        PlacementTarget="{Binding ElementName=ContentBorder}"
-                                       PopupAnimation="None"
+                                       PopupAnimation="Fade"
                                        VerticalOffset="4">
-                                    <ui:EffectThicknessDecorator AnimationDelay="00:00:00.167"
-                                                                 AnimationElement="{Binding ElementName=DropDownBorder}"
+                                    <!-- PopupAnimation supplies the shared host fade; DropDownBorder owns the tokenized content motion below. -->
+                                    <ui:EffectThicknessDecorator AnimationElement="{Binding ElementName=DropDownBorder}"
                                                                  Effect="{StaticResource App.Elevation.Medium}"
                                                                  Thickness="30,0,30,30">
                                         <Border x:Name="DropDownBorder"
@@ -318,27 +353,42 @@
                                                          Storyboard.TargetProperty="(ui:SymbolIcon.RenderTransform).(RotateTransform.Angle)"
                                                          From="0"
                                                          To="180"
-                                                         Duration="00:00:00.167" />
+                                                         Duration="{StaticResource App.Motion.Standard}" />
                                         <DoubleAnimation Storyboard.TargetName="DropDownBorder"
                                                          Storyboard.TargetProperty="(Border.RenderTransform).(TranslateTransform.Y)"
-                                                         From="-24"
+                                                         From="-4"
                                                          To="0"
-                                                         Duration="00:00:00.167">
+                                                         Duration="{StaticResource App.Motion.Standard}">
                                             <DoubleAnimation.EasingFunction>
                                                 <CircleEase EasingMode="EaseOut" />
                                             </DoubleAnimation.EasingFunction>
                                         </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="DropDownBorder"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="0"
+                                                         To="1"
+                                                         Duration="{StaticResource App.Motion.Standard}" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.EnterActions>
                             <Trigger.ExitActions>
                                 <BeginStoryboard>
                                     <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="DropDownBorder"
+                                                         Storyboard.TargetProperty="(Border.RenderTransform).(TranslateTransform.Y)"
+                                                         From="0"
+                                                         To="-2"
+                                                         Duration="{StaticResource App.Motion.Fast}" />
+                                        <DoubleAnimation Storyboard.TargetName="DropDownBorder"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="1"
+                                                         To="0"
+                                                         Duration="{StaticResource App.Motion.Fast}" />
                                         <DoubleAnimation Storyboard.TargetName="ChevronIcon"
                                                          Storyboard.TargetProperty="(ui:SymbolIcon.RenderTransform).(RotateTransform.Angle)"
                                                          From="180"
                                                          To="0"
-                                                         Duration="00:00:00.167" />
+                                                         Duration="{StaticResource App.Motion.Fast}" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.ExitActions>
@@ -369,12 +419,12 @@
         </Setter>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Strong}" />
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Interaction.Border.Hover}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
             </Trigger>
             <Trigger Property="IsDropDownOpen" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
             </Trigger>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
@@ -385,9 +435,17 @@
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsEnabled" Value="False" />
+                    <Condition Property="Validation.HasError" Value="True" />
+                </MultiTrigger.Conditions>
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
+            </MultiTrigger>
         </Style.Triggers>
     </Style>
 
@@ -425,15 +483,22 @@
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Hover}" />
             </Trigger>
             <Trigger Property="Validation.HasError" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsEnabled" Value="False" />
+                    <Condition Property="Validation.HasError" Value="True" />
+                </MultiTrigger.Conditions>
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger}" />
+            </MultiTrigger>
         </Style.Triggers>
     </Style>
 
@@ -478,22 +543,39 @@
             <Trigger Property="IsChecked" Value="True">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Default}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Default}" />
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
             </Trigger>
             <MultiTrigger>
                 <MultiTrigger.Conditions>
                     <Condition Property="IsMouseOver" Value="True" />
                     <Condition Property="IsChecked" Value="False" />
                 </MultiTrigger.Conditions>
-                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Strong}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Interaction.Border.Hover}" />
+            </MultiTrigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsMouseOver" Value="True" />
+                    <Condition Property="IsChecked" Value="True" />
+                </MultiTrigger.Conditions>
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Hover}" />
             </MultiTrigger>
             <Trigger Property="Validation.HasError" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsEnabled" Value="False" />
+                    <Condition Property="Validation.HasError" Value="True" />
+                </MultiTrigger.Conditions>
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
+            </MultiTrigger>
         </Style.Triggers>
     </Style>
 

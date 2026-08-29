@@ -384,7 +384,13 @@ internal static class GalleryListComponentScene
         AddPreviewTrigger(
             style,
             nameof(ListFixtureState.IsPreviewHover),
-            new Setter(Border.BackgroundProperty, new DynamicResourceExtension("App.Brush.Surface.Secondary")));
+            new Setter(Border.BackgroundProperty, new DynamicResourceExtension("App.Brush.Interaction.Surface.Hover")));
+        AddPreviewMultiTrigger(
+            style,
+            (nameof(ListFixtureState.IsSelected), true),
+            (nameof(ListFixtureState.IsPreviewHover), true),
+            new Setter(Border.BackgroundProperty, new DynamicResourceExtension("App.Brush.Accent.Subtle.Hover")),
+            new Setter(Border.BorderBrushProperty, new DynamicResourceExtension("App.Brush.Accent.Hover")));
         AddPreviewTrigger(
             style,
             nameof(ListFixtureState.IsPreviewFocus),
@@ -400,6 +406,31 @@ internal static class GalleryListComponentScene
             Binding = new Binding(propertyName),
             Value = true
         };
+        foreach (var setter in setters)
+        {
+            trigger.Setters.Add(setter);
+        }
+
+        style.Triggers.Add(trigger);
+    }
+
+    private static void AddPreviewMultiTrigger(
+        Style style,
+        (string PropertyName, object Value) first,
+        (string PropertyName, object Value) second,
+        params Setter[] setters)
+    {
+        var trigger = new MultiDataTrigger();
+        trigger.Conditions.Add(new System.Windows.Condition
+        {
+            Binding = new Binding(first.PropertyName),
+            Value = first.Value
+        });
+        trigger.Conditions.Add(new System.Windows.Condition
+        {
+            Binding = new Binding(second.PropertyName),
+            Value = second.Value
+        });
         foreach (var setter in setters)
         {
             trigger.Setters.Add(setter);

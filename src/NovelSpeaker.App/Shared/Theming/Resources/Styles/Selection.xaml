@@ -22,14 +22,27 @@
             <DataTrigger Binding="{Binding IsSelected}" Value="True">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Default}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
             </DataTrigger>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
             </Trigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsSelected}" Value="True" />
+                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Hover}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </MultiDataTrigger>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
@@ -55,6 +68,7 @@
                          Value="True">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Default}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
             </DataTrigger>
             <MultiDataTrigger>
                 <MultiDataTrigger.Conditions>
@@ -63,9 +77,16 @@
                     <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}"
                                Value="True" />
                 </MultiDataTrigger.Conditions>
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Hover}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
             </MultiDataTrigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -76,9 +97,25 @@
             <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Default}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
             </DataTrigger>
             <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
+            </Trigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsCurrent}" Value="True" />
+                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Hover}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </MultiDataTrigger>
+            <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -90,9 +127,25 @@
             <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
             </DataTrigger>
             <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
+            </Trigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsDropTarget}" Value="True" />
+                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </MultiDataTrigger>
+            <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -104,9 +157,75 @@
             <DataTrigger Binding="{Binding IsSelectedForActiveCache}" Value="True">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Default}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
             </DataTrigger>
             <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
+            </Trigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsSelectedForActiveCache}" Value="True" />
+                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Hover}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </MultiDataTrigger>
+            <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--
+        Content text styles are the companion owner for selection containers.
+        They keep typography defaults for Rest and project every persistent
+        selection fact to the actual TextBlock rather than relying on inherited
+        foreground values that a local typography setter could mask.
+    -->
+    <Style x:Key="App.Selection.Content.Primary"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource App.Typography.Body}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsSelectedForActiveCache}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </DataTrigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Selection.Content.Secondary"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource App.Typography.Secondary}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsSelectedForActiveCache}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </DataTrigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
             </Trigger>
         </Style.Triggers>
     </Style>

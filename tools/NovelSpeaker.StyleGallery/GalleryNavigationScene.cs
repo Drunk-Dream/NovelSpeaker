@@ -155,7 +155,7 @@ internal static class GalleryNavigationScene
         {
             trigger.Setters.Add(new Setter(
                 Control.BackgroundProperty,
-                new DynamicResourceExtension("App.Brush.Surface.Secondary")));
+                new DynamicResourceExtension("App.Brush.Interaction.Surface.Hover")));
         }
         else if (state == "Focus")
         {

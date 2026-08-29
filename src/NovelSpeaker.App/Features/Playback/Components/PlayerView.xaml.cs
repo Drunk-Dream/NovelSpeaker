@@ -5,13 +5,12 @@ using System.Windows.Input;
 using NovelSpeaker.App.Features.Playback.Presentation;
 using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.App.Shared.Presentation.Selection;
+using NovelSpeaker.App.Shared.Theming;
 
 namespace NovelSpeaker.App.Features.Playback.Components;
 
 public partial class PlayerView : UserControl
 {
-    private static readonly TimeSpan DefaultSegmentAutoCenterAnimationDuration = TimeSpan.FromMilliseconds(220);
-
     private PlayerViewModel? _viewModel;
     private readonly PlayerScrollInteractionController _scrollController;
     private readonly PlayerProgressInteractionController _progressController;
@@ -40,7 +39,7 @@ public partial class PlayerView : UserControl
         DataContextChanged += OnDataContextChanged;
     }
 
-    internal TimeSpan SegmentAutoCenterAnimationDuration { get; set; } = DefaultSegmentAutoCenterAnimationDuration;
+    internal TimeSpan SegmentAutoCenterAnimationDuration { get; set; } = MotionTokenRuntime.Slow;
 
     internal bool? ReduceMotionOverride { get; set; }
 

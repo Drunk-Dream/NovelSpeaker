@@ -451,7 +451,7 @@
                                 <Button HorizontalAlignment="Stretch"
                                         HorizontalContentAlignment="Stretch"
                                         Padding="0"
-                                        Style="{StaticResource App.Button.Subtle}"
+                                        Style="{StaticResource App.Button.Floating}"
                                         ToolTip="{Binding Title}"
                                         AutomationProperties.Name="{Binding AutomationName}"
                                         Click="ChapterButton_OnClick">
@@ -497,19 +497,45 @@
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Style="{StaticResource App.Typography.Body}"
-                                                           Text="{Binding Title}"
+                                                <TextBlock Text="{Binding Title}"
                                                            TextWrapping="NoWrap"
                                                            TextTrimming="CharacterEllipsis"
-                                                           VerticalAlignment="Center" />
+                                                           VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock"
+                                                               BasedOn="{StaticResource App.Typography.Body}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSelectedForActiveCache}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                                                                </DataTrigger>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                                 <TextBlock Grid.Column="1"
                                                            Margin="10,0,0,0"
                                                            VerticalAlignment="Center"
-                                                           Style="{StaticResource App.Typography.Secondary}"
-                                                           Foreground="{DynamicResource App.Brush.Accent.Default}"
                                                            FontWeight="SemiBold"
                                                            Text="{Binding CachePercentageText}"
-                                                           Visibility="{Binding IsCachePercentageVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                           Visibility="{Binding IsCachePercentageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock"
+                                                               BasedOn="{StaticResource App.Typography.Secondary}">
+                                                            <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSelectedForActiveCache}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                                                                </DataTrigger>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                             </Grid>
                                         </Border>
                                     </Grid>
@@ -692,7 +718,7 @@
                                         <Button Padding="0"
                                                 HorizontalAlignment="Stretch"
                                                 HorizontalContentAlignment="Stretch"
-                                                Style="{StaticResource App.Button.Subtle}"
+                                                Style="{StaticResource App.Button.Floating}"
                                                 Command="{Binding DataContext.SelectSegmentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
                                                 IsEnabled="{Binding IsInteractive}">
@@ -716,7 +742,11 @@
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                                                                     <Setter Property="FontWeight" Value="SemiBold" />
+                                                                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
                                                                 </DataTrigger>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                                                                </Trigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </TextBlock.Style>

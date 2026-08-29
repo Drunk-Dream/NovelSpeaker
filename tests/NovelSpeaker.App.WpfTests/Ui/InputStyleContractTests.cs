@@ -106,7 +106,7 @@ public sealed class InputStyleContractTests
             highlightTrigger.Elements(),
             setter => (string?)setter.Attribute("TargetName") == "ContentBorder" &&
                       (string?)setter.Attribute("Property") == "Background" &&
-                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Surface.Secondary}");
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Surface.Hover}");
 
         var standardControlNames = new[]
         {
@@ -136,6 +136,55 @@ public sealed class InputStyleContractTests
             .ToArray();
 
         Assert.Empty(implicitStyles);
+    }
+
+    private void Disabled_input_states_preserve_validation_border_priority()
+    {
+        var path = Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "Styles",
+            "Inputs.xaml");
+        var document = XDocument.Load(path);
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var styleKeys = new[]
+        {
+            "App.Input.TextBox.Standard",
+            "App.Input.PasswordBox.Standard",
+            "App.Input.ComboBox.Standard",
+            "App.Input.ToggleSwitch.Standard"
+        };
+
+        foreach (var key in styleKeys)
+        {
+            var style = document.Root!.Elements().Single(element =>
+                element.Name.LocalName == "Style" &&
+                (string?)element.Attribute(xaml + "Key") == key);
+            Assert.Contains(
+                style.Descendants().Where(element => element.Name.LocalName == "MultiTrigger"),
+                trigger =>
+                {
+                    var conditions = trigger.Elements()
+                        .Where(element => element.Name.LocalName == "MultiTrigger.Conditions")
+                        .Elements()
+                        .ToDictionary(
+                            condition => (string)condition.Attribute("Property")!,
+                            condition => (string)condition.Attribute("Value")!,
+                            StringComparer.Ordinal);
+                    return conditions.TryGetValue("IsEnabled", out var isEnabled) &&
+                           isEnabled == "False" &&
+                           conditions.TryGetValue("Validation.HasError", out var hasError) &&
+                           hasError == "True" &&
+                           trigger.Elements().Any(setter =>
+                               setter.Name.LocalName == "Setter" &&
+                               (string?)setter.Attribute("Property") == "BorderBrush" &&
+                               (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Danger}");
+                });
+        }
     }
 
     private void Named_input_styles_resolve_through_the_provider_style_chain()
@@ -694,7 +743,7 @@ public sealed class InputStyleContractTests
                 item.IsSelected = true;
                 host.Window.UpdateLayout();
                 Assert.Equal(
-                    ((SolidColorBrush)application.FindResource("App.Brush.Accent.Subtle")).Color,
+                    ((SolidColorBrush)application.FindResource("App.Brush.Accent.Subtle.Hover")).Color,
                     Assert.IsType<SolidColorBrush>(contentBorder.Background).Color);
                 Assert.Equal(Visibility.Visible, activeRectangle.Visibility);
 
@@ -857,9 +906,9 @@ public sealed class InputStyleContractTests
                     FindDescendants<WpfTextBlock>(combo),
                     block => block.Text == "普通章节");
                 Assert.Equal(1.0, text.Opacity);
-                Assert.Equal(
-                    ((SolidColorBrush)combo.Foreground).Color,
-                    ((SolidColorBrush)text.Foreground).Color);
+                var disabledForeground = combo.FindResource("App.Brush.Interaction.Foreground.Disabled");
+                Assert.Same(disabledForeground, combo.Foreground);
+                Assert.Same(disabledForeground, text.Foreground);
             }
             finally
             {
@@ -955,6 +1004,7 @@ public sealed class InputStyleContractTests
     public void Input_style_contracts_cover_dictionary_and_provider_ownership()
     {
         Input_style_dictionary_contains_all_named_variants_and_no_implicit_standard_styles();
+        Disabled_input_states_preserve_validation_border_priority();
         Named_input_styles_resolve_through_the_provider_style_chain();
     }
 

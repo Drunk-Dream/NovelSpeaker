@@ -14,11 +14,21 @@
     <SolidColorBrush x:Key="App.Brush.Border.Subtle" Color="#D9DDE6" />
     <SolidColorBrush x:Key="App.Brush.Border.Strong" Color="#B9C0CC" />
 
+    <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Hover" Color="#EEF0F6" />
+    <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Pressed" Color="#E4E7F1" />
+    <SolidColorBrush x:Key="App.Brush.Interaction.Border.Hover" Color="#9EA7B5" />
+    <SolidColorBrush x:Key="App.Brush.Interaction.Border.Pressed" Color="#7D8798" />
+    <SolidColorBrush x:Key="App.Brush.Interaction.Foreground.Hover" Color="#3F4FAF" />
+    <SolidColorBrush x:Key="App.Brush.Interaction.Foreground.Pressed" Color="#334298" />
+    <SolidColorBrush x:Key="App.Brush.Interaction.Foreground.Selected" Color="#20242C" />
+    <SolidColorBrush x:Key="App.Brush.Interaction.Foreground.Disabled" Color="#8A919D" />
+
     <SolidColorBrush x:Key="App.Brush.Accent" Color="#5B6FD8" />
     <SolidColorBrush x:Key="App.Brush.Accent.Default" Color="#5B6FD8" />
     <SolidColorBrush x:Key="App.Brush.Accent.Hover" Color="#4B5FC8" />
     <SolidColorBrush x:Key="App.Brush.Accent.Pressed" Color="#4052AF" />
     <SolidColorBrush x:Key="App.Brush.Accent.Subtle" Color="#E8EBFA" />
+    <SolidColorBrush x:Key="App.Brush.Accent.Subtle.Hover" Color="#DDE2F8" />
     <SolidColorBrush x:Key="App.Brush.Accent.Text" Color="#FFFFFF" />
     <SolidColorBrush x:Key="App.Brush.Focus" Color="#5B6FD8" />
 
@@ -41,38 +51,4 @@
     <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush"
                      Color="{Binding Color, Source={StaticResource App.Brush.Border.Subtle}}" />
 
-    <!-- Migration-compat keys. Pages that have not been migrated yet still reference
-         these names; they must remain in this theme-switching dictionary so hot theme
-         switching keeps updating them. Remove each key when its last page migrates. -->
-    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F4F5F9" />
-    <SolidColorBrush x:Key="CanvasSurfaceBrush" Color="#F8F9FC" />
-    <SolidColorBrush x:Key="PrimarySurfaceBrush" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="SecondarySurfaceBrush" Color="#F1F3F8" />
-    <SolidColorBrush x:Key="RaisedSurfaceBrush" Color="#FFFFFF" />
-
-    <SolidColorBrush x:Key="PrimaryTextBrush" Color="#20242C" />
-    <SolidColorBrush x:Key="SecondaryTextBrush" Color="#626A77" />
-    <SolidColorBrush x:Key="TertiaryTextBrush" Color="#8A919D" />
-    <SolidColorBrush x:Key="SubtleBorderBrush" Color="#D9DDE6" />
-    <SolidColorBrush x:Key="StrongBorderBrush" Color="#B9C0CC" />
-
-    <SolidColorBrush x:Key="AccentBrush" Color="#5B6FD8" />
-    <SolidColorBrush x:Key="AccentDefaultBrush" Color="#5B6FD8" />
-    <SolidColorBrush x:Key="AccentHoverBrush" Color="#4B5FC8" />
-    <SolidColorBrush x:Key="AccentPressedBrush" Color="#4052AF" />
-    <SolidColorBrush x:Key="AccentSubtleBrush" Color="#E8EBFA" />
-    <SolidColorBrush x:Key="AccentFocusRingBrush" Color="#5B6FD8" />
-    <SolidColorBrush x:Key="AccentTextBrush" Color="#FFFFFF" />
-
-    <SolidColorBrush x:Key="DangerBrush" Color="#C83C4A" />
-    <SolidColorBrush x:Key="DangerSubtleBrush" Color="#FBE6E9" />
-    <SolidColorBrush x:Key="DangerTextBrush" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="DangerPressedBrush" Color="#A82F3D" />
-    <SolidColorBrush x:Key="DangerPressedTextBrush" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="WarningBrush" Color="#A06000" />
-    <SolidColorBrush x:Key="WarningSubtleBrush" Color="#FFF2D6" />
-    <SolidColorBrush x:Key="WarningTextBrush" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="SuccessBrush" Color="#2E7D5B" />
-    <SolidColorBrush x:Key="SuccessSubtleBrush" Color="#E2F3EC" />
-    <SolidColorBrush x:Key="SuccessTextBrush" Color="#FFFFFF" />
 </ResourceDictionary>

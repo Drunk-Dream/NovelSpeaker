@@ -40,13 +40,41 @@
                                             Margin="0,0,16,0"
                                             VerticalAlignment="Center"
                                             IsHitTestVisible="False">
-                                    <TextBlock Style="{StaticResource App.Typography.ItemTitle}"
-                                               Text="{TemplateBinding Title}"
-                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{TemplateBinding Title}"
+                                               TextTrimming="CharacterEllipsis">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock"
+                                                   BasedOn="{StaticResource App.Typography.ItemTitle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type rules:RuleListItemView}}}"
+                                                                 Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                                                    </DataTrigger>
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                     <TextBlock Margin="0,4,0,0"
-                                               Style="{StaticResource App.Typography.Secondary}"
                                                Text="{TemplateBinding Summary}"
-                                               TextTrimming="CharacterEllipsis" />
+                                               TextTrimming="CharacterEllipsis">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock"
+                                                   BasedOn="{StaticResource App.Typography.Secondary}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type rules:RuleListItemView}}}"
+                                                                 Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                                                    </DataTrigger>
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </StackPanel>
 
                                 <rules:RuleToggleSwitch x:Name="PART_ToggleButton"
