@@ -51,9 +51,12 @@ public sealed class ProgressFeedbackStyleContractTests
             .Concat(media.Root!.Elements())
             .Where(element => (string?)element.Attribute(xaml + "Key") is
                 "App.Progress.Standard" or "App.Progress.Compact" or "App.Progress.MediaTrack" or
-                "App.Media.Slider" or "App.Media.ProgressSlider")
+                "App.Media.Slider" or "App.Media.ProgressSlider" or "App.Media.VolumeSlider")
             .ToArray();
-        Assert.All(progressStyles, AssertProviderStyleWithoutTemplate);
+        Assert.All(
+            progressStyles.Where(style =>
+                (string?)style.Attribute(xaml + "Key") is not "App.Media.Slider" and not "App.Media.ProgressSlider"),
+            AssertProviderStyleWithoutTemplate);
         Assert.Equal(
             "{x:Type ProgressBar}",
             progressStyles.Single(style => (string?)style.Attribute(xaml + "Key") == "App.Progress.Standard")
@@ -80,10 +83,21 @@ public sealed class ProgressFeedbackStyleContractTests
         Assert.Equal("{x:Type Slider}", progressSlider.Attribute("TargetType")?.Value);
         Assert.Equal("{StaticResource App.Media.Slider}", progressSlider.Attribute("BasedOn")?.Value);
         Assert.Equal(
-            ["SliderTrackFill", "SliderTrackFillPointerOver"],
+            [
+                "SliderTrackFill",
+                "SliderTrackFillPointerOver"
+            ],
             progressSlider.Elements().Single(element => element.Name.LocalName == "Style.Resources").Elements()
                 .Select(resource => resource.Attribute(xaml + "Key")?.Value ?? string.Empty)
                 .ToArray());
+        var volumeSlider = progressStyles.Single(style =>
+            (string?)style.Attribute(xaml + "Key") == "App.Media.VolumeSlider");
+        Assert.Equal("{StaticResource App.Media.Slider}", volumeSlider.Attribute("BasedOn")?.Value);
+        Assert.Contains(
+            volumeSlider.Elements(),
+            setter => setter.Name.LocalName == "Setter" &&
+                      (string?)setter.Attribute("Property") == "Orientation" &&
+                      (string?)setter.Attribute("Value") == "Vertical");
 
         var feedback = XDocument.Load(Path.Combine(stylesDirectory, "Feedback.xaml"));
         var feedbackResources = feedback.Root!.Elements().ToArray();

@@ -26,6 +26,11 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(0, activeCache.CancelCallCount);
         Assert.True(viewModel.HasActiveStopTimer);
         Assert.Equal("15", viewModel.StopTimerRemainingText);
+        Assert.Equal("15", viewModel.StopTimerPresetMinutesText);
+
+        viewModel.ScheduleStopAfter30MinutesCommand.Execute(null);
+
+        Assert.Equal("30", viewModel.StopTimerPresetMinutesText);
     }
 
     [Fact]
@@ -49,6 +54,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(string.Empty, viewModel.CustomStopTimerErrorText);
         Assert.Equal(TimeSpan.FromMinutes(125), stopTimer.CurrentSnapshot.Duration);
         Assert.Equal("125", viewModel.StopTimerRemainingText);
+        Assert.Equal(string.Empty, viewModel.StopTimerPresetMinutesText);
     }
 
     [Fact]
@@ -70,6 +76,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(PlaybackStopTimerMode.None, stopTimer.CurrentSnapshot.Mode);
         Assert.False(viewModel.HasActiveStopTimer);
         Assert.Equal("—", viewModel.StopTimerRemainingText);
+        Assert.Equal(string.Empty, viewModel.StopTimerPresetMinutesText);
     }
 
     [Fact]

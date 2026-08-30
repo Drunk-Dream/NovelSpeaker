@@ -152,6 +152,8 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         ? $"定时停止，剩余 {StopTimerRemainingText}"
         : "定时停止";
 
+    public string StopTimerPresetMinutesText { get; private set; } = string.Empty;
+
     public PlaybackPrimaryAction PrimaryAction => CurrentPlaybackState == PlaybackState.Playing
         ? PlaybackPrimaryAction.Pause
         : PlaybackPrimaryAction.Play;
@@ -1382,8 +1384,28 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
         _lastAppliedStopTimerVersion = snapshot.Version;
         HasActiveStopTimer = snapshot.IsActive;
+        StopTimerPresetMinutesText = ResolveStopTimerPresetMinutesText(snapshot);
+        OnPropertyChanged(nameof(StopTimerPresetMinutesText));
         StopTimerRemainingText = FormatStopTimerRemaining(snapshot);
         UpdateStopTimerDisplayTimer(snapshot.IsActive);
+    }
+
+    private static string ResolveStopTimerPresetMinutesText(PlaybackStopTimerSnapshot snapshot)
+    {
+        if (!snapshot.IsActive || snapshot.Duration is not { } duration)
+        {
+            return string.Empty;
+        }
+
+        return duration.TotalMinutes switch
+        {
+            15 => "15",
+            30 => "30",
+            45 => "45",
+            60 => "60",
+            90 => "90",
+            _ => string.Empty
+        };
     }
 
     private void OnStopTimerDisplayTick(object? state)

@@ -122,8 +122,11 @@ public sealed class MiniPlayerWindowTests
                 Assert.False(volumePopup.IsOpen);
                 Assert.Equal(0d, volumeSlider.Minimum);
                 Assert.Equal(1d, volumeSlider.Maximum);
+                Assert.Equal(Orientation.Vertical, volumeSlider.Orientation);
+                Assert.Equal(32, volumeSlider.Width);
+                Assert.Equal(160, volumeSlider.Height);
                 Assert.Equal("播放音量", AutomationProperties.GetName(volumeSlider));
-                Assert.Same(window.FindResource("App.Media.Slider"), volumeSlider.Style);
+                Assert.Same(window.FindResource("App.Media.VolumeSlider"), volumeSlider.Style);
 
                 Assert.IsType<Grid>(window.FindName("MiniPlayerControlBar"));
                 var mediaSurface = Assert.IsType<Border>(window.FindName("MiniPlayerMediaSurface"));

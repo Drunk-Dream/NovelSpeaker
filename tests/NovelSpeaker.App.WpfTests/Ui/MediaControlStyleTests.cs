@@ -2,6 +2,8 @@ using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Xml.Linq;
 using NovelSpeaker.StyleGallery;
@@ -17,9 +19,16 @@ public sealed class MediaControlStyleTests
 {
     private static readonly string[] MediaStyleKeys =
     [
+        "PlaybackSliderThumbTemplate",
+        "PlaybackSliderTrackButtonStyle",
+        "PlaybackSliderThumbStyle",
+        "PlaybackSliderHiddenThumbStyle",
+        "PlaybackSliderControlTemplate",
+        "PlaybackProgressSliderStyle",
         "App.Media.Button",
         "App.Media.Slider",
         "App.Media.ProgressSlider",
+        "App.Media.VolumeSlider",
         "App.Media.ControlSurface"
     ];
 
@@ -46,7 +55,10 @@ public sealed class MediaControlStyleTests
         Assert.Equal(MediaStyleKeys, resources
             .Select(resource => (string?)resource.Attribute(xaml + "Key"))
             .ToArray());
-        Assert.All(resources, resource =>
+        Assert.All(resources
+            .Where(resource => ((string?)resource.Attribute(xaml + "Key"))?.StartsWith("App.Media.") == true)
+            .Where(resource =>
+                (string?)resource.Attribute(xaml + "Key") is not "App.Media.Slider" and not "App.Media.ProgressSlider"), resource =>
         {
             Assert.Equal("Style", resource.Name.LocalName);
             Assert.DoesNotContain(
@@ -55,14 +67,26 @@ public sealed class MediaControlStyleTests
                            (element.Name.LocalName == "Setter" &&
                             (string?)element.Attribute("Property") == "Template"));
         });
-        Assert.Equal("{x:Type ui:Button}", (string?)resources[0].Attribute("TargetType"));
-        Assert.Equal("{StaticResource App.Button.Icon}", (string?)resources[0].Attribute("BasedOn"));
-        Assert.Equal("{x:Type Slider}", (string?)resources[1].Attribute("TargetType"));
-        Assert.Equal("{StaticResource Provider.Slider}", (string?)resources[1].Attribute("BasedOn"));
-        Assert.Equal("{x:Type Slider}", (string?)resources[2].Attribute("TargetType"));
-        Assert.Equal("{StaticResource App.Media.Slider}", (string?)resources[2].Attribute("BasedOn"));
-        Assert.Equal("{x:Type Border}", (string?)resources[3].Attribute("TargetType"));
-        Assert.Equal("{StaticResource App.Surface.Secondary}", (string?)resources[3].Attribute("BasedOn"));
+        var mediaButton = resources.Single(resource =>
+            (string?)resource.Attribute(xaml + "Key") == "App.Media.Button");
+        Assert.Equal("{x:Type ui:Button}", (string?)mediaButton.Attribute("TargetType"));
+        Assert.Equal("{StaticResource App.Button.Icon}", (string?)mediaButton.Attribute("BasedOn"));
+        var mediaSlider = resources.Single(resource =>
+            (string?)resource.Attribute(xaml + "Key") == "App.Media.Slider");
+        Assert.Equal("{x:Type Slider}", (string?)mediaSlider.Attribute("TargetType"));
+        Assert.Equal("{StaticResource Provider.Slider}", (string?)mediaSlider.Attribute("BasedOn"));
+        var progressSlider = resources.Single(resource =>
+            (string?)resource.Attribute(xaml + "Key") == "App.Media.ProgressSlider");
+        Assert.Equal("{x:Type Slider}", (string?)progressSlider.Attribute("TargetType"));
+        Assert.Equal("{StaticResource App.Media.Slider}", (string?)progressSlider.Attribute("BasedOn"));
+        var volumeSlider = resources.Single(resource =>
+            (string?)resource.Attribute(xaml + "Key") == "App.Media.VolumeSlider");
+        Assert.Equal("{x:Type Slider}", (string?)volumeSlider.Attribute("TargetType"));
+        Assert.Equal("{StaticResource App.Media.Slider}", (string?)volumeSlider.Attribute("BasedOn"));
+        var controlSurface = resources.Single(resource =>
+            (string?)resource.Attribute(xaml + "Key") == "App.Media.ControlSurface");
+        Assert.Equal("{x:Type Border}", (string?)controlSurface.Attribute("TargetType"));
+        Assert.Equal("{StaticResource App.Surface.Secondary}", (string?)controlSurface.Attribute("BasedOn"));
     }
 
     private void Media_button_style_dictionary_contains_icon_based_style_without_template()
@@ -149,6 +173,167 @@ public sealed class MediaControlStyleTests
                 (string?)setter.Attribute("Property") == "BorderBrush" ||
                 ((string?)setter.Attribute("Property") == "Background" &&
                  (string?)setter.Attribute("Value") != "Transparent")));
+    }
+
+    private void Media_slider_styles_share_track_thumb_template_and_select_geometry()
+    {
+        var path = Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "Styles",
+            "Media.xaml");
+        var document = XDocument.Load(path);
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var resources = document.Root!.Elements();
+        var sharedResources = resources
+            .Where(element =>
+            {
+                var key = (string?)element.Attribute(xaml + "Key");
+                return key?.StartsWith("PlaybackSlider", StringComparison.Ordinal) == true ||
+                       key == "PlaybackProgressSliderStyle";
+            })
+            .Select(element => (string?)element.Attribute(xaml + "Key") ?? string.Empty)
+            .ToArray();
+
+        Assert.Equal(
+            [
+                "PlaybackSliderThumbTemplate",
+                "PlaybackSliderTrackButtonStyle",
+                "PlaybackSliderThumbStyle",
+                "PlaybackSliderHiddenThumbStyle",
+                "PlaybackSliderControlTemplate",
+                "PlaybackProgressSliderStyle"
+            ],
+            sharedResources);
+        var controlTemplate = resources.Single(resource =>
+            (string?)resource.Attribute(xaml + "Key") == "PlaybackSliderControlTemplate");
+        Assert.Equal("{x:Type Slider}", (string?)controlTemplate.Attribute("TargetType"));
+        var thumbStyle = resources.Single(resource =>
+            (string?)resource.Attribute(xaml + "Key") == "PlaybackSliderThumbStyle");
+        Assert.Equal(
+            "{StaticResource PlaybackSliderThumbTemplate}",
+            thumbStyle.Elements()
+                .Single(element =>
+                    element.Name.LocalName == "Setter" &&
+                    (string?)element.Attribute("Property") == "Template")
+                .Attribute("Value")?.Value);
+        var thumbTemplate = resources.Single(resource =>
+            (string?)resource.Attribute(xaml + "Key") == "PlaybackSliderThumbTemplate");
+        Assert.Equal("{x:Type Thumb}", (string?)thumbTemplate.Attribute("TargetType"));
+        var progressTemplate = resources.Single(resource =>
+            (string?)resource.Attribute(xaml + "Key") == "PlaybackProgressSliderStyle");
+        Assert.Equal("{x:Type Slider}", (string?)progressTemplate.Attribute("TargetType"));
+        var progressTriggers = progressTemplate.Descendants()
+            .Where(element => element.Name.LocalName == "Trigger")
+            .Select(element =>
+                ((string?)element.Attribute("SourceName") ?? string.Empty,
+                 (string?)element.Attribute("Property") ?? string.Empty))
+            .ToArray();
+        Assert.Contains((string.Empty, "IsMouseOver"), progressTriggers);
+        Assert.Contains((string.Empty, "IsKeyboardFocusWithin"), progressTriggers);
+        Assert.Contains(("PART_MediaThumb", "IsDragging"), progressTriggers);
+
+        var progress = resources.Single(resource =>
+            (string?)resource.Attribute(xaml + "Key") == "App.Media.ProgressSlider");
+        var progressSetters = progress.Elements()
+            .Where(element => element.Name.LocalName == "Setter")
+            .ToDictionary(
+                element => (string)element.Attribute("Property")!,
+                element => (string?)element.Attribute("Value"));
+        Assert.Equal("Transparent", progressSetters["Foreground"]);
+
+        var volume = resources.Single(resource =>
+            (string?)resource.Attribute(xaml + "Key") == "App.Media.VolumeSlider");
+        var volumeSetters = volume.Elements()
+            .Where(element => element.Name.LocalName == "Setter")
+            .ToDictionary(
+                element => (string)element.Attribute("Property")!,
+                element => (string?)element.Attribute("Value"));
+        Assert.Equal("32", volumeSetters["Width"]);
+        Assert.Equal("160", volumeSetters["Height"]);
+        Assert.Equal("Vertical", volumeSetters["Orientation"]);
+    }
+
+    private void Media_slider_runtime_states_expose_shared_thumb_semantics()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                global::System.Windows.Application.Current);
+            var progress = new Slider
+            {
+                Style = Assert.IsType<Style>(application.FindResource("App.Media.ProgressSlider")),
+                Margin = new Thickness(100),
+                Minimum = 0,
+                Maximum = 10,
+                Value = 4
+            };
+            var volume = new Slider
+            {
+                Style = Assert.IsType<Style>(application.FindResource("App.Media.VolumeSlider")),
+                Minimum = 0,
+                Maximum = 1,
+                Value = 0.4
+            };
+            var window = new Window
+            {
+                Content = new StackPanel
+                {
+                    Children = { progress, volume }
+                },
+                Width = 360,
+                Height = 420,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            try
+            {
+                WpfWindowHost.Show(window);
+                window.UpdateLayout();
+                Assert.NotNull(progress.Template);
+
+                Assert.False(progress.IsMouseOver);
+                Keyboard.ClearFocus();
+                Assert.False(progress.IsKeyboardFocusWithin);
+                var progressThumb = Assert.Single(FindDescendants<Thumb>(progress));
+                Assert.Same(
+                    application.FindResource("PlaybackSliderHiddenThumbStyle"),
+                    progressThumb.Style);
+                Assert.Equal(0, progressThumb.Opacity);
+                Assert.True(progress.Focus());
+                window.UpdateLayout();
+                Assert.Equal(1, progressThumb.Opacity);
+
+                var volumeThumb = Assert.Single(FindDescendants<Thumb>(volume));
+                Assert.Equal(Orientation.Vertical, volume.Orientation);
+                Assert.Same(
+                    application.FindResource("PlaybackSliderThumbStyle"),
+                    volumeThumb.Style);
+                Assert.Equal(1, volumeThumb.Opacity);
+                var accent = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("App.Brush.Accent")).Color;
+                var neutral = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("App.Brush.Surface.Secondary")).Color;
+                var trackBrushes = FindDescendants<Border>(volume)
+                    .Select(border => (border.Background as SolidColorBrush)?.Color)
+                    .Where(color => color.HasValue)
+                    .Select(color => color!.Value)
+                    .ToArray();
+                Assert.Contains(accent, trackBrushes);
+                Assert.Contains(neutral, trackBrushes);
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+                window.Close();
+            }
+        });
     }
 
     private void Gallery_media_fixture_distinguishes_navigation_icons_and_projects_slider_without_playback()
@@ -447,6 +632,8 @@ public sealed class MediaControlStyleTests
         Media_style_dictionary_contains_explicit_styles_without_templates();
         Media_button_style_dictionary_contains_icon_based_style_without_template();
         Media_button_uses_content_feedback_without_surface_or_border_states();
+        Media_slider_styles_share_track_thumb_template_and_select_geometry();
+        Media_slider_runtime_states_expose_shared_thumb_semantics();
     }
 
     [Fact]

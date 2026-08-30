@@ -245,7 +245,7 @@
                        behaviors:WpfUiFlyoutPlacement.PlacementTarget="{Binding ElementName=MiniPlayerVolumeMenuButton}"
                        behaviors:WpfUiFlyoutPlacement.VerticalOffset="-8"
                        IsOpen="{Binding IsVolumeMenuOpen, Mode=TwoWay}">
-                <Border Width="280"
+                <Border Width="128"
                         Style="{StaticResource App.Feedback.PopupSurface}">
                     <StackPanel>
                         <Grid>
@@ -255,17 +255,16 @@
                                        Style="{StaticResource App.Typography.FormLabel}"
                                        Text="{Binding VolumePercentText}" />
                         </Grid>
-                        <Slider x:Name="MiniPlayerVolumeSlider"
-                                Width="232"
-                                MinWidth="0"
-                                Margin="0,16,0,0"
-                                HorizontalAlignment="Left"
-                                Style="{StaticResource App.Media.Slider}"
-                                Minimum="0"
-                                Maximum="1"
-                                Value="{Binding Volume, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                ToolTip="播放音量"
-                                AutomationProperties.Name="播放音量" />
+                        <Grid Height="160"
+                              Margin="0,16,0,0">
+                            <Slider x:Name="MiniPlayerVolumeSlider"
+                                    Style="{StaticResource App.Media.VolumeSlider}"
+                                    Minimum="0"
+                                    Maximum="1"
+                                    Value="{Binding Volume, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="播放音量"
+                                    AutomationProperties.Name="播放音量" />
+                        </Grid>
                     </StackPanel>
                 </Border>
             </ui:Flyout>

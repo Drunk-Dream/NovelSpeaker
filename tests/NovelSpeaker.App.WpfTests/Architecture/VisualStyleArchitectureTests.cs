@@ -269,13 +269,17 @@ internal static class VisualStyleOwnershipScanner
         "MediaIconButtonControlTemplate",
         "MediaIconButtonStyle",
         "PlaybackProgressSliderStyle",
+        "PlaybackSliderControlTemplate",
+        "PlaybackSliderThumbTemplate",
         "PlaybackSliderThumbStyle",
         "PlaybackSliderTrackButtonStyle",
         "BorderlessListItemButtonControlTemplate",
         // ComboBox is the approved control-family template exception documented
         // in the visual system; its Compact and item variants share this family.
         "App.Input.ComboBox.Standard",
-        "App.Input.ComboBox.Item"
+        "App.Input.ComboBox.Item",
+        "App.Media.ProgressSlider",
+        "App.Media.Slider"
     ];
 
     private static readonly HashSet<string> ForbiddenDesignTokenNames =

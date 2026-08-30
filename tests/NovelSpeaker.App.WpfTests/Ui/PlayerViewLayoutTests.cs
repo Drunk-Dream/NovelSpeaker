@@ -732,8 +732,11 @@ public sealed partial class PlayerViewTests
             Assert.False(volumePopup.IsOpen);
             Assert.Equal(0d, volumeSlider.Minimum);
             Assert.Equal(1d, volumeSlider.Maximum);
+            Assert.Equal(Orientation.Vertical, volumeSlider.Orientation);
+            Assert.Equal(32, volumeSlider.Width);
+            Assert.Equal(160, volumeSlider.Height);
             Assert.Equal("播放音量", AutomationProperties.GetName(volumeSlider));
-            Assert.Same(view.FindResource("App.Media.Slider"), volumeSlider.Style);
+            Assert.Same(view.FindResource("App.Media.VolumeSlider"), volumeSlider.Style);
             Assert.Null(VisualTreeTestHelper.FindDescendant<TextBlock>(
                 volumePopup,
                 textBlock => textBlock.Text == "仅调整应用内播放音量，不改变系统音量。"));

@@ -113,7 +113,7 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 - 同步 Button/Media Gallery 文案与按钮样板，以及 Player/MiniPlayer 相关 WPF 契约测试。
 - 自动验收：按钮、媒体、Player/MiniPlayer 与 Gallery 定向 WPF 测试 15/15 通过，覆盖 ToolbarValue Icon+数值内容及统一媒体图标尺寸契约。
 
-## [ ] T003（P0）：统一播放进度、竖向音量与语速/定时 Flyout
+## [x] T003（P0）：统一播放进度、竖向音量与语速/定时 Flyout
 
 依赖：T002。
 
@@ -139,6 +139,12 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 - `speakSpeed` 的 `1..20` 范围、默认值、步进和现有 TTS/cache 相关测试保持通过；UI 不出现 `1.0×` 等伪倍速映射。
 - 定时预设 Choice、Active 状态、自定义输入和取消命令保持原有业务结果。
 - Player/MiniPlayer 确定性渲染与定向测试通过。
+
+完成成果：
+
+- 在 `Media.xaml` 集中定义 Track/Thumb、播放进度和竖向音量 Slider 模板；Progress 使用配对 ProgressBar 表达已播放/未播放轨道，Volume 在 Player/MiniPlayer 共用竖向样式。
+- 将速度步进与定时预设收口为轻量控件，保留原始整数、范围校验、取消/自定义提交和 Active Timer 弱 Accent 状态；Flyout 继续使用单一 PopupSurface。
+- 自动验收：播放器媒体/进度/音量、定时、Gallery 与视觉架构 WPF 定向测试 18/18 通过；PlayerViewModel 速度与定时回归 25/25 通过。包含整个 `PlayerViewTests` 的组合命令因仓库既有 WPF 测试主机挂起未完成，已停止该进程，未以其作为通过依据。
 
 ## Phase C：输入、列表与菜单交互统一
 

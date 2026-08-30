@@ -7,6 +7,64 @@
              xmlns:feedbackControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Feedback"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              PreviewKeyDown="PlayerView_OnPreviewKeyDown">
+    <UserControl.Resources>
+        <Style x:Key="Player.StopTimerChoice"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource App.Button.Subtle}">
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}"
+                                   Value="15" />
+                        <Condition Binding="{Binding StopTimerPresetMinutesText}"
+                                   Value="15" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                </MultiDataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}"
+                                   Value="30" />
+                        <Condition Binding="{Binding StopTimerPresetMinutesText}"
+                                   Value="30" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                </MultiDataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}"
+                                   Value="45" />
+                        <Condition Binding="{Binding StopTimerPresetMinutesText}"
+                                   Value="45" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                </MultiDataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}"
+                                   Value="60" />
+                        <Condition Binding="{Binding StopTimerPresetMinutesText}"
+                                   Value="60" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                </MultiDataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}"
+                                   Value="90" />
+                        <Condition Binding="{Binding StopTimerPresetMinutesText}"
+                                   Value="90" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
     <Grid Margin="24"
           MinHeight="0"
           ClipToBounds="True">
@@ -60,13 +118,26 @@
                         Margin="12,0,0,0"
                         Width="80"
                         Height="44"
-                        Style="{StaticResource App.Button.ToolbarValue}"
                         Command="{Binding ToggleStopTimerMenuCommand}"
                         IsEnabled="{Binding CanScheduleStopTimer}"
                         ToolTip="定时停止"
                         AutomationProperties.Name="{Binding StopTimerButtonAutomationName, FallbackValue=定时停止}"
                         Icon="{ui:SymbolIcon Symbol=Clock24}"
-                        Content="{Binding StopTimerRemainingText}" />
+                        Content="{Binding StopTimerRemainingText}">
+                    <ui:Button.Style>
+                        <Style TargetType="{x:Type ui:Button}"
+                               BasedOn="{StaticResource App.Button.ToolbarValue}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasActiveStopTimer}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                                    <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                                    <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ui:Button.Style>
+                </ui:Button>
                 <ui:Button x:Name="SpeedMenuButton"
                         Margin="12,0,0,0"
                         Width="80"
@@ -92,27 +163,42 @@
                                    Text="定时停止" />
                         <WrapPanel Margin="0,16,0,0">
                             <Button Margin="0,0,8,8"
-                                    Style="{StaticResource App.Button.Secondary}"
+                                    MinWidth="72"
+                                    Height="36"
+                                    Style="{StaticResource Player.StopTimerChoice}"
+                                    Tag="15"
                                     Padding="10,6"
                                     Command="{Binding ScheduleStopAfter15MinutesCommand}"
                                     Content="15 分钟" />
                             <Button Margin="0,0,8,8"
-                                    Style="{StaticResource App.Button.Secondary}"
+                                    MinWidth="72"
+                                    Height="36"
+                                    Style="{StaticResource Player.StopTimerChoice}"
+                                    Tag="30"
                                     Padding="10,6"
                                     Command="{Binding ScheduleStopAfter30MinutesCommand}"
                                     Content="30 分钟" />
                             <Button Margin="0,0,8,8"
-                                    Style="{StaticResource App.Button.Secondary}"
+                                    MinWidth="72"
+                                    Height="36"
+                                    Style="{StaticResource Player.StopTimerChoice}"
+                                    Tag="45"
                                     Padding="10,6"
                                     Command="{Binding ScheduleStopAfter45MinutesCommand}"
                                     Content="45 分钟" />
                             <Button Margin="0,0,8,8"
-                                    Style="{StaticResource App.Button.Secondary}"
+                                    MinWidth="72"
+                                    Height="36"
+                                    Style="{StaticResource Player.StopTimerChoice}"
+                                    Tag="60"
                                     Padding="10,6"
                                     Command="{Binding ScheduleStopAfter60MinutesCommand}"
                                     Content="60 分钟" />
                             <Button Margin="0,0,8,8"
-                                    Style="{StaticResource App.Button.Secondary}"
+                                    MinWidth="72"
+                                    Height="36"
+                                    Style="{StaticResource Player.StopTimerChoice}"
+                                    Tag="90"
                                     Padding="10,6"
                                     Command="{Binding ScheduleStopAfter90MinutesCommand}"
                                     Content="90 分钟" />
@@ -273,7 +359,7 @@
                                         Width="40"
                                         Height="36"
                                         Margin="0,0,8,0"
-                                        Style="{StaticResource App.Button.Secondary}"
+                                        Style="{StaticResource App.Button.Subtle}"
                                         Command="{Binding DecreaseSpeakSpeedCommand}"
                                         Content="-"
                                         IsEnabled="{Binding CanDecreaseSpeakSpeed}"
@@ -292,7 +378,7 @@
                                         Width="40"
                                         Height="36"
                                         Margin="8,0,0,0"
-                                        Style="{StaticResource App.Button.Secondary}"
+                                        Style="{StaticResource App.Button.Subtle}"
                                         Command="{Binding IncreaseSpeakSpeedCommand}"
                                         Content="+"
                                         IsEnabled="{Binding CanIncreaseSpeakSpeed}"
@@ -937,7 +1023,7 @@
                        behaviors:WpfUiFlyoutPlacement.PlacementTarget="{Binding ElementName=VolumeMenuButton}"
                        behaviors:WpfUiFlyoutPlacement.VerticalOffset="-8"
                        IsOpen="{Binding IsVolumeMenuOpen, Mode=TwoWay}">
-                <Border Width="280"
+                <Border Width="128"
                         Style="{StaticResource App.Feedback.PopupSurface}">
                     <StackPanel>
                         <Grid>
@@ -947,17 +1033,16 @@
                                        Style="{StaticResource App.Typography.FormLabel}"
                                        Text="{Binding VolumePercentText}" />
                         </Grid>
-                        <Slider x:Name="VolumeSlider"
-                                Width="232"
-                                MinWidth="0"
-                                Margin="0,16,0,0"
-                                HorizontalAlignment="Left"
-                                Style="{StaticResource App.Media.Slider}"
-                                Minimum="0"
-                                Maximum="1"
-                                Value="{Binding Volume, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                ToolTip="播放音量"
-                                AutomationProperties.Name="播放音量" />
+                        <Grid Height="160"
+                              Margin="0,16,0,0">
+                            <Slider x:Name="VolumeSlider"
+                                    Style="{StaticResource App.Media.VolumeSlider}"
+                                    Minimum="0"
+                                    Maximum="1"
+                                    Value="{Binding Volume, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="播放音量"
+                                    AutomationProperties.Name="播放音量" />
+                        </Grid>
                     </StackPanel>
                 </Border>
             </ui:Flyout>
