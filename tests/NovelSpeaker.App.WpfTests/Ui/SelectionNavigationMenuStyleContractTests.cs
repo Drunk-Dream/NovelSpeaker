@@ -189,6 +189,10 @@ public sealed class SelectionNavigationMenuStyleContractTests
             separator.Elements(presentation + "Setter"),
             setter => (string?)setter.Attribute("Property") == "Opacity" &&
                       (string?)setter.Attribute("Value") == "1");
+        Assert.Contains(
+            separator.Elements(presentation + "Setter"),
+            setter => (string?)setter.Attribute("Property") == "Background" &&
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Border.Subtle}");
 
         var bookCard = XDocument.Load(Path.Combine(
             repositoryRoot,
@@ -793,13 +797,18 @@ public sealed class SelectionNavigationMenuStyleContractTests
                     separator.UpdateLayout();
                     Assert.True(separator.ActualWidth >= 200d);
                     Assert.InRange(separator.ActualHeight, 0.75d, 1.1d);
-                    Assert.Contains(
-                        FindDescendants<Border>(separator),
-                        line => line.ActualHeight >= 0.9d &&
-                                ReferenceEquals(
-                                    application.FindResource("App.Brush.Border.Subtle"),
-                                    line.Background));
+                    AssertSeparatorLine(separator, BrushColor("App.Brush.Border.Subtle"));
                 });
+                GalleryThemeRuntime.Apply(GalleryTheme.Dark);
+                host.Window.UpdateLayout();
+                Assert.All(
+                    previewSeparators,
+                    separator => AssertSeparatorLine(separator, BrushColor("App.Brush.Border.Subtle")));
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+                host.Window.UpdateLayout();
+                Assert.All(
+                    previewSeparators,
+                    separator => AssertSeparatorLine(separator, BrushColor("App.Brush.Border.Subtle")));
 
                 var anchor = FindDescendants<WpfButton>(scene).Single(button =>
                     AutomationProperties.GetAutomationId(button) == "menus-context-anchor");
@@ -836,9 +845,10 @@ public sealed class SelectionNavigationMenuStyleContractTests
                         FindDescendants<Border>(separator),
                         line => line.ActualWidth > 0d &&
                                 line.ActualHeight >= 0.9d &&
-                                ReferenceEquals(
-                                    application.FindResource("App.Brush.Border.Subtle"),
-                                    line.Background));
+                                line.Background is SolidColorBrush brush &&
+                                brush.Color == BrushColor("App.Brush.Border.Subtle") &&
+                                brush.Opacity >= 0.99d &&
+                                line.Opacity >= 0.99d);
                 });
                 contextMenu.IsOpen = false;
             }
@@ -975,6 +985,18 @@ public sealed class SelectionNavigationMenuStyleContractTests
 
     private static Color? ColorOf(object? brush) =>
         brush is SolidColorBrush solid ? solid.Color : null;
+
+    private static void AssertSeparatorLine(Separator separator, Color expectedColor)
+    {
+        Assert.Contains(
+            FindDescendants<Border>(separator),
+            line => line.ActualWidth > 0d &&
+                    line.ActualHeight >= 0.9d &&
+                    line.Background is SolidColorBrush brush &&
+                    brush.Color == expectedColor &&
+                    brush.Opacity >= 0.99d &&
+                    line.Opacity >= 0.99d);
+    }
 
     private static double OpacityOf(string key) =>
         Convert.ToDouble(global::System.Windows.Application.Current!.FindResource(key),
