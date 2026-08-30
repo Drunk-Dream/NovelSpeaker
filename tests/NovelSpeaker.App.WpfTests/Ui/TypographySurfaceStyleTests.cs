@@ -197,7 +197,7 @@ public sealed class TypographySurfaceStyleTests
             var popup = surfaces.Single(surface =>
                 AutomationProperties.GetAutomationId(surface) == "surface-popup");
             Assert.IsType<DropShadowEffect>(raised.Effect);
-            Assert.IsType<DropShadowEffect>(popup.Effect);
+            Assert.Null(popup.Effect);
         });
     }
 
