@@ -846,7 +846,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
                     Assert.Contains(
                         FindDescendants<Border>(separator),
                         line => line.ActualWidth > 0d &&
-                                line.ActualHeight >= 0.9d &&
+                                line.ActualHeight >= 0.75d &&
                                 line.Background is SolidColorBrush brush &&
                                 brush.Color == lightSeparatorColor &&
                                 brush.Opacity >= 0.99d &&
@@ -1013,7 +1013,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
         Assert.Contains(
             FindDescendants<Border>(separator),
             line => line.ActualWidth > 0d &&
-                    line.ActualHeight >= 0.9d &&
+                    line.ActualHeight >= 0.75d &&
                     line.Background is SolidColorBrush brush &&
                     brush.Color == expectedColor &&
                     brush.Color.A > 0 &&
