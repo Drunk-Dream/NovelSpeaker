@@ -135,9 +135,11 @@ Shell 可额外显示三个运行时入口：
 
 五个核心媒体按钮与音量入口保持一致的图标尺寸和命中区。播放/暂停位于核心控制组中心，但不通过更大的图标、实心 Accent 圆钮或 Hover 背景方块建立层级；按钮 Hover 仅增强图标，Pressed 使用轻微内容反馈。
 
+Dark Mode 下 Pressed 仍必须保持高对比度主题前景；媒体、Toolbar 和普通 Icon Button 不允许在按下瞬间把图标切换为黑色或其它与当前 Surface 对比不足的 Provider 默认颜色。
+
 播放进度条使用两段对比轨道：已播放部分为 Accent，未播放部分为弱中性色。Thumb 默认隐藏，Mouse Hover、Keyboard Focus 或 Dragging 时出现；Dragging 时保持显示并略强化，不给整个 Slider 绘制外框。
 
-音量 Flyout 使用竖向 Slider，已设置音量与剩余轨道保持明显但克制的对比，Thumb 默认显示；音量为 0 时入口切换为静音图标。
+音量 Flyout 使用竖向 Slider，已设置音量与剩余轨道保持明显但克制的对比，Thumb 默认显示；填充条和剩余轨道保持同一固定厚度并连续延伸到 Thumb 下方，不在控制柄附近出现局部收缩/掐腰；音量为 0 时入口切换为静音图标。
 
 播放页和迷你播放器的进度条在鼠标悬浮或拖动时，通过 Tooltip 显示当前段落位置，例如 `xx/xx`。
 
@@ -305,6 +307,8 @@ TTS、章节规则和正则替换共享一套交互骨架。
 错误信息只给用户可操作内容，不展示技术堆栈或敏感请求信息。
 
 Dialog、Flyout、Popup 和独立状态浮窗遵循单一主 Surface 原则：宿主已经形成完整浮层时，内容保持平面，不再嵌套第二张带完整背景、边框、圆角和阴影的卡片。ContentDialog 内部以标题、正文、字段/选项和 Footer 建立层级；StartupStatusWindow 由窗口自身承担 Raised Surface，内部状态控件使用 Embedded 模式。复杂对话框确有独立二级信息分组时，优先使用 Divider 或弱背景，而不是完整 Card-in-Dialog。
+
+语速调节、规则切换、音量控制、定时停止等 Popup/Flyout 的圆角内容 Surface 是唯一可见实体层。四角圆弧之外必须真正透明并直接露出底层页面，只允许存在与圆角轮廓一致的柔和阴影；不得在背后残留高透明度直角矩形宿主、Provider 背板或第二层方形 Effect。
 
 ContextMenu、下拉菜单和 Popup 内的菜单项 Rest 透明，Hover 使用单一弱圆角状态层，Pressed 稍增强，Checked/Selected 使用弱 Accent。分组分隔线必须是独立 Separator，并以统一左右 inset 与文字列对齐；不得把分隔线画成某个 MenuItem 的 Bottom Border，也不得让分隔线继承相邻项的 Disabled/Opacity 状态。
 

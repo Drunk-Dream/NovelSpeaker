@@ -9,6 +9,7 @@
 - 建立统一的 Hover / Pressed / Keyboard Focus / Selected/Checked 交互语义与 Light / Dark / High Contrast 主题资源。
 - 消除播放器媒体按钮悬浮时出现的大面积方框、ToolbarValue 外层 Button 与内部 Pill 的双层反馈等典型问题。
 - 统一播放进度、竖向音量、语速、定时停止等播放器交互样式，并保持现有 TTS 变量、缓存和播放业务语义不变。
+- 修复最新视觉验收发现的 Dark Mode Pressed 图标变黑、Popup/Flyout 四角残留直角半透明宿主层，以及竖向音量 Track 在 Thumb 附近局部收缩的问题。
 - 收口 TextBox、ComboBox、ToggleSwitch、列表项、ContextMenu/MenuItem、Separator 等公共控件族的状态边界。
 - 消除页面局部硬编码交互色、重复 Hover owner 和不完整/依附 MenuItem 的分隔线。
 - 通过 WPF 契约、Style Gallery、确定性页面渲染和完整质量门禁建立可重复验收证据；人工视觉判断可以用于后续设计反馈，但不是任务关闭条件。
@@ -148,11 +149,42 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 - 音量 Flyout 进一步收窄至 96 DIP，并相对 48 DIP 音量按钮居中；宿主取消重复边界/阴影，仅保留 PopupSurface 的圆角表面，竖向窄轨道向 Thumb 延伸 1 DIP 消除接缝。
 - 自动验收：播放器媒体/进度/音量、定时、Gallery 与视觉架构 WPF 定向测试 18/18 通过；PlayerViewModel 速度与定时回归 25/25 通过。包含整个 `PlayerViewTests` 的组合命令因仓库既有 WPF 测试主机挂起未完成，已停止该进程，未以其作为通过依据。
 
-## Phase C：输入、列表与菜单交互统一
+## Phase C：交互回归修正与输入、列表、菜单统一
 
-## [ ] T004（P0）：收口 Input、Selection 与设置行状态边界
+## [ ] T004（P0）：修复 Popup chrome、Dark Pressed Icon 与音量轨道几何回归
 
-依赖：T001。
+依赖：T003。
+
+背景：
+
+- 最新播放器视觉验收仍可在语速调节、规则切换、音量控制等浮层四角看到高透明度的直角宿主层，说明 Single Surface 合同只在内容 Border 上成立，Popup/Flyout host、Provider chrome 或 elevation 仍可能留下第二层矩形轮廓。
+- Dark Mode 下部分 Icon Button 按下时图标会瞬间变黑，实际 `Button.Icon` 视觉树仍可能被 Provider Pressed VisualState 覆盖，不能只以 Palette/Style setter 已定义为通过依据。
+- 竖向音量 Slider 的填充轨道在 Thumb 附近仍出现局部收缩/“掐腰”，当前为隐藏接缝加入的几何修补不能作为最终形态。
+
+目标：
+
+- 所有播放器 Popup/Flyout 只保留一个圆角内容 Surface 和与圆角轮廓一致的柔和阴影，四角外真正透明，不再出现可辨识的直角半透明底板。
+- Dark Mode 的 Icon/Toolbar/Media Button 在 Pressed 状态继续使用主题可读前景，实际 SymbolIcon 不回落为黑色或低对比度 Provider 默认色。
+- 竖向音量 Slider 的已填充/未填充 Track 全程保持同一固定厚度，并在 Thumb 下连续衔接，不通过局部缩窄、负 Margin 或其它“补缝”几何形成视觉收缩。
+
+实施：
+
+- 审计 `App.Feedback.PopupSurface`、`App.Feedback.FlyoutHost`、`App.Surface.Popup`、`Provider.Flyout`、WPF `Popup` 与 elevation Effect 的实际视觉树；分别验证 `SpeedMenuPopup`、`RuleMenuPopup`、`VolumeFlyout`、`StopTimerFlyout`，定位第二层矩形 chrome 的真正 owner。
+- 以公共 Feedback/Surface/Flyout owner 修复浮层；不得在三个播放器浮层分别增加遮罩、CornerRadius 补丁或背景色。宿主和 bridge 保持透明，只有内容 Surface 绘制背景/边界；阴影必须跟随圆角内容轮廓。
+- 在 Dark Palette 下真实构造 `App.Button.Icon`、`App.Button.ToolbarValue`、`App.Media.Button` 并进入 Pressed 状态，检查 Wpf.Ui Button template 中最终 `Button.Icon`/`SymbolIcon.Foreground`。若 Provider 状态覆盖应用 setter，在 `Buttons.xaml`/必要的控件族模板或 bridge 层统一修复，不允许页面级设置 Icon Foreground。
+- 重构 `PlaybackSliderControlTemplate` 的竖向轨道连接方式：Decrease/Increase 两段使用同一固定轨道宽度，并连续延伸至 Thumb 中心区域，由 Thumb 覆盖接缝；移除会造成轨道局部收缩或鼓包的 Margin/尺寸修补。Player 与 MiniPlayer 继续复用 `App.Media.VolumeSlider`。
+- 不改变语速、规则切换、定时、音量数值和播放业务行为。
+
+自动测试/验收：
+
+- Dark Mode 下三类按钮的 Normal/Hover/Pressed/Disabled 最终 Icon 前景 WPF 合同通过；Pressed 实际 SymbolIcon 与背景保持可辨识对比，不以资源键存在代替视觉树验证。
+- Popup/Flyout 视觉树合同证明内容 Border 是唯一不透明圆角 Surface，外层 host/bridge 无第二份 Background/Border/Effect；语速、规则、音量至少生成一次确定性 Light/Dark 渲染，四角外不出现直角半透明板。
+- VolumeSlider 几何合同验证 Decrease/Increase 轨道厚度一致、Thumb 上下连接连续；确定性渲染中控制柄附近不出现收缩、鼓包或断缝。
+- Player/MiniPlayer/Feedback/Button/Media 相关 WPF 定向测试通过；仅执行本任务必要的视觉产物生成，不将 PNG 基线纳入仓库。
+
+## [ ] T005（P0）：收口 Input、Selection 与设置行状态边界
+
+依赖：T001、T004。
 
 目标：
 
@@ -176,9 +208,9 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 - 设置行仅真实控件/导航行产生交互反馈；普通设置空白不成为可点击目标。
 - 受影响设置、规则、列表 WPF 定向测试通过。
 
-## [ ] T005（P1）：统一 ContextMenu/MenuItem 与独立 Separator
+## [ ] T006（P1）：统一 ContextMenu/MenuItem 与独立 Separator
 
-依赖：T001。
+依赖：T001、T004。
 
 目标：
 
@@ -202,9 +234,9 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 
 ## Phase D：全项目迁移与质量收口
 
-## [ ] T006（P1）：审计并迁移剩余交互样式调用方
+## [ ] T007（P1）：审计并迁移剩余交互样式调用方
 
-依赖：T002–T005。
+依赖：T002–T006。
 
 目标：
 
@@ -226,9 +258,9 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 - 主要正式页面使用确定性 fixture 完成 Light/Dark 渲染；High Contrast 关键控件状态合同通过。
 - WPF/Presentation 定向测试通过。
 
-## [ ] T007（P0）：完成交互样式阶段的跨模块审阅与完整质量门禁
+## [ ] T008（P0）：完成交互样式阶段的跨模块审阅与完整质量门禁
 
-依赖：T001–T006。
+依赖：T001–T007。
 
 目标：
 
@@ -239,6 +271,7 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 
 - 复查 Hover/Pressed/Focus/Selected 状态所有权和优先级，确认没有 Mouse Hover Focus Ring、Selected 被 Hover 覆盖或父子双层大面积高亮。
 - 复查 Player/MiniPlayer 媒体按钮、ProgressSlider、VolumeSlider、Speed/Timer Flyout 与 Single Surface 合同。
+- 复查 Dark Mode Pressed 最终 Icon Foreground、语速/规则/音量/定时浮层四角透明 chrome，以及 VolumeSlider Track 在 Thumb 附近的连续固定厚度。
 - 复查 Input/ToggleSwitch、Settings Row、规则/章节/缓存列表以及 Menu Separator 的关键几何和键盘/Automation 行为。
 - 复查 Light/Dark/High Contrast 资源映射和运行时主题切换。
 - 复查数字编号文档、Gallery scene、生产资源和测试表达同一套终态合同。
@@ -256,6 +289,7 @@ dotnet test -c Release --no-build
 
 - 生产 Page/Feature 未重新引入通用交互色硬编码。
 - 媒体按钮 Hover 无大面积背景方框，进度 Thumb/竖向音量状态符合合同。
+- Dark Mode Icon/Toolbar/Media Button 的 Pressed 实际图标不变黑；播放器 Popup/Flyout 圆角外无直角半透明底板；VolumeSlider 控制柄附近无轨道收缩/鼓包/断缝。
 - Separator 独立且完整，Disabled MenuItem 不影响分隔线。
 - ToggleSwitch 纯开关宽度、Selected+Hover、Keyboard Focus 和 High Contrast 关键状态保持可访问。
 - 默认测试未设置可见窗口授权；如生成视觉产物，仅通过隐藏 Desktop 的显式生成流程。

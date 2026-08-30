@@ -163,9 +163,10 @@
 - 公共视觉资源只在其唯一 owner 层建立主合同；页面不重复冻结 Button、Icon、Input、Surface、Typography 等公共控件的内部实现。
 - Style/ControlTheme、Palette/Token、Provider Bridge、主题切换、Icon Foreground、输入控件、设置组件、Shell、媒体控件等最终视觉规则统一以 `13_VISUAL_DESIGN_SYSTEM.md` 为定义来源。
 - 交互样式测试优先固定状态所有权和可访问性合同，不冻结可继续微调的像素颜色：至少覆盖 Hover/Pressed/Keyboard Focus/Selected 的区分、Selected+Hover 优先级、父子控件不出现重复大面积状态层，以及 Light/Dark/High Contrast 下资源可解析且具有可辨识状态。
-- Media 测试保护播放器交互合同：媒体按钮 Hover 不出现命中区背景块；播放进度 Thumb 在 Rest 隐藏且在 Hover/Focus/Dragging 可见；竖向音量 Slider 始终显示 Thumb，并保持已填充/未填充轨道的独立视觉语义。
+- Button/Icon 测试除资源键外还要验证最终视觉树前景：Dark Mode 的 Icon/Toolbar/Media Button 在 Pressed 状态下，`Button.Icon` 中实际 `SymbolIcon` 不得回落为黑色/低对比度 Provider 前景，Normal/Hover/Pressed/Disabled 均由 owning Button 的主题语义控制。
+- Media 测试保护播放器交互合同：媒体按钮 Hover 不出现命中区背景块；播放进度 Thumb 在 Rest 隐藏且在 Hover/Focus/Dragging 可见；竖向音量 Slider 始终显示 Thumb，并保持已填充/未填充轨道的独立视觉语义。Volume Track 两段在 Thumb 上下必须保持一致固定厚度，连接处允许被 Thumb 覆盖但不得出现局部收缩、鼓包或可见断缝。
 - Input 测试保护字段与状态控件的反馈边界：TextBox/ComboBox Hover 主要由 Border 表达，ToggleSwitch 的纯开关 Focus/HitTest 范围贴合可见轨道，Mouse Hover 不触发 Keyboard Focus Ring。
-- Menu/Popup 测试保护 Single Surface 与分隔线合同：MenuItem 只有一个主要 Hover owner；Separator 是独立元素、具有稳定 inset，不依附于相邻项 Border，也不因 Disabled/Opacity 变成断裂或不完整。
+- Menu/Popup 测试保护 Single Surface 与分隔线合同：MenuItem 只有一个主要 Hover owner；Separator 是独立元素、具有稳定 inset，不依附于相邻项 Border，也不因 Disabled/Opacity 变成断裂或不完整。Popup/Flyout 的内容 Border 是唯一不透明圆角 Surface，宿主/bridge chrome 在四角外保持透明；确定性渲染至少覆盖语速、规则切换和音量浮层，能够发现圆角后方残留直角半透明底板或方形阴影边界。
 - Feedback/Transient UI 测试必须保护 Single Surface 合同：`App.Feedback.DialogBody` 无背景、边框、圆角、Padding 和阴影；ContentDialog 不再套完整 Surface；`AppStatusView.IsEmbedded=true` 时自身 Section chrome 必须消失；StartupStatusWindow 由 Window 自身承担唯一 Raised Surface。
 - WPF 自动合同应证明资源键唯一性、加载顺序、主题热切换、关键状态、最小点击区域、非零可用宽度、不重叠、核心内容可见、AutomationName 和关键键盘行为。
 - 几何测试只固定稳定下限和业务布局边界，不冻结仍可调整的精确 Padding、Margin、Width 或 Height。

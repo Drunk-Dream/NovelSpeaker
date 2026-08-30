@@ -281,6 +281,8 @@ NovelSpeaker 只提供：
 
 不建立硬编码内容的 `DialogShell`、`FlyoutSurface` 或 `SnackbarContent` 生产控件。
 
+Popup/Flyout 的可见表面遵循“**一个圆角内容面 + 一个与该轮廓一致的阴影**”合同：内容 Border 是唯一有背景、边界和圆角的实体 Surface；宿主窗口、Provider chrome、桥接层以及内容 Border 四角之外必须保持真正透明。圆角外侧允许存在柔和阴影，但不得出现可辨识的半透明直角矩形底板、第二层宿主背景或与圆角轮廓不一致的方形 Effect 边界。语速、规则切换、音量、定时以及其它使用 `App.Feedback.PopupSurface` 的浮层共享这一合同。
+
 ## 5. 最终目录结构
 
 ```text
@@ -436,6 +438,8 @@ Button family 按交互反馈分为两类：
 
 `App.Button.Icon` 与 `App.Button.DangerIcon` 的宿主统一为 `Wpf.Ui.Controls.Button`。纯图标按钮必须通过 `Button.Icon` 提供 `SymbolIcon`，图标的 Normal、Hover、Pressed、Disabled 前景色由 owning Button 的 `Foreground`/Provider 状态属性统一拥有；页面只负责 Symbol、Command、Tooltip 和 AutomationName，不在 `SymbolIcon` 上手工绑定、硬编码或覆盖 `Foreground`。`App.Media.Button` 继承同一 owner-foreground 合同。
 
+Pressed 状态必须继续使用当前主题下可读的语义前景色。尤其在 Dark Mode 下，透明/弱 Surface 的 Icon Button、ToolbarValue 和 Media Button 按下时不得回落到 Provider 默认黑色或其它低对比度前景。应用样式设置的 `PressedForeground`、`Foreground` Trigger 与最终 `Button.Icon` 视觉树必须表达同一主题语义；若 Provider VisualState 会覆盖应用值，应在公共 Button family 中统一接管该状态，而不是在页面或单个 `SymbolIcon` 上补丁式覆盖。
+
 应用自有、且不位于 Button.Icon 中的独立 `SymbolIcon` 使用显式语义样式：`App.Icon.Primary`、`App.Icon.Secondary`、`App.Icon.Accent`、`App.Icon.Danger`。NavigationView 等由 Wpf.Ui Provider 自己拥有颜色的图标继续交给 Provider，不强制覆盖。禁止增加全局隐式 `SymbolIcon` Style，以免破坏 Button、Navigation 和状态图标各自的颜色所有权。
 
 媒体按钮从 Button 基础变体派生，不在 Media 字典复制完整 Button 模板。播放/暂停、上一/下一段、上一/下一章和音量入口使用一致的图标尺寸与命中区，播放/暂停的重要性由中心位置和操作语义表达，不通过更大的图标或常驻 Accent 背景表达。
@@ -532,7 +536,7 @@ ProgressBar 与 Slider 保持不同控件语义和测试，不共用模板。
 媒体 Slider 共享同一套 Track/Thumb 语义：已填充部分使用 Accent，未填充部分使用可辨识的弱中性色轨道，Track 为圆角 Pill；Hover/Dragging 只增强 Track/Thumb，不给整个控件增加矩形外框。
 
 - `App.Media.ProgressSlider` 用于播放进度：Thumb 在 Rest 隐藏，Mouse Hover、Keyboard Focus 或 Dragging 时出现；Dragging 时保持显示并略强化。进度位置 Tooltip 在 Hover/Dragging 时提供文本证据。
-- `App.Media.VolumeSlider` 使用竖向布局，Thumb 默认可见；下方已设置音量为 Accent，上方剩余范围为弱中性色，Hover/Dragging 时增强 Thumb。音量为 0 时由对应入口图标切换为静音状态。
+- `App.Media.VolumeSlider` 使用竖向布局，Thumb 默认可见；下方已设置音量为 Accent，上方剩余范围为弱中性色，Hover/Dragging 时增强 Thumb。填充轨道和剩余轨道在整个有效区间保持一致的固定厚度，并在 Thumb 中心线下方连续衔接，由 Thumb 覆盖连接处；不得为隐藏接缝使用会造成局部收窄、鼓包或“掐腰”的 Margin/几何修补。音量为 0 时由对应入口图标切换为静音状态。
 - ProgressSlider 与 VolumeSlider 可以共享 Track/Thumb 基础模板或 helper，但必须保留横向/竖向的独立几何与可访问性测试。
 
 播放页和迷你播放器的媒体按钮使用统一尺寸和中性状态；播放/暂停不建立独立的 Accent 主按钮变体。
@@ -819,11 +823,14 @@ sans-serif
 - 播放/暂停、上一段/下一段、上一章/下一章和音量使用统一 `48 × 48` 的中性媒体按钮。
 - 播放/暂停不通过 Accent 背景或更大的按钮制造额外层级；媒体语义由图标、位置和 Tooltip 表达。
 - 媒体按钮 Rest 透明，Hover 仅增强图标 Foreground，Pressed 允许极轻微缩放/前景增强；不出现 `48 × 48` 的方形或圆角 Hover 背景。Keyboard Focus 才显示清晰 Focus Ring。
+- Dark Mode 下媒体与 Toolbar/Icon Button 的 Pressed 图标继续使用主题可读前景，不允许出现按下瞬间变黑或与背景失去对比的状态闪烁。
 - 播放进度使用 `App.Media.ProgressSlider`：Accent 已播放轨道与弱中性未播放轨道形成对比，Thumb 默认隐藏，Hover/Focus/Dragging 时出现。
 - 语速入口使用轻量 Pill，Pill 自身是唯一交互 Surface；显示 TTS 规则变量使用的原始整数 `speakSpeed`，不映射为 `1.0×` 等播放器倍速。Flyout 保留 `− / 可编辑整数 / +`，每次步进 1，并遵守领域层定义的有效范围。
 - 定时停止入口使用轻量 Pill；未启用时保持中性，启用后使用弱 Accent Active 状态并显示剩余分钟。Flyout 中 `15 / 30 / 45 / 60 / 90` 使用轻量 Choice 样式，Selected 使用弱 Accent，自定义时间为次级操作，关闭定时保持中性。
 - 音量入口使用中性媒体按钮，Flyout 使用竖向 `App.Media.VolumeSlider`；已设置音量与剩余轨道保持明显但克制的对比，Thumb 默认显示，0 音量切换静音图标。
+- 竖向音量轨道在 Thumb 上下保持同一厚度，填充条直接连续延伸至 Thumb 下方，不出现靠近控制柄时局部收缩的形状。
 - 语速、定时、音量等 Popup/Flyout 保持 Single Surface，内部按钮、Choice、Slider、TextBox 不再套完整 Card；`−/+` 等 Step 操作使用紧凑弱反馈按钮。
+- 语速、规则切换、音量和定时浮层的四角外区域必须完全透出底层页面（柔和阴影除外），不得出现高透明度但边界可辨识的直角宿主层；所有这些入口共享同一 Popup/Flyout chrome 合同。
 - 缓存等其它低频控制继续使用 Flyout/Popup，不因本轮交互统一改变功能入口。
 - 当前段使用轻微 AccentSubtle，不使用高饱和背景。
 
