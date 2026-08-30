@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Xml.Linq;
 using NovelSpeaker.StyleGallery;
 using Wpf.Ui.Controls;
@@ -22,6 +23,8 @@ public sealed class MediaControlStyleTests
     [
         "PlaybackSliderThumbTemplate",
         "PlaybackSliderTrackButtonStyle",
+        "App.Media.VisualTrackButton",
+        "App.Media.VisualTrack",
         "PlaybackSliderThumbStyle",
         "PlaybackSliderControlTemplate",
         "App.Media.Button",
@@ -57,7 +60,10 @@ public sealed class MediaControlStyleTests
         Assert.All(resources
             .Where(resource => ((string?)resource.Attribute(xaml + "Key"))?.StartsWith("App.Media.") == true)
             .Where(resource =>
-                (string?)resource.Attribute(xaml + "Key") is not "App.Media.Slider" and not "App.Media.ProgressSlider"), resource =>
+                (string?)resource.Attribute(xaml + "Key") is not "App.Media.Slider" and
+                not "App.Media.ProgressSlider" and
+                not "App.Media.VisualTrackButton" and
+                not "App.Media.VisualTrack"), resource =>
         {
             Assert.Equal("Style", resource.Name.LocalName);
             Assert.DoesNotContain(
@@ -329,6 +335,8 @@ public sealed class MediaControlStyleTests
                 Assert.Same(application.FindResource("PlaybackSliderControlTemplate"), progress.Template);
                 Assert.Same(application.FindResource("PlaybackSliderControlTemplate"), volume.Template);
                 Assert.Equal("Progress", progress.Tag);
+                var progressVisualTrack = Assert.Single(FindDescendants<ProgressBar>(progress));
+                Assert.Equal(Visibility.Collapsed, progressVisualTrack.Visibility);
 
                 Assert.False(progress.IsMouseOver);
                 Keyboard.ClearFocus();
@@ -347,9 +355,16 @@ public sealed class MediaControlStyleTests
                 Assert.Equal(1, progressThumb.Opacity);
 
                 var volumeThumb = Assert.Single(FindDescendants<Thumb>(volume));
-                var volumeTrack = Assert.Single(FindDescendants<Track>(volume));
+                var volumeTrack = Assert.Single(
+                    FindDescendants<Track>(volume),
+                    track => track.Name == "PART_Track");
                 var volumeTrackButtons = FindDescendants<RepeatButton>(volume)
                     .Where(button => button.Style == application.FindResource("PlaybackSliderTrackButtonStyle"))
+                    .ToArray();
+                var visualTrack = Assert.Single(FindDescendants<ProgressBar>(volume));
+                var visualRail = Assert.Single(FindDescendants<Track>(visualTrack));
+                var visualTrackButtons = FindDescendants<RepeatButton>(visualTrack)
+                    .Where(button => button.Style == application.FindResource("App.Media.VisualTrackButton"))
                     .ToArray();
                 Assert.Equal(Orientation.Vertical, volume.Orientation);
                 Assert.Same(
@@ -360,10 +375,18 @@ public sealed class MediaControlStyleTests
                 Assert.True(volumeThumb.ActualWidth >= 12);
                 Assert.True(volumeThumb.ActualHeight >= 12);
                 Assert.Equal(2, volumeTrackButtons.Length);
+                Assert.Equal(2, visualTrackButtons.Length);
+                Assert.Equal(Visibility.Visible, visualTrack.Visibility);
                 Assert.All(volumeTrackButtons, button =>
                     Assert.Equal(HorizontalAlignment.Center, button.HorizontalAlignment));
                 Assert.Equal(volumeTrackButtons[0].ActualWidth, volumeTrackButtons[1].ActualWidth, 3);
                 Assert.All(volumeTrackButtons, button => Assert.True(button.ActualWidth > 0));
+                Assert.All(visualTrackButtons, button =>
+                {
+                    Assert.False(button.IsHitTestVisible);
+                    Assert.Equal(visualRail.ActualWidth, button.ActualWidth, 3);
+                    Assert.InRange(button.ActualWidth, 5.5, 6.5);
+                });
 
                 foreach (var value in new[] { 0d, 0.5d, 1d })
                 {
@@ -428,6 +451,9 @@ public sealed class MediaControlStyleTests
                     .ToArray();
                 Assert.Contains(accent, trackBrushes);
                 Assert.Contains(neutral, trackBrushes);
+                Assert.DoesNotContain(
+                    FindDescendants<Border>(visualTrack),
+                    border => border.CornerRadius != new CornerRadius());
             }
             finally
             {
@@ -435,6 +461,71 @@ public sealed class MediaControlStyleTests
                 window.Close();
             }
         });
+    }
+
+    private void Media_volume_slider_rendering_keeps_a_continuous_rail_at_the_thumb()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            WpfTestHost.RunInSta(() =>
+            {
+                GalleryThemeRuntime.EnsureProviderResources();
+                GalleryThemeRuntime.Apply(theme);
+                var volume = new Slider
+                {
+                    Style = Assert.IsType<Style>(
+                        global::System.Windows.Application.Current!.FindResource("App.Media.VolumeSlider")),
+                    Minimum = 0,
+                    Maximum = 1,
+                    Value = 0.5
+                };
+                var root = new Grid
+                {
+                    Width = 64,
+                    Height = 192,
+                    Background = Brushes.White
+                };
+                volume.VerticalAlignment = VerticalAlignment.Center;
+                root.Children.Add(volume);
+                using var host = new WpfControlHost(root);
+                try
+                {
+                    var rootSize = new Size(64, 192);
+                    host.MeasureArrange(rootSize);
+                    var thumb = Assert.Single(FindDescendants<Thumb>(volume));
+                    var visualTrack = Assert.Single(FindDescendants<ProgressBar>(volume));
+                    var visualRail = Assert.Single(FindDescendants<Track>(visualTrack));
+                    var thumbBounds = new Rect(
+                        thumb.TranslatePoint(new Point(), root),
+                        thumb.RenderSize);
+                    var bitmap = Render(root, rootSize);
+                    var above = Math.Max(0, (int)Math.Floor(thumbBounds.Top) - 2);
+                    var below = Math.Min(bitmap.PixelHeight - 1, (int)Math.Ceiling(thumbBounds.Bottom) + 1);
+                    var accent = Assert.IsType<SolidColorBrush>(
+                        global::System.Windows.Application.Current!.FindResource("App.Brush.Accent")).Color;
+                    var neutral = Assert.IsType<SolidColorBrush>(
+                        global::System.Windows.Application.Current.FindResource("App.Brush.Surface.Secondary")).Color;
+                    var aboveWidth = CountRailPixels(bitmap, above, accent, neutral);
+                    var belowWidth = CountRailPixels(bitmap, below, accent, neutral);
+                    var railProfile = Enumerable.Range(0, bitmap.PixelHeight)
+                        .Select(y => (Y: y, Width: CountRailPixels(bitmap, y, accent, neutral)))
+                        .ToArray();
+                    var maxRailWidth = railProfile.MaxBy(sample => sample.Width);
+
+                    Assert.InRange(visualRail.ActualWidth, 5.5, 6.5);
+                    Assert.True(
+                        aboveWidth is >= 5 and <= 7,
+                        $"thumb={thumbBounds}, volume={volume.RenderSize}, visualTrack={visualTrack.RenderSize}, " +
+                        $"visualRail={visualRail.RenderSize}, above={above}, below={below}, " +
+                        $"aboveWidth={aboveWidth}, belowWidth={belowWidth}, maxRailWidth={maxRailWidth}");
+                    Assert.Equal(aboveWidth, belowWidth);
+                }
+                finally
+                {
+                    GalleryThemeRuntime.Apply(GalleryTheme.Light);
+                }
+            });
+        }
     }
 
     private void Gallery_media_fixture_distinguishes_navigation_icons_and_projects_slider_without_playback()
@@ -735,6 +826,7 @@ public sealed class MediaControlStyleTests
         Media_button_uses_content_feedback_without_surface_or_border_states();
         Media_slider_styles_share_track_thumb_template_and_select_geometry();
         Media_slider_runtime_states_expose_shared_thumb_semantics();
+        Media_volume_slider_rendering_keeps_a_continuous_rail_at_the_thumb();
     }
 
     [Fact]
@@ -762,6 +854,40 @@ public sealed class MediaControlStyleTests
             ShowInTaskbar = false,
             WindowStyle = WindowStyle.ToolWindow
         };
+
+    private static BitmapSource Render(FrameworkElement root, Size size)
+    {
+        var bitmap = new RenderTargetBitmap(
+            Math.Max(1, (int)Math.Round(size.Width)),
+            Math.Max(1, (int)Math.Round(size.Height)),
+            96,
+            96,
+            PixelFormats.Pbgra32);
+        bitmap.Render(root);
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    private static int CountRailPixels(BitmapSource bitmap, int y, Color accent, Color neutral)
+    {
+        var pixels = new byte[bitmap.PixelWidth * 4];
+        bitmap.CopyPixels(new Int32Rect(0, y, bitmap.PixelWidth, 1), pixels, bitmap.PixelWidth * 4, 0);
+        var count = 0;
+        for (var offset = 0; offset < pixels.Length; offset += 4)
+        {
+            var color = Color.FromArgb(
+                pixels[offset + 3],
+                pixels[offset + 2],
+                pixels[offset + 1],
+                pixels[offset]);
+            if (color == accent || color == neutral)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
 
     private static void AssertMediaGlyphForeground(Button button, Color expectedColor)
     {

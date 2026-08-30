@@ -278,7 +278,9 @@ internal static class VisualStyleOwnershipScanner
         "App.Input.ComboBox.Standard",
         "App.Input.ComboBox.Item",
         "App.Media.ProgressSlider",
-        "App.Media.Slider"
+        "App.Media.Slider",
+        "App.Media.VisualTrackButton",
+        "App.Media.VisualTrack"
     ];
 
     private static readonly HashSet<string> ForbiddenDesignTokenNames =

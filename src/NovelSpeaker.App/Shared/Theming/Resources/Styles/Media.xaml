@@ -23,10 +23,78 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type RepeatButton}">
+                    <!-- The WPF Track buttons are interaction-only. The
+                         continuous visual rail is rendered by the sibling
+                         ProgressBar below, so these hit regions cannot create
+                         rounded ends or a waist near the Thumb. -->
+                    <Border Background="Transparent"
+                            BorderBrush="Transparent"
+                            BorderThickness="0" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="App.Media.VisualTrackButton"
+           TargetType="{x:Type RepeatButton}">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type RepeatButton}">
                     <Border Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource App.Radius.Small}" />
+                            BorderBrush="Transparent"
+                            BorderThickness="0" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="App.Media.VisualTrack"
+           TargetType="{x:Type ProgressBar}">
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent}" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ProgressBar}">
+                    <Grid Background="Transparent">
+                        <!-- Track has no Thumb and uses flat, equal-width
+                             segments; the fill boundary therefore reaches the
+                             Slider Thumb center instead of its rounded edge. -->
+                        <Track x:Name="PART_VisualTrack"
+                               Minimum="{TemplateBinding Minimum}"
+                               Maximum="{TemplateBinding Maximum}"
+                               Value="{TemplateBinding Value}"
+                               Orientation="{TemplateBinding Orientation}"
+                               MinHeight="6"
+                               MinWidth="6"
+                               HorizontalAlignment="Stretch"
+                               VerticalAlignment="Center">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Style="{DynamicResource App.Media.VisualTrackButton}"
+                                              Background="{TemplateBinding Foreground}" />
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Style="{DynamicResource App.Media.VisualTrackButton}"
+                                              Background="{TemplateBinding Background}" />
+                            </Track.IncreaseRepeatButton>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Orientation" Value="Horizontal">
+                            <Setter TargetName="PART_VisualTrack" Property="Height" Value="6" />
+                        </Trigger>
+                        <Trigger Property="Orientation" Value="Vertical">
+                            <Setter TargetName="PART_VisualTrack" Property="Width" Value="6" />
+                            <Setter TargetName="PART_VisualTrack" Property="HorizontalAlignment" Value="Center" />
+                            <Setter TargetName="PART_VisualTrack" Property="VerticalAlignment" Value="Stretch" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -61,6 +129,16 @@
     <ControlTemplate x:Key="PlaybackSliderControlTemplate"
                      TargetType="{x:Type Slider}">
         <Grid Background="Transparent">
+            <ProgressBar x:Name="PART_VisualTrack"
+                         Minimum="{TemplateBinding Minimum}"
+                         Maximum="{TemplateBinding Maximum}"
+                         Value="{TemplateBinding Value}"
+                         Orientation="{TemplateBinding Orientation}"
+                         Foreground="{TemplateBinding Foreground}"
+                         Background="{TemplateBinding Background}"
+                         Style="{DynamicResource App.Media.VisualTrack}"
+                         HorizontalAlignment="Stretch"
+                         VerticalAlignment="Center" />
             <Track x:Name="PART_Track"
                    Minimum="{TemplateBinding Minimum}"
                    Maximum="{TemplateBinding Maximum}"
@@ -94,6 +172,7 @@
         <ControlTemplate.Triggers>
             <Trigger Property="Tag" Value="Progress">
                 <Setter TargetName="PART_MediaThumb" Property="Opacity" Value="0" />
+                <Setter TargetName="PART_VisualTrack" Property="Visibility" Value="Collapsed" />
             </Trigger>
             <Trigger Property="Orientation" Value="Horizontal">
                 <Setter TargetName="PART_MediaDecreaseButton" Property="Height" Value="6" />
@@ -103,8 +182,10 @@
                 <Setter TargetName="PART_Track" Property="Width" Value="14" />
                 <Setter TargetName="PART_Track" Property="HorizontalAlignment" Value="Center" />
                 <Setter TargetName="PART_Track" Property="VerticalAlignment" Value="Stretch" />
-                <!-- Both vertical segments use the same fixed rail width. Track arranges
-                     them edge-to-edge and the Thumb covers their shared boundary. -->
+                <Setter TargetName="PART_VisualTrack" Property="HorizontalAlignment" Value="Stretch" />
+                <Setter TargetName="PART_VisualTrack" Property="VerticalAlignment" Value="Stretch" />
+                <!-- Interaction buttons stay narrow and transparent. The
+                     sibling visual rail owns the fixed 6 DIP geometry. -->
                 <Setter TargetName="PART_MediaDecreaseButton" Property="Width" Value="6" />
                 <Setter TargetName="PART_MediaDecreaseButton" Property="HorizontalAlignment" Value="Center" />
                 <Setter TargetName="PART_MediaIncreaseButton" Property="Width" Value="6" />
