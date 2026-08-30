@@ -34,6 +34,55 @@ public sealed class StyleGallerySceneTests
         await Screenshot_generator_is_explicitly_guarded_and_repeatable();
     }
 
+    [Fact]
+    public void Button_gallery_toolbar_value_covers_icon_and_numeric_content()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            try
+            {
+                var scene = GallerySceneRegistry.All
+                    .Single(item => item.Name == "button-styles")
+                    .Create();
+                var window = new Window
+                {
+                    Content = scene,
+                    Width = GalleryRenderSettings.WindowWidth,
+                    Height = GalleryRenderSettings.WindowHeight,
+                    ShowInTaskbar = false,
+                    WindowStyle = WindowStyle.ToolWindow
+                };
+                try
+                {
+                    WpfWindowHost.Show(window);
+                    window.UpdateLayout();
+                    var buttons = FindDescendants<Wpf.Ui.Controls.Button>(scene)
+                        .Where(button => AutomationProperties.GetAutomationId(button)
+                            .StartsWith("button-toolbarvalue-", StringComparison.Ordinal))
+                        .ToArray();
+
+                    Assert.Equal(5, buttons.Length);
+                    Assert.All(buttons, button =>
+                    {
+                        Assert.Same(scene.FindResource("App.Button.ToolbarValue"), button.Style!.BasedOn);
+                        Assert.IsType<Wpf.Ui.Controls.SymbolIcon>(button.Icon);
+                        Assert.Equal("10", button.Content);
+                    });
+                }
+                finally
+                {
+                    window.Close();
+                }
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            }
+        });
+    }
+
     private void Scene_registry_groups_concrete_gallery_scenes_with_fixed_dimensions()
     {
         var scenes = GallerySceneRegistry.All;

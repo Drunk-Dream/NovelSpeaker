@@ -74,7 +74,7 @@ internal static class GallerySceneBuilders
         CreateSceneRoot(
             "media-controls",
             "Media control components",
-            "App.Button.Icon and the Gallery-only control bar show playback, volume, window actions and deterministic slider projection.",
+            "App.Button.Icon, App.Media.Button and the Gallery-only control bar show restrained playback, volume, window actions and deterministic slider projection.",
             CreateMediaControlsContent);
 
     public static FrameworkElement CreateProgressStyles() =>
@@ -782,7 +782,7 @@ internal static class GallerySceneBuilders
                 CreateText("State fixtures", 15, FontWeights.SemiBold),
                 new TextBlock
                 {
-                    Text = "播放 / 暂停使用统一 48 px 外部布局与 28 px icon 容器的唯一 Accent 主按钮；上一章 / 下一章使用 32 px 低权重图标，上一段 / 下一段和音量使用 36 px 中性按钮。Focus、Disabled、置顶激活和长 Tooltip 均为固定 Gallery 状态。",
+                    Text = "播放 / 暂停、章节和音量入口使用统一 48 px 媒体命中区；Hover 只增强图标前景，Pressed 只提供轻微内容反馈，不绘制大面积按钮背景。Focus、Disabled、置顶激活和长 Tooltip 均为固定 Gallery 状态。",
                     Margin = new Thickness(0, 8, 0, 0),
                     TextWrapping = TextWrapping.Wrap
                 }.WithResource(TextBlock.ForegroundProperty, "App.Brush.Text.Secondary"),
@@ -1123,7 +1123,7 @@ internal static class GallerySceneBuilders
 
     private static Button CreateButtonPreview(string variant, string state)
     {
-        Button button = variant is "Icon" or "DangerIcon"
+        Button button = variant is "Icon" or "DangerIcon" or "ToolbarValue"
             ? new WpfUiButton
             {
                 Style = FindButtonStyle(variant),
@@ -1133,8 +1133,11 @@ internal static class GallerySceneBuilders
                 {
                     Symbol = variant == "DangerIcon"
                         ? SymbolRegular.Delete24
-                        : SymbolRegular.Settings24
+                        : variant == "ToolbarValue"
+                            ? SymbolRegular.Speaker124
+                            : SymbolRegular.Settings24
                 },
+                Content = variant == "ToolbarValue" ? "10" : null,
                 ToolTip = $"{variant} · {state}"
             }
             : new Button

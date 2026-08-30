@@ -14,6 +14,30 @@
         <Setter Property="Height" Value="{StaticResource App.Size.MediaButton}" />
         <Setter Property="MinWidth" Value="{StaticResource App.Size.MediaButton}" />
         <Setter Property="MinHeight" Value="{StaticResource App.Size.MediaButton}" />
+        <!-- Media controls use content feedback; the hit area stays transparent. -->
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="MouseOverBackground" Value="Transparent" />
+        <Setter Property="PressedBackground" Value="Transparent" />
+        <Setter Property="MouseOverBorderBrush" Value="Transparent" />
+        <Setter Property="PressedBorderBrush" Value="Transparent" />
+        <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Hover}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="MouseOverBackground" Value="Transparent" />
+                <Setter Property="PressedBackground" Value="Transparent" />
+                <Setter Property="MouseOverBorderBrush" Value="Transparent" />
+                <Setter Property="PressedBorderBrush" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="App.Media.Slider"

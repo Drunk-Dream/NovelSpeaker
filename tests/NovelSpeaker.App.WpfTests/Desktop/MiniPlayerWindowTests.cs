@@ -78,6 +78,16 @@ public sealed class MiniPlayerWindowTests
                 var volumeButton = Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerVolumeMenuButton"));
                 Assert.Equal("播放音量", volumeButton.ToolTip);
                 Assert.Equal("播放音量 100%", AutomationProperties.GetName(volumeButton));
+                var mediaButtons = new[]
+                {
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerPreviousChapterButton")),
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerPreviousSegmentButton")),
+                    playbackButton,
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerNextSegmentButton")),
+                    Assert.IsType<WpfUiButton>(window.FindName("MiniPlayerNextChapterButton")),
+                    volumeButton
+                };
+                Assert.All(mediaButtons, button => Assert.Equal(20, button.FontSize));
                 AssertControl<WpfUiButton>(window, "MiniPlayerRestoreButton", "恢复主窗口");
                 Assert.Equal(
                     SymbolRegular.ArrowMaximize24,

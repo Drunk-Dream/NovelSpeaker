@@ -56,61 +56,27 @@
                         ToolTip="切换规则"
                         AutomationProperties.Name="切换规则"
                         Icon="{ui:SymbolIcon Symbol=TextBulletListSquare24}" />
-                <Button x:Name="StopTimerToolButton"
+                <ui:Button x:Name="StopTimerToolButton"
                         Margin="12,0,0,0"
                         Width="80"
                         Height="44"
-                        Padding="0"
-                        BorderThickness="0"
                         Style="{StaticResource App.Button.ToolbarValue}"
                         Command="{Binding ToggleStopTimerMenuCommand}"
                         IsEnabled="{Binding CanScheduleStopTimer}"
                         ToolTip="定时停止"
-                        AutomationProperties.Name="{Binding StopTimerButtonAutomationName, FallbackValue=定时停止}">
-                    <Border x:Name="StopTimerPillBorder"
-                            Width="80"
-                            Height="40"
-                            Padding="12,0"
-                            Background="{DynamicResource App.Brush.Surface.Secondary}"
-                            BorderBrush="{DynamicResource App.Brush.Border.Subtle}"
-                            BorderThickness="1"
-                            CornerRadius="12">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Clock24" />
-                            <TextBlock Margin="8,0,0,0"
-                                       VerticalAlignment="Center"
-                                       Style="{StaticResource App.Typography.FormLabel}"
-                                       Text="{Binding StopTimerRemainingText}" />
-                        </StackPanel>
-                    </Border>
-                </Button>
-                <Button x:Name="SpeedMenuButton"
+                        AutomationProperties.Name="{Binding StopTimerButtonAutomationName, FallbackValue=定时停止}"
+                        Icon="{ui:SymbolIcon Symbol=Clock24}"
+                        Content="{Binding StopTimerRemainingText}" />
+                <ui:Button x:Name="SpeedMenuButton"
                         Margin="12,0,0,0"
                         Width="80"
                         Height="44"
-                        Padding="0"
-                        BorderThickness="0"
                         Style="{StaticResource App.Button.ToolbarValue}"
                         Command="{Binding ToggleSpeedMenuCommand}"
                         ToolTip="调整语速"
-                        AutomationProperties.Name="{Binding SpeakSpeedButtonText}">
-                    <Border x:Name="SpeedMenuPillBorder"
-                            Width="80"
-                            Height="40"
-                            Padding="12,0"
-                            Background="{DynamicResource App.Brush.Surface.Secondary}"
-                            BorderBrush="{DynamicResource App.Brush.Border.Subtle}"
-                            BorderThickness="1"
-                            CornerRadius="12">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Speaker124" />
-                            <TextBlock Margin="8,0,0,0"
-                                       VerticalAlignment="Center"
-                                       Style="{StaticResource App.Typography.FormLabel}"
-                                       Text="{Binding SpeakSpeed}" />
-                        </StackPanel>
-                    </Border>
-                </Button>
+                        AutomationProperties.Name="{Binding SpeakSpeedButtonText}"
+                        Icon="{ui:SymbolIcon Symbol=Speaker124}"
+                        Content="{Binding SpeakSpeed}" />
             </StackPanel>
 
             <ui:Flyout x:Name="StopTimerFlyout"
@@ -859,7 +825,6 @@
                             <ui:Button x:Name="PrimaryPlaybackButton"
                                        Margin="0,0,12,0"
                                        Style="{StaticResource App.Media.Button}"
-                                       FontSize="28"
                                        IsEnabled="{Binding CanTogglePlayPause}"
                                        Command="{Binding TogglePlayPauseCommand}"
                                        ToolTip="{Binding PrimaryActionText}"

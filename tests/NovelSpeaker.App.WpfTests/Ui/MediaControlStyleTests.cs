@@ -97,12 +97,58 @@ public sealed class MediaControlStyleTests
             element => element.Name.LocalName == "ControlTemplate" ||
                        (element.Name.LocalName == "Setter" &&
                         (string?)element.Attribute("Property") == "Template"));
+        var setterProperties = style.Elements()
+            .Where(element => element.Name.LocalName == "Setter")
+            .Select(element => element.Attribute("Property")?.Value ?? string.Empty)
+            .ToArray();
         Assert.Equal(
             ["Width", "Height", "MinWidth", "MinHeight"],
-                style.Elements()
-                .Where(element => element.Name.LocalName == "Setter")
-                .Select(element => element.Attribute("Property")?.Value ?? string.Empty)
-                .ToArray());
+            setterProperties.Take(4).ToArray());
+    }
+
+    private void Media_button_uses_content_feedback_without_surface_or_border_states()
+    {
+        var path = Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "Styles",
+            "Media.xaml");
+        var document = XDocument.Load(path);
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var style = document.Root?.Elements()
+            .Single(resource => (string?)resource.Attribute(xaml + "Key") == "App.Media.Button");
+
+        Assert.NotNull(style);
+        var setters = style!.Elements()
+            .Where(element => element.Name.LocalName == "Setter")
+            .ToDictionary(
+                element => (string)element.Attribute("Property")!,
+                element => (string?)element.Attribute("Value"));
+        Assert.Equal("Transparent", setters["Background"]);
+        Assert.Equal("{DynamicResource App.Brush.Text.Primary}", setters["Foreground"]);
+        Assert.Equal("Transparent", setters["MouseOverBackground"]);
+        Assert.Equal("Transparent", setters["PressedBackground"]);
+        Assert.Equal("Transparent", setters["MouseOverBorderBrush"]);
+        Assert.Equal("Transparent", setters["PressedBorderBrush"]);
+        Assert.Equal(
+            "{DynamicResource App.Brush.Interaction.Foreground.Pressed}",
+            setters["PressedForeground"]);
+
+        var triggers = style.Elements().Single(element => element.Name.LocalName == "Style.Triggers")
+            .Elements()
+            .Select(trigger => (string?)trigger.Attribute("Property") ?? string.Empty)
+            .ToArray();
+        Assert.Equal(["IsMouseOver", "IsPressed", "IsEnabled"], triggers);
+        Assert.DoesNotContain(
+            style.Elements().Single(element => element.Name.LocalName == "Style.Triggers").Elements(),
+            trigger => trigger.Elements().Any(setter =>
+                (string?)setter.Attribute("Property") == "BorderBrush" ||
+                ((string?)setter.Attribute("Property") == "Background" &&
+                 (string?)setter.Attribute("Value") != "Transparent")));
     }
 
     private void Gallery_media_fixture_distinguishes_navigation_icons_and_projects_slider_without_playback()
@@ -400,6 +446,7 @@ public sealed class MediaControlStyleTests
     {
         Media_style_dictionary_contains_explicit_styles_without_templates();
         Media_button_style_dictionary_contains_icon_based_style_without_template();
+        Media_button_uses_content_feedback_without_surface_or_border_states();
     }
 
     [Fact]

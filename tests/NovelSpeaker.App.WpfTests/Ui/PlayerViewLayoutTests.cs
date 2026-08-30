@@ -723,6 +723,7 @@ public sealed partial class PlayerViewTests
                 Assert.Same(mediaButtonStyle, button.Style);
                 Assert.Equal(48, button.Width);
                 Assert.Equal(48, button.Height);
+                Assert.Equal(20, button.FontSize);
                 Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(button.Background).Color);
             });
 

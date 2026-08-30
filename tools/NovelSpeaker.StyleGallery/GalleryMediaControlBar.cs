@@ -303,7 +303,7 @@ public sealed class GalleryMediaControlBar : Border
             SymbolRegular.PlayCircle24,
             "播放：开始读取当前段。此 Gallery fixture 不执行播放命令。",
             "App.Media.Button 播放",
-            28,
+            20,
             "App.Media.Button");
         PauseButton = CreateButton(
             null,
@@ -311,7 +311,7 @@ public sealed class GalleryMediaControlBar : Border
             SymbolRegular.PauseCircle24,
             "暂停：暂停当前段。此 Gallery fixture 不执行播放命令。",
             "App.Media.Button 暂停（Focus preview）",
-            28,
+            20,
             "App.Media.Button");
         NextSegmentButton = CreateButton(
             null,

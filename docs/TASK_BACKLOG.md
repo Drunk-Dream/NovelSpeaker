@@ -81,7 +81,7 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 
 ## Phase B：按钮与播放器样板
 
-## [ ] T002（P0）：收口 Button family 与播放器顶部/媒体按钮交互
+## [x] T002（P0）：收口 Button family 与播放器顶部/媒体按钮交互
 
 依赖：T001。
 
@@ -106,6 +106,12 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 - Player 的 Speed/Timer 入口只有一个主要 Hover owner，不存在外层与内层同时切换背景的视觉树合同。
 - Light/Dark/High Contrast 下按钮前景、Disabled、Focus 资源可解析。
 - Player/MiniPlayer 相关 WPF 定向测试通过。
+
+完成成果：
+
+- `App.Media.Button` 收口为透明命中区、前景 Hover/Pressed 反馈，并让 `App.Button.ToolbarValue` 由单一 Wpf.Ui 按钮拥有圆角工具表面；播放器语速/定时入口移除内部 Pill。
+- 同步 Button/Media Gallery 文案与按钮样板，以及 Player/MiniPlayer 相关 WPF 契约测试。
+- 自动验收：按钮、媒体、Player/MiniPlayer 与 Gallery 定向 WPF 测试 15/15 通过，覆盖 ToolbarValue Icon+数值内容及统一媒体图标尺寸契约。
 
 ## [ ] T003（P0）：统一播放进度、竖向音量与语速/定时 Flyout
 

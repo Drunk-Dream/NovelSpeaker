@@ -49,7 +49,7 @@ public sealed class ButtonStyleTests
         {
             Assert.Equal("Style", resource.Name.LocalName);
             var key = (string?)resource.Attribute(xaml + "Key");
-            var usesUiButton = key is "App.Button.Icon" or "App.Button.DangerIcon";
+            var usesUiButton = key is "App.Button.Icon" or "App.Button.DangerIcon" or "App.Button.ToolbarValue";
             Assert.Equal(
                 usesUiButton ? "{x:Type ui:Button}" : "Button",
                 (string?)resource.Attribute("TargetType"));
@@ -303,7 +303,7 @@ public sealed class ButtonStyleTests
             var buttons = new Dictionary<string, WpfButton>(StringComparer.Ordinal);
             foreach (var key in ButtonStyleKeys)
             {
-                var usesUiButton = key is "App.Button.Icon" or "App.Button.DangerIcon";
+                var usesUiButton = key is "App.Button.Icon" or "App.Button.DangerIcon" or "App.Button.ToolbarValue";
                 WpfButton button = usesUiButton
                     ? new WpfUiButton
                     {
