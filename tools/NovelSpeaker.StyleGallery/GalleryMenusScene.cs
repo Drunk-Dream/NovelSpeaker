@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -23,15 +24,17 @@ internal static class GalleryMenusScene
         content.Children.Add(CreateIntro());
 
         var columns = new Grid();
-        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        columns.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        columns.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         var inlineMenu = CreateInlineMenuSurface();
-        Grid.SetColumn(inlineMenu, 0);
+        Grid.SetRow(inlineMenu, 0);
+        Grid.SetColumnSpan(inlineMenu, 2);
         columns.Children.Add(inlineMenu);
 
         var contextMenu = CreateContextMenuSurface();
-        Grid.SetColumn(contextMenu, 1);
+        Grid.SetRow(contextMenu, 1);
+        Grid.SetColumnSpan(contextMenu, 2);
         columns.Children.Add(contextMenu);
 
         content.Children.Add(columns);
@@ -49,9 +52,9 @@ internal static class GalleryMenusScene
             {
                 CreateTitle("Menu / ContextMenu 表面与菜单项"),
                 CreateBody(
-                    "App.Menu.Surface 与 App.Menu.ContextSurface 使用 Raised 表面和中等抬升；普通项保持中性，危险操作独立分组，Close 保持默认中性语义。"),
+                    "App.Menu.Surface 与 App.Menu.ContextSurface 使用 Raised 表面和中等抬升；普通、Hover、Pressed、Checked、Disabled 与 Danger 状态由同一菜单项样式拥有。"),
                 CreateBody(
-                    "所有菜单项通过 Provider.MenuItem 继承 WPF MenuItem 基础模板，NovelSpeaker 只提供表面、间距和语义状态。")
+                    "所有菜单项通过 Provider.MenuItem 继承 WPF MenuItem 基础模板；分隔线由独立 App.Menu.Separator 绘制，并与文字列对齐。")
             }
         };
         return surface;
@@ -64,7 +67,7 @@ internal static class GalleryMenusScene
         surface.Padding = new Thickness(12);
         var content = new StackPanel();
         content.Children.Add(CreateTitle("Menu"));
-        content.Children.Add(CreateBody("内联 Menu 使用 App.Menu.Surface；分组标题不可交互，Danger 项与普通项保持不同语义。"));
+        content.Children.Add(CreateBody("内联 Menu 使用 App.Menu.Surface；状态示例覆盖普通、Hover、Pressed、Checked、Disabled、Danger，以及多组独立分隔线。"));
 
         var menu = new Menu
         {
@@ -89,7 +92,7 @@ internal static class GalleryMenusScene
         surface.Padding = new Thickness(12);
         var content = new StackPanel();
         content.Children.Add(CreateTitle("ContextMenu"));
-        content.Children.Add(CreateBody("右键菜单使用 App.Menu.ContextSurface；危险删除独立于中性操作分组。"));
+        content.Children.Add(CreateBody("右键菜单使用 App.Menu.ContextSurface；危险删除独立于中性操作分组，分隔线不受相邻项禁用状态影响。"));
 
         var anchor = new WpfButton
         {
@@ -102,8 +105,47 @@ internal static class GalleryMenusScene
         AutomationProperties.SetName(anchor, "打开示例 ContextMenu");
         anchor.ContextMenu = CreateContextMenu();
         content.Children.Add(anchor);
+        content.Children.Add(CreateSeparatorPreview());
         surface.Child = content;
         return surface;
+    }
+
+    private static StackPanel CreateSeparatorPreview()
+    {
+        var preview = new StackPanel
+        {
+            Margin = new Thickness(0, 10, 0, 0)
+        };
+        preview.Children.Add(CreateBody("独立 Separator 与相邻 Disabled/Danger 项保持相同长度和不透明度："));
+        preview.Children.Add(new TextBlock
+        {
+            Text = "普通操作",
+            Margin = new Thickness(12, 0, 12, 0)
+        }.WithMenusResource(WpfTextBlock.ForegroundProperty, "App.Brush.Text.Primary"));
+        preview.Children.Add(CreatePreviewSeparator());
+        preview.Children.Add(new TextBlock
+        {
+            Text = "危险操作",
+            Margin = new Thickness(12, 0, 12, 0)
+        }.WithMenusResource(WpfTextBlock.ForegroundProperty, "App.Brush.Danger"));
+        preview.Children.Add(CreatePreviewSeparator());
+        preview.Children.Add(new TextBlock
+        {
+            Text = "关闭",
+            Margin = new Thickness(12, 0, 12, 0)
+        }.WithMenusResource(WpfTextBlock.ForegroundProperty, "App.Brush.Text.Primary"));
+        return preview;
+    }
+
+    private static Separator CreatePreviewSeparator()
+    {
+        var separator = new Separator
+        {
+            Style = FindResource("App.Menu.Separator"),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinWidth = 200
+        };
+        return separator.WithMenusAutomationId("menus-preview-separator");
     }
 
     private static ContextMenu CreateContextMenu()
@@ -121,31 +163,118 @@ internal static class GalleryMenusScene
         return menu;
     }
 
-    private static IReadOnlyList<FrameworkElement> CreateMenuItems() =>
-    [
-        new MenuItem
+    private static IReadOnlyList<FrameworkElement> CreateMenuItems()
+    {
+        var highlighted = new MenuItem
         {
-            Header = "书籍操作",
-            Style = FindResource("App.Menu.GroupHeader")
-        },
-        new MenuItem
-        {
-            Header = "打开详情",
+            Header = "Hover 预览",
             Style = FindResource("App.Menu.Item")
-        },
-        new Separator(),
-        new MenuItem
+        };
+        SetHighlightedValue(highlighted, true);
+
+        var pressed = new MenuItem
+        {
+            Header = "Pressed 预览",
+            Style = FindResource("App.Menu.Item")
+        };
+        SetPressedValue(pressed, true);
+
+        var checkedItem = new MenuItem
+        {
+            Header = "Checked",
+            IsCheckable = true,
+            IsChecked = true,
+            Style = FindResource("App.Menu.Item")
+        };
+
+        var checkedHighlighted = new MenuItem
+        {
+            Header = "Checked + Hover",
+            IsCheckable = true,
+            IsChecked = true,
+            Style = FindResource("App.Menu.Item")
+        };
+        SetHighlightedValue(checkedHighlighted, true);
+
+        var checkedPressed = new MenuItem
+        {
+            Header = "Checked + Pressed",
+            IsCheckable = true,
+            IsChecked = true,
+            Style = FindResource("App.Menu.Item")
+        };
+        SetPressedValue(checkedPressed, true);
+        SetHighlightedValue(checkedPressed, true);
+
+        var disabled = new MenuItem
+        {
+            Header = "Disabled",
+            IsEnabled = false,
+            Style = FindResource("App.Menu.Item")
+        };
+
+        var danger = new MenuItem
         {
             Header = "删除书籍",
             Style = FindResource("App.Menu.DangerItem")
-        },
-        new Separator(),
-        new MenuItem
+        };
+        SetHighlightedValue(danger, true);
+
+        return
+        [
+            new MenuItem
+            {
+                Header = "书籍操作",
+                Style = FindResource("App.Menu.GroupHeader")
+            },
+            new MenuItem
+            {
+                Header = "打开详情",
+                Style = FindResource("App.Menu.Item")
+            },
+            highlighted,
+            pressed,
+            checkedItem,
+            checkedHighlighted,
+            checkedPressed,
+            disabled,
+            new Separator { Style = FindResource("App.Menu.Separator") },
+            danger,
+            new Separator { Style = FindResource("App.Menu.Separator") },
+            new MenuItem
+            {
+                Header = "Close",
+                Style = FindResource("App.Menu.Item")
+            }
+        ];
+    }
+
+    private static void SetHighlightedValue(MenuItem item, bool value)
+    {
+        var property = typeof(MenuItem).GetProperty(
+            nameof(MenuItem.IsHighlighted),
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        var setter = property?.GetSetMethod(nonPublic: true)
+            ?? throw new InvalidOperationException("WPF MenuItem.IsHighlighted setter is unavailable.");
+        setter.Invoke(item, [value]);
+    }
+
+    private static void SetPressedValue(MenuItem item, bool value)
+    {
+        var wpfVersion = typeof(MenuItem).Assembly.GetName().Version;
+        if (wpfVersion?.Major < 10)
         {
-            Header = "Close",
-            Style = FindResource("App.Menu.Item")
+            throw new InvalidOperationException(
+                $"Pressed-state gallery adapter requires WPF 10+; actual version: {wpfVersion?.ToString() ?? "unknown"}.");
         }
-    ];
+
+        var keyField = typeof(MenuItem).GetField(
+            "IsPressedPropertyKey",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        var key = keyField?.GetValue(null) as DependencyPropertyKey
+            ?? throw new InvalidOperationException("WPF MenuItem.IsPressedPropertyKey is unavailable.");
+        item.SetValue(key, value);
+    }
 
     private static Style FindResource(string key) =>
         System.Windows.Application.Current?.FindResource(key) as Style
@@ -183,6 +312,13 @@ internal static class GalleryMenusScene
 
 internal static class GalleryMenusResourceExtensions
 {
+    public static T WithMenusAutomationId<T>(this T element, string automationId)
+        where T : FrameworkElement
+    {
+        AutomationProperties.SetAutomationId(element, automationId);
+        return element;
+    }
+
     public static T WithMenusResource<T>(this T element, DependencyProperty property, object resourceKey)
         where T : FrameworkElement
     {

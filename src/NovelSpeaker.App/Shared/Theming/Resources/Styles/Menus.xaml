@@ -2,8 +2,9 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!--
         Menu styles own the menu and context-menu surfaces plus the ordinary,
-        danger and group-header items. Provider.Menu, Provider.ContextMenu and
-        Provider.MenuItem supply stable WPF bases through the Provider Style Bridge.
+        danger and group-header items. Provider.Menu, Provider.ContextMenu,
+        Provider.MenuItem and Provider.Separator supply stable WPF bases through
+        the Provider Style Bridge.
     -->
     <Style x:Key="App.Menu.Surface"
            TargetType="{x:Type Menu}"
@@ -32,6 +33,50 @@
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Style.Triggers>
+            <Trigger Property="IsHighlighted" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Hover}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </Trigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsChecked" Value="True" />
+                    <Condition Property="IsPressed" Value="True" />
+                </MultiTrigger.Conditions>
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
+            </MultiTrigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsChecked" Value="True" />
+                    <Condition Property="IsHighlighted" Value="True" />
+                </MultiTrigger.Conditions>
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </MultiTrigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsChecked" Value="True" />
+                    <Condition Property="IsPressed" Value="True" />
+                    <Condition Property="IsHighlighted" Value="True" />
+                </MultiTrigger.Conditions>
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
+            </MultiTrigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="App.Menu.DangerItem"
@@ -39,6 +84,21 @@
            BasedOn="{StaticResource App.Menu.Item}">
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger}" />
         <Setter Property="Tag" Value="Danger" />
+        <Style.Triggers>
+            <Trigger Property="IsHighlighted" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Danger.Subtle}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Danger.Pressed}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger.Pressed.Text}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="App.Menu.GroupHeader"
@@ -47,5 +107,30 @@
         <Setter Property="IsEnabled" Value="False" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Secondary}" />
+    </Style>
+
+    <Style x:Key="App.Menu.Separator"
+           TargetType="{x:Type Separator}"
+           BasedOn="{StaticResource Provider.Separator}">
+        <Setter Property="Height" Value="1" />
+        <Setter Property="MinHeight" Value="1" />
+        <Setter Property="Margin" Value="12,4" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Border.Subtle}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="Opacity" Value="1" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Separator}">
+                    <Border Height="1"
+                            HorizontalAlignment="Stretch"
+                            Background="{TemplateBinding Background}"
+                            SnapsToDevicePixels="True" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 </ResourceDictionary>

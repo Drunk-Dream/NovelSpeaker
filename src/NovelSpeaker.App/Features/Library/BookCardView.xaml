@@ -94,7 +94,7 @@
                                   Command="{Binding OpenBookDetailsCommand}"
                                   CommandParameter="{Binding Item}"
                                   Header="书籍详情" />
-                        <Separator />
+                        <Separator Style="{StaticResource App.Menu.Separator}" />
                         <MenuItem Style="{StaticResource App.Menu.DangerItem}"
                                   Command="{Binding DeleteBookCommand}"
                                   CommandParameter="{Binding Item}"

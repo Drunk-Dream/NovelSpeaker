@@ -31,6 +31,7 @@ public sealed class ProviderStyleBridgeTests
         "Provider.Menu",
         "Provider.ContextMenu",
         "Provider.MenuItem",
+        "Provider.Separator",
         "Provider.Flyout",
         "Provider.Snackbar"
     ];
@@ -127,6 +128,7 @@ public sealed class ProviderStyleBridgeTests
         "Provider.Menu" => new System.Windows.Controls.Menu { Style = style },
         "Provider.ContextMenu" => new ContextMenu { Style = style },
         "Provider.MenuItem" => new System.Windows.Controls.MenuItem { Header = "menu", Style = style },
+        "Provider.Separator" => new Separator { Style = style },
         "Provider.NavigationViewItem" => new NavigationViewItem { Content = "navigation", Style = style },
         "Provider.ProgressBar" => new ProgressBar { Minimum = 0, Maximum = 1, Value = 0.5, Style = style },
         "Provider.Slider" => new Slider { Minimum = 0, Maximum = 1, Value = 0.5, Style = style },

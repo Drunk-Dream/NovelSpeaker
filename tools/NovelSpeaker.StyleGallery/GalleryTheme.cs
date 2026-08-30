@@ -46,6 +46,7 @@ public static class GalleryThemeRuntime
         "Provider.Menu",
         "Provider.ContextMenu",
         "Provider.MenuItem",
+        "Provider.Separator",
         "Provider.NavigationViewItem",
         "Provider.ProgressBar",
         "Provider.Slider",

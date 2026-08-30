@@ -220,21 +220,32 @@ internal sealed class WindowsTrayLifecycleAdapter : IDesktopLifecyclePlatform
 
     private ContextMenu CreateTrayMenu()
     {
-        var menu = new ContextMenu();
+        var menu = new ContextMenu
+        {
+            Style = FindMenuStyle("App.Menu.ContextSurface")
+        };
         menu.Items.Add(CreateMenuItem("显示主窗口", DesktopLifecycleCommand.ShowMainWindow));
         menu.Items.Add(CreateMenuItem("播放/暂停", DesktopLifecycleCommand.TogglePlayback));
         menu.Items.Add(CreateMenuItem("迷你播放器", DesktopLifecycleCommand.OpenMiniPlayer));
-        menu.Items.Add(new Separator());
+        menu.Items.Add(new Separator { Style = FindMenuStyle("App.Menu.Separator") });
         menu.Items.Add(CreateMenuItem("退出", DesktopLifecycleCommand.ExitApplication));
         return menu;
     }
 
     private MenuItem CreateMenuItem(string header, DesktopLifecycleCommand command)
     {
-        var item = new MenuItem { Header = header };
+        var item = new MenuItem
+        {
+            Header = header,
+            Style = FindMenuStyle("App.Menu.Item")
+        };
         item.Click += (_, _) => CommandReceived?.Invoke(this, command);
         return item;
     }
+
+    private static Style FindMenuStyle(string key) =>
+        global::System.Windows.Application.Current?.FindResource(key) as Style
+        ?? throw new InvalidOperationException($"菜单资源“{key}”尚未加载。");
 
     private void OnMiniPlayerRestoreRequested(object? sender, EventArgs e) =>
         CommandReceived?.Invoke(this, DesktopLifecycleCommand.ShowMainWindow);

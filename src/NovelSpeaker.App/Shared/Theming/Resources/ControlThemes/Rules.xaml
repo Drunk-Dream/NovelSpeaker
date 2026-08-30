@@ -134,7 +134,7 @@
                               IsEnabled="{Binding PlacementTarget.CanCopy, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                     <Separator>
                         <Separator.Style>
-                            <Style TargetType="Separator">
+                            <Style TargetType="Separator" BasedOn="{StaticResource App.Menu.Separator}">
                                 <Setter Property="Visibility" Value="Visible" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding PlacementTarget.IsSortable, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
@@ -179,7 +179,7 @@
                     </MenuItem>
                     <Separator x:Name="MoveSeparator">
                         <Separator.Style>
-                            <Style TargetType="Separator">
+                            <Style TargetType="Separator" BasedOn="{StaticResource App.Menu.Separator}">
                                 <Setter Property="Visibility" Value="Visible" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding PlacementTarget.IsSortable, RelativeSource={RelativeSource AncestorType=ContextMenu}}"

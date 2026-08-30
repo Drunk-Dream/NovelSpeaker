@@ -222,7 +222,7 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 - 自动验收：Input、Selection、Settings、RuleListItem、详情页章节模板和 Release build 定向检查通过；增加调用方不重复声明 Selected/Disabled Foreground 的静态契约。
 - 视觉验收：生成并检查 input-controls、selection、list-components、settings-controls、rules-shared 的 Light/Dark 截图，确认字段边界、选择态 Accent、列表文字对比度、设置行 Hover 所有权和规则卡片状态；验收后已删除截图、manifest 及临时生成代码。
 
-## [ ] T006（P1）：统一 ContextMenu/MenuItem 与独立 Separator
+## [x] T006（P1）：统一 ContextMenu/MenuItem 与独立 Separator
 
 依赖：T001、T004。
 
@@ -245,6 +245,13 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 - Disabled 菜单项不会改变相邻 Separator 的 Opacity/长度。
 - MenuItem 只有一个主要 Hover owner，Checked/Selected + Hover 保持持续状态。
 - ContextMenu 键盘打开、Focus、`Shift+F10`/Menu Key 等既有交互测试保持通过。
+
+完成成果：
+
+- 新增 `Provider.Separator` 与 `App.Menu.Separator`，公共菜单统一处理 Hover/Pressed/Checked、Checked+Pressed、Disabled 和 Danger 优先级；Separator 使用固定 inset、1 px 独立模板和稳定不透明度。
+- 规则菜单、书卡 ContextMenu、托盘菜单及 Gallery 迁移到公共菜单/分隔线资源，托盘代码构造项也绑定同一资源链。
+- 自动验收：菜单资源/状态/Provider bridge 合同、真实 ContextMenu Separator 视觉树与几何、规则 ContextMenu、托盘菜单和全 Gallery 渲染定向测试通过。
+- 视觉验收：生成并检查 `menus.light.png`、`menus.dark.png`，覆盖普通、Hover、Pressed、Checked、Checked+Hover、Checked+Pressed、Disabled、Danger 和多组 Separator；验收后已删除截图、manifest 及临时生成代码。
 
 ## Phase D：全项目迁移与质量收口
 

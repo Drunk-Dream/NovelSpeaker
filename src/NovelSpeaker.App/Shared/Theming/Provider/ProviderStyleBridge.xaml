@@ -60,6 +60,10 @@
            TargetType="{x:Type MenuItem}"
            BasedOn="{StaticResource {x:Type MenuItem}}" />
 
+    <Style x:Key="Provider.Separator"
+           TargetType="{x:Type Separator}"
+           BasedOn="{StaticResource {x:Type Separator}}" />
+
     <Style x:Key="Provider.Flyout"
            TargetType="{x:Type ui:Flyout}"
            BasedOn="{StaticResource {x:Type ui:Flyout}}" />

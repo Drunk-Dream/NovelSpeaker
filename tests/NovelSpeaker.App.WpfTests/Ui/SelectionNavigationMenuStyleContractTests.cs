@@ -1,4 +1,5 @@
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -32,6 +33,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
             AssertChainContains(application, "App.Menu.Item", "Provider.MenuItem");
             AssertChainContains(application, "App.Menu.DangerItem", "Provider.MenuItem");
             AssertChainContains(application, "App.Menu.GroupHeader", "Provider.MenuItem");
+            AssertChainContains(application, "App.Menu.Separator", "Provider.Separator");
 
             foreach (var key in new[]
                      {
@@ -72,6 +74,151 @@ public sealed class SelectionNavigationMenuStyleContractTests
                         StringComparison.Ordinal));
             }
         });
+    }
+
+    private void Menu_styles_define_single_state_owners_and_independent_separators()
+    {
+        var repositoryRoot = LocateRepositoryRoot();
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var presentation = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml/presentation");
+        var menus = XDocument.Load(Path.Combine(
+            repositoryRoot,
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "Styles",
+            "Menus.xaml"));
+        var item = menus.Root!.Elements(presentation + "Style")
+            .Single(style => (string?)style.Attribute(xaml + "Key") == "App.Menu.Item");
+        var itemTriggers = item.Element(presentation + "Style.Triggers")!.Elements().ToArray();
+
+        Assert.Contains(itemTriggers, trigger =>
+            trigger.Name.LocalName == "Trigger" &&
+            (string?)trigger.Attribute("Property") == "IsHighlighted" &&
+            trigger.Elements(presentation + "Setter").Any(setter =>
+                (string?)setter.Attribute("Property") == "Background" &&
+                (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Surface.Hover}"));
+        Assert.Contains(itemTriggers, trigger =>
+            trigger.Name.LocalName == "Trigger" &&
+            (string?)trigger.Attribute("Property") == "IsPressed" &&
+            trigger.Elements(presentation + "Setter").Any(setter =>
+                (string?)setter.Attribute("Property") == "Background" &&
+                (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Surface.Pressed}"));
+        Assert.Contains(itemTriggers, trigger =>
+            trigger.Name.LocalName == "Trigger" &&
+            (string?)trigger.Attribute("Property") == "IsChecked" &&
+            trigger.Elements(presentation + "Setter").Any(setter =>
+                (string?)setter.Attribute("Property") == "Background" &&
+                (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Accent.Subtle}"));
+        Assert.Contains(itemTriggers, trigger =>
+            trigger.Name.LocalName == "MultiTrigger" &&
+            trigger.Element(presentation + "MultiTrigger.Conditions")?.Elements(presentation + "Condition")
+                .Any(condition =>
+                    (string?)condition.Attribute("Property") == "IsChecked" &&
+                    (string?)condition.Attribute("Value") == "True") == true &&
+            trigger.Element(presentation + "MultiTrigger.Conditions")?.Elements(presentation + "Condition")
+                .Any(condition =>
+                    (string?)condition.Attribute("Property") == "IsPressed" &&
+                    (string?)condition.Attribute("Value") == "True") == true &&
+            trigger.Elements(presentation + "Setter").Any(setter =>
+                (string?)setter.Attribute("Property") == "Background" &&
+                (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Surface.Pressed}"));
+        Assert.Contains(itemTriggers, trigger =>
+            trigger.Name.LocalName == "MultiTrigger" &&
+            trigger.Element(presentation + "MultiTrigger.Conditions")?.Elements(presentation + "Condition")
+                .Count(condition => (string?)condition.Attribute("Value") == "True") == 3 &&
+            trigger.Element(presentation + "MultiTrigger.Conditions")?.Elements(presentation + "Condition")
+                .Any(condition => (string?)condition.Attribute("Property") == "IsChecked") == true &&
+            trigger.Element(presentation + "MultiTrigger.Conditions")?.Elements(presentation + "Condition")
+                .Any(condition => (string?)condition.Attribute("Property") == "IsPressed") == true &&
+            trigger.Element(presentation + "MultiTrigger.Conditions")?.Elements(presentation + "Condition")
+                .Any(condition => (string?)condition.Attribute("Property") == "IsHighlighted") == true &&
+            trigger.Elements(presentation + "Setter").Any(setter =>
+                (string?)setter.Attribute("Property") == "Background" &&
+                (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Surface.Pressed}"));
+        Assert.Contains(itemTriggers, trigger =>
+            trigger.Name.LocalName == "MultiTrigger" &&
+            trigger.Element(presentation + "MultiTrigger.Conditions")?.Elements(presentation + "Condition")
+                .Any(condition =>
+                    (string?)condition.Attribute("Property") == "IsChecked" &&
+                    (string?)condition.Attribute("Value") == "True") == true &&
+            trigger.Element(presentation + "MultiTrigger.Conditions")?.Elements(presentation + "Condition")
+                .Any(condition =>
+                    (string?)condition.Attribute("Property") == "IsHighlighted" &&
+                    (string?)condition.Attribute("Value") == "True") == true &&
+            trigger.Elements(presentation + "Setter").Any(setter =>
+                (string?)setter.Attribute("Property") == "Background" &&
+                (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Accent.Subtle.Hover}"));
+        Assert.Contains(itemTriggers, trigger =>
+            trigger.Name.LocalName == "Trigger" &&
+            (string?)trigger.Attribute("Property") == "IsEnabled" &&
+            (string?)trigger.Attribute("Value") == "False" &&
+            trigger.Elements(presentation + "Setter").Any(setter =>
+                (string?)setter.Attribute("Property") == "Foreground" &&
+                (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Foreground.Disabled}"));
+        Assert.DoesNotContain(
+            item.Elements(presentation + "Setter"),
+            setter => (string?)setter.Attribute("Property") == "BorderBrush" ||
+                       (string?)setter.Attribute("Property") == "BorderThickness");
+
+        var danger = menus.Root.Elements(presentation + "Style")
+            .Single(style => (string?)style.Attribute(xaml + "Key") == "App.Menu.DangerItem");
+        Assert.Contains(
+            danger.Descendants(presentation + "Trigger"),
+            trigger => (string?)trigger.Attribute("Property") == "IsHighlighted" &&
+                       trigger.Elements(presentation + "Setter").Any(setter =>
+                           (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Danger.Subtle}"));
+        Assert.Contains(
+            danger.Descendants(presentation + "Trigger"),
+            trigger => (string?)trigger.Attribute("Property") == "IsEnabled" &&
+                       (string?)trigger.Attribute("Value") == "False" &&
+                       trigger.Elements(presentation + "Setter").Any(setter =>
+                           (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Foreground.Disabled}"));
+
+        var separator = menus.Root.Elements(presentation + "Style")
+            .Single(style => (string?)style.Attribute(xaml + "Key") == "App.Menu.Separator");
+        Assert.Equal("{x:Type Separator}", separator.Attribute("TargetType")?.Value);
+        Assert.Equal("{StaticResource Provider.Separator}", separator.Attribute("BasedOn")?.Value);
+        Assert.Contains(
+            separator.Elements(presentation + "Setter"),
+            setter => (string?)setter.Attribute("Property") == "Margin" &&
+                      (string?)setter.Attribute("Value") == "12,4");
+        Assert.Contains(
+            separator.Elements(presentation + "Setter"),
+            setter => (string?)setter.Attribute("Property") == "Opacity" &&
+                      (string?)setter.Attribute("Value") == "1");
+
+        var bookCard = XDocument.Load(Path.Combine(
+            repositoryRoot,
+            "src",
+            "NovelSpeaker.App",
+            "Features",
+            "Library",
+            "BookCardView.xaml"));
+        Assert.Contains(
+            bookCard.Descendants(presentation + "Separator"),
+            element => (string?)element.Attribute("Style") == "{StaticResource App.Menu.Separator}");
+
+        var rules = XDocument.Load(Path.Combine(
+            repositoryRoot,
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "ControlThemes",
+            "Rules.xaml"));
+        Assert.DoesNotContain(
+            rules.Descendants(presentation + "Style"),
+            style => (string?)style.Attribute("TargetType") == "Separator" &&
+                     style.Attribute("BasedOn") is null);
+        Assert.All(
+            rules.Descendants(presentation + "Separator"),
+            element => Assert.Contains(
+                element.Descendants(presentation + "Style"),
+                style => (string?)style.Attribute("BasedOn") == "{StaticResource App.Menu.Separator}"));
     }
 
     private void Selection_content_styles_project_persistent_and_disabled_text_states()
@@ -568,15 +715,91 @@ public sealed class SelectionNavigationMenuStyleContractTests
                     menu.Background);
 
                 var inlineItems = menu.Items.OfType<WpfMenuItem>().ToArray();
-                Assert.Equal(4, inlineItems.Length);
+                Assert.Equal(10, inlineItems.Length);
                 Assert.Equal("书籍操作", inlineItems[0].Header);
                 Assert.False(inlineItems[0].IsEnabled);
                 Assert.Equal("打开详情", inlineItems[1].Header);
-                Assert.Equal("Danger", inlineItems[2].Tag);
-                Assert.Equal("删除书籍", inlineItems[2].Header);
-                Assert.Equal("Close", inlineItems[3].Header);
-                Assert.NotSame(inlineItems[2].Style, inlineItems[3].Style);
-                Assert.Equal(2, menu.Items.OfType<Separator>().Count());
+                Assert.Equal("Hover 预览", inlineItems[2].Header);
+                Assert.Equal("Pressed 预览", inlineItems[3].Header);
+                Assert.True(inlineItems[3].IsPressed);
+                Assert.Equal("Checked", inlineItems[4].Header);
+                Assert.True(inlineItems[4].IsChecked);
+                Assert.Equal("Checked + Hover", inlineItems[5].Header);
+                Assert.True(inlineItems[5].IsChecked);
+                Assert.Equal("Checked + Pressed", inlineItems[6].Header);
+                Assert.True(inlineItems[6].IsChecked);
+                Assert.True(inlineItems[6].IsPressed);
+                Assert.Equal("Disabled", inlineItems[7].Header);
+                Assert.False(inlineItems[7].IsEnabled);
+                Assert.Equal("Danger", inlineItems[8].Tag);
+                Assert.Equal("删除书籍", inlineItems[8].Header);
+                Assert.Equal("Close", inlineItems[9].Header);
+                Assert.NotSame(inlineItems[8].Style, inlineItems[9].Style);
+
+                var separatorStyle = application.FindResource("App.Menu.Separator");
+                var separators = menu.Items.OfType<Separator>().ToArray();
+                Assert.Equal(2, separators.Length);
+                Assert.All(separators, separator =>
+                {
+                    Assert.Same(separatorStyle, separator.Style);
+                    Assert.Equal(new Thickness(12, 4, 12, 4), separator.Margin);
+                    Assert.Equal(1, separator.Opacity);
+                    Assert.False(separator.IsHitTestVisible);
+                    Assert.False(separator.Focusable);
+                });
+                Assert.Same(
+                    application.FindResource("App.Brush.Interaction.Surface.Hover"),
+                    inlineItems[2].Background);
+                Assert.Same(
+                    application.FindResource("App.Brush.Interaction.Surface.Pressed"),
+                    inlineItems[3].Background);
+                Assert.Same(
+                    application.FindResource("App.Brush.Accent.Subtle"),
+                    inlineItems[4].Background);
+                Assert.Same(
+                    application.FindResource("App.Brush.Accent.Subtle.Hover"),
+                    inlineItems[5].Background);
+                Assert.Same(
+                    application.FindResource("App.Brush.Interaction.Surface.Pressed"),
+                    inlineItems[6].Background);
+                Assert.Same(
+                    application.FindResource("App.Brush.Interaction.Foreground.Disabled"),
+                    inlineItems[7].Foreground);
+                Assert.Same(
+                    application.FindResource("App.Brush.Danger.Subtle"),
+                    inlineItems[8].Background);
+
+                var disabledDanger = new WpfMenuItem
+                {
+                    Header = "Disabled Danger",
+                    IsEnabled = false,
+                    Style = Assert.IsType<Style>(application.FindResource("App.Menu.DangerItem"))
+                };
+                SetHighlightedValue(disabledDanger, true);
+                menu.Items.Add(disabledDanger);
+                host.Window.UpdateLayout();
+                Assert.Same(
+                    application.FindResource("App.Brush.Interaction.Foreground.Disabled"),
+                    disabledDanger.Foreground);
+                Assert.Equal(OpacityOf("App.Opacity.Disabled"), disabledDanger.Opacity);
+
+                var previewSeparators = FindDescendants<Separator>(scene)
+                    .Where(separator => AutomationProperties.GetAutomationId(separator) == "menus-preview-separator")
+                    .ToArray();
+                Assert.Equal(2, previewSeparators.Length);
+                Assert.All(previewSeparators, separator =>
+                {
+                    separator.ApplyTemplate();
+                    separator.UpdateLayout();
+                    Assert.True(separator.ActualWidth >= 200d);
+                    Assert.InRange(separator.ActualHeight, 1d, 1.1d);
+                    Assert.Contains(
+                        FindDescendants<Border>(separator),
+                        line => line.ActualHeight >= 0.9d &&
+                                ReferenceEquals(
+                                    application.FindResource("App.Brush.Border.Subtle"),
+                                    line.Background));
+                });
 
                 var anchor = FindDescendants<WpfButton>(scene).Single(button =>
                     AutomationProperties.GetAutomationId(button) == "menus-context-anchor");
@@ -590,6 +813,34 @@ public sealed class SelectionNavigationMenuStyleContractTests
                 Assert.Equal(
                     inlineItems.Select(item => item.Header),
                     contextMenu.Items.OfType<WpfMenuItem>().Select(item => item.Header));
+                Assert.All(
+                    contextMenu.Items.OfType<Separator>(),
+                    separator => Assert.Same(separatorStyle, separator.Style));
+
+                contextMenu.PlacementTarget = anchor;
+                contextMenu.IsOpen = true;
+                contextMenu.ApplyTemplate();
+                contextMenu.UpdateLayout();
+                var contextSeparators = contextMenu.Items.OfType<Separator>().ToArray();
+                Assert.Equal(2, contextSeparators.Length);
+                Assert.InRange(
+                    contextSeparators[0].ActualWidth,
+                    1d,
+                    double.MaxValue);
+                Assert.Equal(contextSeparators[0].ActualWidth, contextSeparators[1].ActualWidth);
+                Assert.All(contextSeparators, separator =>
+                {
+                    Assert.InRange(separator.ActualHeight, 1d, 1.1d);
+                    Assert.Equal(1, separator.Opacity);
+                    Assert.Contains(
+                        FindDescendants<Border>(separator),
+                        line => line.ActualWidth > 0d &&
+                                line.ActualHeight >= 0.9d &&
+                                ReferenceEquals(
+                                    application.FindResource("App.Brush.Border.Subtle"),
+                                    line.Background));
+                });
+                contextMenu.IsOpen = false;
             }
             finally
             {
@@ -696,6 +947,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
     public void Selection_style_contracts_cover_provider_chains_and_gallery_states()
     {
         Selection_navigation_menu_styles_resolve_through_the_provider_style_chains();
+        Menu_styles_define_single_state_owners_and_independent_separators();
         Selection_persistent_states_keep_their_accent_hover_priority();
         Selection_content_styles_project_persistent_and_disabled_text_states();
         Selection_content_callers_do_not_redeclare_semantic_foreground_triggers();
@@ -723,6 +975,20 @@ public sealed class SelectionNavigationMenuStyleContractTests
 
     private static Color? ColorOf(object? brush) =>
         brush is SolidColorBrush solid ? solid.Color : null;
+
+    private static double OpacityOf(string key) =>
+        Convert.ToDouble(global::System.Windows.Application.Current!.FindResource(key),
+            global::System.Globalization.CultureInfo.InvariantCulture);
+
+    private static void SetHighlightedValue(WpfMenuItem item, bool value)
+    {
+        var property = typeof(WpfMenuItem).GetProperty(
+            nameof(WpfMenuItem.IsHighlighted),
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        var setter = property?.GetSetMethod(nonPublic: true)
+            ?? throw new InvalidOperationException("WPF MenuItem.IsHighlighted setter is unavailable.");
+        setter.Invoke(item, [value]);
+    }
 
     private static string LocateRepositoryRoot()
     {

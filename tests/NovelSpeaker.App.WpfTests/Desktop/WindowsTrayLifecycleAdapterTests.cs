@@ -125,12 +125,22 @@ public sealed class WindowsTrayLifecycleAdapterTests
                 var adapter = new WindowsTrayLifecycleAdapter(
                     provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.MiniPlayerWindow>(),
                     provider.GetRequiredService<NovelSpeaker.App.Desktop.MiniPlayer.IMiniPlayerPlacementPersistence>());
-                adapter.AttachMainWindow(provider.GetRequiredService<MainWindow>());
+                var mainWindow = provider.GetRequiredService<MainWindow>();
+                adapter.AttachMainWindow(mainWindow);
                 var menu = Assert.IsType<ContextMenu>(
                     typeof(WindowsTrayLifecycleAdapter)
                         .GetField("_trayMenu", BindingFlags.Instance | BindingFlags.NonPublic)?
                         .GetValue(adapter));
                 var items = menu.Items.OfType<MenuItem>().ToArray();
+                Assert.Same(mainWindow.FindResource("App.Menu.ContextSurface"), menu.Style);
+                Assert.Same(
+                    mainWindow.FindResource("App.Menu.Separator"),
+                    Assert.Single(menu.Items.OfType<Separator>()).Style);
+                Assert.All(
+                    items,
+                    item => Assert.Same(
+                        mainWindow.FindResource("App.Menu.Item"),
+                        item.Style));
 
                 Assert.Equal(
                     ["显示主窗口", "播放/暂停", "迷你播放器", "退出"],
