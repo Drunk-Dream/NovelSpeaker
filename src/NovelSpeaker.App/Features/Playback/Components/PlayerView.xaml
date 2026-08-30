@@ -1026,15 +1026,11 @@
                 <Border Width="128"
                         Style="{StaticResource App.Feedback.PopupSurface}">
                     <StackPanel>
-                        <Grid>
-                            <TextBlock Style="{StaticResource App.Typography.SectionTitle}"
-                                       Text="播放音量" />
-                            <TextBlock HorizontalAlignment="Right"
-                                       Style="{StaticResource App.Typography.FormLabel}"
-                                       Text="{Binding VolumePercentText}" />
-                        </Grid>
+                        <TextBlock HorizontalAlignment="Center"
+                                   Style="{StaticResource App.Typography.FormLabel}"
+                                   Text="{Binding VolumePercentText}" />
                         <Grid Height="160"
-                              Margin="0,16,0,0">
+                              Margin="0,8,0,0">
                             <Slider x:Name="VolumeSlider"
                                     Style="{StaticResource App.Media.VolumeSlider}"
                                     Minimum="0"

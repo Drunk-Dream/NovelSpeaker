@@ -11,7 +11,7 @@
         <Border Background="{TemplateBinding Background}"
                 BorderBrush="{TemplateBinding BorderBrush}"
                 BorderThickness="{TemplateBinding BorderThickness}"
-                CornerRadius="{StaticResource App.Radius.Small}" />
+                CornerRadius="999" />
     </ControlTemplate>
 
     <Style x:Key="PlaybackSliderTrackButtonStyle"
@@ -58,12 +58,6 @@
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="PlaybackSliderHiddenThumbStyle"
-           TargetType="{x:Type Thumb}"
-           BasedOn="{StaticResource PlaybackSliderThumbStyle}">
-        <Setter Property="Opacity" Value="0" />
-    </Style>
-
     <ControlTemplate x:Key="PlaybackSliderControlTemplate"
                      TargetType="{x:Type Slider}">
         <Grid Background="Transparent">
@@ -73,10 +67,14 @@
                    Value="{TemplateBinding Value}"
                    Orientation="{TemplateBinding Orientation}"
                    IsDirectionReversed="{TemplateBinding IsDirectionReversed}"
+                   MinHeight="14"
+                   MinWidth="14"
                    HorizontalAlignment="Stretch"
                    VerticalAlignment="Center">
                 <Track.DecreaseRepeatButton>
-                    <RepeatButton Style="{DynamicResource PlaybackSliderTrackButtonStyle}"
+                    <RepeatButton x:Name="PART_MediaDecreaseButton"
+                                  Style="{DynamicResource PlaybackSliderTrackButtonStyle}"
+                                  Margin="0,4"
                                   Background="{TemplateBinding Foreground}"
                                   Command="{x:Static Slider.DecreaseLarge}"
                                   CommandTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}" />
@@ -86,7 +84,9 @@
                            Style="{DynamicResource PlaybackSliderThumbStyle}" />
                 </Track.Thumb>
                 <Track.IncreaseRepeatButton>
-                    <RepeatButton Style="{DynamicResource PlaybackSliderTrackButtonStyle}"
+                    <RepeatButton x:Name="PART_MediaIncreaseButton"
+                                  Style="{DynamicResource PlaybackSliderTrackButtonStyle}"
+                                  Margin="0,4"
                                   Background="{TemplateBinding Background}"
                                   Command="{x:Static Slider.IncreaseLarge}"
                                   CommandTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}" />
@@ -94,75 +94,34 @@
             </Track>
         </Grid>
         <ControlTemplate.Triggers>
+            <Trigger Property="Tag" Value="Progress">
+                <Setter TargetName="PART_MediaThumb" Property="Opacity" Value="0" />
+            </Trigger>
             <Trigger Property="Orientation" Value="Horizontal">
-                <Setter TargetName="PART_Track" Property="Height" Value="6" />
+                <Setter TargetName="PART_MediaDecreaseButton" Property="Margin" Value="0,4" />
+                <Setter TargetName="PART_MediaIncreaseButton" Property="Margin" Value="0,4" />
             </Trigger>
             <Trigger Property="Orientation" Value="Vertical">
-                <Setter TargetName="PART_Track" Property="Width" Value="6" />
+                <Setter TargetName="PART_Track" Property="Width" Value="14" />
                 <Setter TargetName="PART_Track" Property="HorizontalAlignment" Value="Center" />
                 <Setter TargetName="PART_Track" Property="VerticalAlignment" Value="Stretch" />
+                <Setter TargetName="PART_MediaDecreaseButton" Property="Margin" Value="4,0" />
+                <Setter TargetName="PART_MediaIncreaseButton" Property="Margin" Value="4,0" />
             </Trigger>
             <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="PART_MediaThumb" Property="Opacity" Value="1" />
                 <Setter TargetName="PART_MediaThumb" Property="Background" Value="{DynamicResource App.Brush.Accent.Hover}" />
                 <Setter TargetName="PART_MediaThumb" Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Hover}" />
             </Trigger>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter TargetName="PART_MediaThumb" Property="Opacity" Value="1" />
                 <Setter TargetName="PART_MediaThumb" Property="Background" Value="{DynamicResource App.Brush.Accent.Hover}" />
                 <Setter TargetName="PART_MediaThumb" Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
             </Trigger>
             <Trigger SourceName="PART_MediaThumb" Property="IsDragging" Value="True">
+                <Setter TargetName="PART_MediaThumb" Property="Opacity" Value="1" />
                 <Setter TargetName="PART_MediaThumb" Property="Background" Value="{DynamicResource App.Brush.Accent.Pressed}" />
                 <Setter TargetName="PART_MediaThumb" Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
-            </Trigger>
-        </ControlTemplate.Triggers>
-    </ControlTemplate>
-
-    <ControlTemplate x:Key="PlaybackProgressSliderStyle"
-                     TargetType="{x:Type Slider}">
-        <Grid Background="Transparent">
-            <Track x:Name="PART_Track"
-                   Minimum="{TemplateBinding Minimum}"
-                   Maximum="{TemplateBinding Maximum}"
-                   Value="{TemplateBinding Value}"
-                   Orientation="{TemplateBinding Orientation}"
-                   IsDirectionReversed="{TemplateBinding IsDirectionReversed}"
-                   HorizontalAlignment="Stretch"
-                   VerticalAlignment="Center">
-                <Track.DecreaseRepeatButton>
-                    <RepeatButton Style="{DynamicResource PlaybackSliderTrackButtonStyle}"
-                                  Background="{TemplateBinding Foreground}"
-                                  Command="{x:Static Slider.DecreaseLarge}"
-                                  CommandTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}" />
-                </Track.DecreaseRepeatButton>
-                <Track.Thumb>
-                    <Thumb x:Name="PART_MediaThumb"
-                           Style="{DynamicResource PlaybackSliderHiddenThumbStyle}" />
-                </Track.Thumb>
-                <Track.IncreaseRepeatButton>
-                    <RepeatButton Style="{DynamicResource PlaybackSliderTrackButtonStyle}"
-                                  Background="{TemplateBinding Background}"
-                                  Command="{x:Static Slider.IncreaseLarge}"
-                                  CommandTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}" />
-                </Track.IncreaseRepeatButton>
-            </Track>
-        </Grid>
-        <ControlTemplate.Triggers>
-            <Trigger Property="Orientation" Value="Horizontal">
-                <Setter TargetName="PART_Track" Property="Height" Value="6" />
-            </Trigger>
-            <Trigger Property="Orientation" Value="Vertical">
-                <Setter TargetName="PART_Track" Property="Width" Value="6" />
-                <Setter TargetName="PART_Track" Property="HorizontalAlignment" Value="Center" />
-                <Setter TargetName="PART_Track" Property="VerticalAlignment" Value="Stretch" />
-            </Trigger>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="PART_MediaThumb" Property="Opacity" Value="1" />
-            </Trigger>
-            <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter TargetName="PART_MediaThumb" Property="Opacity" Value="1" />
-            </Trigger>
-            <Trigger SourceName="PART_MediaThumb" Property="IsDragging" Value="True">
-                <Setter TargetName="PART_MediaThumb" Property="Opacity" Value="1" />
             </Trigger>
         </ControlTemplate.Triggers>
     </ControlTemplate>
@@ -221,9 +180,6 @@
             <Trigger Property="Orientation" Value="Vertical">
                 <Setter Property="Template" Value="{StaticResource PlaybackSliderControlTemplate}" />
             </Trigger>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Hover}" />
-            </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
@@ -238,19 +194,12 @@
             <SolidColorBrush x:Key="SliderTrackFill" Color="Transparent" />
             <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="Transparent" />
         </Style.Resources>
+        <!-- The shared template uses this internal marker to hide the progress Thumb at rest. -->
+        <Setter Property="Tag" Value="Progress" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Template" Value="{StaticResource PlaybackProgressSliderStyle}" />
-        <Style.Triggers>
-            <Trigger Property="Orientation" Value="Horizontal">
-                <Setter Property="Template" Value="{StaticResource PlaybackProgressSliderStyle}" />
-            </Trigger>
-            <Trigger Property="Orientation" Value="Vertical">
-                <Setter Property="Template" Value="{StaticResource PlaybackProgressSliderStyle}" />
-            </Trigger>
-        </Style.Triggers>
     </Style>
 
     <Style x:Key="App.Media.VolumeSlider"

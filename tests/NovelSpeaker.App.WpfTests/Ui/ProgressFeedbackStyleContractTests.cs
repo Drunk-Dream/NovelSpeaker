@@ -146,6 +146,38 @@ public sealed class ProgressFeedbackStyleContractTests
         Assert.Equal(
             "{Binding ContentForeground, RelativeSource={RelativeSource AncestorType={x:Type ui:Snackbar}}}",
             templates["App.Feedback.SnackbarMessageTemplate"].Attribute("Foreground")?.Value);
+
+        AssertVolumeFlyoutPercentageLayout(Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Features",
+            "Playback",
+            "Components",
+            "PlayerView.xaml"));
+        AssertVolumeFlyoutPercentageLayout(Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Desktop",
+            "MiniPlayer",
+            "MiniPlayerWindow.xaml"));
+    }
+
+    private static void AssertVolumeFlyoutPercentageLayout(string path)
+    {
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var flyout = XDocument.Load(path).Descendants()
+            .Single(element => element.Name.LocalName == "Flyout" &&
+                               (string?)element.Attribute(xaml + "Name") is "VolumeFlyout" or "MiniPlayerVolumeFlyout");
+        var textBlocks = flyout.Descendants()
+            .Where(element => element.Name.LocalName == "TextBlock")
+            .ToArray();
+
+        Assert.DoesNotContain(textBlocks, textBlock => (string?)textBlock.Attribute("Text") == "播放音量");
+        var percentage = Assert.Single(textBlocks, textBlock =>
+            (string?)textBlock.Attribute("Text") == "{Binding VolumePercentText}");
+        Assert.Equal("Center", (string?)percentage.Attribute("HorizontalAlignment"));
     }
 
     private static void AssertProviderStyleWithoutTemplate(XElement style)

@@ -268,7 +268,6 @@ internal static class VisualStyleOwnershipScanner
         "IconButtonControlTemplate",
         "MediaIconButtonControlTemplate",
         "MediaIconButtonStyle",
-        "PlaybackProgressSliderStyle",
         "PlaybackSliderControlTemplate",
         "PlaybackSliderThumbTemplate",
         "PlaybackSliderThumbStyle",

@@ -22,9 +22,7 @@ public sealed class MediaControlStyleTests
         "PlaybackSliderThumbTemplate",
         "PlaybackSliderTrackButtonStyle",
         "PlaybackSliderThumbStyle",
-        "PlaybackSliderHiddenThumbStyle",
         "PlaybackSliderControlTemplate",
-        "PlaybackProgressSliderStyle",
         "App.Media.Button",
         "App.Media.Slider",
         "App.Media.ProgressSlider",
@@ -75,6 +73,12 @@ public sealed class MediaControlStyleTests
             (string?)resource.Attribute(xaml + "Key") == "App.Media.Slider");
         Assert.Equal("{x:Type Slider}", (string?)mediaSlider.Attribute("TargetType"));
         Assert.Equal("{StaticResource Provider.Slider}", (string?)mediaSlider.Attribute("BasedOn"));
+        var mediaSliderTriggers = mediaSlider.Elements()
+            .Single(element => element.Name.LocalName == "Style.Triggers")
+            .Elements()
+            .Select(trigger => (string?)trigger.Attribute("Property"))
+            .ToArray();
+        Assert.DoesNotContain("IsMouseOver", mediaSliderTriggers);
         var progressSlider = resources.Single(resource =>
             (string?)resource.Attribute(xaml + "Key") == "App.Media.ProgressSlider");
         Assert.Equal("{x:Type Slider}", (string?)progressSlider.Attribute("TargetType"));
@@ -193,8 +197,7 @@ public sealed class MediaControlStyleTests
             .Where(element =>
             {
                 var key = (string?)element.Attribute(xaml + "Key");
-                return key?.StartsWith("PlaybackSlider", StringComparison.Ordinal) == true ||
-                       key == "PlaybackProgressSliderStyle";
+                return key?.StartsWith("PlaybackSlider", StringComparison.Ordinal) == true;
             })
             .Select(element => (string?)element.Attribute(xaml + "Key") ?? string.Empty)
             .ToArray();
@@ -204,9 +207,7 @@ public sealed class MediaControlStyleTests
                 "PlaybackSliderThumbTemplate",
                 "PlaybackSliderTrackButtonStyle",
                 "PlaybackSliderThumbStyle",
-                "PlaybackSliderHiddenThumbStyle",
-                "PlaybackSliderControlTemplate",
-                "PlaybackProgressSliderStyle"
+                "PlaybackSliderControlTemplate"
             ],
             sharedResources);
         var controlTemplate = resources.Single(resource =>
@@ -224,18 +225,16 @@ public sealed class MediaControlStyleTests
         var thumbTemplate = resources.Single(resource =>
             (string?)resource.Attribute(xaml + "Key") == "PlaybackSliderThumbTemplate");
         Assert.Equal("{x:Type Thumb}", (string?)thumbTemplate.Attribute("TargetType"));
-        var progressTemplate = resources.Single(resource =>
-            (string?)resource.Attribute(xaml + "Key") == "PlaybackProgressSliderStyle");
-        Assert.Equal("{x:Type Slider}", (string?)progressTemplate.Attribute("TargetType"));
-        var progressTriggers = progressTemplate.Descendants()
+        var templateTriggers = controlTemplate.Descendants()
             .Where(element => element.Name.LocalName == "Trigger")
             .Select(element =>
                 ((string?)element.Attribute("SourceName") ?? string.Empty,
                  (string?)element.Attribute("Property") ?? string.Empty))
             .ToArray();
-        Assert.Contains((string.Empty, "IsMouseOver"), progressTriggers);
-        Assert.Contains((string.Empty, "IsKeyboardFocusWithin"), progressTriggers);
-        Assert.Contains(("PART_MediaThumb", "IsDragging"), progressTriggers);
+        Assert.Contains((string.Empty, "Tag"), templateTriggers);
+        Assert.Contains((string.Empty, "IsMouseOver"), templateTriggers);
+        Assert.Contains((string.Empty, "IsKeyboardFocusWithin"), templateTriggers);
+        Assert.Contains(("PART_MediaThumb", "IsDragging"), templateTriggers);
 
         var progress = resources.Single(resource =>
             (string?)resource.Attribute(xaml + "Key") == "App.Media.ProgressSlider");
@@ -244,7 +243,9 @@ public sealed class MediaControlStyleTests
             .ToDictionary(
                 element => (string)element.Attribute("Property")!,
                 element => (string?)element.Attribute("Value"));
+        Assert.Equal("Progress", progressSetters["Tag"]);
         Assert.Equal("Transparent", progressSetters["Foreground"]);
+        Assert.DoesNotContain(progressSetters.Keys, property => property == "Template");
 
         var volume = resources.Single(resource =>
             (string?)resource.Attribute(xaml + "Key") == "App.Media.VolumeSlider");
@@ -297,25 +298,36 @@ public sealed class MediaControlStyleTests
                 WpfWindowHost.Show(window);
                 window.UpdateLayout();
                 Assert.NotNull(progress.Template);
+                Assert.Same(application.FindResource("PlaybackSliderControlTemplate"), progress.Template);
+                Assert.Same(application.FindResource("PlaybackSliderControlTemplate"), volume.Template);
+                Assert.Equal("Progress", progress.Tag);
 
                 Assert.False(progress.IsMouseOver);
                 Keyboard.ClearFocus();
                 Assert.False(progress.IsKeyboardFocusWithin);
                 var progressThumb = Assert.Single(FindDescendants<Thumb>(progress));
+                var progressTrack = Assert.Single(FindDescendants<Track>(progress));
                 Assert.Same(
-                    application.FindResource("PlaybackSliderHiddenThumbStyle"),
+                    application.FindResource("PlaybackSliderThumbStyle"),
                     progressThumb.Style);
                 Assert.Equal(0, progressThumb.Opacity);
+                Assert.True(progressTrack.ActualHeight >= 14);
+                Assert.True(progressThumb.ActualWidth >= 12);
+                Assert.True(progressThumb.ActualHeight >= 12);
                 Assert.True(progress.Focus());
                 window.UpdateLayout();
                 Assert.Equal(1, progressThumb.Opacity);
 
                 var volumeThumb = Assert.Single(FindDescendants<Thumb>(volume));
+                var volumeTrack = Assert.Single(FindDescendants<Track>(volume));
                 Assert.Equal(Orientation.Vertical, volume.Orientation);
                 Assert.Same(
                     application.FindResource("PlaybackSliderThumbStyle"),
                     volumeThumb.Style);
                 Assert.Equal(1, volumeThumb.Opacity);
+                Assert.True(volumeTrack.ActualWidth >= 14);
+                Assert.True(volumeThumb.ActualWidth >= 12);
+                Assert.True(volumeThumb.ActualHeight >= 12);
                 var accent = Assert.IsType<SolidColorBrush>(
                     application.FindResource("App.Brush.Accent")).Color;
                 var neutral = Assert.IsType<SolidColorBrush>(
