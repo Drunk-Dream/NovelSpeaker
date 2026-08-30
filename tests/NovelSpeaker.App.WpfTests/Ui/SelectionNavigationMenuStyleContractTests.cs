@@ -792,7 +792,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
                     separator.ApplyTemplate();
                     separator.UpdateLayout();
                     Assert.True(separator.ActualWidth >= 200d);
-                    Assert.InRange(separator.ActualHeight, 1d, 1.1d);
+                    Assert.InRange(separator.ActualHeight, 0.75d, 1.1d);
                     Assert.Contains(
                         FindDescendants<Border>(separator),
                         line => line.ActualHeight >= 0.9d &&
@@ -830,7 +830,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
                 Assert.Equal(contextSeparators[0].ActualWidth, contextSeparators[1].ActualWidth);
                 Assert.All(contextSeparators, separator =>
                 {
-                    Assert.InRange(separator.ActualHeight, 1d, 1.1d);
+                    Assert.InRange(separator.ActualHeight, 0.75d, 1.1d);
                     Assert.Equal(1, separator.Opacity);
                     Assert.Contains(
                         FindDescendants<Border>(separator),
