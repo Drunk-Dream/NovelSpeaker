@@ -17,7 +17,8 @@
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="0" />
-        <!-- The content surface owns the only flyout boundary and elevation. -->
+        <!-- The content surface owns the only flyout boundary; the Popup host
+             contributes no additional chrome. -->
         <Setter Property="Effect" Value="{x:Null}" />
     </Style>
 

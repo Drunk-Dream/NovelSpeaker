@@ -71,7 +71,9 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource App.Radius.Medium}" />
         <Setter Property="Padding" Value="16" />
-        <Setter Property="Effect" Value="{StaticResource App.Elevation.Medium}" />
+        <!-- WPF Popup is a rectangular native window. A shadow on a rounded
+             child is clipped by that window and leaves square corner residue. -->
+        <Setter Property="Effect" Value="{x:Null}" />
     </Style>
 
 </ResourceDictionary>

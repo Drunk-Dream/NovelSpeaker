@@ -10,6 +10,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,6 +26,7 @@ using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.StyleGallery;
 using Wpf.Ui;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
@@ -778,6 +780,8 @@ public sealed partial class PlayerViewTests
                 Assert.True(opened);
                 popup.Dispatcher.Invoke(DispatcherPriority.Render, static () => { });
                 var popupChild = Assert.IsAssignableFrom<DependencyObject>(popup.Child);
+                var popupLayer = Assert.Single(TransientPopupVisualRenderer.CaptureOpenHostLayers(view, 96));
+                AssertRoundedSurfaceCorners(popupLayer.Bitmap);
                 var borders = (popupChild is Border rootBorder
                         ? new[] { rootBorder }
                         : Enumerable.Empty<Border>())
@@ -787,7 +791,7 @@ public sealed partial class PlayerViewTests
                     .Where(border => ReferenceEquals(border.Style, popupSurfaceStyle))
                     .ToArray();
                 Assert.Single(surfaces);
-                Assert.NotNull(surfaces[0].Effect);
+                Assert.Null(surfaces[0].Effect);
                 Assert.All(
                     FindVisualAncestors(surfaces[0]).OfType<Border>(),
                     border =>
@@ -798,6 +802,23 @@ public sealed partial class PlayerViewTests
                     });
 
                 popup.IsOpen = false;
+            }
+
+            foreach (var flyoutName in new[] { "StopTimerFlyout", "VolumeFlyout" })
+            {
+                var flyout = Assert.IsType<Wpf.Ui.Controls.Flyout>(view.FindName(flyoutName));
+                flyout.ApplyTemplate();
+                var flyoutPopup = Assert.IsType<Popup>(flyout.Template.FindName("PART_Popup", flyout));
+                Assert.True(flyoutPopup.AllowsTransparency);
+                Assert.Null(flyout.Effect);
+                Assert.True(IsTransparent(flyout.Background));
+                Assert.True(IsTransparent(flyout.BorderBrush));
+                Assert.Equal(0, flyout.BorderThickness.Left);
+                flyout.IsOpen = true;
+                flyout.Dispatcher.Invoke(DispatcherPriority.Render, static () => { });
+                var flyoutLayer = Assert.Single(TransientPopupVisualRenderer.CaptureOpenHostLayers(view, 96));
+                AssertRoundedSurfaceCorners(flyoutLayer.Bitmap);
+                flyout.IsOpen = false;
             }
         });
 
@@ -813,6 +834,7 @@ public sealed partial class PlayerViewTests
 
         static bool IsTransparent(Brush? brush) =>
             brush is null || brush is SolidColorBrush { Color.A: 0 };
+
     }
 
     private void Player_visual_review_generates_stable_page_screenshots()
@@ -897,6 +919,146 @@ public sealed partial class PlayerViewTests
         });
     }
 
+    private void Player_feedback_visual_review_generates_popup_and_volume_screenshots()
+    {
+        if (!VisualArtifactTestGuard.IsEnabled)
+        {
+            return;
+        }
+
+        WpfTestHost.RunInSta(() =>
+        {
+            var outputDirectory = Path.Combine(
+                LocateRepositoryRoot(),
+                "artifacts",
+                "visual-review",
+                "player-feedback");
+            Directory.CreateDirectory(outputDirectory);
+            var size = new Size(960, 640);
+
+            try
+            {
+                GalleryThemeRuntime.EnsureProviderResources();
+                foreach (var (themeName, applyTheme) in new (string Name, Action Apply)[]
+                         {
+                             ("light", () => GalleryThemeRuntime.Apply(GalleryTheme.Light)),
+                             ("dark", () => GalleryThemeRuntime.Apply(GalleryTheme.Dark))
+                         })
+                {
+                    applyTheme();
+                    using var fixture = CreateVisualReviewPage();
+                    ConfigurePlayerPage(fixture.Page, CreateDefaultVisualContext());
+                    using var controlHost = new WpfControlHost(fixture.Page);
+                    controlHost.MeasureArrange(size);
+                    var playerView = Assert.IsType<PlayerView>(fixture.Page.FindName("PlayerView"));
+                    var window = new Window
+                    {
+                        Width = size.Width,
+                        Height = size.Height,
+                        Content = fixture.Page,
+                        ShowInTaskbar = false,
+                        WindowStyle = WindowStyle.None,
+                        ResizeMode = ResizeMode.NoResize
+                    };
+                    using var windowHost = WpfWindowHost.Show(window);
+                    window.UpdateLayout();
+
+                    foreach (var popupName in new[]
+                             {
+                                 "RuleMenuPopup",
+                                 "SpeedMenuPopup",
+                                 "StopTimerFlyout",
+                                 "VolumeFlyout"
+                             })
+                    {
+                        var setOpen = playerView.FindName(popupName) switch
+                        {
+                            Popup ruleOrSpeed => (Action<bool>)(value => ruleOrSpeed.IsOpen = value),
+                            Wpf.Ui.Controls.Flyout flyout => value => flyout.IsOpen = value,
+                            _ => throw new InvalidOperationException($"Popup '{popupName}' was not found.")
+                        };
+                        setOpen(true);
+                        fixture.Page.Dispatcher.Invoke(DispatcherPriority.Render, static () => { });
+                        var hostLayer = Assert.Single(
+                            TransientPopupVisualRenderer.CaptureOpenHostLayers(fixture.Page, 96));
+                        AssertRoundedSurfaceCorners(hostLayer.Bitmap);
+                        var layer = Assert.Single(
+                            TransientPopupVisualRenderer.CaptureOpenLayers(fixture.Page, 96));
+                        AssertRoundedSurfaceCorners(layer.Bitmap);
+                        SavePng(
+                            RenderPopupOnCanvas(layer.Bitmap),
+                            Path.Combine(outputDirectory, $"player-feedback.{popupName}.{themeName}.png"));
+                        setOpen(false);
+                    }
+
+                    window.Content = null;
+                }
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            }
+        });
+
+        static BitmapSource RenderPopupOnCanvas(BitmapSource popup)
+        {
+            var canvas = new Border
+            {
+                Width = 400,
+                Height = 400,
+                Child = new Image
+                {
+                    Width = popup.PixelWidth,
+                    Height = popup.PixelHeight,
+                    Source = popup,
+                    Stretch = Stretch.None,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
+            };
+            canvas.SetResourceReference(Border.BackgroundProperty, "App.Brush.Canvas");
+            using var host = new WpfControlHost(canvas);
+            return host.Render(new Size(400, 400), 96);
+        }
+
+        static void SavePng(BitmapSource bitmap, string path)
+        {
+            using var stream = File.Create(path);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            encoder.Save(stream);
+        }
+    }
+
+    private static void AssertRoundedSurfaceCorners(BitmapSource bitmap)
+    {
+        Assert.True(bitmap.PixelWidth >= 8);
+        Assert.True(bitmap.PixelHeight >= 8);
+        foreach (var (x, y) in new[]
+                 {
+                     (0, 0),
+                     (1, 0),
+                     (0, 1),
+                     (bitmap.PixelWidth - 1, 0),
+                     (bitmap.PixelWidth - 2, 0),
+                     (bitmap.PixelWidth - 1, 1),
+                     (0, bitmap.PixelHeight - 1),
+                     (1, bitmap.PixelHeight - 1),
+                     (0, bitmap.PixelHeight - 2),
+                     (bitmap.PixelWidth - 1, bitmap.PixelHeight - 1),
+                     (bitmap.PixelWidth - 2, bitmap.PixelHeight - 1),
+                     (bitmap.PixelWidth - 1, bitmap.PixelHeight - 2)
+                 })
+        {
+            var pixels = new byte[4];
+            bitmap.CopyPixels(new Int32Rect(x, y, 1, 1), pixels, 4, 0);
+            var pixel = Color.FromArgb(pixels[3], pixels[2], pixels[1], pixels[0]);
+            Assert.True(
+                pixel.A == 0,
+                $"Rounded popup corner ({x},{y}) was {pixel} in {bitmap.PixelWidth}x{bitmap.PixelHeight} host capture.");
+        }
+    }
+
     [Fact]
     public void Player_view_content_contracts_cover_empty_cache_scroll_and_titles()
     {
@@ -930,6 +1092,13 @@ public sealed partial class PlayerViewTests
     public void Player_view_visual_review_contract_remains_repeatable()
     {
         Player_visual_review_generates_stable_page_screenshots();
+    }
+
+    [Fact]
+    public void Player_feedback_visual_review_contract_covers_popup_corners_and_volume_rail()
+    {
+        Player_view_popups_render_one_shared_surface_at_runtime();
+        Player_feedback_visual_review_generates_popup_and_volume_screenshots();
     }
 
     private static PlayerViewLayoutTestContext CreateDefaultVisualContext()

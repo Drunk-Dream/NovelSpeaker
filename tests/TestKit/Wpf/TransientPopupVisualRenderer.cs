@@ -29,6 +29,22 @@ internal static class TransientPopupVisualRenderer
             .ToArray();
     }
 
+    public static IReadOnlyList<TransientPopupLayer> CaptureOpenHostLayers(
+        FrameworkElement root,
+        double dpi)
+    {
+        // Render the current child through the real Popup host. This keeps
+        // provider-owned chrome in the capture path without detaching Flyout
+        // content into a surrogate window.
+        var layerRoots = new Dictionary<FrameworkElement, PopupCaptureTarget>();
+        VisitHost(root, layerRoots);
+        return layerRoots
+            .Select(layerRoot => CaptureHostLayer(root, layerRoot.Key, dpi, layerRoot.Value))
+            .Where(layer => layer is not null)
+            .Cast<TransientPopupLayer>()
+            .ToArray();
+    }
+
     public static BitmapSource Composite(
         BitmapSource background,
         Size size,
@@ -80,6 +96,31 @@ internal static class TransientPopupVisualRenderer
         for (var index = 0; index < VisualTreeHelper.GetChildrenCount(current); index++)
         {
             Visit(VisualTreeHelper.GetChild(current, index), layerRoots);
+        }
+    }
+
+    private static void VisitHost(
+        DependencyObject current,
+        IDictionary<FrameworkElement, PopupCaptureTarget> layerRoots)
+    {
+        if (current is Popup { IsOpen: true, Child: FrameworkElement popupChild } popup &&
+            popup.TemplatedParent is not Flyout)
+        {
+            layerRoots.TryAdd(popupChild, new PopupCaptureTarget(popup));
+        }
+
+        if (current is Flyout { IsOpen: true, Content: FrameworkElement flyoutContent } flyout)
+        {
+            flyout.ApplyTemplate();
+            if (flyout.Template.FindName("PART_Popup", flyout) is Popup flyoutPopup)
+            {
+                layerRoots[flyoutContent] = new PopupCaptureTarget(flyoutPopup);
+            }
+        }
+
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(current); index++)
+        {
+            VisitHost(VisualTreeHelper.GetChild(current, index), layerRoots);
         }
     }
 
@@ -188,6 +229,42 @@ internal static class TransientPopupVisualRenderer
                 }
             }
         }
+    }
+
+    private static TransientPopupLayer? CaptureHostLayer(
+        FrameworkElement root,
+        FrameworkElement popupChild,
+        double dpi,
+        PopupCaptureTarget target)
+    {
+        if (target.Popup.Child is not FrameworkElement captureRoot)
+        {
+            return null;
+        }
+
+        captureRoot.UpdateLayout();
+        var size = captureRoot.RenderSize;
+        if (size.Width <= 0 || size.Height <= 0)
+        {
+            return null;
+        }
+
+        var origin = GetScreenRelativeOrigin(root, captureRoot);
+        if (origin is null)
+        {
+            return null;
+        }
+
+        var bitmap = new RenderTargetBitmap(
+            Math.Max(1, (int)Math.Ceiling(size.Width * dpi / 96d)),
+            Math.Max(1, (int)Math.Ceiling(size.Height * dpi / 96d)),
+            dpi,
+            dpi,
+            PixelFormats.Pbgra32);
+        bitmap.Render(captureRoot);
+        bitmap.Freeze();
+        EnsureVisiblePixels(bitmap);
+        return new TransientPopupLayer(origin.Value, size, bitmap);
     }
 
     private static IEnumerable<T> FindDescendants<T>(DependencyObject root)
@@ -364,9 +441,12 @@ internal static class TransientPopupVisualRenderer
             throw new InvalidOperationException("Transient popup capture did not contain visible pixels.");
         }
     }
+
 }
 
 internal sealed record TransientPopupLayer(Point Origin, Size Size, BitmapSource Bitmap);
+
+internal sealed record PopupCaptureTarget(Popup Popup);
 
 file sealed record ItemsControlCaptureState(
     ItemsControl ItemsControl,
