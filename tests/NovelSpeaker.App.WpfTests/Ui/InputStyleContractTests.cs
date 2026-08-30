@@ -187,6 +187,99 @@ public sealed class InputStyleContractTests
         }
     }
 
+    private void TextBox_and_password_box_focus_use_the_focus_border_contract()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                global::System.Windows.Application.Current);
+            var textBox = new WpfTextBox
+            {
+                Style = Assert.IsType<Style>(application.FindResource("App.Input.TextBox.Standard")),
+                Text = "字段"
+            };
+            var passwordBox = new WpfPasswordBox
+            {
+                Style = Assert.IsType<Style>(application.FindResource("App.Input.PasswordBox.Standard"))
+            };
+            var window = new Window
+            {
+                Content = new StackPanel { Children = { textBox, passwordBox } },
+                Width = 360,
+                Height = 180,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            try
+            {
+                WpfWindowHost.Show(window);
+                window.UpdateLayout();
+                var subtle = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("App.Brush.Border.Subtle")).Color;
+                var focus = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("App.Brush.Focus")).Color;
+                var primarySurface = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("App.Brush.Surface.Primary")).Color;
+
+                Assert.Equal(subtle, Assert.IsType<SolidColorBrush>(textBox.BorderBrush).Color);
+                Assert.True(textBox.Focus());
+                window.UpdateLayout();
+                Assert.Equal(focus, Assert.IsType<SolidColorBrush>(textBox.BorderBrush).Color);
+                Assert.Equal(primarySurface, Assert.IsType<SolidColorBrush>(textBox.Background).Color);
+
+                Assert.True(passwordBox.Focus());
+                window.UpdateLayout();
+                Assert.Equal(focus, Assert.IsType<SolidColorBrush>(passwordBox.BorderBrush).Color);
+                Assert.Equal(primarySurface, Assert.IsType<SolidColorBrush>(passwordBox.Background).Color);
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+                window.Close();
+            }
+        });
+    }
+
+    private void Checked_toggle_hover_keeps_the_accent_track_state()
+    {
+        var path = Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "Styles",
+            "Inputs.xaml");
+        var document = XDocument.Load(path);
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var style = document.Root!.Elements().Single(element =>
+            (string?)element.Attribute(xaml + "Key") == "App.Input.ToggleSwitch.Standard");
+        var checkedHover = style.Descendants().Single(trigger =>
+            trigger.Name.LocalName == "MultiTrigger" &&
+            trigger.Elements().Where(element => element.Name.LocalName == "MultiTrigger.Conditions")
+                .Elements()
+                .Any(condition =>
+                    (string?)condition.Attribute("Property") == "IsMouseOver" &&
+                    (string?)condition.Attribute("Value") == "True") &&
+            trigger.Elements().Where(element => element.Name.LocalName == "MultiTrigger.Conditions")
+                .Elements()
+                .Any(condition =>
+                    (string?)condition.Attribute("Property") == "IsChecked" &&
+                    (string?)condition.Attribute("Value") == "True"));
+
+        Assert.Contains(
+            checkedHover.Elements(),
+            setter => (string?)setter.Attribute("Property") == "Background" &&
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Accent.Hover}");
+        Assert.Contains(
+            checkedHover.Elements(),
+            setter => (string?)setter.Attribute("Property") == "BorderBrush" &&
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Accent.Hover}");
+    }
+
     private void Named_input_styles_resolve_through_the_provider_style_chain()
     {
         WpfTestHost.RunInSta(() =>
@@ -1005,7 +1098,14 @@ public sealed class InputStyleContractTests
     {
         Input_style_dictionary_contains_all_named_variants_and_no_implicit_standard_styles();
         Disabled_input_states_preserve_validation_border_priority();
+        Checked_toggle_hover_keeps_the_accent_track_state();
         Named_input_styles_resolve_through_the_provider_style_chain();
+    }
+
+    [Fact]
+    public void Input_field_state_contracts_cover_focus_border_and_surface_boundaries()
+    {
+        TextBox_and_password_box_focus_use_the_focus_border_contract();
     }
 
     [Fact]

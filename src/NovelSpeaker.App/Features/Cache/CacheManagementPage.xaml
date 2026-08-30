@@ -143,19 +143,19 @@
                                                     Command="{Binding DataContext.SelectBookCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                     CommandParameter="{Binding}">
                                                 <StackPanel>
-                                                    <TextBlock Style="{StaticResource App.Typography.ItemTitle}"
+                                                    <TextBlock Style="{StaticResource App.Selection.Content.Title}"
                                                                Text="{Binding Title}"
                                                                TextTrimming="CharacterEllipsis" />
                                                     <TextBlock Margin="0,8,0,0"
-                                                               Style="{StaticResource App.Typography.Secondary}"
+                                                               Style="{StaticResource App.Selection.Content.Secondary}"
                                                                Text="{Binding Author}"
                                                                TextTrimming="CharacterEllipsis" />
                                                     <DockPanel Margin="0,10,0,0">
                                                         <TextBlock DockPanel.Dock="Left"
-                                                                   Style="{StaticResource App.Typography.Secondary}"
+                                                                   Style="{StaticResource App.Selection.Content.Secondary}"
                                                                    Text="{Binding ChapterCountText}" />
                                                         <TextBlock HorizontalAlignment="Right"
-                                                                   Style="{StaticResource App.Typography.ItemTitle}"
+                                                                   Style="{StaticResource App.Selection.Content.Title}"
                                                                    Text="{Binding CacheSizeText}" />
                                                     </DockPanel>
                                                 </StackPanel>
@@ -339,20 +339,20 @@
                                                     <DockPanel LastChildFill="True">
                                                         <TextBlock DockPanel.Dock="Left"
                                                                    Margin="0,0,12,0"
-                                                                   Style="{StaticResource App.Typography.ItemTitle}"
+                                                                   Style="{StaticResource App.Selection.Content.Title}"
                                                                    Text="{Binding OrderText}" />
-                                                        <TextBlock Style="{StaticResource App.Typography.Body}"
+                                                        <TextBlock Style="{StaticResource App.Selection.Content.Primary}"
                                                                    Text="{Binding Title}"
                                                                    TextTrimming="CharacterEllipsis" />
                                                     </DockPanel>
                                                     <WrapPanel Margin="0,10,0,0">
                                                         <TextBlock Margin="0,0,12,0"
-                                                                   Style="{StaticResource App.Typography.Secondary}"
+                                                                   Style="{StaticResource App.Selection.Content.Secondary}"
                                                                    Text="{Binding CacheSizeText}" />
                                                         <TextBlock Margin="0,0,12,0"
-                                                                   Style="{StaticResource App.Typography.Secondary}"
+                                                                   Style="{StaticResource App.Selection.Content.Secondary}"
                                                                    Text="{Binding EntryCountText}" />
-                                                        <TextBlock Style="{StaticResource App.Typography.Secondary}"
+                                                        <TextBlock Style="{StaticResource App.Selection.Content.Secondary}"
                                                                    Text="{Binding CompletenessText}" />
                                                     </WrapPanel>
                                                 </StackPanel>

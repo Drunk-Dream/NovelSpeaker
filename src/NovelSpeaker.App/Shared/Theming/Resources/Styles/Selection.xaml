@@ -229,4 +229,45 @@
             </Trigger>
         </Style.Triggers>
     </Style>
+
+    <Style x:Key="App.Selection.Content.Title"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource App.Selection.Content.Primary}">
+        <Setter Property="FontSize" Value="{StaticResource App.Text.Size.ItemTitle}" />
+        <Setter Property="FontWeight" Value="{StaticResource App.Text.Weight.SemiBold}" />
+    </Style>
+
+    <Style x:Key="App.Selection.Content.AccentSecondary"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource App.Selection.Content.Secondary}">
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+    </Style>
+
+    <Style x:Key="App.Selection.Content.RuleTitle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource App.Typography.ItemTitle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type rules:RuleListItemView}}}"
+                         Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </DataTrigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.Selection.Content.RuleSecondary"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource App.Typography.Secondary}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type rules:RuleListItemView}}}"
+                         Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </DataTrigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
 </ResourceDictionary>

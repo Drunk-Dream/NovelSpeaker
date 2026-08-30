@@ -550,44 +550,17 @@
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="{Binding Title}"
+                                                           Style="{StaticResource App.Selection.Content.Primary}"
                                                            TextWrapping="NoWrap"
                                                            TextTrimming="CharacterEllipsis"
-                                                           VerticalAlignment="Center">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock"
-                                                               BasedOn="{StaticResource App.Typography.Body}">
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsSelectedForActiveCache}" Value="True">
-                                                                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
-                                                                </DataTrigger>
-                                                                <Trigger Property="IsEnabled" Value="False">
-                                                                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                                                                </Trigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
+                                                           VerticalAlignment="Center" />
                                                 <TextBlock Grid.Column="1"
                                                            Margin="10,0,0,0"
                                                            VerticalAlignment="Center"
                                                            FontWeight="SemiBold"
+                                                           Style="{StaticResource App.Selection.Content.AccentSecondary}"
                                                            Text="{Binding CachePercentageText}"
-                                                           Visibility="{Binding IsCachePercentageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock"
-                                                               BasedOn="{StaticResource App.Typography.Secondary}">
-                                                            <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsSelectedForActiveCache}" Value="True">
-                                                                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
-                                                                </DataTrigger>
-                                                                <Trigger Property="IsEnabled" Value="False">
-                                                                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                                                                </Trigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
+                                                           Visibility="{Binding IsCachePercentageVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                             </Grid>
                                         </Border>
                                     </Grid>
@@ -789,16 +762,12 @@
                                                     </TextBlock.RenderTransform>
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock"
-                                                               BasedOn="{StaticResource App.Typography.Body}">
+                                                               BasedOn="{StaticResource App.Selection.Content.Primary}">
                                                             <Setter Property="FontWeight" Value="Normal" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                                                                     <Setter Property="FontWeight" Value="SemiBold" />
-                                                                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
                                                                 </DataTrigger>
-                                                                <Trigger Property="IsEnabled" Value="False">
-                                                                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                                                                </Trigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </TextBlock.Style>

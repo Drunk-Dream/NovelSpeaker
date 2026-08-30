@@ -263,63 +263,23 @@
                                                     </Grid.ColumnDefinitions>
 
                                                     <TextBlock VerticalAlignment="Center"
-                                                               Text="{Binding IndexText}">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock"
-                                                                   BasedOn="{StaticResource App.Typography.Secondary}">
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                                                        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
-                                                                    </DataTrigger>
-                                                                    <Trigger Property="IsEnabled" Value="False">
-                                                                        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                                                                    </Trigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
+                                                               Style="{StaticResource App.Selection.Content.Secondary}"
+                                                               Text="{Binding IndexText}" />
 
                                                     <TextBlock Grid.Column="2"
                                                                VerticalAlignment="Center"
+                                                               Style="{StaticResource App.Selection.Content.Title}"
                                                                Text="{Binding Title}"
                                                                TextTrimming="CharacterEllipsis"
-                                                               TextWrapping="NoWrap">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock"
-                                                                   BasedOn="{StaticResource App.Typography.ItemTitle}">
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                                                        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
-                                                                    </DataTrigger>
-                                                                    <Trigger Property="IsEnabled" Value="False">
-                                                                        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                                                                    </Trigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
+                                                               TextWrapping="NoWrap" />
 
                                                     <TextBlock Grid.Column="3"
                                                                Margin="12,0,0,0"
                                                                VerticalAlignment="Center"
                                                                FontWeight="SemiBold"
+                                                               Style="{StaticResource App.Selection.Content.AccentSecondary}"
                                                                Text="{Binding CachePercentageText}"
-                                                               Visibility="{Binding IsCachePercentageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock"
-                                                                   BasedOn="{StaticResource App.Typography.Secondary}">
-                                                                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                                                        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
-                                                                    </DataTrigger>
-                                                                    <Trigger Property="IsEnabled" Value="False">
-                                                                        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                                                                    </Trigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
+                                                               Visibility="{Binding IsCachePercentageVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                                 </Grid>
                                             </Grid>
                                         </Border>

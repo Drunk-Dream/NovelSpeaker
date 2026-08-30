@@ -492,9 +492,15 @@ App.Selection.CardItem
 App.Selection.CurrentItem
 App.Selection.DropTarget
 App.Selection.MultiSelectItem
+App.Selection.Content.Primary
+App.Selection.Content.Secondary
+App.Selection.Content.Title
+App.Selection.Content.AccentSecondary
+App.Selection.Content.RuleTitle
+App.Selection.Content.RuleSecondary
 ```
 
-这些 Style 只表达容器状态，不承载书籍、章节或规则内容。
+容器 Style 只表达状态，不承载书籍、章节或规则内容；`App.Selection.Content.*` 是配套的文字状态投影，负责把数据项的 Selected/Current/ActiveCache/DropTarget 和 Disabled 语义应用到实际 `TextBlock`，同时保留对应的 Typography 变体。规则控件的选中事实由 `RuleListItemView.IsSelected` 所有，使用 `RuleTitle`/`RuleSecondary` 的祖先绑定变体；页面不得重新声明同义 Foreground Trigger。
 
 列表交互按 owner 划分：
 

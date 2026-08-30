@@ -46,6 +46,9 @@
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Interaction.Border.Hover}" />
             </Trigger>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
+            </Trigger>
             <Trigger Property="IsReadOnly" Value="True">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Secondary}" />
@@ -94,6 +97,9 @@
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Interaction.Border.Hover}" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
             </Trigger>
             <Trigger Property="Validation.HasError" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Danger}" />
@@ -557,7 +563,7 @@
                     <Condition Property="IsMouseOver" Value="True" />
                     <Condition Property="IsChecked" Value="True" />
                 </MultiTrigger.Conditions>
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Hover}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Hover}" />
             </MultiTrigger>
             <Trigger Property="Validation.HasError" Value="True">

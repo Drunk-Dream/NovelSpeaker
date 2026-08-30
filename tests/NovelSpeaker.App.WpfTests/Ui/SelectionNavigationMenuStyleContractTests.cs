@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Xml.Linq;
 using NovelSpeaker.StyleGallery;
 using Wpf.Ui.Controls;
 using Xunit;
@@ -50,7 +51,160 @@ public sealed class SelectionNavigationMenuStyleContractTests
                         "Template",
                         StringComparison.Ordinal));
             }
+
+            foreach (var key in new[]
+                     {
+                         "App.Selection.Content.Primary",
+                         "App.Selection.Content.Secondary",
+                         "App.Selection.Content.Title",
+                         "App.Selection.Content.AccentSecondary",
+                         "App.Selection.Content.RuleTitle",
+                         "App.Selection.Content.RuleSecondary"
+                     })
+            {
+                var style = Assert.IsType<Style>(application.FindResource(key));
+                Assert.Equal(typeof(WpfTextBlock), style.TargetType);
+                Assert.DoesNotContain(
+                    EnumerateSetters(style),
+                    setter => string.Equals(
+                        setter.Property?.Name,
+                        "Template",
+                        StringComparison.Ordinal));
+            }
         });
+    }
+
+    private void Selection_content_styles_project_persistent_and_disabled_text_states()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            var application = global::System.Windows.Application.Current!;
+            var selected = new SelectionTextFixture { IsCurrent = true };
+            var accentRest = new WpfTextBlock
+            {
+                Style = Assert.IsType<Style>(application.FindResource("App.Selection.Content.AccentSecondary")),
+                DataContext = new SelectionTextFixture()
+            };
+            var accentSelected = new WpfTextBlock
+            {
+                Style = Assert.IsType<Style>(application.FindResource("App.Selection.Content.AccentSecondary")),
+                DataContext = selected
+            };
+            var titleSelected = new WpfTextBlock
+            {
+                Style = Assert.IsType<Style>(application.FindResource("App.Selection.Content.Title")),
+                DataContext = selected
+            };
+            var disabled = new WpfTextBlock
+            {
+                Style = Assert.IsType<Style>(application.FindResource("App.Selection.Content.Primary")),
+                DataContext = selected,
+                IsEnabled = false
+            };
+            var window = new Window
+            {
+                Content = new StackPanel
+                {
+                    Children = { accentRest, accentSelected, titleSelected, disabled }
+                },
+                Width = 400,
+                Height = 200,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            try
+            {
+                WpfWindowHost.Show(window);
+                window.UpdateLayout();
+
+                Assert.Equal(BrushColor("App.Brush.Accent.Default"), ColorOf(accentRest.Foreground));
+                Assert.Equal(
+                    BrushColor("App.Brush.Interaction.Foreground.Selected"),
+                    ColorOf(accentSelected.Foreground));
+                Assert.Equal(
+                    BrushColor("App.Brush.Interaction.Foreground.Selected"),
+                    ColorOf(titleSelected.Foreground));
+                Assert.Equal(
+                    BrushColor("App.Brush.Interaction.Foreground.Disabled"),
+                    ColorOf(disabled.Foreground));
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+                window.Close();
+            }
+        });
+    }
+
+    private void Selection_content_callers_do_not_redeclare_semantic_foreground_triggers()
+    {
+        var repositoryRoot = LocateRepositoryRoot();
+        foreach (var relativePath in new[]
+                 {
+                     Path.Combine("src", "NovelSpeaker.App", "Features", "BookDetails", "BookDetailsPage.xaml"),
+                     Path.Combine("src", "NovelSpeaker.App", "Features", "Cache", "CacheManagementPage.xaml"),
+                     Path.Combine("src", "NovelSpeaker.App", "Features", "Playback", "Components", "PlayerView.xaml"),
+                     Path.Combine("src", "NovelSpeaker.App", "Shell", "MainWindow.xaml"),
+                     Path.Combine("src", "NovelSpeaker.App", "Shared", "Theming", "Resources", "ControlThemes", "Rules.xaml")
+                 })
+        {
+            var document = XDocument.Load(Path.Combine(repositoryRoot, relativePath));
+            Assert.DoesNotContain(
+                document.Descendants().Where(element => element.Name.LocalName == "Setter"),
+                setter => (string?)setter.Attribute("Value") is
+                    "{DynamicResource App.Brush.Interaction.Foreground.Selected}" or
+                    "{DynamicResource App.Brush.Interaction.Foreground.Disabled}");
+        }
+    }
+
+    private void Selection_persistent_states_keep_their_accent_hover_priority()
+    {
+        var path = Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "Styles",
+            "Selection.xaml");
+        var document = XDocument.Load(path);
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var stateProperties = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["App.Selection.ListItem"] = "IsSelected",
+            ["App.Selection.CurrentItem"] = "IsCurrent",
+            ["App.Selection.DropTarget"] = "IsDropTarget",
+            ["App.Selection.MultiSelectItem"] = "IsSelectedForActiveCache"
+        };
+
+        foreach (var (styleKey, stateProperty) in stateProperties)
+        {
+            var style = document.Root!.Elements().Single(element =>
+                (string?)element.Attribute(xaml + "Key") == styleKey);
+            var selectedHover = style.Descendants().Single(trigger =>
+                trigger.Name.LocalName == "MultiDataTrigger" &&
+                trigger.Elements().Where(element => element.Name.LocalName == "MultiDataTrigger.Conditions")
+                    .Elements()
+                    .Any(condition =>
+                        (string?)condition.Attribute("Binding") == $"{{Binding {stateProperty}}}" &&
+                        (string?)condition.Attribute("Value") == "True") &&
+                trigger.Elements().Where(element => element.Name.LocalName == "MultiDataTrigger.Conditions")
+                    .Elements()
+                    .Any(condition =>
+                        (string?)condition.Attribute("Value") == "True" &&
+                        ((string?)condition.Attribute("Binding"))?.Contains("IsMouseOver", StringComparison.Ordinal) == true));
+            Assert.Contains(
+                selectedHover.Elements(),
+                setter => (string?)setter.Attribute("Property") == "Background" &&
+                          (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Accent.Subtle.Hover}");
+            Assert.Contains(
+                selectedHover.Elements(),
+                setter => (string?)setter.Attribute("Property") == "TextElement.Foreground" &&
+                          (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Foreground.Selected}");
+        }
     }
 
     private void Selection_gallery_covers_all_variants_states_and_accessibility_metadata()
@@ -542,6 +696,9 @@ public sealed class SelectionNavigationMenuStyleContractTests
     public void Selection_style_contracts_cover_provider_chains_and_gallery_states()
     {
         Selection_navigation_menu_styles_resolve_through_the_provider_style_chains();
+        Selection_persistent_states_keep_their_accent_hover_priority();
+        Selection_content_styles_project_persistent_and_disabled_text_states();
+        Selection_content_callers_do_not_redeclare_semantic_foreground_triggers();
         Selection_gallery_covers_all_variants_states_and_accessibility_metadata();
     }
 
@@ -613,5 +770,16 @@ public sealed class SelectionNavigationMenuStyleContractTests
         }
 
         public bool IsSelectedForActiveCache { get; }
+    }
+
+    private sealed class SelectionTextFixture
+    {
+        public bool IsSelected { get; init; }
+
+        public bool IsCurrent { get; init; }
+
+        public bool IsSelectedForActiveCache { get; init; }
+
+        public bool IsDropTarget { get; init; }
     }
 }

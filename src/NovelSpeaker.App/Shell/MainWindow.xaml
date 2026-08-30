@@ -174,12 +174,12 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Style="{StaticResource App.Typography.Body}"
+                                        <TextBlock Style="{StaticResource App.Selection.Content.Primary}"
                                                    Text="{Binding Title}"
                                                    TextTrimming="CharacterEllipsis" />
                                         <TextBlock Grid.Column="1"
                                                    Margin="12,0,0,0"
-                                                   Style="{StaticResource App.Typography.Secondary}"
+                                                   Style="{StaticResource App.Selection.Content.Secondary}"
                                                    Text="{Binding StatusText}" />
                                     </Grid>
                                 </Border>

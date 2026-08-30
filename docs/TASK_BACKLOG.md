@@ -189,7 +189,7 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 - 自动验收：ButtonStyleTests、MediaControlStyleTests、Popup/Feedback 资源契约、Flyout 单一 surface 与真实 Player Popup 定向测试均通过；音量轨道覆盖 0、0.5、1 端点和 Thumb 连接。
 - 视觉验收：生成并检查 feedback、button-styles、media-controls、progress 的 Light/Dark 截图，确认圆角 surface、Dark pressed 图标对比度与轨道连续性；验收后已删除截图及临时生成代码。
 
-## [ ] T005（P0）：收口 Input、Selection 与设置行状态边界
+## [x] T005（P0）：收口 Input、Selection 与设置行状态边界
 
 依赖：T001、T004。
 
@@ -214,6 +214,13 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 - Selected/Current + Hover 不回退为普通 Hover Brush。
 - 设置行仅真实控件/导航行产生交互反馈；普通设置空白不成为可点击目标。
 - 受影响设置、规则、列表 WPF 定向测试通过。
+
+完成成果：
+
+- TextBox/PasswordBox 的 Hover/Focus/Validation 通过 Border 统一表达；ToggleSwitch 的 On+Hover 保持 Accent 轨道，保留 40 px 纯开关边界。
+- 新增共享 Selection 内容文字样式，统一详情、缓存、播放器、主窗口和规则卡片的 Selected/Current/ActiveCache/Disabled 投影；普通设置行不拥有整行 Hover，导航设置行保留行级反馈。
+- 自动验收：Input、Selection、Settings、RuleListItem、详情页章节模板和 Release build 定向检查通过；增加调用方不重复声明 Selected/Disabled Foreground 的静态契约。
+- 视觉验收：生成并检查 input-controls、selection、list-components、settings-controls、rules-shared 的 Light/Dark 截图，确认字段边界、选择态 Accent、列表文字对比度、设置行 Hover 所有权和规则卡片状态；验收后已删除截图、manifest 及临时生成代码。
 
 ## [ ] T006（P1）：统一 ContextMenu/MenuItem 与独立 Separator
 

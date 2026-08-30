@@ -70,6 +70,38 @@ public sealed class SettingsFormControlTests
             StringComparison.Ordinal);
     }
 
+    private void Settings_rows_keep_hover_ownership_with_navigation_rows_only()
+    {
+        var path = Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "ControlThemes",
+            "Settings.xaml");
+        var document = XDocument.Load(path);
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var rowStyle = document.Root!.Elements().Single(element =>
+            (string?)element.Attribute("TargetType") == "{x:Type controls:AppSettingsRow}");
+        Assert.DoesNotContain(
+            rowStyle.Descendants(),
+            setter => setter.Name.LocalName == "Setter" &&
+                      (string?)setter.Attribute("Property") is "Background" or "BorderBrush");
+
+        var navigationStyle = document.Root!.Elements().Single(element =>
+            (string?)element.Attribute("TargetType") == "{x:Type controls:AppSettingsNavigationRow}");
+        Assert.Contains(
+            navigationStyle.Descendants(),
+            trigger => trigger.Name.LocalName == "Trigger" &&
+                       (string?)trigger.Attribute("Property") == "IsMouseOver" &&
+                       trigger.Elements().Any(setter =>
+                           (string?)setter.Attribute("TargetName") == "Surface" &&
+                           (string?)setter.Attribute("Property") == "Background" &&
+                           (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Surface.Hover}"));
+    }
+
     private void Settings_and_form_controls_apply_default_styles_preserve_slots_and_bindings()
     {
         foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
@@ -777,6 +809,7 @@ public sealed class SettingsFormControlTests
     public void Settings_form_template_contracts_cover_implicit_ownership_and_bindings()
     {
         Settings_and_forms_templates_are_implicit_and_have_no_page_width_or_last_row_contract();
+        Settings_rows_keep_hover_ownership_with_navigation_rows_only();
         Settings_and_form_controls_apply_default_styles_preserve_slots_and_bindings();
     }
 
