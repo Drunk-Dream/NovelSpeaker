@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using NovelSpeaker.App.Shared.Presentation.Behaviors;
 using Wpf.Ui.Controls;
@@ -84,6 +85,31 @@ public sealed class WpfUiFlyoutPlacementTests
             flyout.IsOpen = true;
             await opened.Task;
             await DrainDispatcherAsync(window.Dispatcher);
+
+            Assert.True(popup.AllowsTransparency);
+            Assert.Null(flyout.Effect);
+            Assert.Equal(Brushes.Transparent, flyout.Background);
+            Assert.Equal(Brushes.Transparent, flyout.BorderBrush);
+            Assert.Equal(0, flyout.BorderThickness.Left);
+            var popupChild = Assert.IsAssignableFrom<DependencyObject>(popup.Child);
+            var popupBorders = (popupChild is Border rootBorder
+                    ? new[] { rootBorder }
+                    : Enumerable.Empty<Border>())
+                .Concat(FindDescendants<Border>(popupChild))
+                .ToArray();
+            var surfaceBorders = popupBorders
+                .Where(border => ReferenceEquals(border.Style, surface.Style))
+                .ToArray();
+            Assert.Single(surfaceBorders);
+            Assert.Same(surface, surfaceBorders[0]);
+            Assert.All(
+                FindVisualAncestors(surface).OfType<Border>(),
+                border =>
+                {
+                    Assert.True(IsTransparent(border.Background));
+                    Assert.True(IsTransparent(border.BorderBrush));
+                    Assert.Null(border.Effect);
+                });
 
             Assert.Same(
                 firstAction,
@@ -191,4 +217,38 @@ public sealed class WpfUiFlyoutPlacementTests
     {
         await dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ApplicationIdle);
     }
+
+    private static IReadOnlyList<T> FindDescendants<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        var matches = new List<T>();
+        Visit(root, matches);
+        return matches;
+
+        static void Visit(DependencyObject current, ICollection<T> matches)
+        {
+            if (current is T match)
+            {
+                matches.Add(match);
+            }
+
+            for (var index = 0; index < VisualTreeHelper.GetChildrenCount(current); index++)
+            {
+                Visit(VisualTreeHelper.GetChild(current, index), matches);
+            }
+        }
+    }
+
+    private static IEnumerable<DependencyObject> FindVisualAncestors(DependencyObject element)
+    {
+        var current = VisualTreeHelper.GetParent(element);
+        while (current is not null)
+        {
+            yield return current;
+            current = VisualTreeHelper.GetParent(current);
+        }
+    }
+
+    private static bool IsTransparent(Brush? brush) =>
+        brush is null || brush is SolidColorBrush { Color.A: 0 };
 }

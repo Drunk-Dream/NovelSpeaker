@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Automation;
@@ -239,20 +240,29 @@ public sealed class MediaControlStyleTests
             .Single(element => element.Name.LocalName == "Trigger" &&
                                (string?)element.Attribute("Property") == "Orientation" &&
                                (string?)element.Attribute("Value") == "Vertical");
-        Assert.Equal(
-            "4,-1",
-            verticalTrigger.Descendants()
-                .Single(setter => setter.Name.LocalName == "Setter" &&
-                                  (string?)setter.Attribute("TargetName") == "PART_MediaDecreaseButton" &&
-                                  (string?)setter.Attribute("Property") == "Margin")
-                .Attribute("Value")?.Value);
-        Assert.Equal(
-            "4,-1",
-            verticalTrigger.Descendants()
-                .Single(setter => setter.Name.LocalName == "Setter" &&
-                                  (string?)setter.Attribute("TargetName") == "PART_MediaIncreaseButton" &&
-                                  (string?)setter.Attribute("Property") == "Margin")
-                .Attribute("Value")?.Value);
+        var decreaseWidth = verticalTrigger.Descendants()
+            .Single(setter => setter.Name.LocalName == "Setter" &&
+                              (string?)setter.Attribute("TargetName") == "PART_MediaDecreaseButton" &&
+                              (string?)setter.Attribute("Property") == "Width")
+            .Attribute("Value")?.Value;
+        var increaseWidth = verticalTrigger.Descendants()
+            .Single(setter => setter.Name.LocalName == "Setter" &&
+                              (string?)setter.Attribute("TargetName") == "PART_MediaIncreaseButton" &&
+                              (string?)setter.Attribute("Property") == "Width")
+            .Attribute("Value")?.Value;
+        Assert.False(string.IsNullOrWhiteSpace(decreaseWidth));
+        Assert.Equal(decreaseWidth, increaseWidth);
+        Assert.True(double.TryParse(
+            decreaseWidth,
+            NumberStyles.Float,
+            CultureInfo.InvariantCulture,
+            out var fixedWidth));
+        Assert.True(fixedWidth > 0);
+        Assert.DoesNotContain(
+            verticalTrigger.Descendants(),
+            setter => setter.Name.LocalName == "Setter" &&
+                      (string?)setter.Attribute("Property") == "Margin" &&
+                      (string?)setter.Attribute("Value") == "4,-1");
 
         var progress = resources.Single(resource =>
             (string?)resource.Attribute(xaml + "Key") == "App.Media.ProgressSlider");
@@ -338,6 +348,9 @@ public sealed class MediaControlStyleTests
 
                 var volumeThumb = Assert.Single(FindDescendants<Thumb>(volume));
                 var volumeTrack = Assert.Single(FindDescendants<Track>(volume));
+                var volumeTrackButtons = FindDescendants<RepeatButton>(volume)
+                    .Where(button => button.Style == application.FindResource("PlaybackSliderTrackButtonStyle"))
+                    .ToArray();
                 Assert.Equal(Orientation.Vertical, volume.Orientation);
                 Assert.Same(
                     application.FindResource("PlaybackSliderThumbStyle"),
@@ -346,6 +359,64 @@ public sealed class MediaControlStyleTests
                 Assert.True(volumeTrack.ActualWidth >= 14);
                 Assert.True(volumeThumb.ActualWidth >= 12);
                 Assert.True(volumeThumb.ActualHeight >= 12);
+                Assert.Equal(2, volumeTrackButtons.Length);
+                Assert.All(volumeTrackButtons, button =>
+                    Assert.Equal(HorizontalAlignment.Center, button.HorizontalAlignment));
+                Assert.Equal(volumeTrackButtons[0].ActualWidth, volumeTrackButtons[1].ActualWidth, 3);
+                Assert.All(volumeTrackButtons, button => Assert.True(button.ActualWidth > 0));
+
+                foreach (var value in new[] { 0d, 0.5d, 1d })
+                {
+                    volume.Value = value;
+                    window.UpdateLayout();
+                    var bounds = volumeTrackButtons
+                        .Select(button => new Rect(
+                            button.TranslatePoint(new Point(), volumeTrack),
+                            button.RenderSize))
+                        .OrderBy(rect => rect.Top)
+                        .ToArray();
+                    var thumbBounds = new Rect(
+                        volumeThumb.TranslatePoint(new Point(), volumeTrack),
+                        volumeThumb.RenderSize);
+                    Assert.Equal(2, bounds.Length);
+                    Assert.Equal(bounds[0].Width, bounds[1].Width, 3);
+                    Assert.All(bounds, rect =>
+                    {
+                        Assert.InRange(rect.Left, -1, volumeTrack.ActualWidth + 1);
+                        Assert.InRange(rect.Right, -1, volumeTrack.ActualWidth + 1);
+                        Assert.InRange(rect.Top, -1, volumeTrack.ActualHeight + 1);
+                        Assert.InRange(rect.Bottom, -1, volumeTrack.ActualHeight + 1);
+                    });
+                    Assert.InRange(thumbBounds.Left, -1, volumeTrack.ActualWidth + 1);
+                    Assert.InRange(thumbBounds.Right, -1, volumeTrack.ActualWidth + 1);
+                    Assert.InRange(thumbBounds.Top, -1, volumeTrack.ActualHeight + 1);
+                    Assert.InRange(thumbBounds.Bottom, -1, volumeTrack.ActualHeight + 1);
+                    if (value is 0d)
+                    {
+                        Assert.True(bounds[0].Height > 1);
+                        Assert.InRange(bounds[0].Top, -1, 1);
+                        Assert.InRange(Math.Abs(bounds[0].Bottom - thumbBounds.Top), 0, 1);
+                        Assert.InRange(bounds[1].Height, 0, 1);
+                        Assert.InRange(Math.Abs(thumbBounds.Bottom - volumeTrack.ActualHeight), 0, 1);
+                    }
+                    else if (value is 1d)
+                    {
+                        Assert.InRange(bounds[0].Height, 0, 1);
+                        Assert.InRange(Math.Abs(thumbBounds.Top), 0, 1);
+                        Assert.True(bounds[1].Height > 1);
+                        Assert.InRange(Math.Abs(thumbBounds.Bottom - bounds[1].Top), 0, 1);
+                        Assert.InRange(volumeTrack.ActualHeight - bounds[1].Bottom, -1, 1);
+                    }
+                    else
+                    {
+                        Assert.True(bounds[0].Height > 1);
+                        Assert.True(bounds[1].Height > 1);
+                        Assert.InRange(bounds[0].Top, -1, 1);
+                        Assert.InRange(Math.Abs(bounds[0].Bottom - thumbBounds.Top), 0, 1);
+                        Assert.InRange(Math.Abs(thumbBounds.Bottom - bounds[1].Top), 0, 1);
+                        Assert.InRange(volumeTrack.ActualHeight - bounds[1].Bottom, -1, 1);
+                    }
+                }
                 var accent = Assert.IsType<SolidColorBrush>(
                     application.FindResource("App.Brush.Accent")).Color;
                 var neutral = Assert.IsType<SolidColorBrush>(

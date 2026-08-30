@@ -1,6 +1,8 @@
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Xml.Linq;
 using NovelSpeaker.StyleGallery;
@@ -153,6 +155,21 @@ public sealed class ButtonStyleTests
             setters,
             setter => (string?)setter.Attribute("Property") == "FocusVisualStyle" &&
                       (string?)setter.Attribute("Value") == "{x:Null}");
+
+        var triggers = style.Elements().Single(element => element.Name.LocalName == "Style.Triggers").Elements();
+        Assert.Contains(
+            triggers.Single(trigger => (string?)trigger.Attribute("Property") == "IsMouseOver").Elements(),
+            setter => (string?)setter.Attribute("Property") == "Foreground" &&
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Foreground.Hover}");
+        var pressed = triggers.Single(trigger => (string?)trigger.Attribute("Property") == "IsPressed");
+        Assert.Contains(
+            pressed.Elements(),
+            setter => (string?)setter.Attribute("Property") == "Foreground" &&
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Foreground.Pressed}");
+        Assert.Contains(
+            pressed.Elements(),
+            setter => (string?)setter.Attribute("Property") == "PressedForeground" &&
+                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Foreground.Pressed}");
     }
 
     private void Floating_button_style_keeps_the_outer_hit_area_borderless()
@@ -330,9 +347,7 @@ public sealed class ButtonStyleTests
                     usesUiButton ? providerUiButton : provider,
                     button.Style.BasedOn);
 
-                var expectedTriggers = key == "App.Button.Icon"
-                    ? new[] { "IsEnabled" }
-                    : new[] { "IsEnabled", "IsMouseOver", "IsPressed" };
+                var expectedTriggers = new[] { "IsEnabled", "IsMouseOver", "IsPressed" };
                 Assert.Equal(
                     expectedTriggers,
                     button.Style.Triggers
@@ -429,6 +444,97 @@ public sealed class ButtonStyleTests
     {
         Icon_button_icon_inherits_owner_foreground_in_both_themes();
         Icon_button_owner_foreground_updates_in_place_when_theme_changes();
+        Provider_button_pressed_and_disabled_states_keep_symbol_icons_theme_readable();
+    }
+
+    private void Provider_button_pressed_and_disabled_states_keep_symbol_icons_theme_readable()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            GalleryThemeRuntime.Apply(GalleryTheme.Dark);
+            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                global::System.Windows.Application.Current);
+            var buttons = new[]
+            {
+                CreateIconButton(application, "App.Button.Icon", SymbolRegular.Settings24),
+                CreateIconButton(application, "App.Button.ToolbarValue", SymbolRegular.Settings24),
+                CreateIconButton(application, "App.Media.Button", SymbolRegular.PlayCircle24)
+            };
+            var window = new Window
+            {
+                Content = new StackPanel { Children = { buttons[0], buttons[1], buttons[2] } },
+                Width = 360,
+                Height = 240,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            try
+            {
+                WpfWindowHost.Show(window);
+                window.UpdateLayout();
+                var pressed = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("App.Brush.Interaction.Foreground.Pressed")).Color;
+                var disabled = Assert.IsType<SolidColorBrush>(
+                    application.FindResource("App.Brush.Interaction.Foreground.Disabled")).Color;
+
+                foreach (var button in buttons)
+                {
+                    SetPressedValue(button, true);
+                    window.UpdateLayout();
+                    Assert.True(button.IsPressed);
+                    AssertIconForeground(button, pressed);
+
+                    SetPressedValue(button, false);
+                    button.IsEnabled = false;
+                    window.UpdateLayout();
+                    Assert.False(button.IsPressed);
+                    AssertIconForeground(button, disabled);
+                }
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+                window.Close();
+            }
+        });
+
+        static WpfUiButton CreateIconButton(
+            global::System.Windows.Application application,
+            string styleKey,
+            SymbolRegular symbol) =>
+            new()
+            {
+                Icon = new SymbolIcon { Symbol = symbol },
+                Style = Assert.IsType<Style>(application.FindResource(styleKey))
+            };
+
+        static void AssertIconForeground(WpfUiButton button, Color expected)
+        {
+            var icon = Assert.IsType<SymbolIcon>(button.Icon);
+            Assert.Equal(expected, Assert.IsType<SolidColorBrush>(button.Foreground).Color);
+            Assert.Equal(expected, Assert.IsType<SolidColorBrush>(icon.Foreground).Color);
+            Assert.NotEqual(Colors.Black, Assert.IsType<SolidColorBrush>(icon.Foreground).Color);
+        }
+
+        static void SetPressedValue(WpfUiButton button, bool value)
+        {
+            // WPF 10 exposes IsPressed as read-only and has no public input
+            // injection API. Keep this implementation detail isolated here so
+            // a framework change fails with an explicit visual-contract error.
+            var wpfVersion = typeof(ButtonBase).Assembly.GetName().Version;
+            Assert.True(
+                wpfVersion?.Major >= 10,
+                $"Pressed-state adapter requires WPF 10+; actual version: {wpfVersion?.ToString() ?? "unknown"}.");
+            var keyField = typeof(ButtonBase).GetField(
+                "IsPressedPropertyKey",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.NotNull(
+                keyField);
+            Assert.Equal(typeof(DependencyPropertyKey), keyField.FieldType);
+            var key = Assert.IsType<DependencyPropertyKey>(keyField.GetValue(null));
+            button.SetValue(key, value);
+        }
     }
 
     private static IReadOnlyList<T> FindDescendants<T>(DependencyObject root)

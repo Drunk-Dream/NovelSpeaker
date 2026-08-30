@@ -21,6 +21,13 @@
         <Setter Property="Effect" Value="{x:Null}" />
     </Style>
 
+    <Style x:Key="App.Feedback.PopupHost"
+           TargetType="{x:Type Popup}">
+        <Setter Property="AllowsTransparency" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
     <Style x:Key="App.Feedback.DialogBody"
            TargetType="{x:Type Border}">
         <Setter Property="Background" Value="Transparent" />

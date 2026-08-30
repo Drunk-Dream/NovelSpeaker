@@ -151,7 +151,7 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 
 ## Phase C：交互回归修正与输入、列表、菜单统一
 
-## [ ] T004（P0）：修复 Popup chrome、Dark Pressed Icon 与音量轨道几何回归
+## [x] T004（P0）：修复 Popup chrome、Dark Pressed Icon 与音量轨道几何回归
 
 依赖：T003。
 
@@ -181,6 +181,13 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 - Popup/Flyout 视觉树合同证明内容 Border 是唯一不透明圆角 Surface，外层 host/bridge 无第二份 Background/Border/Effect；语速、规则、音量至少生成一次确定性 Light/Dark 渲染，四角外不出现直角半透明板。
 - VolumeSlider 几何合同验证 Decrease/Increase 轨道厚度一致、Thumb 上下连接连续；确定性渲染中控制柄附近不出现收缩、鼓包或断缝。
 - Player/MiniPlayer/Feedback/Button/Media 相关 WPF 定向测试通过；仅执行本任务必要的视觉产物生成，不将 PNG 基线纳入仓库。
+
+完成成果：
+
+- 新增公共 `App.Feedback.PopupHost`，Player 的规则/语速 Popup 与 Flyout 宿主保持透明，内容继续由唯一 `App.Feedback.PopupSurface` 绘制圆角、边界和阴影。
+- Icon、ToolbarValue、Media Button 的 Hover/Pressed 前景统一绑定语义交互色；竖向媒体轨道两段统一固定厚度并居中，移除负 Margin 接缝修补。
+- 自动验收：ButtonStyleTests、MediaControlStyleTests、Popup/Feedback 资源契约、Flyout 单一 surface 与真实 Player Popup 定向测试均通过；音量轨道覆盖 0、0.5、1 端点和 Thumb 连接。
+- 视觉验收：生成并检查 feedback、button-styles、media-controls、progress 的 Light/Dark 截图，确认圆角 surface、Dark pressed 图标对比度与轨道连续性；验收后已删除截图及临时生成代码。
 
 ## [ ] T005（P0）：收口 Input、Selection 与设置行状态边界
 

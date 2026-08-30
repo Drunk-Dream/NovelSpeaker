@@ -254,11 +254,11 @@
             </ui:Flyout>
 
             <Popup x:Name="RuleMenuPopup"
+                   Style="{StaticResource App.Feedback.PopupHost}"
                    PlacementTarget="{Binding ElementName=RuleMenuButton}"
                    Placement="Bottom"
                    HorizontalOffset="0"
                    VerticalOffset="8"
-                   AllowsTransparency="True"
                    StaysOpen="False"
                    IsOpen="{Binding IsRuleMenuOpen, Mode=TwoWay}">
                 <Border Width="320"
@@ -333,11 +333,11 @@
             </Popup>
 
             <Popup x:Name="SpeedMenuPopup"
+                   Style="{StaticResource App.Feedback.PopupHost}"
                    PlacementTarget="{Binding ElementName=SpeedMenuButton}"
                    Placement="Bottom"
                    HorizontalOffset="0"
                    VerticalOffset="8"
-                   AllowsTransparency="True"
                    StaysOpen="False"
                    IsOpen="{Binding IsSpeedMenuOpen, Mode=TwoWay}">
                 <Border Width="280"

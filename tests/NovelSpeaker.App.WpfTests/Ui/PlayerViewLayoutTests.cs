@@ -743,6 +743,78 @@ public sealed partial class PlayerViewTests
         });
     }
 
+    [Fact]
+    public void Player_view_popups_render_one_shared_surface_at_runtime()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var view = new PlayerView
+            {
+                DataContext = CreateDefaultVisualContext()
+            };
+            var window = new Window
+            {
+                Content = view,
+                Width = 1280,
+                Height = 760,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            using var host = WpfWindowHost.Show(window);
+            window.UpdateLayout();
+
+            var popupHostStyle = Assert.IsType<Style>(view.FindResource("App.Feedback.PopupHost"));
+            var popupSurfaceStyle = Assert.IsType<Style>(view.FindResource("App.Feedback.PopupSurface"));
+            foreach (var popupName in new[] { "RuleMenuPopup", "SpeedMenuPopup" })
+            {
+                var popup = Assert.IsType<Popup>(view.FindName(popupName));
+                Assert.Same(popupHostStyle, popup.Style);
+                Assert.True(popup.AllowsTransparency);
+                Assert.False(popup.Focusable);
+
+                var opened = false;
+                popup.Opened += (_, _) => opened = true;
+                popup.IsOpen = true;
+                Assert.True(opened);
+                popup.Dispatcher.Invoke(DispatcherPriority.Render, static () => { });
+                var popupChild = Assert.IsAssignableFrom<DependencyObject>(popup.Child);
+                var borders = (popupChild is Border rootBorder
+                        ? new[] { rootBorder }
+                        : Enumerable.Empty<Border>())
+                    .Concat(VisualTreeTestHelper.FindDescendants<Border>(popupChild))
+                    .ToArray();
+                var surfaces = borders
+                    .Where(border => ReferenceEquals(border.Style, popupSurfaceStyle))
+                    .ToArray();
+                Assert.Single(surfaces);
+                Assert.NotNull(surfaces[0].Effect);
+                Assert.All(
+                    FindVisualAncestors(surfaces[0]).OfType<Border>(),
+                    border =>
+                    {
+                        Assert.True(IsTransparent(border.Background));
+                        Assert.True(IsTransparent(border.BorderBrush));
+                        Assert.Null(border.Effect);
+                    });
+
+                popup.IsOpen = false;
+            }
+        });
+
+        static IEnumerable<DependencyObject> FindVisualAncestors(DependencyObject element)
+        {
+            var current = VisualTreeHelper.GetParent(element);
+            while (current is not null)
+            {
+                yield return current;
+                current = VisualTreeHelper.GetParent(current);
+            }
+        }
+
+        static bool IsTransparent(Brush? brush) =>
+            brush is null || brush is SolidColorBrush { Color.A: 0 };
+    }
+
     private void Player_visual_review_generates_stable_page_screenshots()
     {
         if (!VisualArtifactTestGuard.IsEnabled)

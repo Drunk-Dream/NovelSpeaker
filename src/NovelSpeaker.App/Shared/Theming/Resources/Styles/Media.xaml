@@ -74,7 +74,6 @@
                 <Track.DecreaseRepeatButton>
                     <RepeatButton x:Name="PART_MediaDecreaseButton"
                                   Style="{DynamicResource PlaybackSliderTrackButtonStyle}"
-                                  Margin="0,4"
                                   Background="{TemplateBinding Foreground}"
                                   Command="{x:Static Slider.DecreaseLarge}"
                                   CommandTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}" />
@@ -86,7 +85,6 @@
                 <Track.IncreaseRepeatButton>
                     <RepeatButton x:Name="PART_MediaIncreaseButton"
                                   Style="{DynamicResource PlaybackSliderTrackButtonStyle}"
-                                  Margin="0,4"
                                   Background="{TemplateBinding Background}"
                                   Command="{x:Static Slider.IncreaseLarge}"
                                   CommandTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}" />
@@ -98,16 +96,19 @@
                 <Setter TargetName="PART_MediaThumb" Property="Opacity" Value="0" />
             </Trigger>
             <Trigger Property="Orientation" Value="Horizontal">
-                <Setter TargetName="PART_MediaDecreaseButton" Property="Margin" Value="0,4" />
-                <Setter TargetName="PART_MediaIncreaseButton" Property="Margin" Value="0,4" />
+                <Setter TargetName="PART_MediaDecreaseButton" Property="Height" Value="6" />
+                <Setter TargetName="PART_MediaIncreaseButton" Property="Height" Value="6" />
             </Trigger>
             <Trigger Property="Orientation" Value="Vertical">
                 <Setter TargetName="PART_Track" Property="Width" Value="14" />
                 <Setter TargetName="PART_Track" Property="HorizontalAlignment" Value="Center" />
                 <Setter TargetName="PART_Track" Property="VerticalAlignment" Value="Stretch" />
-                <!-- Extend the narrow rail beneath the Thumb by 1 DIP to avoid a visual seam. -->
-                <Setter TargetName="PART_MediaDecreaseButton" Property="Margin" Value="4,-1" />
-                <Setter TargetName="PART_MediaIncreaseButton" Property="Margin" Value="4,-1" />
+                <!-- Both vertical segments use the same fixed rail width. Track arranges
+                     them edge-to-edge and the Thumb covers their shared boundary. -->
+                <Setter TargetName="PART_MediaDecreaseButton" Property="Width" Value="6" />
+                <Setter TargetName="PART_MediaDecreaseButton" Property="HorizontalAlignment" Value="Center" />
+                <Setter TargetName="PART_MediaIncreaseButton" Property="Width" Value="6" />
+                <Setter TargetName="PART_MediaIncreaseButton" Property="HorizontalAlignment" Value="Center" />
             </Trigger>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="PART_MediaThumb" Property="Opacity" Value="1" />
@@ -148,6 +149,7 @@
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
+                <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Background" Value="Transparent" />

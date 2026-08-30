@@ -23,6 +23,7 @@ public sealed class ProgressFeedbackStyleContractTests
         {
             "App.Feedback.PopupSurface",
             "App.Feedback.FlyoutHost",
+            "App.Feedback.PopupHost",
             "App.Feedback.DialogBody",
             "App.Feedback.DialogTitle",
             "App.Feedback.DialogMessage",
@@ -101,11 +102,9 @@ public sealed class ProgressFeedbackStyleContractTests
 
         var feedback = XDocument.Load(Path.Combine(stylesDirectory, "Feedback.xaml"));
         var feedbackResources = feedback.Root!.Elements().ToArray();
-        Assert.Equal(11, feedbackResources.Length);
         var feedbackStyles = feedbackResources
             .Where(element => element.Name.LocalName == "Style")
             .ToArray();
-        Assert.Equal(9, feedbackStyles.Length);
         Assert.All(feedbackStyles, AssertProviderStyleWithoutTemplate);
         Assert.DoesNotContain(
             feedbackStyles.SelectMany(style => style.Descendants()),
@@ -118,6 +117,17 @@ public sealed class ProgressFeedbackStyleContractTests
             "{StaticResource Provider.Flyout}",
             feedbackStyles.Single(style => (string?)style.Attribute(xaml + "Key") == "App.Feedback.FlyoutHost")
                 .Attribute("BasedOn")?.Value);
+        var popupHost = feedbackStyles.Single(style =>
+            (string?)style.Attribute(xaml + "Key") == "App.Feedback.PopupHost");
+        Assert.Equal("{x:Type Popup}", popupHost.Attribute("TargetType")?.Value);
+        var popupHostSetters = popupHost.Elements()
+            .Where(element => element.Name.LocalName == "Setter")
+            .ToDictionary(
+                element => (string)element.Attribute("Property")!,
+                element => (string?)element.Attribute("Value"));
+        Assert.Equal("True", popupHostSetters["AllowsTransparency"]);
+        Assert.Equal("False", popupHostSetters["Focusable"]);
+        Assert.Equal("True", popupHostSetters["SnapsToDevicePixels"]);
         var flyoutHostSetters = feedbackStyles.Single(style =>
                 (string?)style.Attribute(xaml + "Key") == "App.Feedback.FlyoutHost")
             .Elements()
@@ -167,6 +177,14 @@ public sealed class ProgressFeedbackStyleContractTests
             "Playback",
             "Components",
             "PlayerView.xaml"));
+        AssertPlayerPopupsUseSharedTransparentHost(Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Features",
+            "Playback",
+            "Components",
+            "PlayerView.xaml"));
         AssertVolumeFlyoutPercentageLayout(Path.Combine(
             LocateRepositoryRoot(),
             "src",
@@ -174,6 +192,27 @@ public sealed class ProgressFeedbackStyleContractTests
             "Desktop",
             "MiniPlayer",
             "MiniPlayerWindow.xaml"));
+    }
+
+    private static void AssertPlayerPopupsUseSharedTransparentHost(string path)
+    {
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var popups = XDocument.Load(path).Descendants()
+            .Where(element => element.Name.LocalName == "Popup")
+            .ToArray();
+
+        Assert.Equal(["RuleMenuPopup", "SpeedMenuPopup"], popups
+            .Select(popup => popup.Attribute(xaml + "Name")?.Value ?? string.Empty)
+            .ToArray());
+        Assert.All(popups, popup =>
+        {
+            Assert.Equal("{StaticResource App.Feedback.PopupHost}", (string?)popup.Attribute("Style"));
+            Assert.DoesNotContain(
+                popup.Attributes(),
+                attribute => attribute.Name.LocalName is "AllowsTransparency" or "Background" or "BorderBrush" or "Effect");
+            var surface = Assert.Single(popup.Elements(), element => element.Name.LocalName == "Border");
+            Assert.Equal("{StaticResource App.Feedback.PopupSurface}", (string?)surface.Attribute("Style"));
+        });
     }
 
     private static void AssertVolumeFlyoutPercentageLayout(string path)
