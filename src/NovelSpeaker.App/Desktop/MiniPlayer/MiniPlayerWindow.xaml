@@ -243,9 +243,10 @@
                        Style="{StaticResource App.Feedback.FlyoutHost}"
                        Placement="Top"
                        behaviors:WpfUiFlyoutPlacement.PlacementTarget="{Binding ElementName=MiniPlayerVolumeMenuButton}"
+                       behaviors:WpfUiFlyoutPlacement.HorizontalOffset="-24"
                        behaviors:WpfUiFlyoutPlacement.VerticalOffset="-8"
                        IsOpen="{Binding IsVolumeMenuOpen, Mode=TwoWay}">
-                <Border Width="128"
+                <Border Width="96"
                         Style="{StaticResource App.Feedback.PopupSurface}">
                     <StackPanel>
                         <TextBlock HorizontalAlignment="Center"

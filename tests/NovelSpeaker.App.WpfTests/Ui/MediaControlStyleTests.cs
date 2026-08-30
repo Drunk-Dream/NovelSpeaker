@@ -235,6 +235,24 @@ public sealed class MediaControlStyleTests
         Assert.Contains((string.Empty, "IsMouseOver"), templateTriggers);
         Assert.Contains((string.Empty, "IsKeyboardFocusWithin"), templateTriggers);
         Assert.Contains(("PART_MediaThumb", "IsDragging"), templateTriggers);
+        var verticalTrigger = controlTemplate.Descendants()
+            .Single(element => element.Name.LocalName == "Trigger" &&
+                               (string?)element.Attribute("Property") == "Orientation" &&
+                               (string?)element.Attribute("Value") == "Vertical");
+        Assert.Equal(
+            "4,-1",
+            verticalTrigger.Descendants()
+                .Single(setter => setter.Name.LocalName == "Setter" &&
+                                  (string?)setter.Attribute("TargetName") == "PART_MediaDecreaseButton" &&
+                                  (string?)setter.Attribute("Property") == "Margin")
+                .Attribute("Value")?.Value);
+        Assert.Equal(
+            "4,-1",
+            verticalTrigger.Descendants()
+                .Single(setter => setter.Name.LocalName == "Setter" &&
+                                  (string?)setter.Attribute("TargetName") == "PART_MediaIncreaseButton" &&
+                                  (string?)setter.Attribute("Property") == "Margin")
+                .Attribute("Value")?.Value);
 
         var progress = resources.Single(resource =>
             (string?)resource.Attribute(xaml + "Key") == "App.Media.ProgressSlider");

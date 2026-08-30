@@ -118,6 +118,18 @@ public sealed class ProgressFeedbackStyleContractTests
             "{StaticResource Provider.Flyout}",
             feedbackStyles.Single(style => (string?)style.Attribute(xaml + "Key") == "App.Feedback.FlyoutHost")
                 .Attribute("BasedOn")?.Value);
+        var flyoutHostSetters = feedbackStyles.Single(style =>
+                (string?)style.Attribute(xaml + "Key") == "App.Feedback.FlyoutHost")
+            .Elements()
+            .Where(element => element.Name.LocalName == "Setter")
+            .ToDictionary(
+                element => (string)element.Attribute("Property")!,
+                element => (string?)element.Attribute("Value"));
+        Assert.Equal("Transparent", flyoutHostSetters["Background"]);
+        Assert.Equal("Transparent", flyoutHostSetters["BorderBrush"]);
+        Assert.Equal("0", flyoutHostSetters["BorderThickness"]);
+        Assert.Equal("0", flyoutHostSetters["Padding"]);
+        Assert.Equal("{x:Null}", flyoutHostSetters["Effect"]);
         Assert.Equal(
             "{StaticResource Provider.Snackbar}",
             feedbackStyles.Single(style => (string?)style.Attribute(xaml + "Key") == "App.Feedback.Snackbar")
@@ -174,6 +186,14 @@ public sealed class ProgressFeedbackStyleContractTests
             .Where(element => element.Name.LocalName == "TextBlock")
             .ToArray();
 
+        var surface = Assert.Single(flyout.Elements(), element => element.Name.LocalName == "Border");
+        Assert.Equal("96", (string?)surface.Attribute("Width"));
+        Assert.Equal("{StaticResource App.Feedback.PopupSurface}", (string?)surface.Attribute("Style"));
+        Assert.Equal(
+            "-24",
+            flyout.Attributes()
+                .Single(attribute => attribute.Name.LocalName.EndsWith(".HorizontalOffset", StringComparison.Ordinal))
+                .Value);
         Assert.DoesNotContain(textBlocks, textBlock => (string?)textBlock.Attribute("Text") == "播放音量");
         var percentage = Assert.Single(textBlocks, textBlock =>
             (string?)textBlock.Attribute("Text") == "{Binding VolumePercentText}");

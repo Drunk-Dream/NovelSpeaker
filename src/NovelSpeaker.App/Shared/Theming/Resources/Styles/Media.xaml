@@ -105,8 +105,9 @@
                 <Setter TargetName="PART_Track" Property="Width" Value="14" />
                 <Setter TargetName="PART_Track" Property="HorizontalAlignment" Value="Center" />
                 <Setter TargetName="PART_Track" Property="VerticalAlignment" Value="Stretch" />
-                <Setter TargetName="PART_MediaDecreaseButton" Property="Margin" Value="4,0" />
-                <Setter TargetName="PART_MediaIncreaseButton" Property="Margin" Value="4,0" />
+                <!-- Extend the narrow rail beneath the Thumb by 1 DIP to avoid a visual seam. -->
+                <Setter TargetName="PART_MediaDecreaseButton" Property="Margin" Value="4,-1" />
+                <Setter TargetName="PART_MediaIncreaseButton" Property="Margin" Value="4,-1" />
             </Trigger>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="PART_MediaThumb" Property="Opacity" Value="1" />

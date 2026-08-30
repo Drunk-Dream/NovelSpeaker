@@ -15,7 +15,10 @@
            BasedOn="{StaticResource Provider.Flyout}">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="0" />
+        <!-- The content surface owns the only flyout boundary and elevation. -->
+        <Setter Property="Effect" Value="{x:Null}" />
     </Style>
 
     <Style x:Key="App.Feedback.DialogBody"
