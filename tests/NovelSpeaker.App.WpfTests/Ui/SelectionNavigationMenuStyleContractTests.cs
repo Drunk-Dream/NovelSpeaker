@@ -713,6 +713,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
                 var application = global::System.Windows.Application.Current!;
                 var lightSeparatorColor = PaletteColor(GalleryTheme.Light, "App.Brush.Border.Subtle");
                 var darkSeparatorColor = PaletteColor(GalleryTheme.Dark, "App.Brush.Border.Subtle");
+                var lightRaisedSurfaceColor = PaletteColor(GalleryTheme.Light, "App.Brush.Surface.Raised");
                 var menu = FindDescendants<Menu>(scene).Single();
                 Assert.Same(application.FindResource("App.Menu.Surface"), menu.Style);
                 Assert.Same(application.FindResource("App.Elevation.Medium"), menu.Effect);
@@ -818,9 +819,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
                 Assert.NotNull(contextMenu);
                 Assert.Same(application.FindResource("App.Menu.ContextSurface"), contextMenu.Style);
                 Assert.Same(application.FindResource("App.Elevation.Medium"), contextMenu.Effect);
-                Assert.Same(
-                    application.FindResource("App.Brush.Surface.Raised"),
-                    contextMenu.Background);
+                Assert.Equal(lightRaisedSurfaceColor, ColorOf(contextMenu.Background));
                 Assert.Equal(
                     inlineItems.Select(item => item.Header),
                     contextMenu.Items.OfType<WpfMenuItem>().Select(item => item.Header));
