@@ -711,6 +711,8 @@ public sealed class SelectionNavigationMenuStyleContractTests
             {
                 host.Window.UpdateLayout();
                 var application = global::System.Windows.Application.Current!;
+                var lightSeparatorColor = PaletteColor(GalleryTheme.Light, "App.Brush.Border.Subtle");
+                var darkSeparatorColor = PaletteColor(GalleryTheme.Dark, "App.Brush.Border.Subtle");
                 var menu = FindDescendants<Menu>(scene).Single();
                 Assert.Same(application.FindResource("App.Menu.Surface"), menu.Style);
                 Assert.Same(application.FindResource("App.Elevation.Medium"), menu.Effect);
@@ -797,18 +799,18 @@ public sealed class SelectionNavigationMenuStyleContractTests
                     separator.UpdateLayout();
                     Assert.True(separator.ActualWidth >= 200d);
                     Assert.InRange(separator.ActualHeight, 0.75d, 1.1d);
-                    AssertSeparatorLine(separator, BrushColor("App.Brush.Border.Subtle"));
+                    AssertSeparatorLine(separator, lightSeparatorColor);
                 });
                 GalleryThemeRuntime.Apply(GalleryTheme.Dark);
                 host.Window.UpdateLayout();
                 Assert.All(
                     previewSeparators,
-                    separator => AssertSeparatorLine(separator, BrushColor("App.Brush.Border.Subtle")));
+                    separator => AssertSeparatorLine(separator, darkSeparatorColor));
                 GalleryThemeRuntime.Apply(GalleryTheme.Light);
                 host.Window.UpdateLayout();
                 Assert.All(
                     previewSeparators,
-                    separator => AssertSeparatorLine(separator, BrushColor("App.Brush.Border.Subtle")));
+                    separator => AssertSeparatorLine(separator, lightSeparatorColor));
 
                 var anchor = FindDescendants<WpfButton>(scene).Single(button =>
                     AutomationProperties.GetAutomationId(button) == "menus-context-anchor");
@@ -846,7 +848,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
                         line => line.ActualWidth > 0d &&
                                 line.ActualHeight >= 0.9d &&
                                 line.Background is SolidColorBrush brush &&
-                                brush.Color == BrushColor("App.Brush.Border.Subtle") &&
+                                brush.Color == lightSeparatorColor &&
                                 brush.Opacity >= 0.99d &&
                                 line.Opacity >= 0.99d);
                 });
@@ -983,6 +985,26 @@ public sealed class SelectionNavigationMenuStyleContractTests
         Assert.IsType<SolidColorBrush>(
             global::System.Windows.Application.Current!.FindResource(key)).Color;
 
+    private static Color PaletteColor(GalleryTheme theme, string key)
+    {
+        var presentation = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml/presentation");
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var palette = XDocument.Load(Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Palettes",
+            $"Palette.{theme}.xaml"));
+        var colorText = palette.Root!
+            .Elements(presentation + "SolidColorBrush")
+            .Single(element => (string?)element.Attribute(xaml + "Key") == key)
+            .Attribute("Color")?.Value
+            ?? throw new InvalidOperationException($"Palette color '{key}' is missing.");
+        return Assert.IsType<Color>(new ColorConverter().ConvertFromInvariantString(colorText));
+    }
+
     private static Color? ColorOf(object? brush) =>
         brush is SolidColorBrush solid ? solid.Color : null;
 
@@ -994,6 +1016,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
                     line.ActualHeight >= 0.9d &&
                     line.Background is SolidColorBrush brush &&
                     brush.Color == expectedColor &&
+                    brush.Color.A > 0 &&
                     brush.Opacity >= 0.99d &&
                     line.Opacity >= 0.99d);
     }
