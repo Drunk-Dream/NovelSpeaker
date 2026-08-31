@@ -8,10 +8,26 @@
     -->
     <ControlTemplate x:Key="App.Media.PlaybackSliderThumbTemplate"
                      TargetType="{x:Type Thumb}">
-        <Border Background="{TemplateBinding Background}"
-                BorderBrush="{TemplateBinding BorderBrush}"
-                BorderThickness="{TemplateBinding BorderThickness}"
-                CornerRadius="999" />
+        <!-- Keep the Thumb's 16 DIP layout envelope stable. Only the inner
+             surface changes size, so Track measure/arrange never changes
+             when the user starts dragging. -->
+        <Grid Background="Transparent">
+            <Border x:Name="PART_ThumbSurface"
+                    Width="14"
+                    Height="14"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="999" />
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsDragging" Value="True">
+                <Setter TargetName="PART_ThumbSurface" Property="Width" Value="16" />
+                <Setter TargetName="PART_ThumbSurface" Property="Height" Value="16" />
+            </Trigger>
+        </ControlTemplate.Triggers>
     </ControlTemplate>
 
     <Style x:Key="App.Media.PlaybackSliderTrackButtonStyle"
@@ -102,8 +118,10 @@
 
     <Style x:Key="App.Media.PlaybackSliderThumbStyle"
            TargetType="{x:Type Thumb}">
-        <Setter Property="Width" Value="14" />
-        <Setter Property="Height" Value="14" />
+        <!-- The maximum visual size is reserved in every state. The template
+             grows only its centered surface while dragging. -->
+        <Setter Property="Width" Value="16" />
+        <Setter Property="Height" Value="16" />
         <Setter Property="OverridesDefaultStyle" Value="True" />
         <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Default}" />
         <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Default}" />
@@ -115,8 +133,6 @@
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Hover}" />
             </Trigger>
             <Trigger Property="IsDragging" Value="True">
-                <Setter Property="Width" Value="16" />
-                <Setter Property="Height" Value="16" />
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Pressed}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
             </Trigger>
@@ -145,8 +161,8 @@
                    Value="{TemplateBinding Value}"
                    Orientation="{TemplateBinding Orientation}"
                    IsDirectionReversed="{TemplateBinding IsDirectionReversed}"
-                   MinHeight="14"
-                   MinWidth="14"
+                   MinHeight="16"
+                   MinWidth="16"
                    HorizontalAlignment="Stretch"
                    VerticalAlignment="Center">
                 <Track.DecreaseRepeatButton>
@@ -179,7 +195,7 @@
                 <Setter TargetName="PART_MediaIncreaseButton" Property="Height" Value="6" />
             </Trigger>
             <Trigger Property="Orientation" Value="Vertical">
-                <Setter TargetName="PART_Track" Property="Width" Value="14" />
+                <Setter TargetName="PART_Track" Property="Width" Value="16" />
                 <Setter TargetName="PART_Track" Property="HorizontalAlignment" Value="Center" />
                 <Setter TargetName="PART_Track" Property="VerticalAlignment" Value="Stretch" />
                 <Setter TargetName="PART_VisualTrack" Property="HorizontalAlignment" Value="Stretch" />

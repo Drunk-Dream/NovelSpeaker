@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -7,7 +8,10 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using System.Xml.Linq;
+using Microsoft.Extensions.DependencyInjection;
+using NovelSpeaker.App.Desktop.MiniPlayer;
 using NovelSpeaker.StyleGallery;
 using Wpf.Ui.Controls;
 using Xunit;
@@ -236,6 +240,31 @@ public sealed class MediaControlStyleTests
         var thumbTemplate = resources.Single(resource =>
             (string?)resource.Attribute(xaml + "Key") == "App.Media.PlaybackSliderThumbTemplate");
         Assert.Equal("{x:Type Thumb}", (string?)thumbTemplate.Attribute("TargetType"));
+        var thumbSurface = thumbTemplate.Descendants()
+            .Single(element => element.Name.LocalName == "Border" &&
+                               (string?)element.Attribute(xaml + "Name") == "PART_ThumbSurface");
+        Assert.Equal("14", (string?)thumbSurface.Attribute("Width"));
+        Assert.Equal("14", (string?)thumbSurface.Attribute("Height"));
+        var thumbTemplateTriggers = thumbTemplate.Descendants()
+            .Where(element => element.Name.LocalName == "Trigger")
+            .Select(element => ((string?)element.Attribute("Property") ?? string.Empty,
+                                (string?)element.Attribute("Value") ?? string.Empty))
+            .ToArray();
+        Assert.Contains(("IsDragging", "True"), thumbTemplateTriggers);
+        var thumbStyleSetters = thumbStyle.Elements()
+            .Where(element => element.Name.LocalName == "Setter")
+            .ToDictionary(
+                element => (string)element.Attribute("Property")!,
+                element => (string?)element.Attribute("Value"));
+        Assert.Equal("16", thumbStyleSetters["Width"]);
+        Assert.Equal("16", thumbStyleSetters["Height"]);
+        var draggingStyleTrigger = thumbStyle.Elements()
+            .Single(element => element.Name.LocalName == "Style.Triggers")
+            .Elements()
+            .Single(element => (string?)element.Attribute("Property") == "IsDragging");
+        Assert.DoesNotContain(
+            draggingStyleTrigger.Elements(),
+            setter => (string?)setter.Attribute("Property") is "Width" or "Height");
         var templateTriggers = controlTemplate.Descendants()
             .Where(element => element.Name.LocalName == "Trigger")
             .Select(element =>
@@ -375,9 +404,9 @@ public sealed class MediaControlStyleTests
                     application.FindResource("App.Media.PlaybackSliderThumbStyle"),
                     volumeThumb.Style);
                 Assert.Equal(1, volumeThumb.Opacity);
-                Assert.True(volumeTrack.ActualWidth >= 14);
-                Assert.True(volumeThumb.ActualWidth >= 12);
-                Assert.True(volumeThumb.ActualHeight >= 12);
+                Assert.Equal(16, volumeTrack.ActualWidth, 3);
+                Assert.Equal(16, volumeThumb.ActualWidth, 3);
+                Assert.Equal(16, volumeThumb.ActualHeight, 3);
                 Assert.Equal(2, volumeTrackButtons.Length);
                 Assert.Equal(2, visualTrackButtons.Length);
                 Assert.Equal(Visibility.Visible, visualTrack.Visibility);
@@ -503,8 +532,8 @@ public sealed class MediaControlStyleTests
                         thumb.TranslatePoint(new Point(), root),
                         thumb.RenderSize);
                     var bitmap = Render(root, rootSize);
-                    var above = Math.Max(0, (int)Math.Floor(thumbBounds.Top) - 2);
-                    var below = Math.Min(bitmap.PixelHeight - 1, (int)Math.Ceiling(thumbBounds.Bottom) + 1);
+                    var above = Math.Max(0, (int)Math.Ceiling(thumbBounds.Top) - 1);
+                    var below = Math.Min(bitmap.PixelHeight - 1, (int)Math.Floor(thumbBounds.Bottom));
                     var accent = Assert.IsType<SolidColorBrush>(
                         global::System.Windows.Application.Current!.FindResource("App.Brush.Accent")).Color;
                     var neutral = Assert.IsType<SolidColorBrush>(
@@ -515,6 +544,12 @@ public sealed class MediaControlStyleTests
                         .Select(y => (Y: y, Width: CountRailPixels(bitmap, y, accent, neutral)))
                         .ToArray();
                     var maxRailWidth = railProfile.MaxBy(sample => sample.Width);
+                    var restSliderSize = volume.RenderSize;
+                    var restTrackBounds = new Rect(
+                        visualRail.TranslatePoint(new Point(), root),
+                        visualRail.RenderSize);
+                    var restAboveWidth = aboveWidth;
+                    var restBelowWidth = belowWidth;
 
                     Assert.InRange(visualRail.ActualWidth, 5.5, 6.5);
                     Assert.True(
@@ -523,12 +558,554 @@ public sealed class MediaControlStyleTests
                         $"visualRail={visualRail.RenderSize}, above={above}, below={below}, " +
                         $"aboveWidth={aboveWidth}, belowWidth={belowWidth}, maxRailWidth={maxRailWidth}");
                     Assert.Equal(aboveWidth, belowWidth);
+                    AssertRailPixelsAreContiguous(bitmap, above, accent, neutral);
+                    AssertRailPixelsAreContiguous(bitmap, below, accent, neutral);
+
+                    SetThumbDragging(thumb, true);
+                    root.UpdateLayout();
+                    var draggingThumbBounds = new Rect(
+                        thumb.TranslatePoint(new Point(), root),
+                        thumb.RenderSize);
+                    var draggingTrackBounds = new Rect(
+                        visualRail.TranslatePoint(new Point(), root),
+                        visualRail.RenderSize);
+                    var draggingBitmap = Render(root, rootSize);
+                    var draggingAbove = Math.Max(0, (int)Math.Ceiling(draggingThumbBounds.Top) - 1);
+                    var draggingBelow = Math.Min(
+                        draggingBitmap.PixelHeight - 1,
+                        (int)Math.Floor(draggingThumbBounds.Bottom));
+                    var draggingAboveWidth = CountRailPixels(
+                        draggingBitmap,
+                        draggingAbove,
+                        accent,
+                        neutral);
+                    var draggingBelowWidth = CountRailPixels(
+                        draggingBitmap,
+                        draggingBelow,
+                        accent,
+                        neutral);
+
+                    Assert.Equal(restSliderSize, volume.RenderSize);
+                    Assert.Equal(restTrackBounds.X, draggingTrackBounds.X, 3);
+                    Assert.Equal(restTrackBounds.Y, draggingTrackBounds.Y, 3);
+                    Assert.Equal(restTrackBounds.Width, draggingTrackBounds.Width, 3);
+                    Assert.Equal(restTrackBounds.Height, draggingTrackBounds.Height, 3);
+                    Assert.Equal(restAboveWidth, draggingAboveWidth);
+                    Assert.Equal(restBelowWidth, draggingBelowWidth);
+                    Assert.Equal(draggingAboveWidth, draggingBelowWidth);
+                    AssertRailPixelsAreContiguous(draggingBitmap, draggingAbove, accent, neutral);
+                    AssertRailPixelsAreContiguous(draggingBitmap, draggingBelow, accent, neutral);
                 }
                 finally
                 {
                     GalleryThemeRuntime.Apply(GalleryTheme.Light);
                 }
             });
+        }
+    }
+
+    private void Media_volume_slider_flyout_hosts_keep_the_thumb_complete_in_player_and_mini_player()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            foreach (var scale in new[] { 1d, 1.25d, 1.5d })
+            {
+                WpfTestHost.RunInSta(() =>
+                {
+                    GalleryThemeRuntime.EnsureProviderResources();
+                    GalleryThemeRuntime.Apply(theme);
+                    var dpi = 96 * scale;
+                    var dpiScale = new DpiScale(scale, scale);
+                    WpfWindowHost? playerHost = null;
+                    Window? playerWindow = null;
+                    Wpf.Ui.Controls.Flyout? playerFlyout = null;
+                    ServiceProvider? provider = null;
+                    MiniPlayerWindow? miniWindow = null;
+                    WpfWindowHost? miniHost = null;
+                    try
+                    {
+                        var playerView = new PlayerView();
+                        VisualTreeHelper.SetRootDpi(playerView, dpiScale);
+                        playerWindow = new Window
+                        {
+                            Content = playerView,
+                            Width = 1280,
+                            Height = 760,
+                            ShowInTaskbar = false,
+                            WindowStyle = WindowStyle.ToolWindow
+                        };
+                        playerHost = WpfWindowHost.Show(playerWindow);
+                        playerWindow.UpdateLayout();
+                        playerFlyout = Assert.IsType<Wpf.Ui.Controls.Flyout>(
+                            playerView.FindName("VolumeFlyout"));
+                        playerFlyout.IsOpen = true;
+                        playerWindow.Dispatcher.Invoke(DispatcherPriority.Render, static () => { });
+                        AssertVolumeFlyoutStates(
+                            playerView,
+                            playerFlyout,
+                            Assert.IsType<Slider>(playerView.FindName("VolumeSlider")),
+                            dpi);
+                        playerFlyout.IsOpen = false;
+
+                        provider = WpfTestHost.BuildServiceProvider();
+                        miniWindow = provider.GetRequiredService<MiniPlayerWindow>();
+                        VisualTreeHelper.SetRootDpi(miniWindow, dpiScale);
+                        miniHost = WpfWindowHost.Show(miniWindow);
+                        miniWindow.UpdateLayout();
+                        var miniFlyout = Assert.IsType<Wpf.Ui.Controls.Flyout>(
+                            miniWindow.FindName("MiniPlayerVolumeFlyout"));
+                        miniFlyout.IsOpen = true;
+                        miniWindow.Dispatcher.Invoke(DispatcherPriority.Render, static () => { });
+                        AssertVolumeFlyoutStates(
+                            miniWindow,
+                            miniFlyout,
+                            Assert.IsType<Slider>(miniWindow.FindName("MiniPlayerVolumeSlider")),
+                            dpi);
+                        miniFlyout.IsOpen = false;
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            if (playerFlyout is not null)
+                            {
+                                playerFlyout.IsOpen = false;
+                            }
+
+                            if (miniWindow?.FindName("MiniPlayerVolumeFlyout") is Wpf.Ui.Controls.Flyout miniFlyout)
+                            {
+                                miniFlyout.IsOpen = false;
+                            }
+                        }
+                        finally
+                        {
+                            try
+                            {
+                                miniWindow?.CloseForShutdown();
+                            }
+                            finally
+                            {
+                                try
+                                {
+                                    miniHost?.Dispose();
+                                }
+                                finally
+                                {
+                                    try
+                                    {
+                                        playerHost?.Dispose();
+                                    }
+                                    finally
+                                    {
+                                        try
+                                        {
+                                            provider?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                                        }
+                                        finally
+                                        {
+                                            GalleryThemeRuntime.Apply(GalleryTheme.Light);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    private static void AssertVolumeFlyoutStates(
+        FrameworkElement owner,
+        Wpf.Ui.Controls.Flyout flyout,
+        Slider slider,
+        double dpi)
+    {
+        flyout.ApplyTemplate();
+        var popup = Assert.IsType<Popup>(flyout.Template.FindName("PART_Popup", flyout));
+        var popupRoot = Assert.IsAssignableFrom<FrameworkElement>(popup.Child);
+        var scale = dpi / 96;
+        VisualTreeHelper.SetRootDpi(FindVisualRoot(popupRoot), new DpiScale(scale, scale));
+        var actualDpi = VisualTreeHelper.GetDpi(popupRoot);
+        Assert.Equal(scale, actualDpi.DpiScaleX, 3);
+        Assert.Equal(scale, actualDpi.DpiScaleY, 3);
+        popupRoot.UpdateLayout();
+        slider.UpdateLayout();
+        var thumb = Assert.Single(FindDescendants<Thumb>(slider));
+        var track = Assert.Single(
+            FindDescendants<Track>(slider),
+            candidate => candidate.Name == "PART_Track");
+        var thumbSurface = Assert.Single(
+            FindDescendants<Border>(thumb),
+            border => border.Name == "PART_ThumbSurface");
+        var restSliderBounds = GetBounds(slider, popupRoot);
+        var restTrackBounds = GetBounds(track, popupRoot);
+        var restThumbBounds = GetBounds(thumb, popupRoot);
+        var accentDefault = Assert.IsType<SolidColorBrush>(
+            global::System.Windows.Application.Current!.FindResource("App.Brush.Accent.Default")).Color;
+        var restSurfaceSpan = CaptureSurfaceSpan(
+            owner,
+            restThumbBounds,
+            dpi,
+            accentDefault);
+        var localThumbBounds = new Rect(new Point(), thumb.RenderSize);
+        var restThumbBitmap = RenderVisual(thumb, thumb.RenderSize, dpi);
+        var restThumbAlphaSpan = FindSurfaceSpan(
+            restThumbBitmap,
+            localThumbBounds,
+            scale,
+            accentDefault);
+        var restThumbCoreSpan = FindExactSurfaceSpan(
+            restThumbBitmap,
+            localThumbBounds,
+            scale,
+            accentDefault);
+
+        (int Min, int Max) hoverSurfaceSpan;
+        (int Min, int Max) hoverThumbAlphaSpan;
+        (int Min, int Max) hoverThumbCoreSpan;
+        try
+        {
+            SetReadOnlyProperty(slider, typeof(UIElement), "IsMouseOverPropertyKey", true);
+            popupRoot.UpdateLayout();
+            var hoverColor = Assert.IsType<SolidColorBrush>(
+                global::System.Windows.Application.Current.FindResource("App.Brush.Accent.Hover")).Color;
+            hoverSurfaceSpan = CaptureSurfaceSpan(
+                owner,
+                restThumbBounds,
+                dpi,
+                hoverColor);
+            var hoverThumbBitmap = RenderVisual(thumb, thumb.RenderSize, dpi);
+            hoverThumbAlphaSpan = FindSurfaceSpan(
+                hoverThumbBitmap,
+                localThumbBounds,
+                scale,
+                hoverColor);
+            hoverThumbCoreSpan = FindExactSurfaceSpan(
+                hoverThumbBitmap,
+                localThumbBounds,
+                scale,
+                hoverColor);
+        }
+        finally
+        {
+            SetReadOnlyProperty(slider, typeof(UIElement), "IsMouseOverPropertyKey", false);
+        }
+
+        Assert.Equal(32, slider.Width, 3);
+        Assert.Equal(160, slider.Height, 3);
+        Assert.Equal(16, track.ActualWidth, 3);
+        Assert.Equal(16, thumb.ActualWidth, 3);
+        Assert.InRange(thumbSurface.ActualWidth, 13, 15);
+        Assert.InRange(thumbSurface.ActualHeight, 13, 15);
+        AssertSurfaceGeometry(restThumbAlphaSpan, localThumbBounds, dpi, 14);
+        AssertSurfaceGeometry(hoverThumbAlphaSpan, localThumbBounds, dpi, 14);
+        AssertHostSurfacePreservesCore(restSurfaceSpan, restThumbCoreSpan, restThumbBounds, dpi);
+        AssertHostSurfacePreservesCore(hoverSurfaceSpan, hoverThumbCoreSpan, restThumbBounds, dpi);
+
+        try
+        {
+            SetReadOnlyProperty(slider, typeof(UIElement), "IsMouseOverPropertyKey", true);
+            SetThumbDragging(thumb, true);
+            popupRoot.UpdateLayout();
+            var draggingSliderBounds = GetBounds(slider, popupRoot);
+            var draggingTrackBounds = GetBounds(track, popupRoot);
+            var draggingThumbBounds = GetBounds(thumb, popupRoot);
+            var draggingSurfaceSpan = CaptureSurfaceSpan(
+                owner,
+                draggingThumbBounds,
+                dpi,
+                Assert.IsType<SolidColorBrush>(
+                    global::System.Windows.Application.Current.FindResource("App.Brush.Accent.Pressed")).Color,
+                Assert.IsType<SolidColorBrush>(
+                global::System.Windows.Application.Current.FindResource("App.Brush.Focus")).Color);
+            var draggingThumbBitmap = RenderVisual(thumb, thumb.RenderSize, dpi);
+            var draggingThumbAlphaSpan = FindSurfaceSpan(
+                draggingThumbBitmap,
+                localThumbBounds,
+                scale,
+                Assert.IsType<SolidColorBrush>(
+                    global::System.Windows.Application.Current.FindResource("App.Brush.Accent.Pressed")).Color,
+                Assert.IsType<SolidColorBrush>(
+                    global::System.Windows.Application.Current.FindResource("App.Brush.Focus")).Color);
+            var draggingThumbCoreSpan = FindExactSurfaceSpan(
+                draggingThumbBitmap,
+                localThumbBounds,
+                scale,
+                Assert.IsType<SolidColorBrush>(
+                    global::System.Windows.Application.Current.FindResource("App.Brush.Accent.Pressed")).Color,
+                Assert.IsType<SolidColorBrush>(
+                    global::System.Windows.Application.Current.FindResource("App.Brush.Focus")).Color);
+            Assert.Equal(restSliderBounds.X, draggingSliderBounds.X, 3);
+            Assert.Equal(restSliderBounds.Y, draggingSliderBounds.Y, 3);
+            Assert.Equal(restSliderBounds.Width, draggingSliderBounds.Width, 3);
+            Assert.Equal(restSliderBounds.Height, draggingSliderBounds.Height, 3);
+            Assert.Equal(restTrackBounds.X, draggingTrackBounds.X, 3);
+            Assert.Equal(restTrackBounds.Y, draggingTrackBounds.Y, 3);
+            Assert.Equal(restTrackBounds.Width, draggingTrackBounds.Width, 3);
+            Assert.Equal(restTrackBounds.Height, draggingTrackBounds.Height, 3);
+            Assert.Equal(restThumbBounds.X, draggingThumbBounds.X, 3);
+            Assert.Equal(restThumbBounds.Y, draggingThumbBounds.Y, 3);
+            Assert.Equal(restThumbBounds.Width, draggingThumbBounds.Width, 3);
+            Assert.Equal(restThumbBounds.Height, draggingThumbBounds.Height, 3);
+            Assert.InRange(thumbSurface.ActualWidth, 15, 17);
+            Assert.InRange(thumbSurface.ActualHeight, 15, 17);
+            AssertSurfaceGeometry(draggingThumbAlphaSpan, localThumbBounds, dpi, 16);
+            AssertHostSurfacePreservesCore(
+                draggingSurfaceSpan,
+                draggingThumbCoreSpan,
+                draggingThumbBounds,
+                dpi);
+        }
+        finally
+        {
+            SetThumbDragging(thumb, false);
+            SetReadOnlyProperty(slider, typeof(UIElement), "IsMouseOverPropertyKey", false);
+        }
+    }
+
+    private static (int Min, int Max) CaptureSurfaceSpan(
+        FrameworkElement owner,
+        Rect thumbBounds,
+        double dpi,
+        params Color[] surfaceColors)
+    {
+        var layer = Assert.Single(TransientPopupVisualRenderer.CaptureOpenHostLayers(owner, dpi));
+        var scale = dpi / 96;
+        var y = Math.Clamp(
+            (int)Math.Round((thumbBounds.Top + thumbBounds.Height / 2) * scale),
+            0,
+            layer.Bitmap.PixelHeight - 1);
+        var left = Math.Max(0, (int)Math.Floor(thumbBounds.Left * scale) - 2);
+        var right = Math.Min(
+            layer.Bitmap.PixelWidth - 1,
+            (int)Math.Ceiling(thumbBounds.Right * scale) + 2);
+        var centerX = Math.Clamp(
+            (int)Math.Round((thumbBounds.Left + thumbBounds.Width / 2) * scale),
+            0,
+            layer.Bitmap.PixelWidth - 1);
+        Assert.Contains(ReadPixel(layer.Bitmap, centerX, y), surfaceColors);
+        var colored = Enumerable.Range(left, right - left + 1)
+            .Where(x => surfaceColors.Contains(ReadPixel(layer.Bitmap, x, y)))
+            .ToArray();
+        Assert.NotEmpty(colored);
+        return (colored.Min(), colored.Max());
+    }
+
+    private static (int Min, int Max) FindExactSurfaceSpan(
+        BitmapSource bitmap,
+        Rect bounds,
+        double scale,
+        params Color[] surfaceColors)
+    {
+        var y = Math.Clamp(
+            (int)Math.Round((bounds.Top + bounds.Height / 2) * scale),
+            0,
+            bitmap.PixelHeight - 1);
+        var left = Math.Max(0, (int)Math.Floor(bounds.Left * scale) - 2);
+        var right = Math.Min(
+            bitmap.PixelWidth - 1,
+            (int)Math.Ceiling(bounds.Right * scale) + 2);
+        var centerX = Math.Clamp(
+            (int)Math.Round((bounds.Left + bounds.Width / 2) * scale),
+            0,
+            bitmap.PixelWidth - 1);
+        Assert.Contains(ReadPixel(bitmap, centerX, y), surfaceColors);
+        var colored = Enumerable.Range(left, right - left + 1)
+            .Where(x => surfaceColors.Contains(ReadPixel(bitmap, x, y)))
+            .ToArray();
+        Assert.NotEmpty(colored);
+        return (colored.Min(), colored.Max());
+    }
+
+    private static void AssertHostSurfacePreservesCore(
+        (int Min, int Max) hostSpan,
+        (int Min, int Max) localSpan,
+        Rect hostBounds,
+        double dpi)
+    {
+        var scale = dpi / 96;
+        var hostCenter = (hostBounds.Left + hostBounds.Width / 2) * scale;
+        var localCenter = hostBounds.Width / 2 * scale;
+        var hostLeftRadius = hostCenter - hostSpan.Min;
+        var hostRightRadius = hostSpan.Max - hostCenter;
+        var localLeftRadius = localCenter - localSpan.Min;
+        var localRightRadius = localSpan.Max - localCenter;
+        Assert.InRange(Math.Abs(hostLeftRadius - localLeftRadius), 0, 1);
+        Assert.InRange(Math.Abs(hostRightRadius - localRightRadius), 0, 1);
+        Assert.InRange(
+            hostSpan.Max - hostSpan.Min,
+            localSpan.Max - localSpan.Min - 1,
+            localSpan.Max - localSpan.Min + 1);
+    }
+
+    private static void AssertSurfaceGeometry(
+        (int Min, int Max) span,
+        Rect bounds,
+        double dpi,
+        double expectedDip)
+    {
+        var scale = dpi / 96;
+        var expectedCenter = (bounds.Left + bounds.Width / 2) * scale;
+        var leftRadius = expectedCenter - span.Min;
+        var rightRadius = span.Max - expectedCenter;
+        var expectedRadius = expectedDip * scale / 2;
+        Assert.InRange(Math.Abs(leftRadius - rightRadius), 0, 1);
+        Assert.InRange(leftRadius, expectedRadius - 2, expectedRadius + 2);
+        Assert.InRange(rightRadius, expectedRadius - 2, expectedRadius + 2);
+        Assert.InRange(
+            (double)(span.Max - span.Min + 1),
+            expectedDip * scale - 2,
+            expectedDip * scale + 2);
+    }
+
+    private static Rect GetBounds(FrameworkElement element, FrameworkElement ancestor) =>
+        new(element.TranslatePoint(new Point(), ancestor), element.RenderSize);
+
+    private static Visual FindVisualRoot(Visual visual)
+    {
+        while (VisualTreeHelper.GetParent(visual) is Visual parent)
+        {
+            visual = parent;
+        }
+
+        return visual;
+    }
+
+    private void Media_volume_slider_dragging_keeps_a_fixed_centered_thumb_envelope()
+    {
+        foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+        {
+            foreach (var scale in new[] { 1d, 1.25d, 1.5d })
+            {
+                WpfTestHost.RunInSta(() =>
+                {
+                    GalleryThemeRuntime.EnsureProviderResources();
+                    GalleryThemeRuntime.Apply(theme);
+                    var volume = new Slider
+                    {
+                        Style = Assert.IsType<Style>(
+                            global::System.Windows.Application.Current!.FindResource("App.Media.VolumeSlider")),
+                        Minimum = 0,
+                        Maximum = 1,
+                        Value = 0.5,
+                        SnapsToDevicePixels = true
+                    };
+                    var root = new Grid
+                    {
+                        Width = 64,
+                        Height = 192,
+                        Background = Brushes.Transparent,
+                        SnapsToDevicePixels = true
+                    };
+                    root.Children.Add(volume);
+                    VisualTreeHelper.SetRootDpi(root, new DpiScale(scale, scale));
+                    using var host = new WpfControlHost(root);
+                    try
+                    {
+                        var rootSize = new Size(64, 192);
+                        host.MeasureArrange(rootSize);
+                        var thumb = Assert.Single(FindDescendants<Thumb>(volume));
+                        var track = Assert.Single(
+                            FindDescendants<Track>(volume),
+                            candidate => candidate.Name == "PART_Track");
+                        var thumbSurface = Assert.Single(
+                            FindDescendants<Border>(thumb),
+                            border => border.Name == "PART_ThumbSurface");
+                        var restBounds = new Rect(
+                            thumb.TranslatePoint(new Point(), root),
+                            thumb.RenderSize);
+                        Assert.Equal(16, thumb.ActualWidth, 3);
+                        Assert.Equal(16, thumb.ActualHeight, 3);
+                        Assert.Equal(16, track.ActualWidth, 3);
+                        Assert.Equal(14, thumbSurface.ActualWidth, 3);
+                        Assert.Equal(14, thumbSurface.ActualHeight, 3);
+
+                        var restBitmap = Render(root, rootSize, 96 * scale);
+                        var accentDefault = Assert.IsType<SolidColorBrush>(
+                            global::System.Windows.Application.Current.FindResource("App.Brush.Accent.Default")).Color;
+                        var restSpan = FindSurfaceSpan(
+                            restBitmap,
+                            restBounds,
+                            scale,
+                            accentDefault);
+                        (int Min, int Max) hoverSpan;
+                        try
+                        {
+                            SetReadOnlyProperty(volume, typeof(UIElement), "IsMouseOverPropertyKey", true);
+                            root.UpdateLayout();
+                            var hoverColor = Assert.IsType<SolidColorBrush>(
+                                global::System.Windows.Application.Current.FindResource("App.Brush.Accent.Hover")).Color;
+                            hoverSpan = FindSurfaceSpan(
+                                Render(root, rootSize, 96 * scale),
+                                restBounds,
+                                scale,
+                                hoverColor);
+                        }
+                        finally
+                        {
+                            SetReadOnlyProperty(volume, typeof(UIElement), "IsMouseOverPropertyKey", false);
+                        }
+
+                        try
+                        {
+                            SetThumbDragging(thumb, true);
+                            root.UpdateLayout();
+                            var draggingBounds = new Rect(
+                                thumb.TranslatePoint(new Point(), root),
+                                thumb.RenderSize);
+                            Assert.Equal(restBounds.X, draggingBounds.X, 3);
+                            Assert.Equal(restBounds.Y, draggingBounds.Y, 3);
+                            Assert.Equal(restBounds.Width, draggingBounds.Width, 3);
+                            Assert.Equal(restBounds.Height, draggingBounds.Height, 3);
+                            Assert.Equal(16, thumbSurface.ActualWidth, 3);
+                            Assert.Equal(16, thumbSurface.ActualHeight, 3);
+
+                            var draggingBitmap = Render(root, rootSize, 96 * scale);
+                            var pressed = Assert.IsType<SolidColorBrush>(
+                                global::System.Windows.Application.Current.FindResource("App.Brush.Accent.Pressed")).Color;
+                            var focus = Assert.IsType<SolidColorBrush>(
+                                global::System.Windows.Application.Current.FindResource("App.Brush.Focus")).Color;
+                            var draggingSpan = FindSurfaceSpan(
+                                draggingBitmap,
+                                draggingBounds,
+                                scale,
+                                pressed,
+                                focus);
+                            var expectedCenter = (restBounds.Left + (restBounds.Width / 2)) * scale;
+
+                            Assert.InRange(
+                                Math.Abs(((restSpan.Min + restSpan.Max) / 2d) - expectedCenter),
+                                0,
+                                1);
+                            Assert.InRange(
+                                Math.Abs(((draggingSpan.Min + draggingSpan.Max) / 2d) - expectedCenter),
+                                0,
+                                1);
+                            AssertSurfaceGeometry(restSpan, restBounds, 96 * scale, 14);
+                            AssertSurfaceGeometry(hoverSpan, restBounds, 96 * scale, 14);
+                            AssertSurfaceGeometry(draggingSpan, draggingBounds, 96 * scale, 16);
+                            Assert.InRange(
+                                restSpan.Max - restSpan.Min + 1,
+                                Math.Round(14 * scale) - 1d,
+                                Math.Round(14 * scale) + 1d);
+                            Assert.InRange(
+                                draggingSpan.Max - draggingSpan.Min + 1,
+                                Math.Round(16 * scale) - 1d,
+                                Math.Round(16 * scale) + 1d);
+                        }
+                        finally
+                        {
+                            SetThumbDragging(thumb, false);
+                            SetReadOnlyProperty(volume, typeof(UIElement), "IsMouseOverPropertyKey", false);
+                        }
+                    }
+                    finally
+                    {
+                        GalleryThemeRuntime.Apply(GalleryTheme.Light);
+                    }
+                });
+            }
         }
     }
 
@@ -831,6 +1408,8 @@ public sealed class MediaControlStyleTests
         Media_slider_styles_share_track_thumb_template_and_select_geometry();
         Media_slider_runtime_states_expose_shared_thumb_semantics();
         Media_volume_slider_rendering_keeps_a_continuous_rail_at_the_thumb();
+        Media_volume_slider_dragging_keeps_a_fixed_centered_thumb_envelope();
+        Media_volume_slider_flyout_hosts_keep_the_thumb_complete_in_player_and_mini_player();
     }
 
     [Fact]
@@ -859,17 +1438,101 @@ public sealed class MediaControlStyleTests
             WindowStyle = WindowStyle.ToolWindow
         };
 
-    private static BitmapSource Render(FrameworkElement root, Size size)
+    private static BitmapSource Render(FrameworkElement root, Size size, double dpi = 96)
     {
         var bitmap = new RenderTargetBitmap(
-            Math.Max(1, (int)Math.Round(size.Width)),
-            Math.Max(1, (int)Math.Round(size.Height)),
-            96,
-            96,
+            Math.Max(1, (int)Math.Round(size.Width * dpi / 96)),
+            Math.Max(1, (int)Math.Round(size.Height * dpi / 96)),
+            dpi,
+            dpi,
             PixelFormats.Pbgra32);
         bitmap.Render(root);
         bitmap.Freeze();
         return bitmap;
+    }
+
+    private static BitmapSource RenderVisual(Visual visual, Size size, double dpi)
+    {
+        var drawing = new DrawingVisual();
+        using (var context = drawing.RenderOpen())
+        {
+            context.DrawRectangle(
+                new VisualBrush(visual)
+                {
+                    Stretch = Stretch.None,
+                    AlignmentX = AlignmentX.Left,
+                    AlignmentY = AlignmentY.Top
+                },
+                null,
+                new Rect(new Point(), size));
+        }
+
+        var bitmap = new RenderTargetBitmap(
+            Math.Max(1, (int)Math.Round(size.Width * dpi / 96)),
+            Math.Max(1, (int)Math.Round(size.Height * dpi / 96)),
+            dpi,
+            dpi,
+            PixelFormats.Pbgra32);
+        bitmap.Render(drawing);
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    private static (int Min, int Max) FindSurfaceSpan(
+        BitmapSource bitmap,
+        Rect bounds,
+        double scale,
+        params Color[] surfaceColors)
+    {
+        var y = Math.Clamp(
+            (int)Math.Round((bounds.Top + bounds.Height / 2) * scale),
+            0,
+            bitmap.PixelHeight - 1);
+        var left = Math.Max(0, (int)Math.Floor(bounds.Left * scale) - 2);
+        var right = Math.Min(
+            bitmap.PixelWidth - 1,
+            (int)Math.Ceiling(bounds.Right * scale) + 2);
+        var centerX = Math.Clamp(
+            (int)Math.Round((bounds.Left + bounds.Width / 2) * scale),
+            0,
+            bitmap.PixelWidth - 1);
+        var centerPixel = ReadPixel(bitmap, centerX, y);
+        Assert.Contains(centerPixel, surfaceColors);
+        var colored = Enumerable.Range(left, right - left + 1)
+            .Where(x => ReadPixel(bitmap, x, y).A > 0)
+            .ToArray();
+        Assert.NotEmpty(colored);
+        return (colored.Min(), colored.Max());
+    }
+
+    private static Color ReadPixel(BitmapSource bitmap, int x, int y)
+    {
+        var pixels = new byte[4];
+        bitmap.CopyPixels(new Int32Rect(x, y, 1, 1), pixels, 4, 0);
+        return Color.FromArgb(pixels[3], pixels[2], pixels[1], pixels[0]);
+    }
+
+    private static void SetThumbDragging(Thumb thumb, bool value)
+    {
+        SetReadOnlyProperty(thumb, typeof(Thumb), "IsDraggingPropertyKey", value);
+    }
+
+    private static void SetReadOnlyProperty(
+        DependencyObject target,
+        Type declaringType,
+        string keyFieldName,
+        bool value)
+    {
+        var key = Assert.IsType<DependencyPropertyKey>(
+            declaringType.GetField(keyFieldName, BindingFlags.Static | BindingFlags.NonPublic)?.GetValue(null));
+        var setValue = typeof(DependencyObject).GetMethod(
+            nameof(DependencyObject.SetValue),
+            BindingFlags.Instance | BindingFlags.Public,
+            binder: null,
+            types: [typeof(DependencyPropertyKey), typeof(object)],
+            modifiers: null);
+        Assert.NotNull(setValue);
+        setValue!.Invoke(target, [key, value]);
     }
 
     private static int CountRailPixels(BitmapSource bitmap, int y, Color accent, Color neutral)
@@ -891,6 +1554,39 @@ public sealed class MediaControlStyleTests
         }
 
         return count;
+    }
+
+    private static void AssertRailPixelsAreContiguous(
+        BitmapSource bitmap,
+        int y,
+        Color accent,
+        Color neutral)
+    {
+        var pixels = new byte[bitmap.PixelWidth * 4];
+        bitmap.CopyPixels(new Int32Rect(0, y, bitmap.PixelWidth, 1), pixels, bitmap.PixelWidth * 4, 0);
+        var first = -1;
+        var last = -1;
+        var count = 0;
+        for (var offset = 0; offset < pixels.Length; offset += 4)
+        {
+            var color = Color.FromArgb(
+                pixels[offset + 3],
+                pixels[offset + 2],
+                pixels[offset + 1],
+                pixels[offset]);
+            if (color != accent && color != neutral)
+            {
+                continue;
+            }
+
+            var x = offset / 4;
+            first = first < 0 ? x : first;
+            last = x;
+            count++;
+        }
+
+        Assert.True(count > 0);
+        Assert.Equal(count, last - first + 1);
     }
 
     private static void AssertMediaGlyphForeground(Button button, Color expectedColor)

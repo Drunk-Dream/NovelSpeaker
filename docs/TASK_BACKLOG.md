@@ -372,7 +372,7 @@ dotnet test -c Release --no-build
 - 新增 Light/Dark 真实 Player 行最终像素回归，覆盖目录普通/Current 与正文普通/Current；新增样式、VisualTree owner、调用方审计契约。临时鼠标/VisualTree 诊断 fixture 已删除。
 - 自动验收：App Release build 0 警告/0 错误；InteractionCallerAudit、ButtonStyle、Selection style、Player 内容/几何及最终像素回归通过。部分既有 WPF Window/动画测试在当前隔离宿主中测试进程崩溃，详见交付说明。
 
-## [ ] T010（P0）：修复竖向音量 Thumb 在 Pressed/Dragging 时右侧裁切
+## [x] T010（P0）：修复竖向音量 Thumb 在 Pressed/Dragging 时右侧裁切
 
 依赖：T009 可并行；最终验收依赖两者均完成。
 
@@ -400,6 +400,12 @@ dotnet test -c Release --no-build
 - Dragging 不改变 Slider 的有效水平位置或 Flyout 几何，不引入新的轨道接缝。
 - 音量数值、静音图标、键盘调整和播放业务测试保持通过。
 - 视觉验收生成的截图、调试脚本、manifest 和临时 fixture 在任务结束前全部删除。
+
+完成成果：
+
+- 公共媒体 Thumb 保留固定 16 DIP 交互包络，Rest 圆面为 14 DIP，Dragging 只放大内部圆面并切换 Pressed/Focus 颜色；竖向交互 Track 同步预留 16 DIP，VisualTrack 仍保持独立 6 DIP 连续轨道。
+- Player 与 MiniPlayer 继续共用 `App.Media.VolumeSlider`，未改变 Flyout、音量数值或播放业务行为。
+- 自动验收：`MediaControlStyleTests` 通过，独立与真实 Player/MiniPlayer Flyout 宿主渲染覆盖 Light/Dark、100%/125%/150% DPI 的 Rest/Hover/Dragging 中心、左右对称边界 alpha、固定 Track/Thumb 包络及连续轨道；未保留视觉截图或临时 fixture。
 
 ## [ ] T011（P1）：审计 chrome-free 点击宿主与残余双层交互面
 
