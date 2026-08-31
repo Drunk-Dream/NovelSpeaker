@@ -140,6 +140,9 @@ Dark Mode 下 Pressed 仍必须保持高对比度主题前景；媒体、Toolbar
 播放进度条使用两段对比轨道：已播放部分为 Accent，未播放部分为弱中性色。Thumb 默认隐藏，Mouse Hover、Keyboard Focus 或 Dragging 时出现；Dragging 时保持显示并略强化，不给整个 Slider 绘制外框。
 
 音量 Flyout 使用竖向 Slider，已设置音量与剩余轨道保持明显但克制的对比，Thumb 默认显示；填充条和剩余轨道保持同一固定厚度并连续延伸到 Thumb 下方，不在控制柄附近出现局部收缩/掐腰；音量为 0 时入口切换为静音图标。
+音量 Thumb 在 Pressed/Dragging 时允许轻微增强或放大，但外层布局包络保持固定并按最大视觉尺寸预留，不能因为状态变化在右侧产生裁切、遮挡或横向位移。
+
+目录卡片和正文预览段落的 Hover 只允许显示一层圆角状态面；`ListBoxItem`、透明点击宿主和内部 Selection Border 中只有 Selection Border 可以绘制可见 Hover/Selected 背景，不允许出现额外的直角矩形 PointerOver 层。
 
 播放页和迷你播放器的进度条在鼠标悬浮或拖动时，通过 Tooltip 显示当前段落位置，例如 `xx/xx`。
 

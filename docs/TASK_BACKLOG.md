@@ -331,3 +331,118 @@ dotnet test -c Release --no-build
 - 跨模块复查 Player/MiniPlayer、Feedback Popup/Flyout、Input/ToggleSwitch、Selection/Settings、Menu Separator 及正式页面调用方；补齐媒体资源键的 `App.Media.*` 形式，消除资源图前缀违规且保持现有模板/状态语义。
 - 自动专项合同通过：交互调用方静态审计、资源图闭包与键唯一性、视觉资源所有权、媒体按钮/滑杆、Popup/Flyout、菜单、输入和主题状态测试均通过。
 - 完整质量门禁按规定顺序通过：locked restore、format、Release build（0 警告/0 错误）及全量 test；5 个测试程序集共 846 项通过，0 失败、0 跳过，未设置可见窗口授权。
+
+## Phase E：视觉残留回归与真实像素验收
+
+## [ ] T009（P0）：定位并修复播放页目录/正文段落的双层 Hover 与直角宿主层
+
+依赖：T008。
+
+背景：
+
+- 用户在真实播放页视觉验收中确认：目录卡片和正文预览段落 Hover 时仍出现两层状态面，其中至少一层为直角矩形。
+- 当前 `WideChaptersListBox` 与 `SegmentListBox` 的 `ItemContainerStyle` 只设置透明 Background/Border，没有像 Book Details、Cache 的部分列表那样显式移除 ItemContainer 默认 chrome；两处 DataTemplate 又使用 `App.Button.Floating` 点击宿主包裹 `App.Selection.MultiSelectItem` / `App.Selection.CurrentItem` 圆角 Surface。
+- 因此静态结构上至少存在三个需要实测排查的状态 owner：`ListBoxItem` 默认/Provider Template、外层 Button Provider Template、内部 Selection Border。现有测试主要证明 Setter/Style 关系，不能证明 Hover 时最终像素只有一层。
+
+目标：
+
+- 播放页目录项和正文段落在 Rest/Hover/Pressed/Current/Selected 状态下只存在一个主要可见状态 Surface，Hover 为既定圆角，不出现第二层直角或圆角底板。
+- 将“没有视觉 chrome 的 ItemContainer/点击宿主”收口为可复用公共能力，避免页面继续复制或猜测 Provider 模板行为。
+- 保留章节选择、主动缓存多选、段落跳转、虚拟化、滚动、键盘焦点、Enter/Space 激活和 Automation 语义。
+
+实施：
+
+1. 先生成真实 `PlayerView` 的确定性 Light/Dark Hover 截图，并同时记录目标项实际 VisualTree/Template owner；分别让鼠标位于普通目录项、Current 目录项、普通正文段落和 Current 正文段落上，确认每一层可见背景来自哪个元素。不得先按猜测直接改 XAML。
+2. 优先检查 `WideChaptersListBox` / `SegmentListBox` 的 `ListBoxItem` 默认模板。若矩形层来自 ItemContainer，建立 Selection family 的共享 chrome-free ItemContainer Style/Template，只保留 `ContentPresenter`、布局/选择/虚拟化所需语义，并迁移 Player；同时把 Book Details、Cache 中等价的页面级裸 ItemContainer Template 收口到该公共 owner，页面只保留真实差异。
+3. 再验证外层 Button。若 `App.Button.Floating` 即使设置透明 Background 仍由 Provider Template 内部 VisualState 绘制额外状态层，新增/调整一个明确的 chrome-free interaction host（受控具名模板或应用自有控件），由 Button family 统一维护；不得在 Player 页面叠加透明 Brush/遮罩规避。`App.Button.Floating` 保留给真正包含 `App.Surface.FloatingAction` 的悬浮操作，不继续承担通用列表/卡片点击宿主语义。
+4. 最终让 `App.Selection.MultiSelectItem` / `App.Selection.CurrentItem` 成为播放页目录/正文行唯一可见 Hover/Selected owner；Current/Selected + Hover 继续使用 AccentSubtle.Hover，不回退普通中性 Hover。
+5. 扩展 WPF 测试：既要检查 VisualTree owner，也要渲染真实 Player 行 Hover 的最终像素，能够发现矩形第二层；不能只断言 `Background=Transparent`、`BorderThickness=0` 或 Style key。
+
+自动/视觉验收：
+
+- Light/Dark 下目录普通项、目录 Current 项、正文普通段、正文 Current 段 Hover 均只有一个圆角状态面，没有直角矩形或第二个大面积 Hover Surface。
+- Tab/键盘焦点仍清晰且只在 Keyboard Focus 时显示；鼠标 Hover 不引出 Focus Ring。
+- 章节点击、主动缓存多选、正文跳转、虚拟化和滚动相关测试保持通过。
+- 若本任务生成截图、截图脚本、manifest、临时 fixture 或 VisualTree dump，只作为验收副产物；确认通过后全部删除，并以 `git status --short` 证明仓库只剩预期源码/测试/文档修改。
+
+## [ ] T010（P0）：修复竖向音量 Thumb 在 Pressed/Dragging 时右侧裁切
+
+依赖：T009 可并行；最终验收依赖两者均完成。
+
+背景：
+
+- 用户确认音量 Thumb 点击/拖动时会轻微放大，放大后圆形右侧出现遮挡/裁切。
+- 当前 `App.Media.PlaybackSliderThumbStyle` Rest 为 `14 × 14`，`IsDragging=True` 时直接把 Thumb 改为 `16 × 16`；竖向 `PART_Track` 的固定宽度仍为 `14`。这是高可信的几何风险点，但必须通过真实渲染确认最终裁切 owner，不能只按属性差异推断。
+
+目标：
+
+- 保留克制的 Pressed/Dragging 反馈，但状态切换不改变 Track 测量布局，不让 Thumb 右侧/左侧被裁切，也不造成横向漂移。
+- Player 与 MiniPlayer 共用同一 VolumeSlider 行为，100%/125%/150% DPI 下视觉对称。
+
+实施：
+
+1. 在真实 `App.Media.VolumeSlider` 中分别捕获 Rest/Hover/Pressed-or-Dragging 状态，确认裁切发生在 Thumb Template、Track measure/arrange、Slider clip 还是 Flyout 宿主边界。
+2. 首选固定最大尺寸的 Thumb layout envelope：外层 Thumb/Presenter 始终按最大交互尺寸预留，内部圆形在该固定区域内从 Rest 到 Dragging 轻微放大/变色；不要通过直接改变参与 Track 布局的 Thumb `Width/Height` 实现放大。若视觉上不需要放大，也允许改为仅颜色/描边增强，但不得牺牲可操作性。
+3. 检查 Slider/Flyout 的水平 padding、Track 宽度和裁切设置，确保最大 Thumb 视觉在左右两侧有对称余量；不得通过偏移 Thumb、加不对称 Margin 或扩大整个 Flyout 来掩盖问题。
+4. 保持既有 VisualTrack 与交互 Track 分离、轨道固定厚度、Thumb 下连续衔接合同。
+5. 新增像素/几何回归：比较 Dragging 状态 Thumb 左右可见半径、中心位置和边界 alpha，确认无单侧削平；同时保护轨道不因状态变化产生新的掐腰/断缝。
+
+自动/视觉验收：
+
+- Player/MiniPlayer、Light/Dark、100%/125%/150% DPI 下 Rest/Hover/Dragging Thumb 均完整、居中且左右对称。
+- Dragging 不改变 Slider 的有效水平位置或 Flyout 几何，不引入新的轨道接缝。
+- 音量数值、静音图标、键盘调整和播放业务测试保持通过。
+- 视觉验收生成的截图、调试脚本、manifest 和临时 fixture 在任务结束前全部删除。
+
+## [ ] T011（P1）：审计 chrome-free 点击宿主与残余双层交互面
+
+依赖：T009、T010。
+
+目标：
+
+- 将 T009 暴露的“透明 Setter 与最终 Provider/默认模板像素不等价”问题扩展审计到全项目，避免同类方框只在其它页面尚未被人工发现。
+- 清理 `App.Button.Floating` 被当作通用透明点击宿主的语义混用，并消除重复页面级裸 ItemContainer Template。
+
+重点范围：
+
+- `BookCardView`、Book Details 章节列表、Cache Management 书籍/章节项、规则卡片选择宿主、Player 目录/正文项以及真正的定位 FloatingAction。
+- 所有 `App.Button.Floating` 生产调用方、Button + `App.Selection.*` 组合、ListBox/ListView ItemContainerStyle、整卡 Hover + 行内按钮组合。
+
+实施与验收：
+
+- 按“最终可见 owner”而不是 Style 名称分类：真正 FloatingAction、chrome-free interaction host、Selection Surface、普通弱 Surface Button 各自使用明确公共语义。
+- 页面不得复制等价的裸 `ListBoxItem` Template；共享模板进入 Selection family，页面只提供选择绑定、Margin、虚拟化等差异。
+- 对 Book Library、Book Details、Cache、Rules、Player 各生成至少一个确定性 Light/Dark Hover 画面进行视觉核对，重点检查直角 PointerOver、双层 Hover、Selected 被 Hover 覆盖、行内按钮与父项同时大面积高亮。
+- 若发现实际问题，在公共 owner 修复并补回归测试；不得为了通过截图逐页面加透明背景、负 Margin 或局部遮罩。
+- 所有视觉验收副产物在确认通过后删除，不纳入 Git；任务结束必须检查工作树无截图/脚本/manifest 残留。
+
+## [ ] T012（P0）：完成视觉残留修复的最终质量门禁
+
+依赖：T009–T011。
+
+目标：
+
+- 证明上一轮“自动合同已通过但真实像素仍有残留”的测试缺口已经关闭。
+- 确保本轮视觉修复没有改变业务行为，也没有把临时验收工具提交进仓库。
+
+完整验收：
+
+```powershell
+dotnet restore --locked-mode -r win-x64
+dotnet format --verify-no-changes --no-restore
+dotnet build -c Release --no-restore
+dotnet test -c Release --no-build
+```
+
+并额外确认：
+
+- Player 目录/正文真实 Hover 像素只有一个圆角 owner；ListBoxItem/Button Provider 状态不会再生成直角第二层。
+- Volume Thumb 在 Rest/Hover/Dragging、Light/Dark、100%/125%/150% DPI 下完整对称且无右侧裁切，轨道仍连续。
+- Book Library、Book Details、Cache、Rules 的代表性 Hover/Selected 状态不存在同源双层交互面。
+- `App.Button.Floating` 只承担真正 FloatingAction 语义；通用透明点击宿主使用独立公共 owner（若 T009 验证确有需要）。
+- `git status --short` 只包含任务要求的最终修改；仓库中不存在本轮生成的截图、截图脚本、临时 manifest、VisualTree dump 或其它验收副产物。
+
+验收：
+
+- 所有质量门禁和新增真实像素/宿主合同通过后，将 T009–T012 标记完成并记录成果。
+- 若仍存在肉眼可见但自动测试无法证明的状态，任务不得以“Setter/VisualTree 符合预期”为由关闭；保留 `[!]` 并记录截图对应状态与可复现步骤。

@@ -510,6 +510,8 @@ App.Selection.Content.RuleSecondary
 - `AppSettingsRow` 等整行不可点击、只有右侧输入控件可操作的设置行不提供整行 Hover，避免制造错误的点击暗示。
 - Selected/Current 是持续状态，Hover 不能覆盖为普通中性色。状态优先级统一为 `Disabled > Selected/Current + Hover > Selected/Current > Hover > Rest`；Selected/Current、DropTarget 和 Checked 的文字使用 `App.Brush.Interaction.Foreground.Selected`，Disabled 使用 `App.Brush.Interaction.Foreground.Disabled`。
 - Selected/Current + Hover 使用 AccentSubtle 的轻微增强，而不是从 Accent 状态跳回普通 `Surface.Secondary`。
+- 播放页目录项、正文段落以及其它“整行可点击 + 内部 Selection Surface”场景中，圆角 Selection Surface 是唯一可见 Hover/Selected owner；外层 `ListBoxItem` 与点击宿主只负责容器/命中/命令语义，不绘制 PointerOver 背景。若默认或 Provider ItemContainer/Button 模板会在内部生成矩形状态层，必须改用共享 chrome-free 宿主，而不是用透明 Setter 假定其已消失。
+- Chrome-free ItemContainer 属于 Selection family 的公共基础能力。Book Details、Cache、Player 等页面不得分别复制裸 `ContentPresenter` 模板；页面仅提供 Margin、虚拟化、选择绑定等真实页面差异。
 
 ### 7.7 Navigation 与 Menu
 
@@ -545,6 +547,7 @@ ProgressBar 与 Slider 保持不同控件语义和测试，不共用模板。
 
 - `App.Media.ProgressSlider` 用于播放进度：Thumb 在 Rest 隐藏，Mouse Hover、Keyboard Focus 或 Dragging 时出现；Dragging 时保持显示并略强化。进度位置 Tooltip 在 Hover/Dragging 时提供文本证据。
 - `App.Media.VolumeSlider` 使用竖向布局，Thumb 默认可见；下方已设置音量为 Accent，上方剩余范围为弱中性色，Hover/Dragging 时增强 Thumb。填充轨道和剩余轨道在整个有效区间保持一致的固定厚度，并在 Thumb 中心线下方连续衔接，由 Thumb 覆盖连接处；不得为隐藏接缝使用会造成局部收窄、鼓包或“掐腰”的 Margin/几何修补。音量为 0 时由对应入口图标切换为静音状态。
+- Volume Thumb 的外层布局尺寸按最大交互视觉预留并保持固定；Rest/Hover/Pressed/Dragging 只在该固定 envelope 内改变内部圆形的颜色、描边或轻微尺寸。不得通过直接改变 Track 中 Thumb 的 `Width/Height` 让状态切换重新参与测量，否则可能造成右侧裁切、横向漂移或轨道连接抖动。
 - 媒体 Slider 的 **交互 Track 与视觉 Rail 分离**：WPF `Track.DecreaseRepeatButton` / `IncreaseRepeatButton` 只负责点击和布局，保持透明；连续可见轨道由独立的 `App.Media.VisualTrack` 绘制。不得再让两个交互 RepeatButton 分别绘制带圆角的可见轨道，因为每一段靠 Thumb 的圆头会天然造成局部收窄。填充边界应延伸到 Thumb 中心下方并由 Thumb 遮盖。
 - ProgressSlider 与 VolumeSlider 可以共享 Track/Thumb 基础模板或 helper，但必须保留横向/竖向的独立几何与可访问性测试。
 
