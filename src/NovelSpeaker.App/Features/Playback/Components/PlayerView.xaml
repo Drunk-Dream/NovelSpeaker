@@ -532,15 +532,6 @@
                                             <Border.Style>
                                                 <Style TargetType="Border"
                                                        BasedOn="{StaticResource App.Selection.MultiSelectItem}">
-                                                    <Style.Triggers>
-                                                        <MultiDataTrigger>
-                                                            <MultiDataTrigger.Conditions>
-                                                                <Condition Binding="{Binding IsCurrent}" Value="True" />
-                                                                <Condition Binding="{Binding IsSelectedForActiveCache}" Value="False" />
-                                                            </MultiDataTrigger.Conditions>
-                                                            <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
-                                                        </MultiDataTrigger>
-                                                    </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
                                             <Grid>

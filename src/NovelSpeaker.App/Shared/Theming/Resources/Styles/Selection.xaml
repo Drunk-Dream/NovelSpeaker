@@ -194,6 +194,20 @@
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Hover}" />
                 <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
             </MultiDataTrigger>
+            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Default}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </DataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsCurrent}" Value="True" />
+                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Hover}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+            </MultiDataTrigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />

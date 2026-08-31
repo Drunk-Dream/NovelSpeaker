@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Windows.Automation;
 using System.Windows;
@@ -38,6 +39,12 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 [Collection("WpfDispatcher")]
 public sealed partial class PlayerViewTests
 {
+    private static readonly DependencyPropertyKey IsMouseOverKey =
+        (DependencyPropertyKey)(typeof(UIElement)
+            .GetField("IsMouseOverPropertyKey", BindingFlags.Static | BindingFlags.NonPublic)
+            ?.GetValue(null)
+         ?? throw new InvalidOperationException("WPF IsMouseOver property key was not found."));
+
     private void PlayerView_explains_empty_chapter_and_disables_segment_playback_controls()
     {
         WpfTestHost.RunInSta(() =>
@@ -1204,6 +1211,63 @@ public sealed partial class PlayerViewTests
     public void Player_hover_visual_contract_covers_light_and_dark_final_pixels()
     {
         Player_hover_rendering_uses_one_rounded_surface_for_catalog_and_segments();
+    }
+
+    [Fact]
+    public void Player_current_chapter_hover_keeps_accent_surface_in_light_and_dark_themes()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            try
+            {
+                foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+                {
+                    GalleryThemeRuntime.Apply(theme);
+                    var view = new PlayerView
+                    {
+                        DataContext = CreateDefaultVisualContext()
+                    };
+                    using var host = new WpfControlHost(view);
+                    var size = new Size(1280, 760);
+                    host.MeasureArrange(size);
+
+                    var chapters = Assert.IsType<ListBox>(view.FindName("WideChaptersListBox"));
+                    var currentItem = Assert.IsType<ListBoxItem>(
+                        chapters.ItemContainerGenerator.ContainerFromIndex(4));
+                    var currentSurface = FindChapterCard(currentItem);
+                    var bounds = GetBoundsRelativeToRoot(currentSurface, view);
+                    var samplePoint = new Point(bounds.Left + bounds.Width / 2d, bounds.Top + 4d);
+                    var restColor = Assert.IsType<SolidColorBrush>(
+                        view.FindResource("App.Brush.Accent.Subtle")).Color;
+                    var hoverColor = Assert.IsType<SolidColorBrush>(
+                        view.FindResource("App.Brush.Accent.Subtle.Hover")).Color;
+
+                    Assert.Equal(restColor, ReadRenderedPixel(host.Render(size), samplePoint));
+
+                    // IsMouseOver is read-only. Set its WPF property key to model a
+                    // deterministic cursor position while keeping the assertion on
+                    // the actual RenderTargetBitmap pixels produced by the template.
+                    currentSurface.SetValue(IsMouseOverKey, true);
+                    view.UpdateLayout();
+                    Assert.Equal(hoverColor, ReadRenderedPixel(host.Render(size), samplePoint));
+                    currentSurface.SetValue(IsMouseOverKey, false);
+                }
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            }
+        });
+    }
+
+    private static Color ReadRenderedPixel(BitmapSource bitmap, Point point)
+    {
+        var x = Math.Clamp((int)Math.Floor(point.X), 0, bitmap.PixelWidth - 1);
+        var y = Math.Clamp((int)Math.Floor(point.Y), 0, bitmap.PixelHeight - 1);
+        var pixels = new byte[4];
+        bitmap.CopyPixels(new Int32Rect(x, y, 1, 1), pixels, 4, 0);
+        return Color.FromArgb(pixels[3], pixels[2], pixels[1], pixels[0]);
     }
 
     private static PlayerViewLayoutTestContext CreateDefaultVisualContext()

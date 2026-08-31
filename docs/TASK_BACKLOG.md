@@ -471,3 +471,17 @@ dotnet test -c Release --no-build
 - 按规定顺序完成 `dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore` 和 `dotnet test -c Release --no-build`；lockfile 无差异，构建 0 警告/0 错误，全量 848 项测试通过、0 失败/0 跳过。
 - 全量 WPF 回归重新覆盖 Player 目录/正文真实 Hover owner、Volume Thumb 多主题/DPI 几何、书库/详情/缓存/规则交互宿主和 Selection/Floating 资源合同；未发现业务行为回归。
 - 清理了本轮测试遗留的 `TestResults/wpf-diagnostics/` 视觉树/窗口状态诊断文件；`artifacts/visual-review/` 无产物，仓库无本轮截图、脚本或 manifest 残留。本切片未修改生产或测试代码。
+
+## T011/T012 真实视觉验收补充（2026-08-31）
+
+本次补做使用正式生产 View/Control、脱敏 fixture、确定性隐藏 Windows Desktop 和 `RenderTargetBitmap` 截图，逐项查看最终像素；临时截图测试、截图和诊断目录在验收后删除。
+
+- **Book Library**：`LibraryPage` / `BookCardView`。Light/Dark 的 Rest、整卡 Hover、`MoreButton` 行内 Hover 均通过；整卡只有一个圆角 Hover surface，行内按钮 Hover 只覆盖按钮局部。
+- **Book Details**：`BookDetailsPage`。Light/Dark 的普通章节 Rest/Hover、Current Rest/Current+Hover 均通过；Current 在 Hover 时保持 Accent，不出现外层 ListBoxItem 或 InteractionHost 的第二层底板。
+- **Cache Management**：`CacheManagementPage`。Light/Dark 的选中书籍、选中章节 Rest/Selected+Hover 均通过；书籍和章节的按钮宿主只转发点击语义，最终可见状态面由 CardItem 单独拥有。
+- **Rules**：`ChapterRulesPage` 代表规则页。Light/Dark 的普通规则 Rest/Hover、选中规则 Rest/Selected+Hover、`RuleToggleSwitch` 行内 Hover 均通过；TTS Rules 与 Regex Replacement Rules 共用 `RuleListItemView` 及 `ControlThemes/Rules.xaml`，因此该页覆盖同一规则卡模板的代表性像素行为。
+- **Player**：生产 `PlayerView`。Light/Dark 的目录普通项、Selected 项、Current 项 Rest/Hover，以及正文普通项和 Current 项 Rest/Current+Hover 均通过；目录/正文均只有一个圆角 Selection surface。
+
+发现并修复的问题：Player 当前章节的局部 Border Style 在 `IsCurrent && !IsSelectedForActiveCache` 时强制写入 `Surface.Secondary`，覆盖了 `App.Selection.MultiSelectItem` 的 Current 语义，导致 Current Rest 和 Current+Hover 都显示为中性底色。修复为由公共 `App.Selection.MultiSelectItem` 统一提供 `IsCurrent` 与 `IsCurrent + IsMouseOver` 的 Accent/AccentSubtle.Hover 状态，并删除 Player 页面级覆盖 trigger；没有增加遮罩、负 Margin 或偏移。
+
+新增 `Player_current_chapter_hover_keeps_accent_surface_in_light_and_dark_themes`，在真实 WPF 模板渲染后的位图中断言 Light/Dark 的 Current Rest 与 Current+Hover 像素分别等于 AccentSubtle 和 AccentSubtle.Hover。既有 `Player_hover_visual_contract_covers_light_and_dark_final_pixels`、`InteractionCallerAuditTests`、`ButtonStyleTests` 继续保护唯一 Hover owner、`App.Button.InteractionHost`/`App.Selection.ChromeFreeItemContainer` 无 chrome 以及 `App.Button.Floating` 的 FloatingAction 白名单。
