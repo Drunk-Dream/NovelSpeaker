@@ -12,7 +12,7 @@
             <Button x:Name="OpenBookButton"
                     Padding="16"
                     Background="Transparent"
-                    Style="{StaticResource App.Button.Subtle}"
+                    Style="{StaticResource App.Button.Floating}"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
                     AutomationProperties.Name="{Binding Item.AutomationName, ElementName=Root}"

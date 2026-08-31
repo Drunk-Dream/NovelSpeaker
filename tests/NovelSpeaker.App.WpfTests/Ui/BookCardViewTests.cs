@@ -54,7 +54,7 @@ public sealed class BookCardViewTests
                 var moreButton = Assert.IsType<Wpf.Ui.Controls.Button>(view.FindName("MoreButton"));
 
                 Assert.NotNull(openButton);
-                Assert.Same(view.FindResource("App.Button.Subtle"), openButton.Style);
+                Assert.Same(view.FindResource("App.Button.Floating"), openButton.Style);
                 Assert.Equal(Brushes.Transparent, openButton.Background);
                 Assert.Same(item, openButton.CommandParameter);
                 Assert.Equal(item.MoreActionsAutomationName, AutomationProperties.GetName(moreButton));

@@ -31,6 +31,7 @@
                                         VerticalAlignment="Stretch"
                                         Background="Transparent"
                                         BorderThickness="0"
+                                        Style="{StaticResource App.Button.Floating}"
                                         Command="{Binding SelectCommand, RelativeSource={RelativeSource TemplatedParent}}"
                                         CommandParameter="{Binding CommandParameter, RelativeSource={RelativeSource TemplatedParent}}"
                                         Focusable="True"

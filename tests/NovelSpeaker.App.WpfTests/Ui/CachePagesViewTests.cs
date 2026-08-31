@@ -159,6 +159,7 @@ public sealed class CachePagesViewTests
                     border => AutomationProperties.GetName(border) == books[0].AutomationName);
                 var firstBookButton = Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(firstBookCard));
                 Assert.Same(page.FindResource("App.Selection.CardItem"), firstBookCard.Style);
+                Assert.Same(page.FindResource("App.Button.Floating"), firstBookButton.Style);
                 Assert.Equal(new Thickness(1), firstBookCard.BorderThickness);
                 Assert.InRange(Math.Abs(firstBookButton.ActualWidth - firstBookCard.ActualWidth), 0d, 2d);
                 Assert.InRange(Math.Abs(firstBookButton.ActualHeight - firstBookCard.ActualHeight), 0d, 2d);
@@ -185,6 +186,7 @@ public sealed class CachePagesViewTests
                 var firstChapterButton = Assert.Single(
                     VisualTreeTestHelper.FindDescendants<Button>(chaptersListBox),
                     button => AutomationProperties.GetName(button) == chapters[0].AutomationName);
+                Assert.Same(page.FindResource("App.Button.Floating"), firstChapterButton.Style);
                 var visibleChapterButtons = VisualTreeTestHelper.FindDescendants<Button>(chaptersListBox)
                     .Where(button => chapters.Any(chapter => AutomationProperties.GetName(button) == chapter.AutomationName))
                     .ToArray();

@@ -138,7 +138,7 @@
                                             <Button Padding="14,12"
                                                     HorizontalAlignment="Stretch"
                                                     HorizontalContentAlignment="Stretch"
-                                                    Style="{StaticResource App.Button.Subtle}"
+                                                    Style="{StaticResource App.Button.Floating}"
                                                     AutomationProperties.Name="{Binding AutomationName}"
                                                     Command="{Binding DataContext.SelectBookCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                     CommandParameter="{Binding}">
@@ -318,7 +318,7 @@
                                                 Padding="0"
                                                 HorizontalAlignment="Stretch"
                                                 HorizontalContentAlignment="Stretch"
-                                                Style="{StaticResource App.Button.Subtle}"
+                                                Style="{StaticResource App.Button.Floating}"
                                                 Click="ChapterCard_OnClick"
                                                 ContextMenuOpening="ChapterCard_OnContextMenuOpening"
                                                 ToolTip="{Binding ExportToolTip}"

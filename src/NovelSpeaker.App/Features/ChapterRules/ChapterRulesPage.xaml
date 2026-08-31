@@ -234,6 +234,7 @@
                         Opacity="0.45"
                         Background="{DynamicResource App.Brush.Canvas}"
                         BorderThickness="0"
+                        Style="{StaticResource App.Button.Floating}"
                         Command="{Binding CloseHelpCommand}"
                         ToolTip="关闭章节规则帮助"
                         AutomationProperties.Name="关闭章节规则帮助" />

@@ -247,7 +247,7 @@
                                                         HorizontalAlignment="Stretch"
                                                         VerticalAlignment="Stretch"
                                                         Background="Transparent"
-                                                        Style="{StaticResource App.Button.Subtle}"
+                                                        Style="{StaticResource App.Button.Floating}"
                                                         ToolTip="{Binding TitleToolTip}"
                                                         AutomationProperties.Name="{Binding AutomationName}"
                                                         Command="{Binding DataContext.SelectChapterCommand, ElementName=RootLayout}"

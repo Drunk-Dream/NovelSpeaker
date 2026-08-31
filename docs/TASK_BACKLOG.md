@@ -255,7 +255,7 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 
 ## Phase D：全项目迁移与质量收口
 
-## [ ] T007（P1）：审计并迁移剩余交互样式调用方
+## [x] T007（P1）：审计并迁移剩余交互样式调用方
 
 依赖：T002–T006。
 
@@ -278,6 +278,12 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 - 公共资源键唯一、主题热切换、Icon Foreground、Input、Selection、Menu、Media 聚合合同通过。
 - 主要正式页面使用确定性 fixture 完成 Light/Dark 渲染；High Contrast 关键控件状态合同通过。
 - WPF/Presentation 定向测试通过。
+
+完成成果：
+
+- 迁移书库卡片、书籍详情章节、缓存书籍/章节、规则选择按钮、帮助抽屉关闭遮罩及播放器自定义输入，统一使用 `App.Button.Floating`、`App.Input.TextBox.Compact` 和既有 Selection owner；未改变播放、规则或缓存业务状态。
+- 新增生产 XAML 交互调用方静态审计，覆盖显式公共样式、通用交互色硬编码和选择容器的单一 Hover owner，并补充对应 WPF 视觉树断言。
+- 自动验收：交互调用方静态合同通过，受影响的书卡、规则项和缓存投影定向测试通过；`dotnet format --verify-no-changes --no-restore` 通过。BookDetails 异步目录与 CachePages 长布局测试仍受仓库既有 WPF 隔离宿主无活动超时影响，证据已记录在交付说明。
 
 ## [ ] T008（P0）：完成交互样式阶段的跨模块审阅与完整质量门禁
 

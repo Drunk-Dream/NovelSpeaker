@@ -211,6 +211,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="CustomStopMinutesTextBox"
                                      Height="36"
+                                     Style="{StaticResource App.Input.TextBox.Compact}"
                                      VerticalContentAlignment="Center"
                                      Text="{Binding CustomStopMinutesText, UpdateSourceTrigger=PropertyChanged}"
                                      ToolTip="自定义分钟数，范围 1 到 1440"
@@ -368,6 +369,7 @@
                                 <TextBox x:Name="SpeedEditorTextBox"
                                          Grid.Column="1"
                                          Height="36"
+                                         Style="{StaticResource App.Input.TextBox.Compact}"
                                          VerticalContentAlignment="Center"
                                          HorizontalContentAlignment="Center"
                                          PreviewKeyDown="SpeedEditorTextBox_OnPreviewKeyDown"
