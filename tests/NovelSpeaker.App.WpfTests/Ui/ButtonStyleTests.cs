@@ -26,6 +26,7 @@ public sealed class ButtonStyleTests
         "App.Button.Danger",
         "App.Button.DangerIcon",
         "App.Button.ToolbarValue",
+        "App.Button.InteractionHost",
         "App.Button.Floating"
     ];
 
@@ -60,11 +61,20 @@ public sealed class ButtonStyleTests
                     ? "{StaticResource Provider.UiButton}"
                     : "{StaticResource Provider.Button}",
                 (string?)resource.Attribute("BasedOn"));
-            Assert.DoesNotContain(
-                resource.Descendants(),
-                element => element.Name.LocalName == "ControlTemplate" ||
-                           (element.Name.LocalName == "Setter" &&
-                            (string?)element.Attribute("Property") == "Template"));
+            if (key == "App.Button.InteractionHost")
+            {
+                Assert.Contains(
+                    resource.Descendants(),
+                    element => element.Name.LocalName == "ControlTemplate");
+            }
+            else
+            {
+                Assert.DoesNotContain(
+                    resource.Descendants(),
+                    element => element.Name.LocalName == "ControlTemplate" ||
+                               (element.Name.LocalName == "Setter" &&
+                                (string?)element.Attribute("Property") == "Template"));
+            }
         });
     }
 
@@ -204,6 +214,95 @@ public sealed class ButtonStyleTests
                 trigger.Elements(),
                 setter => (string?)setter.Attribute("Property") == "Background" &&
                           (string?)setter.Attribute("Value") != "Transparent"));
+    }
+
+    private void Interaction_host_style_uses_a_chrome_free_template()
+    {
+        var path = Path.Combine(
+            LocateRepositoryRoot(),
+            "src",
+            "NovelSpeaker.App",
+            "Shared",
+            "Theming",
+            "Resources",
+            "Styles",
+            "Buttons.xaml");
+        var document = XDocument.Load(path);
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var style = document.Root?.Elements()
+            .Single(resource => (string?)resource.Attribute(xaml + "Key") == "App.Button.InteractionHost");
+
+        Assert.NotNull(style);
+        Assert.Equal("Button", (string?)style!.Attribute("TargetType"));
+        Assert.Equal("{StaticResource Provider.Button}", (string?)style.Attribute("BasedOn"));
+        Assert.Contains(
+            style.Elements(),
+            setter => setter.Name.LocalName == "Setter" &&
+                      (string?)setter.Attribute("Property") == "Template");
+        Assert.DoesNotContain(
+            style.Elements(),
+            setter => setter.Name.LocalName == "Setter" &&
+                      (string?)setter.Attribute("Property") == "FocusVisualStyle" &&
+                      (string?)setter.Attribute("Value") == "{x:Null}");
+        Assert.DoesNotContain(
+            style.Descendants().Where(element => element.Name.LocalName == "Trigger"),
+            trigger => (string?)trigger.Attribute("Property") is "IsMouseOver" or "IsPressed");
+
+        var template = style.Descendants().Single(element => element.Name.LocalName == "ControlTemplate");
+        Assert.Equal("{x:Type Button}", (string?)template.Attribute("TargetType"));
+        Assert.Contains(
+            template.Descendants(),
+            element => element.Name.LocalName == "Grid" &&
+                       (string?)element.Attribute("Background") == "Transparent");
+        Assert.Single(template.Descendants(), element => element.Name.LocalName == "ContentPresenter");
+        Assert.DoesNotContain(template.Descendants(), element => element.Name.LocalName == "Border");
+    }
+
+    private void Interaction_host_with_empty_content_keeps_a_full_hit_area()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                global::System.Windows.Application.Current);
+            var button = new WpfButton
+            {
+                Width = 160,
+                Height = 48,
+                Style = Assert.IsType<Style>(application.FindResource("App.Button.InteractionHost"))
+            };
+            using var host = new WpfControlHost(button);
+            host.MeasureArrange(new Size(160, 48));
+
+            var hit = VisualTreeHelper.HitTest(button, new Point(8, 8));
+            Assert.NotNull(hit);
+            Assert.IsType<Grid>(hit!.VisualHit);
+        });
+    }
+
+    private void Interaction_host_keeps_selection_content_hit_testable()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                global::System.Windows.Application.Current);
+            var surface = new Border
+            {
+                Background = Brushes.Transparent
+            };
+            var button = new WpfButton
+            {
+                Width = 160,
+                Height = 48,
+                Content = surface,
+                Style = Assert.IsType<Style>(application.FindResource("App.Button.InteractionHost"))
+            };
+            using var host = new WpfControlHost(button);
+            host.MeasureArrange(new Size(160, 48));
+
+            var hit = VisualTreeHelper.HitTest(button, new Point(80, 24));
+            Assert.NotNull(hit);
+            Assert.Same(surface, hit!.VisualHit);
+        });
     }
 
     private void Icon_button_icon_inherits_owner_foreground_in_both_themes()
@@ -347,6 +446,17 @@ public sealed class ButtonStyleTests
                     usesUiButton ? providerUiButton : provider,
                     button.Style.BasedOn);
 
+                if (key == "App.Button.InteractionHost")
+                {
+                    Assert.Equal(
+                        new[] { "IsEnabled" },
+                        button.Style.Triggers
+                            .OfType<Trigger>()
+                            .Select(trigger => trigger.Property.Name)
+                            .Order(StringComparer.Ordinal));
+                    continue;
+                }
+
                 var expectedTriggers = new[] { "IsEnabled", "IsMouseOver", "IsPressed" };
                 Assert.Equal(
                     expectedTriggers,
@@ -436,6 +546,9 @@ public sealed class ButtonStyleTests
     {
         Danger_icon_style_is_neutral_until_hover_and_pressed_danger_states();
         Icon_button_style_has_shared_hit_area_and_disabled_tooltip_contract();
+        Interaction_host_style_uses_a_chrome_free_template();
+        Interaction_host_with_empty_content_keeps_a_full_hit_area();
+        Interaction_host_keeps_selection_content_hit_testable();
         Floating_button_style_keeps_the_outer_hit_area_borderless();
     }
 

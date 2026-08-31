@@ -11,8 +11,7 @@
         <Grid>
             <Button x:Name="OpenBookButton"
                     Padding="16"
-                    Background="Transparent"
-                    Style="{StaticResource App.Button.Floating}"
+                    Style="{StaticResource App.Button.InteractionHost}"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
                     AutomationProperties.Name="{Binding Item.AutomationName, ElementName=Root}"

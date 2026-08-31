@@ -265,7 +265,9 @@ internal static class VisualStyleOwnershipScanner
     [
         "BorderlessIconButtonStyle",
         "BorderlessListItemButtonStyle",
+        "App.Button.InteractionHost",
         "IconButtonControlTemplate",
+        "App.Selection.ChromeFreeItemContainer",
         "MediaIconButtonControlTemplate",
         "MediaIconButtonStyle",
         "App.Media.PlaybackSliderControlTemplate",

@@ -334,7 +334,7 @@ dotnet test -c Release --no-build
 
 ## Phase E：视觉残留回归与真实像素验收
 
-## [ ] T009（P0）：定位并修复播放页目录/正文段落的双层 Hover 与直角宿主层
+## [x] T009（P0）：定位并修复播放页目录/正文段落的双层 Hover 与直角宿主层
 
 依赖：T008。
 
@@ -364,6 +364,13 @@ dotnet test -c Release --no-build
 - Tab/键盘焦点仍清晰且只在 Keyboard Focus 时显示；鼠标 Hover 不引出 Focus Ring。
 - 章节点击、主动缓存多选、正文跳转、虚拟化和滚动相关测试保持通过。
 - 若本任务生成截图、截图脚本、manifest、临时 fixture 或 VisualTree dump，只作为验收副产物；确认通过后全部删除，并以 `git status --short` 证明仓库只剩预期源码/测试/文档修改。
+
+完成成果：
+
+- 新增公共 `App.Selection.ChromeFreeItemContainer` 与 `App.Button.InteractionHost`，让 ListBoxItem 和整行点击宿主只保留布局、命令、焦点及 Automation 语义，不再绘制 Provider PointerOver/Pressed chrome；Player 目录/正文改由 Selection Border 唯一拥有圆角状态面。
+- 书籍详情、缓存、书籍卡片和规则列表中的等价全表面点击调用同步迁移；`App.Button.Floating` 仅保留给带 `App.Surface.FloatingAction` 的定位/悬浮操作。
+- 新增 Light/Dark 真实 Player 行最终像素回归，覆盖目录普通/Current 与正文普通/Current；新增样式、VisualTree owner、调用方审计契约。临时鼠标/VisualTree 诊断 fixture 已删除。
+- 自动验收：App Release build 0 警告/0 错误；InteractionCallerAudit、ButtonStyle、Selection style、Player 内容/几何及最终像素回归通过。部分既有 WPF Window/动画测试在当前隔离宿主中测试进程崩溃，详见交付说明。
 
 ## [ ] T010（P0）：修复竖向音量 Thumb 在 Pressed/Dragging 时右侧裁切
 

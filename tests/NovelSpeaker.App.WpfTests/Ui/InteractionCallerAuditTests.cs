@@ -101,9 +101,27 @@ public sealed class InteractionCallerAuditTests
         Assert.All(
             selectionButtonPairs.SelectMany(buttons => buttons).Distinct(),
             button => Assert.True(
-                IsFloatingButtonStyle(StyleReference(button), styleDefinitions),
+                IsInteractionHostStyle(StyleReference(button), styleDefinitions),
                 $"Selection surface related to a full-surface <Button> must use " +
-                $"App.Button.Floating, but was '{StyleReference(button) ?? "<none>"}'."));
+                $"App.Button.InteractionHost, but was " +
+                $"'{StyleReference(button) ?? "<none>"}'."));
+
+        var floatingButtons = allProductionXaml
+            .SelectMany(path => XDocument.Load(path).Descendants()
+                .Where(element => element.Name.LocalName == "Button")
+                .Select(button => new { Path = path, Button = button }))
+            .Where(item => IsFloatingButtonStyle(StyleReference(item.Button), styleDefinitions))
+            .ToArray();
+        Assert.NotEmpty(floatingButtons);
+        Assert.All(
+            floatingButtons,
+            item => Assert.True(
+                item.Button.Descendants().Any(element =>
+                    IsFloatingSurfaceStyle(StyleReference(element), styleDefinitions)),
+                $"{Path.GetRelativePath(repositoryRoot, item.Path)} " +
+                $"<Button> using App.Button.Floating must contain " +
+                $"App.Surface.FloatingAction, but did not: " +
+                $"'{StyleReference(item.Button)}'."));
 
         var rulesPath = Path.Combine(
             appRoot,
@@ -116,7 +134,7 @@ public sealed class InteractionCallerAuditTests
         var selectButton = rulesDocument.Descendants().Single(element =>
             element.Name.LocalName == "Button" &&
             (string?)element.Attribute(XamlNamespace + "Name") == "PART_SelectButton");
-        Assert.Equal("{StaticResource App.Button.Floating}", StyleReference(selectButton));
+        Assert.Equal("{StaticResource App.Button.InteractionHost}", StyleReference(selectButton));
 
         foreach (var path in callerXaml.Where(path =>
                      path.EndsWith("RulesPage.xaml", StringComparison.Ordinal) ||
@@ -126,7 +144,7 @@ public sealed class InteractionCallerAuditTests
             var dismissOverlay = document.Descendants().Single(element =>
                 element.Name.LocalName == "Button" &&
                 (string?)element.Attribute(XamlNamespace + "Name") == "HelpDrawerDismissOverlay");
-            Assert.Equal("{StaticResource App.Button.Floating}", StyleReference(dismissOverlay));
+            Assert.Equal("{StaticResource App.Button.InteractionHost}", StyleReference(dismissOverlay));
         }
 
         var playerDocument = XDocument.Load(Path.Combine(
@@ -198,6 +216,18 @@ public sealed class InteractionCallerAuditTests
         IReadOnlyDictionary<string, StyleDefinition> styleDefinitions) =>
         GetStyleKeyChain(styleReference, styleDefinitions)
             .Any(definition => definition.Key == "App.Button.Floating");
+
+    private static bool IsInteractionHostStyle(
+        string? styleReference,
+        IReadOnlyDictionary<string, StyleDefinition> styleDefinitions) =>
+        GetStyleKeyChain(styleReference, styleDefinitions)
+            .Any(definition => definition.Key == "App.Button.InteractionHost");
+
+    private static bool IsFloatingSurfaceStyle(
+        string? styleReference,
+        IReadOnlyDictionary<string, StyleDefinition> styleDefinitions) =>
+        GetStyleKeyChain(styleReference, styleDefinitions)
+            .Any(definition => definition.Key == "App.Surface.FloatingAction");
 
     private static IReadOnlyList<StyleDefinition> GetStyleKeyChain(
         string? styleReference,

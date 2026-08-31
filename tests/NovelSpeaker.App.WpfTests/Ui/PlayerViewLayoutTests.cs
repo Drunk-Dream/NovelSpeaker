@@ -109,8 +109,8 @@ public sealed partial class PlayerViewTests
             var thirdCard = FindChapterCard(thirdItem);
             var firstButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(firstItem));
             var secondButton = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(secondItem));
-            Assert.Same(view.FindResource("App.Button.Floating"), firstButton.Style);
-            Assert.Same(view.FindResource("App.Button.Floating"), secondButton.Style);
+            Assert.Same(view.FindResource("App.Button.InteractionHost"), firstButton.Style);
+            Assert.Same(view.FindResource("App.Button.InteractionHost"), secondButton.Style);
             var currentAccent = VisualTreeTestHelper.FindDescendant<Border>(
                 firstItem,
                 static border => Grid.GetColumn(border) == 0 &&
@@ -1030,6 +1030,105 @@ public sealed partial class PlayerViewTests
         }
     }
 
+    private void Player_hover_rendering_uses_one_rounded_surface_for_catalog_and_segments()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            var markerColor = Color.FromRgb(1, 239, 127);
+
+            try
+            {
+                foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+                {
+                    GalleryThemeRuntime.Apply(theme);
+                    using var fixture = CreateVisualReviewPage();
+                    ConfigurePlayerPage(fixture.Page, CreateDefaultVisualContext());
+                    using var host = new WpfControlHost(fixture.Page);
+                    var size = new Size(1280, 760);
+                    host.MeasureArrange(size);
+
+                    var player = Assert.IsType<PlayerView>(fixture.Page.FindName("PlayerView"));
+                    var chapters = Assert.IsType<ListBox>(player.FindName("WideChaptersListBox"));
+                    var segments = Assert.IsType<ListBox>(player.FindName("SegmentListBox"));
+                    var currentItemStyle = player.FindResource("App.Selection.CurrentItem");
+                    var restChapterItem = Assert.IsType<ListBoxItem>(
+                        chapters.ItemContainerGenerator.ContainerFromIndex(0));
+                    var currentChapterItem = Assert.IsType<ListBoxItem>(
+                        chapters.ItemContainerGenerator.ContainerFromIndex(4));
+                    var restSegmentItem = Assert.IsType<ListBoxItem>(
+                        segments.ItemContainerGenerator.ContainerFromIndex(0));
+                    var currentSegmentItem = Assert.IsType<ListBoxItem>(
+                        segments.ItemContainerGenerator.ContainerFromIndex(2));
+
+                    var targets = new[]
+                    {
+                        (Name: "chapter-rest", Item: restChapterItem, Surface: FindChapterCard(restChapterItem)),
+                        (Name: "chapter-current", Item: currentChapterItem, Surface: FindChapterCard(currentChapterItem)),
+                        (Name: "segment-rest", Item: restSegmentItem, Surface: FindSelectionSurface(restSegmentItem, currentItemStyle)),
+                        (Name: "segment-current", Item: currentSegmentItem, Surface: FindSelectionSurface(currentSegmentItem, currentItemStyle))
+                    };
+
+                    foreach (var target in targets)
+                    {
+                        var button = Assert.IsType<Button>(VisualTreeTestHelper.FindDescendant<Button>(target.Item));
+                        var marker = new SolidColorBrush(markerColor);
+                        // The isolated WPF Desktop cannot accept a real cursor move reliably.
+                        // Paint every candidate owner with the same opaque diagnostic marker:
+                        // a provider/template chrome would then leak that marker into the
+                        // rounded corner, while the chrome-free templates ignore these values.
+                        target.Item.Background = marker;
+                        target.Item.BorderBrush = marker;
+                        target.Item.BorderThickness = new Thickness(1);
+                        button.Background = marker;
+                        button.BorderBrush = marker;
+                        button.BorderThickness = new Thickness(1);
+                        target.Surface.Background = marker;
+                        target.Surface.BorderBrush = marker;
+
+                        fixture.Page.UpdateLayout();
+                        var bitmap = host.Render(size, 96);
+                        var bounds = GetBoundsRelativeToRoot(target.Surface, fixture.Page);
+                        Assert.True(bounds.Width >= 20, target.Name);
+                        Assert.True(bounds.Height >= 20, target.Name);
+
+                        var fillPixel = ReadPixel(
+                            bitmap,
+                            new Point(bounds.Left + bounds.Width / 2, bounds.Top + 3));
+                        var roundedCornerPixel = ReadPixel(
+                            bitmap,
+                            new Point(bounds.Left + 1, bounds.Top + 1));
+
+                        Assert.Equal(markerColor, fillPixel);
+                        Assert.NotEqual(
+                            markerColor,
+                            roundedCornerPixel);
+                    }
+                }
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(GalleryTheme.Light);
+            }
+        });
+
+        static Border FindSelectionSurface(DependencyObject item, object style)
+        {
+            return Assert.IsType<Border>(VisualTreeTestHelper.FindDescendant<Border>(
+                item,
+                border => ReferenceEquals(border.Style, style)));
+        }
+
+        static Color ReadPixel(BitmapSource bitmap, Point point)
+        {
+            var x = Math.Clamp((int)Math.Floor(point.X), 0, bitmap.PixelWidth - 1);
+            var y = Math.Clamp((int)Math.Floor(point.Y), 0, bitmap.PixelHeight - 1);
+            var pixels = new byte[4];
+            bitmap.CopyPixels(new Int32Rect(x, y, 1, 1), pixels, 4, 0);
+            return Color.FromArgb(pixels[3], pixels[2], pixels[1], pixels[0]);
+        }
+    }
+
     private static void AssertRoundedSurfaceCorners(BitmapSource bitmap)
     {
         Assert.True(bitmap.PixelWidth >= 8);
@@ -1099,6 +1198,12 @@ public sealed partial class PlayerViewTests
     {
         Player_view_popups_render_one_shared_surface_at_runtime();
         Player_feedback_visual_review_generates_popup_and_volume_screenshots();
+    }
+
+    [Fact]
+    public void Player_hover_visual_contract_covers_light_and_dark_final_pixels()
+    {
+        Player_hover_rendering_uses_one_rounded_surface_for_catalog_and_segments();
     }
 
     private static PlayerViewLayoutTestContext CreateDefaultVisualContext()

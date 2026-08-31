@@ -161,7 +161,7 @@ public sealed class BookDetailsPageTests
 
             Assert.NotNull(firstTitle);
             Assert.NotNull(firstButton);
-            Assert.Same(page.FindResource("App.Button.Floating"), firstButton!.Style);
+            Assert.Same(page.FindResource("App.Button.InteractionHost"), firstButton!.Style);
             Assert.Equal(TextWrapping.NoWrap, firstTitle!.TextWrapping);
             Assert.Equal(TextTrimming.CharacterEllipsis, firstTitle.TextTrimming);
             Assert.Equal("第一章 这是一个非常非常长的章节标题用于验证详情页目录的单行截断与 Tooltip 展示", firstButton!.ToolTip);

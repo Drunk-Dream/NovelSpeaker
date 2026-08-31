@@ -426,6 +426,7 @@ App.Button.Icon
 App.Button.Danger
 App.Button.DangerIcon
 App.Button.ToolbarValue
+App.Button.InteractionHost
 App.Button.Floating
 ```
 
@@ -435,6 +436,8 @@ Button family 按交互反馈分为两类：
 - **弱 Surface 型**：`App.Button.Icon`、PageHeader/Toolbar 工具按钮等需要可发现性的入口，Rest 透明，Hover 使用 `App.Brush.Interaction.Surface.Hover`，Pressed 使用 `App.Brush.Interaction.Surface.Pressed`，不通过新增 Border 表达 Hover。
 
 鼠标 Hover/Pressed 与 Keyboard Focus 必须分离。Button 的外轮廓 Focus Ring 只用于键盘焦点，不因鼠标进入或普通鼠标点击长期显示。一个按钮只允许一个主要 Hover owner；外层 Button 与内部 Border/Pill 不得同时绘制两个独立状态层。
+
+`App.Button.InteractionHost` 是整行点击宿主的 chrome-free 变体：它只提供命中、命令、焦点和 Automation 语义，模板不绘制 Background、Border 或 PointerOver 状态。播放页目录/正文、书籍/缓存卡片和规则卡片的 Selection Surface 由内部圆角 Border 唯一拥有状态；`App.Button.Floating` 只用于内部包含 `App.Surface.FloatingAction` 的悬浮操作。
 
 `App.Button.DangerIcon` 的默认图标和背景保持中性；Hover 时背景进入 `App.Brush.Danger`，Pressed 时进入 `App.Brush.Danger.Pressed` 并切换到可读的危险文本色。它表达危险动作，而不是让危险色常驻。
 
@@ -494,6 +497,7 @@ App.Selection.CardItem
 App.Selection.CurrentItem
 App.Selection.DropTarget
 App.Selection.MultiSelectItem
+App.Selection.ChromeFreeItemContainer
 App.Selection.Content.Primary
 App.Selection.Content.Secondary
 App.Selection.Content.Title

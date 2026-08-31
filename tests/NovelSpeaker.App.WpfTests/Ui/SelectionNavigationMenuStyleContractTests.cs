@@ -54,6 +54,18 @@ public sealed class SelectionNavigationMenuStyleContractTests
                         StringComparison.Ordinal));
             }
 
+            var chromeFreeContainer = Assert.IsType<Style>(application.FindResource(
+                "App.Selection.ChromeFreeItemContainer"));
+            Assert.Equal(typeof(ListBoxItem), chromeFreeContainer.TargetType);
+            Assert.Contains(
+                EnumerateSetters(chromeFreeContainer),
+                setter => setter.Property == Control.TemplateProperty &&
+                          setter.Value is ControlTemplate);
+            Assert.Contains(
+                EnumerateSetters(chromeFreeContainer),
+                setter => setter.Property == Control.FocusVisualStyleProperty &&
+                          setter.Value is null);
+
             foreach (var key in new[]
                      {
                          "App.Selection.Content.Primary",

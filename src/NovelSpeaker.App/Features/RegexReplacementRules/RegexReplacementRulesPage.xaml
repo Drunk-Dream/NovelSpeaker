@@ -94,18 +94,11 @@
                              VirtualizingPanel.IsVirtualizing="True"
                              VirtualizingPanel.VirtualizationMode="Recycling">
                         <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
-                                <Setter Property="Padding" Value="0" />
+                            <Style TargetType="ListBoxItem"
+                                   BasedOn="{StaticResource App.Selection.ChromeFreeItemContainer}">
                                 <Setter Property="Margin" Value="0" />
                                 <Setter Property="Focusable" Value="False" />
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="ListBoxItem">
-                                            <ContentPresenter />
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
                             </Style>
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
@@ -242,12 +235,13 @@
                 <Button x:Name="HelpDrawerDismissOverlay"
                         Grid.Column="0"
                         Opacity="0.45"
-                        Background="{DynamicResource App.Brush.Canvas}"
                         BorderThickness="0"
-                        Style="{StaticResource App.Button.Floating}"
+                        Style="{StaticResource App.Button.InteractionHost}"
                         Command="{Binding CloseHelpCommand}"
                         ToolTip="关闭正则替换帮助"
-                        AutomationProperties.Name="关闭正则替换帮助" />
+                        AutomationProperties.Name="关闭正则替换帮助">
+                    <Border Background="{DynamicResource App.Brush.Canvas}" />
+                </Button>
                 <Border x:Name="HelpDrawerBorder"
                         Grid.Column="1"
                         Padding="20"

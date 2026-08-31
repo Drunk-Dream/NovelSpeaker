@@ -491,13 +491,10 @@
                             </ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
                         <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
-                                <Setter Property="Padding" Value="0" />
+                            <Style TargetType="ListBoxItem"
+                                   BasedOn="{StaticResource App.Selection.ChromeFreeItemContainer}">
                                 <Setter Property="Margin" Value="0,0,0,4" />
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                                <Setter Property="Background" Value="Transparent" />
-                                <Setter Property="BorderThickness" Value="0" />
                             </Style>
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
@@ -505,7 +502,7 @@
                                 <Button HorizontalAlignment="Stretch"
                                         HorizontalContentAlignment="Stretch"
                                         Padding="0"
-                                        Style="{StaticResource App.Button.Floating}"
+                                        Style="{StaticResource App.Button.InteractionHost}"
                                         ToolTip="{Binding Title}"
                                         AutomationProperties.Name="{Binding AutomationName}"
                                         Click="ChapterButton_OnClick">
@@ -731,13 +728,10 @@
                                     </ItemsPanelTemplate>
                                 </ListBox.ItemsPanel>
                                 <ListBox.ItemContainerStyle>
-                                    <Style TargetType="ListBoxItem">
-                                        <Setter Property="Padding" Value="0" />
+                                    <Style TargetType="ListBoxItem"
+                                           BasedOn="{StaticResource App.Selection.ChromeFreeItemContainer}">
                                         <Setter Property="Margin" Value="0,0,0,4" />
                                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                                        <Setter Property="Background" Value="Transparent" />
-                                        <Setter Property="BorderThickness" Value="0" />
                                     </Style>
                                 </ListBox.ItemContainerStyle>
                                 <ListBox.ItemTemplate>
@@ -745,7 +739,7 @@
                                         <Button Padding="0"
                                                 HorizontalAlignment="Stretch"
                                                 HorizontalContentAlignment="Stretch"
-                                                Style="{StaticResource App.Button.Floating}"
+                                                Style="{StaticResource App.Button.InteractionHost}"
                                                 Command="{Binding DataContext.SelectSegmentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
                                                 IsEnabled="{Binding IsInteractive}">

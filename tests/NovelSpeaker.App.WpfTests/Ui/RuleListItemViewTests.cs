@@ -39,7 +39,7 @@ public sealed class RuleListItemViewTests
             var surface = Assert.IsType<Border>(view.Template.FindName("Surface", view));
 
             Assert.Same(view.FindResource("App.Selection.RuleCard"), surface.Style);
-            Assert.Same(view.FindResource("App.Button.Floating"), selectionButton.Style);
+            Assert.Same(view.FindResource("App.Button.InteractionHost"), selectionButton.Style);
             Assert.Equal(
                 $"切换规则启用状态：{item.Title}",
                 AutomationProperties.GetName(toggle));
