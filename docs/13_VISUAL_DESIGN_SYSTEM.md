@@ -281,7 +281,9 @@ NovelSpeaker 只提供：
 
 不建立硬编码内容的 `DialogShell`、`FlyoutSurface` 或 `SnackbarContent` 生产控件。
 
-Popup/Flyout 的可见表面遵循“**一个圆角内容面 + 一个与该轮廓一致的阴影**”合同：内容 Border 是唯一有背景、边界和圆角的实体 Surface；宿主窗口、Provider chrome、桥接层以及内容 Border 四角之外必须保持真正透明。圆角外侧允许存在柔和阴影，但不得出现可辨识的半透明直角矩形底板、第二层宿主背景或与圆角轮廓不一致的方形 Effect 边界。语速、规则切换、音量、定时以及其它使用 `App.Feedback.PopupSurface` 的浮层共享这一合同。
+Popup/Flyout 的可见表面遵循 **Single Surface** 合同：内容 Border 是唯一有背景、边界和圆角的实体 Surface；宿主窗口、Provider chrome、桥接层以及内容 Border 四角之外必须保持真正透明。语速、规则切换、音量、定时以及其它使用 `App.Feedback.PopupSurface` 的浮层共享这一合同。
+
+WPF `Popup` 会创建独立的矩形原生窗口。若圆角 Border 贴着 Popup 窗口边界直接使用 `DropShadowEffect`，模糊阴影会扩散到圆角外并被矩形窗口裁切，表现为四角残留半透明直角底板。`App.Surface.Popup` / `App.Feedback.PopupSurface` 因此 **不直接使用 WPF `DropShadowEffect`**。确有阴影需求的其它 Popup 控件族，必须由宿主显式预留透明的 shadow extent（例如独立 decorator/padding），并通过真实 Popup host 渲染验证阴影不会在窗口边界形成矩形残影；不得仅通过降低 Opacity、调整 Margin 或增加遮罩掩盖该问题。
 
 ## 5. 最终目录结构
 
@@ -539,10 +541,11 @@ App.Media.ControlSurface
 ```
 
 ProgressBar 与 Slider 保持不同控件语义和测试，不共用模板。
-媒体 Slider 共享同一套 Track/Thumb 语义：已填充部分使用 Accent，未填充部分使用可辨识的弱中性色轨道，Track 为圆角 Pill；Hover/Dragging 只增强 Track/Thumb，不给整个控件增加矩形外框。
+媒体 Slider 共享同一套 Track/Thumb 语义：已填充部分使用 Accent，未填充部分使用可辨识的弱中性色轨道，轨道厚度在整个有效区间保持稳定；Hover/Dragging 只增强 Track/Thumb，不给整个控件增加矩形外框。
 
 - `App.Media.ProgressSlider` 用于播放进度：Thumb 在 Rest 隐藏，Mouse Hover、Keyboard Focus 或 Dragging 时出现；Dragging 时保持显示并略强化。进度位置 Tooltip 在 Hover/Dragging 时提供文本证据。
 - `App.Media.VolumeSlider` 使用竖向布局，Thumb 默认可见；下方已设置音量为 Accent，上方剩余范围为弱中性色，Hover/Dragging 时增强 Thumb。填充轨道和剩余轨道在整个有效区间保持一致的固定厚度，并在 Thumb 中心线下方连续衔接，由 Thumb 覆盖连接处；不得为隐藏接缝使用会造成局部收窄、鼓包或“掐腰”的 Margin/几何修补。音量为 0 时由对应入口图标切换为静音状态。
+- 媒体 Slider 的 **交互 Track 与视觉 Rail 分离**：WPF `Track.DecreaseRepeatButton` / `IncreaseRepeatButton` 只负责点击和布局，保持透明；连续可见轨道由独立的 `App.Media.VisualTrack` 绘制。不得再让两个交互 RepeatButton 分别绘制带圆角的可见轨道，因为每一段靠 Thumb 的圆头会天然造成局部收窄。填充边界应延伸到 Thumb 中心下方并由 Thumb 遮盖。
 - ProgressSlider 与 VolumeSlider 可以共享 Track/Thumb 基础模板或 helper，但必须保留横向/竖向的独立几何与可访问性测试。
 
 播放页和迷你播放器的媒体按钮使用统一尺寸和中性状态；播放/暂停不建立独立的 Accent 主按钮变体。
@@ -563,7 +566,7 @@ App.Feedback.SnackbarMessageTemplate
 App.Feedback.Snackbar
 ```
 
-Dialog、Flyout 和 Snackbar 的宿主及生命周期由 Wpf.Ui 持有。`App.Feedback.DialogBody` 只是透明、无边框、无阴影的 Dialog 内容布局容器，不再拥有独立 Surface；Flyout/Popup 的 `App.Feedback.PopupSurface` 继续作为其唯一可见 Surface。加载、空状态、无结果和错误使用 `AppStatusView`，不分别建立四套硬编码控件类。
+Dialog、Flyout 和 Snackbar 的宿主及生命周期由 Wpf.Ui 持有。`App.Feedback.DialogBody` 只是透明、无边框、无阴影的 Dialog 内容布局容器，不再拥有独立 Surface；Flyout/Popup 的 `App.Feedback.PopupSurface` 继续作为其唯一可见 Surface，并保持 `Effect=null`，避免圆角内容贴近矩形 Popup HWND 时产生方形阴影残影。加载、空状态、无结果和错误使用 `AppStatusView`，不分别建立四套硬编码控件类。
 
 ## 8. 基础视觉规范
 
@@ -614,7 +617,7 @@ Interaction Palette 的公共入口为 `App.Brush.Interaction.Surface.Hover`、`
 
 - 普通静态卡片默认不带阴影。
 - Hover 卡片可使用低抬升。
-- Menu/Flyout 使用中抬升。
+- Menu、ComboBox DropDown 等确有独立 shadow extent 的 Popup 控件族可以使用中抬升；`App.Feedback.PopupSurface` 默认不使用 `DropShadowEffect`。
 - Dialog 使用高抬升。
 - transient UI 遵循 **Single Surface**：一个 Dialog、Flyout、Popup 或独立状态浮窗默认只允许一个主可见 Surface。宿主已经提供完整 Surface 时，内容不得再次套 `Card`、`Section`、`Raised` 或其它带完整背景、边框、圆角和阴影的 Surface。
 - ContentDialog 自身是 Dialog 的唯一主 Surface；内部使用透明的 `App.Feedback.DialogBody`，通过 Typography、间距和必要的 Divider 建立信息层级，不使用 Card-in-Dialog。

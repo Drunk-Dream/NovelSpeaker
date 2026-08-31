@@ -184,10 +184,10 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 
 完成成果：
 
-- 新增公共 `App.Feedback.PopupHost`，Player 的规则/语速 Popup 与 Flyout 宿主保持透明，内容继续由唯一 `App.Feedback.PopupSurface` 绘制圆角、边界和阴影。
-- Icon、ToolbarValue、Media Button 的 Hover/Pressed 前景统一绑定语义交互色；竖向媒体轨道两段统一固定厚度并居中，移除负 Margin 接缝修补。
-- 自动验收：ButtonStyleTests、MediaControlStyleTests、Popup/Feedback 资源契约、Flyout 单一 surface 与真实 Player Popup 定向测试均通过；音量轨道覆盖 0、0.5、1 端点和 Thumb 连接。
-- 视觉验收：生成并检查 feedback、button-styles、media-controls、progress 的 Light/Dark 截图，确认圆角 surface、Dark pressed 图标对比度与轨道连续性；验收后已删除截图及临时生成代码。
+- 新增公共 `App.Feedback.PopupHost`，Player 的规则/语速 Popup 与 Flyout 宿主保持透明。后续根因验证确认：圆角 `PopupSurface` 直接使用 `DropShadowEffect` 时，阴影会被矩形 WPF Popup 原生窗口裁切并形成四角半透明直角残影；最终由 `App.Surface.Popup` 取消该 Effect，内容 Surface 只保留圆角背景和边界。
+- Icon、ToolbarValue、Media Button 的 Hover/Pressed 前景统一绑定语义交互色；音量 Slider 最终不再让 Decrease/Increase RepeatButton 直接绘制可见轨道，而是将交互 Track 透明化，由独立 `App.Media.VisualTrack` 绘制连续固定厚度的 Accent/neutral Rail，从结构上消除 Thumb 附近分段圆头造成的“掐腰”。
+- 自动验收补充真实 Popup host 捕获和像素级回归：直接检查圆角外像素透明度，并比较音量 Thumb 上下相邻位置的轨道像素宽度；不再仅以 `Background/Effect` Setter、RepeatButton Width/Margin 或视觉树结构作为通过依据。
+- 视觉验收：生成并检查 feedback、button-styles、media-controls、progress 的 Light/Dark 截图，确认圆角 Popup 四角真正透明、Dark pressed 图标对比度与音量轨道连续性；验收后已删除截图及临时生成代码。
 
 ## [x] T005（P0）：收口 Input、Selection 与设置行状态边界
 

@@ -59,8 +59,9 @@
 - Hover、Pressed、Selected/Checked、Focus 等交互颜色只能通过 `App.Brush.Interaction.*`、`App.Brush.Accent.*`、`App.Brush.Focus` 等公共语义资源表达；页面和 Feature XAML 不得硬编码交互色或建立同义局部 Brush。
 - 一个控件树只允许一个主要 Hover owner。外层 Button/ListItem 与内部 Border/Pill 不得同时绘制大面积 Hover/Pressed Surface；确有独立行内按钮时，局部反馈必须限制在自身命中区。
 - Mouse Hover/Pressed 与 Keyboard Focus 分离；不得用 IsMouseOver 触发 Focus Ring，也不得为了隐藏鼠标焦点而破坏 Tab/方向键导航和 Automation 语义。
-- Menu 分组使用独立 Separator，不把分隔线伪装为 MenuItem Border；媒体 Slider 的 Track/Thumb 状态必须回到 `Media.xaml` 统一维护，不在 Player/MiniPlayer 页面复制模板。竖向音量 Track 的填充/剩余段使用同一固定轨道厚度，并在 Thumb 下连续衔接，不用负 Margin、局部缩窄或其它几何补丁隐藏接缝。
-- `App.Feedback.PopupSurface` 是 Popup/Flyout 唯一可见圆角 Surface；PopupWindow/Wpf.Ui Flyout host、Provider bridge 与外层 chrome 必须透明且无第二份方形背景/Effect。需要阴影时，阴影必须跟随圆角内容轮廓，不能以半透明直角底板换取 elevation。
+- Menu 分组使用独立 Separator，不把分隔线伪装为 MenuItem Border；媒体 Slider 的 Track/Thumb 状态必须回到 `Media.xaml` 统一维护，不在 Player/MiniPlayer 页面复制模板。媒体 Slider 的交互 Track 与视觉 Rail 必须分离：`DecreaseRepeatButton` / `IncreaseRepeatButton` 只作为透明命中区，可见填充/剩余轨道由独立 VisualTrack 绘制并延伸到 Thumb 中心下方；不用负 Margin、局部缩窄、分段圆头或其它几何补丁隐藏接缝。
+- `App.Feedback.PopupSurface` 是 Popup/Flyout 唯一可见圆角 Surface；PopupWindow/Wpf.Ui Flyout host、Provider bridge 与外层 chrome 必须透明且无第二份方形背景/Effect。WPF `Popup` 是矩形原生窗口，因此 `App.Feedback.PopupSurface` 不直接使用 `DropShadowEffect`。其它 Popup 控件族若确需阴影，必须显式预留透明 shadow extent 后再绘制，并用真实 Popup host 的像素渲染证明四角不会产生矩形残影；禁止用 Opacity、Margin、遮罩等局部补丁掩盖宿主裁切问题。
+- 对原生 Popup、阴影、裁切、Slider Track/Thumb 等易产生“结构正确但像素错误”的 WPF 视觉问题，修复时先定位最终渲染 owner，再决定是否需要结构拆层。自动验收必须覆盖真实宿主或最终像素；仅验证 Style/Resource/VisualTree 属性不能作为关闭此类视觉缺陷的充分条件。
 - 页面 Padding、列宽、规则列表宽度、设置编辑控件宽度等布局值由 Shell、页面或复合组件中的唯一 owner 管理。
 - 页面不得复制通用 Trigger/VisualState，但可以保留真实页面专用的 Grid、Margin、MinWidth 和滚动结构。
 - ViewModel 不返回 Brush、Style、ControlTemplate、Thickness、CornerRadius 或其它 WPF 视觉类型。
