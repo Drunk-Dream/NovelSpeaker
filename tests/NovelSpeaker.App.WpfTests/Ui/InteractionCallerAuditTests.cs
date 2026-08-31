@@ -162,6 +162,128 @@ public sealed class InteractionCallerAuditTests
         }
     }
 
+    [Fact]
+    public void Production_list_containers_and_floating_actions_keep_their_owning_semantics()
+    {
+        var repositoryRoot = LocateRepositoryRoot();
+        var appRoot = Path.Combine(repositoryRoot, "src", "NovelSpeaker.App");
+        var productionXaml = Directory.EnumerateFiles(appRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => !path.Contains(
+                Path.Combine("Shared", "Theming", "Palettes"),
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var callerXaml = productionXaml
+            .Where(path => !path.Contains(
+                Path.Combine("Shared", "Theming"),
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var nonCanonicalContainerXaml = productionXaml
+            .Where(path => !path.EndsWith(
+                Path.Combine("Shared", "Theming", "Resources", "Styles", "Selection.xaml"),
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var styleDefinitions = productionXaml
+            .SelectMany(path => XDocument.Load(path).Descendants())
+            .Where(element => element.Name.LocalName == "Style")
+            .Where(element => element.Attribute(XamlNamespace + "Key") is not null)
+            .ToDictionary(
+                element => (string)element.Attribute(XamlNamespace + "Key")!,
+                element => new StyleDefinition(
+                    (string)element.Attribute(XamlNamespace + "Key")!,
+                    (string?)element.Attribute("BasedOn"),
+                    (string?)element.Attribute("TargetType")),
+                StringComparer.Ordinal);
+
+        foreach (var path in productionXaml)
+        {
+            var document = XDocument.Load(path);
+            foreach (var listBox in document.Descendants().Where(element => element.Name.LocalName == "ListBox"))
+            {
+                var itemTemplate = listBox.Elements()
+                    .SingleOrDefault(element => element.Name.LocalName == "ListBox.ItemTemplate");
+                if (itemTemplate is null)
+                {
+                    continue;
+                }
+
+                var itemContainerStyle = listBox.Elements()
+                    .SingleOrDefault(element => element.Name.LocalName == "ListBox.ItemContainerStyle");
+                Assert.True(
+                    itemContainerStyle is not null,
+                    $"{Path.GetRelativePath(repositoryRoot, path)} contains a templated ListBox without " +
+                    "an explicit chrome-free item-container style.");
+
+                var style = itemContainerStyle!.Elements()
+                    .SingleOrDefault(element => element.Name.LocalName == "Style");
+                Assert.NotNull(style);
+                Assert.True(
+                    GetStyleKeyChain((string?)style!.Attribute("BasedOn"), styleDefinitions)
+                        .Any(definition => definition.Key == "App.Selection.ChromeFreeItemContainer"),
+                    $"{Path.GetRelativePath(repositoryRoot, path)} ListBox item containers must inherit " +
+                    "App.Selection.ChromeFreeItemContainer.");
+            }
+        }
+
+        var duplicatedContainerTemplates = nonCanonicalContainerXaml
+            .SelectMany(path => XDocument.Load(path).Descendants()
+                .Where(element =>
+                    (element.Name.LocalName == "ControlTemplate" &&
+                     IsListBoxItemTargetType((string?)element.Attribute("TargetType"))) ||
+                    (element.Name.LocalName == "Style" &&
+                     IsListBoxItemTargetType((string?)element.Attribute("TargetType")) &&
+                     element.Descendants().Any(descendant => descendant.Name.LocalName == "Setter" &&
+                        (string?)descendant.Attribute("Property") == "Template")))
+                .Select(_ => Path.GetRelativePath(repositoryRoot, path)))
+            .ToArray();
+        Assert.Empty(duplicatedContainerTemplates);
+
+        var floatingButtons = productionXaml
+            .SelectMany(path => XDocument.Load(path).Descendants()
+                .Where(element => element.Name.LocalName == "Button")
+                .Where(element => IsFloatingButtonStyle(StyleReference(element), styleDefinitions))
+                .Select(button => (
+                    Path: Path.GetRelativePath(repositoryRoot, path),
+                    Name: (string?)button.Attribute(XamlNamespace + "Name"),
+                    Button: button)))
+            .ToArray();
+        var expectedFloatingCallers = new HashSet<(string Path, string Name)>
+        {
+            (Path.Combine("src", "NovelSpeaker.App", "Features", "BookDetails", "BookDetailsPage.xaml"),
+                "LocateCurrentChapterButton"),
+            (Path.Combine("src", "NovelSpeaker.App", "Features", "Playback", "Components", "PlayerView.xaml"),
+                "LocateCurrentChapterButton"),
+            (Path.Combine("src", "NovelSpeaker.App", "Features", "Playback", "Components", "PlayerView.xaml"),
+                "ReturnToCurrentSegmentButton")
+        };
+        Assert.Equal(
+            expectedFloatingCallers,
+            floatingButtons.Select(item => (item.Path, item.Name!)).ToHashSet());
+        Assert.All(
+            floatingButtons,
+            item => Assert.True(
+                ButtonContentNodes(item.Button).Any(element =>
+                    IsFloatingSurfaceStyle(StyleReference(element), styleDefinitions)),
+                $"{item.Path} <Button Name=\"{item.Name}\"> using App.Button.Floating must " +
+                "contain App.Surface.FloatingAction."));
+    }
+
+    private static bool IsListBoxItemTargetType(string? targetType) =>
+        targetType is "ListBoxItem" or "{x:Type ListBoxItem}";
+
+    private static IEnumerable<XElement> ButtonContentNodes(XElement button)
+    {
+        var contentProperty = button.Elements()
+            .SingleOrDefault(element => element.Name.LocalName == "Button.Content");
+        if (contentProperty is not null)
+        {
+            return contentProperty.DescendantsAndSelf();
+        }
+
+        return button.Elements()
+            .Where(element => !element.Name.LocalName.StartsWith("Button.", StringComparison.Ordinal))
+            .SelectMany(element => element.DescendantsAndSelf());
+    }
+
     private static bool IsInteractiveControl(XElement element) =>
         element.Name.LocalName is "Button" or "TextBox" or "PasswordBox" or "ComboBox" or
             "Slider" or "ToggleSwitch" or "MenuItem" or "ContextMenu" or "Flyout" or

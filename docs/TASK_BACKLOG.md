@@ -407,7 +407,7 @@ dotnet test -c Release --no-build
 - Player 与 MiniPlayer 继续共用 `App.Media.VolumeSlider`，未改变 Flyout、音量数值或播放业务行为。
 - 自动验收：`MediaControlStyleTests` 通过，独立与真实 Player/MiniPlayer Flyout 宿主渲染覆盖 Light/Dark、100%/125%/150% DPI 的 Rest/Hover/Dragging 中心、左右对称边界 alpha、固定 Track/Thumb 包络及连续轨道；未保留视觉截图或临时 fixture。
 
-## [ ] T011（P1）：审计 chrome-free 点击宿主与残余双层交互面
+## [x] T011（P1）：审计 chrome-free 点击宿主与残余双层交互面
 
 依赖：T009、T010。
 
@@ -428,6 +428,12 @@ dotnet test -c Release --no-build
 - 对 Book Library、Book Details、Cache、Rules、Player 各生成至少一个确定性 Light/Dark Hover 画面进行视觉核对，重点检查直角 PointerOver、双层 Hover、Selected 被 Hover 覆盖、行内按钮与父项同时大面积高亮。
 - 若发现实际问题，在公共 owner 修复并补回归测试；不得为了通过截图逐页面加透明背景、负 Margin 或局部遮罩。
 - 所有视觉验收副产物在确认通过后删除，不纳入 Git；任务结束必须检查工作树无截图/脚本/manifest 残留。
+
+完成成果：
+
+- 全项目生产 `ListBox` 调用方统一继承 `App.Selection.ChromeFreeItemContainer`；主动缓存状态列表也明确移除 Provider chrome，页面不再复制裸 `ListBoxItem` 模板。
+- `InteractionCallerAuditTests` 现在固定检查所有列表容器、Selection + full-surface Button 的 owner 组合，以及 `App.Button.Floating` 的完整调用白名单和 `App.Surface.FloatingAction` 闭包；Floating 仅保留给书籍详情/播放页定位动作。
+- 自动验收：交互调用方审计 2/2、Button chrome-free 回归 3/3、App Release build 0 警告/0 错误、format 通过；未生成或保留视觉验收副产物。受影响页面聚合测试因既有 WPF 隔离宿主在 BookCardView 测试中崩溃而中止，详见交付说明。
 
 ## [ ] T012（P0）：完成视觉残留修复的最终质量门禁
 
