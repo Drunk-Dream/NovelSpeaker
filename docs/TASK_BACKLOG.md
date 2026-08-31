@@ -433,9 +433,9 @@ dotnet test -c Release --no-build
 
 - 全项目生产 `ListBox` 调用方统一继承 `App.Selection.ChromeFreeItemContainer`；主动缓存状态列表也明确移除 Provider chrome，页面不再复制裸 `ListBoxItem` 模板。
 - `InteractionCallerAuditTests` 现在固定检查所有列表容器、Selection + full-surface Button 的 owner 组合，以及 `App.Button.Floating` 的完整调用白名单和 `App.Surface.FloatingAction` 闭包；Floating 仅保留给书籍详情/播放页定位动作。
-- 自动验收：交互调用方审计 2/2、Button chrome-free 回归 3/3、App Release build 0 警告/0 错误、format 通过；未生成或保留视觉验收副产物。受影响页面聚合测试因既有 WPF 隔离宿主在 BookCardView 测试中崩溃而中止，详见交付说明。
+- 自动验收：交互调用方审计 2/2、Button chrome-free 回归 3/3、App Release build 0 警告/0 错误、format 通过；未生成或保留视觉验收副产物。首次受影响页面聚合测试曾因 WPF 隔离宿主崩溃中止，随后 T012 全量门禁已重新覆盖并通过。
 
-## [ ] T012（P0）：完成视觉残留修复的最终质量门禁
+## [x] T012（P0）：完成视觉残留修复的最终质量门禁
 
 依赖：T009–T011。
 
@@ -465,3 +465,9 @@ dotnet test -c Release --no-build
 
 - 所有质量门禁和新增真实像素/宿主合同通过后，将 T009–T012 标记完成并记录成果。
 - 若仍存在肉眼可见但自动测试无法证明的状态，任务不得以“Setter/VisualTree 符合预期”为由关闭；保留 `[!]` 并记录截图对应状态与可复现步骤。
+
+完成成果：
+
+- 按规定顺序完成 `dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore` 和 `dotnet test -c Release --no-build`；lockfile 无差异，构建 0 警告/0 错误，全量 848 项测试通过、0 失败/0 跳过。
+- 全量 WPF 回归重新覆盖 Player 目录/正文真实 Hover owner、Volume Thumb 多主题/DPI 几何、书库/详情/缓存/规则交互宿主和 Selection/Floating 资源合同；未发现业务行为回归。
+- 清理了本轮测试遗留的 `TestResults/wpf-diagnostics/` 视觉树/窗口状态诊断文件；`artifacts/visual-review/` 无产物，仓库无本轮截图、脚本或 manifest 残留。本切片未修改生产或测试代码。
