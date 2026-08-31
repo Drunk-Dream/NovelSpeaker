@@ -172,7 +172,7 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 - 审计 `App.Feedback.PopupSurface`、`App.Feedback.FlyoutHost`、`App.Surface.Popup`、`Provider.Flyout`、WPF `Popup` 与 elevation Effect 的实际视觉树；分别验证 `SpeedMenuPopup`、`RuleMenuPopup`、`VolumeFlyout`、`StopTimerFlyout`，定位第二层矩形 chrome 的真正 owner。
 - 以公共 Feedback/Surface/Flyout owner 修复浮层；不得在三个播放器浮层分别增加遮罩、CornerRadius 补丁或背景色。宿主和 bridge 保持透明，只有内容 Surface 绘制背景/边界；阴影必须跟随圆角内容轮廓。
 - 在 Dark Palette 下真实构造 `App.Button.Icon`、`App.Button.ToolbarValue`、`App.Media.Button` 并进入 Pressed 状态，检查 Wpf.Ui Button template 中最终 `Button.Icon`/`SymbolIcon.Foreground`。若 Provider 状态覆盖应用 setter，在 `Buttons.xaml`/必要的控件族模板或 bridge 层统一修复，不允许页面级设置 Icon Foreground。
-- 重构 `PlaybackSliderControlTemplate` 的竖向轨道连接方式：Decrease/Increase 两段使用同一固定轨道宽度，并连续延伸至 Thumb 中心区域，由 Thumb 覆盖接缝；移除会造成轨道局部收缩或鼓包的 Margin/尺寸修补。Player 与 MiniPlayer 继续复用 `App.Media.VolumeSlider`。
+- 重构 `App.Media.PlaybackSliderControlTemplate` 的竖向轨道连接方式：Decrease/Increase 两段使用同一固定轨道宽度，并连续延伸至 Thumb 中心区域，由 Thumb 覆盖接缝；移除会造成轨道局部收缩或鼓包的 Margin/尺寸修补。Player 与 MiniPlayer 继续复用 `App.Media.VolumeSlider`。
 - 不改变语速、规则切换、定时、音量数值和播放业务行为。
 
 自动测试/验收：
@@ -283,9 +283,9 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 
 - 迁移书库卡片、书籍详情章节、缓存书籍/章节、规则选择按钮、帮助抽屉关闭遮罩及播放器自定义输入，统一使用 `App.Button.Floating`、`App.Input.TextBox.Compact` 和既有 Selection owner；未改变播放、规则或缓存业务状态。
 - 新增生产 XAML 交互调用方静态审计，覆盖显式公共样式、通用交互色硬编码和选择容器的单一 Hover owner，并补充对应 WPF 视觉树断言。
-- 自动验收：交互调用方静态合同通过，受影响的书卡、规则项和缓存投影定向测试通过；`dotnet format --verify-no-changes --no-restore` 通过。BookDetails 异步目录与 CachePages 长布局测试仍受仓库既有 WPF 隔离宿主无活动超时影响，证据已记录在交付说明。
+- 自动验收：交互调用方静态合同通过，受影响的书卡、规则项和缓存投影定向测试通过；`dotnet format --verify-no-changes --no-restore` 通过。
 
-## [ ] T008（P0）：完成交互样式阶段的跨模块审阅与完整质量门禁
+## [x] T008（P0）：完成交互样式阶段的跨模块审阅与完整质量门禁
 
 依赖：T001–T007。
 
@@ -325,3 +325,9 @@ dotnet test -c Release --no-build
 
 - 完整质量门禁全部通过。
 - 若发现可自动修复的问题，在本任务内修复并重跑受影响门禁；真实阻塞标记 `[!]` 并记录可复现证据。
+
+完成成果：
+
+- 跨模块复查 Player/MiniPlayer、Feedback Popup/Flyout、Input/ToggleSwitch、Selection/Settings、Menu Separator 及正式页面调用方；补齐媒体资源键的 `App.Media.*` 形式，消除资源图前缀违规且保持现有模板/状态语义。
+- 自动专项合同通过：交互调用方静态审计、资源图闭包与键唯一性、视觉资源所有权、媒体按钮/滑杆、Popup/Flyout、菜单、输入和主题状态测试均通过。
+- 完整质量门禁按规定顺序通过：locked restore、format、Release build（0 警告/0 错误）及全量 test；5 个测试程序集共 846 项通过，0 失败、0 跳过，未设置可见窗口授权。

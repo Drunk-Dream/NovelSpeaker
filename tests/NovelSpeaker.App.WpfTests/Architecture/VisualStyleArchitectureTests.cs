@@ -268,10 +268,10 @@ internal static class VisualStyleOwnershipScanner
         "IconButtonControlTemplate",
         "MediaIconButtonControlTemplate",
         "MediaIconButtonStyle",
-        "PlaybackSliderControlTemplate",
-        "PlaybackSliderThumbTemplate",
-        "PlaybackSliderThumbStyle",
-        "PlaybackSliderTrackButtonStyle",
+        "App.Media.PlaybackSliderControlTemplate",
+        "App.Media.PlaybackSliderThumbTemplate",
+        "App.Media.PlaybackSliderThumbStyle",
+        "App.Media.PlaybackSliderTrackButtonStyle",
         "BorderlessListItemButtonControlTemplate",
         // ComboBox is the approved control-family template exception documented
         // in the visual system; its Compact and item variants share this family.

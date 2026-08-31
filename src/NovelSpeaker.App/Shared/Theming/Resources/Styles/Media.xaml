@@ -6,7 +6,7 @@
         general Slider template; this specialized family owns only the media
         geometry and state layer required by the player.
     -->
-    <ControlTemplate x:Key="PlaybackSliderThumbTemplate"
+    <ControlTemplate x:Key="App.Media.PlaybackSliderThumbTemplate"
                      TargetType="{x:Type Thumb}">
         <Border Background="{TemplateBinding Background}"
                 BorderBrush="{TemplateBinding BorderBrush}"
@@ -14,7 +14,7 @@
                 CornerRadius="999" />
     </ControlTemplate>
 
-    <Style x:Key="PlaybackSliderTrackButtonStyle"
+    <Style x:Key="App.Media.PlaybackSliderTrackButtonStyle"
            TargetType="{x:Type RepeatButton}">
         <Setter Property="Focusable" Value="False" />
         <Setter Property="IsTabStop" Value="False" />
@@ -100,7 +100,7 @@
         </Setter>
     </Style>
 
-    <Style x:Key="PlaybackSliderThumbStyle"
+    <Style x:Key="App.Media.PlaybackSliderThumbStyle"
            TargetType="{x:Type Thumb}">
         <Setter Property="Width" Value="14" />
         <Setter Property="Height" Value="14" />
@@ -108,7 +108,7 @@
         <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Default}" />
         <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Accent.Default}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Template" Value="{StaticResource PlaybackSliderThumbTemplate}" />
+        <Setter Property="Template" Value="{StaticResource App.Media.PlaybackSliderThumbTemplate}" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Hover}" />
@@ -126,7 +126,7 @@
         </Style.Triggers>
     </Style>
 
-    <ControlTemplate x:Key="PlaybackSliderControlTemplate"
+    <ControlTemplate x:Key="App.Media.PlaybackSliderControlTemplate"
                      TargetType="{x:Type Slider}">
         <Grid Background="Transparent">
             <ProgressBar x:Name="PART_VisualTrack"
@@ -151,18 +151,18 @@
                    VerticalAlignment="Center">
                 <Track.DecreaseRepeatButton>
                     <RepeatButton x:Name="PART_MediaDecreaseButton"
-                                  Style="{DynamicResource PlaybackSliderTrackButtonStyle}"
+                                  Style="{DynamicResource App.Media.PlaybackSliderTrackButtonStyle}"
                                   Background="{TemplateBinding Foreground}"
                                   Command="{x:Static Slider.DecreaseLarge}"
                                   CommandTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}" />
                 </Track.DecreaseRepeatButton>
                 <Track.Thumb>
                     <Thumb x:Name="PART_MediaThumb"
-                           Style="{DynamicResource PlaybackSliderThumbStyle}" />
+                           Style="{DynamicResource App.Media.PlaybackSliderThumbStyle}" />
                 </Track.Thumb>
                 <Track.IncreaseRepeatButton>
                     <RepeatButton x:Name="PART_MediaIncreaseButton"
-                                  Style="{DynamicResource PlaybackSliderTrackButtonStyle}"
+                                  Style="{DynamicResource App.Media.PlaybackSliderTrackButtonStyle}"
                                   Background="{TemplateBinding Background}"
                                   Command="{x:Static Slider.IncreaseLarge}"
                                   CommandTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}" />
@@ -253,16 +253,16 @@
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent}" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Template" Value="{StaticResource PlaybackSliderControlTemplate}" />
+        <Setter Property="Template" Value="{StaticResource App.Media.PlaybackSliderControlTemplate}" />
         <Setter Property="Focusable" Value="True" />
         <Style.Triggers>
             <!-- The provider's implicit Slider style selects a template by orientation;
                  these triggers keep the media family template at higher precedence. -->
             <Trigger Property="Orientation" Value="Horizontal">
-                <Setter Property="Template" Value="{StaticResource PlaybackSliderControlTemplate}" />
+                <Setter Property="Template" Value="{StaticResource App.Media.PlaybackSliderControlTemplate}" />
             </Trigger>
             <Trigger Property="Orientation" Value="Vertical">
-                <Setter Property="Template" Value="{StaticResource PlaybackSliderControlTemplate}" />
+                <Setter Property="Template" Value="{StaticResource App.Media.PlaybackSliderControlTemplate}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
