@@ -164,6 +164,7 @@
 - Style/ControlTheme、Palette/Token、Provider Bridge、主题切换、Icon Foreground、输入控件、设置组件、Shell、媒体控件等最终视觉规则统一以 `13_VISUAL_DESIGN_SYSTEM.md` 为定义来源。
 - 交互样式测试优先固定状态所有权和可访问性合同，不冻结可继续微调的像素颜色：至少覆盖 Hover/Pressed/Keyboard Focus/Selected 的区分、Selected+Hover 优先级、父子控件不出现重复大面积状态层，以及 Light/Dark/High Contrast 下资源可解析且具有可辨识状态。
 - Button/Icon 测试除资源键外还要验证最终视觉树前景：Dark Mode 的 Icon/Toolbar/Media Button 在 Pressed 状态下，`Button.Icon` 中实际 `SymbolIcon` 不得回落为黑色/低对比度 Provider 前景，Normal/Hover/Pressed/Disabled 均由 owning Button 的主题语义控制。
+- FloatingIcon 测试必须覆盖 Book Details 与 Player 的真实定位/返回调用：Rest/Hover/Pressed/Keyboard Focus 只有一个可见 Button Surface，Hover 不提升 Elevation，Pressed 不使用 Accent 持续态，Dark Mode 最终图标保持可读，状态切换不改变命中区/布局中心或造成裁切。静态 Style/资源检查不能替代真实 View 最终像素证据。
 - Media 测试保护播放器交互合同：媒体按钮 Hover 不出现命中区背景块；播放进度 Thumb 在 Rest 隐藏且在 Hover/Focus/Dragging 可见；竖向音量 Slider 始终显示 Thumb，并保持已填充/未填充轨道的独立视觉语义。Volume 的可见 Rail 与交互 Track 分离；Thumb 上下轨道必须保持一致固定厚度，连接处允许被 Thumb 覆盖但不得出现局部收缩、鼓包或可见断缝。对于“掐腰”一类几何缺陷，测试应渲染真实控件并比较 Thumb 上下相邻扫描线的轨道像素宽度，不能只断言 RepeatButton 的 Width/Margin 相等。
 - 播放页目录项和正文段落等“外层命中宿主 + 内层 Selection Surface”组合必须渲染真实 `ListBoxItem`、Button 与内容 Border 的最终 Hover 像素。仅断言外层 `Background=Transparent`、`BorderThickness=0` 或 Style Trigger 不足以证明没有第二层状态面，因为默认/Provider `ControlTemplate` 仍可能在内部绘制矩形 PointerOver 层。测试至少覆盖一个普通项和一个 Selected/Current 项，并确认可见 Hover 仅由约定的圆角 Selection Surface 持有。
 - Volume Thumb 的 Pressed/Dragging 视觉变化不得改变用于布局和 Track 测量的外层几何包络；若需要轻微放大，应在预留的固定 Thumb envelope 内缩放/调整内部圆形视觉。回归测试需要覆盖 Light/Dark、Player/MiniPlayer 和 100%/125%/150% DPI，验证控制柄左右边缘不被裁切、视觉中心不横向漂移，且轨道连续性不受状态切换影响。

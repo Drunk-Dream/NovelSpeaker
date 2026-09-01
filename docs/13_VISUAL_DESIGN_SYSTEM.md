@@ -409,12 +409,11 @@ App.Surface.Section
 App.Surface.Card
 App.Surface.Secondary
 App.Surface.Raised
-App.Surface.FloatingAction
 App.Surface.Popup
 ```
 
 Surface Style 只处理背景、边界、圆角、Padding 和效果，不包含业务内容。
-`App.Surface.FloatingAction` 是透明悬浮 Button 内部的圆形视觉表面，统一承载 Normal、Hover 与 Pressed 状态；外层 Button 只保留命中区域、焦点和可访问性语义，不绘制方形外框。
+Surface family 不承担 Button 的 Hover / Pressed / Keyboard Focus 状态，也不通过 Ancestor Button 绑定跨控件监听交互。定位/返回等悬浮操作虽然视觉上使用 Raised Surface，但其完整交互状态由 Button family 的单一 owner 维护。
 
 ### 7.4 Button
 
@@ -427,7 +426,7 @@ App.Button.Danger
 App.Button.DangerIcon
 App.Button.ToolbarValue
 App.Button.InteractionHost
-App.Button.Floating
+App.Button.FloatingIcon
 ```
 
 Button family 按交互反馈分为两类：
@@ -437,7 +436,11 @@ Button family 按交互反馈分为两类：
 
 鼠标 Hover/Pressed 与 Keyboard Focus 必须分离。Button 的外轮廓 Focus Ring 只用于键盘焦点，不因鼠标进入或普通鼠标点击长期显示。一个按钮只允许一个主要 Hover owner；外层 Button 与内部 Border/Pill 不得同时绘制两个独立状态层。
 
-`App.Button.InteractionHost` 是整行点击宿主的 chrome-free 变体：它只提供命中、命令、焦点和 Automation 语义，模板不绘制 Background、Border 或 PointerOver 状态。播放页目录/正文、书籍/缓存卡片和规则卡片的 Selection Surface 由内部圆角 Border 唯一拥有状态；`App.Button.Floating` 只用于内部包含 `App.Surface.FloatingAction` 的悬浮操作。
+`App.Button.InteractionHost` 是整行点击宿主的 chrome-free 变体：它只提供命中、命令、焦点和 Automation 语义，模板不绘制 Background、Border 或 PointerOver 状态。播放页目录/正文、书籍/缓存卡片和规则卡片的 Selection Surface 由内部圆角 Border 唯一拥有状态。
+
+`App.Button.FloatingIcon` 用于浮在可滚动内容上的定位/返回类图标操作。它自身是唯一可见交互 owner：Rest 使用弱 Raised Surface、Subtle Border 与固定 Low Elevation；Hover 使用 `App.Brush.Interaction.Surface.Hover` / `App.Brush.Interaction.Foreground.Hover`；Pressed 使用 `App.Brush.Interaction.Surface.Pressed` / `App.Brush.Interaction.Foreground.Pressed`；Keyboard Focus 独立使用 Focus 语义。Hover 不提高 Elevation，Pressed 不切换为 `Accent.Subtle`，状态变化不得改变布局包络或命中区。
+
+FloatingIcon 的图标前景由 owning Button 管理，页面不再包裹第二个 `App.Surface.*` Border 来承载交互，也不得为 Hover/Pressed/Focus 重复声明局部 Trigger。若旧 `App.Button.Floating` / `App.Surface.FloatingAction` 在迁移后无其它正式用途，应删除而不是保留兼容别名。
 
 `App.Button.DangerIcon` 的默认图标和背景保持中性；Hover 时背景进入 `App.Brush.Danger`，Pressed 时进入 `App.Brush.Danger.Pressed` 并切换到可读的危险文本色。它表达危险动作，而不是让危险色常驻。
 
@@ -832,6 +835,7 @@ sans-serif
 - 目录项的序号与标题靠左，缓存百分比靠右，不把整组内容居中排列。
 - 当前章节使用 AccentSubtle 和可访问状态，不额外显示“当前”标签。
 - 目录页的 0% 或异常缓存完整度不显示。
+- 目录上的“定位到当前章节”使用统一 `App.Button.FloatingIcon`；按钮自身承担唯一圆形 Surface 与 Hover/Pressed/Focus，不嵌套第二层交互 Surface。
 
 ### 12.3 播放页
 
@@ -849,6 +853,7 @@ sans-serif
 - 语速、规则切换、音量和定时浮层的四角外区域必须完全透出底层页面（柔和阴影除外），不得出现高透明度但边界可辨识的直角宿主层；所有这些入口共享同一 Popup/Flyout chrome 合同。
 - 缓存等其它低频控制继续使用 Flyout/Popup，不因本轮交互统一改变功能入口。
 - 当前段使用轻微 AccentSubtle，不使用高饱和背景。
+- “定位到当前章节 / 返回当前段落”等悬浮定位操作统一使用 `App.Button.FloatingIcon`；Rest 保留克制 Raised 可发现性，Hover 不提升阴影，Pressed 不转为 Accent 持续态。
 
 ### 12.4 规则工作台
 
