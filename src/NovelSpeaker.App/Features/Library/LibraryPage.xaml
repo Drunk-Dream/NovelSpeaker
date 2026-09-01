@@ -115,14 +115,12 @@
                               ItemsSource="{Binding Books}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <WrapPanel ItemWidth="360" />
+                            <library:LibraryResponsivePanel MinItemWidth="300"
+                                                            MaxItemWidth="360"
+                                                            HorizontalSpacing="16"
+                                                            VerticalSpacing="16" />
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemContainerStyle>
-                        <Style TargetType="ContentPresenter">
-                            <Setter Property="Margin" Value="0,0,16,16" />
-                        </Style>
-                    </ItemsControl.ItemContainerStyle>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <views:BookCardView Item="{Binding}"

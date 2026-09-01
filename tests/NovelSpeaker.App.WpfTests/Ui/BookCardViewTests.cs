@@ -5,6 +5,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using NovelSpeaker.App.Shared.Presentation.Books;
 using NovelSpeaker.App.Features.Library;
 using Xunit;
 
@@ -144,7 +145,29 @@ public sealed class BookCardViewTests
             Assert.Equal(title, titleText.ToolTip);
             Assert.Equal(item.AutomationName, AutomationProperties.GetName(openButton));
 
+            var contentStack = Assert.IsType<StackPanel>(view.FindName("BookInfoStackPanel"));
+            var expectedContentWidth = 360d - (16d * 2d) - 104d - 16d;
+            Assert.InRange(Math.Abs(contentStack.ActualWidth - expectedContentWidth), 0d, 2.1d);
+            Assert.Equal(new Thickness(16), openButton.Padding);
+            var cover = Assert.IsType<BookCoverView>(
+                VisualTreeTestHelper.FindDescendant<BookCoverView>(view));
+            Assert.Equal(104d, cover.ActualWidth);
+            Assert.Equal(140d, cover.ActualHeight);
+            var author = FindTextBlock(view, item.DisplayAuthor);
+            var currentChapter = FindTextBlock(view, item.CurrentChapterTitle);
+            var remainingChapters = FindTextBlock(view, item.RemainingChapterText);
+            var measuredProgress = Assert.IsType<ProgressBar>(view.FindName("ReadingProgressBar"));
+            Assert.InRange(Math.Abs(author.ActualWidth - contentStack.ActualWidth), 0d, 2.1d);
+            Assert.InRange(Math.Abs(currentChapter.ActualWidth - contentStack.ActualWidth), 0d, 2.1d);
+            Assert.InRange(Math.Abs(remainingChapters.ActualWidth - contentStack.ActualWidth), 0d, 2.1d);
+            Assert.InRange(Math.Abs(measuredProgress.ActualWidth - contentStack.ActualWidth), 0d, 2.1d);
+
             var moreButton = Assert.IsType<Wpf.Ui.Controls.Button>(view.FindName("MoreButton"));
+            var titleOrigin = titleText.TransformToAncestor(view).Transform(new Point());
+            var moreOrigin = moreButton.TransformToAncestor(view).Transform(new Point());
+            Assert.True(
+                titleOrigin.X + titleText.ActualWidth <= moreOrigin.X + 1d,
+                $"Title right edge {titleOrigin.X + titleText.ActualWidth:0.##} overlapped MoreButton left edge {moreOrigin.X:0.##}.");
             moreButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var menu = Assert.IsType<ContextMenu>(moreButton.ContextMenu);
             Assert.Same(view, menu.DataContext);
@@ -162,6 +185,14 @@ public sealed class BookCardViewTests
                 nameof(BookCardView.Item),
                 Assert.IsType<Binding>(BindingOperations.GetBinding(items[1], MenuItem.CommandParameterProperty)).Path.Path);
         });
+    }
+
+    private static TextBlock FindTextBlock(BookCardView view, string text)
+    {
+        return VisualTreeTestHelper.FindDescendants<TextBlock>(
+                view,
+                candidate => candidate.Text == text)
+            .Single();
     }
 
     private sealed class TestCommand : ICommand

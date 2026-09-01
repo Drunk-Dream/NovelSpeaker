@@ -169,18 +169,73 @@ public sealed partial class LibraryPageTests
                 var toolbar = Assert.IsType<WrapPanel>(view.FindName("LibraryToolbar"));
                 var search = Assert.IsType<TextBox>(view.FindName("SearchTextBox"));
                 var sort = Assert.IsType<ComboBox>(view.FindName("SortComboBox"));
+                var booksScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("BooksScrollViewer"));
                 var items = Assert.IsType<ItemsControl>(view.FindName("BooksItemsControl"));
+                var panel = Assert.IsType<LibraryResponsivePanel>(
+                    VisualTreeTestHelper.FindDescendant<LibraryResponsivePanel>(items));
                 Assert.True(toolbar.ActualWidth > 0);
                 Assert.True(toolbar.ActualWidth <= width - 48 + 0.5);
                 Assert.True(search.ActualWidth >= 260);
                 Assert.True(sort.ActualWidth >= 160);
                 Assert.Equal(6, items.Items.Count);
+                Assert.InRange(Math.Abs(panel.ActualWidth - booksScrollViewer.ViewportWidth), 0d, 1d);
+                Assert.True(
+                    booksScrollViewer.ExtentWidth <= booksScrollViewer.ViewportWidth + 1d,
+                    $"Books extent {booksScrollViewer.ExtentWidth:0.##} exceeded viewport {booksScrollViewer.ViewportWidth:0.##}.");
+                AssertLibraryGridGeometry(panel, width == 1280d ? 3 : null);
 
                 var bitmap = host.Render(size, 96 * scale);
                 Assert.Equal((int)Math.Round(width * scale), bitmap.PixelWidth);
                 Assert.Equal((int)Math.Round(760 * scale), bitmap.PixelHeight);
             });
         }
+    }
+
+    private static void AssertLibraryGridGeometry(LibraryResponsivePanel panel, int? expectedColumns)
+    {
+        Assert.True(panel.ActualWidth > 0);
+        Assert.NotEmpty(panel.Children);
+
+        var firstRowY = panel.Children[0].TranslatePoint(new Point(), panel).Y;
+        var firstRow = panel.Children
+            .OfType<FrameworkElement>()
+            .Where(child => Math.Abs(child.TranslatePoint(new Point(), panel).Y - firstRowY) < 1d)
+            .ToArray();
+        var columns = firstRow.Length;
+        var expectedByViewport = Math.Max(
+            1,
+            (int)Math.Floor((panel.ActualWidth + 16d) / (300d + 16d)));
+
+        Assert.Equal(expectedByViewport, columns);
+        if (expectedColumns is not null)
+        {
+            Assert.Equal(expectedColumns.Value, columns);
+        }
+
+        var rawItemWidth = (panel.ActualWidth - ((columns - 1) * 16d)) / columns;
+        var expectedItemWidth = Math.Min(360d, rawItemWidth);
+        Assert.All(
+            firstRow,
+            child => Assert.InRange(Math.Abs(child.ActualWidth - expectedItemWidth), 0d, 1d));
+
+        for (var index = 1; index < firstRow.Length; index++)
+        {
+            var previousOrigin = firstRow[index - 1].TranslatePoint(new Point(), panel);
+            var currentOrigin = firstRow[index].TranslatePoint(new Point(), panel);
+            Assert.InRange(
+                Math.Abs(currentOrigin.X - previousOrigin.X - firstRow[index - 1].ActualWidth - 16d),
+                0d,
+                1d);
+        }
+
+        Assert.All(
+            panel.Children.OfType<FrameworkElement>(),
+            child =>
+            {
+                var origin = child.TranslatePoint(new Point(), panel);
+                Assert.True(origin.X >= -1d);
+                Assert.True(origin.X + child.ActualWidth <= panel.ActualWidth + 1d);
+            });
     }
 
     private void Library_visual_review_generates_stable_page_screenshots()

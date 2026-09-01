@@ -29,10 +29,12 @@
                                          Height="140"
                                          Cover="{Binding Item.Cover, ElementName=Root}" />
 
-                    <StackPanel Grid.Column="1"
-                                Margin="16,0,42,0"
+                    <StackPanel x:Name="BookInfoStackPanel"
+                                Grid.Column="1"
+                                Margin="16,0,0,0"
                                 VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource App.Typography.ItemTitle}"
+                        <TextBlock Margin="0,0,20,0"
+                                   Style="{StaticResource App.Typography.ItemTitle}"
                                    FontSize="17"
                                    Text="{Binding Item.Title, ElementName=Root}"
                                    ToolTip="{Binding Item.TitleToolTip, ElementName=Root}"
