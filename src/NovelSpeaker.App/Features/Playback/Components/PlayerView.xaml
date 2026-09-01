@@ -559,27 +559,17 @@
                         </ListBox.ItemTemplate>
                         </ListBox>
 
-                        <Button x:Name="LocateCurrentChapterButton"
-                                Width="44"
-                                Height="44"
-                                Padding="0"
+                        <ui:Button x:Name="LocateCurrentChapterButton"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Bottom"
                                 Margin="0,0,12,12"
                                 Panel.ZIndex="2"
                                 Visibility="Collapsed"
                                 Click="LocateCurrentChapterButton_OnClick"
-                                Style="{StaticResource App.Button.Floating}"
+                                Style="{StaticResource App.Button.FloatingIcon}"
                                 ToolTip="定位到当前章节"
-                                AutomationProperties.Name="定位到当前章节">
-                            <Border Width="40"
-                                    Height="40"
-                                    Style="{StaticResource App.Surface.FloatingAction}">
-                                <ui:SymbolIcon HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               Symbol="TargetArrow24" />
-                            </Border>
-                        </Button>
+                                AutomationProperties.Name="定位到当前章节"
+                                Icon="{ui:SymbolIcon Symbol=TargetArrow24}" />
                     </Grid>
                 </DockPanel>
             </commonControls:AppSectionSurface>
@@ -786,27 +776,18 @@
                                 </feedbackControls:AppStatusView.Style>
                             </feedbackControls:AppStatusView>
 
-                            <Button x:Name="ReturnToCurrentSegmentButton"
-                                    Width="44"
-                                    Height="44"
-                                    Padding="0"
+                            <ui:Button x:Name="ReturnToCurrentSegmentButton"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Bottom"
                                     Margin="0,0,12,12"
                                     Panel.ZIndex="2"
                                     Command="{Binding ReturnToCurrentSegmentCommand}"
                                     ToolTip="返回当前段落"
-                                    AutomationProperties.Name="返回当前段落">
-                                <Border Width="40"
-                                        Height="40"
-                                        Style="{StaticResource App.Surface.FloatingAction}">
-                                    <ui:SymbolIcon HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   Symbol="TargetArrow24" />
-                                </Border>
-                                <Button.Style>
-                                    <Style TargetType="Button"
-                                           BasedOn="{StaticResource App.Button.Floating}">
+                                    AutomationProperties.Name="返回当前段落"
+                                    Icon="{ui:SymbolIcon Symbol=TargetArrow24}">
+                                <ui:Button.Style>
+                                    <Style TargetType="{x:Type ui:Button}"
+                                           BasedOn="{StaticResource App.Button.FloatingIcon}">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding ShowReturnToCurrentSegment}" Value="True">
@@ -814,8 +795,8 @@
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </Button.Style>
-                            </Button>
+                                </ui:Button.Style>
+                            </ui:Button>
                         </Grid>
                     </Grid>
                 </commonControls:AppSectionSurface>

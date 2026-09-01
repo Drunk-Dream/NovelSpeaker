@@ -184,7 +184,7 @@ public sealed partial class PlayerViewTests
             view.UpdateLayout();
 
             var toolButton = Assert.IsType<WpfUiButton>(view.FindName("ActiveCacheToolButton"));
-            var locateButton = Assert.IsType<Button>(view.FindName("LocateCurrentChapterButton"));
+            var locateButton = Assert.IsType<WpfUiButton>(view.FindName("LocateCurrentChapterButton"));
             var selectionToolbar = Assert.IsType<StackPanel>(view.FindName("ActiveCacheSelectionToolbar"));
             var cancelButton = Assert.IsType<Button>(view.FindName("CancelActiveCacheSelectionButton"));
             var startButton = Assert.IsType<Button>(view.FindName("StartActiveCacheButton"));
@@ -362,17 +362,15 @@ public sealed partial class PlayerViewTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var returnButton = Assert.IsType<Button>(view.FindName("ReturnToCurrentSegmentButton"));
+            var returnButton = Assert.IsType<WpfUiButton>(view.FindName("ReturnToCurrentSegmentButton"));
             Assert.Equal(Visibility.Visible, returnButton.Visibility);
             Assert.Equal("返回当前段落", returnButton.ToolTip);
             Assert.Equal("返回当前段落", AutomationProperties.GetName(returnButton));
-            Assert.Equal(new Thickness(0), returnButton.BorderThickness);
-            Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(returnButton.Background).Color);
-            var floatingSurface = VisualTreeTestHelper.FindDescendant<Border>(
-                returnButton,
-                static border => border.CornerRadius.TopLeft >= 999);
-            Assert.NotNull(floatingSurface);
-            Assert.Same(view.FindResource("App.Surface.FloatingAction"), floatingSurface!.Style);
+            Assert.Same(view.FindResource("App.Button.FloatingIcon"), returnButton.Style);
+            Assert.Equal(44, returnButton.Width);
+            Assert.Equal(44, returnButton.Height);
+            Assert.Equal(new CornerRadius(999), returnButton.CornerRadius);
+            Assert.Equal(SymbolRegular.TargetArrow24, Assert.IsType<SymbolIcon>(returnButton.Icon).Symbol);
         });
     }
 
@@ -692,7 +690,7 @@ public sealed partial class PlayerViewTests
             var volumeButton = Assert.IsType<WpfUiButton>(view.FindName("VolumeMenuButton"));
             Assert.Equal("播放音量", volumeButton.ToolTip);
             Assert.Equal("播放音量 100%", AutomationProperties.GetName(volumeButton));
-            AssertButtonMetadata(Assert.IsType<Button>(view.FindName("ReturnToCurrentSegmentButton")), "返回当前段落");
+            AssertButtonMetadata(Assert.IsType<WpfUiButton>(view.FindName("ReturnToCurrentSegmentButton")), "返回当前段落");
             AssertButtonMetadata(FindUiButtonByAutomationName(view, "返回"), "返回");
             Assert.Null(view.FindName("SkipCurrentSegmentButton"));
 

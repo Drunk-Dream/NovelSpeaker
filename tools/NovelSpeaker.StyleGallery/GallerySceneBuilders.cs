@@ -667,7 +667,6 @@ internal static class GallerySceneBuilders
             ("App.Surface.Card", "surface-card", "Card · 普通静态卡片"),
             ("App.Surface.Secondary", "surface-secondary", "Secondary · 次级控制条"),
             ("App.Surface.Raised", "surface-raised", "Raised · 轻抬升表面"),
-            ("App.Surface.FloatingAction", "surface-floating-action", "FloatingAction · 圆形悬浮操作表面"),
             ("App.Surface.Popup", "surface-popup", "Popup · 临时浮层")
         };
         for (var index = 0; index < keys.Length; index++)
@@ -1123,7 +1122,7 @@ internal static class GallerySceneBuilders
 
     private static Button CreateButtonPreview(string variant, string state)
     {
-        Button button = variant is "Icon" or "DangerIcon" or "ToolbarValue"
+        Button button = variant is "Icon" or "DangerIcon" or "ToolbarValue" or "FloatingIcon"
             ? new WpfUiButton
             {
                 Style = FindButtonStyle(variant),
@@ -1133,7 +1132,9 @@ internal static class GallerySceneBuilders
                 {
                     Symbol = variant == "DangerIcon"
                         ? SymbolRegular.Delete24
-                        : variant == "ToolbarValue"
+                        : variant == "FloatingIcon"
+                            ? SymbolRegular.TargetArrow24
+                            : variant == "ToolbarValue"
                             ? SymbolRegular.Speaker124
                             : SymbolRegular.Settings24
                 },
@@ -1179,18 +1180,30 @@ internal static class GallerySceneBuilders
         switch (state)
         {
             case "Hover":
-                stateTrigger.Setters.Add(new Setter(
-                    Control.BackgroundProperty,
-                    FindBrush(variant is "Primary"
+                var hoverBackground = variant == "FloatingIcon"
+                    ? "App.Brush.Interaction.Surface.Hover"
+                    : variant is "Primary"
                         ? "App.Brush.Accent.Hover"
                         : variant == "DangerIcon"
                             ? "App.Brush.Danger"
                             : variant == "Danger"
-                            ? "App.Brush.Danger.Subtle"
-                            : variant is "Secondary"
-                                ? "App.Brush.Surface.Secondary"
-                                : "App.Brush.Accent.Subtle")));
-                if (variant is "Danger" or "DangerIcon")
+                                ? "App.Brush.Danger.Subtle"
+                                : variant is "Secondary"
+                                    ? "App.Brush.Surface.Secondary"
+                                    : "App.Brush.Accent.Subtle";
+                stateTrigger.Setters.Add(new Setter(
+                    Control.BackgroundProperty,
+                    FindBrush(hoverBackground)));
+                if (variant == "FloatingIcon")
+                {
+                    stateTrigger.Setters.Add(new Setter(
+                        WpfUiButton.MouseOverBackgroundProperty,
+                        FindBrush(hoverBackground)));
+                    stateTrigger.Setters.Add(new Setter(
+                        Control.ForegroundProperty,
+                        FindBrush("App.Brush.Interaction.Foreground.Hover")));
+                }
+                else if (variant is "Danger" or "DangerIcon")
                 {
                     stateTrigger.Setters.Add(new Setter(
                         Control.ForegroundProperty,
@@ -1201,16 +1214,31 @@ internal static class GallerySceneBuilders
 
                 break;
             case "Pressed":
-                stateTrigger.Setters.Add(new Setter(
-                    Control.BackgroundProperty,
-                    FindBrush(variant is "Primary"
+                var pressedBackground = variant == "FloatingIcon"
+                    ? "App.Brush.Interaction.Surface.Pressed"
+                    : variant is "Primary"
                         ? "App.Brush.Accent.Pressed"
                         : variant is "Secondary"
                             ? "App.Brush.Accent.Subtle"
                             : variant is "Danger" or "DangerIcon"
                                 ? "App.Brush.Danger.Pressed"
-                                : "App.Brush.Surface.Secondary")));
-                if (variant is "Danger" or "DangerIcon")
+                                : "App.Brush.Surface.Secondary";
+                stateTrigger.Setters.Add(new Setter(
+                    Control.BackgroundProperty,
+                    FindBrush(pressedBackground)));
+                if (variant == "FloatingIcon")
+                {
+                    stateTrigger.Setters.Add(new Setter(
+                        WpfUiButton.PressedBackgroundProperty,
+                        FindBrush(pressedBackground)));
+                    stateTrigger.Setters.Add(new Setter(
+                        Control.ForegroundProperty,
+                        FindBrush("App.Brush.Interaction.Foreground.Pressed")));
+                    stateTrigger.Setters.Add(new Setter(
+                        WpfUiButton.PressedForegroundProperty,
+                        FindBrush("App.Brush.Interaction.Foreground.Pressed")));
+                }
+                else if (variant is "Danger" or "DangerIcon")
                 {
                     stateTrigger.Setters.Add(new Setter(
                         Control.ForegroundProperty,
@@ -1224,11 +1252,19 @@ internal static class GallerySceneBuilders
             case "Focus":
                 stateTrigger.Setters.Add(new Setter(
                     Control.BackgroundProperty,
-                    FindBrush("App.Brush.Accent.Subtle")));
+                    FindBrush(variant == "FloatingIcon"
+                        ? "App.Brush.Surface.Raised"
+                        : "App.Brush.Accent.Subtle")));
                 stateTrigger.Setters.Add(new Setter(
                     Control.BorderBrushProperty,
                     FindBrush("App.Brush.Focus")));
-                if (variant is "Primary" or "Danger" or "DangerIcon")
+                if (variant == "FloatingIcon")
+                {
+                    stateTrigger.Setters.Add(new Setter(
+                        Control.ForegroundProperty,
+                        FindBrush("App.Brush.Text.Primary")));
+                }
+                else if (variant is "Primary" or "Danger" or "DangerIcon")
                 {
                     stateTrigger.Setters.Add(new Setter(
                         Control.ForegroundProperty,
@@ -1373,7 +1409,7 @@ internal static class GallerySceneBuilders
         "Danger",
         "DangerIcon",
         "ToolbarValue",
-        "Floating"
+        "FloatingIcon"
     ];
 
     private static readonly string[] ButtonPreviewStates =

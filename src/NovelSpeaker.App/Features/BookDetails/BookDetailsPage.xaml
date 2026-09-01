@@ -277,27 +277,17 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
 
-                            <Button x:Name="LocateCurrentChapterButton"
-                                    Width="44"
-                                    Height="44"
+                            <ui:Button x:Name="LocateCurrentChapterButton"
                                     Margin="0,0,12,12"
-                                    Padding="0"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Bottom"
                                     Panel.ZIndex="2"
                                     Visibility="Collapsed"
                                     Click="LocateCurrentChapterButton_OnClick"
-                                    Style="{StaticResource App.Button.Floating}"
+                                    Style="{StaticResource App.Button.FloatingIcon}"
                                     ToolTip="定位到当前章节"
-                                    AutomationProperties.Name="定位到当前章节">
-                                <Border Width="40"
-                                        Height="40"
-                                        Style="{StaticResource App.Surface.FloatingAction}">
-                                    <ui:SymbolIcon HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   Symbol="TargetArrow24" />
-                                </Border>
-                            </Button>
+                                    AutomationProperties.Name="定位到当前章节"
+                                    Icon="{ui:SymbolIcon Symbol=TargetArrow24}" />
                         </Grid>
                     </commonControls:AppSectionSurface>
                 </Grid>

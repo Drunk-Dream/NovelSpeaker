@@ -279,30 +279,69 @@
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="App.Button.Floating"
-           TargetType="Button"
-           BasedOn="{StaticResource Provider.Button}">
-        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
-        <Setter Property="Padding" Value="12,8" />
+    <Style x:Key="App.Button.FloatingIcon"
+           TargetType="{x:Type ui:Button}"
+           BasedOn="{StaticResource Provider.UiButton}">
+        <Setter Property="Width" Value="44" />
+        <Setter Property="Height" Value="44" />
+        <Setter Property="MinWidth" Value="44" />
+        <Setter Property="MinHeight" Value="44" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FontSize" Value="{StaticResource App.Size.Icon.Standard}" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
-        <!-- The circular content surface owns the floating chrome. The Button is only a transparent hit area. -->
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Raised}" />
+        <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
+        <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
-        <Setter Property="BorderBrush" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Effect" Value="{x:Null}" />
+        <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+        <Setter Property="MouseOverBorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+        <Setter Property="PressedBorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Effect" Value="{StaticResource App.Elevation.Low}" />
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+        <Setter Property="FocusVisualStyle">
+            <Setter.Value>
+                <!-- WPF renders this adorner only for keyboard-visible focus. -->
+                <Style TargetType="{x:Type Control}">
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="{x:Type Control}">
+                                <Border Margin="-2"
+                                        BorderBrush="{DynamicResource App.Brush.Focus}"
+                                        BorderThickness="2"
+                                        CornerRadius="999"
+                                        IsHitTestVisible="False" />
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Setter.Value>
+        </Setter>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Hover}" />
+                <!-- Keep the fixed Low elevation; Hover must not lift the button. -->
+                <Setter Property="Effect" Value="{StaticResource App.Elevation.Low}" />
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
-                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
+                <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
+                <!-- Pressed is a normal interaction surface, not Accent.Subtle. -->
+                <Setter Property="Effect" Value="{StaticResource App.Elevation.Low}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Background" Value="Transparent" />
-                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="MouseOverBorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                <Setter Property="PressedBorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
+                <Setter Property="Effect" Value="{x:Null}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
             </Trigger>
         </Style.Triggers>

@@ -46,25 +46,6 @@
         <Setter Property="Effect" Value="{StaticResource App.Elevation.Low}" />
     </Style>
 
-    <Style x:Key="App.Surface.FloatingAction"
-           TargetType="Border"
-           BasedOn="{StaticResource App.Surface.Raised}">
-        <Setter Property="Padding" Value="0" />
-        <Setter Property="CornerRadius" Value="999" />
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
-                         Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
-                <Setter Property="Effect" Value="{StaticResource App.Elevation.Medium}" />
-            </DataTrigger>
-            <DataTrigger Binding="{Binding IsPressed, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
-                         Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-                <Setter Property="Effect" Value="{StaticResource App.Elevation.Low}" />
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
     <Style x:Key="App.Surface.Popup" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Raised}" />
         <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Strong}" />

@@ -17,6 +17,9 @@ using NovelSpeaker.App.Shared.Presentation.Controls.Feedback;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.Domain.Settings;
 using Wpf.Ui;
+using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
+using WpfUiButton = Wpf.Ui.Controls.Button;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -80,7 +83,7 @@ public sealed class BookDetailsPageTests
                 window.UpdateLayout();
 
                 var chaptersListBox = Assert.IsType<ListBox>(page.FindName("ChaptersListBox"));
-                var locateButton = Assert.IsType<Button>(page.FindName("LocateCurrentChapterButton"));
+                var locateButton = Assert.IsType<WpfUiButton>(page.FindName("LocateCurrentChapterButton"));
                 var rootViewport = Assert.IsType<Border>(page.FindName("RootViewport"));
                 chaptersListBox.ApplyTemplate();
                 chaptersListBox.UpdateLayout();
@@ -106,11 +109,11 @@ public sealed class BookDetailsPageTests
                 Assert.Equal("定位到当前章节", locateButton.ToolTip);
                 Assert.Equal("定位到当前章节", AutomationProperties.GetName(locateButton));
                 Assert.Equal(Visibility.Collapsed, locateButton.Visibility);
-                Assert.Same(page.FindResource("App.Button.Floating"), locateButton.Style);
-                Assert.Equal(new Thickness(0), locateButton.BorderThickness);
-                Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(locateButton.Background).Color);
-                var locateSurface = Assert.IsType<Border>(locateButton.Content);
-                Assert.Same(page.FindResource("App.Surface.FloatingAction"), locateSurface.Style);
+                Assert.Same(page.FindResource("App.Button.FloatingIcon"), locateButton.Style);
+                Assert.Equal(44, locateButton.Width);
+                Assert.Equal(44, locateButton.Height);
+                Assert.Equal(new CornerRadius(999), locateButton.CornerRadius);
+                Assert.Equal(SymbolRegular.TargetArrow24, Assert.IsType<SymbolIcon>(locateButton.Icon).Symbol);
                 Assert.IsType<AppSectionSurface>(page.FindName("BookInformationSurface"));
                 Assert.IsType<AppSectionSurface>(page.FindName("ChapterCatalogSurface"));
             }

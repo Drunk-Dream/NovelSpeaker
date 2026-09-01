@@ -27,10 +27,10 @@ public sealed class ButtonStyleTests
         "App.Button.DangerIcon",
         "App.Button.ToolbarValue",
         "App.Button.InteractionHost",
-        "App.Button.Floating"
+        "App.Button.FloatingIcon"
     ];
 
-    private void Button_style_dictionary_contains_only_explicit_provider_based_styles_without_templates()
+    private void Button_style_dictionary_contains_only_explicit_provider_based_styles_and_allowed_templates()
     {
         var path = Path.Combine(
             LocateRepositoryRoot(),
@@ -52,7 +52,7 @@ public sealed class ButtonStyleTests
         {
             Assert.Equal("Style", resource.Name.LocalName);
             var key = (string?)resource.Attribute(xaml + "Key");
-            var usesUiButton = key is "App.Button.Icon" or "App.Button.DangerIcon" or "App.Button.ToolbarValue";
+            var usesUiButton = key is "App.Button.Icon" or "App.Button.DangerIcon" or "App.Button.ToolbarValue" or "App.Button.FloatingIcon";
             Assert.Equal(
                 usesUiButton ? "{x:Type ui:Button}" : "Button",
                 (string?)resource.Attribute("TargetType"));
@@ -61,7 +61,7 @@ public sealed class ButtonStyleTests
                     ? "{StaticResource Provider.UiButton}"
                     : "{StaticResource Provider.Button}",
                 (string?)resource.Attribute("BasedOn"));
-            if (key == "App.Button.InteractionHost")
+            if (key is "App.Button.InteractionHost" or "App.Button.FloatingIcon")
             {
                 Assert.Contains(
                     resource.Descendants(),
@@ -182,7 +182,7 @@ public sealed class ButtonStyleTests
                       (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Foreground.Pressed}");
     }
 
-    private void Floating_button_style_keeps_the_outer_hit_area_borderless()
+    private void Floating_icon_button_style_owns_the_complete_interaction_surface()
     {
         var path = Path.Combine(
             LocateRepositoryRoot(),
@@ -196,7 +196,7 @@ public sealed class ButtonStyleTests
         var document = XDocument.Load(path);
         var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
         var style = document.Root?.Elements()
-            .Single(resource => (string?)resource.Attribute(xaml + "Key") == "App.Button.Floating");
+            .Single(resource => (string?)resource.Attribute(xaml + "Key") == "App.Button.FloatingIcon");
 
         Assert.NotNull(style);
         var setters = style!.Elements()
@@ -204,16 +204,44 @@ public sealed class ButtonStyleTests
             .ToDictionary(
                 element => (string)element.Attribute("Property")!,
                 element => (string?)element.Attribute("Value"));
-        Assert.Equal("Transparent", setters["Background"]);
-        Assert.Equal("Transparent", setters["BorderBrush"]);
-        Assert.Equal("0", setters["BorderThickness"]);
-        Assert.Equal("{x:Null}", setters["Effect"]);
-        Assert.All(
-            style.Elements().Single(element => element.Name.LocalName == "Style.Triggers").Elements(),
-            trigger => Assert.DoesNotContain(
-                trigger.Elements(),
-                setter => (string?)setter.Attribute("Property") == "Background" &&
-                          (string?)setter.Attribute("Value") != "Transparent"));
+        Assert.Equal("{x:Type ui:Button}", style.Attribute("TargetType")?.Value);
+        Assert.Equal("{StaticResource Provider.UiButton}", style.Attribute("BasedOn")?.Value);
+        Assert.Equal("44", setters["Width"]);
+        Assert.Equal("44", setters["Height"]);
+        Assert.Equal("44", setters["MinWidth"]);
+        Assert.Equal("44", setters["MinHeight"]);
+        Assert.Equal("0", setters["Padding"]);
+        Assert.Equal("999", setters["CornerRadius"]);
+        Assert.Equal("{DynamicResource App.Brush.Surface.Raised}", setters["Background"]);
+        Assert.Equal("{DynamicResource App.Brush.Interaction.Surface.Hover}", setters["MouseOverBackground"]);
+        Assert.Equal("{DynamicResource App.Brush.Interaction.Surface.Pressed}", setters["PressedBackground"]);
+        Assert.Equal("{DynamicResource App.Brush.Text.Primary}", setters["Foreground"]);
+        Assert.Equal("{DynamicResource App.Brush.Interaction.Foreground.Pressed}", setters["PressedForeground"]);
+        Assert.Equal("{DynamicResource App.Brush.Border.Subtle}", setters["BorderBrush"]);
+        Assert.Equal("{DynamicResource App.Brush.Border.Subtle}", setters["MouseOverBorderBrush"]);
+        Assert.Equal("{DynamicResource App.Brush.Border.Subtle}", setters["PressedBorderBrush"]);
+        Assert.Equal("1", setters["BorderThickness"]);
+        Assert.Equal("{StaticResource App.Elevation.Low}", setters["Effect"]);
+        Assert.Contains(
+            style.Descendants(),
+            element => element.Name.LocalName == "Border" &&
+                       (string?)element.Attribute("BorderBrush") == "{DynamicResource App.Brush.Focus}" &&
+                       (string?)element.Attribute("CornerRadius") == "999");
+
+        var triggers = style.Elements().Single(element => element.Name.LocalName == "Style.Triggers").Elements();
+        var hover = triggers.Single(trigger => (string?)trigger.Attribute("Property") == "IsMouseOver");
+        Assert.Contains(hover.Elements(), setter =>
+            (string?)setter.Attribute("Property") == "Foreground" &&
+            (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Foreground.Hover}");
+        Assert.Contains(hover.Elements(), setter =>
+            (string?)setter.Attribute("Property") == "Effect" &&
+            (string?)setter.Attribute("Value") == "{StaticResource App.Elevation.Low}");
+        var pressed = triggers.Single(trigger => (string?)trigger.Attribute("Property") == "IsPressed");
+        Assert.Contains(pressed.Elements(), setter =>
+            (string?)setter.Attribute("Property") == "Foreground" &&
+            (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Foreground.Pressed}");
+        Assert.DoesNotContain(pressed.Elements(), setter =>
+            setter.Attribute("Value")?.Value.Contains("Accent", StringComparison.Ordinal) == true);
     }
 
     private void Interaction_host_style_uses_a_chrome_free_template()
@@ -419,7 +447,7 @@ public sealed class ButtonStyleTests
             var buttons = new Dictionary<string, WpfButton>(StringComparer.Ordinal);
             foreach (var key in ButtonStyleKeys)
             {
-                var usesUiButton = key is "App.Button.Icon" or "App.Button.DangerIcon" or "App.Button.ToolbarValue";
+                var usesUiButton = key is "App.Button.Icon" or "App.Button.DangerIcon" or "App.Button.ToolbarValue" or "App.Button.FloatingIcon";
                 WpfButton button = usesUiButton
                     ? new WpfUiButton
                     {
@@ -427,7 +455,9 @@ public sealed class ButtonStyleTests
                         {
                             Symbol = key == "App.Button.DangerIcon"
                                 ? SymbolRegular.Delete24
-                                : SymbolRegular.Settings24
+                                : key == "App.Button.FloatingIcon"
+                                    ? SymbolRegular.TargetArrow24
+                                    : SymbolRegular.Settings24
                         },
                         Style = Assert.IsType<Style>(application.FindResource(key))
                     }
@@ -537,7 +567,7 @@ public sealed class ButtonStyleTests
     [Fact]
     public void Button_style_ownership_contracts_cover_dictionary_and_provider_states()
     {
-        Button_style_dictionary_contains_only_explicit_provider_based_styles_without_templates();
+        Button_style_dictionary_contains_only_explicit_provider_based_styles_and_allowed_templates();
         Named_button_styles_keep_provider_templates_and_have_all_interaction_state_triggers();
     }
 
@@ -549,7 +579,7 @@ public sealed class ButtonStyleTests
         Interaction_host_style_uses_a_chrome_free_template();
         Interaction_host_with_empty_content_keeps_a_full_hit_area();
         Interaction_host_keeps_selection_content_hit_testable();
-        Floating_button_style_keeps_the_outer_hit_area_borderless();
+        Floating_icon_button_style_owns_the_complete_interaction_surface();
     }
 
     [Fact]

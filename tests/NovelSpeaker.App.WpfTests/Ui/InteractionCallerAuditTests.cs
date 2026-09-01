@@ -110,18 +110,18 @@ public sealed class InteractionCallerAuditTests
             .SelectMany(path => XDocument.Load(path).Descendants()
                 .Where(element => element.Name.LocalName == "Button")
                 .Select(button => new { Path = path, Button = button }))
-            .Where(item => IsFloatingButtonStyle(StyleReference(item.Button), styleDefinitions))
+            .Where(item => IsFloatingIconButtonStyle(StyleReference(item.Button), styleDefinitions))
             .ToArray();
-        Assert.NotEmpty(floatingButtons);
+        Assert.Equal(3, floatingButtons.Length);
         Assert.All(
             floatingButtons,
-            item => Assert.True(
-                item.Button.Descendants().Any(element =>
-                    IsFloatingSurfaceStyle(StyleReference(element), styleDefinitions)),
-                $"{Path.GetRelativePath(repositoryRoot, item.Path)} " +
-                $"<Button> using App.Button.Floating must contain " +
-                $"App.Surface.FloatingAction, but did not: " +
-                $"'{StyleReference(item.Button)}'."));
+            item =>
+            {
+                Assert.DoesNotContain(item.Button.Descendants(), element => element.Name.LocalName == "Border");
+                Assert.True(
+                    item.Button.Attribute("Icon") is not null ||
+                    item.Button.Elements().Any(element => element.Name.LocalName == "Button.Icon"));
+            });
 
         var rulesPath = Path.Combine(
             appRoot,
@@ -240,7 +240,7 @@ public sealed class InteractionCallerAuditTests
         var floatingButtons = productionXaml
             .SelectMany(path => XDocument.Load(path).Descendants()
                 .Where(element => element.Name.LocalName == "Button")
-                .Where(element => IsFloatingButtonStyle(StyleReference(element), styleDefinitions))
+                .Where(element => IsFloatingIconButtonStyle(StyleReference(element), styleDefinitions))
                 .Select(button => (
                     Path: Path.GetRelativePath(repositoryRoot, path),
                     Name: (string?)button.Attribute(XamlNamespace + "Name"),
@@ -260,11 +260,13 @@ public sealed class InteractionCallerAuditTests
             floatingButtons.Select(item => (item.Path, item.Name!)).ToHashSet());
         Assert.All(
             floatingButtons,
-            item => Assert.True(
-                ButtonContentNodes(item.Button).Any(element =>
-                    IsFloatingSurfaceStyle(StyleReference(element), styleDefinitions)),
-                $"{item.Path} <Button Name=\"{item.Name}\"> using App.Button.Floating must " +
-                "contain App.Surface.FloatingAction."));
+            item =>
+            {
+                Assert.DoesNotContain(item.Button.Descendants(), element => element.Name.LocalName == "Border");
+                Assert.True(
+                    item.Button.Attribute("Icon") is not null ||
+                    item.Button.Elements().Any(element => element.Name.LocalName == "Button.Icon"));
+            });
     }
 
     private static bool IsListBoxItemTargetType(string? targetType) =>
@@ -333,23 +335,17 @@ public sealed class InteractionCallerAuditTests
             .Any(definition => definition.Key.StartsWith("App.Selection.", StringComparison.Ordinal) &&
                               !definition.Key.StartsWith("App.Selection.Content.", StringComparison.Ordinal));
 
-    private static bool IsFloatingButtonStyle(
+    private static bool IsFloatingIconButtonStyle(
         string? styleReference,
         IReadOnlyDictionary<string, StyleDefinition> styleDefinitions) =>
         GetStyleKeyChain(styleReference, styleDefinitions)
-            .Any(definition => definition.Key == "App.Button.Floating");
+            .Any(definition => definition.Key == "App.Button.FloatingIcon");
 
     private static bool IsInteractionHostStyle(
         string? styleReference,
         IReadOnlyDictionary<string, StyleDefinition> styleDefinitions) =>
         GetStyleKeyChain(styleReference, styleDefinitions)
             .Any(definition => definition.Key == "App.Button.InteractionHost");
-
-    private static bool IsFloatingSurfaceStyle(
-        string? styleReference,
-        IReadOnlyDictionary<string, StyleDefinition> styleDefinitions) =>
-        GetStyleKeyChain(styleReference, styleDefinitions)
-            .Any(definition => definition.Key == "App.Surface.FloatingAction");
 
     private static IReadOnlyList<StyleDefinition> GetStyleKeyChain(
         string? styleReference,

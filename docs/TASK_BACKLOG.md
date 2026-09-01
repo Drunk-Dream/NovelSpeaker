@@ -51,7 +51,7 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 
 ## Phase A：公共 Floating Button 收口
 
-## [ ] T001（P0）：建立统一 FloatingIcon Button owner 并迁移全部生产调用方
+## [x] T001（P0）：建立统一 FloatingIcon Button owner 并迁移全部生产调用方
 
 目标：
 
@@ -82,6 +82,8 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 - Button family 测试证明 Hover/Pressed 不改变布局尺寸，Hover 不提高 Elevation，Pressed 不使用 Accent Surface。
 - Light/Dark 下最终图标 Foreground 在 Rest/Hover/Pressed/Disabled 均可读；High Contrast 资源可解析并有可辨识 Focus/边界。
 - Book Details / Player 原有定位、Visibility、Command/Click、Tooltip、Automation 测试保持通过。
+
+完成成果：建立 `App.Button.FloatingIcon` 作为唯一 `Wpf.Ui.Controls.Button` 交互 owner，迁移 Book Details 与 Player 的三个定位/返回调用方，删除旧 Button/Surface 双层资源并同步 Gallery、架构和调用方合同。T001 组合回归与架构检查通过（18/18）；Book Details 几何、Player 内容和返回按钮契约通过。Book Details 两个结构/异步 catalog 测试在隐藏 WPF 宿主的 20 秒 hang timeout 内触发 testhost 崩溃且无失败断言，已记录并留待后续真实页面验收与最终门禁复核。
 
 ## Phase B：真实页面视觉验收
 
