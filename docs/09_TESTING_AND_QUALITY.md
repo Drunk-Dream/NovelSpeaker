@@ -162,6 +162,9 @@
 - UI 测试优先保护用户可观察行为：导航、命令启用、选择、Dirty State、缓存状态、页面生命周期、键盘焦点、Automation 和关键几何下限。
 - 公共视觉资源只在其唯一 owner 层建立主合同；页面不重复冻结 Button、Icon、Input、Surface、Typography 等公共控件的内部实现。
 - Style/ControlTheme、Palette/Token、Provider Bridge、主题切换、Icon Foreground、输入控件、设置组件、Shell、媒体控件等最终视觉规则统一以 `13_VISUAL_DESIGN_SYSTEM.md` 为定义来源。
+- Library 响应式网格测试应直接覆盖布局组件的 viewport 几何合同：`300–360 px` 卡宽、`16 px` 间距、列数计算、达到最大卡宽后的整体居中，以及窄于最小卡宽时的单列安全收缩。页面集成测试再覆盖默认窗口和窄/宽窗口，验证实际 ScrollViewer viewport 下没有横向溢出或大面积单侧剩余。
+- `BookCardView` 回归测试应证明 MoreButton 只侵占标题区域所需空间，封面尺寸和卡片 Padding 保持稳定，作者/章节/剩余章节/ProgressBar 不因右上角按钮被整列永久缩窄。几何测试保护有效内容宽度，不冻结可继续微调的标题安全区精确像素。
+- Shell 主题快捷入口测试必须覆盖 Light→Dark、Dark→Light、System+实际 Light→Dark、System+实际 Dark→Light、持久化失败回滚、设置页外部变更后的状态同步，以及 Footer 展开/Compact 下的目标图标、动作文案、Tooltip 和 AutomationName。快捷入口不得生成 System；System 只能由设置页显式选择。
 - 交互样式测试优先固定状态所有权和可访问性合同，不冻结可继续微调的像素颜色：至少覆盖 Hover/Pressed/Keyboard Focus/Selected 的区分、Selected+Hover 优先级、父子控件不出现重复大面积状态层，以及 Light/Dark/High Contrast 下资源可解析且具有可辨识状态。
 - Button/Icon 测试除资源键外还要验证最终视觉树前景：Dark Mode 的 Icon/Toolbar/Media Button 在 Pressed 状态下，`Button.Icon` 中实际 `SymbolIcon` 不得回落为黑色/低对比度 Provider 前景，Normal/Hover/Pressed/Disabled 均由 owning Button 的主题语义控制。
 - FloatingIcon 测试必须覆盖 Book Details 与 Player 的真实定位/返回调用：Rest/Hover/Pressed/Keyboard Focus 只有一个可见 Button Surface，Hover 不提升 Elevation，Pressed 不使用 Accent 持续态，Dark Mode 最终图标保持可读，状态切换不改变命中区/布局中心或造成裁切。静态 Style/资源检查不能替代真实 View 最终像素证据。

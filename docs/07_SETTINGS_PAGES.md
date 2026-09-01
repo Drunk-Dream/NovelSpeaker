@@ -184,8 +184,12 @@ PageHeader 动作区显示“已选择 N 章”，并提供：
 
 ## 11. 外观
 
-- 跟随系统 / 浅色 / 深色。
+- 设置页继续提供完整的“跟随系统 / 浅色 / 深色”三态选择。
 - 主题切换即时生效并持久化。
+- Shell NavigationView Footer 最后一项提供常驻 Light/Dark 快捷入口；该入口只在 Light 与 Dark 之间切换，不提供 System 选项，也不能通过连续点击返回 System。
+- 当设置值为 System 时，快捷入口依据当前实际生效主题决定目标：实际 Light → 显式 Dark，实际 Dark → 显式 Light，并将结果持久化为对应的显式主题。只有本设置页可以重新选择“跟随系统”。
+- 快捷入口展开态显示“切换到深色模式”/“切换到浅色模式”，Compact 状态显示目标主题对应的 Moon/Sun 图标；Tooltip 与 AutomationName 使用同一动作语义。
+- 设置页与 Shell 快捷入口必须复用同一主题偏好/持久化边界。任一入口完成切换后，另一入口的状态投影应同步更新；保存失败时维持既有回滚语义，不允许 UI 显示状态与实际主题长期不一致。
 - 页面根节点保持透明，由 Shell 内容宿主提供 Canvas；24 px 页面 Padding 周围不得露出 Window Background，也不得遮挡 Shell 左上圆角。
 - 页面只展示“应用主题”这一设置行，不再显示“主题”分组标题；该单项仍置于无 Header 的 `AppSettingsList` Surface 中，主题 ComboBox 位于行右侧。
 - 页面当前横向宽度策略保持不变，不新增统一 `MaxWidth`。

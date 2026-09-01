@@ -192,11 +192,13 @@ src/NovelSpeaker.App/Shared/Theming/Resources/ControlThemes/
 典型所有权：
 
 - `BookCardView` 属于 Library Feature。
+- Library 的响应式书架 Panel/布局组件同样属于 Library Feature；它只拥有卡片列数、宽度、间距和居中排列，不进入 Shared/Theming。
 - 规则列表项属于 Rules 页面族。
 - `PlayerView` 属于 Playback Feature。
 - 缓存章节项属于 Cache Feature。
 
 Feature 组件可以使用全局 Token、Style 和自有控件，但不得把领域对象、命令或业务状态反向写入全局主题层。
+Feature 专用响应式尺寸继续由对应 Feature 拥有；Library 的 `300–360 px` 卡片宽度与 `16 px` 网格间距是页面布局合同，不升级为全局 Token。
 
 ### 3.6 页面局部资源
 
@@ -535,6 +537,10 @@ App.Menu.Separator
 
 菜单与下拉选项遵循单一状态层：MenuItem Rest 透明，Hover 使用弱圆角 Surface，Pressed 稍强，Checked/Selected 使用弱 Accent。危险命令默认保持中性或仅使用 Danger Foreground，Hover 时才进入弱 Danger Surface。
 
+Shell NavigationView Footer 的主题快捷入口使用普通 `App.Navigation.Entry` 交互语言，不建立独立 Theme Button 视觉族。该入口固定为 Footer 最后一项：展开态显示目标动作文字，Compact 状态保留 Moon/Sun 图标及 Tooltip/AutomationName。
+
+主题快捷入口只表达 Light/Dark 二态动作。当前实际 Light 时显示“切换到深色模式”并使用 Dark/Moon 目标图标；当前实际 Dark 时显示“切换到浅色模式”并使用 Light/Sun 目标图标。持久设置为 System 时仍按实际生效 Light/Dark 决定目标，点击后保存为显式 Light/Dark；快捷入口从不提供“切换到 System”，System 仅属于 Appearance 设置页。
+
 菜单分组必须使用独立 `Separator`，不得把分隔线实现为某个 MenuItem 的 Bottom Border。Separator 不继承相邻 MenuItem 的 Hover/Pressed/Disabled Opacity，左右 inset 统一并与菜单文字列视觉对齐；首尾不绘制无意义分隔线。
 
 ### 7.8 Progress 与 Media
@@ -649,6 +655,14 @@ Interaction Palette 的公共入口为 `App.Brush.Interaction.Surface.Hover`、`
 | 列表行、普通卡片圆角 | `10` |
 | 分组工具条、Dialog 圆角 | `12` |
 | 主表面、迷你播放器圆角 | `14–16` |
+
+Library 书籍卡片的响应式尺寸是 Feature 布局合同：
+
+- 卡片最小宽度 `300 px`、最大宽度 `360 px`，水平和垂直间距均为 `16 px`。
+- 布局依据书库 ScrollViewer 的实际 viewport 宽度 $V$ 计算：$N=\max(1,\lfloor(V+16)/(300+16)\rfloor)$，$W_{\mathrm{raw}}=(V-(N-1)\times16)/N$，最终 $W=\min(W_{\mathrm{raw}},360)$。
+- `W_{\mathrm{raw}}>360` 时不继续拉宽卡片，而将整组卡片水平居中；viewport 小于 `300 px` 时允许单列安全收缩到实际可用宽度，避免横向滚动。
+- 默认 `1280 px` 主窗口应稳定形成约 3 列书卡；其它窗口宽度不使用额外硬编码 breakpoint，而由上述 viewport 公式自然决定。
+- `BookCardView` 保持 `104 × 140 px` 封面、`16 px` 内边距和 `16 px` 图文间距。MoreButton 是右上角独立行内操作，只允许标题区域为其保留必要安全区；作者、章节信息和 ProgressBar 使用完整文字列宽。
 
 页面最终宽度、Padding 和间距由页面拥有，不由这些最小合同替代。
 

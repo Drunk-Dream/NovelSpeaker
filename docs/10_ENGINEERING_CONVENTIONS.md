@@ -66,9 +66,12 @@
 - `App.Feedback.PopupSurface` 是 Popup/Flyout 唯一可见圆角 Surface；PopupWindow/Wpf.Ui Flyout host、Provider bridge 与外层 chrome 必须透明且无第二份方形背景/Effect。WPF `Popup` 是矩形原生窗口，因此 `App.Feedback.PopupSurface` 不直接使用 `DropShadowEffect`。其它 Popup 控件族若确需阴影，必须显式预留透明 shadow extent 后再绘制，并用真实 Popup host 的像素渲染证明四角不会产生矩形残影；禁止用 Opacity、Margin、遮罩等局部补丁掩盖宿主裁切问题。
 - 对原生 Popup、阴影、裁切、Slider Track/Thumb 等易产生“结构正确但像素错误”的 WPF 视觉问题，修复时先定位最终渲染 owner，再决定是否需要结构拆层。自动验收必须覆盖真实宿主或最终像素；仅验证 Style/Resource/VisualTree 属性不能作为关闭此类视觉缺陷的充分条件。
 - 页面 Padding、列宽、规则列表宽度、设置编辑控件宽度等布局值由 Shell、页面或复合组件中的唯一 owner 管理。
+- 只服务于单一 Feature 的响应式布局算法可以实现为 Feature 内部 Panel/布局组件。例如 Library 卡片列数与卡宽由 Library 自己的布局组件依据实际 viewport 计算；不得把 `300/360/16` 等页面专用尺寸提升为全局 Design Token，也不得让 ViewModel 返回 Width、Thickness 或其它 WPF 几何类型。
+- 响应式网格使用实际布局可用宽度作为输入，不根据主窗口宽度、NavigationView 展开状态或 DPI 建立彼此独立的硬编码断点表。窗口、导航栏、滚动条和 DPI 变化应通过同一 Measure/Arrange 计算自然收敛。
 - 页面不得复制通用 Trigger/VisualState，但可以保留真实页面专用的 Grid、Margin、MinWidth 和滚动结构。
 - ViewModel 不返回 Brush、Style、ControlTemplate、Thickness、CornerRadius 或其它 WPF 视觉类型。
 - UI 平台能力通过 presentation port/adapter 暴露给可测试代码。
+- Shell 的 Light/Dark 快捷入口属于全局 presentation 行为，不在 MainWindow code-behind 直接调用 Wpf.Ui 主题 API或单独写 settings 文件。它必须复用正式主题偏好服务，并通过主题 runtime 的“当前实际生效 Light/Dark”能力处理 System 状态；快捷入口只能持久化显式 Light/Dark，重新进入 System 仍由 Appearance 设置页负责。
 - 页面视觉变更按纵向切片执行：先确认已有公共资源是否足够；确有复用价值时在正确控件族中补齐公共资源和 Gallery fixture，再修改一个窗口或页面。不得因局部调整重新建立页面同义 Style 或把同类 Style 分散到多个字典。
 - WPF 自动测试默认不在用户当前 Desktop 显示窗口；无窗口布局/渲染使用 `WpfControlHost`，真实 Window/Popup 生命周期只通过共享 TestKit 宿主进入隔离 Desktop。可见调试只在用户明确授权后启用。
 
