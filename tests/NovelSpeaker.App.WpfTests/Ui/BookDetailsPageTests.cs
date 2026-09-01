@@ -25,7 +25,7 @@ using Xunit;
 namespace NovelSpeaker.App.WpfTests.Ui;
 
 [Collection("WpfDispatcher")]
-public sealed class BookDetailsPageTests
+public sealed partial class BookDetailsPageTests
 {
     private void BookDetailsPage_uses_short_cleanup_action_and_keeps_explicit_entity_delete()
     {

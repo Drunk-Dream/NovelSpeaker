@@ -87,7 +87,7 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 
 ## Phase B：真实页面视觉验收
 
-## [ ] T002（P0）：完成 FloatingIcon 的真实页面像素与可访问性验收
+## [x] T002（P0）：完成 FloatingIcon 的真实页面像素与可访问性验收
 
 依赖：T001。
 
@@ -117,6 +117,8 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 
 - 三个实际场景在 Light/Dark 下视觉一致，且符合 `docs/13_VISUAL_DESIGN_SYSTEM.md` 中 FloatingIcon 合同。
 - 不改变滚动定位、Visibility、Command、ToolTip 和 Automation 行为。
+
+完成成果：新增正式 Book Details/Player View 的隐藏窗口视觉回归，覆盖三个生产按钮场景在 Light/Dark 下的 Rest、Hover、Pressed、Keyboard Focus 最终位图、glyph 前景、命中区、按钮/图标中心和可访问性语义，并验证定位按钮的 Collapsed→Visible 可达状态。主题、焦点、窗口与内存位图均完成清理；真实页面测试通过 2/2，格式检查通过。
 
 ## Phase C：最终清理与质量门禁
 
