@@ -4,6 +4,7 @@ using NovelSpeaker.App.PresentationTests.TestDoubles;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shell.Navigation;
 using Xunit;
@@ -25,6 +26,64 @@ public sealed class MainWindowViewModelTests
     public async Task Main_window_navigation_contracts_use_the_current_playback_session()
     {
         await NavigateToNowPlayingCommand_uses_player_request_without_playback_control();
+    }
+
+    [Fact]
+    public async Task Theme_toggle_projection_tracks_effective_theme_and_executes_shell_toggle()
+    {
+        var themeService = new FakeThemeToggleService(AppTheme.Light);
+        var viewModel = new MainWindowViewModel(
+            new FakePlaybackCoordinator(PlaybackSnapshot.Idle),
+            new ShellActiveCacheController(
+                new FakeActiveCacheCoordinator(),
+                new FakeAppFeedbackService()),
+            CreateChapterExportProjection(),
+            new FakeNavigationService(),
+            themeToggleService: themeService,
+            feedbackService: new FakeAppFeedbackService());
+
+        Assert.Equal("切换到深色模式", viewModel.ThemeToggleText);
+        Assert.Equal(ThemeToggleVisualState.SwitchToDark, viewModel.ThemeToggleVisualState);
+
+        themeService.Publish(AppTheme.Dark);
+
+        Assert.Equal("切换到浅色模式", viewModel.ThemeToggleText);
+        Assert.Equal(ThemeToggleVisualState.SwitchToLight, viewModel.ThemeToggleVisualState);
+
+        await viewModel.ToggleLightDarkThemeCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, themeService.ToggleCount);
+        Assert.Equal(AppTheme.Light, themeService.EffectiveTheme);
+        Assert.Equal("切换到深色模式", viewModel.ThemeToggleText);
+    }
+
+    [Fact]
+    public async Task Theme_toggle_command_accepts_concurrent_clicks_while_first_operation_is_pending()
+    {
+        var themeService = new GatedThemeToggleService();
+        var viewModel = new MainWindowViewModel(
+            new FakePlaybackCoordinator(PlaybackSnapshot.Idle),
+            new ShellActiveCacheController(
+                new FakeActiveCacheCoordinator(),
+                new FakeAppFeedbackService()),
+            CreateChapterExportProjection(),
+            new FakeNavigationService(),
+            themeService,
+            new FakeAppFeedbackService());
+
+        var firstToggle = viewModel.ToggleLightDarkThemeCommand.ExecuteAsync(null);
+        await themeService.FirstStarted;
+
+        var secondToggle = viewModel.ToggleLightDarkThemeCommand.ExecuteAsync(null);
+        await themeService.SecondStarted;
+
+        Assert.True(viewModel.ToggleLightDarkThemeCommand.CanExecute(null));
+
+        themeService.CompleteFirst();
+        await Task.WhenAll(firstToggle, secondToggle);
+
+        Assert.Equal(2, themeService.ToggleCount);
+        Assert.Equal(AppTheme.Light, themeService.EffectiveTheme);
     }
 
     private void Active_cache_projection_is_process_scoped_and_unchanged_by_playback_updates()
@@ -65,7 +124,9 @@ public sealed class MainWindowViewModelTests
             playback,
             activeProjection,
             CreateChapterExportProjection(),
-            new FakeNavigationService());
+            new FakeNavigationService(),
+            new FakeThemeToggleService(AppTheme.Light),
+            new FakeAppFeedbackService());
 
         playback.Publish(new PlaybackSnapshot(
             PlaybackState.Paused,
@@ -205,7 +266,9 @@ public sealed class MainWindowViewModelTests
                 new FakeActiveCacheCoordinator(),
                 new FakeAppFeedbackService()),
             CreateChapterExportProjection(),
-            navigator);
+            navigator,
+            new FakeThemeToggleService(AppTheme.Light),
+            new FakeAppFeedbackService());
 
     private static ShellChapterExportController CreateChapterExportProjection() =>
         new(
@@ -240,6 +303,94 @@ public sealed class MainWindowViewModelTests
     private sealed class FakePresentationLauncher : IPresentationLauncher
     {
         public Task OpenAsync(string path, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeThemeToggleService(AppTheme effectiveTheme) : IThemeToggleService
+    {
+        public AppTheme EffectiveTheme { get; private set; } = effectiveTheme;
+
+        public int ToggleCount { get; private set; }
+
+        public event EventHandler? EffectiveThemeChanged;
+
+        public Task<ThemePreferenceChangeResult> ToggleLightDarkAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ToggleCount++;
+            EffectiveTheme = EffectiveTheme == AppTheme.Dark ? AppTheme.Light : AppTheme.Dark;
+            EffectiveThemeChanged?.Invoke(this, EventArgs.Empty);
+            return Task.FromResult(new ThemePreferenceChangeResult(
+                true,
+                false,
+                EffectiveTheme == AppTheme.Dark ? "Dark" : "Light"));
+        }
+
+        public void Publish(AppTheme theme)
+        {
+            EffectiveTheme = theme;
+            EffectiveThemeChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private sealed class GatedThemeToggleService : IThemeToggleService
+    {
+        private readonly SemaphoreSlim _toggleLock = new(1, 1);
+        private int _toggleCount;
+        private readonly TaskCompletionSource _firstStarted = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _secondStarted = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _firstCompletion = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public AppTheme EffectiveTheme { get; private set; } = AppTheme.Light;
+
+        public Task FirstStarted => _firstStarted.Task;
+
+        public Task SecondStarted => _secondStarted.Task;
+
+        public int ToggleCount => Volatile.Read(ref _toggleCount);
+
+        public event EventHandler? EffectiveThemeChanged;
+
+        public async Task<ThemePreferenceChangeResult> ToggleLightDarkAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var invocation = Interlocked.Increment(ref _toggleCount);
+            if (invocation == 1)
+            {
+                _firstStarted.TrySetResult();
+            }
+            else
+            {
+                _secondStarted.TrySetResult();
+            }
+
+            await _toggleLock.WaitAsync(cancellationToken);
+            try
+            {
+                if (invocation == 1)
+                {
+                    await _firstCompletion.Task.WaitAsync(cancellationToken);
+                }
+
+                EffectiveTheme = EffectiveTheme == AppTheme.Dark ? AppTheme.Light : AppTheme.Dark;
+                EffectiveThemeChanged?.Invoke(this, EventArgs.Empty);
+                return new ThemePreferenceChangeResult(
+                    true,
+                    false,
+                    EffectiveTheme == AppTheme.Dark ? "Dark" : "Light");
+            }
+            finally
+            {
+                _toggleLock.Release();
+            }
+        }
+
+        public void CompleteFirst()
+        {
+            _firstCompletion.TrySetResult();
+        }
     }
 
     private sealed class FakePlaybackCoordinator : IPlaybackSnapshotSource

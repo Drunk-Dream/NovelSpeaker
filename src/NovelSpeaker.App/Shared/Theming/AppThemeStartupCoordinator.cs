@@ -14,6 +14,8 @@ public sealed class AppThemeStartupCoordinator
         _themeRuntime = themeRuntime;
     }
 
+    public AppTheme EffectiveTheme => _themeRuntime.EffectiveTheme;
+
     public Task ApplyAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

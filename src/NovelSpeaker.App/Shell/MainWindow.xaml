@@ -112,6 +112,28 @@
                                    Text="{Binding NowPlayingStatus}" />
                     </StackPanel>
                 </ui:NavigationViewItem>
+                <ui:NavigationViewItem x:Name="ThemeToggleNavigationItem"
+                                       Style="{StaticResource App.Navigation.Entry}"
+                                       Content="{Binding ThemeToggleText}"
+                                       ToolTip="{Binding ThemeToggleText}"
+                                       AutomationProperties.Name="{Binding ThemeToggleText}"
+                                       Command="{Binding ToggleLightDarkThemeCommand}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon>
+                            <ui:SymbolIcon.Style>
+                                <Style TargetType="ui:SymbolIcon">
+                                    <Setter Property="Symbol" Value="WeatherMoon24" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ThemeToggleVisualState}"
+                                                     Value="{x:Static shell:ThemeToggleVisualState.SwitchToLight}">
+                                            <Setter Property="Symbol" Value="WeatherSunny24" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:SymbolIcon.Style>
+                        </ui:SymbolIcon>
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
             </ui:NavigationView.FooterMenuItems>
         </ui:NavigationView>
 

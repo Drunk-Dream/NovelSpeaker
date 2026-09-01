@@ -1000,7 +1000,9 @@ public sealed class MainWindowNavigationTests
                     chapterExportCoordinator ?? new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeChapterExportCoordinator(),
                     feedbackService,
                     new FakePresentationLauncher()),
-                navigationService),
+                navigationService,
+                new FakeThemeToggleService(AppTheme.Light),
+                feedbackService),
             feedbackService,
             activationCoordinator,
             layoutController,
@@ -1046,6 +1048,24 @@ public sealed class MainWindowNavigationTests
     private sealed class FakePresentationLauncher : IPresentationLauncher
     {
         public Task OpenAsync(string path, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeThemeToggleService(AppTheme effectiveTheme) : IThemeToggleService
+    {
+        public AppTheme EffectiveTheme { get; private set; } = effectiveTheme;
+
+        public event EventHandler? EffectiveThemeChanged;
+
+        public Task<ThemePreferenceChangeResult> ToggleLightDarkAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EffectiveTheme = EffectiveTheme == AppTheme.Dark ? AppTheme.Light : AppTheme.Dark;
+            EffectiveThemeChanged?.Invoke(this, EventArgs.Empty);
+            return Task.FromResult(new ThemePreferenceChangeResult(
+                true,
+                false,
+                EffectiveTheme == AppTheme.Dark ? "Dark" : "Light"));
+        }
     }
 
     private sealed class FakeNavigationService : INavigationService, IShellNavigationAdapter

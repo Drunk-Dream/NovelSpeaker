@@ -31,7 +31,11 @@ public static class SharedServiceCollectionExtensions
         services.TryAddSingleton<IBookCatalogInvalidationState, BookCatalogInvalidationState>();
         services.TryAddSingleton<IThemeRuntime, WpfUiThemeRuntime>();
         services.TryAddSingleton<AppThemeStartupCoordinator>();
-        services.TryAddSingleton<IThemePreferenceService, ThemePreferenceService>();
+        services.TryAddSingleton<ThemePreferenceService>();
+        services.TryAddSingleton<IThemePreferenceService>(provider =>
+            provider.GetRequiredService<ThemePreferenceService>());
+        services.TryAddSingleton<IThemeToggleService>(provider =>
+            provider.GetRequiredService<ThemePreferenceService>());
         services.TryAddSingleton<IFluentWindowAppearanceAdapter, FluentWindowAppearanceAdapter>();
         services.TryAddSingleton<IMainWindowAppearanceConfigurator, MainWindowAppearanceConfigurator>();
         return services;

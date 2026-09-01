@@ -5,6 +5,10 @@ namespace NovelSpeaker.App.Shared.Theming;
 
 public sealed class WpfUiThemeRuntime : IThemeRuntime
 {
+    public AppTheme EffectiveTheme => ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark
+        ? AppTheme.Dark
+        : AppTheme.Light;
+
     public void ApplySystemTheme()
     {
         InvokeOnUiThread(() =>

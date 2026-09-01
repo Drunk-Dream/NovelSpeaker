@@ -101,7 +101,9 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<LibraryScrollState>(provider.GetRequiredService<LibraryScrollState>());
                 Assert.IsAssignableFrom<ILibraryImportCoordinator>(provider.GetRequiredService<ILibraryImportCoordinator>());
                 Assert.IsAssignableFrom<IBookCatalogInvalidationState>(provider.GetRequiredService<IBookCatalogInvalidationState>());
-                Assert.IsAssignableFrom<IThemePreferenceService>(provider.GetRequiredService<IThemePreferenceService>());
+                var themePreferenceService = provider.GetRequiredService<IThemePreferenceService>();
+                Assert.IsAssignableFrom<ThemePreferenceService>(themePreferenceService);
+                Assert.Same(themePreferenceService, provider.GetRequiredService<IThemeToggleService>());
                 Assert.IsType<BookDetailsViewModel>(provider.GetRequiredService<BookDetailsViewModel>());
                 Assert.IsType<CacheAndDataViewModel>(provider.GetRequiredService<CacheAndDataViewModel>());
                 Assert.IsType<CacheManagementViewModel>(provider.GetRequiredService<CacheManagementViewModel>());

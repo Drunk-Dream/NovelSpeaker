@@ -36,6 +36,26 @@ public sealed class AppearanceSettingsViewModelTests
         Assert.Equal(settingsService.Current.Theme, viewModel.SelectedTheme);
     }
 
+    [Fact]
+    public async Task External_theme_change_updates_active_page_and_stops_after_deactivation()
+    {
+        var settingsService = new FakeAppSettingsService(AppSettings.Default);
+        var viewModel = CreateViewModel(settingsService, new GatedThemePreferenceService());
+        using var activationController = new PageActivationController();
+        var activation = activationController.Activate();
+        viewModel.Activate(activation);
+        await viewModel.LoadAsync(activation.CancellationToken);
+
+        settingsService.PublishTheme("Dark");
+
+        Assert.Equal("Dark", viewModel.SelectedTheme);
+
+        viewModel.Deactivate();
+        settingsService.PublishTheme("Light");
+
+        Assert.Equal("Dark", viewModel.SelectedTheme);
+    }
+
     private static AppearanceSettingsViewModel CreateViewModel(
         FakeAppSettingsService settingsService,
         IThemePreferenceService themePreferenceService)
@@ -54,11 +74,24 @@ public sealed class AppearanceSettingsViewModelTests
             CurrentSettings = currentSettings.Normalize();
         }
 
-        public AppSettings CurrentSettings { get; }
+        public AppSettings CurrentSettings { get; private set; }
         public AppSettings Current => CurrentSettings;
-        public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed;
 
-        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) => Task.FromResult(CurrentSettings);
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
+        {
+            var previous = CurrentSettings;
+            CurrentSettings = previous with { Theme = update.Theme ?? previous.Theme };
+            Changed?.Invoke(this, new AppSettingsChangedEventArgs(previous, CurrentSettings));
+            return Task.FromResult(CurrentSettings);
+        }
+
+        public void PublishTheme(string theme)
+        {
+            var previous = CurrentSettings;
+            CurrentSettings = previous with { Theme = theme };
+            Changed?.Invoke(this, new AppSettingsChangedEventArgs(previous, CurrentSettings));
+        }
     }
 
     private sealed class GatedThemePreferenceService : IThemePreferenceService

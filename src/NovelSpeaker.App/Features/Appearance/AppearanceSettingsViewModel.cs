@@ -1,9 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Feedback;
-using NovelSpeaker.App.Shell.Navigation;
-using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.App.Features.Settings;
+using NovelSpeaker.App.Shared.Presentation.Platform;
+using NovelSpeaker.App.Shared.Theming;
+using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.App.Features.Appearance;
@@ -12,19 +13,23 @@ public sealed partial class AppearanceSettingsViewModel : SettingsSubpageViewMod
 {
     private readonly IAppSettingsService _settingsService;
     private readonly IThemePreferenceService _themePreferenceService;
+    private readonly IUiScheduler _uiScheduler;
     private bool _isLoading;
     private bool _isUpdatingThemeSelection;
+    private bool _settingsSubscriptionActive;
     private int _themeSelectionVersion;
 
     public AppearanceSettingsViewModel(
         IAppSettingsService settingsService,
         IThemePreferenceService themePreferenceService,
         IAppNavigator navigator,
-        IAppFeedbackService feedbackService)
+        IAppFeedbackService feedbackService,
+        IUiScheduler? uiScheduler = null)
         : base(navigator, feedbackService)
     {
         _settingsService = settingsService;
         _themePreferenceService = themePreferenceService;
+        _uiScheduler = uiScheduler ?? new WpfUiScheduler();
     }
 
     public IReadOnlyList<string> AvailableThemes => AppSettings.SupportedThemes;
@@ -35,6 +40,7 @@ public sealed partial class AppearanceSettingsViewModel : SettingsSubpageViewMod
     public override async Task LoadAsync(CancellationToken cancellationToken)
     {
         Activate(cancellationToken);
+        SubscribeToSettingsChanges();
         _isLoading = true;
         try
         {
@@ -46,6 +52,17 @@ public sealed partial class AppearanceSettingsViewModel : SettingsSubpageViewMod
         {
             _isLoading = false;
         }
+    }
+
+    public override void Deactivate()
+    {
+        if (_settingsSubscriptionActive)
+        {
+            _settingsService.Changed -= OnSettingsChanged;
+            _settingsSubscriptionActive = false;
+        }
+
+        base.Deactivate();
     }
 
     partial void OnSelectedThemeChanged(string value)
@@ -105,7 +122,57 @@ public sealed partial class AppearanceSettingsViewModel : SettingsSubpageViewMod
     private void SetSelectedThemeWithoutApplying(string theme)
     {
         _isUpdatingThemeSelection = true;
-        SelectedTheme = theme;
-        _isUpdatingThemeSelection = false;
+        try
+        {
+            SelectedTheme = theme;
+        }
+        finally
+        {
+            _isUpdatingThemeSelection = false;
+        }
+    }
+
+    private void SubscribeToSettingsChanges()
+    {
+        if (_settingsSubscriptionActive)
+        {
+            return;
+        }
+
+        _settingsService.Changed += OnSettingsChanged;
+        _settingsSubscriptionActive = true;
+    }
+
+    private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs args)
+    {
+        if (string.Equals(args.Previous.Theme, args.Current.Theme, StringComparison.OrdinalIgnoreCase) ||
+            ActivationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var theme = args.Current.Theme;
+        var activationToken = ActivationToken;
+        if (_uiScheduler.CheckAccess())
+        {
+            if (IsCurrentActivation(activationToken))
+            {
+                SetSelectedThemeWithoutApplying(theme);
+            }
+
+            return;
+        }
+
+        RunPageOperation(
+            "主题同步失败",
+            cancellationToken => _uiScheduler.InvokeAsync(
+                () =>
+                {
+                    if (IsCurrentActivation(activationToken))
+                    {
+                        SetSelectedThemeWithoutApplying(theme);
+                    }
+                },
+                cancellationToken));
     }
 }

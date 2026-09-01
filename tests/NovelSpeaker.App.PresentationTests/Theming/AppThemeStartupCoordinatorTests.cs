@@ -60,16 +60,30 @@ public sealed class AppThemeStartupCoordinatorTests
 
     private sealed class FakeThemeRuntime : IThemeRuntime
     {
+        public AppTheme EffectiveTheme { get; private set; } = AppTheme.Light;
+
         public int SystemCalls { get; private set; }
 
         public int LightCalls { get; private set; }
 
         public int DarkCalls { get; private set; }
 
-        public void ApplySystemTheme() => SystemCalls++;
+        public void ApplySystemTheme()
+        {
+            SystemCalls++;
+            EffectiveTheme = AppTheme.Light;
+        }
 
-        public void ApplyLightTheme() => LightCalls++;
+        public void ApplyLightTheme()
+        {
+            LightCalls++;
+            EffectiveTheme = AppTheme.Light;
+        }
 
-        public void ApplyDarkTheme() => DarkCalls++;
+        public void ApplyDarkTheme()
+        {
+            DarkCalls++;
+            EffectiveTheme = AppTheme.Dark;
+        }
     }
 }
