@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Input;
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.App.Shared.Theming;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 
@@ -25,6 +26,10 @@ public static class ShellServiceCollectionExtensions
         services.TryAddSingleton<IShellLayoutController, ShellLayoutController>();
         services.TryAddSingleton<ShellActiveCacheController>();
         services.TryAddSingleton<ShellChapterExportController>();
+        services.TryAddSingleton<IThemePreferenceService>(provider =>
+            provider.GetRequiredService<ThemePreferenceService>());
+        services.TryAddSingleton<IThemeToggleService>(provider =>
+            provider.GetRequiredService<ThemePreferenceService>());
         services.TryAddSingleton<MainWindowViewModel>();
         services.TryAddSingleton<MainWindow>();
         return services;
