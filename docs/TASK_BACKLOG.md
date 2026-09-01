@@ -122,7 +122,7 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 
 ## Phase C：最终清理与质量门禁
 
-## [ ] T003（P0）：清理旧 Floating 资源并完成最终质量门禁
+## [x] T003（P0）：清理旧 Floating 资源并完成最终质量门禁
 
 依赖：T001、T002。
 
@@ -157,3 +157,5 @@ dotnet test -c Release --no-build
 - 旧 Floating 双 owner 资源与调用模式不存在。
 - FloatingIcon 的主题、最终像素、Focus、Automation 和命中区合同均有稳定自动回归证据。
 - 没有截图、截图脚本、manifest、临时 fixture、VisualTree dump 或诊断目录残留。
+
+完成成果：补强调用方静态审计，覆盖生产/Gallery XAML 与源代码中的旧资源键、页面级视觉属性元素及嵌套 Setter/Trigger，并修正 Player 返回按钮测试对本地 Visibility 样式的 BasedOn 合同。完整门禁通过：restore、format、Release build（0 警告/0 错误）及全量测试（851/851，通过）；未发现本任务新增视觉或诊断产物。

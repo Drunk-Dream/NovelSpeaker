@@ -366,7 +366,7 @@ public sealed partial class PlayerViewTests
             Assert.Equal(Visibility.Visible, returnButton.Visibility);
             Assert.Equal("返回当前段落", returnButton.ToolTip);
             Assert.Equal("返回当前段落", AutomationProperties.GetName(returnButton));
-            Assert.Same(view.FindResource("App.Button.FloatingIcon"), returnButton.Style);
+            Assert.Same(view.FindResource("App.Button.FloatingIcon"), returnButton.Style.BasedOn);
             Assert.Equal(44, returnButton.Width);
             Assert.Equal(44, returnButton.Height);
             Assert.Equal(new CornerRadius(999), returnButton.CornerRadius);

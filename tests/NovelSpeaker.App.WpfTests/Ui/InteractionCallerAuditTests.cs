@@ -19,8 +19,37 @@ public sealed class InteractionCallerAuditTests
             .Where(path => !path.Contains(
                 Path.Combine("Shared", "Theming", "Palettes"),
                 StringComparison.OrdinalIgnoreCase))
+            .Where(path => !IsGeneratedPath(path))
             .ToArray();
-        var callerXaml = allProductionXaml
+        var galleryRoot = Path.Combine(repositoryRoot, "tools", "NovelSpeaker.StyleGallery");
+        var allGalleryXaml = Directory.EnumerateFiles(galleryRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => !IsGeneratedPath(path))
+            .ToArray();
+        var allInteractionXaml = allProductionXaml
+            .Concat(allGalleryXaml)
+            .ToArray();
+        var auditedSourceFiles = new[]
+            {
+                Path.Combine(repositoryRoot, "src"),
+                Path.Combine(repositoryRoot, "tools"),
+                Path.Combine(repositoryRoot, "tests")
+            }
+            .SelectMany(root => Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories))
+            .Where(path => path.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase) ||
+                           path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            .Where(path => !IsGeneratedPath(path))
+            .ToArray();
+        var retiredFloatingReferences = auditedSourceFiles
+            .Where(path =>
+            {
+                var content = File.ReadAllText(path);
+                return ContainsResourceKey(content, "App.Button." + "Floating") ||
+                       ContainsResourceKey(content, "App.Surface." + "FloatingAction");
+            })
+            .Select(path => Path.GetRelativePath(repositoryRoot, path))
+            .ToArray();
+        Assert.Empty(retiredFloatingReferences);
+        var callerXaml = allInteractionXaml
             .Where(path => !path.Contains(
                 Path.Combine("Shared", "Theming"),
                 StringComparison.OrdinalIgnoreCase))
@@ -30,7 +59,7 @@ public sealed class InteractionCallerAuditTests
                 Path.Combine("Shared", "Theming", "Resources", "ControlThemes"),
                 StringComparison.OrdinalIgnoreCase))
             .ToArray();
-        var styleDefinitions = allProductionXaml
+        var styleDefinitions = allInteractionXaml
             .SelectMany(path => XDocument.Load(path).Descendants())
             .Where(element => element.Name.LocalName == "Style")
             .Where(element => element.Attribute(XamlNamespace + "Key") is not null)
@@ -39,10 +68,11 @@ public sealed class InteractionCallerAuditTests
                 element => new StyleDefinition(
                     (string)element.Attribute(XamlNamespace + "Key")!,
                     (string?)element.Attribute("BasedOn"),
-                    (string?)element.Attribute("TargetType")),
+                    (string?)element.Attribute("TargetType"),
+                    element),
                 StringComparer.Ordinal);
 
-        var invalidColorValues = allProductionXaml
+        var invalidColorValues = allInteractionXaml
             .SelectMany(path => XDocument.Load(path).Descendants()
                 .SelectMany(element => element.Attributes()
                     .Select(attribute => new { Path = path, Element = element, Attribute = attribute })))
@@ -82,7 +112,7 @@ public sealed class InteractionCallerAuditTests
             }
         }
 
-        var selectionOwners = allProductionXaml
+        var selectionOwners = allInteractionXaml
             .SelectMany(path => XDocument.Load(path).Descendants())
             .Where(element => IsSelectionSurfaceStyle(
                 StyleReference(element),
@@ -106,21 +136,18 @@ public sealed class InteractionCallerAuditTests
                 $"App.Button.InteractionHost, but was " +
                 $"'{StyleReference(button) ?? "<none>"}'."));
 
-        var floatingButtons = allProductionXaml
+        var floatingButtons = allInteractionXaml
             .SelectMany(path => XDocument.Load(path).Descendants()
                 .Where(element => element.Name.LocalName == "Button")
                 .Select(button => new { Path = path, Button = button }))
-            .Where(item => IsFloatingIconButtonStyle(StyleReference(item.Button), styleDefinitions))
+            .Where(item => IsFloatingIconButtonStyle(item.Button, styleDefinitions))
             .ToArray();
         Assert.Equal(3, floatingButtons.Length);
         Assert.All(
             floatingButtons,
             item =>
             {
-                Assert.DoesNotContain(item.Button.Descendants(), element => element.Name.LocalName == "Border");
-                Assert.True(
-                    item.Button.Attribute("Icon") is not null ||
-                    item.Button.Elements().Any(element => element.Name.LocalName == "Button.Icon"));
+                AssertFloatingIconCallerContract(item.Button, styleDefinitions);
             });
 
         var rulesPath = Path.Combine(
@@ -171,8 +198,16 @@ public sealed class InteractionCallerAuditTests
             .Where(path => !path.Contains(
                 Path.Combine("Shared", "Theming", "Palettes"),
                 StringComparison.OrdinalIgnoreCase))
+            .Where(path => !IsGeneratedPath(path))
             .ToArray();
-        var callerXaml = productionXaml
+        var galleryXaml = Directory.EnumerateFiles(
+                Path.Combine(repositoryRoot, "tools", "NovelSpeaker.StyleGallery"),
+                "*.xaml",
+                SearchOption.AllDirectories)
+            .Where(path => !IsGeneratedPath(path))
+            .ToArray();
+        var interactionXaml = productionXaml.Concat(galleryXaml).ToArray();
+        var callerXaml = interactionXaml
             .Where(path => !path.Contains(
                 Path.Combine("Shared", "Theming"),
                 StringComparison.OrdinalIgnoreCase))
@@ -182,7 +217,7 @@ public sealed class InteractionCallerAuditTests
                 Path.Combine("Shared", "Theming", "Resources", "Styles", "Selection.xaml"),
                 StringComparison.OrdinalIgnoreCase))
             .ToArray();
-        var styleDefinitions = productionXaml
+        var styleDefinitions = interactionXaml
             .SelectMany(path => XDocument.Load(path).Descendants())
             .Where(element => element.Name.LocalName == "Style")
             .Where(element => element.Attribute(XamlNamespace + "Key") is not null)
@@ -191,7 +226,8 @@ public sealed class InteractionCallerAuditTests
                 element => new StyleDefinition(
                     (string)element.Attribute(XamlNamespace + "Key")!,
                     (string?)element.Attribute("BasedOn"),
-                    (string?)element.Attribute("TargetType")),
+                    (string?)element.Attribute("TargetType"),
+                    element),
                 StringComparer.Ordinal);
 
         foreach (var path in productionXaml)
@@ -237,10 +273,10 @@ public sealed class InteractionCallerAuditTests
             .ToArray();
         Assert.Empty(duplicatedContainerTemplates);
 
-        var floatingButtons = productionXaml
+        var floatingButtons = interactionXaml
             .SelectMany(path => XDocument.Load(path).Descendants()
                 .Where(element => element.Name.LocalName == "Button")
-                .Where(element => IsFloatingIconButtonStyle(StyleReference(element), styleDefinitions))
+                .Where(element => IsFloatingIconButtonStyle(element, styleDefinitions))
                 .Select(button => (
                     Path: Path.GetRelativePath(repositoryRoot, path),
                     Name: (string?)button.Attribute(XamlNamespace + "Name"),
@@ -262,12 +298,131 @@ public sealed class InteractionCallerAuditTests
             floatingButtons,
             item =>
             {
-                Assert.DoesNotContain(item.Button.Descendants(), element => element.Name.LocalName == "Border");
-                Assert.True(
-                    item.Button.Attribute("Icon") is not null ||
-                    item.Button.Elements().Any(element => element.Name.LocalName == "Button.Icon"));
+                AssertFloatingIconCallerContract(item.Button, styleDefinitions);
             });
     }
+
+    private static void AssertFloatingIconCallerContract(
+        XElement button,
+        IReadOnlyDictionary<string, StyleDefinition> styleDefinitions)
+    {
+        Assert.DoesNotContain(
+            button.DescendantsAndSelf(),
+            element => element.Name.LocalName == "Border");
+        Assert.DoesNotContain(
+            button.DescendantsAndSelf().SelectMany(element => element.Attributes()),
+            attribute => IsFloatingVisualProperty(attribute.Name.LocalName));
+        Assert.DoesNotContain(
+            button.DescendantsAndSelf(),
+            IsFloatingVisualDeclaration);
+        Assert.DoesNotContain(
+            GetFloatingCallerStyles(button, styleDefinitions),
+            style => style.Element.DescendantsAndSelf().Any(element =>
+                element.Name.LocalName == "Border" ||
+                IsFloatingVisualDeclaration(element) ||
+                element.Attributes().Any(attribute => IsFloatingVisualProperty(attribute.Name.LocalName))));
+        Assert.True(
+            button.Attribute("Icon") is not null ||
+            button.Elements().Any(element => element.Name.LocalName == "Button.Icon"));
+    }
+
+    private static IEnumerable<StyleDefinition> GetFloatingCallerStyles(
+        XElement button,
+        IReadOnlyDictionary<string, StyleDefinition> styleDefinitions)
+    {
+        foreach (var style in GetElementStyleChain(button, styleDefinitions))
+        {
+            if (style.Key == "App.Button.FloatingIcon")
+            {
+                yield break;
+            }
+
+            yield return style;
+        }
+    }
+
+    private static IReadOnlyList<StyleDefinition> GetElementStyleChain(
+        XElement element,
+        IReadOnlyDictionary<string, StyleDefinition> styleDefinitions)
+    {
+        var styles = new List<StyleDefinition>();
+        var inlineStyle = element.Elements()
+            .SingleOrDefault(element => element.Name.LocalName.EndsWith(
+                ".Style",
+                StringComparison.Ordinal))
+            ?.Elements()
+            .SingleOrDefault(element => element.Name.LocalName == "Style");
+        if (inlineStyle is not null)
+        {
+            styles.Add(new StyleDefinition(
+                "<inline>",
+                (string?)inlineStyle.Attribute("BasedOn"),
+                (string?)inlineStyle.Attribute("TargetType"),
+                inlineStyle));
+            styles.AddRange(GetStyleKeyChain(
+                (string?)inlineStyle.Attribute("BasedOn"),
+                styleDefinitions));
+            return styles;
+        }
+
+        styles.AddRange(GetStyleKeyChain(StyleReference(element), styleDefinitions));
+        return styles;
+    }
+
+    private static bool IsFloatingVisualProperty(string? propertyName)
+    {
+        if (propertyName is null)
+        {
+            return false;
+        }
+
+        var localPropertyName = propertyName[(propertyName.LastIndexOf('.') + 1)..];
+        return localPropertyName is
+            "Background" or "MouseOverBackground" or "PressedBackground" or
+            "BorderBrush" or "MouseOverBorderBrush" or "PressedBorderBrush" or
+            "BorderThickness" or "Foreground" or "PressedForeground" or
+            "Effect" or "FocusVisualStyle";
+    }
+
+    private static bool IsFloatingVisualDeclaration(XElement element) =>
+        IsFloatingVisualProperty(element.Name.LocalName) ||
+        (element.Name.LocalName == "Setter" &&
+         IsFloatingVisualProperty((string?)element.Attribute("Property")));
+
+    private static bool ContainsResourceKey(string content, string key)
+    {
+        var searchStart = 0;
+        while (searchStart < content.Length)
+        {
+            var index = content.IndexOf(key, searchStart, StringComparison.Ordinal);
+            if (index < 0)
+            {
+                return false;
+            }
+
+            var hasValidPrefix = index == 0 || !IsResourceKeyCharacter(content[index - 1]);
+            var end = index + key.Length;
+            var hasValidSuffix = end == content.Length || !IsResourceKeyCharacter(content[end]);
+            if (hasValidPrefix && hasValidSuffix)
+            {
+                return true;
+            }
+
+            searchStart = end;
+        }
+
+        return false;
+    }
+
+    private static bool IsResourceKeyCharacter(char character) =>
+        char.IsLetterOrDigit(character) || character is '.' or '_';
+
+    private static bool IsGeneratedPath(string path) =>
+        path.Split(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar,
+                StringSplitOptions.RemoveEmptyEntries)
+            .Any(segment => segment is "bin" or "obj" or "TestResults");
 
     private static bool IsListBoxItemTargetType(string? targetType) =>
         targetType is "ListBoxItem" or "{x:Type ListBoxItem}";
@@ -336,9 +491,9 @@ public sealed class InteractionCallerAuditTests
                               !definition.Key.StartsWith("App.Selection.Content.", StringComparison.Ordinal));
 
     private static bool IsFloatingIconButtonStyle(
-        string? styleReference,
+        XElement element,
         IReadOnlyDictionary<string, StyleDefinition> styleDefinitions) =>
-        GetStyleKeyChain(styleReference, styleDefinitions)
+        GetElementStyleChain(element, styleDefinitions)
             .Any(definition => definition.Key == "App.Button.FloatingIcon");
 
     private static bool IsInteractionHostStyle(
@@ -392,7 +547,11 @@ public sealed class InteractionCallerAuditTests
         return resourceReference[prefix.Length..^1];
     }
 
-    private sealed record StyleDefinition(string Key, string? BasedOn, string? TargetType);
+    private sealed record StyleDefinition(
+        string Key,
+        string? BasedOn,
+        string? TargetType,
+        XElement Element);
 
     private static string LocateRepositoryRoot()
     {
