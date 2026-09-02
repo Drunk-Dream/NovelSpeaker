@@ -3,7 +3,6 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -152,20 +151,7 @@ internal sealed class FloatingIconVisualHost : IDisposable
 
     internal static FloatingIconVisualHost Show(FrameworkElement content, Size size)
     {
-        FrameworkElement root;
-        if (content is Page)
-        {
-            root = content;
-        }
-        else
-        {
-            root = new AdornerDecorator
-            {
-                Width = size.Width,
-                Height = size.Height,
-                Child = content
-            };
-        }
+        FrameworkElement root = content;
         var window = new Window
         {
             Content = root,
