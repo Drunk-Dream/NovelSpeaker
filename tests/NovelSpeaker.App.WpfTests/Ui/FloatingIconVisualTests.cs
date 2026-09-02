@@ -313,10 +313,14 @@ internal static class FloatingIconVisualAssertions
     {
         var inner = new Rect(bounds.Left + 6, bounds.Top + 6, bounds.Width - 12, bounds.Height - 12);
         var matchingPixels = Count(bitmap, inner, expected);
+        var centerPixel = ReadPixel(
+            bitmap,
+            new Point(bounds.Left + bounds.Width / 2, bounds.Top + bounds.Height / 2));
         Assert.True(
             matchingPixels >= 20,
             $"{scene} 未在最终像素中呈现足够的预期 Surface {expected}，" +
-            $"匹配像素={matchingPixels}，bounds={bounds}，bitmap={bitmap.PixelWidth}x{bitmap.PixelHeight}。");
+            $"匹配像素={matchingPixels}，中心像素={centerPixel}，bounds={bounds}，" +
+            $"bitmap={bitmap.PixelWidth}x{bitmap.PixelHeight}。");
         Assert.Equal(0, Count(bitmap, inner, unexpectedHover));
         Assert.Equal(0, Count(bitmap, inner, unexpectedPressed));
     }
