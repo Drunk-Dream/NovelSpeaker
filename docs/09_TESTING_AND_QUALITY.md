@@ -214,14 +214,6 @@ dotnet test -c Release --no-build
 
 默认门禁不得设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`。
 
-涉及发布内容时额外执行 self-contained `win-x64` publish 和自动包内容检查，确保：
-
-- 主程序以 `NovelSpeaker.exe` 输出，且不存在旧 `NovelSpeaker.App.exe`。
-- 许可证和第三方声明存在。
-- Windows Media Foundation MP3 编码所需的 NAudio runtime assemblies 存在。
-- 发布包不预置 `app.db`、`settings.json`、Books、Cache、Operations、Logs 或其它用户数据；正式运行按需创建同级 `Data/`。
-- 不包含测试程序集、TestAssets、损坏音频 fixture、Style Gallery 或临时文件。
-
 ## 10. Backlog 任务验收
 
 每个任务至少定义：
