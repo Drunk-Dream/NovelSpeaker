@@ -5,7 +5,7 @@ namespace NovelSpeaker.App.Features.Library;
 
 /// <summary>
 /// Arranges library cards in equal-width responsive columns while keeping cards
-/// within a readable width range and centering the bounded grid as a whole.
+/// within a readable width range from the content area's left edge.
 /// </summary>
 public sealed class LibraryResponsivePanel : Panel
 {
@@ -103,7 +103,6 @@ public sealed class LibraryResponsivePanel : Panel
         }
 
         var layout = CalculateLayout(Math.Max(0d, finalSize.Width), InternalChildren.Count);
-        var startX = Math.Max(0d, (finalSize.Width - layout.GroupWidth) / 2d);
         var y = 0d;
 
         for (var rowStart = 0; rowStart < InternalChildren.Count; rowStart += layout.Columns)
@@ -118,7 +117,7 @@ public sealed class LibraryResponsivePanel : Panel
             for (var index = rowStart; index < rowEnd; index++)
             {
                 var column = index - rowStart;
-                var x = startX + (column * (layout.ItemWidth + HorizontalSpacing));
+                var x = column * (layout.ItemWidth + HorizontalSpacing);
                 InternalChildren[index].Arrange(new Rect(x, y, layout.ItemWidth, rowHeight));
             }
 

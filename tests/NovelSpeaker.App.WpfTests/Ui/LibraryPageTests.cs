@@ -32,6 +32,33 @@ public sealed partial class LibraryPageTests
         Library_visual_review_generates_stable_page_screenshots();
     }
 
+    [Fact]
+    public void Library_page_keeps_the_first_card_on_the_left_baseline_for_single_and_bounded_grids()
+    {
+        foreach (var bookCount in new[] { 1, 6 })
+        {
+            WpfTestHost.RunInSta(() =>
+            {
+                var view = new LibraryPage { DataContext = CreateContext(bookCount) };
+                using var host = new WpfControlHost(view);
+                host.MeasureArrange(new Size(1280, 760));
+
+                var items = Assert.IsType<ItemsControl>(view.FindName("BooksItemsControl"));
+                var panel = Assert.IsType<LibraryResponsivePanel>(
+                    VisualTreeTestHelper.FindDescendant<LibraryResponsivePanel>(items));
+
+                var firstOrigin = panel.Children[0].TranslatePoint(new Point(), panel);
+                Assert.InRange(Math.Abs(firstOrigin.X), 0d, 1d);
+
+                if (bookCount == 6)
+                {
+                    var secondRowFirstOrigin = panel.Children[3].TranslatePoint(new Point(), panel);
+                    Assert.InRange(Math.Abs(secondRowFirstOrigin.X), 0d, 1d);
+                }
+            });
+        }
+    }
+
     private void LibraryPage_uses_internal_scroll_books_area_and_search_clear_icon()
     {
         WpfTestHost.RunInSta(() =>
@@ -226,6 +253,12 @@ public sealed partial class LibraryPageTests
                 Math.Abs(currentOrigin.X - previousOrigin.X - firstRow[index - 1].ActualWidth - 16d),
                 0d,
                 1d);
+        }
+
+        for (var index = 0; index < panel.Children.Count; index += columns)
+        {
+            var rowFirstOrigin = panel.Children[index].TranslatePoint(new Point(), panel);
+            Assert.InRange(Math.Abs(rowFirstOrigin.X), 0d, 1d);
         }
 
         Assert.All(

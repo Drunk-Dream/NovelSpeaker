@@ -11,14 +11,14 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed class LibraryResponsivePanelTests
 {
     [Fact]
-    public void Responsive_panel_keeps_cards_within_bounds_and_centers_the_bounded_grid()
+    public void Responsive_panel_keeps_cards_within_bounds_and_left_aligns_the_bounded_grid()
     {
         foreach (var scenario in new[]
                  {
-                     new LayoutScenario(632d, 2, 308d, 0d),
-                     new LayoutScenario(1012d, 3, 326.6667d, 0d),
-                     new LayoutScenario(1172d, 3, 360d, 30d),
-                     new LayoutScenario(1248d, 4, 300d, 0d)
+                     new LayoutScenario(632d, 2, 308d),
+                     new LayoutScenario(1012d, 3, 326.6667d),
+                     new LayoutScenario(1172d, 3, 360d),
+                     new LayoutScenario(1248d, 4, 300d)
                  })
         {
             WpfTestHost.RunInSta(() =>
@@ -36,15 +36,43 @@ public sealed class LibraryResponsivePanelTests
                 var nextRowOrigin = nextRow.TranslatePoint(new Point(), panel);
 
                 Assert.InRange(Math.Abs(first.ActualWidth - scenario.ItemWidth), 0d, 0.5d);
-                Assert.InRange(Math.Abs(firstOrigin.X - scenario.StartX), 0d, 0.5d);
+                Assert.InRange(Math.Abs(firstOrigin.X), 0d, 0.5d);
                 Assert.InRange(
-                    Math.Abs(secondOrigin.X - (scenario.StartX + scenario.ItemWidth + 16d)),
+                    Math.Abs(secondOrigin.X - (scenario.ItemWidth + 16d)),
                     0d,
                     0.5d);
-                Assert.InRange(Math.Abs(nextRowOrigin.X - scenario.StartX), 0d, 0.5d);
+                Assert.InRange(Math.Abs(nextRowOrigin.X), 0d, 0.5d);
                 Assert.InRange(Math.Abs(nextRowOrigin.Y - 156d), 0d, 0.5d);
             });
         }
+    }
+
+    [Fact]
+    public void Responsive_panel_keeps_an_incomplete_last_row_on_the_same_left_grid_baseline()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            const double availableWidth = 1172d;
+            var panel = CreatePanel(5);
+            panel.Measure(new Size(availableWidth, 1000));
+            panel.Arrange(new Rect(0, 0, availableWidth, panel.DesiredSize.Height));
+            panel.UpdateLayout();
+
+            var firstRowLastCard = Assert.IsType<Border>(panel.Children[2]);
+            var lastRowFirstCard = Assert.IsType<Border>(panel.Children[3]);
+            var lastRowSecondCard = Assert.IsType<Border>(panel.Children[4]);
+            var firstRowLastOrigin = firstRowLastCard.TranslatePoint(new Point(), panel);
+            var lastRowFirstOrigin = lastRowFirstCard.TranslatePoint(new Point(), panel);
+            var lastRowSecondOrigin = lastRowSecondCard.TranslatePoint(new Point(), panel);
+
+            Assert.InRange(Math.Abs(firstRowLastOrigin.X - (2d * (360d + 16d))), 0d, 0.5d);
+            Assert.InRange(Math.Abs(lastRowFirstOrigin.X), 0d, 0.5d);
+            Assert.InRange(Math.Abs(lastRowSecondOrigin.X - (360d + 16d)), 0d, 0.5d);
+            Assert.InRange(
+                Math.Abs(availableWidth - firstRowLastOrigin.X - firstRowLastCard.ActualWidth - 60d),
+                0d,
+                0.5d);
+        });
     }
 
     [Fact]
@@ -122,5 +150,5 @@ public sealed class LibraryResponsivePanelTests
         throw new DirectoryNotFoundException("Could not locate repository root.");
     }
 
-    private sealed record LayoutScenario(double AvailableWidth, int Columns, double ItemWidth, double StartX);
+    private sealed record LayoutScenario(double AvailableWidth, int Columns, double ItemWidth);
 }

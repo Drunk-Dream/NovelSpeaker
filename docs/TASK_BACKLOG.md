@@ -243,3 +243,60 @@ dotnet test -c Release --no-build
 - 临时补丁与视觉验收副产物已清理，正式修改已经提交，工作树干净。
 
 完成成果：已应用并验收 `core.patch`；Library 采用实际 viewport 驱动的 `300–360 px / 16 px` 响应式网格，BookCard 仅在标题安全区避让 MoreButton；Shell Footer 提供基于实际生效主题的 Light/Dark 显式切换，System 仍由 Appearance 设置页负责。补回滚/失败/取消、迟到请求、外部设置同步、页面激活订阅、并发点击及 WPF Footer/布局/DI 契约测试，并修复了补丁中的主题通知、设置页同步、并发命令取消和 DI 边界问题。`dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、Release 全量 build（0 警告/0 错误）及全量测试（865/865，通过）均通过；临时 `core.patch` 已清理且未进入提交。
+
+## Phase E：书库最大卡宽后的左对齐收口
+
+## [x] T005（P0）：将响应式书架从 bounded-grid 居中改为稳定左对齐并提交
+
+依赖：T004 已完成。
+
+目标：
+
+- 保留现有 `300–360 px / 16 px / viewport-driven` 响应式算法。
+- 修复卡片达到最大宽度后整组居中导致的视觉问题，使书架始终从页面内容左侧基线开始。
+- 保证单本书、少量书籍、完整多列和最后一行不足列数时都具有稳定的第一列位置。
+
+实施：
+
+1. 修改 `LibraryResponsivePanel.ArrangeOverride`：
+   - 第一列起点固定为 `0`。
+   - 删除 `(finalSize.Width - layout.GroupWidth) / 2` 一类 bounded-grid 居中计算。
+   - 卡宽仍由现有 `CalculateLayout` 决定；达到 `MaxItemWidth=360` 后右侧自然保留剩余空间。
+   - 每一行使用相同列坐标；最后一行不得根据剩余 item 数量重新居中。
+2. 检查 `CalculateLayout`：
+   - `MinItemWidth=300`、`MaxItemWidth=360`、`HorizontalSpacing=16`、`VerticalSpacing=16` 保持不变。
+   - 列数仍按实际 available width 计算。
+   - viewport `<300` 时的单列收缩行为保持不变。
+3. 更新 `LibraryResponsivePanelTests`：
+   - 将现有 `centers_the_bounded_grid` 合同改为左对齐合同。
+   - `1172 px / 3 列 / 360 px` 场景第一列必须为 `X=0`，右侧保留约 `60 px`。
+   - 保留 `632 px → 2 × 308`、`1012 px → 3 × ~326.67`、`1248 px → 4 × 300` 等已有响应式场景。
+   - 增加或明确验证最后一行不足完整列数仍为 `X=0`，相邻列间距保持 `16 px`。
+   - 极窄 `280 px` 场景继续证明无横向溢出。
+4. 检查 Library 页面级测试是否存在“整体居中/左右空白均衡”的旧断言或视觉预期；如有，仅更新与本次对齐合同直接冲突的部分。
+
+自动验收：
+
+- `LibraryResponsivePanelTests` 全部通过。
+- Library 相关 WPF 测试通过。
+- 至少用真实 `LibraryPage` 验证单本书和达到最大卡宽的多卡场景：第一列与书库内容区左侧基线稳定，不再随 item 数量横向移动。
+- Light/Dark 布局几何一致；本任务不改变主题颜色或交互状态。
+- 若生成截图或视觉调试副产物，结束前全部删除。
+
+完整质量门禁：
+
+```powershell
+dotnet restore --locked-mode -r win-x64
+dotnet format --verify-no-changes --no-restore
+dotnet build -c Release --no-restore
+dotnet test -c Release --no-build
+```
+
+完成与提交：
+
+- 门禁通过后将 T005 标记 `[x]` 并附简短“完成成果”，记录最终排列规则、专项测试与全量测试结果。
+- 提交正式源码、测试和本文档修改。
+- 建议提交信息：`fix(ui): left-align bounded library grid`。
+- 提交后执行 `git status --short`，确认工作树干净且没有截图、脚本、manifest、诊断文件等副产物。
+
+完成成果：`LibraryResponsivePanel` 保留原有 viewport-driven 的 `300–360 px / 16 px` 响应式算法，仅将所有行的排列起点固定为内容区左侧 `X=0`；最大卡宽后的剩余空间留在右侧，最后一行不足列数时仍保持左对齐。新增响应式 Panel 的最大卡宽、最后一行和 `280 px` 窄 viewport 几何回归，并补充真实 `LibraryPage` 单本/六本书场景的首列稳定性验证。专项 WPF 测试及 Library 页面测试通过（7/7）；完整质量门禁 `dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、Release build（0 警告/0 错误）和全量测试（867/867）均通过。
