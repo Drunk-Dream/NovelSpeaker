@@ -20,9 +20,9 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed partial class BookDetailsPageTests
 {
     [Fact]
-    public void Book_details_floating_icon_renders_real_light_and_dark_interaction_states()
+    public async Task Book_details_floating_icon_renders_real_light_and_dark_interaction_states()
     {
-        WpfTestHost.RunInSta(() =>
+        await WpfTestHost.RunInStaAsync(async () =>
         {
             var originalTheme = FloatingIconVisualAssertions.CaptureTheme();
             try
@@ -40,6 +40,7 @@ public sealed partial class BookDetailsPageTests
                     using var host = FloatingIconVisualHost.Show(page, new Size(1280, 760));
                     button.Visibility = Visibility.Visible;
                     host.MeasureArrange();
+                    await WpfTestHost.DrainDispatcherAsync();
 
                     Assert.Equal("定位到当前章节", button.ToolTip);
                     Assert.Equal("定位到当前章节", AutomationProperties.GetName(button));
@@ -64,9 +65,9 @@ public sealed partial class BookDetailsPageTests
 public sealed partial class PlayerViewTests
 {
     [Fact]
-    public void Player_floating_icons_render_real_light_and_dark_interaction_states()
+    public async Task Player_floating_icons_render_real_light_and_dark_interaction_states()
     {
-        WpfTestHost.RunInSta(() =>
+        await WpfTestHost.RunInStaAsync(async () =>
         {
             var originalTheme = FloatingIconVisualAssertions.CaptureTheme();
             try
@@ -98,6 +99,7 @@ public sealed partial class PlayerViewTests
                     Assert.Equal(Visibility.Collapsed, locateButton.Visibility);
                     locateButton.Visibility = Visibility.Visible;
                     using var host = FloatingIconVisualHost.Show(view, new Size(1280, 760));
+                    await WpfTestHost.DrainDispatcherAsync();
 
                     Assert.Equal(Visibility.Visible, returnButton.Visibility);
                     Assert.Equal("定位到当前章节", locateButton.ToolTip);
@@ -108,7 +110,9 @@ public sealed partial class PlayerViewTests
                     Assert.Equal(SymbolRegular.TargetArrow24, Assert.IsType<SymbolIcon>(returnButton.Icon).Symbol);
 
                     FloatingIconVisualAssertions.AssertAllStates(host, locateButton, "Player 定位按钮");
+                    await WpfTestHost.DrainDispatcherAsync();
                     FloatingIconVisualAssertions.AssertAllStates(host, returnButton, "Player 返回按钮");
+                    await WpfTestHost.DrainDispatcherAsync();
                 }
             }
             finally
