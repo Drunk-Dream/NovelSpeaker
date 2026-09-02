@@ -2,23 +2,22 @@
 
 ## 1. 阶段定位
 
-当前阶段处理 **书库响应式卡片布局与 Shell Light/Dark 快捷切换的补丁验收、修复和提交**。源码基线固定为 `44e8dc701a6382e92af37a16ba68b4ac993c43b0`（`dev` 分支）。
+当前阶段处理 **书库响应式网格达到最大卡宽后的左对齐收口**。当前 `dev` 基线为 `3780d3888d04436eaa59e699b783bed733024d7d`。
 
-上一轮 FloatingIcon 收口已经完成，T001–T003 作为已完成记录继续保留。当前新增任务只围绕用户提供的 `core.patch`：先将其应用到上述代码基线，再进行代码审阅、自动测试、必要修复、真实页面视觉验收、清理和提交，不扩散到无关业务功能。
+T001–T004 均已完成并保留作为历史记录。本轮只调整 Library 响应式 Panel 的水平排列策略：原先在卡片达到 `360 px` 最大宽度后将 bounded grid 整体居中，现在改为始终从书库内容区左侧基线开始排列。
 
 本轮输入与边界：
 
-- `core.patch` 是用户提供的一次性源码/测试输入，不属于仓库长期文件；若临时复制到仓库目录，应用后必须删除，禁止提交。
-- 本文档补丁描述目标终态，可先于 `core.patch` 应用；Codex 验收时以当前工作树中的正式文档合同为准。
-- 不改变窗口默认尺寸、NavigationView 基本信息架构、书籍封面尺寸、书库搜索/排序/导入行为或 Appearance 设置页已有三态选择。
+- 不改变 `300 px` 最小卡宽、`360 px` 最大卡宽、`16 px` 横纵间距和基于实际 viewport 的列数计算。
+- 不改变 `BookCardView` 内部结构、封面尺寸、MoreButton 空间策略、书库搜索/排序/导入/滚动状态或主题快捷切换。
+- 不引入新的 WindowWidth breakpoint、NavigationView 特判、DPI 特判或全局 Design Token。
 
 本轮终态：
 
-- Library 使用基于实际 viewport 的响应式卡片网格：`300–360 px` 卡宽、`16 px` 间距、达到最大宽度后整组居中，默认 `1280 px` 主窗口稳定形成约 3 列。
-- `BookCardView` 不再为右上角 MoreButton 给整个文字列永久保留大块右 Margin；只有标题区域避让按钮，作者/章节/剩余章节/进度条使用完整文字列宽。
-- Shell NavigationView Footer 最后一项提供常驻 Light/Dark 快捷入口；展开态显示目标动作文字，Compact 状态显示目标主题图标。
-- 快捷入口只能 Light ⇄ Dark；持久设置为 System 时先依据实际生效主题选择相反的显式主题并持久化。返回 System 只能通过 Appearance 设置页。
-- `core.patch` 通过专项测试、真实页面/窗口视觉验收和完整质量门禁后，由 Codex 更新任务完成记录并提交正式修改。
+- 每一行书卡都从内容区左侧开始排列，第一列 `X=0`（相对于响应式 Panel）。
+- 当计算卡宽超过 `360 px` 时只截断为 `360 px`，剩余空间留在右侧，不再计算居中的 `startX`。
+- 最后一行不足完整列数时仍从左侧开始，不按该行实际书籍数量重新居中。
+- 窄 viewport 的安全收缩和无横向滚动行为保持不变。
 
 ## 2. 状态与优先级
 
@@ -34,14 +33,14 @@ Codex 完成任务后保留条目并标记 `[x]`；只有新的规划阶段才�
 ## 3. Codex 执行规则
 
 1. 默认一次只执行一个编号任务；完成后停止，不自动开始下一项。
-2. 开始前至少阅读：`AGENTS.md`、`docs/06_UI_AND_USER_FLOWS.md`、`docs/07_SETTINGS_PAGES.md`、`docs/09_TESTING_AND_QUALITY.md`、`docs/10_ENGINEERING_CONVENTIONS.md`、`docs/13_VISUAL_DESIGN_SYSTEM.md`，以及 Library、Theming、Shell 和对应测试文件。
-3. `core.patch` 必须先执行 `git apply --check` 再应用；若补丁与当前代码冲突，先判断是否因为工作树偏离指定基线或文档补丁造成，不能通过 `--reject` 后静默遗漏 hunk。
-4. 保持书库搜索、排序、导入、滚动状态、打开/删除书籍等业务语义不变；响应式调整只改变布局与空间分配。
-5. Library 响应式算法由 Feature 布局 owner 负责，依据实际 viewport 计算，不把窗口断点、NavigationView 状态或 DPI 判断散落到 ViewModel/code-behind。
-6. `BookCardView` 的 MoreButton 仍是独立局部操作，不能通过缩小整卡命中区、覆盖正文内容或制造额外 Hover owner 来换取空间。
-7. 主题快捷入口必须复用正式主题偏好服务和 runtime 的实际主题判断；不得在 MainWindow code-behind 直接写设置、直接调用 Provider 主题 API，或让快捷入口产生 System。
-8. 设置页选择 System 后，Shell 必须根据实际系统 Light/Dark 更新快捷入口目标；设置页和快捷入口之间不得长期出现状态不同步。
-9. 发现补丁缺陷时在正确 owner 修复并补回归测试；不得为截图通过而增加负 Margin、透明遮罩、硬编码颜色、临时断点或只针对某个窗口宽度的补丁逻辑。
+2. 开始前至少阅读：`AGENTS.md`、`docs/06_UI_AND_USER_FLOWS.md`、`docs/09_TESTING_AND_QUALITY.md`、`docs/10_ENGINEERING_CONVENTIONS.md`、`docs/13_VISUAL_DESIGN_SYSTEM.md`、`LibraryResponsivePanel.cs`、`LibraryResponsivePanelTests.cs` 及 Library 页面相关测试。
+3. 修改范围优先限制在 `LibraryResponsivePanel` 与直接相关测试；若无实际需要，不改 `LibraryPage`、`BookCardView`、Shell、Theming 或公共资源。
+4. 保持现有 viewport 驱动的列数/卡宽计算，只改变 Arrange 的水平起点策略；不得退回固定 `WrapPanel.ItemWidth` 或窗口宽度 breakpoint。
+5. 所有行都使用同一个左侧基线，不为单本书、最后一行或达到最大宽度后的 bounded group 建立单独居中逻辑。
+6. 响应式 Panel 仍必须在极窄 viewport 下安全收缩，不能为了左对齐重新引入横向滚动或超出 Arrange bounds。
+7. 测试应验证用户可观察的稳定几何合同，不只把测试名称从 centered 改成 left-aligned；至少检查最大卡宽场景第一列 `X=0`、相邻卡片间距和最后一行左对齐。
+8. 不使用负 Margin、Transform、额外容器 Padding 或页面补偿来实现左对齐；应在真正拥有排列位置的 Panel 中修正根因。
+9. 如进行视觉验收，允许生成临时截图/脚本/manifest，但验收结束前必须全部删除。
 10. WPF 自动测试默认运行在隐藏 Desktop，不自行设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`。
 11. 视觉任务允许生成临时截图、截图脚本、VisualTree dump、manifest 或 fixture，但验收结束必须全部删除；任务关闭前执行 `git status --short` 和生成目录审计。
 12. 缺陷属于最终像素/Provider 模板行为时，不能只用 Setter、Style key 或静态 VisualTree 证明通过；应使用真实 View/最终渲染像素验证。

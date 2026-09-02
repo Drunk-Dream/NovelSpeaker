@@ -68,6 +68,7 @@
 - 页面 Padding、列宽、规则列表宽度、设置编辑控件宽度等布局值由 Shell、页面或复合组件中的唯一 owner 管理。
 - 只服务于单一 Feature 的响应式布局算法可以实现为 Feature 内部 Panel/布局组件。例如 Library 卡片列数与卡宽由 Library 自己的布局组件依据实际 viewport 计算；不得把 `300/360/16` 等页面专用尺寸提升为全局 Design Token，也不得让 ViewModel 返回 Width、Thickness 或其它 WPF 几何类型。
 - 响应式网格使用实际布局可用宽度作为输入，不根据主窗口宽度、NavigationView 展开状态或 DPI 建立彼此独立的硬编码断点表。窗口、导航栏、滚动条和 DPI 变化应通过同一 Measure/Arrange 计算自然收敛。
+- Library 书架属于从左到右扫描的内容集合，响应式 Panel 的排列起点固定为内容区左侧基线。达到最大卡宽后只停止继续拉伸，不通过居中整个 bounded group 重新分配剩余空间；最后一行同样从左侧开始，避免书籍数量变化时首列发生横向跳位。
 - 页面不得复制通用 Trigger/VisualState，但可以保留真实页面专用的 Grid、Margin、MinWidth 和滚动结构。
 - ViewModel 不返回 Brush、Style、ControlTemplate、Thickness、CornerRadius 或其它 WPF 视觉类型。
 - UI 平台能力通过 presentation port/adapter 暴露给可测试代码。
