@@ -118,7 +118,7 @@ Dialog、Flyout、Popup 和独立状态浮窗遵循 `docs/13_VISUAL_DESIGN_SYSTE
 /mnt/c/Program Files/dotnet//dotnet.exe
 ```
 
-codex需要提权在沙箱外执行。
+在 Codex 帮我批准模式下，如果命令运行失败，先尝试在沙箱外以提权模式重新运行；若仍然失败，按实际错误报告，不绕过失败检查。
 仓库通过 `Directory.Build.props` 的 `RuntimeIdentifiers` 为所有还原入口保留 `win-x64` 锁文件目标，普通 build/run 和 IDE 隐式还原不得覆盖该属性。完整质量门禁严格按以下顺序执行：
 
 ```powershell
@@ -144,9 +144,9 @@ dotnet restore -r win-x64 --force-evaluate
 
 执行后必须审查全部 `packages.lock.json` 差异，确认依赖变化符合任务且 `win-x64` 目标仍存在，再运行锁定还原验证。无法执行的检查必须在交付中如实说明。
 
-## Git 与发布约束
+## Git 约束
 
-- 未经用户明确授权，不得提交、打标签、推送、创建 Release 或修改远端内容。
+- 未经用户明确授权，不得提交、打标签、推送、创建 PR/Release 或修改远端内容。
 - 不得使用 `git reset --hard`、`git checkout --` 等方式丢弃用户改动。
 - 用户明确要求提交时，任务切片不是默认 commit 边界；即使一个任务已经完成，也必须继续按逻辑目的拆成多个原子提交。
 - 每个 commit 只包含一个清晰目的的改动；不同性质的修改尽量分开提交。
@@ -157,18 +157,7 @@ dotnet restore -r win-x64 --force-evaluate
 - Commit messages use English Conventional Commits, such as `type(scope): describe the change`.
 - Unless the user explicitly requests otherwise, use fast-forward merge mode when merging branches.
 - 禁止在任务结束时把该任务产生的全部文件修改一次性打包成一个大提交。
-- 用户明确要求发布时，先完成版本更新、完整门禁和发布工作流要求，再提交、打标签、推送并等待远端工作流与资产验证成功。
-- 发布工作流成功创建 GitHub Release 并确认发布资产可用后，必须使用 `gh release edit <tag>` 更新最终 Release Note；Release Note 更新成功前不得宣告发布完成。
-- 在远端工作流、Release 和资产核对完成前，不得宣告发布完成。
-
-### Release Note 编写要求
-
-- Release Note 必须基于上一发布标签到当前发布标签的实际提交范围和 diff 编写：先核对 `git log <previous-tag>..<current-tag>`、`git diff <previous-tag>..<current-tag>` 及实际用户可见行为，不得只按版本号、提交标题模板或发布流程状态生成。
-- 以用户可理解的变化为主，按实际情况分组说明：`功能更新`、`Bug 修复`、`性能/兼容性`、`破坏性变更/迁移`、`测试与质量`。某一组没有真实内容时省略，不得为了凑结构制造条目。
-- 每条至少说明“用户获得了什么变化”及适用范围；可以合并同一功能族的多个提交，但不能只罗列内部提交标题、文件名或任务编号，也不得把 fast-forward 合并、版本号递增、工作流成功和测试数量作为主要发布内容。
-- 只写已在提交、代码、测试或发布包中得到证据支持的能力；不得把规划中、未实现或仅有设计文档的内容写成已发布功能。Bug 修复应说明修复的用户可见问题和受影响场景，避免无证据推断根因。
-- 发布说明应保留上一版本到当前版本的完整变更对比链接；若有需要，补充兼容性、迁移、已知限制和验证结果。正文应简洁、面向用户，发布元数据和工程过程信息放在末尾的“测试与质量”类中。
-- Release workflow 完成后，必须再次检查 Release Note 与实际提交范围、发布资产和版本号一致；需要修订时使用 `gh release edit <tag>`，并在读取远端 Release body 后再宣告完成。
+- NovelSpeaker 的版本判断、版本更新、发布分支/PR 处理、tag、Release CI、Release Note 和发布后分支整理统一由 `.codex/skills/release-version/SKILL.md` 定义，不在本文件或 `docs/` 重复维护流程。用户明确调用该 Skill 时，按 Skill 中的授权边界执行；用户在当前请求中的特殊要求优先。
 
 ## 交付说明
 
