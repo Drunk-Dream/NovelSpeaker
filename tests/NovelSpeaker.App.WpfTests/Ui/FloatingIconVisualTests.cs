@@ -105,19 +105,13 @@ public sealed partial class PlayerViewTests
                     Assert.Equal(SymbolRegular.TargetArrow24, Assert.IsType<SymbolIcon>(locateButton.Icon).Symbol);
                     Assert.Equal(SymbolRegular.TargetArrow24, Assert.IsType<SymbolIcon>(returnButton.Icon).Symbol);
 
-                    using (var locateHost = FloatingIconVisualHost.Show(view, new Size(1280, 760)))
-                    {
-                        await WpfTestHost.DrainDispatcherAsync();
-                        Assert.Equal(Visibility.Visible, returnButton.Visibility);
-                        FloatingIconVisualAssertions.AssertAllStates(locateHost, locateButton, "Player 定位按钮");
-                    }
-
+                    using var host = FloatingIconVisualHost.Show(view, new Size(1280, 760));
                     await WpfTestHost.DrainDispatcherAsync();
-                    using (var returnHost = FloatingIconVisualHost.Show(view, new Size(1280, 760)))
-                    {
-                        await WpfTestHost.DrainDispatcherAsync();
-                        FloatingIconVisualAssertions.AssertAllStates(returnHost, returnButton, "Player 返回按钮");
-                    }
+                    Assert.Equal(Visibility.Visible, returnButton.Visibility);
+                    FloatingIconVisualAssertions.AssertAllStates(host, locateButton, "Player 定位按钮");
+                    await WpfTestHost.DrainDispatcherAsync();
+                    FloatingIconVisualAssertions.AssertAllStates(host, returnButton, "Player 返回按钮");
+                    await WpfTestHost.DrainDispatcherAsync();
                 }
             }
             finally
@@ -132,17 +126,11 @@ internal sealed class FloatingIconVisualHost : IDisposable
 {
     private readonly WpfWindowHost _windowHost;
 
-    private FloatingIconVisualHost(
-        WpfWindowHost windowHost,
-        FrameworkElement root,
-        Visual renderRoot,
-        AdornerDecorator? decorator,
-        Size size)
+    private FloatingIconVisualHost(WpfWindowHost windowHost, FrameworkElement root, Visual renderRoot, Size size)
     {
         _windowHost = windowHost;
         Root = root;
         RenderRoot = renderRoot;
-        Decorator = decorator;
         Size = size;
         Root.Measure(size);
         Root.Arrange(new Rect(new Point(), size));
@@ -152,8 +140,6 @@ internal sealed class FloatingIconVisualHost : IDisposable
     internal FrameworkElement Root { get; }
 
     private Visual RenderRoot { get; }
-
-    private AdornerDecorator? Decorator { get; }
 
     private Size Size { get; }
 
@@ -195,7 +181,6 @@ internal sealed class FloatingIconVisualHost : IDisposable
             windowHost,
             root,
             content is Page ? window : root,
-            content is Page ? null : (AdornerDecorator)root,
             size);
     }
 
@@ -212,14 +197,7 @@ internal sealed class FloatingIconVisualHost : IDisposable
         return bitmap;
     }
 
-    public void Dispose()
-    {
-        if (Decorator is not null)
-        {
-            Decorator.Child = null;
-        }
-        _windowHost.Dispose();
-    }
+    public void Dispose() => _windowHost.Dispose();
 }
 
 internal static class FloatingIconVisualAssertions
