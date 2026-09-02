@@ -242,6 +242,8 @@ internal static class FloatingIconVisualAssertions
         string scene)
     {
         var root = host.Root;
+        SetReadOnlyValue(button, IsMouseOverKey, false);
+        SetReadOnlyValue(button, IsPressedKey, false);
         Keyboard.ClearFocus();
         Assert.False(button.IsKeyboardFocused, scene + " Rest 前不应拥有键盘焦点");
         root.UpdateLayout();
