@@ -180,7 +180,7 @@ internal sealed class FloatingIconVisualHost : IDisposable
         return new FloatingIconVisualHost(
             windowHost,
             root,
-            content is Page ? window : root,
+            window,
             size);
     }
 
