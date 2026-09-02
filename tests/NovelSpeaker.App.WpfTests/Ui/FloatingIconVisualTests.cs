@@ -251,6 +251,9 @@ internal static class FloatingIconVisualAssertions
 
         try
         {
+            Assert.False(button.IsMouseOver, scene + " Rest 不应拥有鼠标悬停状态");
+            Assert.False(button.IsPressed, scene + " Rest 不应拥有按压状态");
+            Assert.Equal(raised, Assert.IsType<SolidColorBrush>(button.Background).Color);
             AssertSurface(rest, restBounds, raised, scene + " Rest", surfaceSecondary, accentSubtle);
             AssertIconForeground(rest, root, button, primary, scene + " Rest");
             AssertDoesNotContain(rest, Expand(restBounds, 4), focus, scene + " Rest 不应显示 Focus Ring");
@@ -309,9 +312,11 @@ internal static class FloatingIconVisualAssertions
         Color unexpectedPressed)
     {
         var inner = new Rect(bounds.Left + 6, bounds.Top + 6, bounds.Width - 12, bounds.Height - 12);
+        var matchingPixels = Count(bitmap, inner, expected);
         Assert.True(
-            Count(bitmap, inner, expected) >= 20,
-            $"{scene} 未在最终像素中呈现足够的预期 Surface {expected}。");
+            matchingPixels >= 20,
+            $"{scene} 未在最终像素中呈现足够的预期 Surface {expected}，" +
+            $"匹配像素={matchingPixels}，bounds={bounds}，bitmap={bitmap.PixelWidth}x{bitmap.PixelHeight}。");
         Assert.Equal(0, Count(bitmap, inner, unexpectedHover));
         Assert.Equal(0, Count(bitmap, inner, unexpectedPressed));
     }
