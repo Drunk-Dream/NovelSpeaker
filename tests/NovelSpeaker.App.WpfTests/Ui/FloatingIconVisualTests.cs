@@ -252,7 +252,7 @@ internal static class FloatingIconVisualAssertions
         Assert.Equal(44, bounds.Height, 3);
         AssertCentered(bounds, iconBounds, scene + " Rest");
         var rest = host.Render();
-        AssertHitArea(root, button, scene + " Rest");
+        AssertHitArea(button, scene + " Rest");
         var restBounds = bounds;
         var restIconBounds = iconBounds;
         var restEffect = button.Effect;
@@ -365,7 +365,7 @@ internal static class FloatingIconVisualAssertions
         var actualIconBounds = GetBounds(Assert.IsType<SymbolIcon>(button.Icon), root);
         Assert.Equal(expectedIconBounds, actualIconBounds);
         AssertCentered(expectedButtonBounds, actualIconBounds, scene);
-        AssertHitArea(root, button, scene);
+        AssertHitArea(button, scene);
     }
 
     private static void AssertCentered(Rect buttonBounds, Rect iconBounds, string scene)
@@ -380,9 +380,8 @@ internal static class FloatingIconVisualAssertions
         Assert.InRange(Math.Abs(buttonCenter.Y - iconCenter.Y), 0, 0.5);
     }
 
-    private static void AssertHitArea(FrameworkElement root, WpfUiButton button, string scene)
+    private static void AssertHitArea(WpfUiButton button, string scene)
     {
-        var origin = button.TranslatePoint(new Point(), root);
         foreach (var point in new[]
                  {
                      new Point(3, button.ActualHeight / 2),
@@ -390,7 +389,7 @@ internal static class FloatingIconVisualAssertions
                      new Point(button.ActualWidth - 4, button.ActualHeight / 2)
                  })
         {
-            var hit = VisualTreeHelper.HitTest(root, new Point(origin.X + point.X, origin.Y + point.Y));
+            var hit = VisualTreeHelper.HitTest(button, point);
             Assert.NotNull(hit);
             Assert.True(
                 IsWithin(button, hit!.VisualHit),
@@ -403,7 +402,7 @@ internal static class FloatingIconVisualAssertions
                      new Point(button.ActualWidth + 1, button.ActualHeight / 2)
                  })
         {
-            var hit = VisualTreeHelper.HitTest(root, new Point(origin.X + point.X, origin.Y + point.Y));
+            var hit = VisualTreeHelper.HitTest(button, point);
             Assert.False(
                 hit is not null && IsWithin(button, hit.VisualHit),
                 $"{scene} 在按钮边界外的相对坐标 {point} 仍命中了 FloatingIcon 按钮。");
