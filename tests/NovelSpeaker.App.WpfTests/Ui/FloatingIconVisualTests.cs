@@ -226,6 +226,7 @@ internal static class FloatingIconVisualAssertions
         Assert.Equal(44, bounds.Width, 3);
         Assert.Equal(44, bounds.Height, 3);
         AssertCentered(bounds, iconBounds, scene + " Rest");
+        var rest = host.Render();
         AssertHitArea(root, button, scene + " Rest");
         var restBounds = bounds;
         var restIconBounds = iconBounds;
@@ -245,7 +246,6 @@ internal static class FloatingIconVisualAssertions
 
         try
         {
-            var rest = host.Render();
             AssertSurface(rest, restBounds, raised, scene + " Rest", surfaceSecondary, accentSubtle);
             AssertIconForeground(rest, root, button, primary, scene + " Rest");
             AssertDoesNotContain(rest, Expand(restBounds, 4), focus, scene + " Rest 不应显示 Focus Ring");
