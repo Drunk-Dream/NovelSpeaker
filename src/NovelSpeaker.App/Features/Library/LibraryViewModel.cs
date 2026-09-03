@@ -38,9 +38,11 @@ public sealed partial class LibraryViewModel : ObservableObject
     private readonly OwnedTaskRegistry _pageTasks = new();
     private CancellationTokenSource? _searchDebounceCancellationTokenSource;
     private IReadOnlyList<LibraryBookItemViewModel> _allBooks = [];
-    private string? _activePlaybackBookId;
+    private IReadOnlyDictionary<string, BookSummary> _persistedBooks =
+        new Dictionary<string, BookSummary>(StringComparer.Ordinal);
     private int _searchVersion;
     private int _importVersion;
+    private int _playbackProjectionVersion;
     private bool _isDeletingBook;
     private bool _isPageEventsRegistered;
     private CancellationTokenSource? _activeImportCancellationTokenSource;
@@ -112,10 +114,12 @@ public sealed partial class LibraryViewModel : ObservableObject
     {
         var books = await _bookLibraryQuery.GetBooksAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
+        _persistedBooks = books.ToDictionary(book => book.Id, StringComparer.Ordinal);
         _allBooks = books
             .Select(MapBook)
             .ToArray();
         ApplyVisibleBooks();
+        ApplyPlaybackSnapshot(_playbackCoordinator.CurrentSnapshot);
         _catalogInvalidationState.Consume();
     }
 
@@ -203,6 +207,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         }
 
         _playbackCoordinator.SnapshotChanged -= OnPlaybackSnapshotChanged;
+        Interlocked.Increment(ref _playbackProjectionVersion);
         _isPageEventsRegistered = false;
     }
 
@@ -214,6 +219,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         }
 
         _playbackCoordinator.SnapshotChanged += OnPlaybackSnapshotChanged;
+        Interlocked.Increment(ref _playbackProjectionVersion);
         _isPageEventsRegistered = true;
     }
 
@@ -252,7 +258,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         var decision = await _deleteDialogService.ShowAsync(
             new BookDeleteDialogRequest(
                 book.Title,
-                string.Equals(book.BookId, _activePlaybackBookId, StringComparison.Ordinal)),
+                IsCurrentPlaybackBook(book.BookId)),
             cancellationToken);
         if (!decision.IsConfirmed)
         {
@@ -262,7 +268,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         _isDeletingBook = true;
         try
         {
-            if (string.Equals(book.BookId, _activePlaybackBookId, StringComparison.Ordinal))
+            if (IsCurrentPlaybackBook(book.BookId))
             {
                 await _playbackCoordinator.HandleBookDeletedAsync(book.BookId, cancellationToken);
             }
@@ -419,22 +425,52 @@ public sealed partial class LibraryViewModel : ObservableObject
 
     private void OnPlaybackSnapshotChanged(object? sender, PlaybackSnapshot snapshot)
     {
+        if (!_isPageEventsRegistered)
+        {
+            return;
+        }
+
+        var projectionVersion = Volatile.Read(ref _playbackProjectionVersion);
         if (!_uiScheduler.CheckAccess())
         {
             _pageTasks.Register(
-                _uiScheduler.InvokeAsync(() => ApplyPlaybackSnapshot(snapshot)),
+                _uiScheduler.InvokeAsync(() => ApplyPlaybackSnapshot(snapshot, projectionVersion)),
                 exception => _feedbackService.ShowProjectedNotification(
                     "更新书库播放状态失败",
                     _feedbackService.Project(exception)));
             return;
         }
 
-        ApplyPlaybackSnapshot(snapshot);
+        ApplyPlaybackSnapshot(snapshot, projectionVersion);
     }
 
-    private void ApplyPlaybackSnapshot(PlaybackSnapshot snapshot)
+    private void ApplyPlaybackSnapshot(PlaybackSnapshot snapshot, int? expectedProjectionVersion = null)
     {
-        _activePlaybackBookId = snapshot.BookId;
+        if (expectedProjectionVersion is int projectionVersion &&
+            (!_isPageEventsRegistered ||
+             projectionVersion != Volatile.Read(ref _playbackProjectionVersion) ||
+             !Equals(_playbackCoordinator.CurrentSnapshot, snapshot)))
+        {
+            return;
+        }
+
+        foreach (var book in _allBooks)
+        {
+            if (!_persistedBooks.TryGetValue(book.BookId, out var persisted))
+            {
+                continue;
+            }
+
+            var progress = EffectiveReadingProgressProjector.Project(persisted, snapshot);
+            book.ApplyEffectiveProgress(
+                progress,
+                BuildRemainingChapterText(persisted.TotalChapterCount, progress.RemainingChapterCount));
+        }
+    }
+
+    private bool IsCurrentPlaybackBook(string bookId)
+    {
+        return string.Equals(_playbackCoordinator.CurrentSnapshot.BookId, bookId, StringComparison.Ordinal);
     }
 
     private static string BuildLibrarySummary(int totalBooks, LibrarySortMode sortMode)

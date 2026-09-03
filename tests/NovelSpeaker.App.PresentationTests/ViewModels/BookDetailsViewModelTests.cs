@@ -32,6 +32,131 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal("第二章 继续", viewModel.Chapters[1].TitleToolTip);
     }
 
+    private async Task Playback_snapshot_updates_details_and_catalog_current_item()
+    {
+        var playbackCoordinator = new FakePlaybackCoordinator();
+        var viewModel = CreateViewModel(playbackCoordinator: playbackCoordinator);
+
+        await LoadViewModelAsync(viewModel);
+
+        playbackCoordinator.Publish(
+            PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Playing,
+                BookId = "book-1",
+                ChapterIndex = 2,
+                ChapterTitle = "第三章 结尾",
+                SegmentIndex = 1,
+                SegmentCount = 2
+            });
+
+        Assert.Equal("第三章 结尾", viewModel.CurrentChapterText);
+        Assert.Equal("共 3 章 · 当前第 3 章", viewModel.ChapterCatalogSummaryText);
+        Assert.Equal(1d, viewModel.ProgressRatio);
+        Assert.False(viewModel.Chapters[1].IsCurrent);
+        Assert.True(viewModel.Chapters[2].IsCurrent);
+        Assert.Same(viewModel.Chapters[2], viewModel.CurrentChapterItem);
+
+        playbackCoordinator.Publish(
+            PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Playing,
+                BookId = "book-2",
+                ChapterIndex = 0,
+                ChapterTitle = "其它书籍第一章"
+            });
+
+        Assert.Equal("第二章 继续", viewModel.CurrentChapterText);
+        Assert.True(viewModel.Chapters[1].IsCurrent);
+        Assert.Equal(0.4, viewModel.ProgressRatio);
+
+        playbackCoordinator.Publish(PlaybackSnapshot.Idle);
+
+        Assert.Equal("第二章 继续", viewModel.CurrentChapterText);
+        Assert.True(viewModel.Chapters[1].IsCurrent);
+    }
+
+    private async Task Late_details_result_preserves_newer_playback_snapshot()
+    {
+        var managementService = new FakeBookManagementService
+        {
+            BlockDetailsLoad = true
+        };
+        var playbackCoordinator = new FakePlaybackCoordinator();
+        var viewModel = CreateViewModel(
+            managementService: managementService,
+            playbackCoordinator: playbackCoordinator);
+
+        viewModel.HandleNavigatedTo();
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await Task.Yield();
+
+        playbackCoordinator.Publish(
+            PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Playing,
+                BookId = "book-1",
+                ChapterIndex = 2,
+                ChapterTitle = "第三章 结尾"
+            });
+
+        managementService.ReleaseBlockedDetailsLoad();
+        await WaitForConditionAsync(viewModel, () => !viewModel.IsBusy && viewModel.Chapters.Count == 3);
+
+        Assert.Equal("第三章 结尾", viewModel.CurrentChapterText);
+        Assert.False(viewModel.Chapters[1].IsCurrent);
+        Assert.True(viewModel.Chapters[2].IsCurrent);
+        Assert.Equal(1d, viewModel.ProgressRatio);
+    }
+
+    private async Task Snapshot_after_navigation_away_does_not_update_details()
+    {
+        var playbackCoordinator = new FakePlaybackCoordinator();
+        var viewModel = CreateViewModel(playbackCoordinator: playbackCoordinator);
+
+        await LoadViewModelAsync(viewModel);
+        viewModel.HandleNavigatedFrom();
+
+        playbackCoordinator.Publish(
+            PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Playing,
+                BookId = "book-1",
+                ChapterIndex = 2,
+                ChapterTitle = "第三章 结尾"
+            });
+
+        Assert.Equal("第二章 继续", viewModel.CurrentChapterText);
+        Assert.True(viewModel.Chapters[1].IsCurrent);
+        Assert.False(viewModel.Chapters[2].IsCurrent);
+    }
+
+    private async Task Queued_stale_playback_snapshot_is_ignored_after_page_leave()
+    {
+        var uiScheduler = new QueuedPlaybackUiScheduler();
+        var playbackCoordinator = new FakePlaybackCoordinator();
+        var viewModel = CreateViewModel(
+            playbackCoordinator: playbackCoordinator,
+            uiScheduler: uiScheduler);
+
+        await LoadViewModelAsync(viewModel);
+        playbackCoordinator.Publish(
+            PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Playing,
+                BookId = "book-1",
+                ChapterIndex = 2,
+                ChapterTitle = "第三章 结尾"
+            });
+
+        viewModel.HandleNavigatedFrom();
+        uiScheduler.RunAll();
+
+        Assert.Equal("第二章 继续", viewModel.CurrentChapterText);
+        Assert.True(viewModel.Chapters[1].IsCurrent);
+        Assert.False(viewModel.Chapters[2].IsCurrent);
+    }
+
     private async Task LoadAsync_returns_after_header_and_populates_catalog_when_background_load_finishes()
     {
         var managementService = new FakeBookManagementService
@@ -379,6 +504,10 @@ public sealed class BookDetailsViewModelTests
     public async Task Book_details_loading_and_cache_contracts_cover_projection_and_activation()
     {
         await LoadAsync_projects_read_only_fields_and_chapters();
+        await Playback_snapshot_updates_details_and_catalog_current_item();
+        await Late_details_result_preserves_newer_playback_snapshot();
+        await Snapshot_after_navigation_away_does_not_update_details();
+        await Queued_stale_playback_snapshot_is_ignored_after_page_leave();
         await LoadAsync_returns_after_header_and_populates_catalog_when_background_load_finishes();
         await Chapter_cache_percentages_refresh_for_cache_and_configuration_changes_until_page_leave();
         await Page_leave_discards_cache_status_projection_that_reaches_the_ui_late();
@@ -492,6 +621,7 @@ public sealed class BookDetailsViewModelTests
 
     private static async Task LoadViewModelAsync(BookDetailsViewModel viewModel)
     {
+        viewModel.HandleNavigatedTo();
         await viewModel.LoadAsync("book-1", CancellationToken.None);
         await WaitForConditionAsync(viewModel, () => !viewModel.IsBusy && viewModel.Chapters.Count == 3);
     }
@@ -709,6 +839,39 @@ public sealed class BookDetailsViewModelTests
         }
     }
 
+    private sealed class QueuedPlaybackUiScheduler : IUiScheduler
+    {
+        private readonly Queue<Action> _pending = [];
+
+        public bool CheckAccess() => false;
+
+        public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _pending.Enqueue(action);
+            return Task.CompletedTask;
+        }
+
+        public Task InvokeAsync(Func<Task> action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return action();
+        }
+
+        public void RunNext()
+        {
+            _pending.Dequeue()();
+        }
+
+        public void RunAll()
+        {
+            while (_pending.Count > 0)
+            {
+                RunNext();
+            }
+        }
+    }
+
     private sealed class FakeFeedbackService : IAppFeedbackService
     {
         public string? LastTitle { get; private set; }
@@ -843,6 +1006,12 @@ public sealed class BookDetailsViewModelTests
             CurrentSnapshot = PlaybackSnapshot.Idle;
             SnapshotChanged?.Invoke(this, CurrentSnapshot);
             return Task.CompletedTask;
+        }
+
+        public void Publish(PlaybackSnapshot snapshot)
+        {
+            CurrentSnapshot = snapshot;
+            SnapshotChanged?.Invoke(this, snapshot);
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;

@@ -42,6 +42,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private string? _bookId;
     private CancellationTokenSource? _cacheStatusCancellationTokenSource;
     private bool _isCacheStatusUpdatesActive;
+    private bool _isPlaybackEventsRegistered;
+    private int _playbackProjectionVersion;
 
     public BookDetailsViewModel(
         IBookLibraryQuery bookLibraryQuery,
@@ -204,8 +206,21 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         Interlocked.Increment(ref _loadVersion);
         CancelPendingLoad();
         DeactivateCacheStatusUpdates();
+        if (_isPlaybackEventsRegistered)
+        {
+            _playbackCoordinator.SnapshotChanged -= OnPlaybackSnapshotChanged;
+            Interlocked.Increment(ref _playbackProjectionVersion);
+            _isPlaybackEventsRegistered = false;
+        }
+
         IsBusy = false;
         NotifyCommandStateChanged();
+    }
+
+    public void HandleNavigatedTo()
+    {
+        RegisterPlaybackEvents();
+        ApplyPlaybackSnapshot(_playbackCoordinator.CurrentSnapshot);
     }
 
     [RelayCommand]
@@ -552,8 +567,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             $"第 {chapter.ChapterIndex + 1} 章",
             chapter.Title,
             chapter.IsCurrent));
+        ApplyReadingProgress(EffectiveReadingProgressProjector.Project(details, _playbackCoordinator.CurrentSnapshot));
         QueueCacheStatusRefresh(chapterIndex: null);
-        OnPropertyChanged(nameof(CurrentChapterItem));
 
         StatusMessage = string.Empty;
         NotifyCommandStateChanged();
@@ -724,6 +739,73 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private bool IsCurrentPlaybackBook(string bookId)
     {
         return string.Equals(_playbackCoordinator.CurrentSnapshot.BookId, bookId, StringComparison.Ordinal);
+    }
+
+    private void RegisterPlaybackEvents()
+    {
+        if (_isPlaybackEventsRegistered)
+        {
+            return;
+        }
+
+        _playbackCoordinator.SnapshotChanged += OnPlaybackSnapshotChanged;
+        Interlocked.Increment(ref _playbackProjectionVersion);
+        _isPlaybackEventsRegistered = true;
+    }
+
+    private void OnPlaybackSnapshotChanged(object? sender, PlaybackSnapshot snapshot)
+    {
+        if (!_isPlaybackEventsRegistered)
+        {
+            return;
+        }
+
+        var projectionVersion = Volatile.Read(ref _playbackProjectionVersion);
+        if (!_uiScheduler.CheckAccess())
+        {
+            _pageTasks.Register(
+                _uiScheduler.InvokeAsync(() => ApplyPlaybackSnapshot(snapshot, projectionVersion)),
+                exception => _feedbackService.ShowProjectedNotification(
+                    "更新书籍详情播放状态失败",
+                    _feedbackService.Project(exception)));
+            return;
+        }
+
+        ApplyPlaybackSnapshot(snapshot, projectionVersion);
+    }
+
+    private void ApplyPlaybackSnapshot(PlaybackSnapshot snapshot, int? expectedProjectionVersion = null)
+    {
+        if (!_isPlaybackEventsRegistered ||
+            _loadedDetails is null ||
+            (expectedProjectionVersion is int projectionVersion &&
+             (projectionVersion != Volatile.Read(ref _playbackProjectionVersion) ||
+              !Equals(_playbackCoordinator.CurrentSnapshot, snapshot))))
+        {
+            return;
+        }
+
+        ApplyReadingProgress(EffectiveReadingProgressProjector.Project(_loadedDetails, snapshot));
+    }
+
+    private void ApplyReadingProgress(EffectiveReadingProgress progress)
+    {
+        CurrentChapterText = progress.HasReadingProgress
+            ? progress.CurrentChapterTitle
+            : "未开始";
+        ChapterCatalogSummaryText = progress.HasReadingProgress && progress.CurrentChapterIndex is not null
+            ? $"共 {_loadedDetails!.TotalChapterCount} 章 · 当前第 {progress.CurrentChapterIndex.Value + 1} 章"
+            : $"共 {_loadedDetails!.TotalChapterCount} 章 · 未开始";
+        ProgressRatio = Math.Clamp(progress.OverallProgress, 0, 1);
+        ProgressText = $"{ProgressRatio:P0}";
+
+        foreach (var chapter in Chapters)
+        {
+            chapter.ApplyCurrentState(
+                progress.HasReadingProgress && chapter.ChapterIndex == progress.CurrentChapterIndex);
+        }
+
+        OnPropertyChanged(nameof(CurrentChapterItem));
     }
 
     private bool DiscardChangesAndContinue()

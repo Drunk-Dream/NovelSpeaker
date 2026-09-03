@@ -1,6 +1,7 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.TestKit.Common;
@@ -220,6 +221,96 @@ public sealed class LibraryViewModelTests
         Assert.Equal("book-9", request.BookId);
     }
 
+    private async Task Playback_snapshot_updates_matching_card_and_restores_persisted_baseline()
+    {
+        var catalogService = new FakeBookCatalogService(
+            [
+                new BookSummary(
+                    "book-1",
+                    "Alpha",
+                    null,
+                    "第一章",
+                    DateTimeOffset.UtcNow,
+                    TotalChapterCount: 4,
+                    CurrentChapterIndex: 0,
+                    RemainingChapterCount: 3,
+                    OverallProgress: 0.25,
+                    HasReadingProgress: true),
+                new BookSummary(
+                    "book-2",
+                    "Beta",
+                    null,
+                    "第二本第一章",
+                    DateTimeOffset.UtcNow,
+                    TotalChapterCount: 4,
+                    CurrentChapterIndex: 1,
+                    RemainingChapterCount: 2,
+                    OverallProgress: 0.5,
+                    HasReadingProgress: true)
+            ]);
+        var playbackCoordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+        var viewModel = CreateViewModel(
+            catalogService: catalogService,
+            playbackCoordinator: playbackCoordinator);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        playbackCoordinator.Publish(
+            PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Playing,
+                BookId = "book-1",
+                ChapterIndex = 2,
+                ChapterTitle = "第三章",
+                SegmentIndex = 1,
+                SegmentCount = 3
+            });
+
+        var activeBook = Assert.Single(viewModel.Books, book => book.BookId == "book-1");
+        Assert.Equal("第三章", activeBook.CurrentChapterTitle);
+        Assert.Equal("剩余 1 章", activeBook.RemainingChapterText);
+        Assert.Equal(0.75, activeBook.ProgressRatio);
+        Assert.True(activeBook.HasReadingProgress);
+
+        var otherBook = Assert.Single(viewModel.Books, book => book.BookId == "book-2");
+        Assert.Equal("第二本第一章", otherBook.CurrentChapterTitle);
+        Assert.Equal(0.5, otherBook.ProgressRatio);
+
+        playbackCoordinator.Publish(PlaybackSnapshot.Idle);
+
+        Assert.Equal("第一章", activeBook.CurrentChapterTitle);
+        Assert.Equal("剩余 3 章", activeBook.RemainingChapterText);
+        Assert.Equal(0.25, activeBook.ProgressRatio);
+    }
+
+    private async Task Queued_stale_playback_snapshot_is_ignored_after_page_leave()
+    {
+        var uiScheduler = new QueuedUiScheduler();
+        var playbackCoordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+        var viewModel = CreateViewModel(
+            catalogService: new FakeBookCatalogService(
+                [new BookSummary("book-1", "Alpha", null, "第一章", DateTimeOffset.UtcNow, TotalChapterCount: 3)]),
+            playbackCoordinator: playbackCoordinator,
+            uiScheduler: uiScheduler);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        playbackCoordinator.Publish(
+            PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Playing,
+                BookId = "book-1",
+                ChapterIndex = 2,
+                ChapterTitle = "第三章"
+            });
+
+        viewModel.HandleNavigatedFrom();
+        uiScheduler.RunNext();
+
+        var book = Assert.Single(viewModel.Books);
+        Assert.Equal("第一章", book.CurrentChapterTitle);
+        Assert.Equal(0d, book.ProgressRatio);
+    }
+
     private async Task ImportFilesAsync_refreshes_books_when_import_coordinator_reports_imported()
     {
         var feedback = new FakeFeedbackService();
@@ -351,6 +442,8 @@ public sealed class LibraryViewModelTests
     {
         await OpenBookCommand_navigates_to_player_page_in_open_paused_mode();
         await OpenBookDetailsCommand_navigates_to_book_details_page_with_book_id();
+        await Playback_snapshot_updates_matching_card_and_restores_persisted_baseline();
+        await Queued_stale_playback_snapshot_is_ignored_after_page_leave();
     }
 
     [Fact]
@@ -371,7 +464,8 @@ public sealed class LibraryViewModelTests
         FakeFeedbackService? feedback = null,
         FakeNavigationService? navigationService = null,
         FakePlaybackCoordinator? playbackCoordinator = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IUiScheduler? uiScheduler = null)
     {
         return new LibraryViewModel(
             catalogService ?? new FakeBookCatalogService([]),
@@ -384,6 +478,7 @@ public sealed class LibraryViewModelTests
             navigationService ?? new FakeNavigationService(),
             playbackCoordinator ?? new FakePlaybackCoordinator(PlaybackSnapshot.Idle),
             new LibraryScrollState(),
+            uiScheduler: uiScheduler ?? new ImmediateUiScheduler(),
             timeProvider: timeProvider);
     }
 
@@ -558,15 +653,7 @@ public sealed class LibraryViewModelTests
 
         public string? LastHandledDeletedBookId { get; private set; }
 
-        public event EventHandler<PlaybackSnapshot>? SnapshotChanged
-        {
-            add
-            {
-            }
-            remove
-            {
-            }
-        }
+        public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
@@ -608,7 +695,57 @@ public sealed class LibraryViewModelTests
         {
             LastHandledDeletedBookId = bookId;
             CurrentSnapshot = PlaybackSnapshot.Idle;
+            SnapshotChanged?.Invoke(this, CurrentSnapshot);
             return Task.CompletedTask;
+        }
+
+        public void Publish(PlaybackSnapshot snapshot)
+        {
+            CurrentSnapshot = snapshot;
+            SnapshotChanged?.Invoke(this, snapshot);
+        }
+    }
+
+    private sealed class ImmediateUiScheduler : IUiScheduler
+    {
+        public bool CheckAccess() => true;
+
+        public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            action();
+            return Task.CompletedTask;
+        }
+
+        public Task InvokeAsync(Func<Task> action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return action();
+        }
+    }
+
+    private sealed class QueuedUiScheduler : IUiScheduler
+    {
+        private readonly Queue<Action> _pending = [];
+
+        public bool CheckAccess() => false;
+
+        public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _pending.Enqueue(action);
+            return Task.CompletedTask;
+        }
+
+        public Task InvokeAsync(Func<Task> action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return action();
+        }
+
+        public void RunNext()
+        {
+            _pending.Dequeue()();
         }
     }
 

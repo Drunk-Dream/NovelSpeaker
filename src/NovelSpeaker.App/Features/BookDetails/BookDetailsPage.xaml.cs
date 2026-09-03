@@ -40,6 +40,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
     public async Task OnNavigatedToAsync()
     {
         var activation = _activation.Activate();
+        ViewModel.HandleNavigatedTo();
         activation.Register(ViewModel.HandleNavigatedFrom);
         activation.Register(_navigationGuardService.Register(ViewModel.ConfirmLeaveAsync));
 

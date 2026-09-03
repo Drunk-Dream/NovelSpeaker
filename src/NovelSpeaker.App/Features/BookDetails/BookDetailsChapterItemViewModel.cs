@@ -23,7 +23,14 @@ public sealed partial class BookDetailsChapterItemViewModel : ObservableObject
 
     public string Title { get; }
 
-    public bool IsCurrent { get; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutomationName))]
+    private bool isCurrent;
+
+    public void ApplyCurrentState(bool value)
+    {
+        IsCurrent = value;
+    }
 
     public string TitleToolTip => Title;
 
