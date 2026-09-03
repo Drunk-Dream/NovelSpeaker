@@ -7,6 +7,8 @@
 - 旧会话结果通过 SessionId/版本和取消 Token 隔离。
 - 当前播放、预取和主动缓存共用同一音频生成与缓存链路。
 - 页面生命周期不拥有播放会话或后台主动缓存批次。
+- 当前活动书籍的即时阅读位置由 `PlaybackSnapshot` 表达；SQLite `ReadingProgress` 是可恢复 checkpoint，不与 Snapshot 竞争运行时真值。
+- 书库、书籍详情和其它进度投影使用同一 Effective Reading Progress 规则，不各自维护可变的“当前章节”副本。
 
 ## 2. 播放状态
 
@@ -20,6 +22,15 @@
 - Error
 
 状态变化以 Application `PlaybackSnapshot` 为事实来源。UI 不从按钮文本、音频控件事件或缓存状态反推播放状态。
+
+### 2.1 阅读进度真值与 checkpoint
+
+- 当前活动书籍以 `PlaybackSnapshot` 的 `BookId`、章节、段落和位置作为即时真值；UI 不等待 SQLite 回写后再显示已经完成的逻辑跳转。
+- `ReadingProgress` 保存最近一次稳定 checkpoint，供非活动书籍投影、应用重启和播放恢复使用。
+- Effective Reading Progress 是纯投影：当 Snapshot 的 `BookId` 与目标书籍匹配时覆盖持久化基线；不匹配或没有活动播放上下文时使用 SQLite 基线。不得新增第三套 mutable singleton progress store。
+- 显式切换章节/段落成功后，在新的逻辑位置已经成为当前 session 后及时保存 checkpoint。只在替换 session 前保存旧位置不足以完成本次跳转。
+- Pause、Stop、session 替换和应用生命周期退出继续作为稳定 checkpoint；不要求把每毫秒音频位置都写入 SQLite。
+- 失败、取消或目标位置未真正提交时不写入目标进度；迟到的旧 session 保存不得覆盖更新的新位置。
 
 ## 3. 当前段播放流程
 

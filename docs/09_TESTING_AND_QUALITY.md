@@ -131,6 +131,8 @@
 - 一次批量刷新使用常数级连接/SQL 次数，不逐章或逐段重新打开连接。
 - 完整度查询不更新音频 LRU 的 `LastAccessedAt`。
 - 前台查询不等待正文读取和正则重算；后台重建完成后发布按章节定位的刷新通知。
+- 对 `Microsoft.Data.Sqlite` 不以“调用 async API”作为非阻塞证据；需要通过线程/Dispatcher 可控测试或诊断证明潜在同步数据库工作没有长时间占用 UI 线程。
+- 单书详情查询的测试数据应能发现无谓全表聚合；查询计划/调用合同必须证明 BookId/ChapterId 过滤在合理位置生效。
 
 ### 5.4 缓存管理与导出
 
@@ -167,6 +169,16 @@
 - Player 内切章/切段或重建导航请求后必须保留原 `ReturnRoute`，并拒绝 `Player -> Player` 返回关系。
 - 至少保留一条针对原始缺陷的集成回归：从 `BookDetailsRoute("book-A")` 进入 Player 后返回，最终 BookDetails 页面/VM 必须取得 `book-A` 并完成正常加载，不能只断言页面类型。
 - PageHeader、`Alt+Left` 与无局部消费者时的 `Esc` 使用同一应用级返回入口；Esc 被选择模式/临时界面消费时不得继续触发导航。
+
+### 5.7 阅读进度一致性与详情响应性
+
+- 暂停态显式 A→B 切章后，在不执行第二次跳转、Pause 或 Stop 的情况下，`PlaybackSnapshot` 与持久化 checkpoint 第一次即指向 B。
+- 当前书籍的 Library 卡片和 BookDetails 当前章节/目录当前项必须由 Effective Reading Progress 立即跟随 Snapshot；异步持久化查询晚到不得把 UI 覆盖回旧章节。
+- Snapshot 属于其它书籍或不存在活动播放上下文时，页面使用自身 SQLite checkpoint；应用重启恢复路径必须独立覆盖。
+- 至少保留 `BookDetails(book-A) -> Player(B章) -> 第一次返回 -> BookDetails(B章)` 回归，明确禁止依赖“再进入一次才更新”。
+- BookDetails 性能缺陷先通过同书籍对照拆分测量导航、Page 创建、SQLite、投影、Collection/layout、缓存刷新、current-item 定位和 transition，不用主观体感替代阶段证据。
+- 性能自动回归优先使用 slow fake、barrier/gate、Dispatcher/首帧信号验证重工作没有同步阻塞关键 UI 路径；避免建立易波动的绝对毫秒 CI 门槛。
+- 临时 instrumentation、trace、A/B 开关或诊断 harness 在定位/修复结束后必须删除；长期只保留能够稳定保护线程边界和用户可观察行为的测试。
 
 ## 6. UI、视觉与可访问性测试
 

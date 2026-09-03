@@ -57,6 +57,13 @@
 - PageHeader、`Alt+Left` 与未被局部临时交互消费的 `Esc` 共用应用级 `NavigateBackAsync`；根路由返回不隐式跳转到 Library。
 - Wpf.Ui `NavigationView` 的内部 history/cache 不作为业务状态或参数恢复来源，不通过页面 Singleton/缓存来修补返回。
 
+### 阅读进度
+
+- `PlaybackSnapshot` 是当前活动书籍的运行时即时真值；SQLite `ReadingProgress` 是持久化 checkpoint 和非活动/重启恢复基线。
+- Library、BookDetails、Player 不各自维护第三套可变阅读位置。跨页面显示通过 Effective Reading Progress 纯投影在 BookId 匹配时用 Snapshot 覆盖持久化基线。
+- 显式章节/段落跳转成功后必须 checkpoint 新位置；不能依赖下一次 session 替换时保存“旧 session”来间接完成上一次跳转。
+- UI 即时一致性不以 SQLite 已经完成回写为前提；持久化最终仍必须在明确 checkpoint 边界收敛，保证应用重启恢复正确。
+
 ### UI
 
 - 保留 Fluent/Wpf.Ui 信息架构和标准控件模板，通过 NovelSpeaker palette、具名样式和自有组件逐步形成统一视觉。
@@ -116,6 +123,10 @@ Ctrl/Shift 选择、anchor、滚动定位和虚拟化容器可能产生边界问
 ### 导航来源捕获与参数完整性
 
 Player 的动态返回目标必须在切换 `CurrentRoute` 之前捕获；如果先进入 Player 再读取当前路由，会错误得到 Player 自身并形成无效返回。BookDetails 等参数化路由在任何返回路径中都必须保留完整参数，不能从页面类型、`AppRouteId`、播放会话或旧 Page 实例反推。guard 拒绝/导航失败时也不得提前提交新路由。以上边界应由 Presentation 回归和至少一条参数化页面集成测试共同保护。
+
+### 详情页返回性能
+
+Player 返回 BookDetails 会按强类型路由创建新的 transient Page/VM，因此重新加载本身是正常架构行为；风险在于导航切换、SQLite、章节投影、`ObservableCollection` 通知、初始缓存刷新、当前项定位和 Wpf.Ui transition 可能在同一 Dispatcher 时间窗叠加。`Task.Yield()` 只改变调度时机，`Microsoft.Data.Sqlite` 的 async API 也不能证明同步工作已经离开 UI 线程。性能修复必须先对同一本书做分阶段测量和 A/B 隔离，再只处理有证据的主瓶颈；不得用 Page Singleton、Navigation cache 或全局关闭动效掩盖问题。
 
 ### WPF 样式作用域与 Provider 漂移
 

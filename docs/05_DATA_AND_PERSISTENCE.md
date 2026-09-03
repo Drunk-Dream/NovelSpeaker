@@ -66,7 +66,17 @@
 - 新库和受支持旧版本升级都必须走同一 migration runner。
 - 高于当前版本的数据库安全拒绝。
 - SQLite row/connection/transaction 类型不得泄露到 Application API。
+- `Microsoft.Data.Sqlite` 的 `Execute*Async` / `ReadAsync` 不作为“工作已经离开 WPF Dispatcher”的保证；可能同步执行的数据库工作必须通过明确执行边界避免长时间占用 UI 线程。
+- 单书详情、统计和进度查询必须尽早按目标 `BookId`/`ChapterId` 收窄数据集；不能为了读取一本书无条件聚合整个 `Chapters` 或 `AudioCacheEntries` 后再过滤。
 - 音频缓存是可丢弃数据。新版缓存 schema 不迁移旧缓存键，不保留双读/双写或懒迁移；升级时重置旧缓存索引并通过受根目录约束的维护流程清理旧内部音频文件。
+
+### 3.1 阅读进度真值与持久化语义
+
+- `ReadingProgress` 每本书保存一个可恢复 checkpoint，包括章节、段落、字符偏移和音频位置等持久数据；它不是运行时 UI 事件总线。
+- 当前活动书籍的即时位置由 Application `PlaybackSnapshot` 所有。书库/详情查询返回 SQLite 持久化基线后，由上层 Effective Reading Progress 投影在 BookId 匹配时用 Snapshot 覆盖。
+- 因此 SQLite 短暂落后于当前 Snapshot 不应造成当前书籍 UI 回退到旧章节；同时 checkpoint 仍应在显式切章/切段、暂停、停止、session 替换和退出等稳定边界及时收敛。
+- checkpoint 更新必须在目标逻辑位置成功提交后执行。取消、解析失败或未建立新 session 时保留原持久化位置；旧 session 的迟到保存不得覆盖更晚的新位置。
+- 页面和 ViewModel 不直接写 `ReadingProgress`。写入语义集中在 Application 播放进度边界，Infrastructure 只实现持久化 adapter。
 
 ## 4. 书籍导入
 
