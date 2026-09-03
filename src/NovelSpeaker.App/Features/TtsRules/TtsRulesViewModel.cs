@@ -18,7 +18,7 @@ namespace NovelSpeaker.App.Features.TtsRules;
 /// <summary>
 /// Drives the TTS rules workspace, including list selection, draft editing, import, and audition flows.
 /// </summary>
-public sealed partial class TtsRulesViewModel : ObservableObject
+public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEscapeHandler
 {
     private const string FixedTestText = "你好，欢迎试听。";
 
@@ -129,6 +129,17 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         IsHelpDrawerOpen = false;
     }
 
+    public bool TryHandleEscape()
+    {
+        if (!IsHelpDrawerOpen)
+        {
+            return false;
+        }
+
+        IsHelpDrawerOpen = false;
+        return true;
+    }
+
     public Task ImportRuleFileAsync(CancellationToken cancellationToken) =>
         ImportDocumentAsync(
             () => _ruleDocuments.PickImportAsync(cancellationToken),
@@ -205,10 +216,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         }
 
         CancelCurrentTest();
-        if (!await _navigator.NavigateBackAsync(cancellationToken).ConfigureAwait(true))
-        {
-            await _navigator.NavigateAsync(AppRoutes.Settings, cancellationToken).ConfigureAwait(true);
-        }
+        await _navigator.NavigateBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
     }
 
     [RelayCommand]

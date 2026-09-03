@@ -87,7 +87,7 @@ public partial class CacheManagementPage : System.Windows.Controls.Page, INaviga
             return;
         }
 
-        if (e.Key == Key.Escape && ViewModel.HandleClearChapterSelection())
+        if (e.Key == Key.Escape && ViewModel.TryHandleEscape())
         {
             e.Handled = true;
         }

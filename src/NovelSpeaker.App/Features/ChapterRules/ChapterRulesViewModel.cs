@@ -15,7 +15,7 @@ namespace NovelSpeaker.App.Features.ChapterRules;
 /// <summary>
 /// Drives the chapter-rule workspace, including list selection, editor drafts, and default-rule actions.
 /// </summary>
-public sealed partial class ChapterRulesViewModel : ObservableObject
+public sealed partial class ChapterRulesViewModel : ObservableObject, ITransientEscapeHandler
 {
     private readonly IChapterRuleWorkspaceService _workspaceService;
     private readonly IAppFeedbackService _feedbackService;
@@ -91,6 +91,17 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
     {
         IsHelpDrawerOpen = false;
         ClearDragTarget();
+    }
+
+    public bool TryHandleEscape()
+    {
+        if (!IsHelpDrawerOpen)
+        {
+            return false;
+        }
+
+        IsHelpDrawerOpen = false;
+        return true;
     }
 
     public void SetDragTarget(ChapterRuleListItemViewModel? targetRule)
@@ -178,10 +189,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject
             return;
         }
 
-        if (!await _navigator.NavigateBackAsync(cancellationToken).ConfigureAwait(true))
-        {
-            await _navigator.NavigateAsync(AppRoutes.Settings, cancellationToken).ConfigureAwait(true);
-        }
+        await _navigator.NavigateBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
     }
 
     [RelayCommand]

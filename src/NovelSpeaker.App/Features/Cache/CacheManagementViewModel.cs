@@ -13,7 +13,7 @@ using NovelSpeaker.App.Shell.Navigation;
 
 namespace NovelSpeaker.App.Features.Cache;
 
-public sealed partial class CacheManagementViewModel : ObservableObject
+public sealed partial class CacheManagementViewModel : ObservableObject, ITransientEscapeHandler
 {
     private const string CleanupImpactMessage = "此操作只会清理音频缓存，不会删除书籍、章节、阅读进度、TTS 规则或章节规则。";
 
@@ -159,10 +159,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject
     [RelayCommand]
     private async Task BackAsync(CancellationToken cancellationToken)
     {
-        if (!await _navigator.NavigateBackAsync(cancellationToken).ConfigureAwait(true))
-        {
-            await _navigator.NavigateAsync(AppRoutes.CacheAndData, cancellationToken).ConfigureAwait(true);
-        }
+        await _navigator.NavigateBackAsync(cancellationToken).ConfigureAwait(true);
     }
 
     [RelayCommand]
@@ -222,6 +219,8 @@ public sealed partial class CacheManagementViewModel : ObservableObject
         _chapterSelection.Clear();
         return true;
     }
+
+    public bool TryHandleEscape() => HandleClearChapterSelection();
 
     [RelayCommand(CanExecute = nameof(CanClearSelectedChapters), AllowConcurrentExecutions = false)]
     private async Task ClearSelectedChaptersAsync(CancellationToken cancellationToken)

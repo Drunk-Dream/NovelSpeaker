@@ -1,3 +1,5 @@
+using NovelSpeaker.App.Shared.Presentation;
+
 namespace NovelSpeaker.App.Shell.Input;
 
 /// <summary>
@@ -6,4 +8,5 @@ namespace NovelSpeaker.App.Shell.Input;
 public sealed record KeyboardShortcutContext(
     bool IsPlayerPageActive,
     bool IsTextEditing,
-    bool IsTransientUiOpen);
+    bool IsTransientUiOpen,
+    ITransientEscapeHandler? TransientEscapeHandler = null);

@@ -115,7 +115,7 @@ public partial class PlayerView : UserControl
             return;
         }
 
-        if (e.Key == Key.Escape && _viewModel.HandleActiveCacheEscape())
+        if (e.Key == Key.Escape && _viewModel.TryHandleEscape())
         {
             e.Handled = true;
             return;

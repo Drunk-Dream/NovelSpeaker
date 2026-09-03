@@ -58,10 +58,7 @@ public abstract partial class SettingsSubpageViewModelBase : ObservableObject
     [RelayCommand]
     private async Task BackAsync(CancellationToken cancellationToken)
     {
-        if (!await _navigator.NavigateBackAsync(cancellationToken).ConfigureAwait(true))
-        {
-            await _navigator.NavigateAsync(AppRoutes.Settings, cancellationToken).ConfigureAwait(true);
-        }
+        await _navigator.NavigateBackAsync(cancellationToken).ConfigureAwait(true);
     }
 
     protected void ShowSaveFailure(string title, Exception exception)

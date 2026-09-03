@@ -34,7 +34,7 @@ public sealed partial class PlayerViewModelTests
         Assert.True(viewModel.Chapters[1].IsSelectedForActiveCache);
         Assert.True(viewModel.Chapters[2].IsSelectedForActiveCache);
 
-        Assert.True(viewModel.HandleActiveCacheEscape());
+        Assert.True(viewModel.TryHandleEscape());
         await viewModel.HandleChapterClickAsync(
             viewModel.Chapters[1],
             DesktopSelectionModifiers.None,
@@ -70,8 +70,38 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(3, viewModel.SelectedActiveCacheChapterCount);
         Assert.All(viewModel.Chapters, chapter => Assert.True(chapter.IsSelectedForActiveCache));
 
-        Assert.True(viewModel.HandleActiveCacheEscape());
+        Assert.True(viewModel.TryHandleEscape());
         Assert.DoesNotContain(viewModel.Chapters, chapter => chapter.IsSelectedForActiveCache);
+    }
+
+    [Fact]
+    public async Task Escape_consumes_player_transient_state_before_page_back()
+    {
+        var viewModel = CreateViewModel(
+            CreatePlaybackCoordinator(),
+            CreateContentService());
+        await OpenBookAsync(viewModel);
+
+        viewModel.OpenRuleMenuCommand.Execute(null);
+
+        Assert.True(viewModel.TryHandleEscape());
+        Assert.False(viewModel.IsRuleMenuOpen);
+        Assert.False(viewModel.TryHandleEscape());
+    }
+
+    [Fact]
+    public async Task Back_command_does_not_fallback_to_library_when_navigator_has_no_parent()
+    {
+        var navigation = new FakeNavigationService();
+        var viewModel = CreateViewModel(
+            CreatePlaybackCoordinator(),
+            CreateContentService(),
+            navigationService: navigation);
+
+        await viewModel.BackCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, navigation.NavigateBackCallCount);
+        Assert.Equal(0, navigation.NavigateToRouteCallCount);
     }
 
     [Fact]

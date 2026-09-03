@@ -698,9 +698,27 @@ public sealed partial class PlayerViewModelTests
 
         public object? LastNavigationData { get; private set; }
 
+        public int NavigateBackCallCount { get; private set; }
+
+        public int NavigateToRouteCallCount { get; private set; }
+
         public INavigationView GetNavigationControl() => throw new NotSupportedException();
 
         public bool GoBack() => false;
+
+        public Task<bool> NavigateBackAsync(CancellationToken cancellationToken, bool bypassGuard = false)
+        {
+            NavigateBackCallCount++;
+            return Task.FromResult(false);
+        }
+
+        public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false)
+        {
+            NavigateToRouteCallCount++;
+            LastNavigationPageType = TestAppRouteMapper.GetPageType(route.Id);
+            LastNavigationData = route;
+            return Task.FromResult(true);
+        }
 
         public bool Navigate(Type pageType) => true;
 

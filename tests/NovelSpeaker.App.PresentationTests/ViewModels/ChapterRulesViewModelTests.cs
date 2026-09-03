@@ -357,7 +357,39 @@ public sealed class ChapterRulesViewModelTests
 
         await viewModel.BackCommand.ExecuteAsync(null);
 
-        Assert.Equal(0, navigationService.GoBackCallCount);
+        Assert.Equal(0, navigationService.NavigateBackCallCount);
+    }
+
+    private async Task BackAsync_confirmed_unsaved_changes_navigates_once_without_fallback()
+    {
+        var workspace = new FakeChapterRuleWorkspaceService(
+        [
+            new ChapterRuleListItem("custom:one", "规则一", @"^\s*一$", true, 10, false, true)
+        ])
+        {
+            EditorsById =
+            {
+                ["custom:one"] = new ChapterRuleEditorModel("custom:one", "规则一", @"^\s*一$", false, true)
+            }
+        };
+        var navigationService = new FakeNavigationService();
+        var dialogService = new FakeAppDialogService
+        {
+            NextUnsavedDecision = UnsavedChangesDecision.Discard
+        };
+        var viewModel = CreateViewModel(
+            workspaceService: workspace,
+            dialogService: dialogService,
+            navigationService: navigationService);
+        await LoadAndSelectAsync(viewModel, "custom:one");
+        viewModel.DraftPattern = @"^\s*已修改$";
+
+        await viewModel.BackCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, dialogService.UnsavedChangesPromptCount);
+        Assert.Equal(1, navigationService.NavigateBackCallCount);
+        Assert.True(navigationService.LastNavigateBackBypassGuard);
+        Assert.Equal(0, navigationService.NavigateCallCount);
     }
 
     private async Task MoveRuleUpAndSaveDraftAsync_preserves_reordered_selection_and_skips_unsaved_prompt()
@@ -446,6 +478,7 @@ public sealed class ChapterRulesViewModelTests
     {
         await ImportDefaultsAsync_with_unsaved_changes_saves_first_then_applies_defaults();
         await BackAsync_cancelled_unsaved_changes_does_not_navigate();
+        await BackAsync_confirmed_unsaved_changes_navigates_once_without_fallback();
         await MoveRuleUpAndSaveDraftAsync_preserves_reordered_selection_and_skips_unsaved_prompt();
         await CancelEditingAsync_does_not_rollback_left_saved_enabled_state();
     }
@@ -703,12 +736,31 @@ public sealed class ChapterRulesViewModelTests
     {
         public int GoBackCallCount { get; private set; }
 
+        public int NavigateBackCallCount { get; private set; }
+
+        public int NavigateCallCount { get; private set; }
+
+        public bool LastNavigateBackBypassGuard { get; private set; }
+
         public INavigationView GetNavigationControl() => throw new NotSupportedException();
 
         public bool GoBack()
         {
             GoBackCallCount++;
             return true;
+        }
+
+        public Task<bool> NavigateBackAsync(CancellationToken cancellationToken, bool bypassGuard = false)
+        {
+            NavigateBackCallCount++;
+            LastNavigateBackBypassGuard = bypassGuard;
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false)
+        {
+            NavigateCallCount++;
+            return Task.FromResult(true);
         }
 
         public bool Navigate(Type pageType) => true;

@@ -104,7 +104,7 @@ public sealed class CacheManagementViewModelTests
 
         Assert.True(viewModel.HandleSelectAllChapters());
         Assert.Equal([0, 1, 2, 3], viewModel.SelectedChapterIndices);
-        Assert.True(viewModel.HandleClearChapterSelection());
+        Assert.True(viewModel.TryHandleEscape());
         Assert.Empty(viewModel.SelectedChapterIndices);
         Assert.False(viewModel.CanClearSelectedChapters);
         Assert.False(viewModel.ClearSelectedChaptersCommand.CanExecute(null));

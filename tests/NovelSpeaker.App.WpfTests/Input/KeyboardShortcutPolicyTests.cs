@@ -40,7 +40,7 @@ public sealed class KeyboardShortcutPolicyTests
     }
 
     [Fact]
-    public void Resolve_suppresses_all_shortcuts_while_editing_or_transient_ui_is_open()
+    public void Resolve_suppresses_shortcuts_while_editing_or_transient_ui_is_open()
     {
         foreach (var (key, modifiers, isTextEditing, isTransientUiOpen) in new[]
                  {
@@ -58,5 +58,16 @@ public sealed class KeyboardShortcutPolicyTests
 
             Assert.Null(action);
         }
+    }
+
+    [Fact]
+    public void Resolve_keeps_alt_left_as_an_application_back_action_while_editing()
+    {
+        var action = KeyboardShortcutPolicy.Resolve(
+            Key.Left,
+            ModifierKeys.Alt,
+            new KeyboardShortcutContext(true, true, false));
+
+        Assert.Equal(KeyboardShortcutAction.NavigateBack, action);
     }
 }

@@ -20,7 +20,7 @@ using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.App.Features.Playback.Presentation;
 
-public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgressInteractionTarget
+public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgressInteractionTarget, ITransientEscapeHandler
 {
     private readonly IPlaybackSession _playbackCoordinator;
     private readonly IPlaybackStopTimer _stopTimer;
@@ -552,10 +552,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     [RelayCommand]
     private async Task BackAsync(CancellationToken cancellationToken)
     {
-        if (!await _navigator.NavigateBackAsync(cancellationToken).ConfigureAwait(true))
-        {
-            await _navigator.NavigateAsync(AppRoutes.Library, cancellationToken).ConfigureAwait(true);
-        }
+        await _navigator.NavigateBackAsync(cancellationToken).ConfigureAwait(true);
     }
 
     [RelayCommand]
@@ -865,6 +862,28 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     }
 
     public bool HandleActiveCacheEscape() => _activeCacheSelection.ExitSelectionMode();
+
+    public bool TryHandleEscape()
+    {
+        if (IsSegmentProgressDragging)
+        {
+            CancelSegmentProgressInteraction();
+            return true;
+        }
+
+        if (IsActiveCacheSelectionMode)
+        {
+            return HandleActiveCacheEscape();
+        }
+
+        if (IsRuleMenuOpen || IsSpeedMenuOpen || IsStopTimerMenuOpen || IsVolumeMenuOpen)
+        {
+            CloseTransientPanels();
+            return true;
+        }
+
+        return false;
+    }
 
     public bool HandleActiveCacheSelectAll()
     {

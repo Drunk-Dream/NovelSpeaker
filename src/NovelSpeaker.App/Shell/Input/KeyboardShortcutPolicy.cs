@@ -6,7 +6,17 @@ public static class KeyboardShortcutPolicy
 {
     public static KeyboardShortcutAction? Resolve(Key key, ModifierKeys modifiers, KeyboardShortcutContext context)
     {
-        if (context.IsTextEditing || context.IsTransientUiOpen)
+        if (context.IsTransientUiOpen)
+        {
+            return null;
+        }
+
+        if (key == Key.Left && modifiers == ModifierKeys.Alt)
+        {
+            return KeyboardShortcutAction.NavigateBack;
+        }
+
+        if (context.IsTextEditing)
         {
             return null;
         }
@@ -21,8 +31,7 @@ public static class KeyboardShortcutPolicy
             return KeyboardShortcutAction.OpenSettings;
         }
 
-        if ((key == Key.Left && modifiers == ModifierKeys.Alt) ||
-            (key == Key.Escape && modifiers == ModifierKeys.None))
+        if (key == Key.Escape && modifiers == ModifierKeys.None)
         {
             return KeyboardShortcutAction.NavigateBack;
         }

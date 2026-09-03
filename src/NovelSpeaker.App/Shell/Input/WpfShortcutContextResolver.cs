@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
+using NovelSpeaker.App.Shared.Presentation;
 using Wpf.Ui.Controls;
 
 namespace NovelSpeaker.App.Shell.Input;
@@ -21,7 +22,8 @@ public sealed class WpfShortcutContextResolver : IShortcutContextResolver
             HasEditingAncestor(focusedElement),
             HasTransientUiAncestor(focusedElement) ||
             IsHostedInPopupSurface(focusedElement) ||
-            FindVisibleContentDialog(dialogHost) is not null);
+            FindVisibleContentDialog(dialogHost) is not null,
+            FindTransientEscapeHandler(focusedElement));
     }
 
     private static bool HasEditingAncestor(DependencyObject? element)
@@ -61,6 +63,24 @@ public sealed class WpfShortcutContextResolver : IShortcutContextResolver
             : null;
 
         return presentationSource?.RootVisual is not null and not Window;
+    }
+
+    private static ITransientEscapeHandler? FindTransientEscapeHandler(DependencyObject? element)
+    {
+        for (var current = element; current is not null; current = GetParent(current))
+        {
+            if (current is FrameworkElement { DataContext: ITransientEscapeHandler handler })
+            {
+                return handler;
+            }
+
+            if (current is FrameworkContentElement { DataContext: ITransientEscapeHandler contentHandler })
+            {
+                return contentHandler;
+            }
+        }
+
+        return null;
     }
 
     private static DependencyObject? GetParent(DependencyObject current)

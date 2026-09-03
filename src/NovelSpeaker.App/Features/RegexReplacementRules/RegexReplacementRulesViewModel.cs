@@ -7,6 +7,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Features.RuleEditing;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Dialogs;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Rules;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.Domain.Books;
@@ -14,7 +15,7 @@ using NovelSpeaker.Domain.Books;
 namespace NovelSpeaker.App.Features.RegexReplacementRules;
 
 /// <summary>UI workspace for global runtime regex replacement rules.</summary>
-public sealed partial class RegexReplacementRulesViewModel : ObservableObject
+public sealed partial class RegexReplacementRulesViewModel : ObservableObject, ITransientEscapeHandler
 {
     private readonly IRegexReplacementRuleWorkspaceService _workspace;
     private readonly IPlaybackRegexReplacementRefresher _playback;
@@ -76,6 +77,17 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
         ClearDragTarget();
     }
 
+    public bool TryHandleEscape()
+    {
+        if (!IsHelpDrawerOpen)
+        {
+            return false;
+        }
+
+        IsHelpDrawerOpen = false;
+        return true;
+    }
+
     public void SetDragTarget(RegexReplacementRuleListItemViewModel? targetRule)
     {
         foreach (var rule in Rules)
@@ -96,10 +108,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject
     private async Task BackAsync(CancellationToken cancellationToken)
     {
         if (!await ConfirmLeaveAsync(cancellationToken)) return;
-        if (!await _navigator.NavigateBackAsync(cancellationToken).ConfigureAwait(true))
-        {
-            await _navigator.NavigateAsync(AppRoutes.ImportTextSettings, cancellationToken).ConfigureAwait(true);
-        }
+        await _navigator.NavigateBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
     }
 
     [RelayCommand]

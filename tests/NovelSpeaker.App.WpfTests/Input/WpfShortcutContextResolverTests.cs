@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shell.Input;
 using Xunit;
 
@@ -22,6 +23,25 @@ public sealed class WpfShortcutContextResolverTests
         Menu_item_is_a_transient_context();
         Focus_inside_generic_popup_is_a_transient_context();
         Visible_content_dialog_is_a_transient_context();
+    }
+
+    [Fact]
+    public void Shortcut_context_resolves_the_page_local_escape_consumer_from_focus_ancestry()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var handler = new TestTransientEscapeHandler();
+            var root = new Grid { DataContext = handler };
+            var focusedElement = new Button();
+            root.Children.Add(focusedElement);
+
+            var context = new WpfShortcutContextResolver().Resolve(
+                false,
+                focusedElement,
+                new Grid());
+
+            Assert.Same(handler, context.TransientEscapeHandler);
+        });
     }
 
     private void Text_input_and_editable_combo_are_editing_contexts()
@@ -143,5 +163,10 @@ public sealed class WpfShortcutContextResolverTests
                 window.Close();
             }
         });
+    }
+
+    private sealed class TestTransientEscapeHandler : ITransientEscapeHandler
+    {
+        public bool TryHandleEscape() => true;
     }
 }

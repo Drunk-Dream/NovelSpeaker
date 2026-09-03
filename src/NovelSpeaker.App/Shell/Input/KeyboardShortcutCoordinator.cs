@@ -32,6 +32,15 @@ public sealed class KeyboardShortcutCoordinator : IKeyboardShortcutCoordinator
         KeyboardShortcutContext context,
         CancellationToken cancellationToken)
     {
+        if (key == Key.Escape &&
+            modifiers == ModifierKeys.None &&
+            !context.IsTextEditing &&
+            !context.IsTransientUiOpen &&
+            context.TransientEscapeHandler?.TryHandleEscape() == true)
+        {
+            return true;
+        }
+
         var action = KeyboardShortcutPolicy.Resolve(key, modifiers, context);
         if (action is null)
         {
@@ -64,11 +73,7 @@ public sealed class KeyboardShortcutCoordinator : IKeyboardShortcutCoordinator
 
         if (action == KeyboardShortcutAction.NavigateBack)
         {
-            if (!await _navigation.NavigateBackAsync(cancellationToken).ConfigureAwait(true))
-            {
-                await _navigation.NavigateAsync(AppRoutes.Library, cancellationToken).ConfigureAwait(true);
-            }
-
+            await _navigation.NavigateBackAsync(cancellationToken).ConfigureAwait(true);
             return true;
         }
 
