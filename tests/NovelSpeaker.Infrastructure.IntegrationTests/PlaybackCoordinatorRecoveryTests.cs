@@ -34,7 +34,13 @@ public sealed partial class PlaybackCoordinatorTests
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var readingProgressStore = new FakeReadingProgressStore
         {
-            StoredProgress = new ReadingProgressEntry("book-1", 0, 1, 6, 333, DateTimeOffset.Parse("2026-06-25T00:00:00.0000000Z"))
+            StoredProgress = new ReadingProgressEntry(
+                "book-1",
+                0,
+                1,
+                6,
+                333,
+                DateTimeOffset.Parse("2026-06-25T00:00:00.0000000Z"))
         };
         await using var coordinator = CreateCoordinator(localCoordinator, readingProgressStore: readingProgressStore);
 
@@ -42,6 +48,8 @@ public sealed partial class PlaybackCoordinatorTests
 
         Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
         Assert.Equal(0, localCoordinator.LastStartedRequest?.ResumePositionMilliseconds);
+        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
+        Assert.Equal(0, readingProgressStore.StoredProgress?.AudioPositionMilliseconds);
     }
 
     [Fact]
@@ -75,7 +83,8 @@ public sealed partial class PlaybackCoordinatorTests
 
         await coordinator.NextSegmentAsync(CancellationToken.None);
 
-        var saved = Assert.Single(readingProgressStore.SavedProgress);
+        Assert.Equal(2, readingProgressStore.SavedProgress.Count);
+        var saved = readingProgressStore.SavedProgress[0];
         Assert.Equal(0, saved.SegmentIndex);
         Assert.Equal(0, saved.CharacterOffset);
         Assert.Equal(240, saved.AudioPositionMilliseconds);
@@ -162,13 +171,53 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
+    public async Task OpenPausedAsync_with_explicit_position_persists_new_position_immediately()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var readingProgressStore = new FakeReadingProgressStore
+        {
+            StoredProgress = new ReadingProgressEntry(
+                "book-1",
+                0,
+                0,
+                0,
+                0,
+                DateTimeOffset.Parse("2026-06-25T00:00:00.0000000Z"))
+        };
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            readingProgressStore: readingProgressStore,
+            book: CreateTwoChapterBook());
+
+        await coordinator.OpenPausedAsync(
+            new OpenBookPlaybackRequest("book-1", 1, 0, 10),
+            CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Paused, coordinator.CurrentSnapshot.State);
+        Assert.Equal(1, coordinator.CurrentSnapshot.ChapterIndex);
+        Assert.Equal(1, readingProgressStore.StoredProgress?.ChapterIndex);
+        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
+    }
+
+    [Fact]
     public async Task JumpToSegmentAsync_while_paused_updates_position_without_immediate_audio_request()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var audioProvider = new FakePlaybackAudioProvider();
+        var readingProgressStore = new FakeReadingProgressStore
+        {
+            StoredProgress = new ReadingProgressEntry(
+                "book-1",
+                0,
+                0,
+                0,
+                0,
+                DateTimeOffset.Parse("2026-06-25T00:00:00.0000000Z"))
+        };
         await using var coordinator = CreateCoordinator(
             localCoordinator,
             audioProvider: audioProvider,
+            readingProgressStore: readingProgressStore,
             book: CreateThreeSegmentBook());
 
         await coordinator.OpenPausedAsync(new OpenBookPlaybackRequest("book-1", 0, 0, 10), CancellationToken.None);
@@ -179,6 +228,198 @@ public sealed partial class PlaybackCoordinatorTests
         Assert.Equal(PlaybackState.Paused, coordinator.CurrentSnapshot.State);
         Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
         Assert.Empty(audioProvider.Requests);
+        Assert.Equal(2, readingProgressStore.StoredProgress?.SegmentIndex);
+    }
+
+    [Fact]
+    public async Task JumpToChapterAsync_while_paused_persists_new_position_immediately()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var readingProgressStore = new FakeReadingProgressStore
+        {
+            StoredProgress = new ReadingProgressEntry(
+                "book-1",
+                0,
+                0,
+                0,
+                0,
+                DateTimeOffset.Parse("2026-06-25T00:00:00.0000000Z"))
+        };
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            readingProgressStore: readingProgressStore,
+            book: CreateTwoChapterBook());
+
+        await coordinator.OpenPausedAsync(
+            new OpenBookPlaybackRequest("book-1", 0, 0, 10),
+            CancellationToken.None);
+        await coordinator.JumpToChapterAsync(1, CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Paused, coordinator.CurrentSnapshot.State);
+        Assert.Equal(1, coordinator.CurrentSnapshot.ChapterIndex);
+        Assert.Equal(1, readingProgressStore.StoredProgress?.ChapterIndex);
+        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
+    }
+
+    [Fact]
+    public async Task JumpToSegmentAsync_while_playing_persists_new_position_after_old_session_stops()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var readingProgressStore = new FakeReadingProgressStore();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            readingProgressStore: readingProgressStore,
+            book: CreateThreeSegmentBook());
+
+        await coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", 0, 0, null, 10),
+            CancellationToken.None);
+        await coordinator.JumpToSegmentAsync(0, 2, CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(2, readingProgressStore.StoredProgress?.SegmentIndex);
+    }
+
+    [Fact]
+    public async Task JumpToSegmentAsync_across_chapters_persists_resolved_target_position()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var readingProgressStore = new FakeReadingProgressStore();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            readingProgressStore: readingProgressStore,
+            book: CreateTwoChapterBook());
+
+        await coordinator.OpenPausedAsync(
+            new OpenBookPlaybackRequest("book-1", 0, 0, 10),
+            CancellationToken.None);
+        await coordinator.NextSegmentAsync(CancellationToken.None);
+
+        Assert.Equal(1, coordinator.CurrentSnapshot.ChapterIndex);
+        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(1, readingProgressStore.StoredProgress?.ChapterIndex);
+        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
+    }
+
+    [Fact]
+    public async Task JumpToSegmentAsync_when_new_checkpoint_fails_keeps_target_uncommitted()
+    {
+        var expected = new InvalidOperationException("checkpoint failed");
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var readingProgressStore = new FakeReadingProgressStore
+        {
+            StoredProgress = new ReadingProgressEntry(
+                "book-1",
+                0,
+                0,
+                0,
+                0,
+                DateTimeOffset.Parse("2026-06-25T00:00:00.0000000Z")),
+            SaveFailure = expected,
+            SaveFailureCall = 3
+        };
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            readingProgressStore: readingProgressStore,
+            book: CreateThreeSegmentBook());
+
+        await coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", 0, 0, null, 10),
+            CancellationToken.None);
+
+        var actual = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            coordinator.JumpToSegmentAsync(0, 2, CancellationToken.None));
+
+        Assert.Same(expected, actual);
+        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(PlaybackState.Stopped, coordinator.CurrentSnapshot.State);
+        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
+
+        await coordinator.ResumeAsync(CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+    }
+
+    [Fact]
+    public async Task JumpToSegmentAsync_when_new_checkpoint_is_cancelled_keeps_previous_session()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var saveGate = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var readingProgressStore = new FakeReadingProgressStore
+        {
+            StoredProgress = new ReadingProgressEntry(
+                "book-1",
+                0,
+                0,
+                0,
+                0,
+                DateTimeOffset.Parse("2026-06-25T00:00:00.0000000Z")),
+            SaveGate = saveGate,
+            SaveGateCall = 2
+        };
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            readingProgressStore: readingProgressStore,
+            book: CreateThreeSegmentBook());
+
+        await coordinator.OpenPausedAsync(
+            new OpenBookPlaybackRequest("book-1", null, null, 10),
+            CancellationToken.None);
+
+        using var cancellationSource = new CancellationTokenSource();
+        var jumpTask = coordinator.JumpToSegmentAsync(0, 2, cancellationSource.Token);
+        var saveCall = await readingProgressStore.SecondSaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(2, saveCall);
+
+        cancellationSource.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jumpTask);
+
+        Assert.Equal(PlaybackState.Paused, coordinator.CurrentSnapshot.State);
+        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
+
+        await coordinator.StopAsync(CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Stopped, coordinator.CurrentSnapshot.State);
+        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
+    }
+
+    [Fact]
+    public async Task Cancelled_jump_ignores_completion_queued_from_previous_session()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var saveGate = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var readingProgressStore = new FakeReadingProgressStore
+        {
+            SaveGate = saveGate,
+            SaveGateCall = 3
+        };
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            readingProgressStore: readingProgressStore,
+            book: CreateThreeSegmentBook());
+
+        await coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", 0, 0, null, 10),
+            CancellationToken.None);
+
+        using var cancellationSource = new CancellationTokenSource();
+        var jumpTask = coordinator.JumpToSegmentAsync(0, 2, cancellationSource.Token);
+        var saveCall = await readingProgressStore.ThirdSaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(3, saveCall);
+        localCoordinator.RaiseCompleted();
+        cancellationSource.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jumpTask);
+        await coordinator.StopAsync(CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Stopped, coordinator.CurrentSnapshot.State);
+        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
     }
 
     [Fact]

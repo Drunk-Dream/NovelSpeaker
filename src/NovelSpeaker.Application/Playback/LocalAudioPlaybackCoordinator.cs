@@ -85,7 +85,8 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
                 request.ResumePositionMilliseconds,
                 0,
                 "正在准备本地音频。",
-                request.IsUsingCache));
+                request.IsUsingCache,
+                request.PlaybackSessionId));
 
             _audioPlayer.Stop();
             await _audioPlayer.LoadAsync(request.FilePath, linkedCancellation.Token);
@@ -106,7 +107,8 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
                 ToMilliseconds(_audioPlayer.Position),
                 ToMilliseconds(_audioPlayer.Duration),
                 null,
-                request.IsUsingCache));
+                request.IsUsingCache,
+                request.PlaybackSessionId));
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -368,7 +370,8 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
             ToMilliseconds(_audioPlayer.Position),
             ToMilliseconds(_audioPlayer.Duration),
             error.Message,
-            _currentRequest.IsUsingCache));
+            _currentRequest.IsUsingCache,
+            _currentRequest.PlaybackSessionId));
     }
 
     private void PublishSnapshotFromPlayer(PlaybackState state, string? message)
@@ -388,7 +391,8 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
             ToMilliseconds(_audioPlayer.Position),
             ToMilliseconds(_audioPlayer.Duration),
             message,
-            _currentRequest.IsUsingCache));
+            _currentRequest.IsUsingCache,
+            _currentRequest.PlaybackSessionId));
     }
 
     private void PublishSnapshot(LocalAudioPlaybackSnapshot snapshot)
@@ -406,7 +410,8 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
         long positionMilliseconds,
         long durationMilliseconds,
         string? message,
-        bool isUsingCache)
+        bool isUsingCache,
+        Guid? playbackSessionId)
     {
         return new LocalAudioPlaybackSnapshot(
             state,
@@ -418,7 +423,8 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
             durationMilliseconds,
             message,
             isUsingCache,
-            _volume);
+            _volume,
+            playbackSessionId);
     }
 
     private static long ToMilliseconds(TimeSpan timeSpan)

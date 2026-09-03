@@ -10,4 +10,5 @@ public sealed record LocalAudioPlaybackRequest(
     int ChapterIndex,
     int SegmentIndex,
     long ResumePositionMilliseconds,
-    bool IsUsingCache);
+    bool IsUsingCache,
+    Guid? PlaybackSessionId = null);

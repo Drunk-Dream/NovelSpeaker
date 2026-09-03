@@ -374,7 +374,9 @@ public sealed partial class PlaybackCoordinatorTests
                 request.ResumePositionMilliseconds,
                 1800,
                 null,
-                request.IsUsingCache);
+                request.IsUsingCache,
+                PlaybackVolume.Default,
+                request.PlaybackSessionId);
             SnapshotChanged?.Invoke(this, CurrentSnapshot);
             return Task.CompletedTask;
         }
@@ -467,14 +469,34 @@ public sealed partial class PlaybackCoordinatorTests
 
         public Exception? SaveFailure { get; set; }
 
+        public int? SaveFailureCall { get; set; }
+
+        public int SaveCallCount { get; private set; }
+
         public TaskCompletionSource<object?> SaveStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<int> SecondSaveStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<int> ThirdSaveStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public TaskCompletionSource<object?>? SaveGate { get; set; }
 
+        public int? SaveGateCall { get; set; }
+
         public Task SaveAsync(PlaybackProgressUpdate progress, CancellationToken cancellationToken)
         {
+            SaveCallCount++;
             SaveStarted.TrySetResult(null);
-            if (SaveFailure is not null)
+            if (SaveCallCount == 2)
+            {
+                SecondSaveStarted.TrySetResult(SaveCallCount);
+            }
+            else if (SaveCallCount == 3)
+            {
+                ThirdSaveStarted.TrySetResult(SaveCallCount);
+            }
+            if (SaveFailure is not null &&
+                (SaveFailureCall is null || SaveFailureCall == SaveCallCount))
             {
                 return Task.FromException(SaveFailure);
             }
@@ -484,7 +506,8 @@ public sealed partial class PlaybackCoordinatorTests
 
         private async Task SaveCoreAsync(PlaybackProgressUpdate progress, CancellationToken cancellationToken)
         {
-            if (SaveGate is not null)
+            if (SaveGate is not null &&
+                (SaveGateCall is null || SaveGateCall == SaveCallCount))
             {
                 await SaveGate.Task.WaitAsync(cancellationToken);
             }

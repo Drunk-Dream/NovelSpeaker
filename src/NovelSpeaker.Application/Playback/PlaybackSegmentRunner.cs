@@ -65,7 +65,8 @@ internal sealed class PlaybackSegmentRunner
                 request.AudioRequest.ChapterIndex,
                 request.AudioRequest.SegmentIndex,
                 request.ResumePositionMilliseconds,
-                audio.IsUsingCache),
+                audio.IsUsingCache,
+                request.AudioRequest.SessionId),
             cancellationToken).ConfigureAwait(false);
 
         return new PlaybackSegmentRunResult(
