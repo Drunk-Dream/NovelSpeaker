@@ -48,6 +48,15 @@
 - 定时停止支持固定/自定义时长，触发后只暂停播放。
 - 关闭主窗口行为支持托盘、退出、每次询问。
 
+### 导航
+
+- 应用级导航不维护浏览器式历史栈或 Back/Forward 链，只维护当前完整 `AppRoute`。
+- 普通页面返回使用固定 ParentRoute：BookDetails 返回 Library；设置二级页返回 Settings；RegexReplacementRules 返回 ImportTextSettings；CacheManagement 返回 CacheAndData；Library/Settings 无父级。
+- Player 是唯一动态返回页面；`PlayerRoute` 显式携带一次性的 `ReturnRoute`。从书库进入返回 Library，从详情页进入返回同一 `BookDetailsRoute(BookId)`，从 Shell“正在播放”入口进入则返回进入 Player 前捕获的完整当前路由。
+- `ReturnRoute` 不允许指向 Player，也不递归保存历史链；Player 内部定位/切章不得重置来源。
+- PageHeader、`Alt+Left` 与未被局部临时交互消费的 `Esc` 共用应用级 `NavigateBackAsync`；根路由返回不隐式跳转到 Library。
+- Wpf.Ui `NavigationView` 的内部 history/cache 不作为业务状态或参数恢复来源，不通过页面 Singleton/缓存来修补返回。
+
 ### UI
 
 - 保留 Fluent/Wpf.Ui 信息架构和标准控件模板，通过 NovelSpeaker palette、具名样式和自有组件逐步形成统一视觉。
@@ -103,6 +112,10 @@ Ctrl/Shift 选择、anchor、滚动定位和虚拟化容器可能产生边界问
 ### 托盘/迷你窗口关闭
 
 主窗口 Close、隐藏到托盘、迷你窗口 Close 和显式 Exit 是不同事件；必须有单一 desktop lifecycle coordinator 防止重复关闭或意外退出。
+
+### 导航来源捕获与参数完整性
+
+Player 的动态返回目标必须在切换 `CurrentRoute` 之前捕获；如果先进入 Player 再读取当前路由，会错误得到 Player 自身并形成无效返回。BookDetails 等参数化路由在任何返回路径中都必须保留完整参数，不能从页面类型、`AppRouteId`、播放会话或旧 Page 实例反推。guard 拒绝/导航失败时也不得提前提交新路由。以上边界应由 Presentation 回归和至少一条参数化页面集成测试共同保护。
 
 ### WPF 样式作用域与 Provider 漂移
 

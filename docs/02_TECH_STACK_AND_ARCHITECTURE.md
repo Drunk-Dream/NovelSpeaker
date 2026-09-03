@@ -68,6 +68,27 @@ App 的业务页面不得直接依赖 Infrastructure；所有业务动作通过 
 - 页面实例由集中导航 provider/factory 创建，不在页面内部 service-locate。
 - 构建测试开启可解析、scope/lifetime 和依赖方向验证。
 
+## 5.1 Shell 导航模型
+
+NovelSpeaker 的应用级导航采用“当前完整路由 + 固定父级 + 播放页显式返回目标”，不维护浏览器式历史栈，也不把 Wpf.Ui 的内部 back stack 作为业务状态。
+
+- `IAppNavigator` / Shell 导航适配器只维护一个完整 `CurrentRoute`。`CurrentRouteId` 如保留，只能作为 `CurrentRoute.Id` 的派生投影，不能替代 `BookDetailsRoute(BookId)`、`PlayerRoute(...)` 等参数化路由。
+- 所有页面切换通过 `NavigateAsync(AppRoute, ...)` 显式给出目标；只有导航实际成功后才能更新 `CurrentRoute`。guard 拒绝、取消或框架导航失败时，当前路由保持不变。
+- 普通页面的返回由 Shell 导航层集中解析固定父级，不由 Page/ViewModel 各自保存“上一页”，也不调用 Wpf.Ui `GoBack()`：
+
+| 当前路由 | 固定返回目标 |
+|---|---|
+| `BookDetailsRoute` | `Library` |
+| `PlaybackSettings` / `TtsRules` / `ImportTextSettings` / `ChapterRules` / `CacheAndData` / `GeneralSettings` / `AppearanceSettings` / `DiagnosticsAbout` | `Settings` |
+| `RegexReplacementRules` | `ImportTextSettings` |
+| `CacheManagement` | `CacheAndData` |
+| `Library` / `Settings` | 无父级 |
+
+- `PlayerRoute` 是唯一具有动态返回目标的页面路由，进入 Player 时必须携带一次性的 `ReturnRoute`：从书库进入返回 `Library`；从书籍详情进入返回同一 `BookDetailsRoute(BookId)`；从 Shell Footer“正在播放”入口进入时，在切换到 Player 之前捕获当前完整 `CurrentRoute` 作为返回目标。
+- `PlayerRoute.ReturnRoute` 只表示本次 Player 退出时的一跳目标，不递归形成历史链，不允许指向另一个 `PlayerRoute`；Player 内部切章、切段或会话定位不得丢失该返回目标。
+- 应用级返回统一使用 `NavigateBackAsync(...)`：普通页面解析固定父级，Player 使用 `ReturnRoute`。PageHeader 返回、`Alt+Left` 与未被局部临时交互消费的 `Esc` 最终复用同一入口。
+- Wpf.Ui `NavigationView` 继续作为页面宿主和一级选中态 owner；其内部 history/cache 不用于恢复业务路由，不通过页面 Singleton、额外 NavigationCache 或应用级 route stack 修复返回参数。
+
 ## 6. 状态所有权
 
 | 状态 | 唯一所有者 | 生命周期 |

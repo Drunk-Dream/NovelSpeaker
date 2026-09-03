@@ -157,6 +157,17 @@
 - 托盘 close/exit 状态机。
 - 定时停止使用可控 `TimeProvider`。
 
+### 5.6 导航与返回
+
+- `CurrentRoute` 保存完整强类型 `AppRoute`；参数化页面不能只测试 `AppRouteId`。
+- 成功导航后才更新当前路由；guard 拒绝、取消和框架导航失败必须保持原 `CurrentRoute` 与 Shell 选中态。
+- 固定父级覆盖 BookDetails→Library、设置二级页→Settings、RegexReplacementRules→ImportTextSettings、CacheManagement→CacheAndData；Library/Settings 根路由没有父级。
+- 应用级返回不依赖 Wpf.Ui `GoBack()`、页面实例缓存或应用级 route stack。
+- Player 回归至少覆盖三种来源：Library→Player→Library、BookDetails(book-A)→Player→BookDetails(book-A)、任一当前页面→Shell“正在播放”→Player→原完整路由。
+- Player 内切章/切段或重建导航请求后必须保留原 `ReturnRoute`，并拒绝 `Player -> Player` 返回关系。
+- 至少保留一条针对原始缺陷的集成回归：从 `BookDetailsRoute("book-A")` 进入 Player 后返回，最终 BookDetails 页面/VM 必须取得 `book-A` 并完成正常加载，不能只断言页面类型。
+- PageHeader、`Alt+Left` 与无局部消费者时的 `Esc` 使用同一应用级返回入口；Esc 被选择模式/临时界面消费时不得继续触发导航。
+
 ## 6. UI、视觉与可访问性测试
 
 - UI 测试优先保护用户可观察行为：导航、命令启用、选择、Dirty State、缓存状态、页面生命周期、键盘焦点、Automation 和关键几何下限。

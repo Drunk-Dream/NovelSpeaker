@@ -168,6 +168,18 @@ Dark Mode 下 Pressed 仍必须保持高对比度主题前景；媒体、Toolbar
 
 定时停止入口采用轻量 Pill：未启用时保持中性，启用时使用弱 Accent 持续状态。Flyout 中 `15 / 30 / 45 / 60 / 90` 为轻量 Choice，当前选择使用弱 Accent；自定义分钟为次级输入，“关闭定时”保持中性而非危险色。
 
+### 7.4 导航与返回
+
+播放页不使用通用历史栈决定返回目标，而在进入时显式冻结一次性的来源路由：
+
+- 从书库点击书籍进入播放时，`PlayerRoute.ReturnRoute = Library`。
+- 从书籍详情点击章节进入播放时，`PlayerRoute.ReturnRoute = BookDetailsRoute(同一 BookId)`；返回后必须重新以该强类型路由加载同一本书。
+- 从 Shell 左下角“正在播放”入口进入时，先捕获进入前的完整 `CurrentRoute`，再导航到 Player；因此从某个设置子页进入时，返回应回到该设置子页，而不是回到书库或某个历史页面。
+- 已经位于 Player 时不得建立 `Player -> Player` 返回关系。Player 内切章、切段或刷新当前播放定位时继续保留最初的 `ReturnRoute`。
+- 播放页 PageHeader 返回、`Alt+Left` 与未被局部交互消费的 `Esc` 使用同一个应用级返回语义，不分别维护来源判断。
+
+该模型只保存“当前页面”和“本次 Player 的一跳返回目标”，不提供 Back/Forward 历史浏览能力。
+
 ## 8. 主动缓存进度 UI
 
 Shell 紧凑入口示例：
@@ -331,10 +343,12 @@ ContextMenu、下拉菜单和 Popup 内的菜单项 Rest 透明，Hover 使用�
 - `Space`：播放/暂停（播放页且焦点不在输入控件）。
 - `Ctrl+Left/Right`：上一/下一段。
 - `Ctrl+Shift+Left/Right`：上一/下一章。
-- `Alt+Left`：返回。
+- `Alt+Left`：按当前 `AppRoute` 的父级/`ReturnRoute` 执行应用级返回。
 - `Ctrl+,`：设置。
 - `Ctrl+A`：在支持多选的章节列表中全选。
-- `Esc`：退出选择/临时界面。
+- `Esc`：优先退出当前选择模式、Popup/Flyout 或其它明确的临时交互；没有局部消费者时，执行与页面返回按钮相同的应用级返回。
+
+`Esc` 的局部消费优先级不能被导航重构破坏；一旦进入应用级返回，必须与 `Alt+Left`/PageHeader 共用 `NavigateBackAsync` 语义。`Library` 和 `Settings` 等无父级根路由收到返回操作时保持当前页面，不隐式跳转。
 
 要求：
 
