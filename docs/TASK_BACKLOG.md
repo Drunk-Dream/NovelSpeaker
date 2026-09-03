@@ -63,7 +63,7 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 
 ## Phase A：阅读进度单一语义
 
-## [ ] T001（P0）：修复显式切章/切段后的持久化 checkpoint 时机
+## [x] T001（P0）：修复显式切章/切段后的持久化 checkpoint 时机
 
 目标：
 
@@ -91,6 +91,8 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 - 从 BookDetails 指定章节进入 Player 后，新章节第一次打开完成即建立正确 checkpoint。
 - 取消/失败路径保留原进度。
 - 不引入高频逐毫秒 SQLite 写入。
+
+完成成果：显式 Start/Open/Jump/Move 在目标 session 提交前完成新位置 checkpoint，并通过 session 标识与事件 epoch 防止旧音频事件回写；失败或取消时恢复原 session 与进度。新增暂停/播放、同章/跨章及失败/取消回归测试；`PlaybackCoordinatorTests` 55 项、播放 Application 测试 10 项通过。
 
 ## [ ] T002（P0）：建立跨书库/详情/播放页统一的 Effective Reading Progress 投影
 
