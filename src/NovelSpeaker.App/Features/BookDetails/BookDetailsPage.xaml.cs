@@ -37,23 +37,21 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
 
     public BookDetailsViewModel ViewModel { get; }
 
-    public BookDetailsRoute? LastRequest { get; private set; }
-
     public async Task OnNavigatedToAsync()
     {
         var activation = _activation.Activate();
         activation.Register(ViewModel.HandleNavigatedFrom);
         activation.Register(_navigationGuardService.Register(ViewModel.ConfirmLeaveAsync));
 
-        LastRequest = DataContext as BookDetailsRoute;
-        if (LastRequest is null)
+        var request = DataContext as BookDetailsRoute;
+        if (request is null)
         {
             return;
         }
 
         try
         {
-            await ViewModel.LoadAsync(LastRequest.BookId, activation.CancellationToken);
+            await ViewModel.LoadAsync(request.BookId, activation.CancellationToken);
             if (activation.IsCurrent)
             {
                 _chapterLocator.NotifyCurrentItemChanged(animate: false);

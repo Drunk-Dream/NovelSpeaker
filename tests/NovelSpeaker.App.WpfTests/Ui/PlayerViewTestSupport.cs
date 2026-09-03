@@ -23,7 +23,6 @@ using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
-using Wpf.Ui;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using Xunit;
@@ -513,19 +512,15 @@ public sealed partial class PlayerViewTests
         }
     }
 
-    private sealed class FakeNavigationService : ITestNavigationService
+    private sealed class FakeNavigationService : IAppNavigator
     {
-        public Wpf.Ui.Controls.INavigationView GetNavigationControl() => throw new NotSupportedException();
-        public bool GoBack() => false;
-        public bool Navigate(Type pageType) => true;
-        public bool Navigate(Type pageType, object? dataContext) => true;
-        public bool Navigate(string pageIdOrTargetTag) => true;
-        public bool Navigate(string pageIdOrTargetTag, object? dataContext) => true;
-        public bool NavigateWithHierarchy(Type pageType) => true;
-        public bool NavigateWithHierarchy(Type pageType, object? dataContext) => true;
-        public void SetNavigationControl(Wpf.Ui.Controls.INavigationView navigation)
-        {
-        }
+        public AppRoute CurrentRoute => AppRoutes.Library;
+
+        public Task<bool> NavigateBackAsync(CancellationToken cancellationToken, bool bypassGuard = false) =>
+            Task.FromResult(false);
+
+        public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false) =>
+            Task.FromResult(true);
     }
 
     private sealed class FakePlayerAutoScrollCoordinator : IPlayerAutoScrollCoordinator

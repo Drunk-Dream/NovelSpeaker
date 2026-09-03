@@ -118,11 +118,8 @@ public sealed class GuardedNavigationServiceTests
 
         public INavigationView GetNavigationControl() => throw new NotSupportedException();
 
-        public bool GoBack()
-        {
-            NavigationCount++;
-            return true;
-        }
+        public bool GoBack() => throw new InvalidOperationException(
+            "Application navigation must not use Wpf.Ui history.");
 
         public bool Navigate(Type pageType) => Record();
         public bool Navigate(Type pageType, object? dataContext) => Record();

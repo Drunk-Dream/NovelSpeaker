@@ -10,8 +10,6 @@ using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
-using Wpf.Ui;
-using Wpf.Ui.Controls;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Navigation;
@@ -20,32 +18,13 @@ namespace NovelSpeaker.App.WpfTests.Navigation;
 public sealed class NavigationPageLifecycleTests
 {
     [Fact]
-    public void BookDetailsPage_captures_strongly_typed_navigation_request()
+    public void PlayerPage_applies_strongly_typed_navigation_route()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var provider = WpfTestHost.BuildServiceProvider();
-            try
-            {
-                var page = provider.GetRequiredService<BookDetailsPage>();
-                page.DataContext = new BookDetailsNavigationRequest("book-42");
-
-                page.OnNavigatedToAsync().GetAwaiter().GetResult();
-
-                Assert.Equal("book-42", page.LastRequest?.BookId);
-            }
-            finally
-            {
-                provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            }
-        });
-    }
-
-    [Fact]
-    public void PlayerPage_captures_strongly_typed_navigation_request()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
+            var contentService = new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")]));
             var viewModel = new PlayerViewModel(
                 new FakePlaybackCoordinator(new PlaybackSnapshot(
                     PlaybackState.Paused,
@@ -65,9 +44,7 @@ public sealed class NavigationPageLifecycleTests
                     false)),
                 new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakePlaybackStopTimer(),
                 new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeActiveCacheCoordinator(),
-                new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
-                    PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
+                contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsService(AppSettings.Default),
                 new FakeAppFeedbackService(),
@@ -80,8 +57,8 @@ public sealed class NavigationPageLifecycleTests
 
             page.OnNavigatedToAsync().GetAwaiter().GetResult();
 
-            Assert.Equal("book-7", page.LastRequest?.BookId);
-            Assert.Equal(PlayerNavigationMode.ReturnToCurrentSession, page.LastRequest?.Mode);
+            Assert.Equal("book-7", contentService.LastRequestedBookId);
+            Assert.Equal("示例小说", viewModel.CurrentTitle);
         });
     }
 
@@ -234,8 +211,11 @@ public sealed class NavigationPageLifecycleTests
             _chapter = chapter;
         }
 
+        public string? LastRequestedBookId { get; private set; }
+
         public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
         {
+            LastRequestedBookId = bookId;
             return Task.FromResult<PlaybackBookContent?>(_book);
         }
 
@@ -337,16 +317,14 @@ public sealed class NavigationPageLifecycleTests
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken) => Task.FromResult(AppConfirmationDecision.Cancel);
     }
 
-    private sealed class FakeNavigationService : ITestNavigationService
+    private sealed class FakeNavigationService : IAppNavigator
     {
-        public INavigationView GetNavigationControl() => throw new NotSupportedException();
-        public bool GoBack() => false;
-        public bool Navigate(Type pageType) => true;
-        public bool Navigate(Type pageType, object? dataContext) => true;
-        public bool Navigate(string pageIdOrTargetTag) => true;
-        public bool Navigate(string pageIdOrTargetTag, object? dataContext) => true;
-        public bool NavigateWithHierarchy(Type pageType) => true;
-        public bool NavigateWithHierarchy(Type pageType, object? dataContext) => true;
-        public void SetNavigationControl(INavigationView navigation) { }
+        public AppRoute CurrentRoute => AppRoutes.Library;
+
+        public Task<bool> NavigateBackAsync(CancellationToken cancellationToken, bool bypassGuard = false) =>
+            Task.FromResult(false);
+
+        public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false) =>
+            Task.FromResult(true);
     }
 }

@@ -182,7 +182,7 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 
 ## Phase D：回归、清理与质量门禁
 
-## [ ] T004（P0）：删除旧历史返回依赖并完成导航回归与全量门禁
+## [x] T004（P0）：删除旧历史返回依赖并完成导航回归与全量门禁
 
 依赖：T001、T002、T003。
 
@@ -226,3 +226,5 @@ dotnet test -c Release --no-build
 - 不存在新的应用级历史栈、页面缓存补丁或参数反推 workaround。
 - BookDetails 参数化返回、Player 三类来源、固定设置层级、guard 与 Esc 行为均有稳定自动回归证据。
 - 仓库没有截图、dump、临时脚本、manifest、TestResults 诊断副产物或其它本轮临时文件残留。
+
+完成成果：页面激活直接消费当前强类型路由，删除 BookDetails/Player 的旧 `LastRequest` 状态以及仅为 Wpf.Ui 导航接口服务的 `ITestNavigationService`/路由映射 helper；Presentation 测试替身统一实现 `IAppNavigator` 并断言完整 `AppRoute`。补充 Player 三类来源返回矩阵、Wpf.Ui 历史返回禁用回归，以及 `BookDetails(book-A) → Player → 返回 → BookDetails(book-A)` 页面激活和实体加载回归。全量门禁通过：restore、format、Release build（0 warning/0 error）、Domain 15、Application 177、Infrastructure 332、Presentation 172、WPF 181 项测试全部通过；`git status --short` 无本轮临时产物。

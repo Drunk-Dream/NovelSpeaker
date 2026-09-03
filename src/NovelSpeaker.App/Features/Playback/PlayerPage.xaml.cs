@@ -18,22 +18,20 @@ public partial class PlayerPage : System.Windows.Controls.Page, INavigationAware
 
     public PlayerViewModel ViewModel { get; }
 
-    public PlayerRoute? LastRequest { get; private set; }
-
     public async Task OnNavigatedToAsync()
     {
         var activation = _activation.Activate();
         PlayerView.ActivationToken = activation.CancellationToken;
         ViewModel.OnPageNavigatedTo(activation.CancellationToken);
         activation.Register(ViewModel.OnPageNavigatedFrom);
-        LastRequest = DataContext as PlayerRoute;
+        var request = DataContext as PlayerRoute;
 
         try
         {
             await ViewModel.LoadAsync(activation.CancellationToken);
-            if (LastRequest is not null && activation.IsCurrent)
+            if (request is not null && activation.IsCurrent)
             {
-                await ViewModel.HandleNavigationAsync(LastRequest, activation.CancellationToken);
+                await ViewModel.HandleNavigationAsync(request, activation.CancellationToken);
             }
         }
         catch (OperationCanceledException) when (!activation.IsCurrent)

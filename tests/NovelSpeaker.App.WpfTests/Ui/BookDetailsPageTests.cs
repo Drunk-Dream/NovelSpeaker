@@ -420,6 +420,62 @@ public sealed partial class BookDetailsPageTests
         BookDetailsPage_scrolls_to_current_chapter_when_async_catalog_load_finishes();
     }
 
+    [Fact]
+    public void Book_details_player_return_route_reloads_the_requested_book()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var navigation = new RecordingNavigationService();
+            var navigator = new ShellNavigationAdapter(new FakeNavigationGuardService(), navigation);
+            var detailsRoute = new BookDetailsRoute("book-A");
+
+            Assert.True(navigator.NavigateAsync(detailsRoute, CancellationToken.None, bypassGuard: true)
+                .GetAwaiter()
+                .GetResult());
+            Assert.True(navigator.NavigateAsync(
+                    new PlayerRoute("book-A", detailsRoute),
+                    CancellationToken.None,
+                    bypassGuard: true)
+                .GetAwaiter()
+                .GetResult());
+            Assert.True(navigator.NavigateBackAsync(CancellationToken.None, bypassGuard: true)
+                .GetAwaiter()
+                .GetResult());
+
+            var returnedRoute = Assert.IsType<BookDetailsRoute>(navigation.LastDataContext);
+            Assert.Equal("book-A", returnedRoute.BookId);
+
+            var managementService = new FakeBookManagementService
+            {
+                Header = new BookDetailsHeader("book-A", "书籍 A", "作者 A"),
+                Details = CreateDetails("book-A", 1, 0) with
+                {
+                    Title = "书籍 A",
+                    Author = "作者 A"
+                }
+            };
+            var viewModel = CreateViewModel(managementService);
+            var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService())
+            {
+                DataContext = returnedRoute
+            };
+
+            try
+            {
+                page.OnNavigatedToAsync().GetAwaiter().GetResult();
+                WaitUntil(() => !viewModel.IsBusy, TimeSpan.FromSeconds(2));
+
+                Assert.Equal("book-A", managementService.LastRequestedBookId);
+                Assert.Equal("书籍 A", viewModel.Title);
+                Assert.Single(viewModel.Chapters);
+            }
+            finally
+            {
+                page.OnNavigatedFromAsync().GetAwaiter().GetResult();
+            }
+        });
+    }
+
     private static BookDetailsViewModel CreateViewModel(FakeBookManagementService? managementService = null)
     {
         managementService ??= new FakeBookManagementService();
@@ -439,9 +495,12 @@ public sealed partial class BookDetailsPageTests
     }
 
     private static BookDetails CreateDetails(int chapterCount, int currentChapterIndex)
+        => CreateDetails("book-1", chapterCount, currentChapterIndex);
+
+    private static BookDetails CreateDetails(string bookId, int chapterCount, int currentChapterIndex)
     {
         return new BookDetails(
-            "book-1",
+            bookId,
             "示例小说",
             "作者甲",
             chapterCount,
@@ -544,6 +603,38 @@ public sealed partial class BookDetailsPageTests
         }
     }
 
+    private sealed class RecordingNavigationService : INavigationService
+    {
+        public object? LastDataContext { get; private set; }
+
+        public int NavigationCount { get; private set; }
+
+        public Wpf.Ui.Controls.INavigationView GetNavigationControl() => throw new NotSupportedException();
+
+        public bool GoBack() => throw new InvalidOperationException("Application navigation must not use Wpf.Ui history.");
+
+        public bool Navigate(Type pageType) => NavigateWithHierarchy(pageType, null);
+
+        public bool Navigate(Type pageType, object? dataContext) => NavigateWithHierarchy(pageType, dataContext);
+
+        public bool Navigate(string pageIdOrTargetTag) => false;
+
+        public bool Navigate(string pageIdOrTargetTag, object? dataContext) => false;
+
+        public bool NavigateWithHierarchy(Type pageType) => NavigateWithHierarchy(pageType, null);
+
+        public bool NavigateWithHierarchy(Type pageType, object? dataContext)
+        {
+            NavigationCount++;
+            LastDataContext = dataContext;
+            return true;
+        }
+
+        public void SetNavigationControl(Wpf.Ui.Controls.INavigationView navigation)
+        {
+        }
+    }
+
     private sealed class FakeGuardedNavigationService : IAppNavigator
     {
         public AppRoute CurrentRoute => AppRoutes.Library;
@@ -560,13 +651,22 @@ public sealed partial class BookDetailsPageTests
 
         public BookDetails? Details { get; init; }
 
+        public string? LastRequestedBookId { get; private set; }
+
         public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<BookSummary>>([]);
 
         public Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken)
-            => Task.FromResult(Header);
+        {
+            LastRequestedBookId = bookId;
+            return Task.FromResult(Header);
+        }
 
-        public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken) => Task.FromResult(Details);
+        public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken)
+        {
+            LastRequestedBookId = bookId;
+            return Task.FromResult(Details);
+        }
 
         public Task<BookDetailsHeader> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
             => throw new NotSupportedException();

@@ -13,8 +13,6 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.TestKit.Common;
-using Wpf.Ui;
-using Wpf.Ui.Controls;
 using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests.ViewModels.Player;
@@ -692,19 +690,15 @@ public sealed partial class PlayerViewModelTests
         }
     }
 
-    private sealed class FakeNavigationService : ITestNavigationService
+    private sealed class FakeNavigationService : IAppNavigator
     {
-        public Type? LastNavigationPageType { get; private set; }
+        public AppRoute CurrentRoute => AppRoutes.Library;
 
-        public object? LastNavigationData { get; private set; }
+        public AppRoute? LastNavigationRoute { get; private set; }
 
         public int NavigateBackCallCount { get; private set; }
 
         public int NavigateToRouteCallCount { get; private set; }
-
-        public INavigationView GetNavigationControl() => throw new NotSupportedException();
-
-        public bool GoBack() => false;
 
         public Task<bool> NavigateBackAsync(CancellationToken cancellationToken, bool bypassGuard = false)
         {
@@ -715,35 +709,8 @@ public sealed partial class PlayerViewModelTests
         public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false)
         {
             NavigateToRouteCallCount++;
-            LastNavigationPageType = TestAppRouteMapper.GetPageType(route.Id);
-            LastNavigationData = route;
+            LastNavigationRoute = route;
             return Task.FromResult(true);
-        }
-
-        public bool Navigate(Type pageType) => true;
-
-        public bool Navigate(Type pageType, object? dataContext) => true;
-
-        public bool Navigate(string pageIdOrTargetTag) => true;
-
-        public bool Navigate(string pageIdOrTargetTag, object? dataContext) => true;
-
-        public bool NavigateWithHierarchy(Type pageType)
-        {
-            LastNavigationPageType = pageType;
-            LastNavigationData = null;
-            return true;
-        }
-
-        public bool NavigateWithHierarchy(Type pageType, object? dataContext)
-        {
-            LastNavigationPageType = pageType;
-            LastNavigationData = dataContext;
-            return true;
-        }
-
-        public void SetNavigationControl(INavigationView navigation)
-        {
         }
     }
 

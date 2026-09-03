@@ -223,8 +223,7 @@ public sealed class MainWindowViewModelTests
 
         await viewModel.NavigateToNowPlayingCommand.ExecuteAsync(null);
 
-        Assert.Equal(typeof(PlayerPage), navigationService.LastNavigationPageType);
-        var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigationData);
+        var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigationRoute);
         Assert.Equal("book-9", request.BookId);
         Assert.Same(AppRoutes.Library, request.ReturnRoute);
         Assert.Equal(PlayerNavigationMode.ReturnToCurrentSession, request.Mode);
@@ -256,14 +255,14 @@ public sealed class MainWindowViewModelTests
 
         await viewModel.NavigateToNowPlayingCommand.ExecuteAsync(null);
 
-        var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigationData);
+        var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigationRoute);
         Assert.Equal(new BookDetailsRoute("book-9"), request.ReturnRoute);
 
-        navigationService.LastNavigationData = null;
+        navigationService.LastNavigationRoute = null;
         navigationService.CurrentRoute = request;
         await viewModel.NavigateToNowPlayingCommand.ExecuteAsync(null);
 
-        Assert.Null(navigationService.LastNavigationData);
+        Assert.Null(navigationService.LastNavigationRoute);
     }
 
     private void Missing_rule_snapshot_still_shows_now_playing_entry_until_context_is_cleared()
@@ -489,9 +488,7 @@ public sealed class MainWindowViewModelTests
 
     private sealed class FakeNavigationService : IAppNavigator
     {
-        public Type? LastNavigationPageType { get; private set; }
-
-        public object? LastNavigationData { get; set; }
+        public AppRoute? LastNavigationRoute { get; set; }
 
         public AppRoute CurrentRoute { get; set; } = AppRoutes.Library;
 
@@ -502,8 +499,7 @@ public sealed class MainWindowViewModelTests
 
         public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false)
         {
-            LastNavigationPageType = route.Id == AppRouteId.Player ? typeof(PlayerPage) : null;
-            LastNavigationData = route;
+            LastNavigationRoute = route;
             CurrentRoute = route;
             return Task.FromResult(true);
         }

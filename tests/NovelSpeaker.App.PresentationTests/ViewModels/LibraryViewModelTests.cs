@@ -4,7 +4,6 @@ using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.TestKit.Common;
-using Wpf.Ui;
 using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests.ViewModels;
@@ -199,8 +198,7 @@ public sealed class LibraryViewModelTests
 
         await viewModel.OpenBookCommand.ExecuteAsync(viewModel.Books[0]);
 
-        Assert.Equal(typeof(PlayerPage), navigationService.LastNavigateWithHierarchyPageType);
-        var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigateWithHierarchyParameter);
+        var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigationRoute);
         Assert.Equal("book-1", request.BookId);
         Assert.Same(AppRoutes.Library, request.ReturnRoute);
         Assert.Equal(PlayerNavigationMode.OpenPaused, request.Mode);
@@ -218,8 +216,7 @@ public sealed class LibraryViewModelTests
 
         await viewModel.OpenBookDetailsCommand.ExecuteAsync(viewModel.Books[0]);
 
-        Assert.Equal(typeof(BookDetailsPage), navigationService.LastNavigateWithHierarchyPageType);
-        var request = Assert.IsType<BookDetailsNavigationRequest>(navigationService.LastNavigateWithHierarchyParameter);
+        var request = Assert.IsType<BookDetailsNavigationRequest>(navigationService.LastNavigationRoute);
         Assert.Equal("book-9", request.BookId);
     }
 
@@ -537,9 +534,7 @@ public sealed class LibraryViewModelTests
 
     private sealed class FakeNavigationService : IAppNavigator
     {
-        public Type? LastNavigateWithHierarchyPageType { get; private set; }
-
-        public object? LastNavigateWithHierarchyParameter { get; private set; }
+        public AppRoute? LastNavigationRoute { get; private set; }
 
         public AppRoute CurrentRoute => AppRoutes.Library;
 
@@ -547,13 +542,7 @@ public sealed class LibraryViewModelTests
 
         public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false)
         {
-            LastNavigateWithHierarchyPageType = route.Id switch
-            {
-                AppRouteId.Player => typeof(PlayerPage),
-                AppRouteId.BookDetails => typeof(BookDetailsPage),
-                _ => null
-            };
-            LastNavigateWithHierarchyParameter = route;
+            LastNavigationRoute = route;
             return Task.FromResult(true);
         }
     }

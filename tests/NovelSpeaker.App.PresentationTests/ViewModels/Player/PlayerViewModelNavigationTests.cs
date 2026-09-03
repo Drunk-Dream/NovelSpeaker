@@ -359,7 +359,7 @@ public sealed partial class PlayerViewModelTests
             new PlayerNavigationRequest("missing-book", AppRoutes.Library, PlayerNavigationMode.OpenPaused),
             CancellationToken.None);
 
-        Assert.Equal(typeof(LibraryPage), navigationService.LastNavigationPageType);
+        Assert.Same(AppRoutes.Library, navigationService.LastNavigationRoute);
         Assert.Equal("无法打开书籍", feedbackService.LastWarningTitle);
     }
 

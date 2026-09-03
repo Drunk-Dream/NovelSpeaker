@@ -181,18 +181,33 @@ public sealed class AppRouteNavigationTests
     }
 
     [Fact]
-    public async Task Navigate_back_uses_the_player_route_return_target_once()
+    public async Task Navigate_back_uses_explicit_player_return_routes_for_all_sources()
     {
-        var returnRoute = new BookDetailsRoute("book-42");
-        var playerRoute = new PlayerRoute("book-42", returnRoute);
-        var navigation = new RecordingNavigationService();
-        var adapter = new ShellNavigationAdapter(new AllowNavigationGuard(), navigation);
+        foreach (var returnRoute in new AppRoute[]
+                 {
+                     AppRoutes.Library,
+                     new BookDetailsRoute("book-A"),
+                     AppRoutes.AppearanceSettings
+                 })
+        {
+            var playerRoute = new PlayerRoute("book-A", returnRoute);
+            var navigation = new RecordingNavigationService();
+            var adapter = new ShellNavigationAdapter(new AllowNavigationGuard(), navigation);
 
-        Assert.True(await adapter.NavigateAsync(playerRoute, CancellationToken.None, bypassGuard: true));
-        Assert.True(await adapter.NavigateBackAsync(CancellationToken.None, bypassGuard: true));
+            Assert.True(await adapter.NavigateAsync(playerRoute, CancellationToken.None, bypassGuard: true));
+            Assert.True(await adapter.NavigateBackAsync(CancellationToken.None, bypassGuard: true));
 
-        Assert.Same(returnRoute, adapter.CurrentRoute);
-        Assert.Same(returnRoute, navigation.LastDataContext);
+            Assert.Same(returnRoute, adapter.CurrentRoute);
+            if (returnRoute is BookDetailsRoute or PlayerRoute)
+            {
+                Assert.Same(returnRoute, navigation.LastDataContext);
+            }
+            else
+            {
+                Assert.Null(navigation.LastDataContext);
+            }
+            Assert.Equal(2, navigation.NavigationCount);
+        }
     }
 
     private sealed class AllowNavigationGuard : INavigationGuardService
@@ -210,7 +225,8 @@ public sealed class AppRouteNavigationTests
         public bool NavigationResult { get; init; } = true;
 
         public INavigationView GetNavigationControl() => throw new NotSupportedException();
-        public bool GoBack() => false;
+        public bool GoBack() => throw new InvalidOperationException(
+            "Application navigation must not use Wpf.Ui history.");
         public bool Navigate(Type pageType) => Navigate(pageType, null);
         public bool Navigate(Type pageType, object? dataContext) => NavigateWithHierarchy(pageType, dataContext);
         public bool Navigate(string pageIdOrTargetTag) => false;

@@ -8,7 +8,6 @@ using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Features.Library;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.Domain.Settings;
-using Wpf.Ui;
 using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests.ViewModels;
@@ -308,8 +307,7 @@ public sealed class BookDetailsViewModelTests
         await viewModel.SelectChapterCommand.ExecuteAsync(viewModel.Chapters[2]);
 
         Assert.Equal("示例小说", viewModel.EditTitle);
-        Assert.Equal(typeof(PlayerPage), guardedNavigationService.LastNavigateWithHierarchyPageType);
-        var request = Assert.IsType<PlayerNavigationRequest>(guardedNavigationService.LastNavigateWithHierarchyParameter);
+        var request = Assert.IsType<PlayerNavigationRequest>(guardedNavigationService.LastNavigationRoute);
         Assert.Equal("book-1", request.BookId);
         Assert.Equal(new BookDetailsRoute("book-1"), request.ReturnRoute);
         Assert.Equal(2, request.ChapterIndex);
@@ -852,9 +850,7 @@ public sealed class BookDetailsViewModelTests
 
     private sealed class FakeGuardedNavigationService : IAppNavigator
     {
-        public Type? LastNavigateWithHierarchyPageType { get; private set; }
-
-        public object? LastNavigateWithHierarchyParameter { get; private set; }
+        public AppRoute? LastNavigationRoute { get; private set; }
 
         public int NavigateBackCallCount { get; private set; }
 
@@ -871,8 +867,7 @@ public sealed class BookDetailsViewModelTests
             CancellationToken cancellationToken,
             bool bypassGuard = false)
         {
-            LastNavigateWithHierarchyPageType = route.Id == AppRouteId.Player ? typeof(PlayerPage) : null;
-            LastNavigateWithHierarchyParameter = route;
+            LastNavigationRoute = route;
             return Task.FromResult(true);
         }
     }

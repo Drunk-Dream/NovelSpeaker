@@ -5,8 +5,6 @@ using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.TestKit.Common;
-using Wpf.Ui;
-using Wpf.Ui.Controls;
 using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests.ViewModels;
@@ -315,16 +313,14 @@ public sealed class CacheAndDataViewModelTests
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken) => Task.FromResult(AppConfirmationDecision.Cancel);
     }
 
-    private sealed class FakeNavigationService : ITestNavigationService
+    private sealed class FakeNavigationService : IAppNavigator
     {
-        public INavigationView GetNavigationControl() => throw new NotSupportedException();
-        public bool GoBack() => false;
-        public bool Navigate(Type pageType) => true;
-        public bool Navigate(Type pageType, object? dataContext) => true;
-        public bool Navigate(string pageIdOrTargetTag) => true;
-        public bool Navigate(string pageIdOrTargetTag, object? dataContext) => true;
-        public bool NavigateWithHierarchy(Type pageType) => pageType == typeof(CacheManagementPage);
-        public bool NavigateWithHierarchy(Type pageType, object? dataContext) => pageType == typeof(CacheManagementPage);
-        public void SetNavigationControl(INavigationView navigation) { }
+        public AppRoute CurrentRoute => AppRoutes.Library;
+
+        public Task<bool> NavigateBackAsync(CancellationToken cancellationToken, bool bypassGuard = false) =>
+            Task.FromResult(false);
+
+        public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false) =>
+            Task.FromResult(route == AppRoutes.CacheManagement);
     }
 }
