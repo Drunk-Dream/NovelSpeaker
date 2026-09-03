@@ -73,7 +73,7 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 
 ## Phase A：导航核心收敛
 
-## [ ] T001（P0）：以完整 CurrentRoute + 固定 ParentRoute 替换历史栈式返回
+## [x] T001（P0）：以完整 CurrentRoute + 固定 ParentRoute 替换历史栈式返回
 
 目标：
 
@@ -106,6 +106,8 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 - 固定父级至少覆盖：BookDetails→Library、普通设置二级页→Settings、RegexReplacementRules→ImportTextSettings、CacheManagement→CacheAndData、根路由→无返回。
 - 导航适配器的返回路径不调用 Wpf.Ui `GoBack()`。
 - Shell 一级选中态在显式返回后仍与目标路由一致。
+
+完成成果：引入完整强类型 `CurrentRoute` 和集中固定父级解析，应用级返回统一为 `NavigateBackAsync` 并通过显式导航完成；guard、取消和框架导航失败均不污染路由状态。`AppRouteNavigationTests`、`GuardedNavigationServiceTests` 及相关 WPF 导航测试通过。
 
 ## Phase B：播放页动态 ReturnRoute
 

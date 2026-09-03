@@ -178,7 +178,9 @@ public sealed class CacheManagementPageLifecycleTests
         public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false) =>
             Task.FromResult(true);
 
-        public Task<bool> GoBackAsync(CancellationToken cancellationToken, bool bypassGuard = false) =>
+        public AppRoute CurrentRoute => AppRoutes.CacheManagement;
+
+        public Task<bool> NavigateBackAsync(CancellationToken cancellationToken, bool bypassGuard = false) =>
             Task.FromResult(true);
     }
 

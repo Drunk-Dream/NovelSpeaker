@@ -5,9 +5,11 @@ namespace NovelSpeaker.TestKit.Navigation;
 
 internal interface ITestNavigationService : INavigationService, IAppNavigator
 {
-    Task<bool> IAppNavigator.GoBackAsync(
+    AppRoute IAppNavigator.CurrentRoute => AppRoutes.Library;
+
+    Task<bool> IAppNavigator.NavigateBackAsync(
         CancellationToken cancellationToken,
-        bool bypassGuard) => Task.FromResult(GoBack());
+        bool bypassGuard) => Task.FromResult(false);
 
     Task<bool> IAppNavigator.NavigateAsync(
         AppRoute route,

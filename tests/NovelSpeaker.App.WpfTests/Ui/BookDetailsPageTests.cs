@@ -546,7 +546,9 @@ public sealed partial class BookDetailsPageTests
 
     private sealed class FakeGuardedNavigationService : IAppNavigator
     {
-        public Task<bool> GoBackAsync(CancellationToken cancellationToken, bool bypassGuard = false) => Task.FromResult(true);
+        public AppRoute CurrentRoute => AppRoutes.Library;
+
+        public Task<bool> NavigateBackAsync(CancellationToken cancellationToken, bool bypassGuard = false) => Task.FromResult(true);
 
         public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false)
             => Task.FromResult(true);

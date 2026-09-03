@@ -48,9 +48,9 @@ public sealed class GuardedNavigationServiceTests
     {
         foreach (var (operation, allowNavigation) in new[]
                  {
-                     (NavigationOperation.GoBack, true),
+                     (NavigationOperation.NavigateBack, true),
                      (NavigationOperation.Route, true),
-                     (NavigationOperation.GoBack, false),
+                     (NavigationOperation.NavigateBack, false),
                      (NavigationOperation.Route, false)
                  })
         {
@@ -58,9 +58,17 @@ public sealed class GuardedNavigationServiceTests
             var inner = new RecordingNavigationService();
             var service = new ShellNavigationAdapter(guard, inner);
 
+            if (operation == NavigationOperation.NavigateBack)
+            {
+                Assert.True(await service.NavigateAsync(
+                    AppRoutes.PlaybackSettings,
+                    CancellationToken.None,
+                    bypassGuard: true));
+            }
+
             var result = operation switch
             {
-                NavigationOperation.GoBack => await service.GoBackAsync(CancellationToken.None),
+                NavigationOperation.NavigateBack => await service.NavigateBackAsync(CancellationToken.None),
                 NavigationOperation.Route => await service.NavigateAsync(
                     AppRoutes.Settings,
                     CancellationToken.None),
@@ -69,14 +77,18 @@ public sealed class GuardedNavigationServiceTests
 
             Assert.Equal(allowNavigation, result);
             Assert.Equal(1, guard.ConfirmationCount);
-            Assert.Equal(allowNavigation ? 1 : 0, inner.NavigationCount);
+            Assert.Equal(
+                operation == NavigationOperation.NavigateBack
+                    ? allowNavigation ? 2 : 1
+                    : allowNavigation ? 1 : 0,
+                inner.NavigationCount);
             Assert.False(service.IsBypassingGuard);
         }
     }
 
     public enum NavigationOperation
     {
-        GoBack,
+        NavigateBack,
         Route
     }
 

@@ -180,7 +180,7 @@ public sealed class BookDetailsViewModelTests
 
         await viewModel.BackCommand.ExecuteAsync(null);
 
-        Assert.Equal(1, navigationService.GoBackCallCount);
+        Assert.Equal(1, navigationService.NavigateBackCallCount);
     }
 
     private async Task BackCommand_with_unsaved_changes_can_discard_or_cancel()
@@ -199,7 +199,7 @@ public sealed class BookDetailsViewModelTests
 
         await viewModel.BackCommand.ExecuteAsync(null);
 
-        Assert.Equal(1, navigationService.GoBackCallCount);
+        Assert.Equal(1, navigationService.NavigateBackCallCount);
         Assert.Equal("示例小说", viewModel.EditTitle);
 
         dialogService.NextUnsavedDecision = UnsavedChangesDecision.Cancel;
@@ -207,7 +207,7 @@ public sealed class BookDetailsViewModelTests
 
         await viewModel.BackCommand.ExecuteAsync(null);
 
-        Assert.Equal(1, navigationService.GoBackCallCount);
+        Assert.Equal(1, navigationService.NavigateBackCallCount);
         Assert.Equal("再次修改", viewModel.EditTitle);
     }
 
@@ -287,7 +287,7 @@ public sealed class BookDetailsViewModelTests
         await viewModel.DeleteBookCommand.ExecuteAsync(null);
 
         Assert.Equal("book-1", playbackCoordinator.LastDeletedBookId);
-        Assert.Equal(1, navigationService.GoBackCallCount);
+        Assert.Equal(1, navigationService.NavigateBackCallCount);
         Assert.True(invalidationState.IsInvalidated);
     }
 
@@ -855,11 +855,13 @@ public sealed class BookDetailsViewModelTests
 
         public object? LastNavigateWithHierarchyParameter { get; private set; }
 
-        public int GoBackCallCount { get; private set; }
+        public int NavigateBackCallCount { get; private set; }
 
-        public Task<bool> GoBackAsync(CancellationToken cancellationToken, bool bypassGuard = false)
+        public AppRoute CurrentRoute => AppRoutes.Library;
+
+        public Task<bool> NavigateBackAsync(CancellationToken cancellationToken, bool bypassGuard = false)
         {
-            GoBackCallCount++;
+            NavigateBackCallCount++;
             return Task.FromResult(true);
         }
 

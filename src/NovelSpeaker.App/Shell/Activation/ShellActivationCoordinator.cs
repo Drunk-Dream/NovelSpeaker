@@ -89,7 +89,7 @@ public sealed class ShellActivationCoordinator : IShellActivationCoordinator
         ArgumentNullException.ThrowIfNull(eventArgs);
 
         _navigationAdapter.SynchronizeSelection(eventArgs);
-        IsPlayerPageActive = _navigationAdapter.CurrentRouteId == AppRouteId.Player;
+        IsPlayerPageActive = _navigationAdapter.IsPlayerPageActive;
     }
 
     public void Dispose()

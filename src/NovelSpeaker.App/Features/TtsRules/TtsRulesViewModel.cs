@@ -205,7 +205,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject
         }
 
         CancelCurrentTest();
-        if (!await _navigator.GoBackAsync(cancellationToken).ConfigureAwait(true))
+        if (!await _navigator.NavigateBackAsync(cancellationToken).ConfigureAwait(true))
         {
             await _navigator.NavigateAsync(AppRoutes.Settings, cancellationToken).ConfigureAwait(true);
         }

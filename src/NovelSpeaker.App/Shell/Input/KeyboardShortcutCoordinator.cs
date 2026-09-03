@@ -64,7 +64,7 @@ public sealed class KeyboardShortcutCoordinator : IKeyboardShortcutCoordinator
 
         if (action == KeyboardShortcutAction.NavigateBack)
         {
-            if (!await _navigation.GoBackAsync(cancellationToken).ConfigureAwait(true))
+            if (!await _navigation.NavigateBackAsync(cancellationToken).ConfigureAwait(true))
             {
                 await _navigation.NavigateAsync(AppRoutes.Library, cancellationToken).ConfigureAwait(true);
             }

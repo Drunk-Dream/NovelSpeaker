@@ -7,6 +7,8 @@ public interface IShellNavigationAdapter : IAppNavigator
 {
     bool IsBypassingGuard { get; }
 
+    bool IsPlayerPageActive { get; }
+
     AppRouteId CurrentRouteId { get; }
 
     void Initialize(

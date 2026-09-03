@@ -455,7 +455,9 @@ public sealed class MainWindowViewModelTests
 
         public object? LastNavigationData { get; private set; }
 
-        public Task<bool> GoBackAsync(CancellationToken cancellationToken, bool bypassGuard = false)
+        public AppRoute CurrentRoute { get; set; } = AppRoutes.Library;
+
+        public Task<bool> NavigateBackAsync(CancellationToken cancellationToken, bool bypassGuard = false)
         {
             return Task.FromResult(false);
         }

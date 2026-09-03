@@ -49,7 +49,9 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
     private NavigationViewItem? _playbackItem;
     private NavigationViewItem? _currentPrimaryItem;
 
-    public AppRouteId CurrentRouteId { get; private set; } = AppRouteId.Library;
+    public AppRoute CurrentRoute { get; private set; } = AppRoutes.Library;
+
+    public AppRouteId CurrentRouteId => CurrentRoute.Id;
 
     public ShellNavigationAdapter(
         INavigationGuardService guardService,
@@ -60,6 +62,8 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
     }
 
     public bool IsBypassingGuard => Volatile.Read(ref _bypassDepth) > 0;
+
+    public bool IsPlayerPageActive { get; private set; }
 
     public void Initialize(
         INavigationView navigationView,
@@ -83,18 +87,17 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
         ApplySelection(AppRouteId.Library);
     }
 
-    public async Task<bool> GoBackAsync(
+    public async Task<bool> NavigateBackAsync(
         CancellationToken cancellationToken,
         bool bypassGuard = false)
     {
-        if (!bypassGuard &&
-            !await _guardService.ConfirmNavigationAsync(cancellationToken).ConfigureAwait(true))
+        var parentRoute = ResolveParentRoute(CurrentRoute);
+        if (parentRoute is null)
         {
             return false;
         }
 
-        using var _ = BeginBypass();
-        return _navigationService.GoBack();
+        return await NavigateAsync(parentRoute, cancellationToken, bypassGuard).ConfigureAwait(true);
     }
 
     public async Task<bool> NavigateAsync(
@@ -104,6 +107,7 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
     {
         ArgumentNullException.ThrowIfNull(route);
         ValidateRoute(route);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (!bypassGuard &&
             !await _guardService.ConfirmNavigationAsync(cancellationToken).ConfigureAwait(true))
@@ -111,13 +115,20 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
             return false;
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         using var _ = BeginBypass();
         var navigated = _navigationService.NavigateWithHierarchy(
             PageTypes[route.Id],
             ToNavigationData(route));
         if (navigated)
         {
+            CurrentRoute = route;
+            IsPlayerPageActive = route.Id == AppRouteId.Player;
             ApplySelection(route.Id);
+        }
+        else
+        {
+            IsPlayerPageActive = CurrentRoute.Id == AppRouteId.Player;
         }
 
         return navigated;
@@ -153,6 +164,7 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
         var pageType = page as Type ?? page?.GetType();
         if (TryResolveRouteId(pageType, null, out var routeId))
         {
+            IsPlayerPageActive = routeId == AppRouteId.Player;
             ApplySelection(routeId);
         }
     }
@@ -181,6 +193,32 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
         {
             throw new ArgumentException("The route and its parameters do not match a registered App route.", nameof(route));
         }
+    }
+
+    private static AppRoute? ResolveParentRoute(AppRoute route)
+    {
+        return route switch
+        {
+            BookDetailsRoute => AppRoutes.Library,
+            ParameterlessAppRoute parameterless => parameterless.Id switch
+            {
+                AppRouteId.PlaybackSettings or
+                AppRouteId.TtsRules or
+                AppRouteId.ImportTextSettings or
+                AppRouteId.ChapterRules or
+                AppRouteId.CacheAndData or
+                AppRouteId.GeneralSettings or
+                AppRouteId.AppearanceSettings or
+                AppRouteId.DiagnosticsAbout => AppRoutes.Settings,
+                AppRouteId.RegexReplacementRules => AppRoutes.ImportTextSettings,
+                AppRouteId.CacheManagement => AppRoutes.CacheAndData,
+                AppRouteId.Library or AppRouteId.Settings => null,
+                _ => throw new InvalidOperationException("The current route has no registered parent route.")
+            },
+            // PlayerRoute gets its dynamic parent in the playback navigation slice.
+            PlayerRoute => null,
+            _ => throw new InvalidOperationException("The current route has no registered parent route.")
+        };
     }
 
     private static bool TryResolveRoute(Type? pageType, string? pageId, out AppRoute route)
@@ -232,7 +270,6 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
 
     private void ApplySelection(AppRouteId routeId)
     {
-        CurrentRouteId = routeId;
         if (_navigationView is not NavigationView navigationView ||
             _libraryItem is null ||
             _settingsItem is null ||
@@ -265,9 +302,7 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
             return;
         }
 
-        ApplySelection(ReferenceEquals(_currentPrimaryItem, _libraryItem)
-            ? AppRouteId.Library
-            : AppRouteId.Settings);
+        ApplySelection(CurrentRoute.Id);
     }
 
     private static bool IsSettingsContext(AppRouteId routeId)

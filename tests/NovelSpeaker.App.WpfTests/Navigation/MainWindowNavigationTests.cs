@@ -1078,7 +1078,11 @@ public sealed class MainWindowNavigationTests
 
         public bool IsBypassingGuard => false;
 
-        public AppRouteId CurrentRouteId { get; private set; } = AppRouteId.Library;
+        public bool IsPlayerPageActive => CurrentRoute.Id == AppRouteId.Player;
+
+        public AppRoute CurrentRoute { get; private set; } = AppRoutes.Library;
+
+        public AppRouteId CurrentRouteId => CurrentRoute.Id;
 
         public INavigationView GetNavigationControl()
         {
@@ -1117,14 +1121,14 @@ public sealed class MainWindowNavigationTests
             NavigationControl = navigation;
         }
 
-        public Task<bool> GoBackAsync(CancellationToken cancellationToken, bool bypassGuard = false)
+        public Task<bool> NavigateBackAsync(CancellationToken cancellationToken, bool bypassGuard = false)
         {
             return Task.FromResult(false);
         }
 
         public Task<bool> NavigateAsync(AppRoute route, CancellationToken cancellationToken, bool bypassGuard = false)
         {
-            CurrentRouteId = route.Id;
+            CurrentRoute = route;
             LastNavigationPageType = route.Id == AppRouteId.Library ? typeof(LibraryPage) : null;
             NavigateCallCount++;
             return Task.FromResult(true);

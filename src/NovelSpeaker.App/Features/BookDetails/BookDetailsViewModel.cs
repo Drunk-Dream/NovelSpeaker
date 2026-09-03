@@ -332,13 +332,13 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             {
                 StatusMessage = "这本书已不存在。";
                 _catalogInvalidationState.Invalidate();
-                await _navigator.GoBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
+                await _navigator.NavigateBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
                 return;
             }
 
             _catalogInvalidationState.Invalidate();
             _feedbackService.ShowSuccess("删除成功", $"已删除《{_loadedHeader.Title}》。");
-            await _navigator.GoBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
+            await _navigator.NavigateBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
         }
         catch (Exception exception)
         {
@@ -360,7 +360,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             return;
         }
 
-        await _navigator.GoBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
+        await _navigator.NavigateBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
     }
 
     [RelayCommand]

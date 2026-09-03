@@ -41,7 +41,7 @@ public sealed class ShellActivationCoordinatorTests
         {
             var navigation = new RecordingNavigationAdapter
             {
-                RouteAfterSynchronization = AppRouteId.Player
+                CurrentRoute = new PlayerRoute("book-1")
             };
             using var coordinator = CreateCoordinator(navigation, new RecordingPlatformAdapter());
 
@@ -201,9 +201,11 @@ public sealed class ShellActivationCoordinatorTests
     {
         public bool IsBypassingGuard { get; set; }
 
-        public AppRouteId CurrentRouteId { get; private set; } = AppRouteId.Library;
+        public bool IsPlayerPageActive => CurrentRoute.Id == AppRouteId.Player;
 
-        public AppRouteId RouteAfterSynchronization { get; init; } = AppRouteId.Library;
+        public AppRoute CurrentRoute { get; set; } = AppRoutes.Library;
+
+        public AppRouteId CurrentRouteId => CurrentRoute.Id;
 
         public int NavigateCount { get; private set; }
 
@@ -227,7 +229,7 @@ public sealed class ShellActivationCoordinatorTests
         {
         }
 
-        public Task<bool> GoBackAsync(
+        public Task<bool> NavigateBackAsync(
             CancellationToken cancellationToken,
             bool bypassGuard = false) => Task.FromResult(false);
 
@@ -239,7 +241,7 @@ public sealed class ShellActivationCoordinatorTests
             NavigateCount++;
             LastRoute = route;
             LastBypassGuard = bypassGuard;
-            CurrentRouteId = route.Id;
+            CurrentRoute = route;
             return NavigationResult;
         }
 
@@ -255,7 +257,6 @@ public sealed class ShellActivationCoordinatorTests
         public void SynchronizeSelection(EventArgs eventArgs)
         {
             SynchronizeSelectionCount++;
-            CurrentRouteId = RouteAfterSynchronization;
         }
     }
 }

@@ -230,7 +230,9 @@ public sealed class SettingsPageViewTests
             return Task.FromResult(true);
         }
 
-        public Task<bool> GoBackAsync(
+        public AppRoute CurrentRoute => AppRoutes.Settings;
+
+        public Task<bool> NavigateBackAsync(
             CancellationToken cancellationToken,
             bool bypassGuard = false) =>
             Task.FromResult(false);
