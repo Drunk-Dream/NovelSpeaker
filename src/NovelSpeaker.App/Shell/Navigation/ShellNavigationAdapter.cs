@@ -215,8 +215,7 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
                 AppRouteId.Library or AppRouteId.Settings => null,
                 _ => throw new InvalidOperationException("The current route has no registered parent route.")
             },
-            // PlayerRoute gets its dynamic parent in the playback navigation slice.
-            PlayerRoute => null,
+            PlayerRoute player => player.ReturnRoute,
             _ => throw new InvalidOperationException("The current route has no registered parent route.")
         };
     }

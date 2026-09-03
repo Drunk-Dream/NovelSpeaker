@@ -111,7 +111,7 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 
 ## Phase B：播放页动态 ReturnRoute
 
-## [ ] T002（P0）：让 PlayerRoute 显式携带一次性返回目标并迁移全部入口
+## [x] T002（P0）：让 PlayerRoute 显式携带一次性返回目标并迁移全部入口
 
 依赖：T001。
 
@@ -143,6 +143,8 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 - Player 内切章/切段后返回目标不变化。
 - 不能构造或执行 Player→Player 的 ReturnRoute。
 - 不因 ReturnRoute 引入页面实例缓存或第二套历史集合。
+
+完成成果：`PlayerRoute` 现在强制携带经过校验的一次性 `ReturnRoute`；书库、书籍详情和 Shell Footer 入口分别写入固定或捕获的完整返回路由，Player 返回统一走该目标且不会生成 Player→Player 链。补充了路由约束、三类入口和页面生命周期回归测试。
 
 ## Phase C：统一返回入口与键盘语义
 

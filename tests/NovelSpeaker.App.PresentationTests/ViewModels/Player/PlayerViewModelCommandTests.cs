@@ -63,7 +63,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         Assert.DoesNotContain(viewModel.Rules, rule => rule.Id == 3);
@@ -99,7 +99,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         await viewModel.SelectRuleCommand.ExecuteAsync(viewModel.Rules[0]);
@@ -135,7 +135,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         viewModel.ToggleSpeedMenuCommand.Execute(null);
@@ -275,7 +275,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         viewModel.IncreaseSpeakSpeedCommand.Execute(null);
@@ -323,7 +323,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.OpenPaused),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.OpenPaused),
             CancellationToken.None);
 
         Assert.Equal(0, coordinator.OpenPausedCallCount);
@@ -360,7 +360,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         Assert.Equal(1, coordinator.OpenPausedCallCount);

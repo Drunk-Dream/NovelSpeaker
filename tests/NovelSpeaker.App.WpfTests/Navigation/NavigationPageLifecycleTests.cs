@@ -76,7 +76,7 @@ public sealed class NavigationPageLifecycleTests
                 new FakeCacheWorkspaceService(),
                 new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeMiniPlayerLauncher());
             var page = new PlayerPage(viewModel);
-            page.DataContext = new PlayerNavigationRequest("book-7", PlayerNavigationMode.ReturnToCurrentSession);
+            page.DataContext = new PlayerNavigationRequest("book-7", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession);
 
             page.OnNavigatedToAsync().GetAwaiter().GetResult();
 
@@ -122,7 +122,7 @@ public sealed class NavigationPageLifecycleTests
                 new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeMiniPlayerLauncher());
             var page = new PlayerPage(viewModel)
             {
-                DataContext = new PlayerNavigationRequest("book-7", PlayerNavigationMode.ReturnToCurrentSession)
+                DataContext = new PlayerNavigationRequest("book-7", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession)
             };
 
             page.OnNavigatedToAsync().GetAwaiter().GetResult();

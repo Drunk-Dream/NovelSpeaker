@@ -95,7 +95,7 @@ public sealed partial class PlayerViewTests
 
             var page = new PlayerPage(viewModel)
             {
-                DataContext = new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+                DataContext = new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             };
 
             Assert.False(page.IsLoaded);
@@ -187,7 +187,7 @@ public sealed partial class PlayerViewTests
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
-                new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+                new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
                 CancellationToken.None).GetAwaiter().GetResult();
 
             var view = new PlayerView
@@ -286,7 +286,7 @@ public sealed partial class PlayerViewTests
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
-                new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+                new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
                 CancellationToken.None).GetAwaiter().GetResult();
 
             var view = new PlayerView
@@ -383,7 +383,7 @@ public sealed partial class PlayerViewTests
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
-                new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+                new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
                 CancellationToken.None).GetAwaiter().GetResult();
 
             var view = new PlayerView
@@ -483,7 +483,7 @@ public sealed partial class PlayerViewTests
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
-                new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+                new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
                 CancellationToken.None).GetAwaiter().GetResult();
 
             var view = new PlayerView

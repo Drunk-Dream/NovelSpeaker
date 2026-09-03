@@ -43,7 +43,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal("18", viewModel.SpeedEditorText);
 
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.OpenPaused),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.OpenPaused),
             CancellationToken.None);
 
         Assert.Equal(18, coordinator.LastOpenPausedRequest!.SpeakSpeedOverride);
@@ -83,7 +83,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-2", PlayerNavigationMode.OpenPaused),
+            new PlayerNavigationRequest("book-2", AppRoutes.Library, PlayerNavigationMode.OpenPaused),
             CancellationToken.None);
 
         Assert.Equal(1, coordinator.OpenPausedCallCount);
@@ -132,7 +132,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         Assert.Equal(0, coordinator.OpenPausedCallCount);
@@ -176,7 +176,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         Assert.NotNull(viewModel.CurrentSegmentItem);
@@ -220,7 +220,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.OpenPaused, 1, 0),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.OpenPaused, 1, 0),
             CancellationToken.None);
 
         Assert.Equal(1, coordinator.LastJumpedChapterIndex);
@@ -264,7 +264,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.OpenPaused, 1, 0),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.OpenPaused, 1, 0),
             CancellationToken.None);
 
         Assert.Equal(1, coordinator.LastJumpedChapterIndex);
@@ -298,7 +298,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-2", PlayerNavigationMode.OpenPaused, 1, 0),
+            new PlayerNavigationRequest("book-2", AppRoutes.Library, PlayerNavigationMode.OpenPaused, 1, 0),
             CancellationToken.None);
 
         Assert.NotNull(coordinator.LastStartRequest);
@@ -334,7 +334,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-2", PlayerNavigationMode.OpenPaused, 1, 0),
+            new PlayerNavigationRequest("book-2", AppRoutes.Library, PlayerNavigationMode.OpenPaused, 1, 0),
             CancellationToken.None);
 
         Assert.Null(coordinator.LastStartRequest);
@@ -356,7 +356,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("missing-book", PlayerNavigationMode.OpenPaused),
+            new PlayerNavigationRequest("missing-book", AppRoutes.Library, PlayerNavigationMode.OpenPaused),
             CancellationToken.None);
 
         Assert.Equal(typeof(LibraryPage), navigationService.LastNavigationPageType);
@@ -396,7 +396,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         await viewModel.SelectChapterCommand.ExecuteAsync(viewModel.Chapters[1]);
@@ -433,7 +433,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         viewModel.NotifyUserScrollInput();
@@ -483,7 +483,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         var navigationTask = viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         await contentService.WaitForChapterRequestCountAsync(1);
@@ -539,7 +539,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         var navigationTask = viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
         await contentService.WaitForChapterRequestCountAsync(1);
 
@@ -587,7 +587,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         Assert.True(viewModel.ShowEmptyChapterState);
@@ -637,7 +637,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         var originalItems = viewModel.Segments.ToArray();

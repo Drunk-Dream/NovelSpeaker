@@ -75,7 +75,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         Assert.True(viewModel.ShowPlaybackErrorBar);
@@ -125,7 +125,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         Assert.Equal("加载书名", viewModel.CurrentTitle);
@@ -170,7 +170,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         viewModel.NotifyUserScrollInput();
@@ -220,7 +220,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         viewModel.NotifyUserScrollInput();
@@ -288,7 +288,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         viewModel.NotifyUserScrollInput();
@@ -334,7 +334,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         viewModel.NotifyUserScrollInput();
@@ -383,7 +383,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         viewModel.NotifyUserScrollInput();
@@ -432,7 +432,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
         viewModel.NotifyUserScrollInput();

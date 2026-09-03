@@ -226,7 +226,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         }
 
         return _navigator.NavigateAsync(
-            new PlayerRoute(book.BookId, PlayerNavigationMode.OpenPaused),
+            new PlayerRoute(book.BookId, AppRoutes.Library, PlayerNavigationMode.OpenPaused),
             cancellationToken);
     }
 

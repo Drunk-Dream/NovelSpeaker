@@ -377,7 +377,12 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         }
 
         await _navigator.NavigateAsync(
-            new PlayerRoute(_bookId, PlayerNavigationMode.OpenPaused, chapter.ChapterIndex, 0),
+            new PlayerRoute(
+                _bookId,
+                new BookDetailsRoute(_bookId),
+                PlayerNavigationMode.OpenPaused,
+                chapter.ChapterIndex,
+                0),
             cancellationToken,
             bypassGuard: true).ConfigureAwait(true);
     }

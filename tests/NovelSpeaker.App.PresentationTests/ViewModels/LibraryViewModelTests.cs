@@ -202,6 +202,7 @@ public sealed class LibraryViewModelTests
         Assert.Equal(typeof(PlayerPage), navigationService.LastNavigateWithHierarchyPageType);
         var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigateWithHierarchyParameter);
         Assert.Equal("book-1", request.BookId);
+        Assert.Same(AppRoutes.Library, request.ReturnRoute);
         Assert.Equal(PlayerNavigationMode.OpenPaused, request.Mode);
     }
 

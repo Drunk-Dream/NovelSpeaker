@@ -41,7 +41,7 @@ public sealed class ShellActivationCoordinatorTests
         {
             var navigation = new RecordingNavigationAdapter
             {
-                CurrentRoute = new PlayerRoute("book-1")
+                CurrentRoute = new PlayerRoute("book-1", AppRoutes.Library)
             };
             using var coordinator = CreateCoordinator(navigation, new RecordingPlatformAdapter());
 

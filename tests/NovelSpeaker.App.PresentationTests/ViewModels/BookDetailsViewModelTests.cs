@@ -311,6 +311,7 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal(typeof(PlayerPage), guardedNavigationService.LastNavigateWithHierarchyPageType);
         var request = Assert.IsType<PlayerNavigationRequest>(guardedNavigationService.LastNavigateWithHierarchyParameter);
         Assert.Equal("book-1", request.BookId);
+        Assert.Equal(new BookDetailsRoute("book-1"), request.ReturnRoute);
         Assert.Equal(2, request.ChapterIndex);
         Assert.Equal(0, request.SegmentIndex);
     }

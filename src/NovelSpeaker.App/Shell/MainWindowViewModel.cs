@@ -78,8 +78,16 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
+        if (_navigator.CurrentRoute is PlayerRoute)
+        {
+            return;
+        }
+
         await _navigator.NavigateAsync(
-            new PlayerRoute(_currentBookId, PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerRoute(
+                _currentBookId,
+                _navigator.CurrentRoute,
+                PlayerNavigationMode.ReturnToCurrentSession),
             cancellationToken).ConfigureAwait(true);
     }
 

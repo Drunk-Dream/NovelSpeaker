@@ -258,7 +258,7 @@ public sealed partial class PlayerViewModelTests
     {
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", PlayerNavigationMode.ReturnToCurrentSession),
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
     }
 

@@ -24,7 +24,15 @@ public enum PlayerNavigationMode
     ReturnToCurrentSession = 1
 }
 
-public abstract record AppRoute(AppRouteId Id);
+public abstract record AppRoute
+{
+    protected AppRoute(AppRouteId id)
+    {
+        Id = id;
+    }
+
+    public AppRouteId Id { get; }
+}
 
 public sealed record ParameterlessAppRoute : AppRoute
 {
@@ -45,15 +53,56 @@ public sealed record BookDetailsRoute(string BookId) : AppRoute(AppRouteId.BookD
         : throw new ArgumentException("A book id is required.", nameof(BookId));
 }
 
-public sealed record PlayerRoute(
-    string BookId,
-    PlayerNavigationMode Mode = PlayerNavigationMode.OpenPaused,
-    int? ChapterIndex = null,
-    int? SegmentIndex = null) : AppRoute(AppRouteId.Player)
+public sealed record PlayerRoute : AppRoute
 {
-    public string BookId { get; init; } = !string.IsNullOrWhiteSpace(BookId)
-        ? BookId
-        : throw new ArgumentException("A book id is required.", nameof(BookId));
+    public PlayerRoute(
+        string bookId,
+        AppRoute returnRoute,
+        PlayerNavigationMode mode = PlayerNavigationMode.OpenPaused,
+        int? chapterIndex = null,
+        int? segmentIndex = null)
+        : base(AppRouteId.Player)
+    {
+        BookId = !string.IsNullOrWhiteSpace(bookId)
+            ? bookId
+            : throw new ArgumentException("A book id is required.", nameof(bookId));
+        ReturnRoute = ValidateReturnRoute(returnRoute);
+        Mode = mode;
+        ChapterIndex = chapterIndex;
+        SegmentIndex = segmentIndex;
+    }
+
+    public string BookId { get; }
+
+    public AppRoute ReturnRoute { get; }
+
+    public PlayerNavigationMode Mode { get; }
+
+    public int? ChapterIndex { get; }
+
+    public int? SegmentIndex { get; }
+
+    private static AppRoute ValidateReturnRoute(AppRoute route)
+    {
+        ArgumentNullException.ThrowIfNull(route);
+
+        var isRegisteredRoute = route switch
+        {
+            BookDetailsRoute bookDetails => bookDetails.Id == AppRouteId.BookDetails,
+            ParameterlessAppRoute parameterless =>
+                Enum.IsDefined(parameterless.Id) &&
+                parameterless.Id is not AppRouteId.BookDetails and not AppRouteId.Player,
+            _ => false
+        };
+        if (!isRegisteredRoute)
+        {
+            throw new ArgumentException(
+                "A Player route return target must be a registered non-Player App route.",
+                nameof(route));
+        }
+
+        return route;
+    }
 }
 
 public static class AppRoutes

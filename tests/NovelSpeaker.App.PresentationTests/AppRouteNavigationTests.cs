@@ -15,7 +15,7 @@ public sealed class AppRouteNavigationTests
                  {
                      (AppRoutes.Library, typeof(LibraryPage)),
                      (new BookDetailsRoute("book-1"), typeof(BookDetailsPage)),
-                     (new PlayerRoute("book-1"), typeof(PlayerPage)),
+                     (new PlayerRoute("book-1", AppRoutes.Library), typeof(PlayerPage)),
                      (AppRoutes.Settings, typeof(SettingsPage)),
                      (AppRoutes.PlaybackSettings, typeof(PlaybackSettingsPage)),
                      (AppRoutes.TtsRules, typeof(TtsRulesPage)),
@@ -50,6 +50,18 @@ public sealed class AppRouteNavigationTests
     {
         Assert.Throws<ArgumentException>(() => new ParameterlessAppRoute(AppRouteId.BookDetails));
         Assert.Throws<ArgumentException>(() => new ParameterlessAppRoute(AppRouteId.Player));
+    }
+
+    [Fact]
+    public void Player_route_requires_a_registered_non_player_return_route()
+    {
+        Assert.Throws<ArgumentNullException>(() => new PlayerRoute("book-1", null!));
+        Assert.Throws<ArgumentException>(() => new PlayerRoute(
+            "book-1",
+            new PlayerRoute("book-2", AppRoutes.Library)));
+        Assert.Throws<ArgumentException>(() => new PlayerRoute(
+            "book-1",
+            new ParameterlessAppRoute((AppRouteId)999)));
     }
 
     [Fact]
@@ -166,6 +178,21 @@ public sealed class AppRouteNavigationTests
                 Assert.Null(navigation.LastDataContext);
             }
         }
+    }
+
+    [Fact]
+    public async Task Navigate_back_uses_the_player_route_return_target_once()
+    {
+        var returnRoute = new BookDetailsRoute("book-42");
+        var playerRoute = new PlayerRoute("book-42", returnRoute);
+        var navigation = new RecordingNavigationService();
+        var adapter = new ShellNavigationAdapter(new AllowNavigationGuard(), navigation);
+
+        Assert.True(await adapter.NavigateAsync(playerRoute, CancellationToken.None, bypassGuard: true));
+        Assert.True(await adapter.NavigateBackAsync(CancellationToken.None, bypassGuard: true));
+
+        Assert.Same(returnRoute, adapter.CurrentRoute);
+        Assert.Same(returnRoute, navigation.LastDataContext);
     }
 
     private sealed class AllowNavigationGuard : INavigationGuardService

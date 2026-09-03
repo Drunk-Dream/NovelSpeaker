@@ -466,7 +466,9 @@ public sealed class MainWindowNavigationTests
                 window.UpdateLayout();
 
                 var navigationService = provider.GetRequiredService<IAppNavigator>();
-                Assert.True(await navigationService.NavigateAsync(new PlayerRoute("book-1"), CancellationToken.None));
+                Assert.True(await navigationService.NavigateAsync(
+                    new PlayerRoute("book-1", AppRoutes.Library),
+                    CancellationToken.None));
 
                 window.UpdateLayout();
 

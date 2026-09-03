@@ -26,6 +26,7 @@ public sealed class MainWindowViewModelTests
     public async Task Main_window_navigation_contracts_use_the_current_playback_session()
     {
         await NavigateToNowPlayingCommand_uses_player_request_without_playback_control();
+        await NavigateToNowPlayingCommand_captures_the_current_route_and_does_not_nest_player_routes();
     }
 
     [Fact]
@@ -225,7 +226,44 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(typeof(PlayerPage), navigationService.LastNavigationPageType);
         var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigationData);
         Assert.Equal("book-9", request.BookId);
+        Assert.Same(AppRoutes.Library, request.ReturnRoute);
         Assert.Equal(PlayerNavigationMode.ReturnToCurrentSession, request.Mode);
+    }
+
+    private async Task NavigateToNowPlayingCommand_captures_the_current_route_and_does_not_nest_player_routes()
+    {
+        var navigationService = new FakeNavigationService
+        {
+            CurrentRoute = new BookDetailsRoute("book-9")
+        };
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-9",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            1,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false));
+        var viewModel = CreateViewModel(coordinator, navigationService);
+
+        await viewModel.NavigateToNowPlayingCommand.ExecuteAsync(null);
+
+        var request = Assert.IsType<PlayerNavigationRequest>(navigationService.LastNavigationData);
+        Assert.Equal(new BookDetailsRoute("book-9"), request.ReturnRoute);
+
+        navigationService.LastNavigationData = null;
+        navigationService.CurrentRoute = request;
+        await viewModel.NavigateToNowPlayingCommand.ExecuteAsync(null);
+
+        Assert.Null(navigationService.LastNavigationData);
     }
 
     private void Missing_rule_snapshot_still_shows_now_playing_entry_until_context_is_cleared()
@@ -453,7 +491,7 @@ public sealed class MainWindowViewModelTests
     {
         public Type? LastNavigationPageType { get; private set; }
 
-        public object? LastNavigationData { get; private set; }
+        public object? LastNavigationData { get; set; }
 
         public AppRoute CurrentRoute { get; set; } = AppRoutes.Library;
 
@@ -466,6 +504,7 @@ public sealed class MainWindowViewModelTests
         {
             LastNavigationPageType = route.Id == AppRouteId.Player ? typeof(PlayerPage) : null;
             LastNavigationData = route;
+            CurrentRoute = route;
             return Task.FromResult(true);
         }
     }
