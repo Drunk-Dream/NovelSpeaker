@@ -94,7 +94,7 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 
 完成成果：显式 Start/Open/Jump/Move 在目标 session 提交前完成新位置 checkpoint，并通过 session 标识与事件 epoch 防止旧音频事件回写；失败或取消时恢复原 session 与进度。新增暂停/播放、同章/跨章及失败/取消回归测试；`PlaybackCoordinatorTests` 55 项、播放 Application 测试 10 项通过。
 
-## [ ] T002（P0）：建立跨书库/详情/播放页统一的 Effective Reading Progress 投影
+## [x] T002（P0）：建立跨书库/详情/播放页统一的 Effective Reading Progress 投影
 
 依赖：T001。
 
@@ -125,6 +125,8 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 - Snapshot 属于 book-A 时，book-B 卡片/详情仍使用自身持久化数据。
 - 应用重启或没有活动 Snapshot 时，SQLite checkpoint 正常恢复阅读位置。
 - 不新增数据库轮询和第三套全局进度状态。
+
+完成成果：新增无状态 `EffectiveReadingProgressProjector`，以匹配书籍的 `PlaybackSnapshot` 覆盖书库卡片与详情页持久化基线，并在快照不匹配或 Idle 时恢复基线；补齐卡片/详情目录属性通知、详情页激活订阅退订及排队旧快照版本校验。新增匹配、跨书隔离、异步详情晚到、页面离开和基线恢复测试；完整 Presentation 测试 172 项、相关 WPF 契约测试 10 项通过。
 
 ## Phase B：书籍详情页返回性能定位
 
