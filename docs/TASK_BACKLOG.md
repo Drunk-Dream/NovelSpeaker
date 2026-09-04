@@ -186,7 +186,7 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 
 ## Phase C：基于证据的性能修复
 
-## [ ] T004（P0）：消除 BookDetails 缓存状态投影与当前章节定位造成的 UI 长尾
+## [x] T004（P0）：消除 BookDetails 缓存状态投影与当前章节定位造成的 UI 长尾
 
 依赖：T003。
 
@@ -263,6 +263,11 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 - T003 已确认的两个 UI 主因均有针对性实现和自动回归，不再停留于“Task.Yield/后台 SQLite”式无效修复。
 - 同一诊断 fixture 下，原正常路径的数百毫秒长尾显著收敛；如果仍明显高于 T003 单项关闭缓存投影/定位时的百毫秒级结果，应继续定位剩余 Dispatcher 工作，不能直接关闭任务。
 - 生产代码保持既有导航、进度和页面生命周期架构，没有新增页面缓存、Singleton、第三套详情状态或无 owner 的后台任务。
+
+完成成果：BookDetails 初始缓存状态查询现在由页面在首轮当前章节 locator 完成后启动；180 章初始状态通过静默行状态写入加单次集合 Reset 提交，后续单章缓存变化仍保持增量通知。locator 的 readiness、取消、重复激活和页面版本边界已补齐，离页不会再让旧页面收到迟到定位或缓存投影；Player 复用的缓存刷新行为保持不变。
+
+- 自动验收：180 章缓存投影回归确认初始批次不产生行级属性通知且只产生一次集合 Reset；延后启动、Loaded/详情投影顺序、缓存控制器 initial/incremental 批次和页面离开后的迟到结果测试通过。`dotnet format --verify-no-changes --no-restore`、Release build（0 警告/0 错误）和 focused presentation tests（6 项）通过。
+- 环境限制：BookDetails/locator WPF 测试已成功构建，但当前隔离 Desktop 测试宿主无输出挂起；20 秒 hang diagnostic 后 testhost 因 inactivity 中止，因此本轮未取得 WPF 运行时长尾 A/B 数值，生产代码和 presentation 回归已自动验证。
 
 ## Phase D：集成回归与收口
 
