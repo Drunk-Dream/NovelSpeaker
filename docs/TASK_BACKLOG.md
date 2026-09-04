@@ -130,7 +130,7 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 
 ## Phase B：书籍详情页返回性能定位
 
-## [ ] T003（P0）：对 Player→BookDetails 卡顿做分阶段测量并确定主因
+## [x] T003（P0）：对 Player→BookDetails 卡顿做分阶段测量并确定主因
 
 依赖：T002。
 
@@ -174,6 +174,15 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 - 至少给出一个可以稳定复现主要卡顿来源的自动或半自动诊断场景，而不是只凭主观体感。
 - 说明此前仅 `Task.Yield()` 或仅后台化 SQLite 为什么没有解决/为什么不足以解决问题。
 - 仓库不残留诊断产物。
+
+完成成果：使用临时 WPF/SQLite 诊断 harness，在隔离 Desktop 中以同一 180 章 fixture、1280×760 viewport 对比 Library→BookDetails、第二次热进入和 Player→Back→BookDetails，并在完成测量后删除 harness 与 trace。阶段结果如下：
+
+- 页面阶段：Library 冷路径约 822 ms，第二次热路径约 155 ms，Player→Back→Details 约 193 ms；导航调用约 5–6 ms，Player 离开/取消约 1 ms，BookDetailsPage 冷构造约 50 ms、热构造约 10–13 ms，`ReplaceWith` 的 180 项投影约 1–2 ms。
+- 缓存/定位 A/B：正常路径约 822 ms；跳过 current-item 定位约 136 ms；保留缓存查询但不做 180 个行状态投影约 227 ms；跳过缓存刷新约 177 ms。由此确认主要长尾是 `ApplyChapterCacheStatuses` 对 180 个章节项逐项触发绑定/布局，与 `CurrentItemLocatorInteraction` 的虚拟化列表就绪/滚动监听相互放大；单独移除任一工作都能显著缩短尾部，二者不是 SQLite 查询本身。
+- SQLite：真实 `Microsoft.Data.Sqlite` v7 fixture 上，`GetBookDetailsAsync` 冷/热约 7.4/1.0 ms，其中 header 约 2.9/0.15 ms、章节读取约 4.4/0.8 ms；WPF 调用线程记录为 Dispatcher t18→t18。`EXPLAIN QUERY PLAN` 显示详情头会物化并扫描全量 Chapters 与 AudioCacheEntries 的 BookId 聚合，章节查询使用 `(BookId, ChapterIndex)` 索引但因 `ORDER BY SortOrder, ChapterIndex` 使用临时 B-tree；这是规模增长风险，但不是当前秒级卡顿主因。
+- Wpf.Ui：默认值为 `FadeInWithSlide/200 ms`；独立渲染对照为关闭约 12 ms、淡入滑动约 259 ms。因此 transition 是额外的感知成本，应在 T004 中与首屏重工作分离验证；Player 导航和页面创建本身不是主因。
+- 诊断还验证了仅 `Task.Yield()` 只能把 supplement 推迟到 Dispatcher 后续工作，不能消除 180 项 Collection/绑定/布局与定位；仅调用 `ExecuteReaderAsync` 也没有证明 SQL 已离开 Dispatcher，实测调用从 Dispatcher 进入并回到 Dispatcher，而查询耗时远小于 UI 长尾。T004 优先处理缓存状态批量/延后投影、current-item 定位时机及 transition 与首屏的协调，再单独评估详情头聚合 SQL。
+- 自动验收：临时 T003 harness 4 项全部通过；无诊断文件残留。
 
 ## Phase C：基于证据的性能修复
 
