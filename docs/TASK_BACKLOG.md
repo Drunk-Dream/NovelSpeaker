@@ -2,12 +2,11 @@
 
 ## 1. 阶段定位
 
-当前阶段处理 **阅读进度一致性与书籍详情页返回性能**。当前 `dev` 基线为 `05f06977c6976848b6f0e70bb953e9f84535a57c`。
+当前阶段转入 **项目整体架构优化前诊断**。当前 `dev` 基线为 `cec6777e3aa1d5d22bcec92dcdabfd10c8af648a`。
 
-本阶段解决两个相互关联但必须分层处理的问题：
+现有核心功能已经基本完善，下一阶段不继续以新增功能或局部缺陷补丁为主，而是先对整个 NovelSpeaker 的模块边界、状态所有权、依赖方向、页面数据流、异步/Dispatcher 边界、大列表模型、后台任务生命周期、持久化职责和测试结构做一次结构化 Architecture Review，为后续分阶段重构建立事实依据。
 
-1. 播放页已经切换到新章节时，书库卡片和书籍详情仍可能显示旧章节；从详情目录进入新章节播放后第一次返回仍显示旧章节，第二次进入/返回才更新。
-2. Player 通过强类型 `BookDetailsRoute(BookId)` 返回时会创建新的 transient 详情页实例；当前返回过程存在明显卡顿。此前仅把详情补充查询视为“async”或简单搬到后台仍不足以证明问题已解决，必须先拆分测量导航、页面创建、SQLite、投影、集合更新、定位/缓存刷新和 Wpf.Ui transition 的实际成本，再按证据修复。
+此前阅读进度一致性问题已经完成 T001–T002；BookDetails 返回性能已经完成 T003–T004 的 180 章诊断和第一轮优化。但真实 3000+ 章节书籍仍存在 Player 点击返回后约 10 秒 UI 无响应的问题。该问题当前作为“架构压力/规模化症状”保留，不再单独继续专项修复；后续在整体架构优化方案确定并完成相关结构调整后，再按需要重新验证和定位。
 
 目标状态固定为：
 
@@ -269,11 +268,236 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 - 自动验收：180 章缓存投影回归确认初始批次不产生行级属性通知且只产生一次集合 Reset；延后启动、Loaded/详情投影顺序、缓存控制器 initial/incremental 批次和页面离开后的迟到结果测试通过。`dotnet format --verify-no-changes --no-restore`、Release build（0 警告/0 错误）和 focused presentation tests（6 项）通过。
 - 环境限制：BookDetails/locator WPF 测试已成功构建，但当前隔离 Desktop 测试宿主无输出挂起；20 秒 hang diagnostic 后 testhost 因 inactivity 中止，因此本轮未取得 WPF 运行时长尾 A/B 数值，生产代码和 presentation 回归已自动验证。
 
-## Phase D：集成回归与收口
+## Phase D：整体架构优化前诊断
 
-## [ ] T005（P1）：补齐进度/性能回归并执行完整质量门禁
+## [ ] T005（P0）：生成全项目 Architecture Review 诊断报告
 
 依赖：T001、T002、T003、T004。
+
+目标：
+
+- 在不修改生产架构、不继续修复 3000+ 章节卡顿的前提下，对当前仓库做一次可复核的全局架构盘点。
+- 输出一份独立的 `architecture_diagnostic_report.md`，供后续人工/AI 架构规划使用。
+- 报告必须尽量以代码、依赖、数量、调用关系和 Git 历史事实为依据，区分“已确认问题”“架构压力信号”“可能问题/待决策项”，不要直接把个人偏好写成最终重构方案。
+
+执行规则：
+
+1. 本任务只允许：
+   - 读取仓库；
+   - 运行静态分析、`dotnet`/`git`/PowerShell 等诊断命令；
+   - 编写一次性本地分析脚本；
+   - 生成 `architecture_diagnostic_report.md`。
+2. 不修改 `src/`、`tests/`、项目文件、SQLite migration、正式 docs 架构定义或行为代码。
+3. 一次性脚本和中间 CSV/JSON/trace 必须在报告生成后删除。最终只保留 `architecture_diagnostic_report.md` 作为用户需要上传的诊断输出，以及本任务自身的 Backlog 完成记录。
+4. `architecture_diagnostic_report.md` 作为临时评审输入，不视为正式项目文档；不要把它加入架构决策文档索引，也不要引用为长期规范。
+5. 如完整测试耗时过长或 WPF testhost 再次挂起，只记录事实，不为了完成诊断修改测试宿主。
+6. 不生成截图，不启用 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`。
+
+诊断内容：
+
+### A. 项目与依赖拓扑
+
+- 列出所有 `.csproj`、目标框架、主要 NuGet 包和 ProjectReference。
+- 绘制文本形式的项目依赖图，确认 Domain / Application / Infrastructure / App / tests / tools 的实际引用方向。
+- 找出任何跨层反向依赖、非 Bootstrap 的 Infrastructure 直连、App Feature 之间的直接引用、Shared 对 Feature 的反向依赖。
+- 对 `src/NovelSpeaker.App/Features/*` 建立 Feature→Feature / Feature→Shared / Feature→Application 的引用矩阵；重点列出跨 Feature namespace `using`、直接类型依赖和共享 controller/helper 的调用关系。
+- 标出只有单一调用方却被提升为全局 Shared/Application abstraction 的组件，以及被多个 Feature 实际复用但仍复制实现的组件。
+
+### B. 代码规模与复杂度热点
+
+- 对生产代码统计：
+  - 每个项目的 `.cs` / `.xaml` 文件数与总行数；
+  - 每个 Feature 的文件数与总行数；
+  - 最大的 30 个生产 `.cs` 文件；
+  - 最大的 20 个 XAML 文件。
+- 对主要类型尽可能统计：
+  - 类型行数；
+  - 构造函数依赖数量；
+  - public/internal 方法数量；
+  - 字段数量；
+  - 事件订阅数量；
+  - `CancellationTokenSource` / version / generation / timer / task registry 等生命周期字段数量。
+- 必须单独审计至少：
+  - `BookDetailsViewModel`
+  - `LibraryViewModel`
+  - Player 主 ViewModel / coordinator
+  - `PlaybackCoordinator`
+  - Cache workspace / active cache / export coordinator
+  - Shell/navigation/lifecycle coordinator
+  - 三类 Rules 页面/ViewModel
+  - CacheManagement
+  - shared scrolling/selection/cache refresh controllers。
+- 对热点类型判断其职责是否混合了 Query、Command、UI state、后台任务、导航、持久化、事件协调等多个方向；只列证据，不直接要求“拆成 N 个 service”。
+
+### C. 状态所有权与数据流
+
+- 以当前 docs 的状态所有权表为基线，反向检查实际代码。
+- 列出所有长期/中期 mutable state owner：
+  - Singleton；
+  - Playback session；
+  - Background coordinator；
+  - Page/ViewModel；
+  - static state。
+- 对以下核心状态绘制“source of truth → projection/subscriber → persistence”数据流：
+  - PlaybackSnapshot / reading progress；
+  - 当前 TTS rule / settings；
+  - active cache batch；
+  - export batch；
+  - cache status / speech plan；
+  - navigation CurrentRoute；
+  - BookDetails / Library 页面读模型。
+- 找出同一业务状态存在两个以上 mutable owner、页面复制进程级状态、持久化值与运行时值缺少明确优先级、多个事件源可以更新同一 UI 状态等情况。
+- 统计主要 `event +=` / `event -=`、SnapshotChanged/Changed 类事件以及自定义 callback/delegate 链，指出订阅生命周期由谁负责。
+
+### D. 异步、线程与 Dispatcher 边界
+
+- 搜索并分类：
+  - `Task.Yield`
+  - `Task.Run`
+  - `async void`
+  - `Dispatcher.Invoke/BeginInvoke/InvokeAsync`
+  - `IUiScheduler`
+  - `ConfigureAwait`
+  - `.Result` / `.Wait()` / `GetAwaiter().GetResult()`
+  - `Thread.Sleep` / `Task.Delay`
+  - fire-and-forget / `OwnedTaskRegistry`
+  - `CancellationTokenSource`
+- 报告每类在生产代码中的数量、主要位置和用途。
+- 找出“方法是 Async 但实际同步重工作仍可能在 Dispatcher 调用线程执行”的边界，特别包括 Microsoft.Data.Sqlite、大集合 projection、排序/grouping/hash、文件/文本处理。
+- 检查页面 activation、background job、playback session 三种生命周期是否各自拥有一致的取消/迟到结果策略，列出重复的 version/generation/CTS 模式。
+- 列出可能造成 UI Dispatcher 工作量随完整数据集 N 线性增长的路径。
+
+### E. Collection / 大列表 / UI 投影架构
+
+- 搜索所有 `ObservableCollection`、`ReplaceWith`、`Clear()+Add`、CollectionChanged Reset、自定义 item VM 列表。
+- 对 Library、BookDetails、Player 章节目录、CacheManagement、Rules 列表分别记录：
+  - 数据集可能规模；
+  - 是否一次性 materialize 全量 DTO；
+  - 是否为所有项建立 mutable item ViewModel；
+  - 是否逐项通知；
+  - 是否 WPF UI virtualization；
+  - `ScrollUnit`；
+  - 是否有 current-item / selection / cache enrichment；
+  - enrichment 是否对全量数据运行还是 viewport/目标项运行。
+- 单独记录当前 3000+ 章节 BookDetails 卡顿涉及的结构路径，但不进行性能修复。
+- 找出其它未来可能出现同类 O(N) UI 首屏成本的页面。
+
+### F. Application / Infrastructure 边界
+
+- 列出 Application 中主要 service/coordinator/query/port 及其实现位置。
+- 统计接口数量、只有一个实现的接口数量、主要 constructor injection 链。
+- 区分：
+  - 真正用于技术边界/替换/测试隔离的 port；
+  - Feature-local 逻辑却被提升到全局 Application 的 abstraction；
+  - Infrastructure query 返回过度面向页面的 read model；
+  - App ViewModel 自己组合过多底层 Application port 的情况。
+- 检查 Books / Playback / Cache / Speech / Settings / Desktop 的功能切片是否仍与实际代码目录和调用方向一致。
+- 列出可能需要在后续规划中讨论的边界重划分，但不要自行决定。
+
+### G. DI 与生命周期
+
+- 从实际注册代码生成主要服务的生命周期清单：Singleton / Transient / Scoped（如有）。
+- 标出：
+  - Singleton 持有短生命周期对象的风险；
+  - transient Page/ViewModel 引用 process coordinator 的正常边界；
+  - 同一服务在多个模块重复注册；
+  - constructor 参数过多；
+  - 组合根之外 `IServiceProvider` 使用。
+- 报告最大 constructor dependency 数量的前 20 个生产类型。
+
+### H. 持久化与查询架构
+
+- 汇总 SQLite 表、repository/query/store 与 Application read/write port 的映射。
+- 不修改已发布 migration。
+- 检查：
+  - 是否存在针对单个页面查询却扫描/聚合全库的 SQL；
+  - N+1 查询；
+  - 同一页面一次 activation 重复查询同一数据；
+  - Infrastructure 返回的数据是否导致 App 再做大规模二次组装；
+  - read model 是否过大/过细碎。
+- 将已知 BookDetails 全量聚合 SQL 作为实例之一，但同时检查 Library、CacheManagement、Playback 恢复、Rules 等其它查询。
+
+### I. 测试架构与维护成本
+
+- 统计每个 test project：
+  - 测试文件数；
+  - 测试代码总行数；
+  - 最大的 30 个测试文件；
+  - 与 TestKit 的依赖。
+- 尽可能统计当前测试数；不为得到数量修改测试。
+- 找出：
+  - 大量重复 fake/stub；
+  - 单个测试文件/fixture 过大；
+  - 为私有实现细节建立的脆弱测试；
+  - WPF tests 与 Presentation tests 职责交叠；
+  - 生产重构需要同步修改大量测试的热点。
+- 记录当前 WPF 隐藏 Desktop/testhost hang 情况以及它对架构重构验证能力的影响。
+
+### J. Git 变更热点与耦合
+
+- 使用 `git log` 对最近约 6 个月或仓库实际可用历史做 churn 分析：
+  - 修改次数最多的生产文件；
+  - 增删行最多的生产文件；
+  - 经常在同一 commit 中一起变化的文件/目录组合。
+- 特别观察 BookDetails、Player、Cache、Shared Presentation、Shell、测试基础设施。
+- 将“高 churn + 大文件 + 高依赖/高状态数”的交叉点列为 Architecture Review hotspot。
+- 不把单纯文件大或修改多自动判定为坏架构。
+
+### K. 当前架构资产与不可轻易破坏的边界
+
+报告不能只有问题。必须列出当前已经相对稳定、建议后续重构优先保留的资产，例如经代码证据确认的：
+
+- Domain/Application/Infrastructure/App 依赖方向；
+- 强类型 AppRoute；
+- Playback session 单 owner；
+- PlaybackSnapshot + persisted checkpoint 的优先级；
+- background cache/export coordinator owner；
+- SQLite migration 追加策略；
+- 外部 TXT 不可写边界；
+- cache 可重建边界；
+- TestKit/WPF 隔离能力；
+- 其它实际已形成稳定合同的部分。
+
+### L. 诊断结论格式
+
+报告结尾必须给出以下表格，但**不制定最终重构方案**：
+
+| 热点 | 证据 | 影响范围 | 风险等级 | 可能需要决策的问题 |
+|---|---|---|---|---|
+
+风险等级只使用：
+- High：已经造成正确性/性能/维护阻塞，或修改常产生跨模块连锁。
+- Medium：复杂度持续增加，现阶段仍可工作。
+- Low：主要是组织/命名/重复问题。
+
+再给出：
+
+1. “最值得优先讨论的 5–10 个架构决策问题”；
+2. “应尽量保留的稳定架构资产”；
+3. “需要用户产品/维护偏好才能决定的事项”；
+4. “3000+ 章节卡顿在整体架构中的关联点”，仅关联，不给最终修复。
+
+输出与验收：
+
+- 输出文件固定为仓库根目录 `architecture_diagnostic_report.md`。
+- 报告中命令输出应做摘要，不粘贴超长完整日志。
+- 如使用临时 PowerShell/Python/C# 分析脚本，完成后删除。
+- 至少执行：
+  - `dotnet restore --locked-mode -r win-x64`
+  - `dotnet build -c Release --no-restore`
+  - 现有架构/依赖相关测试或能够稳定运行的对应 test project。
+- 本任务不要求为当前 3000+ 章节卡顿运行新的性能 harness。
+- 完成后在 T005 下记录“完成成果”，说明报告路径、关键统计数量、build/test 状态和任何无法自动采集的数据。
+- **不要提交 `architecture_diagnostic_report.md`**；保留为工作区未跟踪文件，供用户上传给后续架构规划会话。
+- Codex 提交时只提交 `docs/TASK_BACKLOG.md` 的 T005 完成状态（以及若诊断过程中确有必要修正的纯诊断说明）；提交前确认生产代码无变更。
+
+## Phase E：旧阶段收口（暂缓）
+
+当前不执行以下任务。整体架构优化方案确定后，应在新的规划阶段决定删除、重写或重新安排，而不是直接继续旧的性能收口。
+
+## [ ] T006（P1，暂缓）：补齐进度/性能回归并执行完整质量门禁
+
+依赖：T001、T002、T003、T004、T005。
 
 目标：
 
