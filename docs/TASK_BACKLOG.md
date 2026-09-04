@@ -270,7 +270,7 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 
 ## Phase D：整体架构优化前诊断
 
-## [ ] T005（P0）：生成全项目 Architecture Review 诊断报告
+## [x] T005（P0）：生成全项目 Architecture Review 诊断报告
 
 依赖：T001、T002、T003、T004。
 
@@ -490,6 +490,8 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 - 完成后在 T005 下记录“完成成果”，说明报告路径、关键统计数量、build/test 状态和任何无法自动采集的数据。
 - **不要提交 `architecture_diagnostic_report.md`**；保留为工作区未跟踪文件，供用户上传给后续架构规划会话。
 - Codex 提交时只提交 `docs/TASK_BACKLOG.md` 的 T005 完成状态（以及若诊断过程中确有必要修正的纯诊断说明）；提交前确认生产代码无变更。
+
+完成成果：已生成根目录 `architecture_diagnostic_report.md`（未提交），完成项目/Feature/依赖、复杂度与状态所有权、异步与大列表、Application/Infrastructure、DI、SQLite、测试架构和 Git churn 诊断。静态统计为 10 个项目、685 个生产源文件/61,864 行、14 个 Feature、约 82 个 Application 接口；测试项目 210 个源文件/59,594 行，另有 TestKit 19 个文件/3,421 行。已执行锁定还原成功；App Release build 成功且 0 warning/0 error；目标 Presentation 架构/生命周期测试 42/42、WPF 隔离测试 10/10、WPF DI/视觉架构测试 14/14 通过。完整 solution build 因 WPF 测试输出被残留 `testhost` 进程锁定而失败，详见报告；未运行完整测试集、性能 harness 或 SQL EXPLAIN。
 
 ## Phase E：旧阶段收口（暂缓）
 
