@@ -34,10 +34,20 @@ public sealed partial class BookDetailsChapterItemViewModel : ObservableObject
 
     public string TitleToolTip => Title;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsCachePercentageVisible))]
-    [NotifyPropertyChangedFor(nameof(AutomationName))]
-    private string cachePercentageText = string.Empty;
+    private string _cachePercentageText = string.Empty;
+
+    public string CachePercentageText
+    {
+        get => _cachePercentageText;
+        private set
+        {
+            if (SetProperty(ref _cachePercentageText, value))
+            {
+                OnPropertyChanged(nameof(IsCachePercentageVisible));
+                OnPropertyChanged(nameof(AutomationName));
+            }
+        }
+    }
 
     public bool IsCachePercentageVisible => !string.IsNullOrEmpty(CachePercentageText);
 
@@ -50,6 +60,20 @@ public sealed partial class BookDetailsChapterItemViewModel : ObservableObject
         CachePercentageText = ChapterCachePercentageFormatter.Format(
             cachedSegmentCount,
             totalSegmentCount);
+    }
+
+    internal bool ApplyCacheStatusSilently(int cachedSegmentCount, int? totalSegmentCount)
+    {
+        var formatted = ChapterCachePercentageFormatter.Format(
+            cachedSegmentCount,
+            totalSegmentCount);
+        if (string.Equals(CachePercentageText, formatted, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        _cachePercentageText = formatted;
+        return true;
     }
 
     private string BuildAutomationName(string? state = null)

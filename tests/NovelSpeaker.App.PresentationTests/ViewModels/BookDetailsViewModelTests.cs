@@ -2,6 +2,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Platform;
@@ -251,6 +252,110 @@ public sealed class BookDetailsViewModelTests
         uiScheduler.RunNext();
 
         Assert.Equal(string.Empty, viewModel.Chapters[0].CachePercentageText);
+    }
+
+    private async Task Initial_cache_status_projection_uses_one_collection_reset_without_row_notifications()
+    {
+        const int chapterCount = 180;
+        var cacheWorkspace = new FakeCacheWorkspaceService
+        {
+            Statuses = Enumerable.Range(0, chapterCount)
+                .Select(static index => new ChapterCacheStatus(index, 1, 1))
+                .ToArray()
+        };
+        var uiScheduler = new QueuedUiScheduler();
+        var viewModel = CreateViewModel(
+            managementService: new FakeBookManagementService
+            {
+                Details = CreateDetails(chapterCount, currentChapterIndex: 90)
+            },
+            cacheWorkspaceService: cacheWorkspace,
+            uiScheduler: uiScheduler);
+
+        viewModel.HandleNavigatedTo();
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await WaitForConditionAsync(viewModel, () => !viewModel.IsBusy && viewModel.Chapters.Count == chapterCount);
+
+        var rowPropertyChangedCount = 0;
+        foreach (var chapter in viewModel.Chapters)
+        {
+            chapter.PropertyChanged += (_, _) => rowPropertyChangedCount++;
+        }
+
+        var collectionChangedCount = 0;
+        var resetCount = 0;
+        viewModel.Chapters.CollectionChanged += (_, eventArgs) =>
+        {
+            collectionChangedCount++;
+            if (eventArgs.Action == NotifyCollectionChangedAction.Reset)
+            {
+                resetCount++;
+            }
+        };
+
+        Assert.Equal(1, uiScheduler.PendingCount);
+        uiScheduler.RunNext();
+
+        Assert.Equal(0, rowPropertyChangedCount);
+        Assert.Equal(1, collectionChangedCount);
+        Assert.Equal(1, resetCount);
+        Assert.All(viewModel.Chapters, chapter => Assert.Equal("100%", chapter.CachePercentageText));
+    }
+
+    private async Task Initial_cache_status_projection_waits_for_locator_completion_when_deferred()
+    {
+        var cacheWorkspace = new FakeCacheWorkspaceService
+        {
+            Statuses = [new ChapterCacheStatus(0, 1, 4)]
+        };
+        var uiScheduler = new QueuedUiScheduler();
+        var viewModel = CreateViewModel(
+            cacheWorkspaceService: cacheWorkspace,
+            uiScheduler: uiScheduler);
+
+        viewModel.DeferInitialCacheStatusProjection();
+        viewModel.HandleNavigatedTo();
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await WaitForConditionAsync(viewModel, () => !viewModel.IsBusy && viewModel.Chapters.Count == 3);
+
+        Assert.Equal(0, cacheWorkspace.StatusCallCount);
+        Assert.Equal(0, uiScheduler.PendingCount);
+
+        viewModel.NotifyInitialChapterLocatorCompleted();
+
+        Assert.Equal(1, cacheWorkspace.StatusCallCount);
+        Assert.Equal(1, uiScheduler.PendingCount);
+        uiScheduler.RunNext();
+        Assert.Equal("25%", viewModel.Chapters[0].CachePercentageText);
+    }
+
+    private async Task Initial_cache_status_projection_can_start_when_current_item_notification_arrives_during_details_apply()
+    {
+        var cacheWorkspace = new FakeCacheWorkspaceService
+        {
+            Statuses = [new ChapterCacheStatus(0, 1, 4)]
+        };
+        var uiScheduler = new QueuedUiScheduler();
+        var viewModel = CreateViewModel(
+            cacheWorkspaceService: cacheWorkspace,
+            uiScheduler: uiScheduler);
+        viewModel.DeferInitialCacheStatusProjection();
+        viewModel.PropertyChanged += (_, eventArgs) =>
+        {
+            if (eventArgs.PropertyName == nameof(BookDetailsViewModel.CurrentChapterItem))
+            {
+                viewModel.NotifyInitialChapterLocatorCompleted();
+            }
+        };
+
+        viewModel.HandleNavigatedTo();
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await WaitForConditionAsync(viewModel, () => !viewModel.IsBusy && viewModel.Chapters.Count == 3);
+
+        Assert.Equal(1, cacheWorkspace.StatusCallCount);
+        Assert.Equal(1, uiScheduler.PendingCount);
+        uiScheduler.RunNext();
+        Assert.Equal("25%", viewModel.Chapters[0].CachePercentageText);
     }
 
     private async Task SaveCommand_trims_metadata_and_refreshes_playback_metadata()
@@ -511,6 +616,9 @@ public sealed class BookDetailsViewModelTests
         await LoadAsync_returns_after_header_and_populates_catalog_when_background_load_finishes();
         await Chapter_cache_percentages_refresh_for_cache_and_configuration_changes_until_page_leave();
         await Page_leave_discards_cache_status_projection_that_reaches_the_ui_late();
+        await Initial_cache_status_projection_uses_one_collection_reset_without_row_notifications();
+        await Initial_cache_status_projection_waits_for_locator_completion_when_deferred();
+        await Initial_cache_status_projection_can_start_when_current_item_notification_arrives_during_details_apply();
         await ClearCacheCommand_is_disabled_until_a_book_is_loaded();
     }
 
@@ -585,6 +693,28 @@ public sealed class BookDetailsViewModelTests
             ]);
     }
 
+    private static BookDetails CreateDetails(int chapterCount, int currentChapterIndex)
+    {
+        return new BookDetails(
+            "book-1",
+            "示例小说",
+            "作者甲",
+            chapterCount,
+            currentChapterIndex,
+            chapterCount - currentChapterIndex - 1,
+            0.5,
+            true,
+            2048,
+            Enumerable.Range(0, chapterCount)
+                .Select(index => new BookChapterSummary(
+                    index,
+                    $"第 {index + 1} 章 标题",
+                    index * 100,
+                    100,
+                    index == currentChapterIndex))
+                .ToArray());
+    }
+
     private static async Task WaitForConditionAsync(
         BookDetailsViewModel viewModel,
         Func<bool> predicate)
@@ -637,6 +767,8 @@ public sealed class BookDetailsViewModelTests
 
         public BookDetails? NextDetailsAfterClear { get; set; }
 
+        public BookDetails? Details { get; init; }
+
         public bool BlockDetailsLoad { get; set; }
 
         public int DeleteCallCount { get; private set; }
@@ -670,7 +802,7 @@ public sealed class BookDetailsViewModelTests
                 return _blockedDetailsLoadSource.Task;
             }
 
-            return Task.FromResult<BookDetails?>(_details);
+            return Task.FromResult<BookDetails?>(Details ?? _details);
         }
 
         public void ReleaseBlockedDetailsLoad()

@@ -48,7 +48,7 @@ internal sealed class CurrentItemLocatorInteraction
 
     public bool HasActiveAnimation => _centering.HasActiveAnimation;
 
-    public void OnLoaded()
+    public void OnLoaded(Action? currentItemChangedCompleted = null)
     {
         if (_isLoaded)
         {
@@ -59,7 +59,7 @@ internal sealed class CurrentItemLocatorInteraction
         _listBox.PreviewMouseWheel += OnPreviewMouseWheel;
         _listBox.PreviewKeyDown += OnPreviewKeyDown;
         InitializeScrollViewer();
-        NotifyCurrentItemChanged(animate: false);
+        NotifyCurrentItemChanged(animate: false, completed: currentItemChangedCompleted);
     }
 
     public void OnUnloaded()
@@ -77,32 +77,40 @@ internal sealed class CurrentItemLocatorInteraction
         _state.NotifyCurrentItemChanged();
     }
 
-    public void NotifyCurrentItemChanged(bool animate)
+    public void Cancel()
     {
+        _centering.Cancel();
         _state.NotifyCurrentItemChanged();
-        _centering.Request(_getCurrentItem(), animate);
     }
 
-    public void LocateCurrentItem()
+    public void NotifyCurrentItemChanged(bool animate, Action? completed = null)
+    {
+        _state.NotifyCurrentItemChanged();
+        _centering.Request(_getCurrentItem(), animate, completed);
+    }
+
+    public void LocateCurrentItem(Action? completed = null)
     {
         var currentItem = _getCurrentItem();
         if (currentItem is null || !_listBox.Items.Contains(currentItem))
         {
             _state.NotifyCurrentItemChanged();
+            completed?.Invoke();
             return;
         }
 
         if (!_state.TryBeginLocate())
         {
+            completed?.Invoke();
             return;
         }
 
-        _centering.Request(currentItem, animate: true);
+        _centering.Request(currentItem, animate: true, completed: completed);
     }
 
     internal void NotifyUserScrollInput()
     {
-        _centering.Cancel();
+        _centering.Cancel(invokeCompletion: true);
         _state.NotifyUserScrollInput();
     }
 
@@ -194,7 +202,7 @@ internal sealed class CurrentItemLocatorInteraction
 
     internal void BeginContinuousUserScroll()
     {
-        _centering.Cancel();
+        _centering.Cancel(invokeCompletion: true);
         _state.BeginContinuousUserScroll();
     }
 

@@ -8,6 +8,51 @@ namespace NovelSpeaker.App.PresentationTests.Shared;
 public sealed class ChapterCacheStatusRefreshControllerTests
 {
     [Fact]
+    public async Task Initial_projection_flag_is_preserved_for_the_initial_batch_only()
+    {
+        var firstRequestStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstRequest = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var bothResultsApplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var projectionModes = new List<bool>();
+        var service = new FakeCacheWorkspaceService
+        {
+            StatusHandler = async (_, chapterIndices, cancellationToken) =>
+            {
+                if (projectionModes.Count == 0)
+                {
+                    firstRequestStarted.TrySetResult();
+                    await releaseFirstRequest.Task.WaitAsync(cancellationToken);
+                }
+
+                return chapterIndices
+                    .Select(static chapterIndex => new ChapterCacheStatus(chapterIndex, 1, 1))
+                    .ToArray();
+            }
+        };
+        var controller = new ChapterCacheStatusRefreshController(
+            service,
+            new ImmediateUiScheduler(),
+            (_, _, _, isInitialProjection) =>
+            {
+                projectionModes.Add(isInitialProjection);
+                if (projectionModes.Count == 2)
+                {
+                    bothResultsApplied.TrySetResult();
+                }
+            },
+            _ => { });
+        controller.Activate(CancellationToken.None);
+
+        controller.Request("book-1", [0], isInitialProjection: true);
+        await firstRequestStarted.Task;
+        controller.Request("book-1", [1]);
+        releaseFirstRequest.TrySetResult();
+        await bothResultsApplied.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal([true, false], projectionModes);
+    }
+
+    [Fact]
     public async Task Requests_arriving_during_a_refresh_are_coalesced_into_one_follow_up_query()
     {
         var firstRequestStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -34,7 +79,7 @@ public sealed class ChapterCacheStatusRefreshControllerTests
         var controller = new ChapterCacheStatusRefreshController(
             service,
             new ImmediateUiScheduler(),
-            (_, _, _) =>
+            (_, _, _, _) =>
             {
                 if (Interlocked.Increment(ref applyCount) == 2)
                 {
@@ -70,7 +115,7 @@ public sealed class ChapterCacheStatusRefreshControllerTests
         var controller = new ChapterCacheStatusRefreshController(
             service,
             scheduler,
-            (_, _, _) => applyCount++,
+            (_, _, _, _) => applyCount++,
             _ => { });
         controller.Activate(CancellationToken.None);
 

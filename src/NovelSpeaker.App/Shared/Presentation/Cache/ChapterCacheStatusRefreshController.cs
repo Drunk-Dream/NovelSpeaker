@@ -11,7 +11,7 @@ internal sealed class ChapterCacheStatusRefreshController
 {
     private readonly ICacheWorkspaceService _cacheWorkspaceService;
     private readonly IUiScheduler _uiScheduler;
-    private readonly Action<string, IReadOnlyCollection<int>, IReadOnlyCollection<ChapterCacheStatus>> _applyStatuses;
+    private readonly Action<string, IReadOnlyCollection<int>, IReadOnlyCollection<ChapterCacheStatus>, bool> _applyStatuses;
     private readonly Action<Exception> _reportFailure;
     private readonly OwnedTaskRegistry _tasks = new();
     private readonly object _syncRoot = new();
@@ -19,13 +19,14 @@ internal sealed class ChapterCacheStatusRefreshController
 
     private CancellationTokenSource? _activationCancellationTokenSource;
     private string? _pendingBookId;
+    private bool _pendingInitialProjection;
     private bool _isRefreshRunning;
     private int _activationGeneration;
 
     public ChapterCacheStatusRefreshController(
         ICacheWorkspaceService cacheWorkspaceService,
         IUiScheduler uiScheduler,
-        Action<string, IReadOnlyCollection<int>, IReadOnlyCollection<ChapterCacheStatus>> applyStatuses,
+        Action<string, IReadOnlyCollection<int>, IReadOnlyCollection<ChapterCacheStatus>, bool> applyStatuses,
         Action<Exception> reportFailure)
     {
         _cacheWorkspaceService = cacheWorkspaceService;
@@ -53,6 +54,7 @@ internal sealed class ChapterCacheStatusRefreshController
             _activationGeneration++;
             _pendingChapterIndices.Clear();
             _pendingBookId = null;
+            _pendingInitialProjection = false;
             _isRefreshRunning = false;
         }
 
@@ -60,7 +62,10 @@ internal sealed class ChapterCacheStatusRefreshController
         cancellationTokenSource?.Dispose();
     }
 
-    public void Request(string bookId, IReadOnlyCollection<int> chapterIndices)
+    public void Request(
+        string bookId,
+        IReadOnlyCollection<int> chapterIndices,
+        bool isInitialProjection = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
         ArgumentNullException.ThrowIfNull(chapterIndices);
@@ -84,9 +89,11 @@ internal sealed class ChapterCacheStatusRefreshController
             {
                 _pendingChapterIndices.Clear();
                 _pendingBookId = bookId;
+                _pendingInitialProjection = false;
             }
 
             _pendingChapterIndices.UnionWith(chapterIndices);
+            _pendingInitialProjection |= isInitialProjection;
             if (_isRefreshRunning)
             {
                 return;
@@ -115,6 +122,7 @@ internal sealed class ChapterCacheStatusRefreshController
             {
                 string bookId;
                 int[] chapterIndices;
+                bool isInitialProjection;
                 lock (_syncRoot)
                 {
                     if (generation != _activationGeneration)
@@ -130,7 +138,9 @@ internal sealed class ChapterCacheStatusRefreshController
 
                     bookId = _pendingBookId;
                     chapterIndices = [.. _pendingChapterIndices];
+                    isInitialProjection = _pendingInitialProjection;
                     _pendingChapterIndices.Clear();
+                    _pendingInitialProjection = false;
                 }
 
                 var statuses = await _cacheWorkspaceService.GetChapterCacheStatusesAsync(
@@ -144,7 +154,7 @@ internal sealed class ChapterCacheStatusRefreshController
                     {
                         if (IsCurrentGeneration(generation))
                         {
-                            _applyStatuses(bookId, chapterIndices, statuses);
+                            _applyStatuses(bookId, chapterIndices, statuses, isInitialProjection);
                         }
                     },
                     cancellationToken);

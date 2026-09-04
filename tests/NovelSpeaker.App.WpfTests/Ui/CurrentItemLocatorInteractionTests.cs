@@ -82,6 +82,13 @@ public sealed class CurrentItemLocatorInteractionTests
                 Assert.False(isLocatorVisible);
                 Assert.NotNull(listBox.ItemContainerGenerator.ContainerFromItem(currentItem));
 
+                var completionCount = 0;
+                interaction.NotifyCurrentItemChanged(
+                    animate: false,
+                    completed: () => completionCount++);
+                WaitUntil(() => completionCount == 1, TimeSpan.FromSeconds(1));
+                Assert.Equal(1, completionCount);
+
                 interaction.NotifyUserScrollInput();
                 scrollViewer.ScrollToBottom();
                 DoEvents();

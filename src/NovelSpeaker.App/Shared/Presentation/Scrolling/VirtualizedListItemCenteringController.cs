@@ -26,6 +26,8 @@ internal sealed class VirtualizedListItemCenteringController
     private bool _pendingAnimate;
     private bool _isEvaluationQueued;
     private bool _areReadinessEventsAttached;
+    private Action? _pendingCompletion;
+    private Action? _animationCompletion;
     private int _requestVersion;
     private int _programmaticScrollDepth;
 
@@ -53,28 +55,38 @@ internal sealed class VirtualizedListItemCenteringController
 
     public bool IsSuppressingPassiveScroll => _pendingTargetItem is not null || _programmaticScrollDepth > 0;
 
-    public void Request(object? targetItem, bool animate)
+    public void Request(object? targetItem, bool animate, Action? completed = null)
     {
         Cancel();
         if (targetItem is null)
         {
+            completed?.Invoke();
             return;
         }
 
         _pendingTargetItem = targetItem;
         _pendingAnimate = animate;
+        _pendingCompletion = completed;
         _requestVersion++;
         AttachReadinessEvents();
         ScheduleEvaluation();
     }
 
-    public void Cancel()
+    public void Cancel(bool invokeCompletion = false)
     {
         _requestVersion++;
+        var completed = invokeCompletion ? _pendingCompletion : null;
         _pendingTargetItem = null;
         _isEvaluationQueued = false;
+        _pendingCompletion = null;
         DetachReadinessEvents();
+        var animationCompleted = invokeCompletion ? _animationCompletion : null;
         StopAnimation();
+        if (invokeCompletion)
+        {
+            completed?.Invoke();
+            animationCompleted?.Invoke();
+        }
     }
 
     private void AttachReadinessEvents()
@@ -171,7 +183,8 @@ internal sealed class VirtualizedListItemCenteringController
             }
             else
             {
-                CompletePendingRequest();
+                var invalidTargetCompletion = CompletePendingRequest();
+                invalidTargetCompletion?.Invoke();
             }
 
             return;
@@ -179,25 +192,33 @@ internal sealed class VirtualizedListItemCenteringController
 
         var targetOffset = CalculateCenteredOffset(container, scrollViewer);
         var animate = _pendingAnimate;
-        CompletePendingRequest();
+        var completed = CompletePendingRequest();
 
         if (!animate || _isReducedMotionEnabled() || Math.Abs(targetOffset - scrollViewer.VerticalOffset) < 0.5d)
         {
             RunProgrammaticScroll(() => scrollViewer.ScrollToVerticalOffset(targetOffset));
+            completed?.Invoke();
             return;
         }
 
-        StartAnimation(requestVersion, scrollViewer, targetOffset);
+        StartAnimation(requestVersion, scrollViewer, targetOffset, completed);
     }
 
-    private void CompletePendingRequest()
+    private Action? CompletePendingRequest()
     {
+        var completed = _pendingCompletion;
         _pendingTargetItem = null;
         _pendingAnimate = false;
+        _pendingCompletion = null;
         DetachReadinessEvents();
+        return completed;
     }
 
-    private void StartAnimation(int requestVersion, ScrollViewer scrollViewer, double targetOffset)
+    private void StartAnimation(
+        int requestVersion,
+        ScrollViewer scrollViewer,
+        double targetOffset,
+        Action? completed)
     {
         StopAnimation();
 
@@ -210,6 +231,7 @@ internal sealed class VirtualizedListItemCenteringController
         };
 
         _animationTimer = timer;
+        _animationCompletion = completed;
         BeginProgrammaticScroll();
         timer.Tick += (_, _) =>
         {
@@ -226,7 +248,7 @@ internal sealed class VirtualizedListItemCenteringController
             if (progress >= 1d)
             {
                 scrollViewer.ScrollToVerticalOffset(targetOffset);
-                StopAnimation();
+                StopAnimation(invokeCompletion: true);
             }
         };
 
@@ -278,7 +300,7 @@ internal sealed class VirtualizedListItemCenteringController
             }));
     }
 
-    private void StopAnimation()
+    private void StopAnimation(bool invokeCompletion = false)
     {
         if (_animationTimer is null)
         {
@@ -288,5 +310,12 @@ internal sealed class VirtualizedListItemCenteringController
         _animationTimer.Stop();
         _animationTimer = null;
         EndProgrammaticScroll();
+
+        var completed = _animationCompletion;
+        _animationCompletion = null;
+        if (invokeCompletion)
+        {
+            completed?.Invoke();
+        }
     }
 }

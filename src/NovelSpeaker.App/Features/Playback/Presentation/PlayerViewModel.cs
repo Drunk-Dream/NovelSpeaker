@@ -1198,7 +1198,8 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     private void ApplyChapterCacheStatuses(
         string bookId,
         IReadOnlyCollection<int> requestedChapterIndices,
-        IReadOnlyCollection<ChapterCacheStatus> statuses)
+        IReadOnlyCollection<ChapterCacheStatus> statuses,
+        bool _)
     {
         if (!_isPageEventsRegistered ||
             !string.Equals(_contentProjection.LoadedBook?.BookId, bookId, StringComparison.Ordinal))
