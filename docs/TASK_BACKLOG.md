@@ -2,521 +2,592 @@
 
 ## 1. 阶段定位
 
-当前阶段转入 **项目整体架构优化前诊断**。当前 `dev` 基线为 `cec6777e3aa1d5d22bcec92dcdabfd10c8af648a`。
+当前进入 **整体架构优化阶段**。规划基线：`259541e37e98d0bac87fa41e5017f783b7ee0e31`。
 
-现有核心功能已经基本完善，下一阶段不继续以新增功能或局部缺陷补丁为主，而是先对整个 NovelSpeaker 的模块边界、状态所有权、依赖方向、页面数据流、异步/Dispatcher 边界、大列表模型、后台任务生命周期、持久化职责和测试结构做一次结构化 Architecture Review，为后续分阶段重构建立事实依据。
+核心功能已经基本完善，本阶段优先减少架构复杂度、状态/生命周期耦合和大列表规模风险，不新增大功能，不围绕旧 3000+ 章节卡顿继续做局部 workaround。
 
-此前阅读进度一致性问题已经完成 T001–T002；BookDetails 返回性能已经完成 T003–T004 的 180 章诊断和第一轮优化。但真实 3000+ 章节书籍仍存在 Player 点击返回后约 10 秒 UI 无响应的问题。该问题当前作为“架构压力/规模化症状”保留，不再单独继续专项修复；后续在整体架构优化方案确定并完成相关结构调整后，再按需要重新验证和定位。
+目标终态由 `docs/01_ARCHITECTURE.md` 定义。Codex 负责代码、测试和必要的目录/API 迁移；编号文档已经在规划阶段完成整理，除任务明确要求外不修改编号文档。
 
-目标状态固定为：
+本阶段允许：
 
-```text
-当前活动书籍
-    PlaybackSnapshot = 运行时即时真值
-                ↓
-        Effective Reading Progress
-                ↑
-    ReadingProgress(SQLite) = 持久化 checkpoint
+- 大规模 namespace/目录/internal API 调整；
+- DI 生命周期调整；
+- 删除旧 abstraction/compat wrapper；
+- 测试重写、合并和数量减少；
+- 删除已经被新架构替代的代码。
 
-非活动书籍 / 应用重启
-    ReadingProgress(SQLite) = 基线真值
-```
+必须保护：
 
-本轮边界：
+- 用户数据与已发布 SQLite migration；
+- 外部 TXT；
+- 规则/设置/ReadingProgress；
+- 核心用户行为；
+- PlaybackSnapshot/checkpoint/navigation/cache/export 等已确认语义。
 
-- 不新增第三套可变的“全局阅读进度状态”或页面级复制状态。
-- 不让书库/详情页通过等待 SQLite 回写来获得当前活动书籍的即时章节位置。
-- `ReadingProgress` 继续作为可恢复的持久化 checkpoint；显式章节/段落跳转成功后必须及时提交新的逻辑位置，不能只在下一次 session 被替换时补写。
-- 不通过把 `BookDetailsPage` / `BookDetailsViewModel` 改为 Singleton、开启页面缓存或绕过强类型路由来掩盖返回卡顿。
-- 性能任务必须先定位再优化；不得再次仅凭 `Task.Yield()`、方法名带 `Async` 或一次 `Task.Run` 就宣称 UI 阻塞已解决。
-- `Microsoft.Data.Sqlite` 的异步 API 不视为“自动离开 UI 线程”的保证；任何可能同步执行的数据库/CPU 工作都要按真实线程占用验证。
-- 本阶段不是视觉样式改版，不改变书库/详情/播放页既有视觉设计。
+## 2. 状态
 
-## 2. 状态与优先级
+- `[ ]` 未开始
+- `[-]` 进行中
+- `[x]` 已完成，末尾追加“完成成果”
+- `[!]` 阻塞，记录可复现证据
 
-- `[ ]`：未开始。
-- `[-]`：进行中。
-- `[x]`：已完成；任务末尾必须附简短“完成成果”。
-- `[!]`：存在阻塞，必须记录可复现原因。
-- `P0`：影响阅读位置正确性、跨页面一致性或明显交互卡顿。
-- `P1`：性能收口、维护性或补充性回归。
+优先级：
 
-Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加“完成成果”；不得自行删除其它任务。只有后续新的规划阶段才允许再次清空或重写 Backlog。
+- `P0`：架构基础、状态正确性、生命周期、大列表或阻塞后续 Phase 的任务
+- `P1`：重要收敛/清理/测试任务
+- `P2`：低风险维护性收尾
 
-## 3. Codex 执行规则
+完成后的任务保留。只有新的规划阶段才允许再次重写 Backlog。
 
-1. 默认一次只执行一个编号任务；完成后停止，不自动开始下一项。
-2. 开始 T001 前至少阅读：`AGENTS.md`、`docs/04_PLAYBACK_PIPELINE.md`、`docs/05_DATA_AND_PERSISTENCE.md`、`docs/06_UI_AND_USER_FLOWS.md`、`docs/09_TESTING_AND_QUALITY.md`、`docs/11_DECISIONS_RISKS_OPEN_QUESTIONS.md`。
-3. 每个任务开始前重新审计真实调用链，不仅按本文列出的文件机械修改。进度任务至少搜索：`SaveProgressAsync`、`PlaybackProgressService`、`ReadingProgress`、`PublishSnapshot`、`JumpToChapterAsync`、`JumpToSegmentAsync`、`StartNewSessionAsync`、`OpenResolvedPositionAsync`、`SnapshotChanged`。
-4. 性能任务至少审计：`BookDetailsPage`、`BookDetailsViewModel.LoadAsync`、`GetBookDetailsHeaderAsync`、`GetBookDetailsAsync`、`ViewModelCollectionExtensions.ReplaceWith`、`CurrentItemLocatorInteraction`、初始缓存状态刷新、`ShellNavigationAdapter.NavigateAsync`、Player 页面离开生命周期以及 Wpf.Ui NavigationView transition。
-5. 先为可复现缺陷补失败测试，再修改实现。测试优先保护“第一次切换/第一次返回就正确”，不得用第二次导航或额外 Pause/Stop 掩盖问题。
-6. 当前活动书籍的即时 UI 投影以 `PlaybackSnapshot` 为最高优先级；SQLite 只提供持久化基线。不要创建新的 mutable singleton progress store 来复制 Snapshot。
-7. 持久化 checkpoint 只能在目标逻辑位置已经确定、操作确认成功后提交。失败、取消、目标不可用时不得把未完成跳转写成当前进度。
-8. 不要求每毫秒音频位置都写 SQLite；重点保护显式切章/切段、暂停、停止、session 替换和退出等稳定 checkpoint 边界。
-9. 详情性能诊断必须比较同一本书、同一窗口尺寸下的 `Library -> BookDetails` 与 `Player -> BookDetails`，区分冷/热数据库与首次/后续进入，不能用不同书籍或不同章节规模比较。
-10. 性能结论必须给出阶段耗时或等价可复核证据；如果临时 instrumentation、日志、ETW/trace、诊断开关或测试 harness 只为定位服务，完成定位/修复后必须删除。
-11. 不建立脆弱的绝对毫秒 CI 门禁。自动回归应优先使用可控 slow fake、barrier/gate、Dispatcher/first-render 信号和调用顺序证明“重工作不阻塞首帧/交互”，实际耗时用于本轮诊断记录。
-12. WPF 自动测试继续使用隐藏 Desktop；不得自行设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`。
-13. 本轮不需要生成视觉截图。如调试过程中生成截图、dump、trace、日志或脚本，任务结束前删除并用 `git status --short` 审计。
-14. 每个任务完成后更新自身状态并写“完成成果”，记录主要实现、专项测试、关键测量结果及发现的问题。
+## 3. 通用执行规则
 
-## Phase A：阅读进度单一语义
+1. 一次只执行一个编号任务，完成后停止。
+2. 先读 `AGENTS.md`、`docs/README.md`、`docs/01_ARCHITECTURE.md` 和当前任务对应专项文档。
+3. 先审计真实调用链、DI 注册和现有测试，不按本文文件列表机械修改。
+4. 行为保持型 move/rename 尽量与逻辑变化分 commit；如果用户未授权提交则只保持工作区修改。
+5. 允许破坏内部 API，但不得为旧内部 API 长期保留 wrapper。
+6. 新 interface 必须符合“有真实边界才有接口”；Feature-local controller 默认 concrete internal type。
+7. 普通 Page/ViewModel 目标生命周期为 transient；不得用 Singleton/NavigationCache 规避迁移问题。
+8. 不引入 EventBus/Messenger、Service Locator、通用 BackgroundTaskManager、大一统 CacheManager 或复杂泛型 Rule Framework。
+9. 大列表必须遵守 Immutable Catalog + Sparse Mutable Decoration，禁止重新引入首屏 `Clear + N × Add`。
+10. 复杂页面遵守 staged loading；`Task.Yield()` 不作为性能修复完成证据。
+11. WPF 自动测试使用隐藏隔离 Desktop；不得设置可见窗口环境变量。
+12. 临时 instrumentation、trace、dump、截图、benchmark、一次性脚本在任务完成前删除。
+13. 每项任务末尾记录：主要实现、删除的旧实现、测试、ArchitectureTests、无法执行的检查。
+14. Codex 默认只修改自身 `TASK_BACKLOG.md` 完成状态，不整理编号文档。
 
-## [x] T001（P0）：修复显式切章/切段后的持久化 checkpoint 时机
+---
 
-目标：
+# Phase A：架构守卫与生命周期基础
 
-- 消除“播放器已到 B 章、SQLite 仍停在 A 章，直到下一次 session 替换才写入 B”的状态窗口。
-- 第一次显式切换成功后，运行态与持久化 checkpoint 都指向新的逻辑位置。
+## [ ] T001（P0）：建立架构优化阶段 Fitness Tests 基线
+
+目标：先把已经确认的目标架构转成自动约束，避免后续迁移过程中旧模式重新进入代码库。
 
 实施方向：
 
-1. 先用 Application 单元测试复现当前缺陷，至少覆盖暂停态：
-   - 已存在 A 章 session/持久化进度。
-   - 调用 `JumpToChapterAsync(B)` 或等价章节目标导航。
-   - `CurrentSnapshot.ChapterIndex` 已为 B。
-   - 在不执行第二次跳转、不 Pause、不 Stop 的情况下，持久化 `ReadingProgress` 也必须已经是 B。
-2. 审计 `StartNewSessionAsync` 当前“先保存旧 session → 创建/发布新 session”的顺序，以及 `OpenResolvedPositionAsync`、章节/段落相对移动、目录指定章节进入、Playing/Paused、无已加载音频、缺少规则等分支。
-3. 将“提交新的逻辑阅读位置”收敛为清晰的 Application 层语义。允许复用/重构现有 `PlaybackProgressService`，但不要在多个 UI ViewModel 中各自写数据库。
-4. 显式跳转成功、目标位置已经解析并成为当前 session 后，及时 checkpoint 新的章节/段落/字符位置；仅保存旧 session 不能视为本次跳转完成。
-5. 保留已有 Pause、Stop、session 替换等 checkpoint，但审计是否存在旧 session 的迟到保存覆盖新位置的风险。播放状态机已有串行化边界时优先利用现有边界，不额外引入并行写队列。
-6. 目标解析失败、取消、书籍/章节不存在或操作未真正提交时，不写入目标位置。
+1. 扩展现有 ArchitectureTests，而不是新建第二套架构测试框架。
+2. 至少建立以下可自动检查的约束：
+   - Domain/Application/Infrastructure/App 引用方向；
+   - App 非 Bootstrap 不直接引用 Infrastructure；
+   - Shared 不引用 Feature；
+   - App Feature namespace 不形成双向依赖；
+   - ordinary Page/ViewModel 不允许新注册为 Singleton；
+   - ViewModel/Feature controller 不依赖 `IServiceProvider`；
+   - Application 不引用 WPF/Wpf.Ui；
+   - 禁止新增通用 Messenger/EventBus 类型和 Service Locator；
+   - 页面/ViewModel 不直接依赖 ReadingProgress persistence writer；
+   - 对已识别 large-list helper 增加“不得 Clear 后逐项 Add”结构性合同。
+3. 对“Playback mutable state 只有 owner 修改”先建立可稳定检测的最小边界，不依赖脆弱私有字段名；如果当前结构暂时无法精确检查，先约束公开/注入方向，并记录后续 T008/T009 补强点。
+4. 不建立行数、构造参数数量、绝对耗时等机械门槛。
 
-专项测试/验收：
+禁止：
 
-- A→B 暂停态切章后，不产生额外操作即可读到 B 的持久化进度。
-- A→B 播放态切章仍正确，且不会因为先停旧音频而把 A 重新覆盖到数据库。
-- 显式切段至少覆盖同章与跨章解析边界。
-- 从 BookDetails 指定章节进入 Player 后，新章节第一次打开完成即建立正确 checkpoint。
-- 取消/失败路径保留原进度。
-- 不引入高频逐毫秒 SQLite 写入。
+- 为了让当前旧代码通过而把规则写得过于宽松；如果现状明确违反目标规则，允许对该规则使用“已知债务白名单”，但白名单必须精确到具体类型/依赖，并注明由哪个后续任务删除。
+- 新增第三方架构测试框架，除非现有测试无法表达必要规则且能证明收益。
 
-完成成果：显式 Start/Open/Jump/Move 在目标 session 提交前完成新位置 checkpoint，并通过 session 标识与事件 epoch 防止旧音频事件回写；失败或取消时恢复原 session 与进度。新增暂停/播放、同章/跨章及失败/取消回归测试；`PlaybackCoordinatorTests` 55 项、播放 Application 测试 10 项通过。
+验收：
 
-## [x] T002（P0）：建立跨书库/详情/播放页统一的 Effective Reading Progress 投影
+- Architecture tests 可单独运行并稳定通过。
+- 每个临时白名单都能映射到 T002–T018 的明确删除任务。
+- 无生产行为变化。
+
+## [ ] T002（P0）：统一普通 Page/ViewModel 为 transient 生命周期
 
 依赖：T001。
 
-目标：
-
-- 当前活动书籍的书库卡片、书籍详情“当前章节”、目录当前项和进度百分比与 Player `CurrentSnapshot` 同步。
-- 页面不再依赖“等待 SQLite 已写入，再重新查询”才能显示当前 session 的即时位置。
+目标：消除 singleton ViewModel + page activation + CTS/version 的混合生命周期；真正长期状态保留在 process/session owner。
 
 实施方向：
 
-1. 建立一个无独立可变状态的有效进度投影/解析边界。具体类型名可按现有架构选择，但语义固定为：
-   - `PlaybackSnapshot.BookId == targetBookId` 时，以 Snapshot 的章节/段落/章节标题为即时真值，并结合该书总章节数计算剩余章节/总体章节进度等派生值。
-   - BookId 不匹配或没有活动播放上下文时，使用 `BookSummary` / `BookDetails` 中的持久化 `ReadingProgress` 投影。
-2. 不创建第三套 singleton mutable progress cache；Snapshot 仍由 PlaybackCoordinator 所有，SQLite 仍由持久化层所有，Effective Progress 只做投影合并。
-3. `LibraryViewModel` 已订阅 `SnapshotChanged`，应让该事件真正更新匹配书籍卡片的当前章节、剩余章节和进度，而不仅保存 `_activePlaybackBookId`。避免为了当前书每次 Snapshot 都重新查询整套书库。
-4. `BookDetailsViewModel` 在激活期间订阅/读取当前 Snapshot：
-   - 初始详情查询完成后应用 persisted baseline，再覆盖当前活动书籍的 Snapshot。
-   - Snapshot 变化后更新当前章节文本、目录 `IsCurrent`、进度和定位目标。
-   - 异步详情结果晚于 Snapshot 到达时，不能用旧数据库值把新的运行态位置覆盖回去。
-5. 从详情目录指定新章节进入 Player 后，第一次返回新创建的 BookDetails 实例时，即使 SQLite 查询结果存在短暂时序差，也必须显示当前 Snapshot 的新章节。
-6. 非当前书籍不受另一本文本的 Snapshot 污染；播放上下文清空后回到持久化基线。
+1. 审计所有 Page/ViewModel DI 注册，形成当前 Singleton/Transient 清单。
+2. 将 Library、Player、TtsRules、ChapterRules、Settings 等普通页面 VM 迁移为 transient；保留真实 process owner 为 Singleton。
+3. 对每个被迁移 VM 逐项判断原 singleton 中哪些状态是：
+   - 页面临时 state：随 VM 销毁；
+   - 真实长期 state：提升/复用现有 Application/process owner；
+   - 可由 query/snapshot 重建：不新增缓存。
+4. 统一 activation/deactivation：一个 page activation token/version + owned tasks；删除因为 singleton 历史产生的重复“是否已订阅/是否已初始化”防御状态。
+5. 保持播放、主动缓存、导出、设置当前 snapshot 等跨页面状态连续。
 
-专项测试/验收：
+重点审计：
 
-- Player A章→切 B章后，Library 中同一本书第一次观察 Snapshot 即显示 B 和新的章节进度。
-- BookDetails(book-A)→Player 指定 B章→第一次 Back，详情页当前章节和目录当前项均为 B；不需要再次进入 Player。
-- 持久化详情查询先返回旧 A、随后/此前 Snapshot 已是 B 时，最终 UI 仍为 B。
-- Snapshot 属于 book-A 时，book-B 卡片/详情仍使用自身持久化数据。
-- 应用重启或没有活动 Snapshot 时，SQLite checkpoint 正常恢复阅读位置。
-- 不新增数据库轮询和第三套全局进度状态。
+- `PlayerViewModel`
+- `LibraryViewModel`
+- `TtsRulesViewModel`
+- `ChapterRulesViewModel`
+- `SettingsViewModel`
+- Shell/Page provider 的生命周期假设
 
-完成成果：新增无状态 `EffectiveReadingProgressProjector`，以匹配书籍的 `PlaybackSnapshot` 覆盖书库卡片与详情页持久化基线，并在快照不匹配或 Idle 时恢复基线；补齐卡片/详情目录属性通知、详情页激活订阅退订及排队旧快照版本校验。新增匹配、跨书隔离、异步详情晚到、页面离开和基线恢复测试；完整 Presentation 测试 172 项、相关 WPF 契约测试 10 项通过。
+禁止：
 
-## Phase B：书籍详情页返回性能定位
+- 通过 Page singleton、NavigationCache 或静态字段保存页面状态。
+- 新建通用 `PageStateCache`。
 
-## [x] T003（P0）：对 Player→BookDetails 卡顿做分阶段测量并确定主因
+测试：
+
+- 进入→离开→重新进入得到新 VM 实例。
+- process owner 状态不因 VM 重建丢失。
+- 旧页面迟到任务/事件不能写入新实例。
+- DI/ArchitectureTests 更新并通过。
+
+## [ ] T003（P0）：重组 App Feature 目录/namespace 并消除跨 Feature 循环
 
 依赖：T002。
 
-目标：
-
-- 不先假定 SQLite、`Task.Yield()`、Collection 或 Wpf.Ui transition 中任何一个一定是主因。
-- 用同一本书的对照数据回答“卡在哪里、为什么 Library→Details 与 Player→Details 的感知不同”。
+目标：按 Books/Playback/Cache/Rules/Settings/Diagnostics 收敛 App Feature，使目录和 namespace 直接体现目标边界。
 
 实施方向：
 
-1. 建立临时、可删除的性能 instrumentation 或诊断 harness，至少记录以下时间点/阶段：
-   - Player BackCommand / `NavigateBackAsync` 开始。
-   - `NavigateWithHierarchy` 调用前后。
-   - Player `OnNavigatedFrom` / activation cancellation 完成。
-   - `BookDetailsPage` 构造与 `InitializeComponent`。
-   - `OnNavigatedToAsync` 开始。
-   - `GetBookDetailsHeaderAsync`。
-   - Page `Loaded` 与首个可观测 render/Dispatcher idle 信号。
-   - `GetBookDetailsAsync`。
-   - DTO→章节 ViewModel 投影。
-   - `Chapters.ReplaceWith` / CollectionChanged 与随后 layout。
-   - 初始 `QueueCacheStatusRefresh`。
-   - `CurrentItemLocatorInteraction` 的 `ScrollIntoView`/居中定位。
-   - Wpf.Ui 页面 transition 的有/无对照。
-2. 同一 fixture 至少比较：
-   - `Library -> BookDetails(book-A)`。
-   - `BookDetails(book-A) -> Player(book-A) -> Back -> BookDetails(book-A)`。
-   - 冷连接/冷页面与热连接/第二次进入；章节规模保持一致。
-3. 做最小 A/B 隔离，优先使用诊断开关或测试替身，不提交功能性 workaround：
-   - A：暂时跳过 details supplement。
-   - B：执行 supplement 查询但暂时不 ApplyDetails。
-   - C：正常查询/Apply，但临时跳过初始缓存刷新和 current-item 定位。
-   - D：保持业务代码不变，仅临时关闭/绕过 Navigation transition 做对照。
-4. 明确检查 `Microsoft.Data.Sqlite` 实际线程：不能因调用 `ExecuteReaderAsync` / `ReadAsync` 就假定工作已经离开 Dispatcher。若引入后台线程对照，需要同时记录查询与 UI apply 的线程/阶段。
-5. 检查 `BookLibraryQuery.GetBookDetailsAsync` 的 SQL 计划与数据规模；特别确认单书查询是否对全表 Chapters/AudioCacheEntries 做无谓聚合，以及相应 BookId/ChapterId 索引是否真正被利用。
-6. T003 **原则上不做最终性能重构**。只允许为获得可靠测量所需的最小临时代码；任务结束前删除临时 instrumentation/trace/截图/脚本。把测量结果、主因排序和建议修复点写入本任务“完成成果”，供 T004 直接执行。
+1. 优先做行为保持型 move/rename，再处理因边界调整产生的调用合同。
+2. 建立：
+   - `Features/Books/Library`
+   - `Features/Books/Details`
+   - `Features/Books/Shared`
+   - `Features/Rules/Tts|Chapter|Regex|Shared`
+3. 消除 `Library ↔ BookDetails` 直接类型/namespace 双向引用：
+   - route 继续使用 Shell typed route；
+   - 真正共享的 book presentation primitive 放 `Books/Shared`；
+   - 不把整个 VM/页面 DTO 提升到全局 Shared。
+4. 三类 Rules 先只做目录/namespace 收敛，不在本任务实现完整共享 editor 生命周期。
+5. 清理迁移后的旧 namespace、using、空目录和 compatibility alias。
 
-完成标准：
+禁止：
 
-- 能区分“导航/页面创建”“数据库”“数据投影”“ObservableCollection/WPF layout”“缓存/定位”“Wpf.Ui transition”“Player 离开清理”各自是否构成主要阻塞。
-- 至少给出一个可以稳定复现主要卡顿来源的自动或半自动诊断场景，而不是只凭主观体感。
-- 说明此前仅 `Task.Yield()` 或仅后台化 SQLite 为什么没有解决/为什么不足以解决问题。
-- 仓库不残留诊断产物。
+- 建立 `Shared/Everything`；
+- 为保留旧 namespace 留 forwarding type；
+- 在同一任务顺带重构 Playback/Cache 业务逻辑。
 
-完成成果：使用临时 WPF/SQLite 诊断 harness，在隔离 Desktop 中以同一 180 章 fixture、1280×760 viewport 对比 Library→BookDetails、第二次热进入和 Player→Back→BookDetails，并在完成测量后删除 harness 与 trace。阶段结果如下：
+验收：
 
-- 页面阶段：Library 冷路径约 822 ms，第二次热路径约 155 ms，Player→Back→Details 约 193 ms；导航调用约 5–6 ms，Player 离开/取消约 1 ms，BookDetailsPage 冷构造约 50 ms、热构造约 10–13 ms，`ReplaceWith` 的 180 项投影约 1–2 ms。
-- 缓存/定位 A/B：正常路径约 822 ms；跳过 current-item 定位约 136 ms；保留缓存查询但不做 180 个行状态投影约 227 ms；跳过缓存刷新约 177 ms。由此确认主要长尾是 `ApplyChapterCacheStatuses` 对 180 个章节项逐项触发绑定/布局，与 `CurrentItemLocatorInteraction` 的虚拟化列表就绪/滚动监听相互放大；单独移除任一工作都能显著缩短尾部，二者不是 SQLite 查询本身。
-- SQLite：真实 `Microsoft.Data.Sqlite` v7 fixture 上，`GetBookDetailsAsync` 冷/热约 7.4/1.0 ms，其中 header 约 2.9/0.15 ms、章节读取约 4.4/0.8 ms；WPF 调用线程记录为 Dispatcher t18→t18。`EXPLAIN QUERY PLAN` 显示详情头会物化并扫描全量 Chapters 与 AudioCacheEntries 的 BookId 聚合，章节查询使用 `(BookId, ChapterIndex)` 索引但因 `ORDER BY SortOrder, ChapterIndex` 使用临时 B-tree；这是规模增长风险，但不是当前秒级卡顿主因。
-- Wpf.Ui：默认值为 `FadeInWithSlide/200 ms`；独立渲染对照为关闭约 12 ms、淡入滑动约 259 ms。因此 transition 是额外的感知成本，应在 T004 中与首屏重工作分离验证；Player 导航和页面创建本身不是主因。
-- 诊断还验证了仅 `Task.Yield()` 只能把 supplement 推迟到 Dispatcher 后续工作，不能消除 180 项 Collection/绑定/布局与定位；仅调用 `ExecuteReaderAsync` 也没有证明 SQL 已离开 Dispatcher，实测调用从 Dispatcher 进入并回到 Dispatcher，而查询耗时远小于 UI 长尾。T004 优先处理缓存状态批量/延后投影、current-item 定位时机及 transition 与首屏的协调，再单独评估详情头聚合 SQL。
-- 自动验收：临时 T003 harness 4 项全部通过；无诊断文件残留。
+- Feature dependency tests 无双向引用。
+- 生产行为保持，相关 Presentation/WPF tests 通过。
+- 无旧 namespace compatibility bridge。
 
-## Phase C：基于证据的性能修复
+---
 
-## [x] T004（P0）：消除 BookDetails 缓存状态投影与当前章节定位造成的 UI 长尾
+# Phase B：Books、Query 与大列表架构
+
+## [ ] T004（P0）：拆分 Books CQRS-style read model 与查询边界
 
 依赖：T003。
 
-已确认前提：
-
-- T003 已排除 Player 离开、应用导航、BookDetails transient 页面创建和当前 SQLite 查询耗时作为当前主要卡顿来源。
-- 180 章 fixture 中，主要长尾来自 `ApplyChapterCacheStatuses` 对全部章节逐项触发属性通知/Binding/Layout，与 `CurrentItemLocatorInteraction` 等待虚拟化列表就绪、监听布局并执行当前章节定位相互放大。
-- Wpf.Ui 默认 `FadeInWithSlide/200 ms` transition 会额外增加感知延迟，但应与上述首屏 UI 重工作分离处理。
-- SQLite 详情头存在全量 Chapters / AudioCacheEntries 聚合和临时 B-tree 等规模增长风险，但当前实测仅约毫秒级，不是本任务首先要解决的数百毫秒 UI 长尾。
-
-目标：
-
-- Player→BookDetails 与普通进入 BookDetails 时，页面先完成首屏呈现并保持 Dispatcher 可响应；缓存百分比和当前章节定位不得在同一首屏阶段形成数百毫秒连续 UI 工作。
-- 保留 transient Page、强类型 `BookDetailsRoute(BookId)`、T002 Effective Reading Progress、章节虚拟化和缓存状态语义，不通过页面缓存、Singleton 或隐藏功能来换取性能。
-- 在 T003 相同 180 章场景下显著消除约 800 ms 量级的 UI 长尾，使修复后的主要阶段回到与 T003 单独关闭缓存投影/定位后的百毫秒量级同一数量级；该数值只用于本轮诊断复测，不建立固定毫秒 CI 门禁。
+目标：替代过宽的 `GetBookDetailsAsync`/页面 aggregate 查询，使 Library、Details、Playback 获取场景化 immutable read model。
 
 实施方向：
 
-1. 先建立针对已确认主因的回归保护，再修改实现：
-   - 能证明初始详情数据提交后，首帧/Dispatcher 不需要同步等待“全章缓存状态逐项投影 + current-item 定位”全部完成。
-   - 能证明离页/取消后，延后的缓存投影和定位不会继续作用于旧 transient Page。
-   - 不以 `Task.Delay` 或固定 sleep 证明性能，优先使用 Dispatcher 阶段、可控 scheduler、版本/取消 token 和明确完成信号。
+1. 审计 `IBookLibraryQuery`、`BookLibraryQuery`、Playback metadata query 和调用方。
+2. 建立最小稳定 query 集合，优先包括：
+   - Library summaries；
+   - Book header；
+   - Book catalog；
+   - persisted reading position（如现有 read model 已包含则按语义保留）；
+   - 单章内容/metadata；
+   - 必要统计的独立查询。
+3. Book catalog 只返回稳定轻量字段，不携带 cache percentage 等动态 UI decoration。
+4. SQL 限制到目标 BookId/场景；对现有 header 全局聚合形状做 query-plan 验证，低风险时一并收敛。
+5. 保持 SQLite schema/migration 不变，除非 query 优化确有新 index 必要；若需新 index，只追加 migration 并有升级测试。
+6. 迁移调用方后删除旧宽 query/DTO，不保留兼容 wrapper。
 
-2. 优先重构 **初始全章缓存状态投影**，目标是避免“180 个已绑定行在一个 Dispatcher 阶段逐个 `ApplyCacheStatus`”：
-   - 区分“首次进入页面的整章缓存状态加载”和后续 `CacheChangedEventArgs.ChapterIndex` 指向的单章增量刷新；单章变化仍应只更新受影响章节，不退化成整书刷新。
-   - 缓存查询结果可先在非 UI 数据结构中整理/格式化；UI 层不要为了同一批结果反复做字典查找、全表扫描和逐项同步通知。
-   - 优先选择能减少 Binding/Layout 次数的批量提交方式，例如一次性构造带缓存投影的章节行快照并以单次 Reset/等价批量变更提交，或采用只对实际变化/当前已实现行产生通知的虚拟化友好方案。具体实现可按现有架构决定，但不得仅把 180 次属性通知包进另一个同步循环后宣称“批量化”。
-   - 若采用分批/低优先级增量提交，批次必须有明确 owner、取消和版本边界，并允许 Dispatcher 在批次之间处理渲染和输入；不得形成新的 fire-and-forget 生命周期泄漏。
-   - 保持“0% 和非正常状态在普通详情目录不显示”的既有 UI 合同。
+测试：
 
-3. 重构 **`CurrentItemLocatorInteraction` 初始定位时机**，避免与全章缓存投影竞争同一轮布局：
-   - 首次导航只在章节集合已经提交、ListBox/ScrollViewer/虚拟化容器达到可靠就绪条件后执行一次初始定位。
-   - 不要在缓存状态仍批量改变行绑定/布局时持续通过 `LayoutUpdated` 反复重算定位；pending request 完成后立即解除临时 readiness/layout 监听。
-   - 将“初始自动定位”和“用户点击定位到当前章节”保持同一定位核心，但用户主动定位仍必须立即响应，不能被初始延后策略长期阻塞。
-   - T002 的 Snapshot 当前章节变化仍要更新 `CurrentChapterItem`；不要为了性能冻结旧章节或取消后续用户可观察定位能力。
+- Infrastructure 集成测试覆盖 query 语义、排序和空数据。
+- 记录关键 query plan，确保单书查询不因改造退化为 N+1。
+- Application/App 调用方只依赖新 read model。
 
-4. 明确 **首屏阶段顺序**，避免两个已确认重工作相互放大。推荐默认顺序：
-   - 加载并提交 Header / details 基础数据和章节列表；
-   - 允许页面完成首个可观测 render；
-   - 执行一次稳定的当前章节初始定位；
-   - 再以批量或可让出 Dispatcher 的方式提交整章缓存百分比；
-   - 后续只按缓存变化做增量刷新。
-   若实际复测证明“缓存先、定位后”更稳定，可以调整顺序，但必须用 T003 同一 harness/等价诊断数据说明原因。
+## [ ] T005（P0）：建立大型 Catalog 与 Sparse Decoration 基础设施
 
-5. 单独处理 **Wpf.Ui transition 与首屏重工作的协调**：
-   - 先完成第 2–4 项并复测，再判断默认 `FadeInWithSlide/200 ms` 是否仍造成明显额外延迟。
-   - 优先避免重布局与 transition 动画重叠，而不是立即全局关闭动画。
-   - 若主因修复后 transition 仍是显著感知成本，可采用最小作用域的策略调整 BookDetails/二级页面导航动画或时长；不得无证据全局关闭 NovelSpeaker 所有页面动效。
-   - Reduced Motion / 系统动画关闭语义必须继续正确。
+依赖：T004。
 
-6. SQLite 只做 **次级规模化检查**，不能再次抢占本任务主线：
-   - 在 UI 长尾修复后复测 `GetBookDetailsHeaderAsync` / `GetBookDetailsAsync`。
-   - 若修改风险低，可将单书详情统计限制到目标 `BookId`，避免物化并扫描全库 Chapters / AudioCacheEntries 聚合，并验证 query plan/现有索引。
-   - 不因为方法名含 `Async` 或调用 `ExecuteReaderAsync` 就声称查询已离开 Dispatcher；如最终仍需要线程迁移，必须有实际线程/耗时证据。
-   - SQL 优化不得改变书籍详情、缓存总量和阅读进度查询口径。
-
-7. 不要顺带大改与主因无关的 `ViewModelCollectionExtensions.ReplaceWith`。T003 已测得 180 项基础章节投影仅约 1–2 ms；只有新的复测证明它在最终实现中重新成为主要瓶颈时才调整公共集合基础设施。
-
-专项测试/验收：
-
-- 使用与 T003 一致的 180 章 fixture、1280×760 viewport 和 Library→Details / 热进入 / Player→Back→Details 路径复测，记录修复前后：首个 render、当前章节初始定位完成、整章缓存状态投影完成、页面稳定阶段。
-- 修复后不得再出现 `ApplyChapterCacheStatuses` 一次性对全部章节同步触发长时间 Binding/Layout 的已知路径；全章刷新要么单次批量提交，要么可让出 Dispatcher 的有界增量提交。
-- 初始 locator 不应因为随后每个缓存行属性变化持续收到/处理整轮 `LayoutUpdated`；定位完成后临时监听必须解除。
-- Player→Back→Details 在缓存状态尚未完全投影时，页面基础信息、当前章节和返回/编辑等首屏交互仍可用。
-- 缓存状态最终必须完整正确：有百分比章节显示正确值，0%/非正常状态继续隐藏；后续单章缓存变化仍能刷新对应行。
-- 当前章节定位、用户手动滚动后的“定位到当前章节”、虚拟化长目录、Effective Reading Progress、Dirty State guard 和强类型返回均无回归。
-- 快速 Player↔Details 往返、导航取消、页面离开时，不出现迟到 apply、旧页面定位、ObjectDisposedException、未观察后台异常或残留事件订阅。
-- Wpf.Ui transition 调整若发生，必须提供“主因修复后”的独立 A/B 数据，并验证正常动画与 Reduced Motion 两种路径。
-- SQLite 若顺带优化，必须有 Infrastructure 集成测试保证查询语义，并记录优化前后 query plan；不得把 SQL 优化作为“UI 卡顿已修复”的唯一依据。
-- 所有 T004 临时 harness、计时日志、trace、A/B 开关和诊断脚本在任务结束前删除；使用 `git status --short` 审计无副产物。
-
-完成标准：
-
-- T003 已确认的两个 UI 主因均有针对性实现和自动回归，不再停留于“Task.Yield/后台 SQLite”式无效修复。
-- 同一诊断 fixture 下，原正常路径的数百毫秒长尾显著收敛；如果仍明显高于 T003 单项关闭缓存投影/定位时的百毫秒级结果，应继续定位剩余 Dispatcher 工作，不能直接关闭任务。
-- 生产代码保持既有导航、进度和页面生命周期架构，没有新增页面缓存、Singleton、第三套详情状态或无 owner 的后台任务。
-
-完成成果：BookDetails 初始缓存状态查询现在由页面在首轮当前章节 locator 完成后启动；180 章初始状态通过静默行状态写入加单次集合 Reset 提交，后续单章缓存变化仍保持增量通知。locator 的 readiness、取消、重复激活和页面版本边界已补齐，离页不会再让旧页面收到迟到定位或缓存投影；Player 复用的缓存刷新行为保持不变。
-
-- 自动验收：180 章缓存投影回归确认初始批次不产生行级属性通知且只产生一次集合 Reset；延后启动、Loaded/详情投影顺序、缓存控制器 initial/incremental 批次和页面离开后的迟到结果测试通过。`dotnet format --verify-no-changes --no-restore`、Release build（0 警告/0 错误）和 focused presentation tests（6 项）通过。
-- 环境限制：BookDetails/locator WPF 测试已成功构建，但当前隔离 Desktop 测试宿主无输出挂起；20 秒 hang diagnostic 后 testhost 因 inactivity 中止，因此本轮未取得 WPF 运行时长尾 A/B 数值，生产代码和 presentation 回归已自动验证。
-
-## Phase D：整体架构优化前诊断
-
-## [x] T005（P0）：生成全项目 Architecture Review 诊断报告
-
-依赖：T001、T002、T003、T004。
-
-目标：
-
-- 在不修改生产架构、不继续修复 3000+ 章节卡顿的前提下，对当前仓库做一次可复核的全局架构盘点。
-- 输出一份独立的 `architecture_diagnostic_report.md`，供后续人工/AI 架构规划使用。
-- 报告必须尽量以代码、依赖、数量、调用关系和 Git 历史事实为依据，区分“已确认问题”“架构压力信号”“可能问题/待决策项”，不要直接把个人偏好写成最终重构方案。
-
-执行规则：
-
-1. 本任务只允许：
-   - 读取仓库；
-   - 运行静态分析、`dotnet`/`git`/PowerShell 等诊断命令；
-   - 编写一次性本地分析脚本；
-   - 生成 `architecture_diagnostic_report.md`。
-2. 不修改 `src/`、`tests/`、项目文件、SQLite migration、正式 docs 架构定义或行为代码。
-3. 一次性脚本和中间 CSV/JSON/trace 必须在报告生成后删除。最终只保留 `architecture_diagnostic_report.md` 作为用户需要上传的诊断输出，以及本任务自身的 Backlog 完成记录。
-4. `architecture_diagnostic_report.md` 作为临时评审输入，不视为正式项目文档；不要把它加入架构决策文档索引，也不要引用为长期规范。
-5. 如完整测试耗时过长或 WPF testhost 再次挂起，只记录事实，不为了完成诊断修改测试宿主。
-6. 不生成截图，不启用 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`。
-
-诊断内容：
-
-### A. 项目与依赖拓扑
-
-- 列出所有 `.csproj`、目标框架、主要 NuGet 包和 ProjectReference。
-- 绘制文本形式的项目依赖图，确认 Domain / Application / Infrastructure / App / tests / tools 的实际引用方向。
-- 找出任何跨层反向依赖、非 Bootstrap 的 Infrastructure 直连、App Feature 之间的直接引用、Shared 对 Feature 的反向依赖。
-- 对 `src/NovelSpeaker.App/Features/*` 建立 Feature→Feature / Feature→Shared / Feature→Application 的引用矩阵；重点列出跨 Feature namespace `using`、直接类型依赖和共享 controller/helper 的调用关系。
-- 标出只有单一调用方却被提升为全局 Shared/Application abstraction 的组件，以及被多个 Feature 实际复用但仍复制实现的组件。
-
-### B. 代码规模与复杂度热点
-
-- 对生产代码统计：
-  - 每个项目的 `.cs` / `.xaml` 文件数与总行数；
-  - 每个 Feature 的文件数与总行数；
-  - 最大的 30 个生产 `.cs` 文件；
-  - 最大的 20 个 XAML 文件。
-- 对主要类型尽可能统计：
-  - 类型行数；
-  - 构造函数依赖数量；
-  - public/internal 方法数量；
-  - 字段数量；
-  - 事件订阅数量；
-  - `CancellationTokenSource` / version / generation / timer / task registry 等生命周期字段数量。
-- 必须单独审计至少：
-  - `BookDetailsViewModel`
-  - `LibraryViewModel`
-  - Player 主 ViewModel / coordinator
-  - `PlaybackCoordinator`
-  - Cache workspace / active cache / export coordinator
-  - Shell/navigation/lifecycle coordinator
-  - 三类 Rules 页面/ViewModel
-  - CacheManagement
-  - shared scrolling/selection/cache refresh controllers。
-- 对热点类型判断其职责是否混合了 Query、Command、UI state、后台任务、导航、持久化、事件协调等多个方向；只列证据，不直接要求“拆成 N 个 service”。
-
-### C. 状态所有权与数据流
-
-- 以当前 docs 的状态所有权表为基线，反向检查实际代码。
-- 列出所有长期/中期 mutable state owner：
-  - Singleton；
-  - Playback session；
-  - Background coordinator；
-  - Page/ViewModel；
-  - static state。
-- 对以下核心状态绘制“source of truth → projection/subscriber → persistence”数据流：
-  - PlaybackSnapshot / reading progress；
-  - 当前 TTS rule / settings；
-  - active cache batch；
-  - export batch；
-  - cache status / speech plan；
-  - navigation CurrentRoute；
-  - BookDetails / Library 页面读模型。
-- 找出同一业务状态存在两个以上 mutable owner、页面复制进程级状态、持久化值与运行时值缺少明确优先级、多个事件源可以更新同一 UI 状态等情况。
-- 统计主要 `event +=` / `event -=`、SnapshotChanged/Changed 类事件以及自定义 callback/delegate 链，指出订阅生命周期由谁负责。
-
-### D. 异步、线程与 Dispatcher 边界
-
-- 搜索并分类：
-  - `Task.Yield`
-  - `Task.Run`
-  - `async void`
-  - `Dispatcher.Invoke/BeginInvoke/InvokeAsync`
-  - `IUiScheduler`
-  - `ConfigureAwait`
-  - `.Result` / `.Wait()` / `GetAwaiter().GetResult()`
-  - `Thread.Sleep` / `Task.Delay`
-  - fire-and-forget / `OwnedTaskRegistry`
-  - `CancellationTokenSource`
-- 报告每类在生产代码中的数量、主要位置和用途。
-- 找出“方法是 Async 但实际同步重工作仍可能在 Dispatcher 调用线程执行”的边界，特别包括 Microsoft.Data.Sqlite、大集合 projection、排序/grouping/hash、文件/文本处理。
-- 检查页面 activation、background job、playback session 三种生命周期是否各自拥有一致的取消/迟到结果策略，列出重复的 version/generation/CTS 模式。
-- 列出可能造成 UI Dispatcher 工作量随完整数据集 N 线性增长的路径。
-
-### E. Collection / 大列表 / UI 投影架构
-
-- 搜索所有 `ObservableCollection`、`ReplaceWith`、`Clear()+Add`、CollectionChanged Reset、自定义 item VM 列表。
-- 对 Library、BookDetails、Player 章节目录、CacheManagement、Rules 列表分别记录：
-  - 数据集可能规模；
-  - 是否一次性 materialize 全量 DTO；
-  - 是否为所有项建立 mutable item ViewModel；
-  - 是否逐项通知；
-  - 是否 WPF UI virtualization；
-  - `ScrollUnit`；
-  - 是否有 current-item / selection / cache enrichment；
-  - enrichment 是否对全量数据运行还是 viewport/目标项运行。
-- 单独记录当前 3000+ 章节 BookDetails 卡顿涉及的结构路径，但不进行性能修复。
-- 找出其它未来可能出现同类 O(N) UI 首屏成本的页面。
-
-### F. Application / Infrastructure 边界
-
-- 列出 Application 中主要 service/coordinator/query/port 及其实现位置。
-- 统计接口数量、只有一个实现的接口数量、主要 constructor injection 链。
-- 区分：
-  - 真正用于技术边界/替换/测试隔离的 port；
-  - Feature-local 逻辑却被提升到全局 Application 的 abstraction；
-  - Infrastructure query 返回过度面向页面的 read model；
-  - App ViewModel 自己组合过多底层 Application port 的情况。
-- 检查 Books / Playback / Cache / Speech / Settings / Desktop 的功能切片是否仍与实际代码目录和调用方向一致。
-- 列出可能需要在后续规划中讨论的边界重划分，但不要自行决定。
-
-### G. DI 与生命周期
-
-- 从实际注册代码生成主要服务的生命周期清单：Singleton / Transient / Scoped（如有）。
-- 标出：
-  - Singleton 持有短生命周期对象的风险；
-  - transient Page/ViewModel 引用 process coordinator 的正常边界；
-  - 同一服务在多个模块重复注册；
-  - constructor 参数过多；
-  - 组合根之外 `IServiceProvider` 使用。
-- 报告最大 constructor dependency 数量的前 20 个生产类型。
-
-### H. 持久化与查询架构
-
-- 汇总 SQLite 表、repository/query/store 与 Application read/write port 的映射。
-- 不修改已发布 migration。
-- 检查：
-  - 是否存在针对单个页面查询却扫描/聚合全库的 SQL；
-  - N+1 查询；
-  - 同一页面一次 activation 重复查询同一数据；
-  - Infrastructure 返回的数据是否导致 App 再做大规模二次组装；
-  - read model 是否过大/过细碎。
-- 将已知 BookDetails 全量聚合 SQL 作为实例之一，但同时检查 Library、CacheManagement、Playback 恢复、Rules 等其它查询。
-
-### I. 测试架构与维护成本
-
-- 统计每个 test project：
-  - 测试文件数；
-  - 测试代码总行数；
-  - 最大的 30 个测试文件；
-  - 与 TestKit 的依赖。
-- 尽可能统计当前测试数；不为得到数量修改测试。
-- 找出：
-  - 大量重复 fake/stub；
-  - 单个测试文件/fixture 过大；
-  - 为私有实现细节建立的脆弱测试；
-  - WPF tests 与 Presentation tests 职责交叠；
-  - 生产重构需要同步修改大量测试的热点。
-- 记录当前 WPF 隐藏 Desktop/testhost hang 情况以及它对架构重构验证能力的影响。
-
-### J. Git 变更热点与耦合
-
-- 使用 `git log` 对最近约 6 个月或仓库实际可用历史做 churn 分析：
-  - 修改次数最多的生产文件；
-  - 增删行最多的生产文件；
-  - 经常在同一 commit 中一起变化的文件/目录组合。
-- 特别观察 BookDetails、Player、Cache、Shared Presentation、Shell、测试基础设施。
-- 将“高 churn + 大文件 + 高依赖/高状态数”的交叉点列为 Architecture Review hotspot。
-- 不把单纯文件大或修改多自动判定为坏架构。
-
-### K. 当前架构资产与不可轻易破坏的边界
-
-报告不能只有问题。必须列出当前已经相对稳定、建议后续重构优先保留的资产，例如经代码证据确认的：
-
-- Domain/Application/Infrastructure/App 依赖方向；
-- 强类型 AppRoute；
-- Playback session 单 owner；
-- PlaybackSnapshot + persisted checkpoint 的优先级；
-- background cache/export coordinator owner；
-- SQLite migration 追加策略；
-- 外部 TXT 不可写边界；
-- cache 可重建边界；
-- TestKit/WPF 隔离能力；
-- 其它实际已形成稳定合同的部分。
-
-### L. 诊断结论格式
-
-报告结尾必须给出以下表格，但**不制定最终重构方案**：
-
-| 热点 | 证据 | 影响范围 | 风险等级 | 可能需要决策的问题 |
-|---|---|---|---|---|
-
-风险等级只使用：
-- High：已经造成正确性/性能/维护阻塞，或修改常产生跨模块连锁。
-- Medium：复杂度持续增加，现阶段仍可工作。
-- Low：主要是组织/命名/重复问题。
-
-再给出：
-
-1. “最值得优先讨论的 5–10 个架构决策问题”；
-2. “应尽量保留的稳定架构资产”；
-3. “需要用户产品/维护偏好才能决定的事项”；
-4. “3000+ 章节卡顿在整体架构中的关联点”，仅关联，不给最终修复。
-
-输出与验收：
-
-- 输出文件固定为仓库根目录 `architecture_diagnostic_report.md`。
-- 报告中命令输出应做摘要，不粘贴超长完整日志。
-- 如使用临时 PowerShell/Python/C# 分析脚本，完成后删除。
-- 至少执行：
-  - `dotnet restore --locked-mode -r win-x64`
-  - `dotnet build -c Release --no-restore`
-  - 现有架构/依赖相关测试或能够稳定运行的对应 test project。
-- 本任务不要求为当前 3000+ 章节卡顿运行新的性能 harness。
-- 完成后在 T005 下记录“完成成果”，说明报告路径、关键统计数量、build/test 状态和任何无法自动采集的数据。
-- **不要提交 `architecture_diagnostic_report.md`**；保留为工作区未跟踪文件，供用户上传给后续架构规划会话。
-- Codex 提交时只提交 `docs/TASK_BACKLOG.md` 的 T005 完成状态（以及若诊断过程中确有必要修正的纯诊断说明）；提交前确认生产代码无变更。
-
-完成成果：已生成根目录 `architecture_diagnostic_report.md`（未提交），完成项目/Feature/依赖、复杂度与状态所有权、异步与大列表、Application/Infrastructure、DI、SQLite、测试架构和 Git churn 诊断。静态统计为 10 个项目、685 个生产源文件/61,864 行、14 个 Feature、约 82 个 Application 接口；测试项目 210 个源文件/59,594 行，另有 TestKit 19 个文件/3,421 行。已执行锁定还原成功；App Release build 成功且 0 warning/0 error；目标 Presentation 架构/生命周期测试 42/42、WPF 隔离测试 10/10、WPF DI/视觉架构测试 14/14 通过。完整 solution build 因 WPF 测试输出被残留 `testhost` 进程锁定而失败，详见报告；未运行完整测试集、性能 harness 或 SQL EXPLAIN。
-
-## Phase E：旧阶段收口（暂缓）
-
-当前不执行以下任务。整体架构优化方案确定后，应在新的规划阶段决定删除、重写或重新安排，而不是直接继续旧的性能收口。
-
-## [ ] T006（P1，暂缓）：补齐进度/性能回归并执行完整质量门禁
-
-依赖：T001、T002、T003、T004、T005。
-
-目标：
-
-- 把本轮两个原始缺陷固化为稳定回归，清理诊断代码和低价值重复测试。
+目标：为 BookDetails/Player/CacheManagement 提供统一但不过度抽象的大列表 presentation 模式。
 
 实施方向：
 
-1. 保留最小但完整的跨层回归矩阵：
-   - 暂停态切章后 Snapshot 与持久化 checkpoint 第一次即一致。
-   - Library 当前书卡片立即跟随 Snapshot。
-   - BookDetails 指定章节进入 Player 后第一次返回即显示该章节。
-   - 无活动 Snapshot/应用重启时从 SQLite checkpoint 恢复。
-   - 同一本书 Player→Details 不因补充查询/大章节集合在 Dispatcher 上形成已知同步阻塞路径。
-2. 检查是否产生重复 progress resolver、重复 Snapshot 订阅 helper、页面级数据库写入或为了测试暴露的生产调试 API；能收敛则收敛。
-3. 删除 T003/T004 的临时计时器、日志、trace、A/B 开关、截图、dump、一次性 benchmark/harness；只保留有长期回归价值的测试基础设施。
-4. 更新因最终实现与 T003 初始假设不同而需要修正的数字文档；不得在稳定文档中留下“可能是 X”式已经过期的诊断描述。
-5. 执行：
+1. 设计轻量 immutable catalog item/list，不要求所有列表共用同一个泛型框架。
+2. 提供稳定的 index/id lookup，使 current item O(1) 定位。
+3. 动态 decoration 只保存真正会变化的少量状态，并支持按 index/id 更新。
+4. 设计批量 UI 提交语义：初始 catalog 一次提交/替换，不使用 `Clear + N × Add`。
+5. current/selection/cache decoration 更新不得遍历整个 catalog 才找到目标。
+6. 如果需要共享 collection primitive，范围只到“批量替换 + 稳定 lookup”，不要做万能虚拟列表框架。
+
+禁止：
+
+- 为 10,000 项预建复杂 mutable VM 作为唯一模型。
+- 新增第三方 virtualization/data-grid 框架。
+- 把 WPF container 存进业务/presentation state。
+
+测试：
+
+- 10,000 item 纯 presentation 测试验证初始提交不是 N 次 Add。
+- current old/new 只产生有界 decoration 变化。
+- lookup 不通过全表线性扫描。
+
+## [ ] T006（P0）：迁移 Library 到新 Query/生命周期/批量 Projection
+
+依赖：T005。
+
+目标：Library 完成新架构迁移，成为 Books Feature 的第一个完整样板。
+
+实施方向：
+
+1. 使用 Library summaries query 和 immutable read model。
+2. 搜索/排序在非 WPF 数据结构中计算，然后批量提交可见 projection。
+3. matching PlaybackSnapshot 只更新对应书籍进度 decoration，不重新查询/重建整个 Library。
+4. 保留当前响应式卡片布局和产品交互，不做视觉改版。
+5. 删除旧 singleton/重复 progress projection/过渡 helper。
+
+测试：
+
+- transient VM 重建；
+- search/sort；
+- matching/cross-book Snapshot；
+- 大书库批量 projection；
+- WPF 响应式布局合同不回归。
+
+## [ ] T007（P0）：迁移 BookDetails 到 Catalog + Staged Loading
+
+依赖：T006。
+
+目标：彻底移除 BookDetails 当前“全量复杂 item + 全量 cache/status + locator/layout”耦合，按目标架构重建页面数据流。
+
+实施方向：
+
+1. Critical 阶段：Book header + immutable chapter catalog + effective reading position。
+2. 首个 interactive frame 完成后再启动：
+   - current chapter locator；
+   - current/viewport cache decoration；
+   - 次级统计。
+3. `BookDetailsViewModel` 缩小为页面 state/command/activation；查询、编辑 draft、reading projection、catalog/decorations 使用 Feature-local controller/projector。
+4. Cache status 只查询 current/viewport/明确受影响 chapters；CacheChanged 只更新目标 index。
+5. locator 使用 catalog index/id 直接目标定位，完成后解除临时 readiness/layout 监听。
+6. 页面离开后旧 enrichment/locator 不写回。
+7. 删除旧 `ResettableObservableCollection`/initial-cache projection workaround 等仅为旧模型存在的代码（若已无其它真实调用方）。
+
+禁止：
+
+- Page cache/Singleton；
+- 固定 Delay；
+- 全量 cache status 首屏加载；
+- 把旧 item VM 再包一层 facade 继续保留。
+
+测试：
+
+- 10,000 catalog 的 Presentation 结构回归；
+- first-frame gate 不等待 cache enrichment；
+- current begin/middle/tail；
+- fast leave/re-enter cancellation；
+- matching Snapshot 与 persisted fallback；
+- WPF locator/virtualization focused tests。
+
+---
+
+# Phase C：Playback Core
+
+## [ ] T008（P0）：抽取 PlaybackSessionState 与 CommandProcessor
+
+依赖：T007。
+
+目标：在不改变唯一 session owner 的前提下，把 `PlaybackCoordinator` 的 canonical mutable state 与命令提交边界显式化。
+
+实施方向：
+
+1. 先用现有测试固定 Start/Open/Pause/Stop/Jump/Move/session replacement 行为。
+2. 建立内部 `PlaybackSessionState`（或等价命名），只由 Playback owner/CommandProcessor 修改。
+3. 抽取 `PlaybackCommandProcessor` 负责命令串行化、目标解析后的提交、失败/取消恢复和 event epoch 检查。
+4. `PlaybackCoordinator` 保持外部 facade/ports 和 SnapshotChanged 入口，逐步委托内部组件。
+5. 不改变 Snapshot/checkpoint 用户语义。
+6. 迁移后删除 Coordinator 中重复 state/command helper，不通过 partial class 假拆分。
+
+ArchitectureTests：补强“session mutable state 只能由指定 owner 修改”的可检测约束。
+
+测试：覆盖当前 PlaybackCoordinator 全部核心命令、stale audio event、失败/取消和快速切换。
+
+## [ ] T009（P0）：拆分 Playback Audio、Progress 与 StopTimer
+
+依赖：T008。
+
+目标：把资源生命周期、checkpoint 和 timer 从 Playback facade/command 逻辑中独立为受 Session owner 管理的组件。
+
+实施方向：
+
+1. `PlaybackAudioController` 唯一持有 Local audio/NAudio 资源和 callback bridge。
+2. `PlaybackProgressController` 统一 explicit jump、Pause、Stop、replacement、shutdown checkpoint，并保持 stale-session 防覆盖。
+3. `PlaybackStopTimer` 独立 TimeProvider/CTS，不复制播放状态。
+4. 所有组件由 `PlaybackCoordinator`/Session owner 持有和协调，外部 VM 不直接组合这些内部组件。
+5. 删除旧 coordinator 内对应重复字段/helper。
+
+测试：资源释放、audio callback、checkpoint、timer replacement/trigger、shutdown。
+
+## [ ] T010（P0）：拆分 Playback ContentResolver 与 PrefetchCoordinator
+
+依赖：T009。
+
+目标：把正文读取/文本处理/speech plan/segment compose 与 prefetch 生命周期从主 Session 逻辑中收敛。
+
+实施方向：
+
+1. ContentResolver 负责 chapter content → regex/text profile → speech plan → segments。
+2. PrefetchCoordinator 只拥有 playback-session prefetch，不与 ActiveCache owner 混合。
+3. Current playback 与 Prefetch 继续共用 TTS admission/cache 能力。
+4. 规则/速度/文本配置变化的 invalidation 语义保持现有合同。
+5. 删除旧 coordinator/content service 中重复 orchestration，避免建立第二个万能 service。
+
+测试：content resolution、plan version、prefetch cancellation/priorities、session replacement。
+
+---
+
+# Phase D：Player Presentation
+
+## [ ] T011（P0）：将 PlayerViewModel 重构为 transient presentation facade
+
+依赖：T010。
+
+目标：保留单一 XAML DataContext，但把 1500+ 行 VM 的职责拆到 Feature-local controller。
+
+实施方向：
+
+1. 建立/收敛：
+   - Playback projection；
+   - Content controller；
+   - Speech control controller；
+   - Cache decoration controller；
+   - Interaction/scroll controller。
+2. PlayerViewModel 只组合绑定 state、commands、activation 和 controller 生命周期。
+3. controller 默认 internal concrete class，不建立 Application port。
+4. Playback 连续性全部来自 Playback owner，VM 重建不产生第二套 session state。
+5. 删除旧 VM 中迁走的 event/version/CTS/helper。
+
+测试：Player Presentation tests 按 controller/VM 合同重新分层；允许删除与旧私有结构绑定的测试。
+
+## [ ] T012（P0）：迁移 Player 章节目录到 Catalog/Decoration 架构
+
+依赖：T011。
+
+目标：Player 的全书章节 metadata 使用与 Books 一致的规模化 catalog 原则。
+
+实施方向：
+
+1. 复用稳定 Books catalog/read model 边界，不复制第二套 chapter model。
+2. current chapter/segment decoration 只更新必要项。
+3. cache status 只对 current/viewport/明确变化章节刷新。
+4. current chapter locator 不线性寻找全部 items。
+5. 保留用户主动定位、正文自动居中和虚拟化交互。
+
+测试：10,000 chapter Presentation、begin/middle/tail locator、snapshot rapid changes、manual scroll/locate WPF tests。
+
+---
+
+# Phase E：Cache
+
+## [ ] T013（P0）：建立 CacheCatalog/CacheStore 边界并拆解 CacheWorkspaceService
+
+依赖：T012。
+
+目标：明确“查询状态”“物理 cache”“主动缓存 batch”“页面 workspace”的所有权，删除过宽 facade。
+
+实施方向：
+
+1. 审计 `CacheWorkspaceService`、`AudioCacheFacade`、`SqliteAudioCacheIndex`、speech plan/status query、ActiveCache 调用链。
+2. 把页面/业务查询统一到 CacheCatalog/read model。
+3. CacheStore 只负责 index/file 原子操作、lease/protection/验证。
+4. ActiveCacheCoordinator 继续独立 batch owner。
+5. 页面选择/filter 不再进入 process cache service。
+6. 迁移调用方后删除无价值 workspace API 和重复 Changed event。
+7. 保留现有 cache identity、计划补建和清理语义。
+
+禁止：大一统 CacheManager、通用 BackgroundTaskManager。
+
+测试：cache query/store、active batch、status event/version、删除/清理/lease。
+
+## [ ] T014（P0）：迁移 CacheManagement 到 transient + scalable catalog
+
+依赖：T013。
+
+目标：页面 filter/selection 与 process cache/export state 分离，并消除 full Clear + Add 列表路径。
+
+实施方向：
+
+1. VM transient。
+2. Cached book/chapter 使用场景化 immutable read model。
+3. 初始列表批量提交，不逐项 Add。
+4. selection 使用 id/index state，不依赖 WPF container。
+5. export preparation 只提交 immutable batch 参数给 ChapterExportCoordinator。
+6. active cache/export snapshot 只做 UI projection。
+7. 删除旧 workspace selection/batch coupling。
+
+测试：大 cached chapter set、selection/filter、页面离开、后台任务继续、导出提交。
+
+---
+
+# Phase F：Rules 与 Settings
+
+## [ ] T015（P1）：建立 Rules Shared 编辑生命周期
+
+依赖：T014。
+
+目标：提取三类 Rules 真正重复的 editor lifecycle，而不统一业务模型。
+
+实施方向：
+
+1. 对 TTS/Chapter/Regex VM 做重复逻辑对照。
+2. 建立 Feature-local/shared：EditorSession<TDraft>、selection、reorder、common import result 等最小组件。
+3. Shared 只处理 selected/draft/dirty/save-cancel/reorder 等生命周期。
+4. validation、default、preview/test、persistence DTO 仍留各规则 Feature。
+5. 不建立继承层次深的 generic base VM。
+
+测试：共享生命周期组件使用纯 Presentation tests；三类规则各保留业务特有测试。
+
+## [ ] T016（P1）：迁移 TTS/Chapter/Regex Rules 并删除重复实现
+
+依赖：T015。
+
+目标：三套规则页面完成 transient + shared editor 生命周期迁移。
+
+实施方向：
+
+- VM transient；
+- 复用 shared editor session；
+- 保持启用状态、当前 TTS 规则、导入/导出、排序、ContextMenu 语义；
+- 删除旧 duplicated draft/dirty/reorder/import orchestration；
+- 不为旧测试保留兼容 API。
+
+测试：允许显著精简重复 fixture；WPF tests 只留真正控件/拖动/ContextMenu 契约。
+
+## [ ] T017（P1）：迁移 Settings 为 process snapshot + transient 页面 VM
+
+依赖：T016。
+
+目标：清除 Settings singleton VM 历史，明确即时设置与 draft 设置。
+
+实施方向：
+
+1. Settings process service 是唯一当前设置 owner。
+2. 所有 Settings Page/ViewModel transient。
+3. 即时设置直接写 Application settings service；需要保存的设置使用页面 draft。
+4. Theme/System/Light/Dark 快捷入口继续使用同一 process setting。
+5. 删除页面缓存/初始化标志/重复 Changed subscription。
+
+测试：页面重建、即时设置持久化、draft cancel/save、主题 projection。
+
+---
+
+# Phase G：接口、Shared、测试与代码清理
+
+## [ ] T018（P1）：清理 Application ports、Shared helpers 与 compatibility code
+
+依赖：T017。
+
+目标：在主要迁移完成后做一次真正的“无历史包袱”接口/目录清理。
+
+实施方向：
+
+1. 重新统计 Application interface 与单实现 port。
+2. 对每个候选按“技术边界/owner role/cross-feature/external side effect”判断保留价值。
+3. Feature-local 单实现 orchestration 改 concrete internal class。
+4. 删除已无调用的 wrapper、adapter、obsolete API、旧 namespace helper、duplicate projector/controller。
+5. Shared 中只保留真实跨域能力；单 Feature 使用的移回 Feature。
+6. 清理 DI alias/重复注册。
+
+禁止：按接口数量机械追求某个目标值。
+
+ArchitectureTests 必须无临时白名单或只剩有明确长期理由的极少数例外。
+
+## [ ] T019（P1）：重构测试体系并减少重复维护面
+
+依赖：T018。
+
+目标：让测试与新架构层级一致，允许测试数量明显减少。
+
+实施方向：
+
+1. Presentation 不再重复 WPF 非视觉行为。
+2. WPF tests 只保留 navigation/binding/virtualization/focus/popup/layout/scroll/style。
+3. 合并重复 fake/stub，拆大 fixture/support 文件。
+4. 删除绑定旧 internal class/compat API 的测试。
+5. 保留核心行为矩阵和 Architecture Fitness Tests。
+6. 清理 TestKit 仅为旧架构存在的 helper。
+
+验收：
+
+- 测试总数可减少，但必须给出“删除了哪些重复/实现细节测试、哪些稳定合同仍覆盖”的摘要。
+- 不能通过合并多个无关 assertion 到单个测试人为压数量。
+
+## [ ] T020（P1）：全项目 dead code / legacy namespace / duplicate state 清理
+
+依赖：T019。
+
+目标：在性能验收前清除本轮迁移产生或暴露的所有旧代码。
+
+检查：
+
+- dead code；
+- unused interface；
+- legacy namespace；
+- compatibility wrapper；
+- duplicate state owner；
+- orphan DI registration；
+- old page lifecycle helper；
+- duplicate cache/progress projection；
+- 无真实调用方的 Shared helper；
+- 临时 TODO/Obsolete/diagnostic flag。
+
+完成后运行完整 ArchitectureTests + Release build + 相关全量非 WPF/WPF tests。
+
+---
+
+# Phase H：真实规模性能验收
+
+## [ ] T021（P0）：执行 180/1000/3000+/10000 章节架构性能验收
+
+依赖：T020。
+
+目标：此时才重新验证此前 3000+ 章节 Player→BookDetails 冻结，并判断新架构是否自然消除了旧瓶颈。
+
+诊断 fixture：
+
+- 180；
+- 1000；
+- 3000 或 3200；
+- 10000。
+
+current position：
+
+- beginning；
+- middle；
+- tail。
+
+场景：
+
+- Library → BookDetails；
+- BookDetails → Player → Back → BookDetails；
+- Player chapter catalog；
+- CacheManagement 大列表；
+- continuous scroll/current locator/cache decoration。
+
+记录：
+
+- first interactive frame；
+- max Dispatcher heartbeat gap；
+- query/materialization；
+- catalog projection/notification count；
+- locator；
+- cache decoration；
+- generated WPF containers；
+- GC/allocation/memory（可可靠采集时）。
+
+规则：
+
+- 先判断是否仍有实际瓶颈；新架构已解决则不新增 workaround。
+- 如果仍有瓶颈，用 A/B 和 profiling 精确定位后在本任务内做最小架构一致修复，或如影响范围过大标 `[!]` 并记录下一规划问题。
+- 不建立固定绝对毫秒 CI 门槛；保留结构性回归测试。
+- 所有诊断 harness/trace/script 在任务结束前删除。
+
+## [ ] T022（P1）：最终质量门禁与架构收口
+
+依赖：T021。
+
+目标：完成架构优化阶段最终收口。
+
+必须执行：
 
 ```powershell
 dotnet restore --locked-mode -r win-x64
@@ -525,9 +596,21 @@ dotnet build -c Release --no-restore
 dotnet test -c Release --no-build
 ```
 
-完成标准：
+并检查：
 
-- 完整门禁 0 失败；Release build 0 warning / 0 error。
-- 原始“切章后其它页面仍旧、第二次返回才更新”缺陷有直接自动回归。
-- 原始“Player 返回 BookDetails 明显卡顿”路径有可复核的线程/生命周期回归证据，并且最终实现不依赖诊断开关。
-- 仓库没有 trace、dump、截图、临时日志、benchmark 输出、TestResults 诊断副产物或其它本轮临时文件残留。
+- Architecture Fitness Tests 无临时债务白名单；
+- 无 compatibility wrapper/legacy namespace/dead code；
+- 普通 Page/ViewModel 生命周期符合目标；
+- Playback/Cache state owner 唯一；
+- large-list helper 无首屏 Clear + N×Add；
+- 编号文档与最终实现无实质冲突（如发现冲突只记录，不在本任务自行重写架构文档）；
+- 无 trace/dump/screenshot/TestResults/一次性脚本残留；
+- `git status --short` 只包含预期改动。
+
+完成成果应总结：
+
+- 新架构关键边界；
+- 删除的主要旧抽象；
+- 测试数量与分层变化；
+- 真实规模性能结果；
+- 仍存在但不阻塞发布的风险。

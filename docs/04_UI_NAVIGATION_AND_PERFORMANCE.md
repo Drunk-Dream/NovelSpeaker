@@ -1,0 +1,220 @@
+# UI、导航与性能
+
+## 1. 总体原则
+
+- 桌面应用优先信息效率和可操作性。
+- 页面结构与视觉样式分离：本文件定义交互/布局/性能合同，视觉 Token 和 Surface 见 `07_VISUAL_DESIGN_SYSTEM.md`。
+- WPF code-behind 只处理控件生命周期、focus、drag/drop、scroll、virtualization、animation 和事件桥接。
+- 业务状态与命令由 ViewModel/Application owner 提供。
+
+## 2. 主窗口信息架构
+
+主窗口保留清晰一级导航：
+
+- 书库；
+- 播放；
+- 设置；
+- Shell Footer 中的长期后台状态入口。
+
+不建立浏览器式多层历史导航。
+
+## 3. 强类型导航
+
+应用级导航只维护完整 `CurrentRoute`。
+
+普通页面固定父级：
+
+- BookDetails → Library；
+- Settings 子页 → Settings；
+- RegexReplacementRules → ImportTextSettings；
+- CacheManagement → CacheAndData。
+
+Player 唯一使用一次性动态 `ReturnRoute`：
+
+- Library → Player → Library；
+- BookDetails(book) → Player → 同一 BookDetails(book)；
+- Shell 正在播放入口捕获进入前完整 route。
+
+`ReturnRoute` 不指向另一个 Player，不形成递归历史链。
+
+PageHeader、Alt+Left、可用 Esc 使用统一 `NavigateBackAsync`。
+
+## 4. Page/ViewModel 生命周期
+
+普通页面 transient。Navigation cache/Page singleton 不用于恢复页面参数、编辑状态或规避加载成本。
+
+需要跨页面存在的状态必须属于明确 process/session owner。
+
+## 5. 书库
+
+- 响应式书籍卡片布局根据可用宽度决定列数和卡片宽度。
+- 大书库的排序/过滤先基于 read model 计算，再批量提交 UI projection。
+- 当前活动书籍只根据 matching PlaybackSnapshot 更新对应卡片，不重新查询整个 library。
+- 卡片不承担 Playback session owner 职责。
+
+## 6. 书籍详情
+
+### Critical
+
+- Header；
+- 轻量章节 catalog；
+- 当前阅读位置；
+- 立即可用的编辑/播放入口。
+
+### Secondary
+
+- 当前章节自动定位；
+- viewport/current cache decoration；
+- 次级统计。
+
+### Background
+
+- 非可视区域 enrichment；
+- 可延后维护信息。
+
+BookDetails 不通过全量 mutable item 状态阻塞首帧。
+
+## 7. 播放页
+
+- XAML 绑定单一 PlayerViewModel。
+- 章节目录、正文和播放控制的 presentation controller 职责分离。
+- current chapter/segment 与 PlaybackSnapshot 保持一致。
+- 手动切换章节/段落后目录与正文定位使用显式 interaction controller。
+- 用户主动定位优先于后台 decoration。
+
+## 8. 超长章节目录
+
+目标支持至少 10,000 章连续目录：
+
+- 不显式分页；
+- scrollbar 连续；
+- current item 可直接定位；
+- WPF Recycling virtualization；
+- selection 与 container 分离；
+- catalog 和 dynamic decoration 分离。
+
+禁止以 `Clear + N × Add` 作为大型列表首屏提交方式。
+
+## 9. Data virtualization 与 UI virtualization
+
+WPF virtualization 只减少可视 container/layout 成本，不能消除：
+
+- DTO materialization；
+- item object 构造；
+- collection notification；
+- full-list status projection；
+- sort/group/hash。
+
+因此大型页面必须同时控制数据和 presentation 工作量。
+
+## 10. Staged Loading
+
+复杂页面统一：
+
+```text
+Critical
+→ First Interactive Frame
+→ Secondary Enrichment
+→ Background Enhancement
+```
+
+要求：
+
+- 首个交互帧之前只做必要工作；
+- enrichment 与 locator 不挤在同一 Dispatcher 长工作窗；
+- `Task.Yield()` 不等于 render boundary；
+- 不用固定延时猜测首帧；
+- 快速导航时旧阶段必须取消/失效。
+
+## 11. Dispatcher 性能合同
+
+Dispatcher 上应保持短、小、可中断到下一工作项的 UI 提交。
+
+禁止在页面首屏同步执行：
+
+- 大规模 DTO→复杂 VM；
+- 全量 cache status property 更新；
+- 全量排序/grouping；
+- 无界 layout/locator 循环；
+- 同步等待后台任务。
+
+性能 CI 优先结构性/顺序测试，不建立脆弱的绝对毫秒门槛。
+
+## 12. Cache Management
+
+- 页面 VM transient；
+- filter/selection 属于页面 state；
+- active cache/export 属于 process owner；
+- 列表支持大数据集批量 projection；
+- cache status 不通过逐项目查询形成 N+1；
+- PageHeader 提供清理/导出动作和已选数量。
+
+页面离开只取消页面查询/选择流程，不取消已提交后台批次。
+
+## 13. Rules 工作台
+
+三类规则共享：
+
+- 左侧规则列表；
+- selected item；
+- draft/dirty；
+- Save/Cancel；
+- reorder；
+- import/delete 交互。
+
+业务模型、validation、试听/预览仍各自独立。
+
+规则页面进入时不自动打开编辑对象。右键菜单处理单项导出/删除/排序相关动作；页面级导入放 PageHeader。
+
+## 14. Settings
+
+- 首页为设置入口列表。
+- 子页 VM transient。
+- 即时设置直接更新 process settings；草稿型设置在保存前保留页面 draft。
+- Light/Dark 高频切换除完整外观设置入口外提供快捷入口；System 模式的实际 Light/Dark 显示按系统主题解析。
+
+## 15. Mini Player 与托盘
+
+- MiniPlayer 只投影共享 Playback state，不创建第二套状态机。
+- 恢复主窗口与退出应用是不同动作。
+- 托盘只负责桌面生命周期入口，不承载业务状态。
+
+## 16. Dialog / Flyout / Popup
+
+遵守 Single Surface：宿主已经提供完整浮层 Surface 时，内部内容默认不再嵌套第二个完整 Card/Raised Surface。
+
+详细视觉规则见 `07_VISUAL_DESIGN_SYSTEM.md`。
+
+## 17. 键盘与可访问性
+
+- Tab/方向键/focus 范围与可见控件一致。
+- 不允许 ToggleSwitch 等控件拥有远大于可视内容的隐藏点击区域。
+- Esc 先由局部临时交互消费，否则进入统一页面返回语义。
+- Reduced Motion / 系统动画设置必须保持可用。
+
+## 18. 性能验收规模
+
+架构重构后使用至少：
+
+```text
+180
+1000
+3000+
+10000 chapters
+```
+
+并覆盖 current index：开始/中部/尾部。
+
+验证：
+
+- Library → BookDetails；
+- Player → BookDetails；
+- first interactive frame；
+- Dispatcher responsiveness；
+- locator；
+- cache decoration；
+- continuous scrolling；
+- memory/allocation；
+- SQLite query/materialization。
+
+如果新架构自然消除旧 3000+ 卡顿，不再追加专项 workaround；仍有瓶颈时再做证据驱动 profiling。

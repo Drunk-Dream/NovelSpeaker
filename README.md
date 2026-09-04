@@ -106,7 +106,7 @@ dotnet run --project src/NovelSpeaker.App
 
 仓库级 `RuntimeIdentifiers` 会让命令行和 IDE 的隐式还原都保留 `win-x64` 锁文件目标。
 
-测试分层、WPF 自动测试的默认无可见窗口约束、视觉产物和完整质量门禁见 [docs/09_TESTING_AND_QUALITY.md](docs/09_TESTING_AND_QUALITY.md)。Agent 执行测试时还必须遵循 [AGENTS.md](AGENTS.md) 中的可见 UI 授权规则。
+测试分层、WPF 自动测试的默认无可见窗口约束、视觉产物和完整质量门禁见 [docs/08_TESTING_AND_QUALITY.md](docs/08_TESTING_AND_QUALITY.md)。Agent 执行测试时还必须遵循 [AGENTS.md](AGENTS.md) 中的可见 UI 授权规则。
 
 ## 架构与开发计划
 
