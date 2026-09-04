@@ -5,8 +5,8 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using NovelSpeaker.App.Shared.Presentation.Books;
-using NovelSpeaker.App.Features.Library;
+using NovelSpeaker.App.Features.Books.Shared;
+using NovelSpeaker.App.Features.Books.Library;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;

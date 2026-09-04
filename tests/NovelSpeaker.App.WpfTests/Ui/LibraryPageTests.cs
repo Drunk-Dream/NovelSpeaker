@@ -5,7 +5,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using NovelSpeaker.App.Features.Library;
+using NovelSpeaker.App.Features.Books.Library;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Feedback;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;

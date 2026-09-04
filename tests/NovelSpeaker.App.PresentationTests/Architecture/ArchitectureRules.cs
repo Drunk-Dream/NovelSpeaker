@@ -1157,8 +1157,15 @@ internal static partial class ArchitectureRules
         }
 
         var remainder = relativePath[marker.Length..];
-        var separator = remainder.IndexOf('/');
-        return separator < 0 ? remainder : remainder[..separator];
+        var segments = remainder.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+        {
+            return null;
+        }
+
+        return IsNestedFeatureRoot(segments[0]) && segments.Length > 1
+            ? $"{segments[0]}.{segments[1]}"
+            : segments[0];
     }
 
     private static IEnumerable<Type> FlattenType(Type type)
@@ -1445,7 +1452,17 @@ internal static partial class ArchitectureRules
         }
 
         var remainder = namespaceName[prefix.Length..];
-        var separator = remainder.IndexOf('.');
-        return separator < 0 ? remainder : remainder[..separator];
+        var segments = remainder.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+        {
+            return null;
+        }
+
+        return IsNestedFeatureRoot(segments[0]) && segments.Length > 1
+            ? $"{segments[0]}.{segments[1]}"
+            : segments[0];
     }
+
+    private static bool IsNestedFeatureRoot(string feature) =>
+        feature is "Books" or "Rules";
 }

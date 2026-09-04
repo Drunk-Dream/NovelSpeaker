@@ -2,7 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Xml.Linq;
-using NovelSpeaker.App.Features.Library;
+using NovelSpeaker.App.Features.Books.Library;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -100,6 +100,7 @@ public sealed class LibraryResponsivePanelTests
             "src",
             "NovelSpeaker.App",
             "Features",
+            "Books",
             "Library",
             "BookCardView.xaml"));
         XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";

@@ -284,7 +284,7 @@ public sealed class InteractionCallerAuditTests
             .ToArray();
         var expectedFloatingCallers = new HashSet<(string Path, string Name)>
         {
-            (Path.Combine("src", "NovelSpeaker.App", "Features", "BookDetails", "BookDetailsPage.xaml"),
+            (Path.Combine("src", "NovelSpeaker.App", "Features", "Books", "Details", "BookDetailsPage.xaml"),
                 "LocateCurrentChapterButton"),
             (Path.Combine("src", "NovelSpeaker.App", "Features", "Playback", "Components", "PlayerView.xaml"),
                 "LocateCurrentChapterButton"),

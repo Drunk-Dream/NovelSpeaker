@@ -6,7 +6,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Platform;
-using NovelSpeaker.App.Features.Library;
+using NovelSpeaker.App.Features.Books.Library;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.Domain.Settings;
 using Xunit;

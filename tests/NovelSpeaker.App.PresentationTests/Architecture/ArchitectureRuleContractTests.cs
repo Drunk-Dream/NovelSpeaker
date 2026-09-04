@@ -99,6 +99,29 @@ public sealed class ArchitectureRuleContractTests
     }
 
     [Fact]
+    public void FeatureDependencyRulePreservesNestedBooksFeatureBoundaries()
+    {
+        var files = new[]
+        {
+            Source(
+                "src/NovelSpeaker.App/Features/Books/Library/LibraryViewModel.cs",
+                "src/NovelSpeaker.App",
+                "using NovelSpeaker.App.Features.Books.Details; namespace NovelSpeaker.App.Features.Books.Library; public sealed class LibraryViewModel;"),
+            Source(
+                "src/NovelSpeaker.App/Features/Books/Details/BookDetailsViewModel.cs",
+                "src/NovelSpeaker.App",
+                "using NovelSpeaker.App.Features.Books.Library; namespace NovelSpeaker.App.Features.Books.Details; public sealed class BookDetailsViewModel;")
+        };
+
+        Assert.Equal(
+            [
+                "src/NovelSpeaker.App/Features/Books/Details/BookDetailsViewModel.cs -> NovelSpeaker.App.Features.Books.Library",
+                "src/NovelSpeaker.App/Features/Books/Library/LibraryViewModel.cs -> NovelSpeaker.App.Features.Books.Details"
+            ],
+            ArchitectureRules.FindFeatureDependencyCycles(files));
+    }
+
+    [Fact]
     public void FeatureDependencyRuleRejectsAResourceDictionaryCycleWithoutXamlClass()
     {
         var files = new[]

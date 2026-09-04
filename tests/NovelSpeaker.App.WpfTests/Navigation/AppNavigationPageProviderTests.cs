@@ -5,7 +5,7 @@ using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Shared.Feedback;
-using NovelSpeaker.App.Features.Library;
+using NovelSpeaker.App.Features.Books.Library;
 using NovelSpeaker.Domain.Settings;
 using Wpf.Ui;
 using Wpf.Ui.Controls;

@@ -1,0 +1,16 @@
+namespace NovelSpeaker.App.Features.Books.Shared;
+
+public sealed class BookCatalogInvalidationState : IBookCatalogInvalidationState
+{
+    public bool IsInvalidated { get; private set; }
+
+    public void Invalidate()
+    {
+        IsInvalidated = true;
+    }
+
+    public void Consume()
+    {
+        IsInvalidated = false;
+    }
+}

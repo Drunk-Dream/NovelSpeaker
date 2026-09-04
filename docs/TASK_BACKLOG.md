@@ -134,7 +134,7 @@
 
 完成成果：6 个普通 Feature ViewModel 改为 transient；Library/Player 页面事件与缓存刷新统一在 activation 中挂接；保留 LibraryScrollState、Playback session、自动滚动等 process/session owner，并补充 DI 生命周期与页面生命周期合同测试。
 
-## [ ] T003（P0）：重组 App Feature 目录/namespace 并消除跨 Feature 循环
+## [x] T003（P0）：重组 App Feature 目录/namespace 并消除跨 Feature 循环
 
 依赖：T002。
 
@@ -166,6 +166,8 @@
 - Feature dependency tests 无双向引用。
 - 生产行为保持，相关 Presentation/WPF tests 通过。
 - 无旧 namespace compatibility bridge。
+
+完成成果：Books 已收敛为 Library/Details/Shared，Rules 已收敛为 Tts/Chapter/Regex/Shared；书籍共享封面、进度投影、目录失效和删除对话合同迁入 Books/Shared，清除 Library↔BookDetails 循环及旧 namespace；Release 编译、Presentation 全量测试、架构守卫和 Books/Rules 相关 WPF 测试通过。
 
 ---
 

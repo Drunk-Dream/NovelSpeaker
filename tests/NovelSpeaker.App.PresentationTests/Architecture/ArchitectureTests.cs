@@ -436,8 +436,8 @@ public sealed class ArchitectureTests
             [
                 "src/NovelSpeaker.App/Desktop/Lifecycle/DesktopLifecycleCoordinator.cs",
                 "src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerViewModel.cs",
-                "src/NovelSpeaker.App/Features/BookDetails/BookDetailsViewModel.cs",
-                "src/NovelSpeaker.App/Features/Library/LibraryViewModel.cs",
+                "src/NovelSpeaker.App/Features/Books/Details/BookDetailsViewModel.cs",
+                "src/NovelSpeaker.App/Features/Books/Library/LibraryViewModel.cs",
                 "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerViewModel.cs",
                 "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerRulesAndSpeedController.cs",
                 "src/NovelSpeaker.App/Features/PlaybackSettings/PlaybackSettingsViewModel.cs"
@@ -445,7 +445,7 @@ public sealed class ArchitectureTests
             [
                 "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerContentProjection.cs",
                 "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerSnapshotProjection.cs",
-                "src/NovelSpeaker.App/Shared/Presentation/Books/EffectiveReadingProgress.cs"
+                "src/NovelSpeaker.App/Features/Books/Shared/EffectiveReadingProgress.cs"
             ]));
 
         Assert.Equal(
@@ -514,21 +514,34 @@ public sealed class ArchitectureTests
         foreach (var feature in new[]
                  {
                      "Appearance",
-                     "BookDetails",
+                     "Books",
                      "Cache",
-                     "ChapterRules",
                      "Diagnostics",
-                     "Library",
                      "Playback",
                      "PlaybackSettings",
-                     "RegexReplacementRules",
+                     "Rules",
                      "Settings",
-                     "TtsRules"
                  })
         {
             Assert.True(
                 Directory.Exists(Path.Combine(appRoot, "Features", feature)),
                 $"Feature slice directory is missing: {feature}");
+        }
+
+        foreach (var feature in new[]
+                 {
+                     "Books/Details",
+                     "Books/Library",
+                     "Books/Shared",
+                     "Rules/Chapter",
+                     "Rules/Regex",
+                     "Rules/Shared",
+                     "Rules/Tts"
+                 })
+        {
+            Assert.True(
+                Directory.Exists(Path.Combine(appRoot, "Features", feature)),
+                $"Nested feature slice directory is missing: {feature}");
         }
 
         Assert.True(Directory.Exists(Path.Combine(appRoot, "Shared")));
@@ -546,9 +559,9 @@ public sealed class ArchitectureTests
 
         Assert.Equal(
             [
-                "Features/Library/BookCardView.xaml",
-                "Features/Playback/Components/PlayerView.xaml",
-                "Shared/Presentation/Books/BookCoverView.xaml"
+                "Features/Books/Library/BookCardView.xaml",
+                "Features/Books/Shared/BookCoverView.xaml",
+                "Features/Playback/Components/PlayerView.xaml"
             ],
             actual);
     }

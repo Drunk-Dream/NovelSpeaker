@@ -211,6 +211,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
             "src",
             "NovelSpeaker.App",
             "Features",
+            "Books",
             "Library",
             "BookCardView.xaml"));
         Assert.Contains(
@@ -306,7 +307,7 @@ public sealed class SelectionNavigationMenuStyleContractTests
         var repositoryRoot = LocateRepositoryRoot();
         foreach (var relativePath in new[]
                  {
-                     Path.Combine("src", "NovelSpeaker.App", "Features", "BookDetails", "BookDetailsPage.xaml"),
+                     Path.Combine("src", "NovelSpeaker.App", "Features", "Books", "Details", "BookDetailsPage.xaml"),
                      Path.Combine("src", "NovelSpeaker.App", "Features", "Cache", "CacheManagementPage.xaml"),
                      Path.Combine("src", "NovelSpeaker.App", "Features", "Playback", "Components", "PlayerView.xaml"),
                      Path.Combine("src", "NovelSpeaker.App", "Shell", "MainWindow.xaml"),

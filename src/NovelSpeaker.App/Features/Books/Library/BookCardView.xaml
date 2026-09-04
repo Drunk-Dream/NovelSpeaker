@@ -1,0 +1,109 @@
+<UserControl x:Class="NovelSpeaker.App.Features.Books.Library.BookCardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:NovelSpeaker.App.Features.Books.Shared"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             x:Name="Root"
+             Background="Transparent">
+    <Border x:Name="CardSurface"
+            Padding="0"
+            Style="{StaticResource App.Selection.CardItem}">
+        <Grid>
+            <Button x:Name="OpenBookButton"
+                    Padding="16"
+                    Style="{StaticResource App.Button.InteractionHost}"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    AutomationProperties.Name="{Binding Item.AutomationName, ElementName=Root}"
+                    Command="{Binding OpenBookCommand, ElementName=Root}"
+                    CommandParameter="{Binding Item, ElementName=Root}"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Stretch">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <local:BookCoverView Width="104"
+                                         Height="140"
+                                         Cover="{Binding Item.Cover, ElementName=Root}" />
+
+                    <StackPanel x:Name="BookInfoStackPanel"
+                                Grid.Column="1"
+                                Margin="16,0,0,0"
+                                VerticalAlignment="Center">
+                        <TextBlock Margin="0,0,20,0"
+                                   Style="{StaticResource App.Typography.ItemTitle}"
+                                   FontSize="17"
+                                   Text="{Binding Item.Title, ElementName=Root}"
+                                   ToolTip="{Binding Item.TitleToolTip, ElementName=Root}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Style="{StaticResource App.Typography.Secondary}"
+                                   Text="{Binding Item.DisplayAuthor, ElementName=Root}"
+                                   ToolTip="{Binding Item.DisplayAuthor, ElementName=Root}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" />
+                        <TextBlock Margin="0,10,0,0"
+                                   Style="{StaticResource App.Typography.Body}"
+                                   Text="{Binding Item.CurrentChapterTitle, ElementName=Root}"
+                                   ToolTip="{Binding Item.CurrentChapterToolTip, ElementName=Root}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Style="{StaticResource App.Typography.Secondary}"
+                                   Text="{Binding Item.RemainingChapterText, ElementName=Root}" />
+                        <ProgressBar x:Name="ReadingProgressBar"
+                                     Margin="0,12,0,0"
+                                     Style="{StaticResource App.Progress.Compact}"
+                                     Maximum="1"
+                                     Value="{Binding Item.ProgressRatio, ElementName=Root, Mode=OneWay}"
+                                     AutomationProperties.Name="{Binding Item.ProgressAutomationText, ElementName=Root}" />
+                    </StackPanel>
+                </Grid>
+            </Button>
+
+            <ui:Button x:Name="MoreButton"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Top"
+                       Icon="{ui:SymbolIcon Symbol=MoreHorizontal24}"
+                       AutomationProperties.Name="{Binding Item.MoreActionsAutomationName, ElementName=Root}"
+                       Click="MoreButton_OnClick"
+                       ToolTip="更多操作">
+                <ui:Button.Style>
+                    <Style TargetType="{x:Type ui:Button}"
+                           BasedOn="{StaticResource App.Button.Icon}">
+                        <Setter Property="Opacity" Value="0" />
+                        <Setter Property="IsHitTestVisible" Value="False" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsMouseOver, ElementName=Root}" Value="True">
+                                <Setter Property="Opacity" Value="1" />
+                                <Setter Property="IsHitTestVisible" Value="True" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=Root}" Value="True">
+                                <Setter Property="Opacity" Value="1" />
+                                <Setter Property="IsHitTestVisible" Value="True" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:Button.Style>
+                <ui:Button.ContextMenu>
+                    <ContextMenu Style="{StaticResource App.Menu.ContextSurface}">
+                        <MenuItem Style="{StaticResource App.Menu.Item}"
+                                  Command="{Binding OpenBookDetailsCommand}"
+                                  CommandParameter="{Binding Item}"
+                                  Header="书籍详情" />
+                        <Separator Style="{StaticResource App.Menu.Separator}" />
+                        <MenuItem Style="{StaticResource App.Menu.DangerItem}"
+                                  Command="{Binding DeleteBookCommand}"
+                                  CommandParameter="{Binding Item}"
+                                  Header="删除书籍"
+                                  IsEnabled="{Binding Item.CanDelete}" />
+                    </ContextMenu>
+                </ui:Button.ContextMenu>
+            </ui:Button>
+        </Grid>
+    </Border>
+</UserControl>

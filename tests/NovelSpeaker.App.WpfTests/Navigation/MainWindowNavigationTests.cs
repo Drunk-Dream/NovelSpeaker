@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.App.Features.BookDetails;
-using NovelSpeaker.App.Features.Library;
+using NovelSpeaker.App.Features.Books.Details;
+using NovelSpeaker.App.Features.Books.Library;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Platform;

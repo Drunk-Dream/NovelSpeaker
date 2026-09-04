@@ -18,7 +18,7 @@ using NovelSpeaker.App.Desktop.Lifecycle;
 using NovelSpeaker.App.Desktop.MiniPlayer;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Shared.Feedback;
-using NovelSpeaker.App.Features.Library;
+using NovelSpeaker.App.Features.Books.Library;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Input;

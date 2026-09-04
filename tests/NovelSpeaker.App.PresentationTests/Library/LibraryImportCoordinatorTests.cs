@@ -1,6 +1,6 @@
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.App.Features.Library;
+using NovelSpeaker.App.Features.Books.Library;
 using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests.Library;

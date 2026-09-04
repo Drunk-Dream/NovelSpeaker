@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.App.Features.Library;
+using NovelSpeaker.App.Features.Books.Library;
 using NovelSpeaker.App.Shared.Feedback;
 using Wpf.Ui;
 using Wpf.Ui.Controls;

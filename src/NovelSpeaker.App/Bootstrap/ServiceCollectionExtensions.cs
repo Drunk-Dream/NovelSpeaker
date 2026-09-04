@@ -2,19 +2,20 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.App.Desktop.MediaControls;
 using NovelSpeaker.App.Desktop.Lifecycle;
+using NovelSpeaker.App.Features.Books.Shared;
 using NovelSpeaker.App.Features.Appearance;
-using NovelSpeaker.App.Features.BookDetails;
+using NovelSpeaker.App.Features.Books.Details;
 using NovelSpeaker.App.Features.Cache;
-using NovelSpeaker.App.Features.ChapterRules;
+using NovelSpeaker.App.Features.Rules.Chapter;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Features.GeneralSettings;
 using NovelSpeaker.App.Features.ImportTextSettings;
-using NovelSpeaker.App.Features.Library;
+using NovelSpeaker.App.Features.Books.Library;
 using NovelSpeaker.App.Features.Playback;
 using NovelSpeaker.App.Features.PlaybackSettings;
-using NovelSpeaker.App.Features.RegexReplacementRules;
+using NovelSpeaker.App.Features.Rules.Regex;
 using NovelSpeaker.App.Features.Settings;
-using NovelSpeaker.App.Features.TtsRules;
+using NovelSpeaker.App.Features.Rules.Tts;
 using NovelSpeaker.App.Shared;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shell.Activation;
@@ -35,6 +36,7 @@ public static class ServiceCollectionExtensions
             .AddDesktopLifecycle()
             .AddMediaControls()
             .AddSharedServices()
+            .AddBooksSharedFeature()
             .AddShellServices()
             .AddAppearanceFeature()
             .AddBookDetailsFeature()
