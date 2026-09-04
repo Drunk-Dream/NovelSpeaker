@@ -141,6 +141,39 @@ internal sealed class ArchitectureTestRepository
         return files.OrderBy(file => file.RelativePath, StringComparer.Ordinal).ToArray();
     }
 
+    public IReadOnlyList<SourceFileDescriptor> ReadProductXamlFiles()
+    {
+        var files = new List<SourceFileDescriptor>();
+
+        foreach (var projectPath in ProductProjectRelativePaths)
+        {
+            var projectDirectoryRelativePath = Path.GetDirectoryName(projectPath)!
+                .Replace(Path.DirectorySeparatorChar, '/');
+            var projectDirectory = Path.Combine(
+                RootPath,
+                projectDirectoryRelativePath.Replace('/', Path.DirectorySeparatorChar));
+
+            foreach (var filePath in Directory.EnumerateFiles(projectDirectory, "*.xaml", SearchOption.AllDirectories))
+            {
+                var relativeToProject = Path.GetRelativePath(projectDirectory, filePath)
+                    .Replace(Path.DirectorySeparatorChar, '/');
+
+                if (relativeToProject.StartsWith("bin/", StringComparison.Ordinal) ||
+                    relativeToProject.StartsWith("obj/", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                files.Add(new SourceFileDescriptor(
+                    NormalizeRelativePath(Path.Combine(projectDirectoryRelativePath, relativeToProject)),
+                    projectDirectoryRelativePath,
+                    File.ReadAllText(filePath)));
+            }
+        }
+
+        return files.OrderBy(file => file.RelativePath, StringComparer.Ordinal).ToArray();
+    }
+
     public string ToRepositoryRelativePath(string fullPath) =>
         NormalizeRelativePath(Path.GetRelativePath(RootPath, fullPath));
 

@@ -60,7 +60,7 @@
 
 # Phase A：架构守卫与生命周期基础
 
-## [ ] T001（P0）：建立架构优化阶段 Fitness Tests 基线
+## [x] T001（P0）：建立架构优化阶段 Fitness Tests 基线
 
 目标：先把已经确认的目标架构转成自动约束，避免后续迁移过程中旧模式重新进入代码库。
 
@@ -91,6 +91,8 @@
 - Architecture tests 可单独运行并稳定通过。
 - 每个临时白名单都能映射到 T002–T018 的明确删除任务。
 - 无生产行为变化。
+
+完成成果：扩展现有 ArchitectureTests，覆盖层间依赖、Feature 循环、DI 生命周期、Service Locator、ReadingProgress、大列表和 Playback owner 边界；保留精确到文件/类型的 T002、T003、T005 临时债务白名单，并补充 XAML、factory 和控制流合同测试。
 
 ## [ ] T002（P0）：统一普通 Page/ViewModel 为 transient 生命周期
 

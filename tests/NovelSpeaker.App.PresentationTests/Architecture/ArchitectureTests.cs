@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using NovelSpeaker.Application.Playback;
 using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests.Architecture;
@@ -353,6 +354,124 @@ public sealed class ArchitectureTests
         Assert.Empty(actual);
     }
 
+    private void SharedPresentationDoesNotDependOnFeatures()
+    {
+        var sharedFiles = Repository.ReadProductSourceFiles()
+            .Concat(Repository.ReadProductXamlFiles())
+            .Where(file => file.RelativePath.Contains(
+                "src/NovelSpeaker.App/Shared/",
+                StringComparison.Ordinal));
+        var actual = ArchitectureRules.FindSharedFeatureDependencies(sharedFiles);
+
+        AssertEqualSet(KnownArchitectureBaseline.SharedFeatureSourceDependencies, actual);
+    }
+
+    private void FeatureNamespacesDoNotFormUnexpectedCycles()
+    {
+        var featureFiles = Repository.ReadProductSourceFiles()
+            .Concat(Repository.ReadProductXamlFiles())
+            .Where(file => file.RelativePath.Contains(
+                "src/NovelSpeaker.App/Features/",
+                StringComparison.Ordinal));
+        var actual = ArchitectureRules.FindFeatureDependencyCycles(featureFiles);
+
+        AssertEqualSet(KnownArchitectureBaseline.FeatureDependencyCycles, actual);
+    }
+
+    private void OrdinaryFeaturePagesAndViewModelsAreNotSingletons()
+    {
+        var actual = ArchitectureRules.FindSingletonFeaturePageOrViewModelRegistrations(
+            Repository.ReadProductSourceFiles());
+
+        AssertEqualSet(KnownArchitectureBaseline.FeaturePageOrViewModelSingletonRegistrations, actual);
+    }
+
+    private void FeaturePagesAndViewModelsDoNotUseServiceLocation()
+    {
+        var featureFiles = Repository.ReadProductSourceFiles()
+            .Where(file => file.RelativePath.Contains(
+                "src/NovelSpeaker.App/Features/",
+                StringComparison.Ordinal));
+        var actual = ArchitectureRules.FindServiceLocationDependencies(featureFiles, []);
+
+        Assert.Empty(actual);
+    }
+
+    private void GenericGlobalCoordinationAbstractionsAreNotIntroduced()
+    {
+        var actual = ArchitectureRules.FindForbiddenGenericAbstractionDeclarations(
+            Repository.ReadProductSourceFiles());
+
+        Assert.Empty(actual);
+    }
+
+    private void PagesAndViewModelsDoNotWriteReadingProgress()
+    {
+        var actual = ArchitectureRules.FindReadingProgressWriterDependencies(
+            Repository.ReadProductSourceFiles());
+
+        Assert.Empty(actual);
+    }
+
+    private void LargeListHelpersDoNotClearThenAddOneItemAtATime()
+    {
+        var actual = ArchitectureRules.FindLargeListClearThenAddViolations(
+            Repository.ReadProductSourceFiles(),
+            ["src/NovelSpeaker.App/Shared/Presentation/ViewModelCollectionExtensions.cs"]);
+
+        AssertEqualSet(KnownArchitectureBaseline.LargeListClearThenAddViolations, actual);
+    }
+
+    private void PlaybackStateHasOneOwnerAndReadOnlyConsumerContracts()
+    {
+        var appFiles = Repository.ReadProductSourceFiles()
+            .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.App");
+        var actual = ArchitectureRules.FindConcretePlaybackCoordinatorDependencies(
+            appFiles,
+            ["src/NovelSpeaker.App/Bootstrap/WpfStartupRuntime.cs"]);
+
+        Assert.Empty(actual);
+        Assert.Empty(ArchitectureRules.FindPlaybackConsumerBoundaryViolations(
+            appFiles,
+            [
+                "src/NovelSpeaker.App/Desktop/Lifecycle/DesktopLifecycleCoordinator.cs",
+                "src/NovelSpeaker.App/Desktop/MiniPlayer/MiniPlayerViewModel.cs",
+                "src/NovelSpeaker.App/Features/BookDetails/BookDetailsViewModel.cs",
+                "src/NovelSpeaker.App/Features/Library/LibraryViewModel.cs",
+                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerViewModel.cs",
+                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerRulesAndSpeedController.cs",
+                "src/NovelSpeaker.App/Features/PlaybackSettings/PlaybackSettingsViewModel.cs"
+            ],
+            [
+                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerContentProjection.cs",
+                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerSnapshotProjection.cs",
+                "src/NovelSpeaker.App/Shared/Presentation/Books/EffectiveReadingProgress.cs"
+            ]));
+
+        Assert.Equal(
+            ["src/NovelSpeaker.Application/Playback/PlaybackRegistration.cs: Singleton"],
+            ArchitectureRules.FindPlaybackCoordinatorRegistrations(Repository.ReadProductSourceFiles()));
+        Assert.Equal(typeof(PlaybackSnapshot), typeof(IPlaybackSnapshotSource)
+            .GetProperty(nameof(IPlaybackSnapshotSource.CurrentSnapshot))!.PropertyType);
+        Assert.Null(typeof(IPlaybackSnapshotSource)
+            .GetProperty(nameof(IPlaybackSnapshotSource.CurrentSnapshot))!.SetMethod);
+        Assert.Equal(
+            [typeof(PlaybackCoordinator)],
+            new[]
+            {
+                typeof(PlaybackCoordinator).Assembly,
+                typeof(NovelSpeaker.App.Features.Playback.Presentation.PlayerViewModel).Assembly,
+                typeof(NovelSpeaker.Domain.Books.Book).Assembly,
+                typeof(NovelSpeaker.Infrastructure.Persistence.SqliteReadingProgressStore).Assembly
+            }
+            .SelectMany(assembly => assembly.GetTypes())
+            .Where(type => typeof(IPlaybackSession).IsAssignableFrom(type) &&
+                           !type.IsInterface)
+            .Distinct()
+            .OrderBy(type => type.FullName, StringComparer.Ordinal)
+            .ToArray());
+    }
+
     private void AppDoesNotDirectlyDiscardAsyncOperations()
     {
         var appFiles = Repository.ReadProductSourceFiles()
@@ -467,6 +586,19 @@ public sealed class ArchitectureTests
     {
         AppDoesNotDirectlyDiscardAsyncOperations();
         ViewModelsDoNotAddWpfOrWpfUiTypesToPublicApi();
+    }
+
+    [Fact]
+    public void Architecture_contracts_cover_optimization_phase_guards()
+    {
+        SharedPresentationDoesNotDependOnFeatures();
+        FeatureNamespacesDoNotFormUnexpectedCycles();
+        OrdinaryFeaturePagesAndViewModelsAreNotSingletons();
+        FeaturePagesAndViewModelsDoNotUseServiceLocation();
+        GenericGlobalCoordinationAbstractionsAreNotIntroduced();
+        PagesAndViewModelsDoNotWriteReadingProgress();
+        LargeListHelpersDoNotClearThenAddOneItemAtATime();
+        PlaybackStateHasOneOwnerAndReadOnlyConsumerContracts();
     }
 
     [Fact]
