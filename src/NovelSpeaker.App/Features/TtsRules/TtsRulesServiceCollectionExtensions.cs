@@ -7,7 +7,7 @@ public static class TtsRulesServiceCollectionExtensions
 {
     public static IServiceCollection AddTtsRulesFeature(this IServiceCollection services)
     {
-        services.TryAddSingleton<TtsRulesViewModel>();
+        services.TryAddTransient<TtsRulesViewModel>();
         services.TryAddTransient<TtsRulesPage>();
         return services;
     }

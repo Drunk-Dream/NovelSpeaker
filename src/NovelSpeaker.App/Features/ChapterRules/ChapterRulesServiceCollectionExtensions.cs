@@ -7,7 +7,7 @@ public static class ChapterRulesServiceCollectionExtensions
 {
     public static IServiceCollection AddChapterRulesFeature(this IServiceCollection services)
     {
-        services.TryAddSingleton<ChapterRulesViewModel>();
+        services.TryAddTransient<ChapterRulesViewModel>();
         services.TryAddTransient<ChapterRulesPage>();
         return services;
     }

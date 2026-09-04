@@ -7,7 +7,7 @@ public static class RegexReplacementRulesServiceCollectionExtensions
 {
     public static IServiceCollection AddRegexReplacementRulesFeature(this IServiceCollection services)
     {
-        services.TryAddSingleton<RegexReplacementRulesViewModel>();
+        services.TryAddTransient<RegexReplacementRulesViewModel>();
         services.TryAddTransient<RegexReplacementRulesPage>();
         return services;
     }

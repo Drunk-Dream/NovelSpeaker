@@ -108,6 +108,10 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<CacheAndDataViewModel>(provider.GetRequiredService<CacheAndDataViewModel>());
                 Assert.IsType<CacheManagementViewModel>(provider.GetRequiredService<CacheManagementViewModel>());
                 Assert.IsType<ChapterRulesViewModel>(provider.GetRequiredService<ChapterRulesViewModel>());
+                Assert.IsType<LibraryViewModel>(provider.GetRequiredService<LibraryViewModel>());
+                Assert.IsType<PlayerViewModel>(provider.GetRequiredService<PlayerViewModel>());
+                Assert.IsType<RegexReplacementRulesViewModel>(provider.GetRequiredService<RegexReplacementRulesViewModel>());
+                Assert.IsType<SettingsViewModel>(provider.GetRequiredService<SettingsViewModel>());
                 Assert.IsType<TtsRulesViewModel>(provider.GetRequiredService<TtsRulesViewModel>());
                 Assert.IsType<LibraryPage>(provider.GetRequiredService<LibraryPage>());
                 Assert.IsType<SettingsPage>(provider.GetRequiredService<SettingsPage>());
@@ -222,6 +226,16 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.Same(
                     provider.GetRequiredService<INavigationGuardService>(),
                     provider.GetRequiredService<INavigationGuardService>());
+                var firstPlaybackSession = provider.GetRequiredService<IPlaybackSession>();
+                var secondPlaybackSession = provider.GetRequiredService<IPlaybackSession>();
+                Assert.Same(firstPlaybackSession, secondPlaybackSession);
+                var firstLibraryViewModel = provider.GetRequiredService<LibraryViewModel>();
+                var secondLibraryViewModel = provider.GetRequiredService<LibraryViewModel>();
+                Assert.NotSame(firstLibraryViewModel, secondLibraryViewModel);
+                Assert.Same(firstLibraryViewModel.ScrollState, secondLibraryViewModel.ScrollState);
+                var firstAutoScrollCoordinator = provider.GetRequiredService<IPlayerAutoScrollCoordinator>();
+                var secondAutoScrollCoordinator = provider.GetRequiredService<IPlayerAutoScrollCoordinator>();
+                Assert.Same(firstAutoScrollCoordinator, secondAutoScrollCoordinator);
                 Assert.Same(
                     provider.GetRequiredService<IShellNavigationAdapter>(),
                     provider.GetRequiredService<IAppNavigator>());
@@ -231,6 +245,39 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.NotSame(
                     provider.GetRequiredService<BookDetailsPage>(),
                     provider.GetRequiredService<BookDetailsPage>());
+                Assert.NotSame(
+                    provider.GetRequiredService<ChapterRulesViewModel>(),
+                    provider.GetRequiredService<ChapterRulesViewModel>());
+                Assert.NotSame(
+                    provider.GetRequiredService<PlayerViewModel>(),
+                    provider.GetRequiredService<PlayerViewModel>());
+                Assert.NotSame(
+                    provider.GetRequiredService<RegexReplacementRulesViewModel>(),
+                    provider.GetRequiredService<RegexReplacementRulesViewModel>());
+                Assert.NotSame(
+                    provider.GetRequiredService<SettingsViewModel>(),
+                    provider.GetRequiredService<SettingsViewModel>());
+                Assert.NotSame(
+                    provider.GetRequiredService<TtsRulesViewModel>(),
+                    provider.GetRequiredService<TtsRulesViewModel>());
+                Assert.NotSame(
+                    provider.GetRequiredService<LibraryPage>(),
+                    provider.GetRequiredService<LibraryPage>());
+                Assert.NotSame(
+                    provider.GetRequiredService<PlayerPage>(),
+                    provider.GetRequiredService<PlayerPage>());
+                Assert.NotSame(
+                    provider.GetRequiredService<ChapterRulesPage>(),
+                    provider.GetRequiredService<ChapterRulesPage>());
+                Assert.NotSame(
+                    provider.GetRequiredService<RegexReplacementRulesPage>(),
+                    provider.GetRequiredService<RegexReplacementRulesPage>());
+                Assert.NotSame(
+                    provider.GetRequiredService<SettingsPage>(),
+                    provider.GetRequiredService<SettingsPage>());
+                Assert.NotSame(
+                    provider.GetRequiredService<TtsRulesPage>(),
+                    provider.GetRequiredService<TtsRulesPage>());
             }
             finally
             {

@@ -93,14 +93,11 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             _uiScheduler,
             ApplyChapterCacheStatuses,
             exception => ReportViewOperationFailure("刷新章节缓存进度失败", exception));
-        _cacheStatusRefresh.Activate(_pageEventCancellation.Token);
         _lastAppliedAutoScrollState = _autoScrollCoordinator.State;
 
         ApplyAutoScrollState();
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
         ApplyStopTimerSnapshot(_stopTimer.CurrentSnapshot);
-
-        RegisterPageEvents();
     }
 
     public ObservableCollection<PlayerRuleItemViewModel> Rules { get; } = [];

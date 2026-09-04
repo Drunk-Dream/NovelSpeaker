@@ -1,8 +1,5 @@
-using CommunityToolkit.Mvvm.Input;
 using System.Windows.Input;
 using NovelSpeaker.App.Shell.Navigation;
-using NovelSpeaker.App.Features.Library;
-using NovelSpeaker.App.Features.Playback.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 
 namespace NovelSpeaker.App.Shell.Input;
@@ -11,19 +8,16 @@ public sealed class KeyboardShortcutCoordinator : IKeyboardShortcutCoordinator
 {
     private readonly IAppNavigator _navigation;
     private readonly IPresentationFileDialogService _fileDialogs;
-    private readonly LibraryViewModel _libraryViewModel;
-    private readonly PlayerViewModel _playerViewModel;
+    private readonly IKeyboardShortcutTargetRegistry _targets;
 
     public KeyboardShortcutCoordinator(
         IAppNavigator navigation,
         IPresentationFileDialogService fileDialogs,
-        LibraryViewModel libraryViewModel,
-        PlayerViewModel playerViewModel)
+        IKeyboardShortcutTargetRegistry targets)
     {
         _navigation = navigation;
         _fileDialogs = fileDialogs;
-        _libraryViewModel = libraryViewModel;
-        _playerViewModel = playerViewModel;
+        _targets = targets;
     }
 
     public async Task<bool> TryHandleAsync(
@@ -59,7 +53,10 @@ public sealed class KeyboardShortcutCoordinator : IKeyboardShortcutCoordinator
 
             if (await _navigation.NavigateAsync(AppRoutes.Library, cancellationToken).ConfigureAwait(true))
             {
-                await _libraryViewModel.ImportFilesAsync([filePath], cancellationToken).ConfigureAwait(true);
+                await HandleCurrentTargetAsync(
+                    KeyboardShortcutAction.ImportTextFile,
+                    filePath,
+                    cancellationToken).ConfigureAwait(true);
             }
 
             return true;
@@ -79,42 +76,48 @@ public sealed class KeyboardShortcutCoordinator : IKeyboardShortcutCoordinator
 
         if (action == KeyboardShortcutAction.TogglePlayback)
         {
-            await ExecuteAsync(_playerViewModel.TogglePlayPauseCommand, cancellationToken).ConfigureAwait(true);
+            await HandleCurrentTargetAsync(action.Value, null, cancellationToken).ConfigureAwait(true);
             return true;
         }
 
         if (action == KeyboardShortcutAction.PreviousSegment)
         {
-            await ExecuteAsync(_playerViewModel.PreviousSegmentCommand, cancellationToken).ConfigureAwait(true);
+            await HandleCurrentTargetAsync(action.Value, null, cancellationToken).ConfigureAwait(true);
             return true;
         }
 
         if (action == KeyboardShortcutAction.NextSegment)
         {
-            await ExecuteAsync(_playerViewModel.NextSegmentCommand, cancellationToken).ConfigureAwait(true);
+            await HandleCurrentTargetAsync(action.Value, null, cancellationToken).ConfigureAwait(true);
             return true;
         }
 
         if (action == KeyboardShortcutAction.PreviousChapter)
         {
-            await ExecuteAsync(_playerViewModel.PreviousChapterCommand, cancellationToken).ConfigureAwait(true);
+            await HandleCurrentTargetAsync(action.Value, null, cancellationToken).ConfigureAwait(true);
             return true;
         }
 
         if (action == KeyboardShortcutAction.NextChapter)
         {
-            await ExecuteAsync(_playerViewModel.NextChapterCommand, cancellationToken).ConfigureAwait(true);
+            await HandleCurrentTargetAsync(action.Value, null, cancellationToken).ConfigureAwait(true);
             return true;
         }
 
         return false;
     }
 
-    private static async Task ExecuteAsync(IAsyncRelayCommand command, CancellationToken cancellationToken)
+    private async Task HandleCurrentTargetAsync(
+        KeyboardShortcutAction action,
+        string? argument,
+        CancellationToken cancellationToken)
     {
-        if (command.CanExecute(null))
+        var target = _targets.Current;
+        if (target is not null)
         {
-            await command.ExecuteAsync(null).WaitAsync(cancellationToken).ConfigureAwait(true);
+            await target.HandleKeyboardShortcutAsync(action, argument, cancellationToken)
+                .WaitAsync(cancellationToken)
+                .ConfigureAwait(true);
         }
     }
 }

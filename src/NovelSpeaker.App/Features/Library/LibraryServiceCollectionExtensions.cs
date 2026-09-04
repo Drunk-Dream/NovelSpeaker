@@ -11,7 +11,7 @@ public static class LibraryServiceCollectionExtensions
         services.TryAddSingleton<IImportProgressDialogService, ImportProgressDialogService>();
         services.TryAddSingleton<ILibraryImportCoordinator, LibraryImportCoordinator>();
         services.TryAddSingleton<LibraryScrollState>();
-        services.TryAddSingleton<LibraryViewModel>();
+        services.TryAddTransient<LibraryViewModel>();
         services.TryAddTransient<LibraryPage>();
         return services;
     }

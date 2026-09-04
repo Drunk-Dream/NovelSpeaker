@@ -34,7 +34,7 @@ public sealed partial class PlayerViewModelTests
         TimeProvider? timeProvider = null,
         IUiScheduler? uiScheduler = null)
     {
-        return new PlayerViewModel(
+        var viewModel = new PlayerViewModel(
             coordinator,
             stopTimer ?? new FakePlaybackStopTimer(),
             activeCacheCoordinator ?? new FakeActiveCacheCoordinator(),
@@ -48,6 +48,9 @@ public sealed partial class PlayerViewModelTests
             miniPlayerLauncher ?? new FakeMiniPlayerLauncher(),
             timeProvider ?? TimeProvider.System,
             uiScheduler ?? new ImmediateUiScheduler());
+
+        viewModel.OnPageNavigatedTo(CancellationToken.None);
+        return viewModel;
     }
 
     private sealed class FakeActiveCacheCoordinator : IActiveCacheCoordinator

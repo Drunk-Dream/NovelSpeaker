@@ -29,17 +29,9 @@ internal static class KnownArchitectureBaseline
             "src/NovelSpeaker.App/Features/Library/LibraryViewModel.cs -> NovelSpeaker.App.Features.BookDetails"
         };
 
-    // T002 converts ordinary Feature ViewModels to transient registrations.
+    // T002 converted ordinary Feature ViewModels to transient registrations.
     public static readonly IReadOnlySet<string> FeaturePageOrViewModelSingletonRegistrations =
-        new HashSet<string>(StringComparer.Ordinal)
-        {
-            "src/NovelSpeaker.App/Features/ChapterRules/ChapterRulesServiceCollectionExtensions.cs: ChapterRulesViewModel",
-            "src/NovelSpeaker.App/Features/Library/LibraryServiceCollectionExtensions.cs: LibraryViewModel",
-            "src/NovelSpeaker.App/Features/Playback/PlaybackServiceCollectionExtensions.cs: PlayerViewModel",
-            "src/NovelSpeaker.App/Features/RegexReplacementRules/RegexReplacementRulesServiceCollectionExtensions.cs: RegexReplacementRulesViewModel",
-            "src/NovelSpeaker.App/Features/Settings/SettingsServiceCollectionExtensions.cs: SettingsViewModel",
-            "src/NovelSpeaker.App/Features/TtsRules/TtsRulesServiceCollectionExtensions.cs: TtsRulesViewModel"
-        };
+        new HashSet<string>(StringComparer.Ordinal);
 
     // T005 replaces this helper with a batch catalog/projection primitive.
     public static readonly IReadOnlySet<string> LargeListClearThenAddViolations =

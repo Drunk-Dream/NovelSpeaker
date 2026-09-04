@@ -467,7 +467,7 @@ public sealed class LibraryViewModelTests
         TimeProvider? timeProvider = null,
         IUiScheduler? uiScheduler = null)
     {
-        return new LibraryViewModel(
+        var viewModel = new LibraryViewModel(
             catalogService ?? new FakeBookCatalogService([]),
             managementService ?? new FakeBookManagementService(),
             new BookCoverGenerator(),
@@ -480,6 +480,9 @@ public sealed class LibraryViewModelTests
             new LibraryScrollState(),
             uiScheduler: uiScheduler ?? new ImmediateUiScheduler(),
             timeProvider: timeProvider);
+
+        viewModel.HandleNavigatedTo();
+        return viewModel;
     }
 
     private static string CreateTempTxtFile()

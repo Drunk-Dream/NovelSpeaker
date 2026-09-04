@@ -7,24 +7,27 @@ using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Features.Library;
 
-public partial class LibraryPage : System.Windows.Controls.Page, INavigationAware, INavigableView<LibraryViewModel>
+public partial class LibraryPage : System.Windows.Controls.Page, INavigationAware, INavigableView<LibraryViewModel>, IKeyboardShortcutTarget
 {
     private readonly PageActivationController _activation = new();
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
     private readonly IPresentationFileDialogService _fileDialogs;
     private readonly PageEventOperationRunner _eventOperations;
+    private readonly IKeyboardShortcutTargetRegistry? _shortcutTargets;
     private bool _hasLoaded;
 
     public LibraryPage(
         LibraryViewModel viewModel,
         IBookCatalogInvalidationState catalogInvalidationState,
         IPresentationFileDialogService fileDialogs,
-        PageEventOperationRunner eventOperations)
+        PageEventOperationRunner eventOperations,
+        IKeyboardShortcutTargetRegistry? shortcutTargets = null)
         : this()
     {
         _catalogInvalidationState = catalogInvalidationState;
         _fileDialogs = fileDialogs;
         _eventOperations = eventOperations;
+        _shortcutTargets = shortcutTargets;
         ViewModel = viewModel;
         DataContext = ViewModel;
     }
@@ -34,6 +37,7 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
         _catalogInvalidationState = null!;
         _fileDialogs = null!;
         _eventOperations = PageEventOperationRunner.DesignTime;
+        _shortcutTargets = null;
         ViewModel = null!;
         InitializeComponent();
     }
@@ -45,6 +49,10 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
         var activation = _activation.Activate();
         ViewModel.HandleNavigatedTo();
         activation.Register(ViewModel.HandleNavigatedFrom);
+        if (_shortcutTargets is not null)
+        {
+            activation.Register(_shortcutTargets.Register(this));
+        }
         if (_hasLoaded && !_catalogInvalidationState.IsInvalidated)
         {
             return;
@@ -64,6 +72,25 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
     {
         _activation.Deactivate();
         return Task.CompletedTask;
+    }
+
+    public async Task<bool> HandleKeyboardShortcutAsync(
+        KeyboardShortcutAction action,
+        string? argument,
+        CancellationToken cancellationToken)
+    {
+        if (action != KeyboardShortcutAction.ImportTextFile ||
+            string.IsNullOrWhiteSpace(argument) ||
+            _activation.Current is not { IsCurrent: true } activation)
+        {
+            return false;
+        }
+
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            activation.CancellationToken);
+        await ViewModel.ImportFilesAsync([argument], linkedCancellation.Token).ConfigureAwait(true);
+        return true;
     }
 
     private async void ImportButton_OnClick(object sender, RoutedEventArgs e)

@@ -10,7 +10,7 @@ public static class PlaybackServiceCollectionExtensions
     public static IServiceCollection AddPlaybackFeature(this IServiceCollection services)
     {
         services.TryAddSingleton<IPlayerAutoScrollCoordinator, PlayerAutoScrollCoordinator>();
-        services.TryAddSingleton<PlayerViewModel>();
+        services.TryAddTransient<PlayerViewModel>();
         services.TryAddTransient<PlayerPage>();
         return services;
     }

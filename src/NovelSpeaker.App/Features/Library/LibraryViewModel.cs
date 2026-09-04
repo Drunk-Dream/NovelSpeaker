@@ -74,7 +74,6 @@ public sealed partial class LibraryViewModel : ObservableObject
         _timeProvider = timeProvider ?? TimeProvider.System;
         ScrollState = scrollState;
         ApplyPlaybackSnapshot(playbackCoordinator.CurrentSnapshot);
-        RegisterPageEvents();
     }
 
     public ObservableCollection<LibraryBookItemViewModel> Books { get; } = [];

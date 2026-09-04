@@ -19,6 +19,7 @@ public static class ShellServiceCollectionExtensions
         services.TryAddSingleton<ShellNavigationAdapter>();
         services.TryAddSingleton<IShellNavigationAdapter>(provider => provider.GetRequiredService<ShellNavigationAdapter>());
         services.TryAddSingleton<IAppNavigator>(provider => provider.GetRequiredService<ShellNavigationAdapter>());
+        services.TryAddSingleton<IKeyboardShortcutTargetRegistry, KeyboardShortcutTargetRegistry>();
         services.TryAddSingleton<IKeyboardShortcutCoordinator, KeyboardShortcutCoordinator>();
         services.TryAddSingleton<IShortcutContextResolver, WpfShortcutContextResolver>();
         services.TryAddSingleton<IShellPlatformAdapter, WpfShellPlatformAdapter>();

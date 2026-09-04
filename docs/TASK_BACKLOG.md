@@ -94,7 +94,7 @@
 
 完成成果：扩展现有 ArchitectureTests，覆盖层间依赖、Feature 循环、DI 生命周期、Service Locator、ReadingProgress、大列表和 Playback owner 边界；保留精确到文件/类型的 T002、T003、T005 临时债务白名单，并补充 XAML、factory 和控制流合同测试。
 
-## [ ] T002（P0）：统一普通 Page/ViewModel 为 transient 生命周期
+## [x] T002（P0）：统一普通 Page/ViewModel 为 transient 生命周期
 
 依赖：T001。
 
@@ -131,6 +131,8 @@
 - process owner 状态不因 VM 重建丢失。
 - 旧页面迟到任务/事件不能写入新实例。
 - DI/ArchitectureTests 更新并通过。
+
+完成成果：6 个普通 Feature ViewModel 改为 transient；Library/Player 页面事件与缓存刷新统一在 activation 中挂接；保留 LibraryScrollState、Playback session、自动滚动等 process/session owner，并补充 DI 生命周期与页面生命周期合同测试。
 
 ## [ ] T003（P0）：重组 App Feature 目录/namespace 并消除跨 Feature 循环
 
