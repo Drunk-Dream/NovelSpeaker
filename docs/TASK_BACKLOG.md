@@ -186,40 +186,83 @@ Codex 完成任务后保留条目并标记 `[x]`，在对应任务末尾追加�
 
 ## Phase C：基于证据的性能修复
 
-## [ ] T004（P0）：按 T003 测量结果消除 BookDetails 返回主线程长阻塞
+## [ ] T004（P0）：消除 BookDetails 缓存状态投影与当前章节定位造成的 UI 长尾
 
 依赖：T003。
 
+已确认前提：
+
+- T003 已排除 Player 离开、应用导航、BookDetails transient 页面创建和当前 SQLite 查询耗时作为当前主要卡顿来源。
+- 180 章 fixture 中，主要长尾来自 `ApplyChapterCacheStatuses` 对全部章节逐项触发属性通知/Binding/Layout，与 `CurrentItemLocatorInteraction` 等待虚拟化列表就绪、监听布局并执行当前章节定位相互放大。
+- Wpf.Ui 默认 `FadeInWithSlide/200 ms` transition 会额外增加感知延迟，但应与上述首屏 UI 重工作分离处理。
+- SQLite 详情头存在全量 Chapters / AudioCacheEntries 聚合和临时 B-tree 等规模增长风险，但当前实测仅约毫秒级，不是本任务首先要解决的数百毫秒 UI 长尾。
+
 目标：
 
-- Player 返回详情页时尽快出现可交互的详情页面/轻量摘要，重工作不会形成明显 UI freeze。
-- 保持 transient Page + 强类型 `BookDetailsRoute` 架构，不靠页面缓存绕过真实加载成本。
+- Player→BookDetails 与普通进入 BookDetails 时，页面先完成首屏呈现并保持 Dispatcher 可响应；缓存百分比和当前章节定位不得在同一首屏阶段形成数百毫秒连续 UI 工作。
+- 保留 transient Page、强类型 `BookDetailsRoute(BookId)`、T002 Effective Reading Progress、章节虚拟化和缓存状态语义，不通过页面缓存、Singleton 或隐藏功能来换取性能。
+- 在 T003 相同 180 章场景下显著消除约 800 ms 量级的 UI 长尾，使修复后的主要阶段回到与 T003 单独关闭缓存投影/定位后的百毫秒量级同一数量级；该数值只用于本轮诊断复测，不建立固定毫秒 CI 门禁。
 
 实施方向：
 
-1. 先读取 T003 的“完成成果”，只修复有测量证据的主瓶颈；不要把所有候选优化一次性混入。
-2. 如果 SQLite/同步 I/O 是主要成本：
-   - 让真实同步数据库工作在明确的非 Dispatcher 执行边界运行；不要用 `Task.Yield()` 冒充后台调度。
-   - 单书查询限制到目标 `BookId`，避免为了一个详情页聚合整库数据；按 query plan 增补/复用必要索引。
-   - 保持连接/reader 的线程所有权清晰，不跨线程搬运活动 SQLite 对象。
-3. 如果 DTO→章节 VM / `ObservableCollection.Clear()+N×Add()` / layout 是主要成本：
-   - 纯投影尽量在 UI 提交前完成。
-   - UI 侧采用能够减少大量逐项 CollectionChanged/layout 的批量替换方式，同时保持虚拟化、绑定和 current-item 语义。
-4. 如果初始缓存完整度刷新或 current-item locator 是主要成本：
-   - 将非首帧必需工作推迟到页面已呈现之后，并保留取消、版本和离页清理。
-   - 不允许迟到结果作用于已离开的 transient Page。
-5. 如果 Wpf.Ui transition 是显著放大器：
-   - 仅在确认 transition 本身占据主要 UI 时间后调整该页面/宿主的 transition 策略。
-   - 不以全局禁用所有动效作为默认修复。
-6. Header/轻量摘要与详情 supplement 保持清晰阶段：页面先获得可用身份与基础信息；章节目录/缓存等补充数据异步完成。不要为了“首帧快”显示错误的当前章节，T002 的 Effective Progress 仍必须即时覆盖。
+1. 先建立针对已确认主因的回归保护，再修改实现：
+   - 能证明初始详情数据提交后，首帧/Dispatcher 不需要同步等待“全章缓存状态逐项投影 + current-item 定位”全部完成。
+   - 能证明离页/取消后，延后的缓存投影和定位不会继续作用于旧 transient Page。
+   - 不以 `Task.Delay` 或固定 sleep 证明性能，优先使用 Dispatcher 阶段、可控 scheduler、版本/取消 token 和明确完成信号。
+
+2. 优先重构 **初始全章缓存状态投影**，目标是避免“180 个已绑定行在一个 Dispatcher 阶段逐个 `ApplyCacheStatus`”：
+   - 区分“首次进入页面的整章缓存状态加载”和后续 `CacheChangedEventArgs.ChapterIndex` 指向的单章增量刷新；单章变化仍应只更新受影响章节，不退化成整书刷新。
+   - 缓存查询结果可先在非 UI 数据结构中整理/格式化；UI 层不要为了同一批结果反复做字典查找、全表扫描和逐项同步通知。
+   - 优先选择能减少 Binding/Layout 次数的批量提交方式，例如一次性构造带缓存投影的章节行快照并以单次 Reset/等价批量变更提交，或采用只对实际变化/当前已实现行产生通知的虚拟化友好方案。具体实现可按现有架构决定，但不得仅把 180 次属性通知包进另一个同步循环后宣称“批量化”。
+   - 若采用分批/低优先级增量提交，批次必须有明确 owner、取消和版本边界，并允许 Dispatcher 在批次之间处理渲染和输入；不得形成新的 fire-and-forget 生命周期泄漏。
+   - 保持“0% 和非正常状态在普通详情目录不显示”的既有 UI 合同。
+
+3. 重构 **`CurrentItemLocatorInteraction` 初始定位时机**，避免与全章缓存投影竞争同一轮布局：
+   - 首次导航只在章节集合已经提交、ListBox/ScrollViewer/虚拟化容器达到可靠就绪条件后执行一次初始定位。
+   - 不要在缓存状态仍批量改变行绑定/布局时持续通过 `LayoutUpdated` 反复重算定位；pending request 完成后立即解除临时 readiness/layout 监听。
+   - 将“初始自动定位”和“用户点击定位到当前章节”保持同一定位核心，但用户主动定位仍必须立即响应，不能被初始延后策略长期阻塞。
+   - T002 的 Snapshot 当前章节变化仍要更新 `CurrentChapterItem`；不要为了性能冻结旧章节或取消后续用户可观察定位能力。
+
+4. 明确 **首屏阶段顺序**，避免两个已确认重工作相互放大。推荐默认顺序：
+   - 加载并提交 Header / details 基础数据和章节列表；
+   - 允许页面完成首个可观测 render；
+   - 执行一次稳定的当前章节初始定位；
+   - 再以批量或可让出 Dispatcher 的方式提交整章缓存百分比；
+   - 后续只按缓存变化做增量刷新。
+   若实际复测证明“缓存先、定位后”更稳定，可以调整顺序，但必须用 T003 同一 harness/等价诊断数据说明原因。
+
+5. 单独处理 **Wpf.Ui transition 与首屏重工作的协调**：
+   - 先完成第 2–4 项并复测，再判断默认 `FadeInWithSlide/200 ms` 是否仍造成明显额外延迟。
+   - 优先避免重布局与 transition 动画重叠，而不是立即全局关闭动画。
+   - 若主因修复后 transition 仍是显著感知成本，可采用最小作用域的策略调整 BookDetails/二级页面导航动画或时长；不得无证据全局关闭 NovelSpeaker 所有页面动效。
+   - Reduced Motion / 系统动画关闭语义必须继续正确。
+
+6. SQLite 只做 **次级规模化检查**，不能再次抢占本任务主线：
+   - 在 UI 长尾修复后复测 `GetBookDetailsHeaderAsync` / `GetBookDetailsAsync`。
+   - 若修改风险低，可将单书详情统计限制到目标 `BookId`，避免物化并扫描全库 Chapters / AudioCacheEntries 聚合，并验证 query plan/现有索引。
+   - 不因为方法名含 `Async` 或调用 `ExecuteReaderAsync` 就声称查询已离开 Dispatcher；如最终仍需要线程迁移，必须有实际线程/耗时证据。
+   - SQL 优化不得改变书籍详情、缓存总量和阅读进度查询口径。
+
+7. 不要顺带大改与主因无关的 `ViewModelCollectionExtensions.ReplaceWith`。T003 已测得 180 项基础章节投影仅约 1–2 ms；只有新的复测证明它在最终实现中重新成为主要瓶颈时才调整公共集合基础设施。
 
 专项测试/验收：
 
-- 使用 T003 同一对照场景复测，记录修复前/后主要阶段数据。
-- 可控 slow query/slow projection 场景证明页面首帧/Dispatcher 不被重工作同步卡住；避免脆弱的固定毫秒阈值。
-- `BookDetailsRoute(BookId)`、Dirty State guard、目录虚拟化、当前章节定位、缓存百分比和详情编辑行为无回归。
-- 快速往返 Player/Details、导航取消和页面离开时，不发生迟到 apply、ObjectDisposedException 或后台异常未观察。
-- 不新增 Page/ViewModel Singleton、Navigation cache workaround 或重复详情状态缓存。
+- 使用与 T003 一致的 180 章 fixture、1280×760 viewport 和 Library→Details / 热进入 / Player→Back→Details 路径复测，记录修复前后：首个 render、当前章节初始定位完成、整章缓存状态投影完成、页面稳定阶段。
+- 修复后不得再出现 `ApplyChapterCacheStatuses` 一次性对全部章节同步触发长时间 Binding/Layout 的已知路径；全章刷新要么单次批量提交，要么可让出 Dispatcher 的有界增量提交。
+- 初始 locator 不应因为随后每个缓存行属性变化持续收到/处理整轮 `LayoutUpdated`；定位完成后临时监听必须解除。
+- Player→Back→Details 在缓存状态尚未完全投影时，页面基础信息、当前章节和返回/编辑等首屏交互仍可用。
+- 缓存状态最终必须完整正确：有百分比章节显示正确值，0%/非正常状态继续隐藏；后续单章缓存变化仍能刷新对应行。
+- 当前章节定位、用户手动滚动后的“定位到当前章节”、虚拟化长目录、Effective Reading Progress、Dirty State guard 和强类型返回均无回归。
+- 快速 Player↔Details 往返、导航取消、页面离开时，不出现迟到 apply、旧页面定位、ObjectDisposedException、未观察后台异常或残留事件订阅。
+- Wpf.Ui transition 调整若发生，必须提供“主因修复后”的独立 A/B 数据，并验证正常动画与 Reduced Motion 两种路径。
+- SQLite 若顺带优化，必须有 Infrastructure 集成测试保证查询语义，并记录优化前后 query plan；不得把 SQL 优化作为“UI 卡顿已修复”的唯一依据。
+- 所有 T004 临时 harness、计时日志、trace、A/B 开关和诊断脚本在任务结束前删除；使用 `git status --short` 审计无副产物。
+
+完成标准：
+
+- T003 已确认的两个 UI 主因均有针对性实现和自动回归，不再停留于“Task.Yield/后台 SQLite”式无效修复。
+- 同一诊断 fixture 下，原正常路径的数百毫秒长尾显著收敛；如果仍明显高于 T003 单项关闭缓存投影/定位时的百毫秒级结果，应继续定位剩余 Dispatcher 工作，不能直接关闭任务。
+- 生产代码保持既有导航、进度和页面生命周期架构，没有新增页面缓存、Singleton、第三套详情状态或无 owner 的后台任务。
 
 ## Phase D：集成回归与收口
 
