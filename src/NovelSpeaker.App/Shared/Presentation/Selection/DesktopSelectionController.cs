@@ -1,5 +1,3 @@
-using System.Collections.ObjectModel;
-
 namespace NovelSpeaker.App.Shared.Presentation.Selection;
 
 /// <summary>
@@ -10,21 +8,27 @@ public sealed class DesktopSelectionController<TKey>
     where TKey : notnull
 {
     private readonly IEqualityComparer<TKey> _comparer;
-    private readonly List<TKey> _items = [];
+    private IReadOnlyList<TKey> _items = [];
+    private IReadOnlyDictionary<TKey, int> _itemPositions;
     private readonly HashSet<TKey> _selected;
-    private IReadOnlyList<TKey> _selectedItems = Array.Empty<TKey>();
+    private readonly HashSet<TKey> _pendingChangedItems;
+    private readonly List<TKey> _selectedItems = [];
+    private readonly IReadOnlyList<TKey> _selectedItemsView;
     private TKey? _anchorItem;
     private TKey? _primaryItem;
 
     public DesktopSelectionController(IEqualityComparer<TKey>? comparer = null)
     {
         _comparer = comparer ?? EqualityComparer<TKey>.Default;
+        _itemPositions = new Dictionary<TKey, int>(_comparer);
         _selected = new HashSet<TKey>(_comparer);
+        _pendingChangedItems = new HashSet<TKey>(_comparer);
+        _selectedItemsView = new SelectedItemsView(_selectedItems);
     }
 
     public event EventHandler<DesktopSelectionChangedEventArgs<TKey>>? SelectionChanged;
 
-    public IReadOnlyList<TKey> SelectedItems => _selectedItems;
+    public IReadOnlyList<TKey> SelectedItems => _selectedItemsView;
 
     public int Count => _selected.Count;
 
@@ -38,7 +42,7 @@ public sealed class DesktopSelectionController<TKey>
 
     public bool IsSelected(TKey item) => _selected.Contains(item);
 
-    public void SetItems(IEnumerable<TKey> items)
+    public void SetItems(IEnumerable<TKey> items, bool resetSelection = false)
     {
         ArgumentNullException.ThrowIfNull(items);
 
@@ -52,14 +56,66 @@ public sealed class DesktopSelectionController<TKey>
             }
         }
 
-        if (_items.SequenceEqual(replacement, _comparer))
+        var positions = replacement
+            .Select((item, index) => (item, index))
+            .ToDictionary(item => item.item, item => item.index, _comparer);
+        SetIndexedItems(replacement, positions, resetSelection);
+    }
+
+    public void SetIndexedItems(
+        IReadOnlyList<TKey> items,
+        IReadOnlyDictionary<TKey, int> positions,
+        bool resetSelection = false)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(positions);
+
+        var itemsAreUnchanged = !resetSelection && _items.SequenceEqual(items, _comparer);
+        if (itemsAreUnchanged && !resetSelection)
         {
             return;
         }
 
-        _items.Clear();
-        _items.AddRange(replacement);
-        _selected.RemoveWhere(item => !replacementSet.Contains(item));
+        if (resetSelection)
+        {
+            foreach (var selectedItem in _selected)
+            {
+                MarkChanged(selectedItem);
+            }
+
+            _selected.Clear();
+            _selectedItems.Clear();
+            ResetMetadata();
+        }
+
+        if (itemsAreUnchanged)
+        {
+            PublishChange();
+            return;
+        }
+
+        _items = items;
+        _itemPositions = positions;
+
+        foreach (var item in _selected
+                     .Where(item => !_itemPositions.ContainsKey(item))
+                     .ToArray())
+        {
+            MarkChanged(item);
+            _selected.Remove(item);
+        }
+
+        _selectedItems.Clear();
+        if (_selected.Count > 0)
+        {
+            foreach (var item in _items)
+            {
+                if (_selected.Contains(item))
+                {
+                    _selectedItems.Add(item);
+                }
+            }
+        }
 
         if (_selected.Count == 0)
         {
@@ -72,7 +128,7 @@ public sealed class DesktopSelectionController<TKey>
                 SetPrimary(FirstSelectedItem());
             }
 
-            if (!HasAnchor || !replacementSet.Contains(_anchorItem!))
+            if (!HasAnchor || !_itemPositions.ContainsKey(_anchorItem!))
             {
                 SetAnchor(_primaryItem!);
             }
@@ -101,8 +157,23 @@ public sealed class DesktopSelectionController<TKey>
         }
         else
         {
+            foreach (var selectedItem in _selected)
+            {
+                if (!_comparer.Equals(selectedItem, item))
+                {
+                    MarkChanged(selectedItem);
+                }
+            }
+
+            if (!_selected.Contains(item))
+            {
+                MarkChanged(item);
+            }
+
             _selected.Clear();
             _selected.Add(item);
+            _selectedItems.Clear();
+            _selectedItems.Add(item);
             SetAnchor(item);
             SetPrimary(item);
         }
@@ -118,8 +189,18 @@ public sealed class DesktopSelectionController<TKey>
             return;
         }
 
+        foreach (var item in _items)
+        {
+            if (!_selected.Contains(item))
+            {
+                MarkChanged(item);
+            }
+        }
+
         _selected.Clear();
         _selected.UnionWith(_items);
+        _selectedItems.Clear();
+        _selectedItems.AddRange(_items);
 
         if (!HasPrimary || !_selected.Contains(_primaryItem!))
         {
@@ -141,7 +222,13 @@ public sealed class DesktopSelectionController<TKey>
             return;
         }
 
+        foreach (var selectedItem in _selected)
+        {
+            MarkChanged(selectedItem);
+        }
+
         _selected.Clear();
+        _selectedItems.Clear();
         ResetMetadata();
         PublishChange();
     }
@@ -160,16 +247,35 @@ public sealed class DesktopSelectionController<TKey>
             SetAnchor(item);
         }
 
+        var previousSelected = _selected.ToHashSet(_comparer);
         if (!preserveExisting)
         {
             _selected.Clear();
+            _selectedItems.Clear();
         }
 
         var start = Math.Min(anchorIndex, itemIndex);
         var end = Math.Max(anchorIndex, itemIndex);
         for (var index = start; index <= end; index++)
         {
-            _selected.Add(_items[index]);
+            var rangeItem = _items[index];
+            AddSelected(rangeItem);
+        }
+
+        foreach (var selectedItem in previousSelected)
+        {
+            if (!_selected.Contains(selectedItem))
+            {
+                MarkChanged(selectedItem);
+            }
+        }
+
+        foreach (var selectedItem in _selected)
+        {
+            if (!previousSelected.Contains(selectedItem))
+            {
+                MarkChanged(selectedItem);
+            }
         }
 
         SetPrimary(item);
@@ -178,8 +284,9 @@ public sealed class DesktopSelectionController<TKey>
     private void Toggle(TKey item)
     {
         SetAnchor(item);
-        if (_selected.Remove(item))
+        if (RemoveSelected(item))
         {
+            MarkChanged(item);
             if (_selected.Count == 0)
             {
                 HasPrimary = false;
@@ -193,13 +300,15 @@ public sealed class DesktopSelectionController<TKey>
             return;
         }
 
-        _selected.Add(item);
+        AddSelected(item);
+        MarkChanged(item);
         SetPrimary(item);
     }
 
-    private TKey FirstSelectedItem() => _items.First(_selected.Contains);
+    private TKey FirstSelectedItem() => _selectedItems[0];
 
-    private int FindIndex(TKey item) => _items.FindIndex(candidate => _comparer.Equals(candidate, item));
+    private int FindIndex(TKey item) =>
+        _itemPositions.TryGetValue(item, out var position) ? position : -1;
 
     private void SetAnchor(TKey item)
     {
@@ -223,14 +332,96 @@ public sealed class DesktopSelectionController<TKey>
 
     private void PublishChange()
     {
-        _selectedItems = new ReadOnlyCollection<TKey>(_items.Where(_selected.Contains).ToArray());
+        var changedItems = _pendingChangedItems.ToArray();
+        _pendingChangedItems.Clear();
         SelectionChanged?.Invoke(
             this,
             new DesktopSelectionChangedEventArgs<TKey>(
-                _selectedItems,
+                changedItems,
                 HasAnchor,
                 _anchorItem,
                 HasPrimary,
                 _primaryItem));
+    }
+
+    private void MarkChanged(TKey item) => _pendingChangedItems.Add(item);
+
+    private bool AddSelected(TKey item)
+    {
+        if (!_selected.Add(item))
+        {
+            return false;
+        }
+
+        var itemPosition = _itemPositions[item];
+        var low = 0;
+        var high = _selectedItems.Count;
+        while (low < high)
+        {
+            var middle = low + ((high - low) / 2);
+            if (_itemPositions[_selectedItems[middle]] < itemPosition)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        _selectedItems.Insert(low, item);
+        return true;
+    }
+
+    private bool RemoveSelected(TKey item)
+    {
+        if (!_selected.Remove(item))
+        {
+            return false;
+        }
+
+        var itemPosition = _itemPositions[item];
+        var low = 0;
+        var high = _selectedItems.Count - 1;
+        while (low <= high)
+        {
+            var middle = low + ((high - low) / 2);
+            var middlePosition = _itemPositions[_selectedItems[middle]];
+            if (middlePosition < itemPosition)
+            {
+                low = middle + 1;
+            }
+            else if (middlePosition > itemPosition)
+            {
+                high = middle - 1;
+            }
+            else
+            {
+                _selectedItems.RemoveAt(middle);
+                break;
+            }
+        }
+
+        return true;
+    }
+
+    private bool IsInRange(TKey item, int anchorIndex, int itemIndex)
+    {
+        var index = FindIndex(item);
+        var start = Math.Min(anchorIndex, itemIndex);
+        var end = Math.Max(anchorIndex, itemIndex);
+        return index >= start && index <= end;
+    }
+
+    private sealed class SelectedItemsView(List<TKey> items) : IReadOnlyList<TKey>
+    {
+        public int Count => items.Count;
+
+        public TKey this[int index] => items[index];
+
+        public IEnumerator<TKey> GetEnumerator() => items.GetEnumerator();
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() =>
+            GetEnumerator();
     }
 }

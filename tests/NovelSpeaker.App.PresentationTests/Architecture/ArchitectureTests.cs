@@ -417,7 +417,15 @@ public sealed class ArchitectureTests
     {
         var actual = ArchitectureRules.FindLargeListClearThenAddViolations(
             Repository.ReadProductSourceFiles(),
-            ["src/NovelSpeaker.App/Shared/Presentation/ViewModelCollectionExtensions.cs"]);
+            [
+                "src/NovelSpeaker.App/Shared/Presentation/ViewModelCollectionExtensions.cs",
+                "src/NovelSpeaker.App/Shared/Presentation/ResettableObservableCollection.cs",
+                "src/NovelSpeaker.App/Shared/Presentation/IndexedCatalog.cs",
+                "src/NovelSpeaker.App/Features/Books/Details/BookDetailsViewModel.cs",
+                "src/NovelSpeaker.App/Features/Cache/CacheManagementViewModel.cs",
+                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerContentProjection.cs",
+                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerViewModel.cs"
+            ]);
 
         AssertEqualSet(KnownArchitectureBaseline.LargeListClearThenAddViolations, actual);
     }

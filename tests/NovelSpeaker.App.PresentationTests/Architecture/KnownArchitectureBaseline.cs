@@ -24,10 +24,6 @@ internal static class KnownArchitectureBaseline
     public static readonly IReadOnlySet<string> FeaturePageOrViewModelSingletonRegistrations =
         new HashSet<string>(StringComparer.Ordinal);
 
-    // T005 replaces this helper with a batch catalog/projection primitive.
     public static readonly IReadOnlySet<string> LargeListClearThenAddViolations =
-        new HashSet<string>(StringComparer.Ordinal)
-        {
-            "src/NovelSpeaker.App/Shared/Presentation/ViewModelCollectionExtensions.cs"
-        };
+        new HashSet<string>(StringComparer.Ordinal);
 }

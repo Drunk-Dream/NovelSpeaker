@@ -41,14 +41,18 @@ public static class EffectiveReadingProgressProjector
         string bookId,
         IReadOnlyList<BookChapterSummary> catalog,
         BookReadingPosition? persisted,
-        PlaybackSnapshot snapshot)
+        PlaybackSnapshot snapshot,
+        Func<int, int?>? chapterPositionResolver = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(snapshot);
 
+        chapterPositionResolver ??= chapterIndex => FindChapterPosition(catalog, chapterIndex);
         var totalChapterCount = catalog.Count;
-        var persistedChapterPosition = FindChapterPosition(catalog, persisted?.ChapterIndex);
+        var persistedChapterPosition = persisted?.ChapterIndex is int persistedChapterIndex
+            ? chapterPositionResolver(persistedChapterIndex)
+            : null;
         var currentChapterIndex = persistedChapterPosition is int
             ? persisted!.ChapterIndex
             : (int?)null;
@@ -80,7 +84,7 @@ public static class EffectiveReadingProgressProjector
                 false);
         }
 
-        var snapshotChapterPosition = FindChapterPosition(catalog, snapshot.ChapterIndex);
+        var snapshotChapterPosition = chapterPositionResolver(snapshot.ChapterIndex);
         if (snapshotChapterPosition is not int activePosition)
         {
             return baseline;

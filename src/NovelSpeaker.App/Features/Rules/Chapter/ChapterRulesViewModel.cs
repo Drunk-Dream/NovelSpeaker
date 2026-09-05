@@ -24,6 +24,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
     private readonly IAppNavigator _navigator;
     private readonly IRuleDocumentInteraction _ruleDocuments;
     private readonly EditorSession<string?, ChapterRuleEditorModel> _editorSession = new(EditorsEqual);
+    private readonly ResettableObservableCollection<ChapterRuleListItemViewModel> _rules = [];
     private int _importOperationActive;
     private bool _suppressDraftStateUpdates;
 
@@ -41,7 +42,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
         _ruleDocuments = ruleDocuments;
     }
 
-    public ObservableCollection<ChapterRuleListItemViewModel> Rules { get; } = [];
+    public ObservableCollection<ChapterRuleListItemViewModel> Rules => _rules;
 
     [ObservableProperty]
     private bool isBusy;
@@ -637,7 +638,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
     {
         var rules = await _workspaceService.GetRulesAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        Rules.ReplaceWith(
+        _rules.ReplaceWith(
             rules,
             rule => new ChapterRuleListItemViewModel(
                 rule.Id,
@@ -898,7 +899,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
             return;
         }
 
-        Rules.ReplaceWith(reordered, rule => rule);
+        _rules.ReplaceWith(reordered, rule => rule);
         UpdateRuleItemStates();
         NotifyUiStateChanged();
     }

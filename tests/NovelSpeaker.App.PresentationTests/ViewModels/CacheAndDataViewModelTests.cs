@@ -195,7 +195,18 @@ public sealed class CacheAndDataViewModelTests
             throw new NotSupportedException();
         }
 
+        public Task<CachedBookCacheItem?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(string bookId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<CachedChapterCacheItem?> GetCachedChapterAsync(
+            string bookId,
+            int chapterIndex,
+            CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }

@@ -1,21 +1,7 @@
-using System.Collections.ObjectModel;
-
 namespace NovelSpeaker.App.Shared.Presentation;
 
 internal static class ViewModelCollectionExtensions
 {
-    public static void ReplaceWith<TSource, TTarget>(
-        this ObservableCollection<TTarget> collection,
-        IEnumerable<TSource> items,
-        Func<TSource, TTarget> projector)
-    {
-        collection.Clear();
-        foreach (var item in items)
-        {
-            collection.Add(projector(item));
-        }
-    }
-
     public static T? SelectByKeyOrFallback<T>(
         this IEnumerable<T> items,
         object? selectedKey,

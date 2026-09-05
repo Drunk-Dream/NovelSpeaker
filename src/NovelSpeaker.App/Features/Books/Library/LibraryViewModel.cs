@@ -34,6 +34,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     private readonly IUiScheduler _uiScheduler;
     private readonly TimeProvider _timeProvider;
     private readonly OwnedTaskRegistry _pageTasks = new();
+    private readonly ResettableObservableCollection<LibraryBookItemViewModel> _books = [];
     private CancellationTokenSource? _searchDebounceCancellationTokenSource;
     private IReadOnlyList<LibraryBookItemViewModel> _allBooks = [];
     private IReadOnlyDictionary<string, BookSummary> _persistedBooks =
@@ -74,7 +75,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         ApplyPlaybackSnapshot(playbackCoordinator.CurrentSnapshot);
     }
 
-    public ObservableCollection<LibraryBookItemViewModel> Books { get; } = [];
+    public ObservableCollection<LibraryBookItemViewModel> Books => _books;
 
     public IReadOnlyList<LibrarySortOption> AvailableSortOptions => SortOptions;
 
@@ -364,7 +365,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         };
 
         var visibleBooks = filteredBooks.ToArray();
-        Books.ReplaceWith(visibleBooks, static book => book);
+        _books.ReplaceWith(visibleBooks, static book => book);
         HasBooks = _allBooks.Count > 0;
         HasVisibleBooks = visibleBooks.Length > 0;
         LibrarySummaryText = BuildLibrarySummary(_allBooks.Count, SelectedSortMode);

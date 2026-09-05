@@ -96,12 +96,41 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         return RunExclusiveAsync(_index.GetBooksAsync, cancellationToken);
     }
 
+    public Task<CachedBookStoreSummary?> GetBookAsync(
+        string bookId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        return RunExclusiveAsync(ct => _index.GetBookAsync(bookId, ct), cancellationToken);
+    }
+
     public Task<IReadOnlyList<CachedChapterStoreSummary>> GetChaptersAsync(
         string bookId,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
         return RunExclusiveAsync(ct => _index.GetChaptersAsync(bookId, ct), cancellationToken);
+    }
+
+    public Task<IReadOnlyList<CachedChapterStoreSummary>> GetChaptersAsync(
+        string bookId,
+        IReadOnlyCollection<int> chapterIndices,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        ArgumentNullException.ThrowIfNull(chapterIndices);
+        return RunExclusiveAsync(
+            ct => _index.GetChaptersAsync(bookId, chapterIndices, ct),
+            cancellationToken);
+    }
+
+    public Task<CachedChapterStoreSummary?> GetChapterAsync(
+        string bookId,
+        int chapterIndex,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        return RunExclusiveAsync(ct => _index.GetChapterAsync(bookId, chapterIndex, ct), cancellationToken);
     }
 
     public Task<IReadOnlyList<ChapterCacheStatus>> GetCurrentConfigurationStatusesAsync(

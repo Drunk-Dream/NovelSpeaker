@@ -99,6 +99,9 @@ public sealed class CacheManagementPageLifecycleTests
         public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
             Task.FromResult(Books);
 
+        public Task<CachedBookCacheItem?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) =>
+            Task.FromResult(Books.FirstOrDefault(book => book.BookId == bookId));
+
         public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(
             string bookId,
             CancellationToken cancellationToken)
@@ -107,6 +110,16 @@ public sealed class CacheManagementPageLifecycleTests
             return LoadOnBackgroundThread
                 ? Task.Run<IReadOnlyList<CachedChapterCacheItem>>(() => chapters, cancellationToken)
                 : Task.FromResult<IReadOnlyList<CachedChapterCacheItem>>(chapters);
+        }
+
+        public Task<CachedChapterCacheItem?> GetCachedChapterAsync(
+            string bookId,
+            int chapterIndex,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(
+                Chapters.FirstOrDefault(chapter =>
+                    chapter.BookId == bookId && chapter.ChapterIndex == chapterIndex));
         }
 
         public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(

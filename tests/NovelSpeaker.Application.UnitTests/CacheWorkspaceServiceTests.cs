@@ -62,6 +62,58 @@ public sealed class CacheWorkspaceServiceTests
     }
 
     [Fact]
+    public async Task GetCachedBooksAsync_uses_a_targeted_books_query_for_cached_ids()
+    {
+        var store = new FakeAudioCacheStore
+        {
+            BooksResult =
+            [
+                new CachedBookStoreSummary("book-1", 1, 1, 1024),
+                new CachedBookStoreSummary("book-2", 1, 1, 2048)
+            ]
+        };
+        var bookQuery = new FakeBookLibraryQuery
+        {
+            Books =
+            [
+                new BookSummary("book-1", "第一本", null, "未开始", DateTimeOffset.UtcNow),
+                new BookSummary("book-2", "第二本", null, "未开始", DateTimeOffset.UtcNow)
+            ]
+        };
+        using var service = CreateService(
+            store,
+            new FakeBookPlaybackMetadataQuery(),
+            bookLibraryQuery: bookQuery);
+
+        var books = await service.GetCachedBooksAsync(CancellationToken.None);
+
+        Assert.Equal(2, books.Count);
+        Assert.Equal(["book-1", "book-2"], bookQuery.RequestedBookIds);
+    }
+
+    [Fact]
+    public async Task GetCachedBookAsync_enriches_only_the_requested_book()
+    {
+        var store = new FakeAudioCacheStore
+        {
+            BooksResult =
+            [
+                new CachedBookStoreSummary("book-1", 2, 3, 4096),
+                new CachedBookStoreSummary("book-2", 1, 1, 1024)
+            ]
+        };
+        var metadata = new FakeBookPlaybackMetadataQuery();
+        metadata.Books["book-1"] = new PlaybackBookMetadata("book-1", "示例书", "作者甲", []);
+        var service = CreateService(store, metadata);
+
+        var book = await service.GetCachedBookAsync("book-1", CancellationToken.None);
+
+        Assert.NotNull(book);
+        Assert.Equal("示例书", book.Title);
+        Assert.Equal(["book-1"], metadata.RequestedBookIds);
+    }
+
+    [Fact]
     public async Task GetCachedChaptersAsync_projects_aggregate_coverage_for_the_current_playback_configuration()
     {
         var store = new FakeAudioCacheStore
@@ -117,6 +169,37 @@ public sealed class CacheWorkspaceServiceTests
         Assert.Equal(2, chapters.Count);
         Assert.Equal(1, store.CoverageQueryCount);
         Assert.Equal(2, store.LastCoverageQuery.Count);
+    }
+
+    [Fact]
+    public async Task GetCachedChapterAsync_uses_targeted_store_and_metadata_queries_when_rule_is_unavailable()
+    {
+        var store = new FakeAudioCacheStore
+        {
+            ChaptersResult =
+            [
+                new CachedChapterStoreSummary("book-1", 0, 1, 1, 1024),
+                new CachedChapterStoreSummary("book-1", 1, 2, 2, 2048)
+            ]
+        };
+        var metadata = new FakeBookPlaybackMetadataQuery();
+        metadata.Chapters[("book-1", 1)] = new PlaybackChapterMetadata(
+            1,
+            "第二章",
+            "content.txt",
+            1,
+            2,
+            "chapter-1-1");
+        var service = CreateService(store, metadata, ruleId: null);
+
+        var chapter = await service.GetCachedChapterAsync("book-1", 1, CancellationToken.None);
+
+        Assert.NotNull(chapter);
+        Assert.Equal(1, chapter.ChapterIndex);
+        Assert.Equal("第二章", chapter.Title);
+        Assert.Equal(1, store.TargetChapterQueryCount);
+        Assert.Equal(0, store.ChaptersQueryCount);
+        Assert.Equal([new[] { 1 }], metadata.RequestedChapterIndexBatches);
     }
 
     [Fact]
@@ -764,7 +847,8 @@ public sealed class CacheWorkspaceServiceTests
         IAppSettingsService? settingsService = null,
         IRegexReplacementRuleRepository? regexRuleRepository = null,
         ICacheWorkspaceFailureReporter? failureReporter = null,
-        IChapterSpeechPlanStore? speechPlanStore = null)
+        IChapterSpeechPlanStore? speechPlanStore = null,
+        IBookLibraryQuery? bookLibraryQuery = null)
     {
         return new CacheWorkspaceService(
             store,
@@ -774,7 +858,28 @@ public sealed class CacheWorkspaceServiceTests
             failureReporter: failureReporter,
             bookContentService: bookContentService,
             regexRuleRepository: regexRuleRepository,
-            speechPlanStore: speechPlanStore);
+            speechPlanStore: speechPlanStore,
+            bookLibraryQuery: bookLibraryQuery);
+    }
+
+    private sealed class FakeBookLibraryQuery : IBookLibraryQuery
+    {
+        public IReadOnlyList<BookSummary> Books { get; init; } = [];
+
+        public List<string> RequestedBookIds { get; } = [];
+
+        public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(Books);
+
+        public Task<IReadOnlyList<BookSummary>> GetBooksAsync(
+            IReadOnlyCollection<string> bookIds,
+            CancellationToken cancellationToken)
+        {
+            RequestedBookIds.AddRange(bookIds);
+            var requested = bookIds.ToHashSet(StringComparer.Ordinal);
+            return Task.FromResult<IReadOnlyList<BookSummary>>(
+                Books.Where(book => requested.Contains(book.Id)).ToArray());
+        }
     }
 
     private sealed class FakeAudioCacheStore : IAudioCacheStore
@@ -787,6 +892,10 @@ public sealed class CacheWorkspaceServiceTests
         public IReadOnlyList<CachedBookStoreSummary> BooksResult { get; set; } = [];
 
         public IReadOnlyList<CachedChapterStoreSummary> ChaptersResult { get; set; } = [];
+
+        public int ChaptersQueryCount { get; private set; }
+
+        public int TargetChapterQueryCount { get; private set; }
 
         public AudioCacheStoreCleanupResult CleanupResult { get; set; } = new(0, 0, 0, 0);
 
@@ -814,7 +923,25 @@ public sealed class CacheWorkspaceServiceTests
 
         public Task<IReadOnlyList<CachedBookStoreSummary>> GetBooksAsync(CancellationToken cancellationToken) => Task.FromResult(BooksResult);
 
-        public Task<IReadOnlyList<CachedChapterStoreSummary>> GetChaptersAsync(string bookId, CancellationToken cancellationToken) => Task.FromResult(ChaptersResult);
+        public Task<CachedBookStoreSummary?> GetBookAsync(string bookId, CancellationToken cancellationToken) =>
+            Task.FromResult(BooksResult.FirstOrDefault(book => book.BookId == bookId));
+
+        public Task<IReadOnlyList<CachedChapterStoreSummary>> GetChaptersAsync(string bookId, CancellationToken cancellationToken)
+        {
+            ChaptersQueryCount++;
+            return Task.FromResult(ChaptersResult);
+        }
+
+        public Task<CachedChapterStoreSummary?> GetChapterAsync(
+            string bookId,
+            int chapterIndex,
+            CancellationToken cancellationToken)
+        {
+            TargetChapterQueryCount++;
+            return Task.FromResult(
+                ChaptersResult.FirstOrDefault(chapter =>
+                    chapter.BookId == bookId && chapter.ChapterIndex == chapterIndex));
+        }
 
         public Task<IReadOnlyList<ChapterCacheStatus>> GetCurrentConfigurationStatusesAsync(
             IReadOnlyCollection<CurrentCacheChapterQuery> chapters,

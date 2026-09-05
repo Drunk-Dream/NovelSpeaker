@@ -162,12 +162,32 @@ internal sealed class ChapterCacheStatusRefreshController
         }
         catch
         {
+            var restartPending = false;
             lock (_syncRoot)
             {
                 if (generation == _activationGeneration)
                 {
                     _isRefreshRunning = false;
+                    restartPending = _pendingChapterIndices.Count > 0 &&
+                                     _activationCancellationTokenSource is { IsCancellationRequested: false };
+                    if (restartPending)
+                    {
+                        _isRefreshRunning = true;
+                    }
                 }
+            }
+
+            if (restartPending)
+            {
+                _tasks.Register(
+                    ProcessRefreshesAsync(generation, cancellationToken),
+                    exception =>
+                    {
+                        if (IsCurrentGeneration(generation))
+                        {
+                            _reportFailure(exception);
+                        }
+                    });
             }
 
             throw;

@@ -4,20 +4,20 @@ public sealed class DesktopSelectionChangedEventArgs<TKey> : EventArgs
     where TKey : notnull
 {
     internal DesktopSelectionChangedEventArgs(
-        IReadOnlyList<TKey> selectedItems,
+        IReadOnlyList<TKey> changedItems,
         bool hasAnchor,
         TKey? anchorItem,
         bool hasPrimary,
         TKey? primaryItem)
     {
-        SelectedItems = selectedItems;
+        ChangedItems = changedItems;
         HasAnchor = hasAnchor;
         AnchorItem = anchorItem;
         HasPrimary = hasPrimary;
         PrimaryItem = primaryItem;
     }
 
-    public IReadOnlyList<TKey> SelectedItems { get; }
+    public IReadOnlyList<TKey> ChangedItems { get; }
 
     public bool HasAnchor { get; }
 

@@ -88,7 +88,7 @@ public sealed class CachePagesViewTests
                         exportAccessibilityText: "可导出",
                         exportToolTip: "当前配置缓存完整，可导出为 MP3。"))
                     .ToArray();
-                chapters[0].IsSelected = true;
+                chapters[0] = chapters[0].WithSelection(true);
                 page.DataContext = new
                 {
                     Books = books,
@@ -270,9 +270,9 @@ public sealed class CachePagesViewTests
                     new CachedChapterListItemViewModel(
                         "book-1", 1, "第 2 章", "计划计算", "1 KB", "1 条缓存", "完整度：计划计算中"),
                     new CachedChapterListItemViewModel(
-                        "book-1", 2, "第 3 章", "配置不可用", "1 KB", "1 条缓存", "完整度：配置不可用")
+                        "book-1", 2, "第 3 章", "配置不可用", "1 KB", "1 条缓存", "完整度：配置不可用", isSelected: true)
                 };
-                chapters[0].IsSelected = true;
+                chapters[0] = chapters[0].WithSelection(true);
                 page.DataContext = new
                 {
                     Books = new[]

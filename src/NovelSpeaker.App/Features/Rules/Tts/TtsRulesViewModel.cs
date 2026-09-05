@@ -35,6 +35,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
     private int _importOperationActive;
     private CancellationTokenSource? _testOperationCts;
     private readonly EditorSession<long?, TtsRuleEditorModel> _editorSession = new(EditorsEqual);
+    private readonly ResettableObservableCollection<TtsRuleListItemViewModel> _rules = [];
     private int _defaultSpeakSpeed = 10;
 
     public TtsRulesViewModel(
@@ -61,7 +62,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
         _ruleDocuments = ruleDocuments;
     }
 
-    public ObservableCollection<TtsRuleListItemViewModel> Rules { get; } = [];
+    public ObservableCollection<TtsRuleListItemViewModel> Rules => _rules;
 
     public ObservableCollection<EditableKeyValueItemViewModel> HeaderEntries { get; } = [];
 
@@ -592,7 +593,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
     {
         var rules = await _ruleQueries.GetRulesAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        Rules.ReplaceWith(
+        _rules.ReplaceWith(
             rules,
             rule => new TtsRuleListItemViewModel(
                 rule.Id,

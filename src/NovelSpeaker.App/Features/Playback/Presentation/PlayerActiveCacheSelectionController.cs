@@ -7,7 +7,7 @@ namespace NovelSpeaker.App.Features.Playback.Presentation;
 /// Owns the player page's temporary chapter-selection mode while projecting the
 /// process-owned active-cache snapshot without duplicating batch state.
 /// </summary>
-public sealed class PlayerActiveCacheSelectionController
+internal sealed class PlayerActiveCacheSelectionController
 {
     private readonly IActiveCacheCoordinator _activeCacheCoordinator;
     private readonly DesktopSelectionController<int> _selection = new();
@@ -18,10 +18,16 @@ public sealed class PlayerActiveCacheSelectionController
     {
         _activeCacheCoordinator = activeCacheCoordinator;
         _activeSnapshot = activeCacheCoordinator.CurrentSnapshot;
-        _selection.SelectionChanged += (_, _) => StateChanged?.Invoke(this, EventArgs.Empty);
+        _selection.SelectionChanged += (_, eventArgs) =>
+        {
+            ChangedChapterIndices = eventArgs.ChangedItems;
+            StateChanged?.Invoke(this, EventArgs.Empty);
+        };
     }
 
     public event EventHandler? StateChanged;
+
+    public IReadOnlyList<int> ChangedChapterIndices { get; private set; } = [];
 
     public bool IsSelectionMode { get; private set; }
 
@@ -43,9 +49,17 @@ public sealed class PlayerActiveCacheSelectionController
         ? "已有主动缓存批次正在运行，完成或取消后可开始新批次。"
         : _startStatusText ?? string.Empty;
 
-    public void SetChapters(IEnumerable<int> chapterIndices)
+    public void SetChapters(IEnumerable<int> chapterIndices, bool resetSelection = false)
     {
-        _selection.SetItems(chapterIndices);
+        _selection.SetItems(chapterIndices, resetSelection);
+    }
+
+    public void SetIndexedItems(
+        IReadOnlyList<int> chapterIndices,
+        IReadOnlyDictionary<int, int> positions,
+        bool resetSelection = false)
+    {
+        _selection.SetIndexedItems(chapterIndices, positions, resetSelection);
     }
 
     public void EnterSelectionMode()
@@ -57,6 +71,7 @@ public sealed class PlayerActiveCacheSelectionController
 
         IsSelectionMode = true;
         _startStatusText = null;
+        ChangedChapterIndices = [];
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -99,6 +114,7 @@ public sealed class PlayerActiveCacheSelectionController
     {
         _activeSnapshot = snapshot;
         _startStatusText = null;
+        ChangedChapterIndices = [];
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -113,8 +129,10 @@ public sealed class PlayerActiveCacheSelectionController
             return null;
         }
 
+        var selectedChapterIndices = SelectedChapterIndices.ToArray();
+
         var result = await _activeCacheCoordinator.StartAsync(
-            new StartActiveCacheRequest(bookId, SelectedChapterIndices, speakSpeed),
+            new StartActiveCacheRequest(bookId, selectedChapterIndices, speakSpeed),
             cancellationToken);
         if (result.IsAccepted)
         {
@@ -123,6 +141,7 @@ public sealed class PlayerActiveCacheSelectionController
         else
         {
             _startStatusText = result.ErrorSummary;
+            ChangedChapterIndices = [];
             StateChanged?.Invoke(this, EventArgs.Empty);
         }
 

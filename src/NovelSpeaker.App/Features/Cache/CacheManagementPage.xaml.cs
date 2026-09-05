@@ -1,7 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using NovelSpeaker.App.Shared.Presentation.Selection;
+using NovelSpeaker.App.Shared.Presentation.Scrolling;
 using NovelSpeaker.App.Shell.Activation;
 using Wpf.Ui.Abstractions.Controls;
 
@@ -10,12 +12,15 @@ namespace NovelSpeaker.App.Features.Cache;
 public partial class CacheManagementPage : System.Windows.Controls.Page, INavigationAware, INavigableView<CacheManagementViewModel>
 {
     private readonly PageActivationController _activation = new();
+    private ScrollViewer? _chapterScrollViewer;
 
     public CacheManagementPage(CacheManagementViewModel viewModel)
     {
         ViewModel = viewModel;
         DataContext = ViewModel;
         InitializeComponent();
+        ChaptersListBox.Loaded += ChaptersListBox_OnLoaded;
+        ChaptersListBox.Unloaded += ChaptersListBox_OnUnloaded;
     }
 
     public CacheManagementViewModel ViewModel { get; }
@@ -91,5 +96,69 @@ public partial class CacheManagementPage : System.Windows.Controls.Page, INaviga
         {
             e.Handled = true;
         }
+    }
+
+    private void ChaptersListBox_OnLoaded(object sender, RoutedEventArgs e)
+    {
+        _chapterScrollViewer = FindDescendant<ScrollViewer>(ChaptersListBox);
+        if (_chapterScrollViewer is null)
+        {
+            return;
+        }
+
+        _chapterScrollViewer.ScrollChanged += ChaptersScrollViewer_OnScrollChanged;
+        RequestVisibleChapterDecorationWindow();
+    }
+
+    private void ChaptersListBox_OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (_chapterScrollViewer is not null)
+        {
+            _chapterScrollViewer.ScrollChanged -= ChaptersScrollViewer_OnScrollChanged;
+            _chapterScrollViewer = null;
+        }
+    }
+
+    private void ChaptersScrollViewer_OnScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.VerticalChange != 0 || e.ViewportHeightChange != 0 || e.ExtentHeightChange != 0)
+        {
+            RequestVisibleChapterDecorationWindow();
+        }
+    }
+
+    private void RequestVisibleChapterDecorationWindow()
+    {
+        if (_chapterScrollViewer is null)
+        {
+            return;
+        }
+
+        var (start, count) = VirtualizedCatalogViewport.GetWindow(
+            ChaptersListBox,
+            _chapterScrollViewer,
+            ViewModel.Chapters.Count,
+            32);
+        ViewModel.RequestChapterDecorationWindow(start, count);
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is T typedChild)
+            {
+                return typedChild;
+            }
+
+            if (FindDescendant<T>(child) is { } descendant)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
     }
 }

@@ -249,6 +249,47 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(string.Empty, viewModel.Chapters[0].CachePercentageText);
     }
 
+    [Fact]
+    public async Task Moving_current_chapter_refreshes_the_new_cache_window_for_a_10000_chapter_catalog()
+    {
+        var cacheWorkspace = new FakeCacheWorkspaceService
+        {
+            StatusHandler = (_, indices, _) => Task.FromResult<IReadOnlyList<ChapterCacheStatus>>(
+                indices.Contains(9_999)
+                    ? [new ChapterCacheStatus(9_999, 1, 1)]
+                    : [])
+        };
+        var chapters = Enumerable.Range(0, 10_000)
+            .Select(static index => PlaybackChapterContent.Unloaded(index, $"第 {index + 1} 章"))
+            .ToArray();
+        var contentService = new FakeBookPlaybackContentService(
+            new PlaybackBookContent("book-1", "示例小说", chapters, "作者甲"),
+            PlaybackChapterContent.FromLoaded(0, "第一章", []),
+            new Dictionary<int, PlaybackChapterContent>
+            {
+                [9_999] = PlaybackChapterContent.FromLoaded(9_999, "第 10000 章", [])
+            });
+        var playback = CreatePlaybackCoordinator();
+        var viewModel = CreateViewModel(
+            playback,
+            contentService,
+            cacheWorkspaceService: cacheWorkspace);
+
+        await OpenBookAsync(viewModel);
+        Assert.Equal(string.Empty, viewModel.Chapters[9_999].CachePercentageText);
+        var initialStatusCallCount = cacheWorkspace.StatusCallCount;
+
+        playback.Publish(playback.CurrentSnapshot with
+        {
+            State = PlaybackState.Playing,
+            ChapterIndex = 9_999,
+            ChapterTitle = "第 10000 章"
+        });
+
+        Assert.True(cacheWorkspace.StatusCallCount > initialStatusCallCount);
+        Assert.Equal("100%", viewModel.Chapters[9_999].CachePercentageText);
+    }
+
     private static FakePlaybackCoordinator CreatePlaybackCoordinator() =>
         new(new PlaybackSnapshot(
             PlaybackState.Paused,

@@ -1,30 +1,32 @@
-using CommunityToolkit.Mvvm.ComponentModel;
 using NovelSpeaker.App.Shared.Presentation.Cache;
 
 namespace NovelSpeaker.App.Features.Playback.Presentation;
 
-public sealed partial class PlayerChapterItemViewModel : ObservableObject
+public sealed class PlayerChapterItemViewModel
 {
-    public PlayerChapterItemViewModel(int chapterIndex, string title)
+    public PlayerChapterItemViewModel(
+        int chapterIndex,
+        string title,
+        bool isCurrent = false,
+        bool isSelectedForActiveCache = false,
+        string cachePercentageText = "")
     {
         ChapterIndex = chapterIndex;
         Title = title;
+        IsCurrent = isCurrent;
+        IsSelectedForActiveCache = isSelectedForActiveCache;
+        CachePercentageText = cachePercentageText;
     }
 
     public int ChapterIndex { get; }
 
     public string Title { get; }
 
-    [ObservableProperty]
-    private bool isCurrent;
+    public bool IsCurrent { get; }
 
-    [ObservableProperty]
-    private bool isSelectedForActiveCache;
+    public bool IsSelectedForActiveCache { get; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsCachePercentageVisible))]
-    [NotifyPropertyChangedFor(nameof(AutomationName))]
-    private string cachePercentageText = string.Empty;
+    public string CachePercentageText { get; }
 
     public bool IsCachePercentageVisible => !string.IsNullOrEmpty(CachePercentageText);
 
@@ -54,20 +56,17 @@ public sealed partial class PlayerChapterItemViewModel : ObservableObject
         }
     }
 
-    public void ApplyCacheStatus(int cachedSegmentCount, int? totalSegmentCount)
-    {
-        CachePercentageText = ChapterCachePercentageFormatter.Format(
-            cachedSegmentCount,
-            totalSegmentCount);
-    }
+    public PlayerChapterItemViewModel WithCurrentState(bool isCurrent) =>
+        new(ChapterIndex, Title, isCurrent, IsSelectedForActiveCache, CachePercentageText);
 
-    partial void OnIsCurrentChanged(bool value)
-    {
-        OnPropertyChanged(nameof(AutomationName));
-    }
+    public PlayerChapterItemViewModel WithActiveCacheSelection(bool isSelected) =>
+        new(ChapterIndex, Title, IsCurrent, isSelected, CachePercentageText);
 
-    partial void OnIsSelectedForActiveCacheChanged(bool value)
-    {
-        OnPropertyChanged(nameof(AutomationName));
-    }
+    public PlayerChapterItemViewModel WithCacheStatus(int cachedSegmentCount, int? totalSegmentCount) =>
+        new(
+            ChapterIndex,
+            Title,
+            IsCurrent,
+            IsSelectedForActiveCache,
+            ChapterCachePercentageFormatter.Format(cachedSegmentCount, totalSegmentCount));
 }

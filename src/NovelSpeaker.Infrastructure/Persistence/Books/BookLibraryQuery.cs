@@ -16,12 +16,48 @@ public sealed class BookLibraryQuery : IBookLibraryQuery
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken) =>
+        QueryBooksAsync(bookIds: null, cancellationToken);
+
+    public Task<IReadOnlyList<BookSummary>> GetBooksAsync(
+        IReadOnlyCollection<string> bookIds,
+        CancellationToken cancellationToken) =>
+        QueryBooksAsync(bookIds, cancellationToken);
+
+    private async Task<IReadOnlyList<BookSummary>> QueryBooksAsync(
+        IReadOnlyCollection<string>? bookIds,
+        CancellationToken cancellationToken)
     {
+        var requestedBookIds = bookIds?
+            .Where(static bookId => !string.IsNullOrWhiteSpace(bookId))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (requestedBookIds is { Length: 0 })
+        {
+            return [];
+        }
+
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
-        command.CommandText =
-            """
+        var books = new List<BookSummary>();
+        const int batchSize = 400;
+        var batchCount = requestedBookIds is null
+            ? 1
+            : (requestedBookIds.Length + batchSize - 1) / batchSize;
+        for (var batchIndex = 0; batchIndex < batchCount; batchIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var batchBookIds = requestedBookIds is null
+                ? null
+                : requestedBookIds
+                    .Skip(batchIndex * batchSize)
+                    .Take(batchSize)
+                    .ToArray();
+            var command = connection.CreateCommand();
+            var bookFilter = batchBookIds is null
+                ? string.Empty
+                : $"WHERE b.Id IN ({string.Join(", ", batchBookIds.Select((_, index) => $"$bookId{index}"))})";
+            command.CommandText =
+                $"""
             SELECT b.Id,
                    b.Title,
                    b.Author,
@@ -52,16 +88,24 @@ public sealed class BookLibraryQuery : IBookLibraryQuery
                 GROUP BY BookId
             ) chapterCounts ON chapterCounts.BookId = b.Id
             LEFT JOIN ReadingProgress rp ON rp.BookId = b.Id
+            {bookFilter}
             ORDER BY b.ImportedAt DESC, b.Id;
             """;
-
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        var books = new List<BookSummary>();
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            if (TryMapSummary(reader, out var summary))
+            if (batchBookIds is not null)
             {
-                books.Add(summary);
+                for (var index = 0; index < batchBookIds.Length; index++)
+                {
+                    command.Parameters.AddWithValue($"$bookId{index}", batchBookIds[index]);
+                }
+            }
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                if (TryMapSummary(reader, out var summary))
+                {
+                    books.Add(summary);
+                }
             }
         }
 

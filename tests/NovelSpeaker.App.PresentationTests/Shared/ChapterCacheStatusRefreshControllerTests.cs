@@ -10,24 +10,14 @@ public sealed class ChapterCacheStatusRefreshControllerTests
     [Fact]
     public async Task Initial_projection_flag_is_preserved_for_the_initial_batch_only()
     {
-        var firstRequestStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseFirstRequest = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var bothResultsApplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var projectionModes = new List<bool>();
         var service = new FakeCacheWorkspaceService
         {
-            StatusHandler = async (_, chapterIndices, cancellationToken) =>
-            {
-                if (projectionModes.Count == 0)
-                {
-                    firstRequestStarted.TrySetResult();
-                    await releaseFirstRequest.Task.WaitAsync(cancellationToken);
-                }
-
-                return chapterIndices
+            StatusHandler = (_, chapterIndices, _) => Task.FromResult<IReadOnlyList<ChapterCacheStatus>>(
+                chapterIndices
                     .Select(static chapterIndex => new ChapterCacheStatus(chapterIndex, 1, 1))
-                    .ToArray();
-            }
+                    .ToArray())
         };
         var controller = new ChapterCacheStatusRefreshController(
             service,
@@ -44,9 +34,12 @@ public sealed class ChapterCacheStatusRefreshControllerTests
         controller.Activate(CancellationToken.None);
 
         controller.Request("book-1", [0], isInitialProjection: true);
-        await firstRequestStarted.Task;
+        while (projectionModes.Count == 0)
+        {
+            await Task.Yield();
+        }
+
         controller.Request("book-1", [1]);
-        releaseFirstRequest.TrySetResult();
         await bothResultsApplied.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal([true, false], projectionModes);
@@ -75,13 +68,14 @@ public sealed class ChapterCacheStatusRefreshControllerTests
                     .ToArray();
             }
         };
-        var applyCount = 0;
+        var appliedBatches = new List<int[]>();
         var controller = new ChapterCacheStatusRefreshController(
             service,
             new ImmediateUiScheduler(),
-            (_, _, _, _) =>
+            (_, chapterIndices, _, _) =>
             {
-                if (Interlocked.Increment(ref applyCount) == 2)
+                appliedBatches.Add([.. chapterIndices.Order()]);
+                if (appliedBatches.Count == 2)
                 {
                     bothResultsApplied.TrySetResult();
                 }
@@ -99,6 +93,7 @@ public sealed class ChapterCacheStatusRefreshControllerTests
         Assert.Equal(2, requestedBatches.Count);
         Assert.Equal([0], requestedBatches[0]);
         Assert.Equal([1, 2], requestedBatches[1]);
+        Assert.Equal([[0], [1, 2]], appliedBatches);
     }
 
     [Fact]
@@ -145,8 +140,17 @@ public sealed class ChapterCacheStatusRefreshControllerTests
         public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<CachedBookCacheItem?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(
             string bookId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CachedChapterCacheItem?> GetCachedChapterAsync(
+            string bookId,
+            int chapterIndex,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

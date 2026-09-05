@@ -185,7 +185,9 @@ public sealed class AppNavigationPageProviderTests
 
         public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CachedBookCacheItem?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(string bookId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CachedChapterCacheItem?> GetCachedChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
             string bookId,
             IReadOnlyCollection<int> chapterIndices,

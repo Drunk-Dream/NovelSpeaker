@@ -106,6 +106,51 @@ public sealed class DesktopSelectionControllerTests
         Assert.Throws<ArgumentException>(() => controller.SetItems(["Alpha", "Alpha"]));
     }
 
+    private void Selection_changes_report_only_the_keys_whose_decoration_changed()
+    {
+        var controller = new DesktopSelectionController<int>();
+        controller.SetItems(Enumerable.Range(0, 10_000));
+        var changedItems = new List<IReadOnlyList<int>>();
+        controller.SelectionChanged += (_, eventArgs) => changedItems.Add(eventArgs.ChangedItems);
+
+        controller.SelectAll();
+        controller.Click(5_000, DesktopSelectionModifiers.Control);
+
+        Assert.Equal(10_000, changedItems[0].Count);
+        Assert.Equal([5_000], changedItems[1]);
+    }
+
+    private void Shift_range_reports_the_symmetric_difference_when_an_existing_range_is_reused()
+    {
+        var controller = new DesktopSelectionController<int>();
+        controller.SetItems(Enumerable.Range(0, 10));
+        controller.Click(1);
+        controller.Click(4, DesktopSelectionModifiers.Shift);
+        Assert.Equal([1, 2, 3, 4], controller.SelectedItems);
+
+        var changes = new List<IReadOnlyList<int>>();
+        controller.SelectionChanged += (_, eventArgs) => changes.Add(eventArgs.ChangedItems.ToArray());
+        controller.Click(2, DesktopSelectionModifiers.Shift);
+
+        Assert.Equal([1, 2], controller.SelectedItems);
+        Assert.Equal([3, 4], Assert.Single(changes));
+        Assert.Equal([1, 2], controller.SelectedItems);
+    }
+
+    private void Resetting_a_replaced_catalog_does_not_leak_selection_into_the_new_context()
+    {
+        var controller = new DesktopSelectionController<int>();
+        controller.SetItems(Enumerable.Range(0, 10_000));
+        controller.Click(5_000);
+
+        controller.SetItems(Enumerable.Range(0, 10_000), resetSelection: true);
+
+        Assert.Empty(controller.SelectedItems);
+        Assert.Equal(0, controller.Count);
+        Assert.False(controller.HasAnchor);
+        Assert.False(controller.HasPrimary);
+    }
+
     [Fact]
     public void Selection_click_contracts_cover_replacement_modifiers_and_ranges()
     {
@@ -126,6 +171,14 @@ public sealed class DesktopSelectionControllerTests
     public void Selection_input_contracts_reject_ambiguous_duplicate_keys()
     {
         Set_items_rejects_duplicate_keys_because_ranges_must_be_unambiguous();
+    }
+
+    [Fact]
+    public void Selection_decoration_contracts_report_bounded_changes()
+    {
+        Selection_changes_report_only_the_keys_whose_decoration_changed();
+        Shift_range_reports_the_symmetric_difference_when_an_existing_range_is_reused();
+        Resetting_a_replaced_catalog_does_not_leak_selection_into_the_new_context();
     }
 
     private static DesktopSelectionController<string> CreateController()

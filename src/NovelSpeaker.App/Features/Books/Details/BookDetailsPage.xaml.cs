@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.Windows.Controls;
+using System.Windows.Media;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Shared.Presentation.Scrolling;
@@ -14,6 +16,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
     private readonly PageActivationController _activation = new();
     private readonly INavigationGuardService _navigationGuardService;
     private readonly CurrentItemLocatorInteraction _chapterLocator;
+    private ScrollViewer? _chapterScrollViewer;
     private bool _initialLocatorPending;
     private bool _initialLocatorEvaluationQueued;
     private bool _initialLocatorRequestIssued;
@@ -98,6 +101,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
             hasPendingInitialProjection
                 ? () => CompleteInitialChapterLocator(initialLocatorVersion)
                 : null);
+        AttachChapterViewport();
         if (!hasPendingInitialProjection)
         {
             ScheduleInitialChapterLocator(_initialLocatorVersion);
@@ -108,6 +112,78 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
     {
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _chapterLocator.OnUnloaded();
+        DetachChapterViewport();
+    }
+
+    private void AttachChapterViewport()
+    {
+        if (_chapterScrollViewer is not null)
+        {
+            return;
+        }
+
+        _chapterScrollViewer = FindDescendant<ScrollViewer>(ChaptersListBox);
+        if (_chapterScrollViewer is null)
+        {
+            return;
+        }
+
+        _chapterScrollViewer.ScrollChanged += ChapterScrollViewer_OnScrollChanged;
+        RequestVisibleChapterDecorationWindow();
+    }
+
+    private void DetachChapterViewport()
+    {
+        if (_chapterScrollViewer is null)
+        {
+            return;
+        }
+
+        _chapterScrollViewer.ScrollChanged -= ChapterScrollViewer_OnScrollChanged;
+        _chapterScrollViewer = null;
+    }
+
+    private void ChapterScrollViewer_OnScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.VerticalChange != 0 || e.ViewportHeightChange != 0 || e.ExtentHeightChange != 0)
+        {
+            RequestVisibleChapterDecorationWindow();
+        }
+    }
+
+    private void RequestVisibleChapterDecorationWindow()
+    {
+        if (_chapterScrollViewer is null)
+        {
+            return;
+        }
+
+        var (start, count) = VirtualizedCatalogViewport.GetWindow(
+            ChaptersListBox,
+            _chapterScrollViewer,
+            ViewModel.Chapters.Count,
+            32);
+        ViewModel.RequestCacheDecorationWindow(start, count);
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is T typedChild)
+            {
+                return typedChild;
+            }
+
+            if (FindDescendant<T>(child) is { } descendant)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
     }
 
     private void LocateCurrentChapterButton_OnClick(object sender, RoutedEventArgs e)

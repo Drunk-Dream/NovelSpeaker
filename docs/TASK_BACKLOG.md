@@ -202,7 +202,7 @@
 
 完成成果：拆分 Library summaries 与 BookDetails header/catalog/reading position/statistics 查询及 immutable read model，BookDetails 改为并行加载场景化查询；删除旧 `BookDetails` aggregate、旧宽查询入口和动态 `IsCurrent` 字段；补充空目录、查询排序、独立投影及目录顺序进度投影测试，相关 Presentation/WPF/Infrastructure focused tests 与 ArchitectureTests 通过。
 
-## [ ] T005（P0）：建立大型 Catalog 与 Sparse Decoration 基础设施
+## [x] T005（P0）：建立大型 Catalog 与 Sparse Decoration 基础设施
 
 依赖：T004。
 
@@ -228,6 +228,8 @@
 - 10,000 item 纯 presentation 测试验证初始提交不是 N 次 Add。
 - current old/new 只产生有界 decoration 变化。
 - lookup 不通过全表线性扫描。
+
+完成成果：为 BookDetails、Player、CacheManagement 引入 immutable catalog、Sparse Decoration、稳定 key/position lookup 与分批 collection projection；CacheManagement 使用结构目录和可视窗口 decoration，Player/BookDetails 的 current、selection、cache 更新均走有界索引；补充取消、生命周期清空、过期 viewport 结果、刷新失败、目标查询、10,000 项 projection 与 WPF realized-row/viewport 回归测试。
 
 ## [ ] T006（P0）：迁移 Library 到新 Query/生命周期/批量 Projection
 

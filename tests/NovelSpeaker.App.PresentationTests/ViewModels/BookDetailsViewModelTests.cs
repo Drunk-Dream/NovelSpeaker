@@ -184,6 +184,44 @@ public sealed class BookDetailsViewModelTests
         Assert.False(viewModel.IsBusy);
     }
 
+    private async Task Starting_a_new_load_clears_the_previous_catalog_before_details_finish()
+    {
+        var managementService = new FakeBookManagementService();
+        var viewModel = CreateViewModel(managementService: managementService);
+
+        await LoadViewModelAsync(viewModel);
+        managementService.BlockDetailsLoad = true;
+
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await Task.Yield();
+
+        Assert.Empty(viewModel.Chapters);
+        Assert.Null(viewModel.CurrentChapterItem);
+
+        managementService.ReleaseBlockedDetailsLoad();
+    }
+
+    private async Task Loading_a_10000_chapter_catalog_uses_batched_collection_projection()
+    {
+        var managementService = new FakeBookManagementService
+        {
+            Details = CreateDetails(10_000, 9_999)
+        };
+        var viewModel = CreateViewModel(managementService: managementService);
+        var changes = new List<NotifyCollectionChangedAction>();
+        viewModel.Chapters.CollectionChanged += (_, args) => changes.Add(args.Action);
+
+        viewModel.HandleNavigatedTo();
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await WaitForConditionAsync(viewModel, () => !viewModel.IsBusy && viewModel.Chapters.Count == 10_000);
+
+        Assert.Equal(10_000, viewModel.Chapters.Count);
+        Assert.NotEmpty(changes);
+        Assert.DoesNotContain(NotifyCollectionChangedAction.Add, changes);
+        Assert.Equal(NotifyCollectionChangedAction.Reset, changes[^1]);
+        Assert.Same(viewModel.Chapters[9_999], viewModel.CurrentChapterItem);
+    }
+
     private async Task Chapter_cache_percentages_refresh_for_cache_and_configuration_changes_until_page_leave()
     {
         var cacheWorkspace = new FakeCacheWorkspaceService
@@ -208,11 +246,16 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal(1, cacheWorkspace.StatusCallCount);
         Assert.Equal(1, cacheWorkspace.SubscriberCount);
 
+        var unchangedCurrentItem = viewModel.CurrentChapterItem;
+        cacheWorkspace.Statuses = [new ChapterCacheStatus(1, 0, 4)];
+        cacheWorkspace.Publish(new CacheChangedEventArgs("book-1", 1));
+        Assert.Same(unchangedCurrentItem, viewModel.CurrentChapterItem);
+
         cacheWorkspace.Statuses = [new ChapterCacheStatus(1, 3, 4)];
         cacheWorkspace.Publish(new CacheChangedEventArgs("book-1", 1));
 
         Assert.Equal("75%", viewModel.Chapters[1].CachePercentageText);
-        Assert.Equal(2, cacheWorkspace.StatusCallCount);
+        Assert.Equal(3, cacheWorkspace.StatusCallCount);
 
         cacheWorkspace.Statuses =
         [
@@ -224,13 +267,13 @@ public sealed class BookDetailsViewModelTests
 
         Assert.All(viewModel.Chapters.Take(2), chapter => Assert.Equal("100%", chapter.CachePercentageText));
         Assert.Equal(string.Empty, viewModel.Chapters[2].CachePercentageText);
-        Assert.Equal(3, cacheWorkspace.StatusCallCount);
+        Assert.Equal(4, cacheWorkspace.StatusCallCount);
 
         viewModel.HandleNavigatedFrom();
         Assert.Equal(0, cacheWorkspace.SubscriberCount);
 
         cacheWorkspace.Publish(new CacheChangedEventArgs("book-1", 0));
-        Assert.Equal(3, cacheWorkspace.StatusCallCount);
+        Assert.Equal(4, cacheWorkspace.StatusCallCount);
     }
 
     private async Task Page_leave_discards_cache_status_projection_that_reaches_the_ui_late()
@@ -252,6 +295,51 @@ public sealed class BookDetailsViewModelTests
         uiScheduler.RunNext();
 
         Assert.Equal(string.Empty, viewModel.Chapters[0].CachePercentageText);
+    }
+
+    private async Task Moving_current_chapter_refreshes_the_new_cache_window_for_a_10000_chapter_catalog()
+    {
+        var cacheWorkspace = new FakeCacheWorkspaceService
+        {
+            StatusHandler = indices => indices.Contains(9_999)
+                ? [new ChapterCacheStatus(9_999, 1, 1)]
+                : [new ChapterCacheStatus(3, 1, 1)]
+        };
+        var playbackCoordinator = new FakePlaybackCoordinator();
+        var managementService = new FakeBookManagementService
+        {
+            Details = CreateDetails(10_000, currentChapterIndex: 0)
+        };
+        var viewModel = CreateViewModel(
+            managementService: managementService,
+            cacheWorkspaceService: cacheWorkspace,
+            playbackCoordinator: playbackCoordinator);
+
+        viewModel.HandleNavigatedTo();
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        await WaitForConditionAsync(viewModel, () => !viewModel.IsBusy && viewModel.Chapters.Count == 10_000);
+        Assert.Equal(string.Empty, viewModel.Chapters[9_999].CachePercentageText);
+        Assert.Equal("100%", viewModel.Chapters[3].CachePercentageText);
+        var initialStatusCallCount = cacheWorkspace.StatusCallCount;
+        var changes = new List<NotifyCollectionChangedEventArgs>();
+        viewModel.Chapters.CollectionChanged += (_, eventArgs) => changes.Add(eventArgs);
+
+        playbackCoordinator.Publish(
+            PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Playing,
+                BookId = "book-1",
+                ChapterIndex = 9_999,
+                ChapterTitle = "第 10000 章 标题"
+            });
+
+        Assert.True(cacheWorkspace.StatusCallCount > initialStatusCallCount);
+        Assert.Equal("100%", viewModel.Chapters[9_999].CachePercentageText);
+        Assert.Equal(string.Empty, viewModel.Chapters[3].CachePercentageText);
+        Assert.Contains(
+            changes,
+            eventArgs => eventArgs.Action == NotifyCollectionChangedAction.Replace &&
+                         eventArgs.NewStartingIndex == 3);
     }
 
     private async Task Initial_cache_status_projection_uses_one_collection_reset_without_row_notifications()
@@ -276,12 +364,6 @@ public sealed class BookDetailsViewModelTests
         await viewModel.LoadAsync("book-1", CancellationToken.None);
         await WaitForConditionAsync(viewModel, () => !viewModel.IsBusy && viewModel.Chapters.Count == chapterCount);
 
-        var rowPropertyChangedCount = 0;
-        foreach (var chapter in viewModel.Chapters)
-        {
-            chapter.PropertyChanged += (_, _) => rowPropertyChangedCount++;
-        }
-
         var collectionChangedCount = 0;
         var resetCount = 0;
         viewModel.Chapters.CollectionChanged += (_, eventArgs) =>
@@ -296,10 +378,13 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal(1, uiScheduler.PendingCount);
         uiScheduler.RunNext();
 
-        Assert.Equal(0, rowPropertyChangedCount);
         Assert.Equal(1, collectionChangedCount);
         Assert.Equal(1, resetCount);
-        Assert.All(viewModel.Chapters, chapter => Assert.Equal("100%", chapter.CachePercentageText));
+        Assert.All(
+            viewModel.Chapters,
+            (chapter, index) => Assert.Equal(
+                index is >= 82 and < 114 ? "100%" : string.Empty,
+                chapter.CachePercentageText));
     }
 
     private async Task Initial_cache_status_projection_waits_for_locator_completion_when_deferred()
@@ -614,11 +699,14 @@ public sealed class BookDetailsViewModelTests
         await Snapshot_after_navigation_away_does_not_update_details();
         await Queued_stale_playback_snapshot_is_ignored_after_page_leave();
         await LoadAsync_returns_after_header_and_populates_catalog_when_background_load_finishes();
+        await Starting_a_new_load_clears_the_previous_catalog_before_details_finish();
+        await Loading_a_10000_chapter_catalog_uses_batched_collection_projection();
         await Chapter_cache_percentages_refresh_for_cache_and_configuration_changes_until_page_leave();
         await Page_leave_discards_cache_status_projection_that_reaches_the_ui_late();
         await Initial_cache_status_projection_uses_one_collection_reset_without_row_notifications();
         await Initial_cache_status_projection_waits_for_locator_completion_when_deferred();
         await Initial_cache_status_projection_can_start_when_current_item_notification_arrives_during_details_apply();
+        await Moving_current_chapter_refreshes_the_new_cache_window_for_a_10000_chapter_catalog();
         await ClearCacheCommand_is_disabled_until_a_book_is_loaded();
     }
 
@@ -846,6 +934,8 @@ public sealed class BookDetailsViewModelTests
 
         public IReadOnlyList<ChapterCacheStatus> Statuses { get; set; } = [];
 
+        public Func<IReadOnlyCollection<int>, IReadOnlyList<ChapterCacheStatus>>? StatusHandler { get; set; }
+
         public int StatusCallCount { get; private set; }
 
         public int SubscriberCount => _changed?.GetInvocationList().Length ?? 0;
@@ -870,7 +960,18 @@ public sealed class BookDetailsViewModelTests
             throw new NotSupportedException();
         }
 
+        public Task<CachedBookCacheItem?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(string bookId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<CachedChapterCacheItem?> GetCachedChapterAsync(
+            string bookId,
+            int chapterIndex,
+            CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
@@ -881,7 +982,7 @@ public sealed class BookDetailsViewModelTests
             CancellationToken cancellationToken)
         {
             StatusCallCount++;
-            return Task.FromResult(Statuses);
+            return Task.FromResult(StatusHandler?.Invoke(chapterIndices) ?? Statuses);
         }
 
         public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken)

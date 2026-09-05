@@ -36,6 +36,13 @@ public sealed class WpfUiScheduler : IUiScheduler
             : _dispatcher.InvokeAsync(action, DispatcherPriority.Normal, cancellationToken).Task.Unwrap();
     }
 
+    public Task InvokeLaterAsync(Action action, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        cancellationToken.ThrowIfCancellationRequested();
+        return _dispatcher.InvokeAsync(action, DispatcherPriority.Background, cancellationToken).Task;
+    }
+
     private static Task RunInline(Action action)
     {
         action();

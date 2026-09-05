@@ -142,8 +142,17 @@ public sealed partial class PlayerViewModelTests
         public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<CachedBookCacheItem?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(
             string bookId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CachedChapterCacheItem?> GetCachedChapterAsync(
+            string bookId,
+            int chapterIndex,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
@@ -462,11 +471,16 @@ public sealed partial class PlayerViewModelTests
     {
         private readonly PlaybackBookContent? _book;
         private readonly PlaybackChapterContent? _chapter;
+        private readonly IReadOnlyDictionary<int, PlaybackChapterContent> _chapters;
 
-        public FakeBookPlaybackContentService(PlaybackBookContent? book, PlaybackChapterContent? chapter)
+        public FakeBookPlaybackContentService(
+            PlaybackBookContent? book,
+            PlaybackChapterContent? chapter,
+            IReadOnlyDictionary<int, PlaybackChapterContent>? chapters = null)
         {
             _book = book;
             _chapter = chapter;
+            _chapters = chapters ?? new Dictionary<int, PlaybackChapterContent>();
         }
 
         public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
@@ -481,14 +495,15 @@ public sealed partial class PlayerViewModelTests
 
         public Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
         {
-            if (_book is null || _chapter is null ||
+            if (_book is null ||
                 !string.Equals(_book.BookId, bookId, StringComparison.Ordinal) ||
-                _chapter.ChapterIndex != chapterIndex)
+                (!_chapters.TryGetValue(chapterIndex, out var chapter) &&
+                 (_chapter is null || _chapter.ChapterIndex != chapterIndex)))
             {
                 return Task.FromResult<PlaybackChapterContent?>(null);
             }
 
-            return Task.FromResult<PlaybackChapterContent?>(_chapter);
+            return Task.FromResult<PlaybackChapterContent?>(chapter ?? _chapter);
         }
     }
 

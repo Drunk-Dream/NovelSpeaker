@@ -79,17 +79,8 @@ public sealed partial class PlayerViewTests
         {
             var chapters = new ObservableCollection<PlayerChapterItemViewModel>
             {
-                new(0, "第一章")
-                {
-                    IsCurrent = true,
-                    IsSelectedForActiveCache = true,
-                    CachePercentageText = "25%"
-                },
-                new(1, "第二章")
-                {
-                    IsSelectedForActiveCache = true,
-                    CachePercentageText = "50%"
-                },
+                new(0, "第一章", isCurrent: true, isSelectedForActiveCache: true, cachePercentageText: "25%"),
+                new(1, "第二章", isSelectedForActiveCache: true, cachePercentageText: "50%"),
                 new(2, "第三章")
             };
             var view = new PlayerView
@@ -162,8 +153,8 @@ public sealed partial class PlayerViewTests
         {
             var chapters = new ObservableCollection<PlayerChapterItemViewModel>
             {
-                new(0, "第一章") { IsSelectedForActiveCache = true },
-                new(1, "第二章") { IsSelectedForActiveCache = true }
+                new(0, "第一章", isSelectedForActiveCache: true),
+                new(1, "第二章", isSelectedForActiveCache: true)
             };
             var segments = new ObservableCollection<PlayerSegmentItemViewModel>
             {
@@ -210,9 +201,10 @@ public sealed partial class PlayerViewTests
             var chapters = new ObservableCollection<PlayerChapterItemViewModel>();
             for (var chapterIndex = 0; chapterIndex < 80; chapterIndex++)
             {
-                var chapter = new PlayerChapterItemViewModel(chapterIndex, $"第{chapterIndex + 1}章 标题较长用于验证目录内部滚动");
-                chapter.IsCurrent = chapterIndex == 10;
-                chapters.Add(chapter);
+                chapters.Add(new PlayerChapterItemViewModel(
+                    chapterIndex,
+                    $"第{chapterIndex + 1}章 标题较长用于验证目录内部滚动",
+                    isCurrent: chapterIndex == 10));
             }
 
             var segments = new ObservableCollection<PlayerSegmentItemViewModel>();
@@ -260,9 +252,10 @@ public sealed partial class PlayerViewTests
             var chapters = new ObservableCollection<PlayerChapterItemViewModel>();
             for (var chapterIndex = 0; chapterIndex < 120; chapterIndex++)
             {
-                var chapter = new PlayerChapterItemViewModel(chapterIndex, $"第{chapterIndex + 1}章");
-                chapter.IsCurrent = chapterIndex == 10;
-                chapters.Add(chapter);
+                chapters.Add(new PlayerChapterItemViewModel(
+                    chapterIndex,
+                    $"第{chapterIndex + 1}章",
+                    isCurrent: chapterIndex == 10));
             }
 
             var segments = new ObservableCollection<PlayerSegmentItemViewModel>();
@@ -465,9 +458,10 @@ public sealed partial class PlayerViewTests
             var chapters = new ObservableCollection<PlayerChapterItemViewModel>();
             for (var chapterIndex = 0; chapterIndex < 40; chapterIndex++)
             {
-                var chapter = new PlayerChapterItemViewModel(chapterIndex, $"第{chapterIndex + 1}章");
-                chapter.IsCurrent = chapterIndex == 10;
-                chapters.Add(chapter);
+                chapters.Add(new PlayerChapterItemViewModel(
+                    chapterIndex,
+                    $"第{chapterIndex + 1}章",
+                    isCurrent: chapterIndex == 10));
             }
 
             var segments = new ObservableCollection<PlayerSegmentItemViewModel>();
@@ -505,9 +499,10 @@ public sealed partial class PlayerViewTests
             var chapters = new ObservableCollection<PlayerChapterItemViewModel>();
             for (var chapterIndex = 0; chapterIndex < 30; chapterIndex++)
             {
-                var chapter = new PlayerChapterItemViewModel(chapterIndex, $"第{chapterIndex + 1}章");
-                chapter.IsCurrent = chapterIndex == 4;
-                chapters.Add(chapter);
+                chapters.Add(new PlayerChapterItemViewModel(
+                    chapterIndex,
+                    $"第{chapterIndex + 1}章",
+                    isCurrent: chapterIndex == 4));
             }
 
             var segments = new ObservableCollection<PlayerSegmentItemViewModel>();
@@ -541,10 +536,7 @@ public sealed partial class PlayerViewTests
         {
             var chapters = new ObservableCollection<PlayerChapterItemViewModel>
             {
-                new(0, "第一章 这是一个特别长特别长特别长的章节标题用于验证单行截断效果")
-                {
-                    IsCurrent = true
-                }
+                new(0, "第一章 这是一个特别长特别长特别长的章节标题用于验证单行截断效果", isCurrent: true)
             };
             var segments = new ObservableCollection<PlayerSegmentItemViewModel>
             {
@@ -589,10 +581,7 @@ public sealed partial class PlayerViewTests
         {
             var chapters = new ObservableCollection<PlayerChapterItemViewModel>
             {
-                new(0, "第一章")
-                {
-                    IsCurrent = true
-                }
+                new(0, "第一章", isCurrent: true)
             };
             var segments = new ObservableCollection<PlayerSegmentItemViewModel>
             {
@@ -659,10 +648,7 @@ public sealed partial class PlayerViewTests
         {
             var chapters = new ObservableCollection<PlayerChapterItemViewModel>
             {
-                new(0, "第一章")
-                {
-                    IsCurrent = true
-                }
+                new(0, "第一章", isCurrent: true)
             };
             var segments = new ObservableCollection<PlayerSegmentItemViewModel>
             {
@@ -1273,11 +1259,11 @@ public sealed partial class PlayerViewTests
         var chapters = new ObservableCollection<PlayerChapterItemViewModel>();
         for (var index = 0; index < 18; index++)
         {
-            chapters.Add(new PlayerChapterItemViewModel(index, $"第 {index + 1} 章 示例章节")
-            {
-                IsCurrent = index == 4,
-                CachePercentageText = index % 3 == 0 ? "75%" : string.Empty
-            });
+            chapters.Add(new PlayerChapterItemViewModel(
+                index,
+                $"第 {index + 1} 章 示例章节",
+                isCurrent: index == 4,
+                cachePercentageText: index % 3 == 0 ? "75%" : string.Empty));
         }
 
         var segments = new ObservableCollection<PlayerSegmentItemViewModel>();
@@ -1300,10 +1286,8 @@ public sealed partial class PlayerViewTests
         {
             chapters.Add(new PlayerChapterItemViewModel(
                 index,
-                $"第 {index + 1} 章 这是用于验证长标题截断和目录滚动的章节名称")
-            {
-                IsCurrent = index == 10
-            });
+                $"第 {index + 1} 章 这是用于验证长标题截断和目录滚动的章节名称",
+                isCurrent: index == 10));
         }
 
         var segments = new ObservableCollection<PlayerSegmentItemViewModel>();

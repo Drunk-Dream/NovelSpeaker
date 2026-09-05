@@ -2,9 +2,11 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using NovelSpeaker.App.Features.Playback.Presentation;
 using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.App.Shared.Presentation.Selection;
+using NovelSpeaker.App.Shared.Presentation.Scrolling;
 using NovelSpeaker.App.Shared.Theming;
 
 namespace NovelSpeaker.App.Features.Playback.Components;
@@ -15,6 +17,7 @@ public partial class PlayerView : UserControl
     private readonly PlayerScrollInteractionController _scrollController;
     private readonly PlayerProgressInteractionController _progressController;
     private readonly PlayerSpeedCommitController _speedCommitController;
+    private ScrollViewer? _chapterScrollViewer;
 
     public PlayerView()
     {
@@ -51,10 +54,12 @@ public partial class PlayerView : UserControl
     {
         AttachViewModel(DataContext as PlayerViewModel);
         _scrollController.OnLoaded();
+        AttachChapterViewport();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        DetachChapterViewport();
         _scrollController.OnUnloaded();
         DetachViewModel();
     }
@@ -235,6 +240,77 @@ public partial class PlayerView : UserControl
 
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _viewModel = null;
+    }
+
+    private void AttachChapterViewport()
+    {
+        if (_chapterScrollViewer is not null)
+        {
+            return;
+        }
+
+        _chapterScrollViewer = FindDescendant<ScrollViewer>(WideChaptersListBox);
+        if (_chapterScrollViewer is null)
+        {
+            return;
+        }
+
+        _chapterScrollViewer.ScrollChanged += ChapterScrollViewer_OnScrollChanged;
+        RequestVisibleChapterDecorationWindow();
+    }
+
+    private void DetachChapterViewport()
+    {
+        if (_chapterScrollViewer is null)
+        {
+            return;
+        }
+
+        _chapterScrollViewer.ScrollChanged -= ChapterScrollViewer_OnScrollChanged;
+        _chapterScrollViewer = null;
+    }
+
+    private void ChapterScrollViewer_OnScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.VerticalChange != 0 || e.ViewportHeightChange != 0 || e.ExtentHeightChange != 0)
+        {
+            RequestVisibleChapterDecorationWindow();
+        }
+    }
+
+    private void RequestVisibleChapterDecorationWindow()
+    {
+        if (_chapterScrollViewer is null || _viewModel is null)
+        {
+            return;
+        }
+
+        var (start, count) = VirtualizedCatalogViewport.GetWindow(
+            WideChaptersListBox,
+            _chapterScrollViewer,
+            _viewModel.Chapters.Count,
+            32);
+        _viewModel.RequestCacheDecorationWindow(start, count);
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is T typedChild)
+            {
+                return typedChild;
+            }
+
+            if (FindDescendant<T>(child) is { } descendant)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

@@ -20,6 +20,7 @@ public sealed class CacheWorkspaceService :
 {
     private readonly IAudioCacheStore _cacheStore;
     private readonly IBookPlaybackMetadataQuery _bookMetadataQuery;
+    private readonly IBookLibraryQuery? _bookLibraryQuery;
     private readonly ISelectedTtsRuleProvider _selectedRuleProvider;
     private readonly IAppSettingsService _settingsService;
     private readonly ICacheWorkspaceFailureReporter? _failureReporter;
@@ -42,10 +43,12 @@ public sealed class CacheWorkspaceService :
         ICacheWorkspaceFailureReporter? failureReporter = null,
         IBookPlaybackContentService? bookContentService = null,
         IRegexReplacementRuleRepository? regexRuleRepository = null,
-        IChapterSpeechPlanStore? speechPlanStore = null)
+        IChapterSpeechPlanStore? speechPlanStore = null,
+        IBookLibraryQuery? bookLibraryQuery = null)
     {
         _cacheStore = cacheStore;
         _bookMetadataQuery = bookMetadataQuery;
+        _bookLibraryQuery = bookLibraryQuery;
         _selectedRuleProvider = selectedRuleProvider;
         _settingsService = settingsService;
         _failureReporter = failureReporter;
@@ -76,12 +79,32 @@ public sealed class CacheWorkspaceService :
             return [];
         }
 
+        var metadataById = _bookLibraryQuery is null
+            ? null
+            : (await _bookLibraryQuery.GetBooksAsync(
+                    summaries.Select(static summary => summary.BookId).ToArray(),
+                    cancellationToken)
+                .ConfigureAwait(false))
+                .ToDictionary(book => book.Id, StringComparer.Ordinal);
         var items = new List<CachedBookCacheItem>(summaries.Count);
         foreach (var summary in summaries)
         {
-            var metadata = await _bookMetadataQuery
-                .GetBookAsync(summary.BookId, cancellationToken)
-                .ConfigureAwait(false);
+            var metadata = metadataById?.GetValueOrDefault(summary.BookId);
+            if (metadata is null)
+            {
+                metadata = await _bookMetadataQuery
+                    .GetBookAsync(summary.BookId, cancellationToken)
+                    .ConfigureAwait(false)
+                    is { } playbackMetadata
+                    ? new BookSummary(
+                        playbackMetadata.BookId,
+                        playbackMetadata.Title,
+                        playbackMetadata.Author,
+                        "未开始",
+                        DateTimeOffset.MinValue)
+                    : null;
+            }
+
             items.Add(new CachedBookCacheItem(
                 summary.BookId,
                 metadata?.Title ?? summary.BookId,
@@ -151,6 +174,173 @@ public sealed class CacheWorkspaceService :
         }
 
         return items;
+    }
+
+    public async Task<CachedBookCacheItem?> GetCachedBookAsync(
+        string bookId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        var summary = await _cacheStore
+            .GetBookAsync(bookId, cancellationToken)
+            .ConfigureAwait(false);
+        if (summary is null)
+        {
+            return null;
+        }
+
+        var metadata = await _bookMetadataQuery
+            .GetBookAsync(summary.BookId, cancellationToken)
+            .ConfigureAwait(false);
+        return new CachedBookCacheItem(
+            summary.BookId,
+            metadata?.Title ?? summary.BookId,
+            metadata?.Author,
+            summary.ChapterCount,
+            summary.EntryCount,
+            summary.TotalSizeBytes);
+    }
+
+    public async Task<CachedChapterCacheItem?> GetCachedChapterAsync(
+        string bookId,
+        int chapterIndex,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        var summary = await _cacheStore
+            .GetChapterAsync(bookId, chapterIndex, cancellationToken)
+            .ConfigureAwait(false);
+        if (summary is null)
+        {
+            return null;
+        }
+
+        var selectedRule = await _selectedRuleProvider
+            .GetSelectedRuleAsync(cancellationToken)
+            .ConfigureAwait(false);
+        CurrentConfigurationData configurationData;
+        if (selectedRule is null)
+        {
+            configurationData = await GetUnavailableConfigurationDataAsync(
+                bookId,
+                [chapterIndex],
+                cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            configurationData = await TryGetCurrentConfigurationDataAsync(
+                bookId,
+                [chapterIndex],
+                selectedRule.NormalizedRule,
+                _settingsService.Current,
+                refreshMissingPlans: true,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        var status = configurationData.Statuses[chapterIndex];
+        return new CachedChapterCacheItem(
+            summary.BookId,
+            summary.ChapterIndex,
+            configurationData.Titles.GetValueOrDefault(
+                summary.ChapterIndex,
+                $"第 {summary.ChapterIndex + 1} 章"),
+            status.CachedSegmentCount,
+            summary.EntryCount,
+            summary.TotalSizeBytes,
+            status.TotalSegmentCount)
+        {
+            CurrentConfigurationStatus = status.Kind
+        };
+    }
+
+    public async Task<IReadOnlyList<CachedChapterCatalogEntry>> GetCachedChapterCatalogAsync(
+        string bookId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+
+        var summaries = await _cacheStore.GetChaptersAsync(bookId, cancellationToken).ConfigureAwait(false);
+        if (summaries.Count == 0)
+        {
+            return [];
+        }
+
+        var chapters = await _bookMetadataQuery.GetChaptersAsync(
+            bookId,
+            summaries.Select(static summary => summary.ChapterIndex).ToArray(),
+            cancellationToken).ConfigureAwait(false);
+        var titlesByIndex = chapters.ToDictionary(
+            static chapter => chapter.ChapterIndex,
+            static chapter => chapter.Title);
+
+        return summaries
+            .Select(summary => new CachedChapterCatalogEntry(
+                summary.BookId,
+                summary.ChapterIndex,
+                titlesByIndex.GetValueOrDefault(
+                    summary.ChapterIndex,
+                    $"第 {summary.ChapterIndex + 1} 章")))
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChapterDecorationsAsync(
+        string bookId,
+        IReadOnlyCollection<int> chapterIndices,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        ArgumentNullException.ThrowIfNull(chapterIndices);
+
+        var requested = chapterIndices.ToHashSet();
+        if (requested.Count == 0)
+        {
+            return [];
+        }
+
+        var summaries = (await _cacheStore
+                .GetChaptersAsync(bookId, requested, cancellationToken)
+                .ConfigureAwait(false))
+            .Where(summary => requested.Contains(summary.ChapterIndex))
+            .ToArray();
+        if (summaries.Length == 0)
+        {
+            return [];
+        }
+
+        var selectedRule = await _selectedRuleProvider
+            .GetSelectedRuleAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var settings = _settingsService.Current;
+        var indices = summaries.Select(static summary => summary.ChapterIndex).ToArray();
+        var configurationData = selectedRule is null
+            ? await GetUnavailableConfigurationDataAsync(bookId, indices, cancellationToken).ConfigureAwait(false)
+            : await TryGetCurrentConfigurationDataAsync(
+                bookId,
+                indices,
+                selectedRule.NormalizedRule,
+                settings,
+                refreshMissingPlans: true,
+                cancellationToken).ConfigureAwait(false);
+
+        return summaries
+            .Select(summary =>
+            {
+                var status = configurationData.Statuses[summary.ChapterIndex];
+                return new CachedChapterCacheItem(
+                    summary.BookId,
+                    summary.ChapterIndex,
+                    configurationData.Titles.GetValueOrDefault(
+                        summary.ChapterIndex,
+                        $"第 {summary.ChapterIndex + 1} 章"),
+                    status.CachedSegmentCount,
+                    summary.EntryCount,
+                    summary.TotalSizeBytes,
+                    status.TotalSegmentCount)
+                {
+                    CurrentConfigurationStatus = status.Kind
+                };
+            })
+            .ToArray();
     }
 
     public async Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
@@ -322,11 +512,12 @@ public sealed class CacheWorkspaceService :
         IReadOnlyCollection<int> chapterIndices,
         CancellationToken cancellationToken)
     {
-        var metadata = await _bookMetadataQuery.GetBookAsync(bookId, cancellationToken).ConfigureAwait(false);
+        var chapters = await _bookMetadataQuery
+            .GetChaptersAsync(bookId, chapterIndices, cancellationToken)
+            .ConfigureAwait(false);
         return new CurrentConfigurationData(
             chapterIndices.ToDictionary(index => index, ChapterCacheStatusConfigurationUnavailable),
-            metadata?.Chapters.ToDictionary(chapter => chapter.ChapterIndex, chapter => chapter.Title) ??
-                new Dictionary<int, string>());
+            chapters.ToDictionary(chapter => chapter.ChapterIndex, chapter => chapter.Title));
     }
 
     private static bool IsExpectedCompletenessFailure(Exception exception)

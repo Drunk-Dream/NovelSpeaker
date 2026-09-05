@@ -140,8 +140,8 @@ public sealed partial class BookDetailsPageTests
                 1,
                 "第 2 章",
                 "第二章 当前章节标题",
-                true);
-            currentChapter.ApplyCacheStatus(1, 4);
+                true,
+                "25%");
             viewModel.Chapters.Add(currentChapter);
 
             var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService());
@@ -688,8 +688,16 @@ public sealed partial class BookDetailsPageTests
 
         public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
+        public Task<CachedBookCacheItem?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(string bookId, CancellationToken cancellationToken)
             => throw new NotSupportedException();
+
+        public Task<CachedChapterCacheItem?> GetCachedChapterAsync(
+            string bookId,
+            int chapterIndex,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
             string bookId,

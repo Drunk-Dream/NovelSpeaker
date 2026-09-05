@@ -1,20 +1,21 @@
-using CommunityToolkit.Mvvm.ComponentModel;
 using NovelSpeaker.App.Shared.Presentation.Cache;
 
 namespace NovelSpeaker.App.Features.Books.Details;
 
-public sealed partial class BookDetailsChapterItemViewModel : ObservableObject
+public sealed class BookDetailsChapterItemViewModel
 {
     public BookDetailsChapterItemViewModel(
         int chapterIndex,
         string indexText,
         string title,
-        bool isCurrent)
+        bool isCurrent,
+        string cachePercentageText = "")
     {
         ChapterIndex = chapterIndex;
         IndexText = indexText;
         Title = title;
         IsCurrent = isCurrent;
+        CachePercentageText = cachePercentageText;
     }
 
     public int ChapterIndex { get; }
@@ -23,31 +24,11 @@ public sealed partial class BookDetailsChapterItemViewModel : ObservableObject
 
     public string Title { get; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(AutomationName))]
-    private bool isCurrent;
-
-    public void ApplyCurrentState(bool value)
-    {
-        IsCurrent = value;
-    }
+    public bool IsCurrent { get; }
 
     public string TitleToolTip => Title;
 
-    private string _cachePercentageText = string.Empty;
-
-    public string CachePercentageText
-    {
-        get => _cachePercentageText;
-        private set
-        {
-            if (SetProperty(ref _cachePercentageText, value))
-            {
-                OnPropertyChanged(nameof(IsCachePercentageVisible));
-                OnPropertyChanged(nameof(AutomationName));
-            }
-        }
-    }
+    public string CachePercentageText { get; }
 
     public bool IsCachePercentageVisible => !string.IsNullOrEmpty(CachePercentageText);
 
@@ -55,26 +36,16 @@ public sealed partial class BookDetailsChapterItemViewModel : ObservableObject
         ? BuildAutomationName("当前章节")
         : BuildAutomationName();
 
-    public void ApplyCacheStatus(int cachedSegmentCount, int? totalSegmentCount)
-    {
-        CachePercentageText = ChapterCachePercentageFormatter.Format(
-            cachedSegmentCount,
-            totalSegmentCount);
-    }
+    public BookDetailsChapterItemViewModel WithCurrentState(bool isCurrent) =>
+        new(ChapterIndex, IndexText, Title, isCurrent, CachePercentageText);
 
-    internal bool ApplyCacheStatusSilently(int cachedSegmentCount, int? totalSegmentCount)
-    {
-        var formatted = ChapterCachePercentageFormatter.Format(
-            cachedSegmentCount,
-            totalSegmentCount);
-        if (string.Equals(CachePercentageText, formatted, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        _cachePercentageText = formatted;
-        return true;
-    }
+    public BookDetailsChapterItemViewModel WithCacheStatus(int cachedSegmentCount, int? totalSegmentCount) =>
+        new(
+            ChapterIndex,
+            IndexText,
+            Title,
+            IsCurrent,
+            ChapterCachePercentageFormatter.Format(cachedSegmentCount, totalSegmentCount));
 
     private string BuildAutomationName(string? state = null)
     {

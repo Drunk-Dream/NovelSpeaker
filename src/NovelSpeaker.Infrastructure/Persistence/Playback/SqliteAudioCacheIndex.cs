@@ -362,6 +362,125 @@ internal sealed class SqliteAudioCacheIndex
         return items;
     }
 
+    public async Task<IReadOnlyList<CachedChapterStoreSummary>> GetChaptersAsync(
+        string bookId,
+        IReadOnlyCollection<int> chapterIndices,
+        CancellationToken cancellationToken)
+    {
+        var requested = chapterIndices.Distinct().Order().ToArray();
+        if (requested.Length == 0)
+        {
+            return [];
+        }
+
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var items = new List<CachedChapterStoreSummary>(requested.Length);
+        const int batchSize = 400;
+        for (var offset = 0; offset < requested.Length; offset += batchSize)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var batchCount = Math.Min(batchSize, requested.Length - offset);
+            await using var command = connection.CreateCommand();
+            var parameters = new string[batchCount];
+            for (var index = 0; index < batchCount; index++)
+            {
+                var parameter = $"$chapterIndex{index}";
+                parameters[index] = parameter;
+                command.Parameters.AddWithValue(parameter, requested[offset + index]);
+            }
+
+            command.CommandText = $"""
+                SELECT e.BookId,
+                       c.ChapterIndex,
+                       COUNT(DISTINCT e.SegmentKind || ':' || e.SourceStartOffset || ':' || e.SourceLength),
+                       COUNT(*),
+                       COALESCE(SUM(e.FileSize), 0)
+                FROM AudioCacheEntries e
+                INNER JOIN Chapters c ON c.Id = e.ChapterId
+                WHERE e.KeyVersion = 2 AND e.HealthState = $status AND e.BookId = $bookId
+                  AND c.ChapterIndex IN ({string.Join(", ", parameters)})
+                GROUP BY e.BookId, c.ChapterIndex
+                ORDER BY c.ChapterIndex;
+                """;
+            command.Parameters.AddWithValue("$status", ReadyHealthState);
+            command.Parameters.AddWithValue("$bookId", bookId);
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                items.Add(new CachedChapterStoreSummary(
+                    reader.GetString(0),
+                    reader.GetInt32(1),
+                    reader.GetInt32(2),
+                    reader.GetInt32(3),
+                    reader.GetInt64(4)));
+            }
+        }
+
+        return items.OrderBy(static item => item.ChapterIndex).ToArray();
+    }
+
+    public async Task<CachedBookStoreSummary?> GetBookAsync(
+        string bookId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT BookId, COUNT(DISTINCT ChapterId), COUNT(*), COALESCE(SUM(FileSize), 0)
+            FROM AudioCacheEntries
+            WHERE KeyVersion = 2 AND HealthState = $status AND BookId = $bookId
+            GROUP BY BookId;
+            """;
+        command.Parameters.AddWithValue("$status", ReadyHealthState);
+        command.Parameters.AddWithValue("$bookId", bookId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
+            ? new CachedBookStoreSummary(
+                reader.GetString(0),
+                reader.GetInt32(1),
+                reader.GetInt32(2),
+                reader.GetInt64(3))
+            : null;
+    }
+
+    public async Task<CachedChapterStoreSummary?> GetChapterAsync(
+        string bookId,
+        int chapterIndex,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT e.BookId,
+                   c.ChapterIndex,
+                   COUNT(DISTINCT e.SegmentKind || ':' || e.SourceStartOffset || ':' || e.SourceLength),
+                   COUNT(*),
+                   COALESCE(SUM(e.FileSize), 0)
+            FROM AudioCacheEntries e
+            INNER JOIN Chapters c ON c.Id = e.ChapterId
+            WHERE e.KeyVersion = 2 AND e.HealthState = $status
+              AND e.BookId = $bookId AND c.ChapterIndex = $chapterIndex
+            GROUP BY e.BookId, c.ChapterIndex;
+            """;
+        command.Parameters.AddWithValue("$status", ReadyHealthState);
+        command.Parameters.AddWithValue("$bookId", bookId);
+        command.Parameters.AddWithValue("$chapterIndex", chapterIndex);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
+            ? new CachedChapterStoreSummary(
+                reader.GetString(0),
+                reader.GetInt32(1),
+                reader.GetInt32(2),
+                reader.GetInt32(3),
+                reader.GetInt64(4))
+            : null;
+    }
+
     public async Task<IReadOnlyList<ChapterCacheStatus>> GetCurrentConfigurationStatusesAsync(
         IReadOnlyCollection<CurrentCacheChapterQuery> chapters,
         SynthesisProfileFingerprint synthesisProfile,

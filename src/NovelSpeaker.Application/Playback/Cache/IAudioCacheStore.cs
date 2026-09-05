@@ -11,8 +11,36 @@ public interface IAudioCacheStore
 
     Task<IReadOnlyList<CachedBookStoreSummary>> GetBooksAsync(CancellationToken cancellationToken);
 
+    Task<CachedBookStoreSummary?> GetBookAsync(
+        string bookId,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<CachedChapterStoreSummary>> GetChaptersAsync(
         string bookId,
+        CancellationToken cancellationToken);
+
+    async Task<IReadOnlyList<CachedChapterStoreSummary>> GetChaptersAsync(
+        string bookId,
+        IReadOnlyCollection<int> chapterIndices,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(chapterIndices);
+        var chapters = new List<CachedChapterStoreSummary>(chapterIndices.Count);
+        foreach (var chapterIndex in chapterIndices.Distinct().Order())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (await GetChapterAsync(bookId, chapterIndex, cancellationToken).ConfigureAwait(false) is { } chapter)
+            {
+                chapters.Add(chapter);
+            }
+        }
+
+        return chapters;
+    }
+
+    Task<CachedChapterStoreSummary?> GetChapterAsync(
+        string bookId,
+        int chapterIndex,
         CancellationToken cancellationToken);
 
     /// <summary>

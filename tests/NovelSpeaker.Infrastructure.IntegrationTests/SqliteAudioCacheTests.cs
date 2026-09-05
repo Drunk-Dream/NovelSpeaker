@@ -555,9 +555,21 @@ public sealed class SqliteAudioCacheTests
         Assert.Equal(2, book1.ChapterCount);
         Assert.Equal(3, book1.EntryCount);
 
+        var targetedBook = await fixture.Cache.GetBookAsync("book-1", CancellationToken.None);
+        Assert.NotNull(targetedBook);
+        Assert.Equal(3, targetedBook.EntryCount);
+        Assert.Equal(2, targetedBook.ChapterCount);
+        Assert.Null(await fixture.Cache.GetBookAsync("missing-book", CancellationToken.None));
+
         var chapters = await fixture.Cache.GetChaptersAsync("book-1", CancellationToken.None);
         Assert.Equal([0, 1], chapters.Select(item => item.ChapterIndex).ToArray());
         Assert.Equal(2, Assert.Single(chapters, item => item.ChapterIndex == 1).DistinctSegmentCount);
+
+        var targetedChapter = await fixture.Cache.GetChapterAsync("book-1", 1, CancellationToken.None);
+        Assert.NotNull(targetedChapter);
+        Assert.Equal(2, targetedChapter.EntryCount);
+        Assert.Equal(2, targetedChapter.DistinctSegmentCount);
+        Assert.Null(await fixture.Cache.GetChapterAsync("book-1", 99, CancellationToken.None));
 
         var chapterCleanup = await fixture.Cache.ClearChapterAsync("book-1", 0, CancellationToken.None);
         Assert.Null(await fixture.Cache.TryGetAsync(key1, CancellationToken.None));
