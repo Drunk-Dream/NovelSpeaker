@@ -450,8 +450,7 @@ public sealed partial class BookDetailsPageTests
                 Header = new BookDetailsHeader("book-A", "书籍 A", "作者 A"),
                 Details = CreateDetails("book-A", 1, 0) with
                 {
-                    Title = "书籍 A",
-                    Author = "作者 A"
+                    Header = new BookDetailsHeader("book-A", "书籍 A", "作者 A")
                 }
             };
             var viewModel = CreateViewModel(managementService);
@@ -494,29 +493,28 @@ public sealed partial class BookDetailsPageTests
             new FakeGuardedNavigationService());
     }
 
-    private static BookDetails CreateDetails(int chapterCount, int currentChapterIndex)
+    private sealed record FakeDetailsState(
+        BookDetailsHeader Header,
+        IReadOnlyList<BookChapterSummary> Catalog,
+        BookReadingPosition? ReadingPosition,
+        BookDetailsStatistics Statistics);
+
+    private static FakeDetailsState CreateDetails(int chapterCount, int currentChapterIndex)
         => CreateDetails("book-1", chapterCount, currentChapterIndex);
 
-    private static BookDetails CreateDetails(string bookId, int chapterCount, int currentChapterIndex)
+    private static FakeDetailsState CreateDetails(string bookId, int chapterCount, int currentChapterIndex)
     {
-        return new BookDetails(
-            bookId,
-            "示例小说",
-            "作者甲",
-            chapterCount,
-            currentChapterIndex,
-            chapterCount - currentChapterIndex - 1,
-            0.5,
-            true,
-            0,
+        return new FakeDetailsState(
+            new BookDetailsHeader(bookId, "示例小说", "作者甲"),
             Enumerable.Range(0, chapterCount)
                 .Select(index => new BookChapterSummary(
                     index,
                     $"第 {index + 1} 章 标题",
                     index * 100,
-                    100,
-                    index == currentChapterIndex))
-                .ToArray());
+                    100))
+                .ToArray(),
+            new BookReadingPosition(bookId, currentChapterIndex, 0, 0, 0, DateTimeOffset.UtcNow),
+            new BookDetailsStatistics(0));
     }
 
     private static void PopulateLayoutState(BookDetailsViewModel viewModel, int chapterCount)
@@ -645,28 +643,31 @@ public sealed partial class BookDetailsPageTests
             => Task.FromResult(true);
     }
 
-    private sealed class FakeBookManagementService : IBookLibraryQuery, IBookMetadataUpdateService, IBookDeletionService
+    private sealed class FakeBookManagementService : IBookDetailsQuery, IBookMetadataUpdateService, IBookDeletionService
     {
         public BookDetailsHeader? Header { get; init; }
 
-        public BookDetails? Details { get; init; }
+        public FakeDetailsState? Details { get; init; }
 
         public string? LastRequestedBookId { get; private set; }
 
-        public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<BookSummary>>([]);
-
-        public Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken)
+        public Task<BookDetailsHeader?> GetHeaderAsync(string bookId, CancellationToken cancellationToken)
         {
             LastRequestedBookId = bookId;
-            return Task.FromResult(Header);
+            return Task.FromResult<BookDetailsHeader?>(Header ?? Details?.Header);
         }
 
-        public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken)
+        public Task<IReadOnlyList<BookChapterSummary>> GetCatalogAsync(string bookId, CancellationToken cancellationToken)
         {
             LastRequestedBookId = bookId;
-            return Task.FromResult(Details);
+            return Task.FromResult<IReadOnlyList<BookChapterSummary>>(Details?.Catalog ?? []);
         }
+
+        public Task<BookReadingPosition?> GetReadingPositionAsync(string bookId, CancellationToken cancellationToken)
+            => Task.FromResult(Details?.ReadingPosition);
+
+        public Task<BookDetailsStatistics?> GetStatisticsAsync(string bookId, CancellationToken cancellationToken)
+            => Task.FromResult<BookDetailsStatistics?>(Details is null ? null : Details.Statistics);
 
         public Task<BookDetailsHeader> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
             => throw new NotSupportedException();

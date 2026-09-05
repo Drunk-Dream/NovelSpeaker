@@ -13,13 +13,12 @@ using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Cache;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shell.Navigation;
-using BookDetailsModel = NovelSpeaker.Application.Books.BookDetails;
 
 namespace NovelSpeaker.App.Features.Books.Details;
 
 public sealed partial class BookDetailsViewModel : ObservableObject
 {
-    private readonly IBookLibraryQuery _bookLibraryQuery;
+    private readonly IBookDetailsQuery _bookDetailsQuery;
     private readonly IBookMetadataUpdateService _bookMetadataUpdateService;
     private readonly IBookDeletionService _bookDeletionService;
     private readonly ICacheWorkspaceService _cacheWorkspaceService;
@@ -37,7 +36,9 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private CancellationTokenSource? _activeLoadCancellationTokenSource;
     private int _loadVersion;
     private BookDetailsHeader? _loadedHeader;
-    private BookDetailsModel? _loadedDetails;
+    private IReadOnlyList<BookChapterSummary> _loadedCatalog = [];
+    private BookReadingPosition? _loadedReadingPosition;
+    private BookDetailsStatistics? _loadedStatistics;
     private string? _bookId;
     private CancellationTokenSource? _cacheStatusCancellationTokenSource;
     private bool _isCacheStatusUpdatesActive;
@@ -47,7 +48,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private int _playbackProjectionVersion;
 
     public BookDetailsViewModel(
-        IBookLibraryQuery bookLibraryQuery,
+        IBookDetailsQuery bookDetailsQuery,
         IBookMetadataUpdateService bookMetadataUpdateService,
         IBookDeletionService bookDeletionService,
         ICacheWorkspaceService cacheWorkspaceService,
@@ -61,7 +62,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         IAppNavigator navigator,
         IUiScheduler? uiScheduler = null)
     {
-        _bookLibraryQuery = bookLibraryQuery;
+        _bookDetailsQuery = bookDetailsQuery;
         _bookMetadataUpdateService = bookMetadataUpdateService;
         _bookDeletionService = bookDeletionService;
         _cacheWorkspaceService = cacheWorkspaceService;
@@ -178,7 +179,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
         try
         {
-            var header = await _bookLibraryQuery.GetBookDetailsHeaderAsync(bookId, cancellationToken);
+            var header = await _bookDetailsQuery.GetHeaderAsync(bookId, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (version != Volatile.Read(ref _loadVersion))
             {
@@ -305,10 +306,11 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         try
         {
             var result = await _cacheWorkspaceService.ClearBookAsync(_bookId, cancellationToken);
-            var details = await _bookLibraryQuery.GetBookDetailsAsync(_bookId, cancellationToken);
-            if (details is not null)
+            var statistics = await _bookDetailsQuery.GetStatisticsAsync(_bookId, cancellationToken);
+            if (statistics is not null)
             {
-                ApplyDetails(details, preserveEditor: true);
+                _loadedStatistics = statistics;
+                CacheSizeText = FormatBytes(statistics.CachedAudioBytes);
             }
 
             var feedback = CacheCleanupFeedbackFormatter.Format(result, "缓存已清理", "缓存已部分清理");
@@ -512,20 +514,27 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         {
             await Task.Yield();
 
-            var details = await _bookLibraryQuery.GetBookDetailsAsync(bookId, cancellationTokenSource.Token);
+            var catalogTask = _bookDetailsQuery.GetCatalogAsync(bookId, cancellationTokenSource.Token);
+            var readingPositionTask = _bookDetailsQuery.GetReadingPositionAsync(bookId, cancellationTokenSource.Token);
+            var statisticsTask = _bookDetailsQuery.GetStatisticsAsync(bookId, cancellationTokenSource.Token);
+            await Task.WhenAll(catalogTask, readingPositionTask, statisticsTask).ConfigureAwait(true);
             if (cancellationTokenSource.IsCancellationRequested || !ReferenceEquals(_activeLoadCancellationTokenSource, cancellationTokenSource))
             {
                 return;
             }
 
-            if (details is null)
+            var statistics = await statisticsTask.ConfigureAwait(true);
+            if (statistics is null)
             {
                 ClearBook();
                 StatusMessage = "未找到这本书，可能已经被删除。";
                 return;
             }
 
-            ApplyDetails(details, preserveEditor: true);
+            ApplyDetails(
+                await catalogTask.ConfigureAwait(true),
+                await readingPositionTask.ConfigureAwait(true),
+                statistics);
         }
         catch (OperationCanceledException) when (cancellationTokenSource.IsCancellationRequested)
         {
@@ -571,29 +580,29 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         NotifyCommandStateChanged();
     }
 
-    private void ApplyDetails(BookDetailsModel details, bool preserveEditor = false)
+    private void ApplyDetails(
+        IReadOnlyList<BookChapterSummary> catalog,
+        BookReadingPosition? readingPosition,
+        BookDetailsStatistics statistics)
     {
-        ApplyHeader(new BookDetailsHeader(details.Id, details.Title, details.Author), preserveEditor);
-        _loadedDetails = details;
-        TotalChapterCountText = $"共 {details.TotalChapterCount} 章";
-        CurrentChapterText = details.HasReadingProgress
-            ? details.Chapters.FirstOrDefault(chapter => chapter.IsCurrent)?.Title ?? $"第 {details.CurrentChapterIndex.GetValueOrDefault() + 1} 章"
-            : "未开始";
-        ChapterCatalogSummaryText = details.HasReadingProgress && details.CurrentChapterIndex is not null
-            ? $"共 {details.TotalChapterCount} 章 · 当前第 {details.CurrentChapterIndex.Value + 1} 章"
-            : $"共 {details.TotalChapterCount} 章 · 未开始";
-        ProgressRatio = Math.Clamp(details.OverallProgress, 0, 1);
-        ProgressText = $"{ProgressRatio:P0}";
-        CacheSizeText = FormatBytes(details.CachedAudioBytes);
-        Cover = _bookCoverGenerator.Generate(details.Title);
+        _loadedCatalog = catalog;
+        _loadedReadingPosition = readingPosition;
+        _loadedStatistics = statistics;
+        TotalChapterCountText = $"共 {catalog.Count} 章";
+        CacheSizeText = FormatBytes(statistics.CachedAudioBytes);
+        Cover = _bookCoverGenerator.Generate(Title);
 
         _initialCacheStatusProjectionPending = true;
-        Chapters.ReplaceWith(details.Chapters, chapter => new BookDetailsChapterItemViewModel(
+        Chapters.ReplaceWith(catalog, chapter => new BookDetailsChapterItemViewModel(
             chapter.ChapterIndex,
             $"第 {chapter.ChapterIndex + 1} 章",
             chapter.Title,
-            chapter.IsCurrent));
-        ApplyReadingProgress(EffectiveReadingProgressProjector.Project(details, _playbackCoordinator.CurrentSnapshot));
+            isCurrent: false));
+        ApplyReadingProgress(EffectiveReadingProgressProjector.Project(
+            _loadedHeader!.Id,
+            catalog,
+            readingPosition,
+            _playbackCoordinator.CurrentSnapshot));
         if (!_deferInitialCacheStatusProjection)
         {
             QueueCacheStatusRefresh(chapterIndex: null, isInitialProjection: true);
@@ -607,7 +616,9 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     {
         CancelPendingLoad();
         _loadedHeader = null;
-        _loadedDetails = null;
+        _loadedCatalog = [];
+        _loadedReadingPosition = null;
+        _loadedStatistics = null;
         IsBusy = false;
         HasBook = false;
         Title = string.Empty;
@@ -777,7 +788,9 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
     private void ResetDetailSupplementProjection()
     {
-        _loadedDetails = null;
+        _loadedCatalog = [];
+        _loadedReadingPosition = null;
+        _loadedStatistics = null;
         TotalChapterCountText = string.Empty;
         CurrentChapterText = "未开始";
         ChapterCatalogSummaryText = string.Empty;
@@ -829,7 +842,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private void ApplyPlaybackSnapshot(PlaybackSnapshot snapshot, int? expectedProjectionVersion = null)
     {
         if (!_isPlaybackEventsRegistered ||
-            _loadedDetails is null ||
+            _loadedHeader is null ||
             (expectedProjectionVersion is int projectionVersion &&
              (projectionVersion != Volatile.Read(ref _playbackProjectionVersion) ||
               !Equals(_playbackCoordinator.CurrentSnapshot, snapshot))))
@@ -837,7 +850,11 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             return;
         }
 
-        ApplyReadingProgress(EffectiveReadingProgressProjector.Project(_loadedDetails, snapshot));
+        ApplyReadingProgress(EffectiveReadingProgressProjector.Project(
+            _loadedHeader.Id,
+            _loadedCatalog,
+            _loadedReadingPosition,
+            snapshot));
     }
 
     private void ApplyReadingProgress(EffectiveReadingProgress progress)
@@ -846,8 +863,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             ? progress.CurrentChapterTitle
             : "未开始";
         ChapterCatalogSummaryText = progress.HasReadingProgress && progress.CurrentChapterIndex is not null
-            ? $"共 {_loadedDetails!.TotalChapterCount} 章 · 当前第 {progress.CurrentChapterIndex.Value + 1} 章"
-            : $"共 {_loadedDetails!.TotalChapterCount} 章 · 未开始";
+            ? $"共 {_loadedCatalog.Count} 章 · 当前第 {progress.CurrentChapterIndex.Value + 1} 章"
+            : $"共 {_loadedCatalog.Count} 章 · 未开始";
         ProgressRatio = Math.Clamp(progress.OverallProgress, 0, 1);
         ProgressText = $"{ProgressRatio:P0}";
 

@@ -11,7 +11,7 @@ public sealed class BookLibraryQueryTests
     [Fact]
     public async Task GetBooksAsync_prefers_recent_progress_chapter_title_and_exposes_last_played_at()
     {
-        var (factory, service) = await CreateCatalogAsync();
+        var (factory, service, _) = await CreateCatalogAsync();
         await SeedBookAsync(factory, "book-1", "第一章", "第二章");
         await SeedReadingProgressAsync(factory, "book-1", 1, 3, "2026-06-25T09:00:00.0000000Z");
 
@@ -30,7 +30,7 @@ public sealed class BookLibraryQueryTests
     [Fact]
     public async Task GetBooksAsync_orders_by_import_time_then_id()
     {
-        var (factory, service) = await CreateCatalogAsync();
+        var (factory, service, _) = await CreateCatalogAsync();
         await SeedBookAsync(factory, "book-b", "B 第一章", "B 第二章");
         await SeedBookAsync(factory, "book-a", "A 第一章", "A 第二章");
         await SetImportedAtAsync(factory, "book-b", "2026-01-01T00:00:00.0000000Z");
@@ -42,9 +42,9 @@ public sealed class BookLibraryQueryTests
     }
 
     [Fact]
-    public async Task GetBookDetailsAsync_orders_chapters_by_sort_order_then_chapter_index()
+    public async Task GetCatalogAsync_orders_chapters_by_sort_order_then_chapter_index()
     {
-        var (factory, service) = await CreateCatalogAsync();
+        var (factory, service, detailsQuery) = await CreateCatalogAsync();
         var repository = new BookImportRepository(factory);
         var now = DateTimeOffset.UtcNow;
         await repository.SaveAsync(
@@ -56,16 +56,37 @@ public sealed class BookLibraryQueryTests
             ],
             CancellationToken.None);
 
-        var details = await service.GetBookDetailsAsync("book-1", CancellationToken.None);
+        var details = await detailsQuery.GetCatalogAsync("book-1", CancellationToken.None);
 
-        Assert.NotNull(details);
-        Assert.Equal([0, 1, 2], details.Chapters.Select(static chapter => chapter.ChapterIndex));
+        Assert.Equal([0, 1, 2], details.Select(static chapter => chapter.ChapterIndex));
+    }
+
+    [Fact]
+    public async Task Detail_queries_return_empty_catalog_and_no_position_for_a_book_without_chapters()
+    {
+        var (factory, _, detailsQuery) = await CreateCatalogAsync();
+        var repository = new BookImportRepository(factory);
+        var now = DateTimeOffset.UtcNow;
+        await repository.SaveAsync(
+            new Book("empty-book", "空书", null, "empty.txt", "empty.txt", "empty-hash", "utf-8", now, now, null, now),
+            [],
+            CancellationToken.None);
+
+        var header = await detailsQuery.GetHeaderAsync("empty-book", CancellationToken.None);
+        var catalog = await detailsQuery.GetCatalogAsync("empty-book", CancellationToken.None);
+        var position = await detailsQuery.GetReadingPositionAsync("empty-book", CancellationToken.None);
+        var statistics = await detailsQuery.GetStatisticsAsync("empty-book", CancellationToken.None);
+
+        Assert.NotNull(header);
+        Assert.Empty(catalog);
+        Assert.Null(position);
+        Assert.Equal(0, statistics!.CachedAudioBytes);
     }
 
     [Fact]
     public async Task GetBooksAsync_accepts_legacy_times_and_skips_rows_with_damaged_times()
     {
-        var (factory, service) = await CreateCatalogAsync();
+        var (factory, service, _) = await CreateCatalogAsync();
         await SeedBookAsync(factory, "legacy-time", "第一章", "第二章");
         await SeedBookAsync(factory, "damaged-time", "第一章", "第二章");
         await SetImportedAtAsync(factory, "legacy-time", "2026-07-16 09:08:07");
@@ -80,7 +101,10 @@ public sealed class BookLibraryQueryTests
             legacy.ImportedAt);
     }
 
-    private static async Task<(SqliteConnectionFactory Factory, BookLibraryQuery Service)> CreateCatalogAsync()
+    private static async Task<(
+        SqliteConnectionFactory Factory,
+        BookLibraryQuery Service,
+        BookDetailsQuery DetailsQuery)> CreateCatalogAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var directories = new AppDataDirectoryProvider(root);
@@ -90,7 +114,7 @@ public sealed class BookLibraryQueryTests
         var seeder = new DefaultChapterRuleSeeder(repository);
         var initializer = new StartupDatabaseInitializer(directories, runner, seeder);
         await initializer.InitializeAsync(CancellationToken.None);
-        return (factory, new BookLibraryQuery(factory));
+        return (factory, new BookLibraryQuery(factory), new BookDetailsQuery(factory));
     }
 
     private static async Task SeedBookAsync(SqliteConnectionFactory factory, string bookId, string firstChapterTitle, string secondChapterTitle)

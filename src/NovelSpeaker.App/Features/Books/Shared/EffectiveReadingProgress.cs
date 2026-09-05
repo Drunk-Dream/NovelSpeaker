@@ -37,33 +37,82 @@ public static class EffectiveReadingProgressProjector
             snapshot.ChapterTitle ?? persisted.CurrentChapterTitle);
     }
 
-    public static EffectiveReadingProgress Project(BookDetails persisted, PlaybackSnapshot snapshot)
+    public static EffectiveReadingProgress Project(
+        string bookId,
+        IReadOnlyList<BookChapterSummary> catalog,
+        BookReadingPosition? persisted,
+        PlaybackSnapshot snapshot)
     {
-        ArgumentNullException.ThrowIfNull(persisted);
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(snapshot);
 
-        var baselineTitle = persisted.Chapters.FirstOrDefault(chapter => chapter.IsCurrent)?.Title;
-        if (string.IsNullOrWhiteSpace(baselineTitle))
-        {
-            baselineTitle = persisted.CurrentChapterIndex is int currentChapterIndex
-                ? $"第 {currentChapterIndex + 1} 章"
-                : "未开始";
-        }
+        var totalChapterCount = catalog.Count;
+        var persistedChapterPosition = FindChapterPosition(catalog, persisted?.ChapterIndex);
+        var currentChapterIndex = persistedChapterPosition is int
+            ? persisted!.ChapterIndex
+            : (int?)null;
+        var baselineTitle = persistedChapterPosition is int baselinePosition
+            ? catalog[baselinePosition].Title
+            : "未开始";
 
         var baseline = new EffectiveReadingProgress(
-            persisted.CurrentChapterIndex,
+            currentChapterIndex,
             baselineTitle,
-            persisted.RemainingChapterCount,
-            persisted.OverallProgress,
-            persisted.HasReadingProgress);
-        var snapshotTitle = snapshot.ChapterTitle ?? persisted.Chapters
-            .FirstOrDefault(chapter => chapter.ChapterIndex == snapshot.ChapterIndex)?.Title;
-        return Project(
-            persisted.Id,
-            persisted.TotalChapterCount,
-            baseline,
-            snapshot,
-            snapshotTitle ?? baselineTitle);
+            persistedChapterPosition is int position ? totalChapterCount - position - 1 : totalChapterCount,
+            persistedChapterPosition is not null && totalChapterCount > 0
+                ? (double)(persistedChapterPosition.Value + 1) / totalChapterCount
+                : 0,
+            currentChapterIndex is not null);
+
+        if (!string.Equals(snapshot.BookId, bookId, StringComparison.Ordinal))
+        {
+            return baseline;
+        }
+
+        if (totalChapterCount <= 0)
+        {
+            return new EffectiveReadingProgress(
+                null,
+                snapshot.ChapterTitle ?? baselineTitle,
+                0,
+                0,
+                false);
+        }
+
+        var snapshotChapterPosition = FindChapterPosition(catalog, snapshot.ChapterIndex);
+        if (snapshotChapterPosition is not int activePosition)
+        {
+            return baseline;
+        }
+
+        var activeChapter = catalog[activePosition];
+        return new EffectiveReadingProgress(
+            activeChapter.ChapterIndex,
+            snapshot.ChapterTitle ?? activeChapter.Title,
+            totalChapterCount - activePosition - 1,
+            (double)(activePosition + 1) / totalChapterCount,
+            true);
+    }
+
+    private static int? FindChapterPosition(
+        IReadOnlyList<BookChapterSummary> catalog,
+        int? chapterIndex)
+    {
+        if (chapterIndex is not int targetChapterIndex)
+        {
+            return null;
+        }
+
+        for (var position = 0; position < catalog.Count; position++)
+        {
+            if (catalog[position].ChapterIndex == targetChapterIndex)
+            {
+                return position;
+            }
+        }
+
+        return null;
     }
 
     private static EffectiveReadingProgress Project(

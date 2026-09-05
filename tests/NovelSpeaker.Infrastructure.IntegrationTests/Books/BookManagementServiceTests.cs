@@ -22,13 +22,13 @@ public sealed class BookLibraryPersistenceTests
     {
         var fixture = await CreateFixtureAsync();
 
-        Assert.Null(await fixture.Query.GetBookDetailsHeaderAsync("missing", CancellationToken.None));
-        Assert.Null(await fixture.Query.GetBookDetailsAsync("missing", CancellationToken.None));
+        Assert.Null(await fixture.DetailsQuery.GetHeaderAsync("missing", CancellationToken.None));
+        Assert.Null(await fixture.DetailsQuery.GetStatisticsAsync("missing", CancellationToken.None));
         Assert.Null(await fixture.Deletion.DeleteAsync(new BookDeleteRequest("missing", true), CancellationToken.None));
     }
 
     [Fact]
-    public async Task GetBookDetailsAsync_and_UpdateMetadataAsync_return_enriched_summary()
+    public async Task Independent_detail_queries_and_UpdateMetadataAsync_return_expected_projections()
     {
         var fixture = await CreateFixtureAsync();
         await SeedBookAsync(fixture, "book-1", title: "原书名", author: null);
@@ -43,8 +43,10 @@ public sealed class BookLibraryPersistenceTests
                 "audio/mpeg"),
             CancellationToken.None);
 
-        var header = await fixture.Query.GetBookDetailsHeaderAsync("book-1", CancellationToken.None);
-        var details = await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None);
+        var header = await fixture.DetailsQuery.GetHeaderAsync("book-1", CancellationToken.None);
+        var catalog = await fixture.DetailsQuery.GetCatalogAsync("book-1", CancellationToken.None);
+        var readingPosition = await fixture.DetailsQuery.GetReadingPositionAsync("book-1", CancellationToken.None);
+        var statistics = await fixture.DetailsQuery.GetStatisticsAsync("book-1", CancellationToken.None);
         var updated = await fixture.Metadata.UpdateMetadataAsync(
             new BookMetadataUpdateRequest("book-1", "  新书名  ", "  作者甲  "),
             CancellationToken.None);
@@ -52,13 +54,10 @@ public sealed class BookLibraryPersistenceTests
         Assert.NotNull(header);
         Assert.Equal("原书名", header!.Title);
         Assert.Null(header.Author);
-        Assert.NotNull(details);
-        Assert.Equal(2, details!.TotalChapterCount);
-        Assert.Equal(1, details.CurrentChapterIndex);
-        Assert.Equal(0, details.RemainingChapterCount);
-        Assert.Equal(1d, details.OverallProgress);
-        Assert.True(details.HasReadingProgress);
-        Assert.True(details.CachedAudioBytes > 0);
+        Assert.Equal(2, catalog.Count);
+        Assert.Equal(1, readingPosition!.ChapterIndex);
+        Assert.NotNull(statistics);
+        Assert.True(statistics!.CachedAudioBytes > 0);
         Assert.Equal("新书名", updated.Title);
         Assert.Equal("作者甲", updated.Author);
     }
@@ -92,7 +91,7 @@ public sealed class BookLibraryPersistenceTests
             new BookMetadataUpdateRequest("missing", "新书名", "新作者"),
             CancellationToken.None));
 
-        var unchanged = await fixture.Query.GetBookDetailsHeaderAsync("book-1", CancellationToken.None);
+        var unchanged = await fixture.DetailsQuery.GetHeaderAsync("book-1", CancellationToken.None);
         Assert.NotNull(unchanged);
         Assert.Equal("保留书名", unchanged.Title);
         Assert.Equal("保留作者", unchanged.Author);
@@ -106,7 +105,7 @@ public sealed class BookLibraryPersistenceTests
         await fixture.ProgressStore.SaveAsync(new PlaybackProgressUpdate("book-1", 0, 0, 0, 120), CancellationToken.None);
 
         var result = await fixture.Deletion.DeleteAsync(new BookDeleteRequest("book-1", false), CancellationToken.None);
-        var remainingDetails = await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None);
+        var remainingDetails = await fixture.DetailsQuery.GetStatisticsAsync("book-1", CancellationToken.None);
         var remainingProgress = await fixture.ProgressStore.GetAsync("book-1", CancellationToken.None);
 
         Assert.NotNull(result);
@@ -204,7 +203,7 @@ public sealed class BookLibraryPersistenceTests
             fixture.Deletion.DeleteAsync(new BookDeleteRequest("book-1", false), CancellationToken.None));
 
         Assert.True(File.Exists(storedFilePath));
-        Assert.NotNull(await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None));
+        Assert.NotNull(await fixture.DetailsQuery.GetStatisticsAsync("book-1", CancellationToken.None));
     }
 
     [Fact]
@@ -230,7 +229,7 @@ public sealed class BookLibraryPersistenceTests
         Assert.True(File.Exists(storedFilePath));
         Assert.True(File.Exists(cacheEntry.FilePath));
         Assert.NotNull(await fixture.Cache.TryGetAsync(cacheEntry.Key, CancellationToken.None));
-        Assert.NotNull(await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None));
+        Assert.NotNull(await fixture.DetailsQuery.GetStatisticsAsync("book-1", CancellationToken.None));
     }
 
     [Fact]
@@ -266,7 +265,7 @@ public sealed class BookLibraryPersistenceTests
             Assert.NotNull(await fixture.Cache.TryGetAsync(entry.Key, CancellationToken.None));
         }
 
-        Assert.NotNull(await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None));
+        Assert.NotNull(await fixture.DetailsQuery.GetStatisticsAsync("book-1", CancellationToken.None));
     }
 
     [Fact]
@@ -289,7 +288,7 @@ public sealed class BookLibraryPersistenceTests
 
         Assert.True(File.Exists(externalPath));
         Assert.Equal("external source", await File.ReadAllTextAsync(externalPath, CancellationToken.None));
-        Assert.NotNull(await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None));
+        Assert.NotNull(await fixture.DetailsQuery.GetStatisticsAsync("book-1", CancellationToken.None));
     }
 
     [Fact]
@@ -326,7 +325,7 @@ public sealed class BookLibraryPersistenceTests
                 CancellationToken.None));
 
             Assert.True(File.Exists(externalPath));
-            Assert.NotNull(await fixture.Query.GetBookDetailsAsync("book-1", CancellationToken.None));
+            Assert.NotNull(await fixture.DetailsQuery.GetStatisticsAsync("book-1", CancellationToken.None));
         }
         finally
         {
@@ -360,6 +359,7 @@ public sealed class BookLibraryPersistenceTests
         var cache = new AudioCacheFacade(index, fileStore, maintenance, protectionRegistry, new AudioProbe());
         var progressStore = new SqliteReadingProgressStore(factory);
         var query = new BookLibraryQuery(factory);
+        var detailsQuery = new BookDetailsQuery(factory);
         var metadata = new BookMetadataUpdateService(factory);
         var journal = new SqliteBookOperationJournal(factory, TimeProvider.System);
         var deletionStore = new BookDeletionOperationStore(
@@ -370,7 +370,7 @@ public sealed class BookLibraryPersistenceTests
             journal,
             TimeProvider.System);
         var deletion = new Application.Books.Library.BookDeletionService(deletionStore);
-        return new TestFixture(directories, factory, cache, progressStore, protectionRegistry, query, metadata, deletion);
+        return new TestFixture(directories, factory, cache, progressStore, protectionRegistry, query, detailsQuery, metadata, deletion);
     }
 
     private static async Task<string> SeedBookAsync(TestFixture fixture, string bookId, string title, string? author)
@@ -419,6 +419,7 @@ public sealed class BookLibraryPersistenceTests
         SqliteReadingProgressStore ProgressStore,
         AudioCacheProtectionRegistry ProtectionRegistry,
         BookLibraryQuery Query,
+        BookDetailsQuery DetailsQuery,
         BookMetadataUpdateService Metadata,
         IBookDeletionService Deletion);
 

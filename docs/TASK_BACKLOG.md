@@ -173,7 +173,7 @@
 
 # Phase B：Books、Query 与大列表架构
 
-## [ ] T004（P0）：拆分 Books CQRS-style read model 与查询边界
+## [x] T004（P0）：拆分 Books CQRS-style read model 与查询边界
 
 依赖：T003。
 
@@ -199,6 +199,8 @@
 - Infrastructure 集成测试覆盖 query 语义、排序和空数据。
 - 记录关键 query plan，确保单书查询不因改造退化为 N+1。
 - Application/App 调用方只依赖新 read model。
+
+完成成果：拆分 Library summaries 与 BookDetails header/catalog/reading position/statistics 查询及 immutable read model，BookDetails 改为并行加载场景化查询；删除旧 `BookDetails` aggregate、旧宽查询入口和动态 `IsCurrent` 字段；补充空目录、查询排序、独立投影及目录顺序进度投影测试，相关 Presentation/WPF/Infrastructure focused tests 与 ArchitectureTests 通过。
 
 ## [ ] T005（P0）：建立大型 Catalog 与 Sparse Decoration 基础设施
 

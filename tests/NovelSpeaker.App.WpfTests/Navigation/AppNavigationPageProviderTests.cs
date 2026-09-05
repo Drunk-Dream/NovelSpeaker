@@ -27,7 +27,7 @@ public sealed class AppNavigationPageProviderTests
             services.AddSingleton<IAppNavigator>(provider => provider.GetRequiredService<FakeNavigationService>());
             services.AddSingleton<INavigationGuardService, FakeNavigationGuardService>();
             services.AddSingleton<FakeBookManagementService>();
-            services.AddSingleton<IBookLibraryQuery>(provider => provider.GetRequiredService<FakeBookManagementService>());
+            services.AddSingleton<IBookDetailsQuery>(provider => provider.GetRequiredService<FakeBookManagementService>());
             services.AddSingleton<IBookMetadataUpdateService>(provider => provider.GetRequiredService<FakeBookManagementService>());
             services.AddSingleton<IBookDeletionService>(provider => provider.GetRequiredService<FakeBookManagementService>());
             services.AddSingleton<ICacheWorkspaceService, FakeCacheWorkspaceService>();
@@ -126,20 +126,21 @@ public sealed class AppNavigationPageProviderTests
         }
     }
 
-    private sealed class FakeBookManagementService : IBookLibraryQuery, IBookMetadataUpdateService, IBookDeletionService
+    private sealed class FakeBookManagementService : IBookDetailsQuery, IBookMetadataUpdateService, IBookDeletionService
     {
-        public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<BookSummary>>([]);
-
-        public Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken)
+        public Task<BookDetailsHeader?> GetHeaderAsync(string bookId, CancellationToken cancellationToken)
         {
             return Task.FromResult<BookDetailsHeader?>(null);
         }
 
-        public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken)
-        {
-            return Task.FromResult<BookDetails?>(null);
-        }
+        public Task<IReadOnlyList<BookChapterSummary>> GetCatalogAsync(string bookId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<BookChapterSummary>>([]);
+
+        public Task<BookReadingPosition?> GetReadingPositionAsync(string bookId, CancellationToken cancellationToken)
+            => Task.FromResult<BookReadingPosition?>(null);
+
+        public Task<BookDetailsStatistics?> GetStatisticsAsync(string bookId, CancellationToken cancellationToken)
+            => Task.FromResult<BookDetailsStatistics?>(null);
 
         public Task<BookDetailsHeader> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
         {

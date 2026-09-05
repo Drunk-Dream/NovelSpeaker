@@ -7,5 +7,4 @@ public sealed record BookChapterSummary(
     int ChapterIndex,
     string Title,
     int StartOffset,
-    int Length,
-    bool IsCurrent);
+    int Length);

@@ -506,11 +506,6 @@ public sealed class LibraryViewModelTests
             return Task.FromResult(Books);
         }
 
-        public Task<BookDetailsHeader?> GetBookDetailsHeaderAsync(string bookId, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
-
-        public Task<BookDetails?> GetBookDetailsAsync(string bookId, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
     }
 
     private sealed class FakeLibraryImportCoordinator : ILibraryImportCoordinator
