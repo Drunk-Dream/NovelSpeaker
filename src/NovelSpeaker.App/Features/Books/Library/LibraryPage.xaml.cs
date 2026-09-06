@@ -60,8 +60,10 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
 
         try
         {
-            await ViewModel.LoadAsync(activation.CancellationToken);
-            activation.TryCommit(() => _hasLoaded = true);
+            if (await ViewModel.LoadAsync(activation.CancellationToken))
+            {
+                activation.TryCommit(() => _hasLoaded = true);
+            }
         }
         catch (OperationCanceledException) when (!activation.IsCurrent)
         {

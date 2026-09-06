@@ -43,7 +43,7 @@ public sealed partial class LibraryPageTests
                 using var host = new WpfControlHost(view);
                 host.MeasureArrange(new Size(1280, 760));
 
-                var items = Assert.IsType<ItemsControl>(view.FindName("BooksItemsControl"));
+                var items = Assert.IsType<LibraryItemsControl>(view.FindName("BooksItemsControl"));
                 var panel = Assert.IsType<LibraryResponsivePanel>(
                     VisualTreeTestHelper.FindDescendant<LibraryResponsivePanel>(items));
 
@@ -59,6 +59,46 @@ public sealed partial class LibraryPageTests
         }
     }
 
+    [Fact]
+    public void Library_page_realizes_only_the_visible_window_for_a_large_catalog()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var context = new LibraryViewLayoutContext
+            {
+                HasBooks = true,
+                HasVisibleBooks = true,
+                LibrarySummaryText = "共 10000 本 · 最近阅读优先"
+            };
+            var cover = new BookCoverGenerator().Generate("示例小说");
+            for (var index = 0; index < 10_000; index++)
+            {
+                context.Books.Add(new LibraryBookCardProjection(
+                    $"book-{index}",
+                    $"示例小说 {index}",
+                    "示例作者",
+                    "第一章",
+                    "剩余 1 章",
+                    0.1,
+                    true,
+                    "2026-07-01T00:00:00.0000000Z",
+                    cover,
+                    canDelete: true));
+            }
+
+            var view = new LibraryPage { DataContext = context };
+            using var host = new WpfControlHost(view);
+            host.MeasureArrange(new Size(1280, 760));
+
+            var items = Assert.IsType<LibraryItemsControl>(view.FindName("BooksItemsControl"));
+            var panel = Assert.IsType<LibraryResponsivePanel>(
+                VisualTreeTestHelper.FindDescendant<LibraryResponsivePanel>(items));
+
+            Assert.Equal(10_000, items.Items.Count);
+            Assert.InRange(panel.Children.Count, 1, 100);
+        });
+    }
+
     private void LibraryPage_uses_internal_scroll_books_area_and_search_clear_icon()
     {
         WpfTestHost.RunInSta(() =>
@@ -71,7 +111,7 @@ public sealed partial class LibraryPageTests
                 SearchText = "三体",
                 LibrarySummaryText = "共 1 本 · 最近阅读优先"
             };
-            context.Books.Add(new LibraryBookItemViewModel(
+            context.Books.Add(new LibraryBookCardProjection(
                 "book-1",
                 "三体",
                 "刘慈欣",
@@ -197,7 +237,7 @@ public sealed partial class LibraryPageTests
                 var search = Assert.IsType<TextBox>(view.FindName("SearchTextBox"));
                 var sort = Assert.IsType<ComboBox>(view.FindName("SortComboBox"));
                 var booksScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("BooksScrollViewer"));
-                var items = Assert.IsType<ItemsControl>(view.FindName("BooksItemsControl"));
+                var items = Assert.IsType<LibraryItemsControl>(view.FindName("BooksItemsControl"));
                 var panel = Assert.IsType<LibraryResponsivePanel>(
                     VisualTreeTestHelper.FindDescendant<LibraryResponsivePanel>(items));
                 Assert.True(toolbar.ActualWidth > 0);
@@ -330,7 +370,7 @@ public sealed partial class LibraryPageTests
             var title = longTitles
                 ? $"一部拥有非常非常长标题并用于验证省略显示与提示信息的小说 {index + 1}"
                 : $"示例小说 {index + 1}";
-            context.Books.Add(new LibraryBookItemViewModel(
+            context.Books.Add(new LibraryBookCardProjection(
                 $"book-{index + 1}",
                 title,
                 $"示例作者 {index + 1}",
@@ -365,7 +405,7 @@ public sealed partial class LibraryPageTests
 
     private sealed partial class LibraryViewLayoutContext : ObservableObject
     {
-        public ObservableCollection<LibraryBookItemViewModel> Books { get; } = [];
+        public ObservableCollection<LibraryBookCardProjection> Books { get; } = [];
         public ObservableCollection<LibrarySortOption> AvailableSortOptions { get; } =
         [
             new LibrarySortOption(LibrarySortMode.RecentReading, "最近阅读"),

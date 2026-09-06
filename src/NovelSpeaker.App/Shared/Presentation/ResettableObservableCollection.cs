@@ -77,7 +77,9 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
         Func<TSource, T> projector,
         IUiScheduler uiScheduler,
         CancellationToken cancellationToken,
-        int batchSize = 256)
+        int batchSize = 256,
+        bool notifyEachBatch = true,
+        bool preservePreviousItemsOnCancel = false)
     {
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(projector);
@@ -98,7 +100,9 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
                 projector,
                 uiScheduler,
                 cancellationToken,
-                batchSize).ConfigureAwait(true);
+                batchSize,
+                notifyEachBatch,
+                preservePreviousItemsOnCancel).ConfigureAwait(true);
         }
         finally
         {
@@ -111,7 +115,9 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
         Func<TSource, T> projector,
         IUiScheduler uiScheduler,
         CancellationToken cancellationToken,
-        int batchSize)
+        int batchSize,
+        bool notifyEachBatch,
+        bool preservePreviousItemsOnCancel)
     {
 
         // Small lists do not justify crossing an asynchronous boundary. This also keeps
@@ -134,6 +140,7 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
         _projectionPending = true;
         _pendingReplacements.Clear();
         var replacementVersion = Volatile.Read(ref _replacementVersion);
+        var previousItems = preservePreviousItemsOnCancel ? this.ToArray() : null;
         try
         {
             var projectedItems = await Task.Run(
@@ -160,7 +167,7 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
                     var batchOffset = offset;
                     var batchCount = Math.Min(batchSize, projectedItems.Length - offset);
                     await uiScheduler.InvokeLaterAsync(
-                        () => AppendBatch(projectedItems, batchOffset, batchCount, replacementVersion),
+                        () => AppendBatch(projectedItems, batchOffset, batchCount, replacementVersion, notifyEachBatch),
                         cancellationToken).ConfigureAwait(true);
                 }
 
@@ -173,7 +180,7 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
                 try
                 {
                     await uiScheduler.InvokeLaterAsync(
-                        () => AbortReplace(replacementVersion)).ConfigureAwait(true);
+                        () => AbortReplace(replacementVersion, previousItems)).ConfigureAwait(true);
                 }
                 catch
                 {
@@ -222,7 +229,8 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
         IReadOnlyList<T> items,
         int offset,
         int count,
-        int replacementVersion)
+        int replacementVersion,
+        bool notifyEachBatch)
     {
         if (replacementVersion != Volatile.Read(ref _replacementVersion))
         {
@@ -244,9 +252,13 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
                     : items[actualIndex]);
         }
 
-        // Keep each bounded batch observable to WPF. The collection remains in
-        // replacement mode so sparse row updates can still be reconciled safely.
-        NotifyResetWhileReplacing();
+        // Owners with an already materialized projection can defer notification until
+        // the final reset, avoiding repeated whole-grid layout work for non-virtualized
+        // surfaces while still yielding between bounded UI mutations.
+        if (notifyEachBatch)
+        {
+            NotifyResetWhileReplacing();
+        }
     }
 
     private void CompleteReplace(int replacementVersion)
@@ -269,7 +281,7 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
         NotifyReset();
     }
 
-    private void AbortReplace(int replacementVersion)
+    private void AbortReplace(int replacementVersion, IReadOnlyList<T>? previousItems)
     {
         if (replacementVersion != Volatile.Read(ref _replacementVersion) ||
             !_suppressNotifications)
@@ -277,7 +289,28 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
             return;
         }
 
+        var pendingReplacements = previousItems is not null
+            ? _pendingReplacements.ToArray()
+            : null;
         base.ClearItems();
+        if (previousItems is not null)
+        {
+            for (var index = 0; index < previousItems.Count; index++)
+            {
+                base.InsertItem(index, previousItems[index]);
+            }
+
+            if (pendingReplacements is not null)
+            {
+                foreach (var (index, replacement) in pendingReplacements)
+                {
+                    if ((uint)index < (uint)previousItems.Count)
+                    {
+                        base.SetItem(index, replacement);
+                    }
+                }
+            }
+        }
         _pendingReplacements.Clear();
         _suppressNotifications = false;
         _projectionPending = false;

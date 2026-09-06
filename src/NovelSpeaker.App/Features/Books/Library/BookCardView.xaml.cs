@@ -9,7 +9,7 @@ public partial class BookCardView : UserControl
     public static readonly DependencyProperty ItemProperty =
         DependencyProperty.Register(
             nameof(Item),
-            typeof(LibraryBookItemViewModel),
+            typeof(LibraryBookCardProjection),
             typeof(BookCardView),
             new PropertyMetadata(null));
 
@@ -39,9 +39,9 @@ public partial class BookCardView : UserControl
         InitializeComponent();
     }
 
-    public LibraryBookItemViewModel? Item
+    public LibraryBookCardProjection? Item
     {
-        get => (LibraryBookItemViewModel?)GetValue(ItemProperty);
+        get => (LibraryBookCardProjection?)GetValue(ItemProperty);
         set => SetValue(ItemProperty, value);
     }
 

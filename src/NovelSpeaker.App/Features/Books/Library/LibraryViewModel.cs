@@ -12,7 +12,8 @@ using NovelSpeaker.App.Shell.Navigation;
 namespace NovelSpeaker.App.Features.Books.Library;
 
 /// <summary>
-/// Drives the library page import experience and displays imported books.
+/// Owns page state and commands while the library catalog and card projection remain
+/// separate lifetimes.
 /// </summary>
 public sealed partial class LibraryViewModel : ObservableObject
 {
@@ -24,7 +25,6 @@ public sealed partial class LibraryViewModel : ObservableObject
 
     private readonly IBookLibraryQuery _bookLibraryQuery;
     private readonly IBookDeletionService _bookDeletionService;
-    private readonly IBookCoverGenerator _bookCoverGenerator;
     private readonly ILibraryImportCoordinator _libraryImportCoordinator;
     private readonly IBookDeleteDialogService _deleteDialogService;
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
@@ -33,18 +33,28 @@ public sealed partial class LibraryViewModel : ObservableObject
     private readonly IPlaybackBookCommands _playbackCoordinator;
     private readonly IUiScheduler _uiScheduler;
     private readonly TimeProvider _timeProvider;
+    private readonly IBookCoverGenerator _bookCoverGenerator;
     private readonly OwnedTaskRegistry _pageTasks = new();
-    private readonly ResettableObservableCollection<LibraryBookItemViewModel> _books = [];
+    private readonly ResettableObservableCollection<LibraryBookCardProjection> _books = [];
+    private readonly Dictionary<string, EffectiveReadingProgress> _playbackDecorations =
+        new(StringComparer.Ordinal);
+    private IReadOnlyDictionary<string, int> _visibleBookPositions =
+        new Dictionary<string, int>(StringComparer.Ordinal);
+    private IReadOnlyList<LibraryBookCardProjection> _visibleBookProjection = [];
     private CancellationTokenSource? _searchDebounceCancellationTokenSource;
-    private IReadOnlyList<LibraryBookItemViewModel> _allBooks = [];
-    private IReadOnlyDictionary<string, BookSummary> _persistedBooks =
-        new Dictionary<string, BookSummary>(StringComparer.Ordinal);
+    private CancellationTokenSource? _activeProjectionCancellationTokenSource;
+    private CancellationTokenSource? _activeImportCancellationTokenSource;
+    private LibraryBookCatalog _catalog;
+    private PlaybackSnapshot _lastPlaybackSnapshot;
     private int _searchVersion;
+    private int _projectionVersion;
+    private int _loadVersion;
     private int _importVersion;
     private int _playbackProjectionVersion;
+    private int _playbackSnapshotVersion;
     private bool _isDeletingBook;
     private bool _isPageEventsRegistered;
-    private CancellationTokenSource? _activeImportCancellationTokenSource;
+    private bool _refreshVisibleProjectionOnNextActivation;
 
     public LibraryViewModel(
         IBookLibraryQuery bookLibraryQuery,
@@ -72,10 +82,13 @@ public sealed partial class LibraryViewModel : ObservableObject
         _uiScheduler = uiScheduler ?? new WpfUiScheduler();
         _timeProvider = timeProvider ?? TimeProvider.System;
         ScrollState = scrollState;
-        ApplyPlaybackSnapshot(playbackCoordinator.CurrentSnapshot);
+        _catalog = new LibraryBookCatalog([]);
+        _lastPlaybackSnapshot = playbackCoordinator.CurrentSnapshot;
     }
 
-    public ObservableCollection<LibraryBookItemViewModel> Books => _books;
+    public ObservableCollection<LibraryBookCardProjection> Books => _books;
+
+    public IReadOnlyDictionary<string, int> VisibleBookPositions => _visibleBookPositions;
 
     public IReadOnlyList<LibrarySortOption> AvailableSortOptions => SortOptions;
 
@@ -108,17 +121,47 @@ public sealed partial class LibraryViewModel : ObservableObject
     [ObservableProperty]
     private string librarySummaryText = "共 0 本 · 最近阅读优先";
 
-    public async Task LoadAsync(CancellationToken cancellationToken)
+    public async Task<bool> LoadAsync(CancellationToken cancellationToken)
     {
-        var books = await _bookLibraryQuery.GetBooksAsync(cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        _persistedBooks = books.ToDictionary(book => book.Id, StringComparer.Ordinal);
-        _allBooks = books
-            .Select(MapBook)
-            .ToArray();
-        ApplyVisibleBooks();
+        var loadVersion = Interlocked.Increment(ref _loadVersion);
+        InvalidateVisibleProjection();
+        var summaries = await _bookLibraryQuery.GetBooksAsync(cancellationToken);
+        if (!IsCurrentLoad(loadVersion, cancellationToken))
+        {
+            return false;
+        }
+
+        var catalog = summaries.Count >= 512
+            ? await Task.Run(
+                () => new LibraryBookCatalog(summaries.ToArray()),
+                cancellationToken).ConfigureAwait(true)
+            : new LibraryBookCatalog(summaries.ToArray());
+        if (!IsCurrentLoad(loadVersion, cancellationToken))
+        {
+            return false;
+        }
+
+        var playbackSnapshot = _playbackCoordinator.CurrentSnapshot;
+        var decorations = new Dictionary<string, EffectiveReadingProgress>(StringComparer.Ordinal);
+        while (!await ProjectVisibleBooksAsync(
+            cancellationToken,
+            catalog,
+            playbackSnapshot,
+            decorations))
+        {
+            if (!IsCurrentLoad(loadVersion, cancellationToken))
+            {
+                return false;
+            }
+        }
+        if (!IsCurrentLoad(loadVersion, cancellationToken))
+        {
+            return false;
+        }
+
         ApplyPlaybackSnapshot(_playbackCoordinator.CurrentSnapshot);
         _catalogInvalidationState.Consume();
+        return true;
     }
 
     public async Task ImportFilesAsync(IReadOnlyList<string>? filePaths, CancellationToken cancellationToken)
@@ -146,7 +189,12 @@ public sealed partial class LibraryViewModel : ObservableObject
 
             if (outcome.Status == LibraryImportCoordinatorStatus.Imported)
             {
-                await LoadAsync(activeCancellationTokenSource.Token);
+                if (!await LoadAsync(activeCancellationTokenSource.Token) ||
+                    !IsCurrentImport(version, activeCancellationTokenSource))
+                {
+                    return;
+                }
+
                 _feedbackService.ShowSuccess("导入成功", "已导入小说。");
             }
             else if (outcome.Status == LibraryImportCoordinatorStatus.Failed)
@@ -189,16 +237,33 @@ public sealed partial class LibraryViewModel : ObservableObject
     public void HandleNavigatedTo()
     {
         RegisterPageEvents();
+        RebuildVisibleBookIndex();
+        if (_refreshVisibleProjectionOnNextActivation)
+        {
+            _refreshVisibleProjectionOnNextActivation = false;
+            ScheduleVisibleProjection();
+        }
+
         ApplyPlaybackSnapshot(_playbackCoordinator.CurrentSnapshot);
     }
 
     public void HandleNavigatedFrom()
     {
+        var projectionWasActive = _activeProjectionCancellationTokenSource is not null;
+        var projectionWasPending = _searchDebounceCancellationTokenSource is not null;
+        Interlocked.Increment(ref _loadVersion);
         CancelActiveImport();
         _searchDebounceCancellationTokenSource?.Cancel();
         _searchDebounceCancellationTokenSource?.Dispose();
         _searchDebounceCancellationTokenSource = null;
+        InvalidateVisibleProjection();
         Interlocked.Increment(ref _searchVersion);
+        if (projectionWasActive || projectionWasPending)
+        {
+            RestorePreviousVisibleProjection(Volatile.Read(ref _projectionVersion));
+            _refreshVisibleProjectionOnNextActivation = true;
+        }
+
         if (!_isPageEventsRegistered)
         {
             return;
@@ -222,7 +287,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private Task OpenBook(LibraryBookItemViewModel? book, CancellationToken cancellationToken)
+    private Task OpenBook(LibraryBookCardProjection? book, CancellationToken cancellationToken)
     {
         if (book is null)
         {
@@ -235,7 +300,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private Task OpenBookDetails(LibraryBookItemViewModel? book, CancellationToken cancellationToken)
+    private Task OpenBookDetails(LibraryBookCardProjection? book, CancellationToken cancellationToken)
     {
         if (book is null)
         {
@@ -246,7 +311,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task DeleteBookAsync(LibraryBookItemViewModel? book, CancellationToken cancellationToken)
+    private async Task DeleteBookAsync(LibraryBookCardProjection? book, CancellationToken cancellationToken)
     {
         if (book is null || _isDeletingBook)
         {
@@ -279,12 +344,18 @@ public sealed partial class LibraryViewModel : ObservableObject
             {
                 StatusMessage = "这本书已不存在，书库已刷新。";
                 _catalogInvalidationState.Invalidate();
-                await LoadAsync(cancellationToken);
+                if (!await LoadAsync(cancellationToken))
+                {
+                    return;
+                }
                 return;
             }
 
             _catalogInvalidationState.Invalidate();
-            await LoadAsync(cancellationToken);
+            if (!await LoadAsync(cancellationToken))
+            {
+                return;
+            }
             StatusMessage = string.Empty;
             _feedbackService.ShowSuccess("删除成功", $"已删除《{book.Title}》。");
         }
@@ -314,24 +385,29 @@ public sealed partial class LibraryViewModel : ObservableObject
 
     partial void OnSelectedSortModeChanged(LibrarySortMode value)
     {
-        ApplyVisibleBooks();
+        ScheduleVisibleProjection();
     }
 
     private void ScheduleFilterRefresh()
     {
         _searchDebounceCancellationTokenSource?.Cancel();
         _searchDebounceCancellationTokenSource?.Dispose();
-        _searchDebounceCancellationTokenSource = new CancellationTokenSource();
+        var debounceCancellation = new CancellationTokenSource();
+        _searchDebounceCancellationTokenSource = debounceCancellation;
         var version = Interlocked.Increment(ref _searchVersion);
+        InvalidateVisibleProjection();
         _pageTasks.Register(
-            ApplyVisibleBooksAsync(version, _searchDebounceCancellationTokenSource.Token),
+            ApplyVisibleBooksAfterDebounceAsync(version, debounceCancellation),
             exception => _feedbackService.ShowProjectedNotification(
                 "更新书库筛选失败",
                 _feedbackService.Project(exception)));
     }
 
-    private async Task ApplyVisibleBooksAsync(int version, CancellationToken cancellationToken)
+    private async Task ApplyVisibleBooksAfterDebounceAsync(
+        int version,
+        CancellationTokenSource debounceCancellation)
     {
+        var cancellationToken = debounceCancellation.Token;
         try
         {
             await Task.Delay(TimeSpan.FromMilliseconds(120), _timeProvider, cancellationToken);
@@ -340,62 +416,201 @@ public sealed partial class LibraryViewModel : ObservableObject
                 return;
             }
 
-            ApplyVisibleBooks();
+            await ProjectVisibleBooksAsync(cancellationToken);
         }
         catch (OperationCanceledException)
         {
         }
-    }
-
-    private void ApplyVisibleBooks()
-    {
-        var normalizedSearchTerm = LibraryBookItemViewModel.NormalizeSearchText(SearchText);
-        var filteredBooks = _allBooks.Where(book => book.MatchesSearch(normalizedSearchTerm));
-
-        filteredBooks = SelectedSortMode switch
+        finally
         {
-            LibrarySortMode.Title => filteredBooks
-                .OrderBy(static book => book.SortTitleKey, StringComparer.Ordinal)
-                .ThenBy(static book => book.BookId, StringComparer.Ordinal),
-            _ => filteredBooks
-                .OrderByDescending(static book => book.HasReadingProgress)
-                .ThenByDescending(static book => book.LastPlayedAt)
-                .ThenBy(static book => book.SortTitleKey, StringComparer.Ordinal)
-                .ThenBy(static book => book.BookId, StringComparer.Ordinal)
-        };
+            if (ReferenceEquals(_searchDebounceCancellationTokenSource, debounceCancellation))
+            {
+                _searchDebounceCancellationTokenSource = null;
+            }
 
-        var visibleBooks = filteredBooks.ToArray();
-        _books.ReplaceWith(visibleBooks, static book => book);
-        HasBooks = _allBooks.Count > 0;
-        HasVisibleBooks = visibleBooks.Length > 0;
-        LibrarySummaryText = BuildLibrarySummary(_allBooks.Count, SelectedSortMode);
+            debounceCancellation.Dispose();
+        }
     }
 
-    private LibraryBookItemViewModel MapBook(BookSummary book)
+    private void ScheduleVisibleProjection()
     {
-        return new LibraryBookItemViewModel(
-            book.Id,
-            book.Title,
-            string.IsNullOrWhiteSpace(book.Author) ? "未知作者" : book.Author.Trim(),
-            book.CurrentChapterTitle,
-            BuildRemainingChapterText(book),
-            book.OverallProgress,
-            book.HasReadingProgress,
-            book.LastPlayedAt?.ToString("O"),
-            _bookCoverGenerator.Generate(book.Title),
+        _searchDebounceCancellationTokenSource?.Cancel();
+        _searchDebounceCancellationTokenSource?.Dispose();
+        _searchDebounceCancellationTokenSource = null;
+        Interlocked.Increment(ref _searchVersion);
+        InvalidateVisibleProjection();
+        _pageTasks.Register(
+            ProjectVisibleBooksAsync(CancellationToken.None),
+            exception => _feedbackService.ShowProjectedNotification(
+                "更新书库排序失败",
+                _feedbackService.Project(exception)));
+    }
+
+    private async Task<bool> ProjectVisibleBooksAsync(
+        CancellationToken cancellationToken,
+        LibraryBookCatalog? sourceCatalog = null,
+        PlaybackSnapshot? sourcePlaybackSnapshot = null,
+        IReadOnlyDictionary<string, EffectiveReadingProgress>? sourceDecorations = null)
+    {
+        var version = Interlocked.Increment(ref _projectionVersion);
+        CancelActiveProjection();
+        using var projectionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _activeProjectionCancellationTokenSource = projectionCancellation;
+        try
+        {
+            var catalog = sourceCatalog ?? _catalog;
+            var normalizedSearchTerm = LibraryBookCatalog.NormalizeSearchText(SearchText);
+            var sortMode = SelectedSortMode;
+            var playbackSnapshot = sourcePlaybackSnapshot ?? _playbackCoordinator.CurrentSnapshot;
+            ApplyPlaybackSnapshot(playbackSnapshot);
+            var playbackVersion = Volatile.Read(ref _playbackProjectionVersion);
+            var playbackSnapshotVersion = Volatile.Read(ref _playbackSnapshotVersion);
+            var decorations = sourceDecorations is null
+                ? new Dictionary<string, EffectiveReadingProgress>(_playbackDecorations, StringComparer.Ordinal)
+                : new Dictionary<string, EffectiveReadingProgress>(sourceDecorations, StringComparer.Ordinal);
+            if (playbackSnapshot.BookId is not null && catalog.TryGet(playbackSnapshot.BookId, out var activeBook))
+            {
+                decorations[playbackSnapshot.BookId] = EffectiveReadingProgressProjector.Project(
+                    activeBook.Summary,
+                    playbackSnapshot);
+            }
+
+            var projectionItems = catalog.Count >= 512
+                ? await Task.Run(
+                    () => catalog.Query(
+                        normalizedSearchTerm,
+                        sortMode,
+                        decorations,
+                        projectionCancellation.Token),
+                    projectionCancellation.Token).ConfigureAwait(true)
+                : catalog.Query(
+                    normalizedSearchTerm,
+                    sortMode,
+                    decorations,
+                    projectionCancellation.Token);
+            projectionCancellation.Token.ThrowIfCancellationRequested();
+            var projectedVisibleBookPositions = new Dictionary<string, int>(
+                projectionItems.Count,
+                StringComparer.Ordinal);
+            var projectedVisibleBookList = new List<LibraryBookCardProjection>(projectionItems.Count);
+            var reusableVisibleBookPositions = _visibleBookPositions;
+            var reusableVisibleBooks = _visibleBookProjection.ToArray();
+            await _books.ReplaceWithInBatchesAsync(
+                projectionItems,
+                item =>
+                {
+                    var progress = GetEffectiveProgress(item, decorations, playbackSnapshot);
+                    var remainingChapterText = BuildRemainingChapterText(
+                        item.Summary.TotalChapterCount,
+                        progress.RemainingChapterCount);
+                    var lastPlayedAt = item.Summary.LastPlayedAt?.ToString("O");
+                    LibraryBookCardProjection book;
+                    if (reusableVisibleBookPositions.TryGetValue(item.BookId, out var existingPosition) &&
+                        (uint)existingPosition < (uint)reusableVisibleBooks.Length &&
+                        reusableVisibleBooks[existingPosition] is { } existingBook &&
+                        existingBook.CanReuseFor(item.Summary.Title, item.DisplayAuthor, lastPlayedAt))
+                    {
+                        book = existingBook.HasSameEffectiveProgress(progress, remainingChapterText)
+                            ? existingBook
+                            : existingBook.WithEffectiveProgress(progress, remainingChapterText);
+                    }
+                    else
+                    {
+                        book = CreateBookItem(item, progress, remainingChapterText, lastPlayedAt);
+                    }
+
+                    projectedVisibleBookPositions.Add(book.BookId, projectedVisibleBookList.Count);
+                    projectedVisibleBookList.Add(book);
+                    return book;
+                },
+                _uiScheduler,
+                projectionCancellation.Token,
+                notifyEachBatch: false,
+                preservePreviousItemsOnCancel: true).ConfigureAwait(true);
+            projectionCancellation.Token.ThrowIfCancellationRequested();
+            if (version != Volatile.Read(ref _projectionVersion))
+            {
+                return false;
+            }
+
+            if (sourceCatalog is not null)
+            {
+                projectionCancellation.Token.ThrowIfCancellationRequested();
+                if (version != Volatile.Read(ref _projectionVersion))
+                {
+                    return false;
+                }
+
+                _catalog = sourceCatalog;
+                _playbackDecorations.Clear();
+                _lastPlaybackSnapshot = playbackSnapshot;
+                SetActivePlaybackDecoration(playbackSnapshot);
+            }
+
+            _visibleBookPositions = projectedVisibleBookPositions;
+            _visibleBookProjection = projectedVisibleBookList.ToArray();
+            OnPropertyChanged(nameof(VisibleBookPositions));
+
+            HasBooks = catalog.Count > 0;
+            HasVisibleBooks = _books.Count > 0;
+            LibrarySummaryText = BuildLibrarySummary(catalog.Count, sortMode);
+            var latestSnapshot = _playbackCoordinator.CurrentSnapshot;
+            if (playbackVersion != Volatile.Read(ref _playbackProjectionVersion) ||
+                playbackSnapshotVersion != Volatile.Read(ref _playbackSnapshotVersion) ||
+                !Equals(playbackSnapshot, latestSnapshot))
+            {
+                ReconcileVisiblePlaybackSnapshot(latestSnapshot, playbackSnapshot.BookId);
+            }
+
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            RestorePreviousVisibleProjection(version);
+            if (!cancellationToken.IsCancellationRequested &&
+                version != Volatile.Read(ref _projectionVersion))
+            {
+                return false;
+            }
+
+            throw;
+        }
+        finally
+        {
+            if (ReferenceEquals(_activeProjectionCancellationTokenSource, projectionCancellation))
+            {
+                _activeProjectionCancellationTokenSource = null;
+            }
+        }
+    }
+
+    private EffectiveReadingProgress GetEffectiveProgress(
+        LibraryBookCatalogItem item,
+        IReadOnlyDictionary<string, EffectiveReadingProgress> decorations,
+        PlaybackSnapshot playbackSnapshot)
+    {
+        return decorations.TryGetValue(item.BookId, out var decoration)
+            ? decoration
+            : EffectiveReadingProgressProjector.Project(item.Summary, playbackSnapshot);
+    }
+
+    private LibraryBookCardProjection CreateBookItem(
+        LibraryBookCatalogItem item,
+        EffectiveReadingProgress progress,
+        string remainingChapterText,
+        string? lastPlayedAt)
+    {
+        return new LibraryBookCardProjection(
+            item.BookId,
+            item.Summary.Title,
+            item.DisplayAuthor,
+            progress.CurrentChapterTitle,
+            remainingChapterText,
+            progress.OverallProgress,
+            progress.HasReadingProgress,
+            lastPlayedAt,
+            _bookCoverGenerator,
             canDelete: true);
-    }
-
-    private static string BuildRemainingChapterText(BookSummary book)
-    {
-        return BuildRemainingChapterText(book.TotalChapterCount, book.RemainingChapterCount);
-    }
-
-    private static string BuildRemainingChapterText(int totalChapterCount, int remainingChapterCount)
-    {
-        return totalChapterCount > 0 && remainingChapterCount <= 0
-            ? "最后一章"
-            : $"剩余 {Math.Max(0, remainingChapterCount)} 章";
     }
 
     private string? GetSingleImportPath(IReadOnlyList<string>? filePaths)
@@ -452,23 +667,161 @@ public sealed partial class LibraryViewModel : ObservableObject
             return;
         }
 
-        foreach (var book in _allBooks)
+        if (Equals(_lastPlaybackSnapshot, snapshot))
         {
-            if (!_persistedBooks.TryGetValue(book.BookId, out var persisted))
-            {
-                continue;
-            }
+            return;
+        }
 
-            var progress = EffectiveReadingProgressProjector.Project(persisted, snapshot);
-            book.ApplyEffectiveProgress(
-                progress,
-                BuildRemainingChapterText(persisted.TotalChapterCount, progress.RemainingChapterCount));
+        var previousBookId = _lastPlaybackSnapshot.BookId;
+        var currentBookId = snapshot.BookId;
+        _lastPlaybackSnapshot = snapshot;
+        Interlocked.Increment(ref _playbackSnapshotVersion);
+
+        if (previousBookId is not null &&
+            !string.Equals(previousBookId, currentBookId, StringComparison.Ordinal))
+        {
+            _playbackDecorations.Remove(previousBookId);
+            UpdateVisibleBook(previousBookId);
+        }
+
+        if (currentBookId is not null && _catalog.TryGet(currentBookId, out var currentBook))
+        {
+            SetActivePlaybackDecoration(snapshot, currentBook);
+            UpdateVisibleBook(currentBookId);
+        }
+    }
+
+    private void ReconcileVisiblePlaybackSnapshot(
+        PlaybackSnapshot snapshot,
+        string? projectedBookId)
+    {
+        ApplyPlaybackSnapshot(snapshot);
+
+        if (projectedBookId is not null &&
+            !string.Equals(projectedBookId, snapshot.BookId, StringComparison.Ordinal))
+        {
+            _playbackDecorations.Remove(projectedBookId);
+            UpdateVisibleBook(projectedBookId);
+        }
+
+        if (snapshot.BookId is not null)
+        {
+            SetActivePlaybackDecoration(snapshot);
+            UpdateVisibleBook(snapshot.BookId);
+        }
+    }
+
+    private void SetActivePlaybackDecoration(
+        PlaybackSnapshot snapshot,
+        LibraryBookCatalogItem? currentBook = null)
+    {
+        if (snapshot.BookId is null)
+        {
+            return;
+        }
+
+        currentBook ??= _catalog.TryGet(snapshot.BookId, out var resolvedBook)
+            ? resolvedBook
+            : null;
+        if (currentBook is not null)
+        {
+            _playbackDecorations[snapshot.BookId] = EffectiveReadingProgressProjector.Project(
+                currentBook.Summary,
+                snapshot);
+        }
+    }
+
+    private void RebuildVisibleBookIndex()
+    {
+        RebuildVisibleBookPositions();
+    }
+
+    private void RestorePreviousVisibleProjection(int projectionVersion)
+    {
+        if (projectionVersion != Volatile.Read(ref _projectionVersion))
+        {
+            return;
+        }
+
+        var previousProjection = _visibleBookProjection;
+        var isAlreadyRestored = _books.Count == previousProjection.Count;
+        if (isAlreadyRestored)
+        {
+            for (var index = 0; index < previousProjection.Count; index++)
+            {
+                if (!ReferenceEquals(_books[index], previousProjection[index]))
+                {
+                    isAlreadyRestored = false;
+                    break;
+                }
+            }
+        }
+
+        if (!isAlreadyRestored)
+        {
+            _books.ReplaceWith(previousProjection);
+        }
+
+        RebuildVisibleBookPositions();
+        HasVisibleBooks = previousProjection.Count > 0;
+    }
+
+    private void UpdateVisibleBook(string bookId)
+    {
+        if (_books.IsProjectionPending || _books.IsReplacing)
+        {
+            // The visible id-to-position map intentionally remains on the last
+            // committed projection while a batch replacement is in flight. Keep
+            // the sparse decoration current and let the commit/abort reconciliation
+            // update the card against the matching committed list.
+            return;
+        }
+
+        if (!_visibleBookPositions.TryGetValue(bookId, out var position) ||
+            (uint)position >= (uint)_books.Count ||
+            !_catalog.TryGet(bookId, out var catalogItem))
+        {
+            return;
+        }
+
+        var book = _books[position];
+        if (!string.Equals(book.BookId, bookId, StringComparison.Ordinal))
+        {
+            // A batched projection temporarily exposes the new collection contents
+            // while the old sparse index is still published. Never apply a live
+            // decoration to a card that merely occupies the old position; the
+            // projection commit will reconcile the latest snapshot afterward.
+            return;
+        }
+
+        var progress = _playbackDecorations.TryGetValue(bookId, out var decoration)
+            ? decoration
+            : EffectiveReadingProgressProjector.Project(catalogItem.Summary, _lastPlaybackSnapshot);
+        var updatedBook = book.WithEffectiveProgress(
+            progress,
+            BuildRemainingChapterText(catalogItem.Summary.TotalChapterCount, progress.RemainingChapterCount));
+        if (book.HasSameEffectiveProgress(progress, updatedBook.RemainingChapterText))
+        {
+            return;
+        }
+
+        _books.ReplaceAt(position, updatedBook);
+        if (_visibleBookProjection is LibraryBookCardProjection[] projection)
+        {
+            projection[position] = updatedBook;
         }
     }
 
     private bool IsCurrentPlaybackBook(string bookId)
     {
         return string.Equals(_playbackCoordinator.CurrentSnapshot.BookId, bookId, StringComparison.Ordinal);
+    }
+
+    private static string BuildRemainingChapterText(int totalChapterCount, int remainingChapterCount)
+    {
+        return totalChapterCount > 0 && remainingChapterCount <= 0
+            ? "最后一章"
+            : $"剩余 {Math.Max(0, remainingChapterCount)} 章";
     }
 
     private static string BuildLibrarySummary(int totalBooks, LibrarySortMode sortMode)
@@ -478,15 +831,34 @@ public sealed partial class LibraryViewModel : ObservableObject
             : $"共 {totalBooks} 本 · 最近阅读优先";
     }
 
-    private void ReplaceActiveImport(
-        CancellationToken cancellationToken,
-        bool clearAfterCancel = false)
+    private void InvalidateVisibleProjection()
+    {
+        Interlocked.Increment(ref _projectionVersion);
+        CancelActiveProjection();
+    }
+
+    private void RebuildVisibleBookPositions()
+    {
+        var positions = new Dictionary<string, int>(_books.Count, StringComparer.Ordinal);
+        for (var index = 0; index < _books.Count; index++)
+        {
+            positions[_books[index].BookId] = index;
+        }
+
+        _visibleBookPositions = positions;
+        OnPropertyChanged(nameof(VisibleBookPositions));
+    }
+
+    private void CancelActiveProjection()
+    {
+        _activeProjectionCancellationTokenSource?.Cancel();
+    }
+
+    private void ReplaceActiveImport(CancellationToken cancellationToken)
     {
         _activeImportCancellationTokenSource?.Cancel();
         _activeImportCancellationTokenSource?.Dispose();
-        _activeImportCancellationTokenSource = clearAfterCancel
-            ? null
-            : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _activeImportCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
     }
 
     private bool IsCurrentImport(int version, CancellationTokenSource activeCancellationTokenSource)
@@ -494,6 +866,12 @@ public sealed partial class LibraryViewModel : ObservableObject
         return version == Volatile.Read(ref _importVersion) &&
             ReferenceEquals(_activeImportCancellationTokenSource, activeCancellationTokenSource) &&
             !activeCancellationTokenSource.IsCancellationRequested;
+    }
+
+    private bool IsCurrentLoad(int version, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return version == Volatile.Read(ref _loadVersion);
     }
 
     private void ApplyImportProgress(

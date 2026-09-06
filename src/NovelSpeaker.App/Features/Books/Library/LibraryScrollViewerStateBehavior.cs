@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace NovelSpeaker.App.Features.Books.Library;
@@ -157,6 +158,13 @@ public static class LibraryScrollViewerStateBehavior
                 return;
             }
 
+            if (TryGetVirtualizedRestoreOffset(itemsControl, state, out var virtualizedOffset))
+            {
+                _scrollViewer.ScrollToVerticalOffset(virtualizedOffset);
+                _restoreAttemptsRemaining = 0;
+                return;
+            }
+
             var positions = GetItemPositions(itemsControl);
             if (positions.Count == 0)
             {
@@ -201,29 +209,92 @@ public static class LibraryScrollViewerStateBehavior
 
         private List<LibraryVisibleBookPosition> GetItemPositions(ItemsControl itemsControl)
         {
-            var positions = new List<LibraryVisibleBookPosition>(itemsControl.Items.Count);
+            var positions = new List<LibraryVisibleBookPosition>();
+
+            if (FindDescendant<LibraryResponsivePanel>(itemsControl) is { } panel)
+            {
+                foreach (UIElement child in panel.Children)
+                {
+                    if (itemsControl.ItemContainerGenerator.ItemFromContainer(child) is not LibraryBookCardProjection book ||
+                        child is not FrameworkElement container ||
+                        container.ActualHeight <= 0)
+                    {
+                        continue;
+                    }
+
+                    AddItemPosition(book, container, positions);
+                }
+
+                positions.Sort(static (left, right) => left.Top.CompareTo(right.Top));
+                return positions;
+            }
 
             foreach (var item in itemsControl.Items)
             {
                 if (itemsControl.ItemContainerGenerator.ContainerFromItem(item) is not FrameworkElement container ||
-                    item is not LibraryBookItemViewModel book ||
+                    item is not LibraryBookCardProjection book ||
                     container.ActualHeight <= 0)
                 {
                     continue;
                 }
 
-                try
-                {
-                    var point = container.TransformToAncestor(_scrollViewer).Transform(new Point(0, 0));
-                    positions.Add(new LibraryVisibleBookPosition(book.BookId, point.Y, point.Y + container.ActualHeight));
-                }
-                catch (InvalidOperationException)
-                {
-                }
+                AddItemPosition(book, container, positions);
             }
 
             positions.Sort(static (left, right) => left.Top.CompareTo(right.Top));
             return positions;
+        }
+
+        private bool TryGetVirtualizedRestoreOffset(
+            ItemsControl itemsControl,
+            LibraryScrollState state,
+            out double verticalOffset)
+        {
+            verticalOffset = 0d;
+            if (string.IsNullOrWhiteSpace(state.AnchorBookId) ||
+                FindDescendant<LibraryResponsivePanel>(itemsControl) is not { } panel ||
+                itemsControl is not LibraryItemsControl libraryItemsControl ||
+                !libraryItemsControl.TryGetItemIndex(state.AnchorBookId, out var itemIndex))
+            {
+                return false;
+            }
+
+            return panel.TryGetVerticalOffset(itemIndex, state.RelativeOffset, out verticalOffset);
+        }
+
+        private void AddItemPosition(
+            LibraryBookCardProjection book,
+            FrameworkElement container,
+            List<LibraryVisibleBookPosition> positions)
+        {
+            try
+            {
+                var point = container.TransformToAncestor(_scrollViewer).Transform(new Point(0, 0));
+                positions.Add(new LibraryVisibleBookPosition(book.BookId, point.Y, point.Y + container.ActualHeight));
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        private static T? FindDescendant<T>(DependencyObject root)
+            where T : DependencyObject
+        {
+            for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
+            {
+                var child = VisualTreeHelper.GetChild(root, childIndex);
+                if (child is T match)
+                {
+                    return match;
+                }
+
+                if (FindDescendant<T>(child) is { } descendant)
+                {
+                    return descendant;
+                }
+            }
+
+            return null;
         }
     }
 }

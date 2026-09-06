@@ -19,7 +19,7 @@ public sealed class BookCardViewTests
     {
         WpfTestHost.RunInSta(() =>
         {
-            var item = new LibraryBookItemViewModel(
+            var item = new LibraryBookCardProjection(
                 "book-1",
                 "三体",
                 "刘慈欣",
@@ -109,7 +109,7 @@ public sealed class BookCardViewTests
         WpfTestHost.RunInSta(() =>
         {
             var title = "一部拥有非常非常长标题并用于验证省略显示和完整提示信息的小说";
-            var item = new LibraryBookItemViewModel(
+            var item = new LibraryBookCardProjection(
                 "book-long",
                 title,
                 "一位名字也很长的示例作者",

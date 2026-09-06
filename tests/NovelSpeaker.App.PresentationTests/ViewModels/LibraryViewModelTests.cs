@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Shared.Feedback;
@@ -278,6 +279,7 @@ public sealed class LibraryViewModelTests
 
         playbackCoordinator.Publish(PlaybackSnapshot.Idle);
 
+        activeBook = Assert.Single(viewModel.Books, book => book.BookId == "book-1");
         Assert.Equal("第一章", activeBook.CurrentChapterTitle);
         Assert.Equal("剩余 3 章", activeBook.RemainingChapterText);
         Assert.Equal(0.25, activeBook.ProgressRatio);
@@ -309,6 +311,201 @@ public sealed class LibraryViewModelTests
         var book = Assert.Single(viewModel.Books);
         Assert.Equal("第一章", book.CurrentChapterTitle);
         Assert.Equal(0d, book.ProgressRatio);
+    }
+
+    private async Task Returning_to_loaded_library_rebuilds_visible_card_index()
+    {
+        var playbackCoordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+        var viewModel = CreateViewModel(
+            catalogService: new FakeBookCatalogService(
+                [new BookSummary("book-1", "Alpha", null, "第一章", DateTimeOffset.UtcNow, TotalChapterCount: 4)]),
+            playbackCoordinator: playbackCoordinator);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        var book = Assert.Single(viewModel.Books);
+        viewModel.HandleNavigatedFrom();
+        viewModel.HandleNavigatedTo();
+
+        playbackCoordinator.Publish(
+            PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Playing,
+                BookId = "book-1",
+                ChapterIndex = 2,
+                ChapterTitle = "第三章"
+            });
+
+        book = Assert.Single(viewModel.Books);
+        Assert.Equal("第三章", book.CurrentChapterTitle);
+        Assert.Equal(0.75, book.ProgressRatio);
+    }
+
+    private async Task Loading_a_10000_book_library_uses_batched_collection_projection()
+    {
+        var catalogService = new FakeBookCatalogService(
+            Enumerable.Range(0, 10_000)
+                .Select(index => new BookSummary(
+                    $"book-{index}",
+                    $"Book {index}",
+                    null,
+                    "第一章",
+                    DateTimeOffset.UtcNow))
+                .ToArray());
+        var viewModel = CreateViewModel(catalogService: catalogService);
+        var changes = new List<NotifyCollectionChangedAction>();
+        viewModel.Books.CollectionChanged += (_, eventArgs) => changes.Add(eventArgs.Action);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(10_000, viewModel.Books.Count);
+        Assert.Equal([NotifyCollectionChangedAction.Reset], changes);
+        Assert.DoesNotContain(NotifyCollectionChangedAction.Add, changes);
+    }
+
+    private async Task Repeated_large_library_projection_reuses_unchanged_cards()
+    {
+        var catalogService = new FakeBookCatalogService(
+            Enumerable.Range(0, 512)
+                .Select(index => new BookSummary(
+                    $"book-{index}",
+                    $"Book {index}",
+                    null,
+                    "第一章",
+                    DateTimeOffset.UtcNow))
+                .ToArray());
+        var viewModel = CreateViewModel(catalogService: catalogService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        var previousCards = viewModel.Books.ToArray();
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(previousCards.Length, viewModel.Books.Count);
+        for (var index = 0; index < previousCards.Length; index++)
+        {
+            Assert.Same(previousCards[index], viewModel.Books[index]);
+        }
+    }
+
+    private async Task Queued_playback_snapshot_is_used_by_a_new_sort_projection()
+    {
+        var playbackCoordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+        var viewModel = CreateViewModel(
+            catalogService: new FakeBookCatalogService(
+            [
+                new BookSummary("book-1", "Alpha", null, "第一章", DateTimeOffset.UtcNow, TotalChapterCount: 2),
+                new BookSummary("book-2", "Beta", null, "第一章", DateTimeOffset.UtcNow, TotalChapterCount: 2)
+            ]),
+            playbackCoordinator: playbackCoordinator,
+            uiScheduler: new QueuedUiScheduler());
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        playbackCoordinator.Publish(
+            PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Playing,
+                BookId = "book-2",
+                ChapterIndex = 1,
+                ChapterTitle = "第二章"
+            });
+
+        viewModel.SelectedSortMode = LibrarySortMode.Title;
+        viewModel.SelectedSortMode = LibrarySortMode.RecentReading;
+
+        Assert.Equal(["Beta", "Alpha"], viewModel.Books.Select(static book => book.Title));
+    }
+
+    private async Task Live_playback_progress_participates_in_recent_reading_sort()
+    {
+        var playbackCoordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+        var viewModel = CreateViewModel(
+            catalogService: new FakeBookCatalogService(
+            [
+                new BookSummary("book-1", "Alpha", null, "第一章", DateTimeOffset.UtcNow, TotalChapterCount: 2),
+                new BookSummary("book-2", "Beta", null, "第一章", DateTimeOffset.UtcNow, TotalChapterCount: 2)
+            ]),
+            playbackCoordinator: playbackCoordinator);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        playbackCoordinator.Publish(
+            PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Playing,
+                BookId = "book-2",
+                ChapterIndex = 1,
+                ChapterTitle = "第二章"
+            });
+
+        viewModel.SelectedSortMode = LibrarySortMode.Title;
+        viewModel.SelectedSortMode = LibrarySortMode.RecentReading;
+
+        Assert.Equal(["Beta", "Alpha"], viewModel.Books.Select(static book => book.Title));
+    }
+
+    private async Task Cancelled_library_projection_restores_the_previous_visible_cards()
+    {
+        var catalogService = new FakeBookCatalogService(
+            [new BookSummary("book-1", "Alpha", null, "第一章", DateTimeOffset.UtcNow)]);
+        var cancellationScheduler = new CancellationAfterBatchUiScheduler();
+        var viewModel = CreateViewModel(
+            catalogService: catalogService,
+            uiScheduler: cancellationScheduler);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        var previousBook = Assert.Single(viewModel.Books);
+        catalogService.Books = Enumerable.Range(0, 512)
+            .Select(index => new BookSummary(
+                $"book-{index}",
+                $"Book {index}",
+                null,
+                "第一章",
+                DateTimeOffset.UtcNow))
+            .ToArray();
+        using var cancellation = new CancellationTokenSource();
+        cancellationScheduler.CancelAfterAppend(cancellation);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => viewModel.LoadAsync(cancellation.Token));
+
+        Assert.Single(viewModel.Books);
+        Assert.Same(previousBook, viewModel.Books[0]);
+        Assert.True(viewModel.HasVisibleBooks);
+    }
+
+    private async Task Playback_snapshot_updates_only_the_matching_visible_card()
+    {
+        var playbackCoordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+        var viewModel = CreateViewModel(
+            catalogService: new FakeBookCatalogService(
+            [
+                new BookSummary("book-1", "Alpha", null, "第一章", DateTimeOffset.UtcNow, TotalChapterCount: 4),
+                new BookSummary("book-2", "Beta", null, "第一章", DateTimeOffset.UtcNow, TotalChapterCount: 4)
+            ]),
+            playbackCoordinator: playbackCoordinator);
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        var matching = Assert.Single(viewModel.Books, book => book.BookId == "book-1");
+        var matchingIndex = viewModel.Books.IndexOf(matching);
+        Assert.Single(viewModel.Books, book => book.BookId == "book-2");
+        var changes = new List<(int Index, NotifyCollectionChangedAction Action)>();
+        viewModel.Books.CollectionChanged += (_, args) =>
+        {
+            if (args.Action == NotifyCollectionChangedAction.Replace)
+            {
+                changes.Add((args.NewStartingIndex, args.Action));
+            }
+        };
+
+        playbackCoordinator.Publish(
+            PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Playing,
+                BookId = "book-1",
+                ChapterIndex = 2,
+                ChapterTitle = "第三章"
+            });
+
+        Assert.Single(changes);
+        Assert.Equal(matchingIndex, changes[0].Index);
     }
 
     private async Task ImportFilesAsync_refreshes_books_when_import_coordinator_reports_imported()
@@ -428,6 +625,12 @@ public sealed class LibraryViewModelTests
         await LoadAsync_sorts_recent_reading_before_unplayed_books_by_default();
         await Selecting_title_sort_orders_books_by_normalized_title();
         await LoadAsync_keeps_search_and_sort_state();
+        await Loading_a_10000_book_library_uses_batched_collection_projection();
+        await Repeated_large_library_projection_reuses_unchanged_cards();
+        await Queued_playback_snapshot_is_used_by_a_new_sort_projection();
+        await Live_playback_progress_participates_in_recent_reading_sort();
+        await Cancelled_library_projection_restores_the_previous_visible_cards();
+        await Playback_snapshot_updates_only_the_matching_visible_card();
     }
 
     [Fact]
@@ -444,6 +647,7 @@ public sealed class LibraryViewModelTests
         await OpenBookDetailsCommand_navigates_to_book_details_page_with_book_id();
         await Playback_snapshot_updates_matching_card_and_restores_persisted_baseline();
         await Queued_stale_playback_snapshot_is_ignored_after_page_leave();
+        await Returning_to_loaded_library_rebuilds_visible_card_index();
     }
 
     [Fact]
@@ -744,6 +948,45 @@ public sealed class LibraryViewModelTests
         public void RunNext()
         {
             _pending.Dequeue()();
+        }
+    }
+
+    private sealed class CancellationAfterBatchUiScheduler : IUiScheduler
+    {
+        private CancellationTokenSource? _cancellation;
+        private int _invocation;
+
+        public bool CheckAccess() => true;
+
+        public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            action();
+            return Task.CompletedTask;
+        }
+
+        public Task InvokeAsync(Func<Task> action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return action();
+        }
+
+        public Task InvokeLaterAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            action();
+            if (Interlocked.Increment(ref _invocation) == 2)
+            {
+                _cancellation!.Cancel();
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public void CancelAfterAppend(CancellationTokenSource cancellation)
+        {
+            _cancellation = cancellation;
+            _invocation = 0;
         }
     }
 

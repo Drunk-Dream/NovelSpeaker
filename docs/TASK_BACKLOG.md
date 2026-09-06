@@ -231,7 +231,7 @@
 
 完成成果：为 BookDetails、Player、CacheManagement 引入 immutable catalog、Sparse Decoration、稳定 key/position lookup 与分批 collection projection；CacheManagement 使用结构目录和可视窗口 decoration，Player/BookDetails 的 current、selection、cache 更新均走有界索引；补充取消、生命周期清空、过期 viewport 结果、刷新失败、目标查询、10,000 项 projection 与 WPF realized-row/viewport 回归测试。
 
-## [ ] T006（P0）：迁移 Library 到新 Query/生命周期/批量 Projection
+## [x] T006（P0）：迁移 Library 到新 Query/生命周期/批量 Projection
 
 依赖：T005。
 
@@ -252,6 +252,8 @@
 - matching/cross-book Snapshot；
 - 大书库批量 projection；
 - WPF 响应式布局合同不回归。
+
+完成成果：Library 使用不可变 summaries catalog，搜索/排序在非 WPF 数据结构中计算并通过批量 projection 提交可见卡片；PlaybackSnapshot 通过书籍 ID 稀疏更新匹配卡片；页面离开取消筛选/projection 工作；保留导入、删除、导航和响应式布局行为；补充 10,000 本批量 projection 与匹配 Snapshot 有界更新测试。
 
 ## [ ] T007（P0）：迁移 BookDetails 到 Catalog + Staged Loading
 
