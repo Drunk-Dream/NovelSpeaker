@@ -15,6 +15,7 @@ internal sealed class CurrentItemLocatorInteraction
 {
     private readonly ListBox _listBox;
     private readonly Func<object?> _getCurrentItem;
+    private readonly Func<int?>? _getCurrentItemIndex;
     private readonly Action<bool> _setLocatorVisible;
     private readonly CurrentItemLocatorController _state = new();
     private readonly VirtualizedListItemCenteringController _centering;
@@ -29,10 +30,12 @@ internal sealed class CurrentItemLocatorInteraction
         Func<bool> isViewReady,
         Func<bool> isReducedMotionEnabled,
         Func<TimeSpan> getAnimationDuration,
-        Action<bool> setLocatorVisible)
+        Action<bool> setLocatorVisible,
+        Func<int?>? getCurrentItemIndex = null)
     {
         _listBox = listBox;
         _getCurrentItem = getCurrentItem;
+        _getCurrentItemIndex = getCurrentItemIndex;
         _setLocatorVisible = setLocatorVisible;
         _centering = new VirtualizedListItemCenteringController(
             listBox,
@@ -42,7 +45,8 @@ internal sealed class CurrentItemLocatorInteraction
             static () => { },
             static () => { },
             isReducedMotionEnabled,
-            getAnimationDuration);
+            getAnimationDuration,
+            _getCurrentItemIndex);
         _state.StateChanged += OnStateChanged;
     }
 
@@ -91,8 +95,9 @@ internal sealed class CurrentItemLocatorInteraction
 
     public void LocateCurrentItem(Action? completed = null)
     {
-        var currentItem = _getCurrentItem();
-        if (currentItem is null || !_listBox.Items.Contains(currentItem))
+        var currentItem = ResolveCurrentItem(out var currentItemIndex);
+        if (currentItem is null ||
+            (currentItemIndex is null && !_listBox.Items.Contains(currentItem)))
         {
             _state.NotifyCurrentItemChanged();
             completed?.Invoke();
@@ -106,6 +111,19 @@ internal sealed class CurrentItemLocatorInteraction
         }
 
         _centering.Request(currentItem, animate: true, completed: completed);
+    }
+
+    private object? ResolveCurrentItem(out int? index)
+    {
+        index = _getCurrentItemIndex?.Invoke();
+        if (index is int itemIndex)
+        {
+            return (uint)itemIndex < (uint)_listBox.Items.Count
+                ? _listBox.Items[itemIndex]
+                : null;
+        }
+
+        return _getCurrentItem();
     }
 
     internal void NotifyUserScrollInput()

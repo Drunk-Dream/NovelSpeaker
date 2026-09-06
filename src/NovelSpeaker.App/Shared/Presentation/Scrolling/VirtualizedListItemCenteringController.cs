@@ -20,6 +20,7 @@ internal sealed class VirtualizedListItemCenteringController
     private readonly Action _programmaticScrollCompleted;
     private readonly Func<bool> _isReducedMotionEnabled;
     private readonly Func<TimeSpan> _getAnimationDuration;
+    private readonly Func<int?>? _getTargetItemIndex;
 
     private DispatcherTimer? _animationTimer;
     private object? _pendingTargetItem;
@@ -39,7 +40,8 @@ internal sealed class VirtualizedListItemCenteringController
         Action programmaticScrollStarted,
         Action programmaticScrollCompleted,
         Func<bool> isReducedMotionEnabled,
-        Func<TimeSpan> getAnimationDuration)
+        Func<TimeSpan> getAnimationDuration,
+        Func<int?>? getTargetItemIndex = null)
     {
         _segmentListBox = segmentListBox;
         _dispatcher = dispatcher;
@@ -49,6 +51,7 @@ internal sealed class VirtualizedListItemCenteringController
         _programmaticScrollCompleted = programmaticScrollCompleted;
         _isReducedMotionEnabled = isReducedMotionEnabled;
         _getAnimationDuration = getAnimationDuration;
+        _getTargetItemIndex = getTargetItemIndex;
     }
 
     public bool HasActiveAnimation => _animationTimer is not null;
@@ -173,11 +176,20 @@ internal sealed class VirtualizedListItemCenteringController
             return;
         }
 
-        var targetItem = _pendingTargetItem;
-        var container = _segmentListBox.ItemContainerGenerator.ContainerFromItem(targetItem) as FrameworkElement;
+        var targetIndex = _getTargetItemIndex?.Invoke();
+        var targetItem = targetIndex is int targetItemIndex && (uint)targetItemIndex < (uint)_segmentListBox.Items.Count
+            ? _segmentListBox.Items[targetItemIndex]
+            : _pendingTargetItem;
+        var container = targetIndex is int itemIndex
+            ? _segmentListBox.ItemContainerGenerator.ContainerFromIndex(itemIndex) as FrameworkElement
+            : _segmentListBox.ItemContainerGenerator.ContainerFromItem(targetItem) as FrameworkElement;
         if (container is null || container.ActualHeight <= 0)
         {
-            if (_segmentListBox.Items.Contains(targetItem))
+            if (targetIndex is int index && (uint)index < (uint)_segmentListBox.Items.Count)
+            {
+                _segmentListBox.ScrollIntoView(_segmentListBox.Items[index]);
+            }
+            else if (targetItem is not null && _segmentListBox.Items.Contains(targetItem))
             {
                 _segmentListBox.ScrollIntoView(targetItem);
             }

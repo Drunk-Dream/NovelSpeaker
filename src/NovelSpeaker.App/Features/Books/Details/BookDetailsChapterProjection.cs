@@ -2,17 +2,18 @@ using NovelSpeaker.App.Shared.Presentation.Cache;
 
 namespace NovelSpeaker.App.Features.Books.Details;
 
-public sealed class BookDetailsChapterItemViewModel
+/// <summary>
+/// Immutable stable chapter fields plus the sparse decorations currently shown for one row.
+/// </summary>
+public sealed class BookDetailsChapterProjection
 {
-    public BookDetailsChapterItemViewModel(
+    public BookDetailsChapterProjection(
         int chapterIndex,
-        string indexText,
         string title,
-        bool isCurrent,
+        bool isCurrent = false,
         string cachePercentageText = "")
     {
         ChapterIndex = chapterIndex;
-        IndexText = indexText;
         Title = title;
         IsCurrent = isCurrent;
         CachePercentageText = cachePercentageText;
@@ -20,7 +21,7 @@ public sealed class BookDetailsChapterItemViewModel
 
     public int ChapterIndex { get; }
 
-    public string IndexText { get; }
+    public string IndexText => $"第 {ChapterIndex + 1} 章";
 
     public string Title { get; }
 
@@ -36,13 +37,12 @@ public sealed class BookDetailsChapterItemViewModel
         ? BuildAutomationName("当前章节")
         : BuildAutomationName();
 
-    public BookDetailsChapterItemViewModel WithCurrentState(bool isCurrent) =>
-        new(ChapterIndex, IndexText, Title, isCurrent, CachePercentageText);
+    public BookDetailsChapterProjection WithCurrentState(bool isCurrent) =>
+        new(ChapterIndex, Title, isCurrent, CachePercentageText);
 
-    public BookDetailsChapterItemViewModel WithCacheStatus(int cachedSegmentCount, int? totalSegmentCount) =>
+    public BookDetailsChapterProjection WithCacheStatus(int cachedSegmentCount, int? totalSegmentCount) =>
         new(
             ChapterIndex,
-            IndexText,
             Title,
             IsCurrent,
             ChapterCachePercentageFormatter.Format(cachedSegmentCount, totalSegmentCount));

@@ -131,14 +131,12 @@ public sealed partial class BookDetailsPageTests
             var viewModel = CreateViewModel();
             PopulateLayoutState(viewModel, chapterCount: 3);
             viewModel.Chapters.Clear();
-            viewModel.Chapters.Add(new BookDetailsChapterItemViewModel(
+            viewModel.Chapters.Add(new BookDetailsChapterProjection(
                 0,
-                "第 1 章",
                 "第一章 这是一个非常非常长的章节标题用于验证详情页目录的单行截断与 Tooltip 展示",
                 false));
-            var currentChapter = new BookDetailsChapterItemViewModel(
+            var currentChapter = new BookDetailsChapterProjection(
                 1,
-                "第 2 章",
                 "第二章 当前章节标题",
                 true,
                 "25%");
@@ -462,6 +460,8 @@ public sealed partial class BookDetailsPageTests
             try
             {
                 page.OnNavigatedToAsync().GetAwaiter().GetResult();
+                page.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+                page.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
                 WaitUntil(() => !viewModel.IsBusy, TimeSpan.FromSeconds(2));
 
                 Assert.Equal("book-A", managementService.LastRequestedBookId);
@@ -536,9 +536,8 @@ public sealed partial class BookDetailsPageTests
         viewModel.Chapters.Clear();
         for (var chapterIndex = 0; chapterIndex < chapterCount; chapterIndex++)
         {
-            viewModel.Chapters.Add(new BookDetailsChapterItemViewModel(
+            viewModel.Chapters.Add(new BookDetailsChapterProjection(
                 chapterIndex,
-                $"第 {chapterIndex + 1} 章",
                 $"第{chapterIndex + 1}章 标题较长用于验证详情页目录内部滚动与虚拟化工作正常",
                 chapterIndex == 40));
         }

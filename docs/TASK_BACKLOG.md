@@ -255,7 +255,7 @@
 
 完成成果：Library 使用不可变 summaries catalog，搜索/排序在非 WPF 数据结构中计算并通过批量 projection 提交可见卡片；PlaybackSnapshot 通过书籍 ID 稀疏更新匹配卡片；页面离开取消筛选/projection 工作；保留导入、删除、导航和响应式布局行为；补充 10,000 本批量 projection 与匹配 Snapshot 有界更新测试。
 
-## [ ] T007（P0）：迁移 BookDetails 到 Catalog + Staged Loading
+## [x] T007（P0）：迁移 BookDetails 到 Catalog + Staged Loading
 
 依赖：T006。
 
@@ -289,6 +289,8 @@
 - fast leave/re-enter cancellation；
 - matching Snapshot 与 persisted fallback；
 - WPF locator/virtualization focused tests。
+
+完成成果：BookDetails 使用不可变 chapter catalog、sparse current/cache decoration 与 O(1) index lookup；Critical 阶段并行加载 header/catalog/reading position，首帧后的 ContextIdle 边界启动 statistics enrichment、locator 与 viewport cache；cache 仅刷新 current/viewport/明确目标，且 mutation generation 防止旧 statistics 写回；locator 按 catalog position 定位并在 leave 后取消；移除旧 item VM 和 initial cache projection workaround；补充 10,000 项、首帧门控、生命周期、snapshot fallback、bounded cache、mutation race 与 WPF focused contract tests。
 
 ---
 

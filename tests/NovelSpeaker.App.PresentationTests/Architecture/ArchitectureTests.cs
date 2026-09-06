@@ -453,6 +453,7 @@ public sealed class ArchitectureTests
             [
                 "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerContentProjection.cs",
                 "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerSnapshotProjection.cs",
+                "src/NovelSpeaker.App/Features/Books/Details/BookDetailsProjectionController.cs",
                 "src/NovelSpeaker.App/Features/Books/Shared/EffectiveReadingProgress.cs"
             ]));
 

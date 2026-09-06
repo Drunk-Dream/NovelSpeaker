@@ -17,10 +17,12 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
     private readonly INavigationGuardService _navigationGuardService;
     private readonly CurrentItemLocatorInteraction _chapterLocator;
     private ScrollViewer? _chapterScrollViewer;
+    private bool _isPageLoaded;
     private bool _initialLocatorPending;
     private bool _initialLocatorEvaluationQueued;
     private bool _initialLocatorRequestIssued;
     private int _initialLocatorVersion;
+    private bool _stagedLoadEvaluationQueued;
 
     public BookDetailsPage(
         BookDetailsViewModel viewModel,
@@ -37,7 +39,8 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
             () => IsLoaded && ChaptersListBox.ActualHeight > 0,
             () => !SystemParameters.ClientAreaAnimation,
             () => MotionTokenRuntime.Slow,
-            isVisible => LocateCurrentChapterButton.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed);
+            isVisible => LocateCurrentChapterButton.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed,
+            () => ViewModel.CurrentChapterPosition);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
@@ -51,7 +54,6 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
         _initialLocatorPending = true;
         _initialLocatorEvaluationQueued = false;
         _initialLocatorRequestIssued = false;
-        ViewModel.DeferInitialCacheStatusProjection();
         ViewModel.HandleNavigatedTo();
         activation.Register(ViewModel.HandleNavigatedFrom);
         activation.Register(_navigationGuardService.Register(ViewModel.ConfirmLeaveAsync));
@@ -67,7 +69,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
             await ViewModel.LoadAsync(request.BookId, activation.CancellationToken);
             if (activation.IsCurrent)
             {
-                ScheduleInitialChapterLocator(initialLocatorVersion);
+                QueueStagedLoading(initialLocatorVersion);
             }
         }
         catch (OperationCanceledException) when (!activation.IsCurrent)
@@ -81,6 +83,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
         _initialLocatorEvaluationQueued = false;
         _initialLocatorRequestIssued = false;
         _initialLocatorVersion++;
+        _stagedLoadEvaluationQueued = false;
         _chapterLocator.Cancel();
         _activation.Deactivate();
         return Task.CompletedTask;
@@ -88,28 +91,16 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        _isPageLoaded = true;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
-        var hasPendingInitialProjection = _initialLocatorPending &&
-            ViewModel.HasInitialCacheStatusProjectionPending;
-        var initialLocatorVersion = _initialLocatorVersion;
-        if (hasPendingInitialProjection)
-        {
-            _initialLocatorRequestIssued = true;
-        }
-
-        _chapterLocator.OnLoaded(
-            hasPendingInitialProjection
-                ? () => CompleteInitialChapterLocator(initialLocatorVersion)
-                : null);
+        _chapterLocator.OnLoaded();
         AttachChapterViewport();
-        if (!hasPendingInitialProjection)
-        {
-            ScheduleInitialChapterLocator(_initialLocatorVersion);
-        }
+        QueueStagedLoading(_initialLocatorVersion);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        _isPageLoaded = false;
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _chapterLocator.OnUnloaded();
         DetachChapterViewport();
@@ -152,6 +143,11 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
     }
 
     private void RequestVisibleChapterDecorationWindow()
+    {
+        QueueStagedLoading(_initialLocatorVersion);
+    }
+
+    private void ApplyVisibleChapterDecorationWindow()
     {
         if (_chapterScrollViewer is null)
         {
@@ -196,6 +192,12 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(BookDetailsViewModel.IsChapterCatalogReady))
+        {
+            QueueStagedLoading(_initialLocatorVersion);
+            return;
+        }
+
         if (e.PropertyName != nameof(BookDetailsViewModel.CurrentChapterItem))
         {
             return;
@@ -203,11 +205,9 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
 
         if (_initialLocatorPending)
         {
-            // Invalidate a readiness evaluation that may already be queued at a higher
-            // dispatcher priority so it cannot center the previous snapshot item.
             _chapterLocator.Cancel();
             _initialLocatorRequestIssued = false;
-            ScheduleInitialChapterLocator(_initialLocatorVersion);
+            QueueStagedLoading(_initialLocatorVersion);
             return;
         }
 
@@ -226,11 +226,11 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
     private void ScheduleInitialChapterLocator(int version)
     {
         if (!_initialLocatorPending ||
-            !ViewModel.HasInitialCacheStatusProjectionPending ||
             _initialLocatorRequestIssued ||
             _initialLocatorEvaluationQueued ||
             version != _initialLocatorVersion ||
-            ViewModel.Chapters.Count == 0)
+            !ViewModel.IsChapterCatalogReady ||
+            ViewModel.CurrentChapterItem is null)
         {
             return;
         }
@@ -241,7 +241,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
             new Action(() =>
             {
                 _initialLocatorEvaluationQueued = false;
-                if (!_initialLocatorPending || version != _initialLocatorVersion || !IsLoaded)
+                if (!_initialLocatorPending || version != _initialLocatorVersion || !_isPageLoaded)
                 {
                     return;
                 }
@@ -250,6 +250,36 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
                 _chapterLocator.NotifyCurrentItemChanged(
                     animate: false,
                     completed: () => CompleteInitialChapterLocator(version));
+            }));
+    }
+
+    private void QueueStagedLoading(int version)
+    {
+        if (_stagedLoadEvaluationQueued ||
+            version != _initialLocatorVersion ||
+            !_isPageLoaded ||
+            _activation.Current is not { IsCurrent: true } ||
+            !ViewModel.IsChapterCatalogReady)
+        {
+            return;
+        }
+
+        _stagedLoadEvaluationQueued = true;
+        // ContextIdle runs after the current render work, so synchronous query
+        // completions cannot move the catalog projection into the first frame.
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.ContextIdle,
+            new Action(() =>
+            {
+                _stagedLoadEvaluationQueued = false;
+                if (version == _initialLocatorVersion &&
+                    _isPageLoaded &&
+                    _activation.Current is { IsCurrent: true })
+                {
+                    ApplyVisibleChapterDecorationWindow();
+                    ScheduleInitialChapterLocator(version);
+                    ViewModel.StartStagedLoading();
+                }
             }));
     }
 
@@ -262,6 +292,5 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
 
         _initialLocatorPending = false;
         _initialLocatorRequestIssued = false;
-        ViewModel.NotifyInitialChapterLocatorCompleted();
     }
 }
