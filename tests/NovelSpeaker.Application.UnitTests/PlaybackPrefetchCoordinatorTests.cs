@@ -5,13 +5,13 @@ using Xunit;
 
 namespace NovelSpeaker.Application.UnitTests;
 
-public sealed class PlaybackPrefetchControllerTests
+public sealed class PlaybackPrefetchCoordinatorTests
 {
     [Fact]
     public async Task SubmitAsync_deduplicates_window_and_preserves_priority_order()
     {
         var provider = new ControlledAudioProvider();
-        var controller = new PlaybackPrefetchController(provider);
+        var controller = new PlaybackPrefetchCoordinator(provider);
         var sessionId = Guid.NewGuid();
         var first = CreateRequest(sessionId, 1);
         var duplicate = CreateRequest(sessionId, 1);
@@ -32,7 +32,7 @@ public sealed class PlaybackPrefetchControllerTests
     public async Task CancelAsync_cancels_active_request_and_pending_window()
     {
         var provider = new ControlledAudioProvider();
-        var controller = new PlaybackPrefetchController(provider);
+        var controller = new PlaybackPrefetchCoordinator(provider);
         var sessionId = Guid.NewGuid();
         var pending = provider.EnqueuePending();
 
@@ -53,7 +53,7 @@ public sealed class PlaybackPrefetchControllerTests
     public async Task Late_old_session_result_does_not_block_or_enter_new_session_window()
     {
         var provider = new ControlledAudioProvider();
-        var controller = new PlaybackPrefetchController(provider);
+        var controller = new PlaybackPrefetchCoordinator(provider);
         var oldSessionId = Guid.NewGuid();
         var oldRequest = CreateRequest(oldSessionId, 1);
         var oldResult = provider.EnqueueLateResult();

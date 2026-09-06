@@ -298,7 +298,8 @@ public sealed class ArchitectureTests
 
         Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.PlaybackCoordinator).Assembly);
         Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.LocalAudioPlaybackCoordinator).Assembly);
-        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.PlaybackPrefetchController).Assembly);
+        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.PlaybackContentResolver).Assembly);
+        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.PlaybackPrefetchCoordinator).Assembly);
         Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.SelectedTtsRuleProvider).Assembly);
 
         var infrastructurePlaybackFiles = Repository.ReadProductSourceFiles()

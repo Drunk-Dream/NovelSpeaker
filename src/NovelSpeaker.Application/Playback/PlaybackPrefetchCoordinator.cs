@@ -6,12 +6,12 @@ namespace NovelSpeaker.Application.Playback;
 /// <summary>
 /// Owns each session's ordered prefetch window, de-duplication, cancellation and session token.
 /// </summary>
-public sealed class PlaybackPrefetchController : IPlaybackPrefetchController
+internal sealed class PlaybackPrefetchCoordinator : IPlaybackPrefetchController
 {
     private readonly IPlaybackAudioProvider _audioProvider;
     private readonly ConcurrentDictionary<Guid, SessionState> _sessions = new();
 
-    public PlaybackPrefetchController(IPlaybackAudioProvider audioProvider)
+    public PlaybackPrefetchCoordinator(IPlaybackAudioProvider audioProvider)
     {
         _audioProvider = audioProvider;
     }

@@ -17,7 +17,7 @@ using NovelSpeaker.TestKit.Common;
 
 namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
-public sealed class BookPlaybackContentServiceTests
+public sealed class PlaybackContentResolverTests
 {
     [Fact]
     public async Task GetBookAsync_does_not_resume_on_the_callers_synchronization_context()
@@ -25,7 +25,7 @@ public sealed class BookPlaybackContentServiceTests
         using var database = CreateDatabase(createContentFile: false);
         var connectionFactory = new TestSqliteConnectionFactory(database.ConnectionString, gateOpen: true);
 
-        var service = new BookPlaybackContentService(
+        var service = new PlaybackContentResolver(
             new SqliteBookPlaybackMetadataQuery(connectionFactory),
             CreateContentReader(database),
             new TextSegmenter(),
@@ -62,7 +62,7 @@ public sealed class BookPlaybackContentServiceTests
     {
         using var database = CreateDatabase(createContentFile: true);
 
-        var service = new BookPlaybackContentService(
+        var service = new PlaybackContentResolver(
             new SqliteBookPlaybackMetadataQuery(new TestSqliteConnectionFactory(database.ConnectionString)),
             CreateContentReader(database),
             new TextSegmenter(),
@@ -84,7 +84,7 @@ public sealed class BookPlaybackContentServiceTests
     [Fact]
     public async Task GetChapterAsync_prepends_title_when_reading_titles_is_enabled()
     {
-        var service = new BookPlaybackContentService(
+        var service = new PlaybackContentResolver(
             new FixedMetadataQuery(),
             new FixedBookContentReader("第一段。"),
             new TextSegmenter(),
@@ -123,7 +123,7 @@ public sealed class BookPlaybackContentServiceTests
         }
 
         var connectionFactory = new TestSqliteConnectionFactory(database.ConnectionString);
-        var service = new BookPlaybackContentService(
+        var service = new PlaybackContentResolver(
             new SqliteBookPlaybackMetadataQuery(connectionFactory),
             CreateContentReader(database),
             new TextSegmenter(),
@@ -153,7 +153,7 @@ public sealed class BookPlaybackContentServiceTests
             await command.ExecuteNonQueryAsync(CancellationToken.None);
         }
 
-        var service = new BookPlaybackContentService(
+        var service = new PlaybackContentResolver(
             new SqliteBookPlaybackMetadataQuery(new TestSqliteConnectionFactory(database.ConnectionString)),
             CreateContentReader(database),
             new TextSegmenter(),
@@ -169,7 +169,7 @@ public sealed class BookPlaybackContentServiceTests
     [Fact]
     public async Task GetChapterAsync_marks_regex_filtered_chapter_as_loaded_empty()
     {
-        var service = new BookPlaybackContentService(
+        var service = new PlaybackContentResolver(
             new FixedMetadataQuery(),
             new FixedBookContentReader("整章正文"),
             new TextSegmenter(),
@@ -187,7 +187,7 @@ public sealed class BookPlaybackContentServiceTests
     public async Task GetChapterAsync_rejects_result_completed_after_cancellation()
     {
         var pipeline = new DelayedRegexReplacementPipeline();
-        var service = new BookPlaybackContentService(
+        var service = new PlaybackContentResolver(
             new FixedMetadataQuery(),
             new FixedBookContentReader("整章正文"),
             new TextSegmenter(),
@@ -208,7 +208,7 @@ public sealed class BookPlaybackContentServiceTests
     {
         const string privatePath = @"C:\private\novel-content.txt";
         var logger = new CapturingLogger<BookPlaybackContentFailureReporter>();
-        var service = new BookPlaybackContentService(
+        var service = new PlaybackContentResolver(
             new FixedMetadataQuery(),
             new ThrowingBookContentReader(new FileNotFoundException(privatePath)),
             new TextSegmenter(),
@@ -230,7 +230,7 @@ public sealed class BookPlaybackContentServiceTests
     public async Task GetChapterAsync_keeps_cancellation_normal_and_does_not_report_it()
     {
         var logger = new CapturingLogger<BookPlaybackContentFailureReporter>();
-        var service = new BookPlaybackContentService(
+        var service = new PlaybackContentResolver(
             new FixedMetadataQuery(),
             new ThrowingBookContentReader(new OperationCanceledException()),
             new TextSegmenter(),

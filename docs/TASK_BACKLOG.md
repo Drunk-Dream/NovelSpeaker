@@ -335,7 +335,7 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 完成成果：已由 PlaybackAudioController 统一持有本地音频 callback bridge 与释放边界，PlaybackProgressController 收敛位置/字符偏移 checkpoint，PlaybackStopTimer 独立管理 TimeProvider、替换和取消；Coordinator 仅协调这些 session-owned 组件。
 
-## [ ] T010（P0）：拆分 Playback ContentResolver 与 PrefetchCoordinator
+## [x] T010（P0）：拆分 Playback ContentResolver 与 PrefetchCoordinator
 
 依赖：T009。
 
@@ -350,6 +350,8 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 5. 删除旧 coordinator/content service 中重复 orchestration，避免建立第二个万能 service。
 
 测试：content resolution、plan version、prefetch cancellation/priorities、session replacement。
+
+完成成果：已将正文读取、文本分段、regex/speech plan 与 segment compose 收敛到 PlaybackContentResolver，并将 playback-session 预取实现收敛为 PlaybackPrefetchCoordinator；保留 TTS admission/cache、plan revision、失效和 session replacement 合同，补齐对应注册与测试迁移。
 
 ---
 

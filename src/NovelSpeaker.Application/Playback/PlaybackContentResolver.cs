@@ -9,7 +9,7 @@ namespace NovelSpeaker.Application.Playback;
 /// <summary>
 /// Assembles playback content from persisted metadata, stored text, segmentation, and regex rules.
 /// </summary>
-public sealed class BookPlaybackContentService : IBookPlaybackContentService
+internal sealed class PlaybackContentResolver : IBookPlaybackContentService
 {
     private readonly IBookPlaybackMetadataQuery _metadataQuery;
     private readonly IBookContentReader _bookContentReader;
@@ -20,7 +20,7 @@ public sealed class BookPlaybackContentService : IBookPlaybackContentService
     private readonly IChapterSpeechPlanService? _speechPlanService;
     private readonly IBookPlaybackContentFailureReporter? _failureReporter;
 
-    public BookPlaybackContentService(
+    public PlaybackContentResolver(
         IBookPlaybackMetadataQuery metadataQuery,
         IBookContentReader bookContentReader,
         ITextSegmenter textSegmenter,

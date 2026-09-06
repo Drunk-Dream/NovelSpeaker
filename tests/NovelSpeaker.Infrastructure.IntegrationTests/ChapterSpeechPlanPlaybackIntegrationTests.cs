@@ -54,7 +54,7 @@ public sealed class ChapterSpeechPlanPlaybackIntegrationTests
             regexRepository,
             new SqliteChapterSpeechPlanStore(factory),
             TimeProvider.System);
-        var service = new BookPlaybackContentService(
+        var service = new PlaybackContentResolver(
             new SqliteBookPlaybackMetadataQuery(factory),
             new BookContentReader(new AppStoragePathResolver(directories)),
             new TextSegmenter(),

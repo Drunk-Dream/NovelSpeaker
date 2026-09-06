@@ -16,7 +16,7 @@ public static class PlaybackRegistration
     public static IServiceCollection AddNovelSpeakerPlaybackApplication(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        services.TryAddSingleton<IBookPlaybackContentService, BookPlaybackContentService>();
+        services.TryAddSingleton<IBookPlaybackContentService, PlaybackContentResolver>();
         services.TryAddSingleton<CacheWorkspaceService>();
         services.TryAddSingleton<ICacheWorkspaceService>(
             serviceProvider => serviceProvider.GetRequiredService<CacheWorkspaceService>());
@@ -33,7 +33,7 @@ public static class PlaybackRegistration
         services.TryAddSingleton<PlaybackSegmentRunner>();
         services.TryAddSingleton<PlaybackRecoveryPolicy>();
         services.TryAddSingleton<PlaybackProgressController>();
-        services.TryAddSingleton<IPlaybackPrefetchController, PlaybackPrefetchController>();
+        services.TryAddSingleton<IPlaybackPrefetchController, PlaybackPrefetchCoordinator>();
         services.TryAddSingleton<PlaybackCoordinator>(serviceProvider =>
             new PlaybackCoordinator(
                 serviceProvider.GetRequiredService<IBookPlaybackContentService>(),

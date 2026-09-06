@@ -155,7 +155,7 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<IMediaControlCoordinator>());
                 Assert.IsAssignableFrom<IMediaControlPlatform>(
                     provider.GetRequiredService<IMediaControlPlatform>());
-                Assert.IsAssignableFrom<IBookPlaybackContentService>(provider.GetRequiredService<IBookPlaybackContentService>());
+                Assert.IsType<PlaybackContentResolver>(provider.GetRequiredService<IBookPlaybackContentService>());
                 Assert.IsType<SelectedTtsRuleProvider>(provider.GetRequiredService<ISelectedTtsRuleProvider>());
                 Assert.IsAssignableFrom<IPlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
                 Assert.IsType<PlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
@@ -179,7 +179,7 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<ICacheWorkspaceBackgroundTaskOwner>());
                 Assert.IsAssignableFrom<IExportChaptersService>(provider.GetRequiredService<IExportChaptersService>());
                 Assert.IsAssignableFrom<IAudioCacheProtectionRegistry>(provider.GetRequiredService<IAudioCacheProtectionRegistry>());
-                Assert.IsType<PlaybackPrefetchController>(provider.GetRequiredService<IPlaybackPrefetchController>());
+                Assert.IsType<PlaybackPrefetchCoordinator>(provider.GetRequiredService<IPlaybackPrefetchController>());
                 Assert.IsAssignableFrom<IReadingProgressStore>(provider.GetRequiredService<IReadingProgressStore>());
                 Assert.IsAssignableFrom<TimeProvider>(provider.GetRequiredService<TimeProvider>());
                 Assert.IsType<MainWindow>(provider.GetRequiredService<MainWindow>());
