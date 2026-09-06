@@ -4,13 +4,13 @@ using Xunit;
 
 namespace NovelSpeaker.Application.UnitTests;
 
-public sealed class PlaybackProgressServiceTests
+public sealed class PlaybackProgressControllerTests
 {
     [Fact]
     public async Task SaveAsync_maps_current_segment_character_offset_and_propagates_token()
     {
         var store = new CapturingProgressStore();
-        var service = new PlaybackProgressService(store);
+        var service = new PlaybackProgressController(store);
         var session = new PlaybackSessionState(CreateBook(), 0, 1, rule: null, speakSpeed: 10);
         var cancellationSource = new CancellationTokenSource();
         session.UpdateAudio(new LocalAudioPlaybackSnapshot(
@@ -24,7 +24,11 @@ public sealed class PlaybackProgressServiceTests
             null,
             true));
 
-        await service.SaveAsync(session, cancellationSource.Token);
+        await service.SaveAsync(
+            session,
+            session.PositionForSave,
+            session.CurrentAudio,
+            cancellationSource.Token);
 
         Assert.Equal(cancellationSource.Token, store.SaveToken);
         Assert.NotNull(store.SavedProgress);
@@ -38,11 +42,15 @@ public sealed class PlaybackProgressServiceTests
     {
         var expected = new InvalidOperationException("保存失败");
         var store = new CapturingProgressStore { SaveFailure = expected };
-        var service = new PlaybackProgressService(store);
+        var service = new PlaybackProgressController(store);
         var session = new PlaybackSessionState(CreateBook(), 0, 0, rule: null, speakSpeed: 10);
 
         var actual = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.SaveAsync(session, CancellationToken.None));
+            service.SaveAsync(
+                session,
+                0,
+                session.CurrentAudio,
+                CancellationToken.None));
 
         Assert.Same(expected, actual);
     }
@@ -51,7 +59,7 @@ public sealed class PlaybackProgressServiceTests
     public async Task RestoreAsync_propagates_cancellation_to_progress_store()
     {
         var store = new CapturingProgressStore();
-        var service = new PlaybackProgressService(store);
+        var service = new PlaybackProgressController(store);
         using var cancellationSource = new CancellationTokenSource();
         cancellationSource.Cancel();
 

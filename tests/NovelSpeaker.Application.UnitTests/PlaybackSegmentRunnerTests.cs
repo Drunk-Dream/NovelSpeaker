@@ -15,7 +15,8 @@ public sealed class PlaybackSegmentRunnerTests
         var audioProvider = new RecordingAudioProvider();
         audioProvider.Enqueue(new PlaybackAudioResult("cached.mp3", true, null));
         var localCoordinator = new RecordingLocalAudioPlaybackCoordinator();
-        var runner = new PlaybackSegmentRunner(audioProvider, localCoordinator);
+        await using var audioController = new PlaybackAudioController(localCoordinator);
+        var runner = new PlaybackSegmentRunner(audioProvider, audioController);
 
         var result = await runner.RunAsync(
             new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 240, ForceInvalidate: false),
@@ -34,7 +35,8 @@ public sealed class PlaybackSegmentRunnerTests
         var audioProvider = new RecordingAudioProvider();
         audioProvider.Enqueue(new PlaybackAudioResult("generated.mp3", false, null));
         var localCoordinator = new RecordingLocalAudioPlaybackCoordinator();
-        var runner = new PlaybackSegmentRunner(audioProvider, localCoordinator);
+        await using var audioController = new PlaybackAudioController(localCoordinator);
+        var runner = new PlaybackSegmentRunner(audioProvider, audioController);
 
         await runner.RunAsync(
             new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 0, ForceInvalidate: true),
@@ -58,7 +60,8 @@ public sealed class PlaybackSegmentRunnerTests
             null);
         audioProvider.Enqueue(new PlaybackAudioResult(null, false, failure));
         var localCoordinator = new RecordingLocalAudioPlaybackCoordinator();
-        var runner = new PlaybackSegmentRunner(audioProvider, localCoordinator);
+        await using var audioController = new PlaybackAudioController(localCoordinator);
+        var runner = new PlaybackSegmentRunner(audioProvider, audioController);
 
         var result = await runner.RunAsync(
             new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 0, ForceInvalidate: false),
@@ -80,7 +83,7 @@ public sealed class PlaybackSegmentRunnerTests
         };
         var runner = new PlaybackSegmentRunner(
             audioProvider,
-            new RecordingLocalAudioPlaybackCoordinator());
+            new PlaybackAudioController(new RecordingLocalAudioPlaybackCoordinator()));
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => runner.RunAsync(
             new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 0, ForceInvalidate: false),

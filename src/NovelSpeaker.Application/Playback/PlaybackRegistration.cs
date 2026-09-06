@@ -28,9 +28,11 @@ public static class PlaybackRegistration
         services.TryAddSingleton<IPlaybackAudioProvider, PlaybackAudioProvider>();
         services.TryAddSingleton<IActiveCacheCoordinator, ActiveCacheCoordinator>();
         services.TryAddSingleton<ILocalAudioPlaybackCoordinator, LocalAudioPlaybackCoordinator>();
+        services.TryAddSingleton<PlaybackAudioController>(serviceProvider =>
+            new PlaybackAudioController(serviceProvider.GetRequiredService<ILocalAudioPlaybackCoordinator>()));
         services.TryAddSingleton<PlaybackSegmentRunner>();
         services.TryAddSingleton<PlaybackRecoveryPolicy>();
-        services.TryAddSingleton<PlaybackProgressService>();
+        services.TryAddSingleton<PlaybackProgressController>();
         services.TryAddSingleton<IPlaybackPrefetchController, PlaybackPrefetchController>();
         services.TryAddSingleton<PlaybackCoordinator>(serviceProvider =>
             new PlaybackCoordinator(
@@ -39,8 +41,8 @@ public static class PlaybackRegistration
                 serviceProvider.GetRequiredService<PlaybackSegmentRunner>(),
                 serviceProvider.GetRequiredService<PlaybackRecoveryPolicy>(),
                 serviceProvider.GetRequiredService<IAudioCacheProtectionRegistry>(),
-                serviceProvider.GetRequiredService<ILocalAudioPlaybackCoordinator>(),
-                serviceProvider.GetRequiredService<PlaybackProgressService>(),
+                serviceProvider.GetRequiredService<PlaybackAudioController>(),
+                serviceProvider.GetRequiredService<PlaybackProgressController>(),
                 serviceProvider.GetRequiredService<IPlaybackPrefetchController>(),
                 serviceProvider.GetRequiredService<IAppSettingsService>(),
                 serviceProvider.GetRequiredService<TimeProvider>()));

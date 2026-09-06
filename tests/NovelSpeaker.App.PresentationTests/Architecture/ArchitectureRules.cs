@@ -481,7 +481,8 @@ internal static partial class ArchitectureRules
         {
             "src/NovelSpeaker.Application/Playback/PlaybackCoordinator.cs",
             "src/NovelSpeaker.Application/Playback/PlaybackCommandProcessor.cs",
-            "src/NovelSpeaker.Application/Playback/PlaybackSessionState.cs"
+            "src/NovelSpeaker.Application/Playback/PlaybackSessionState.cs",
+            "src/NovelSpeaker.Application/Playback/PlaybackProgressController.cs"
         };
         var mutationPattern =
             @"\.(?:ReplaceBook|SetRule|SetPosition|SetResumePosition|SetConsecutiveSegmentFailureCount|SetSpeakSpeed|UpdateAudio|SetPositionForSave|ReplaceAudioProtection)\s*\(";

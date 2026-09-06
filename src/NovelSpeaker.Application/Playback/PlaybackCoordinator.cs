@@ -25,12 +25,12 @@ public sealed class PlaybackCoordinator :
     private readonly PlaybackSegmentRunner _segmentRunner;
     private readonly PlaybackRecoveryPolicy _recoveryPolicy;
     private readonly IAudioCacheProtectionRegistry _audioCacheProtectionRegistry;
-    private readonly ILocalAudioPlaybackCoordinator _localAudioPlaybackCoordinator;
-    private readonly PlaybackProgressService _progressService;
+    private readonly PlaybackAudioController _audioController;
+    private readonly PlaybackProgressController _progressController;
     private readonly IPlaybackPrefetchController _prefetchController;
     private readonly IAppSettingsService _appSettingsService;
     private readonly TimeProvider _timeProvider;
-    private readonly PlaybackStopTimerController _stopTimer;
+    private readonly PlaybackStopTimer _stopTimer;
     private readonly PlaybackCommandProcessor _commandProcessor;
     private readonly object _disposeGate = new();
     private readonly object _volumePersistenceGate = new();
@@ -73,8 +73,8 @@ public sealed class PlaybackCoordinator :
         PlaybackSegmentRunner segmentRunner,
         PlaybackRecoveryPolicy recoveryPolicy,
         IAudioCacheProtectionRegistry audioCacheProtectionRegistry,
-        ILocalAudioPlaybackCoordinator localAudioPlaybackCoordinator,
-        PlaybackProgressService progressService,
+        PlaybackAudioController audioController,
+        PlaybackProgressController progressController,
         IPlaybackPrefetchController prefetchController,
         IAppSettingsService appSettingsService,
         TimeProvider timeProvider)
@@ -84,8 +84,8 @@ public sealed class PlaybackCoordinator :
         _segmentRunner = segmentRunner;
         _recoveryPolicy = recoveryPolicy;
         _audioCacheProtectionRegistry = audioCacheProtectionRegistry;
-        _localAudioPlaybackCoordinator = localAudioPlaybackCoordinator;
-        _progressService = progressService;
+        _audioController = audioController;
+        _progressController = progressController;
         _prefetchController = prefetchController;
         _appSettingsService = appSettingsService;
         _timeProvider = timeProvider;
@@ -93,16 +93,16 @@ public sealed class PlaybackCoordinator :
             ProcessEventCommandAsync,
             PublishEventCommandFailureSafely);
         var startupVolume = PlaybackVolume.Normalize(_appSettingsService.Current.PlaybackVolume);
-        _localAudioPlaybackCoordinator.SetVolume(startupVolume);
+        _audioController.SetVolume(startupVolume);
         _currentSnapshot = PlaybackSnapshot.Idle with { Volume = startupVolume };
-        _stopTimer = new PlaybackStopTimerController(
+        _stopTimer = new PlaybackStopTimer(
             _timeProvider,
             PauseAsync,
             PublishStopTimerFailureSafely);
 
-        _localAudioPlaybackCoordinator.SnapshotChanged += OnLocalSnapshotChanged;
-        _localAudioPlaybackCoordinator.PlaybackCompleted += OnLocalPlaybackCompleted;
-        _localAudioPlaybackCoordinator.PlaybackFailed += OnLocalPlaybackFailed;
+        _audioController.SnapshotChanged += OnLocalSnapshotChanged;
+        _audioController.PlaybackCompleted += OnLocalPlaybackCompleted;
+        _audioController.PlaybackFailed += OnLocalPlaybackFailed;
     }
 
     public PlaybackSnapshot CurrentSnapshot => _currentSnapshot;
@@ -202,9 +202,9 @@ public sealed class PlaybackCoordinator :
     public void SetVolume(double volume)
     {
         ThrowIfDisposed();
-        var previousVolume = _localAudioPlaybackCoordinator.Volume;
-        _localAudioPlaybackCoordinator.SetVolume(volume);
-        var normalizedVolume = _localAudioPlaybackCoordinator.Volume;
+        var previousVolume = _audioController.Volume;
+        _audioController.SetVolume(volume);
+        var normalizedVolume = _audioController.Volume;
         PublishSnapshot(_currentSnapshot with
         {
             Volume = normalizedVolume
@@ -247,9 +247,9 @@ public sealed class PlaybackCoordinator :
         await _stopTimer.DisposeAsync().ConfigureAwait(false);
         _commandProcessor.BeginShutdown();
         _currentSession?.Cancel();
-        _localAudioPlaybackCoordinator.SnapshotChanged -= OnLocalSnapshotChanged;
-        _localAudioPlaybackCoordinator.PlaybackCompleted -= OnLocalPlaybackCompleted;
-        _localAudioPlaybackCoordinator.PlaybackFailed -= OnLocalPlaybackFailed;
+        _audioController.SnapshotChanged -= OnLocalSnapshotChanged;
+        _audioController.PlaybackCompleted -= OnLocalPlaybackCompleted;
+        _audioController.PlaybackFailed -= OnLocalPlaybackFailed;
 
         Exception? disposeFailure = null;
         try
@@ -269,11 +269,14 @@ public sealed class PlaybackCoordinator :
             {
                 try
                 {
-                    await SaveProgressAsync(
+                    await _progressController.SaveAsync(
                         session,
                         session.HasLoadedAudio
-                            ? _localAudioPlaybackCoordinator.CurrentSnapshot.PositionMilliseconds
-                            : GetCurrentPositionMillisecondsForSave(session),
+                            ? _audioController.CurrentSnapshot.PositionMilliseconds
+                            : _progressController.GetCurrentPositionMillisecondsForSave(
+                                session,
+                                _audioController.CurrentSnapshot),
+                        _audioController.CurrentSnapshot,
                         CancellationToken.None).ConfigureAwait(false);
                 }
                 catch (Exception exception)
@@ -324,7 +327,7 @@ public sealed class PlaybackCoordinator :
 
         try
         {
-            await _localAudioPlaybackCoordinator.DisposeAsync().ConfigureAwait(false);
+            await _audioController.DisposeAsync().ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -446,15 +449,16 @@ public sealed class PlaybackCoordinator :
                 Message = "已暂停，等待播放。"
             });
             await RefreshPrefetchWindowAsync(_currentSession, maxCountOverride: 1, cancellationToken);
-            await SaveProgressAsync(
+            await _progressController.SaveAsync(
                 _currentSession,
                 _currentSession.PositionForSave,
+                _audioController.CurrentSnapshot,
                 cancellationToken);
             return;
         }
 
-        await _localAudioPlaybackCoordinator.PauseAsync(cancellationToken);
-        var pausedAudio = _localAudioPlaybackCoordinator.CurrentSnapshot;
+        await _audioController.PauseAsync(cancellationToken);
+        var pausedAudio = _audioController.CurrentSnapshot;
         _currentSession.UpdateAudio(pausedAudio);
         if (_currentBook is not null && _currentRule is not null)
         {
@@ -473,9 +477,10 @@ public sealed class PlaybackCoordinator :
         }
 
         await RefreshPrefetchWindowAsync(_currentSession, maxCountOverride: 1, cancellationToken);
-        await SaveProgressAsync(
+        await _progressController.SaveAsync(
             _currentSession,
-            _localAudioPlaybackCoordinator.CurrentSnapshot.PositionMilliseconds,
+            _audioController.CurrentSnapshot.PositionMilliseconds,
+            _audioController.CurrentSnapshot,
             cancellationToken);
     }
 
@@ -513,8 +518,8 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        await _localAudioPlaybackCoordinator.ResumeAsync(cancellationToken);
-        var resumedAudio = _localAudioPlaybackCoordinator.CurrentSnapshot;
+        await _audioController.ResumeAsync(cancellationToken);
+        var resumedAudio = _audioController.CurrentSnapshot;
         _currentSession.UpdateAudio(resumedAudio);
         if (_currentBook is not null && _currentRule is not null)
         {
@@ -548,17 +553,23 @@ public sealed class PlaybackCoordinator :
         var session = _currentSession;
         if (session.HasLoadedAudio)
         {
-            session.UpdateAudio(_localAudioPlaybackCoordinator.CurrentSnapshot);
+            session.UpdateAudio(_audioController.CurrentSnapshot);
         }
 
-        var positionBeforeStop = GetCurrentPositionMillisecondsForSave(session);
+        var positionBeforeStop = _progressController.GetCurrentPositionMillisecondsForSave(
+            session,
+            _audioController.CurrentSnapshot);
         if (session.HasLoadedAudio)
         {
-            await _localAudioPlaybackCoordinator.StopAsync(cancellationToken);
-            session.UpdateAudio(_localAudioPlaybackCoordinator.CurrentSnapshot);
+            await _audioController.StopAsync(cancellationToken);
+            session.UpdateAudio(_audioController.CurrentSnapshot);
         }
 
-        await SaveProgressAsync(session, positionBeforeStop, cancellationToken);
+        await _progressController.SaveAsync(
+            session,
+            positionBeforeStop,
+            _audioController.CurrentSnapshot,
+            cancellationToken);
         await _prefetchController.CancelAsync(session.SessionId, cancellationToken);
         await DisposeSessionAsync();
         ClearProtectedPlaybackFile();
@@ -567,7 +578,7 @@ public sealed class PlaybackCoordinator :
         {
             State = PlaybackState.Stopped,
             PositionMilliseconds = 0,
-            DurationMilliseconds = _localAudioPlaybackCoordinator.CurrentSnapshot.DurationMilliseconds,
+            DurationMilliseconds = _audioController.CurrentSnapshot.DurationMilliseconds,
             Message = "已停止当前播放。",
             CanRetry = false
         });
@@ -630,7 +641,7 @@ public sealed class PlaybackCoordinator :
             {
                 if (session.HasLoadedAudio)
                 {
-                    await _localAudioPlaybackCoordinator.StopAsync(cancellationToken).ConfigureAwait(false);
+                    await _audioController.StopAsync(cancellationToken).ConfigureAwait(false);
                 }
 
                 await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
@@ -710,7 +721,7 @@ public sealed class PlaybackCoordinator :
         {
             if (_currentSession.HasLoadedAudio)
             {
-                await _localAudioPlaybackCoordinator.StopAsync(cancellationToken).ConfigureAwait(false);
+                await _audioController.StopAsync(cancellationToken).ConfigureAwait(false);
             }
 
             await _prefetchController.CancelAsync(_currentSession.SessionId, cancellationToken).ConfigureAwait(false);
@@ -1001,9 +1012,11 @@ public sealed class PlaybackCoordinator :
         var previousSnapshot = _currentSnapshot;
         var previousPositionForSave = previousSession is null
             ? 0
-            : GetCurrentPositionMillisecondsForSave(previousSession);
+            : _progressController.GetCurrentPositionMillisecondsForSave(
+                previousSession,
+                _audioController.CurrentSnapshot);
         var previousHadLoadedAudio = previousSession?.HasLoadedAudio == true;
-        var previousAudioSnapshot = _localAudioPlaybackCoordinator.CurrentSnapshot;
+        var previousAudioSnapshot = _audioController.CurrentSnapshot;
         var previousAudioStopped = IsTerminalAudioSnapshotForSession(previousSession, previousAudioSnapshot);
         PlaybackSessionState? session = null;
 
@@ -1011,17 +1024,18 @@ public sealed class PlaybackCoordinator :
         {
             if (previousSession is not null)
             {
-                await SaveProgressAsync(
+                await _progressController.SaveAsync(
                     previousSession,
                     previousPositionForSave,
+                    _audioController.CurrentSnapshot,
                     cancellationToken).ConfigureAwait(false);
 
                 // Stop the currently loaded local audio before we buffer a replacement segment.
                 // Otherwise the old/intermediate segment can finish and advance the new session.
                 if (previousHadLoadedAudio)
                 {
-                    await _localAudioPlaybackCoordinator.StopAsync(cancellationToken).ConfigureAwait(false);
-                    previousSession.UpdateAudio(_localAudioPlaybackCoordinator.CurrentSnapshot with
+                    await _audioController.StopAsync(cancellationToken).ConfigureAwait(false);
+                    previousSession.UpdateAudio(_audioController.CurrentSnapshot with
                     {
                         PositionMilliseconds = previousPositionForSave
                     });
@@ -1045,7 +1059,11 @@ public sealed class PlaybackCoordinator :
 
             if (checkpointNewPosition)
             {
-                await SaveProgressAsync(session, resumePositionMilliseconds, cancellationToken).ConfigureAwait(false);
+                await _progressController.SaveAsync(
+                    session,
+                    resumePositionMilliseconds,
+                    _audioController.CurrentSnapshot,
+                    cancellationToken).ConfigureAwait(false);
             }
         }
         catch
@@ -1136,7 +1154,7 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        previousSession.UpdateAudio(_localAudioPlaybackCoordinator.CurrentSnapshot with
+        previousSession.UpdateAudio(_audioController.CurrentSnapshot with
         {
             State = PlaybackState.Stopped,
             PositionMilliseconds = previousPositionForSave,
@@ -1371,7 +1389,11 @@ public sealed class PlaybackCoordinator :
             cancellationToken).ConfigureAwait(false);
         if (next is null)
         {
-            await SaveProgressAsync(session, 0, cancellationToken).ConfigureAwait(false);
+            await _progressController.SaveAsync(
+                session,
+                0,
+                _audioController.CurrentSnapshot,
+                cancellationToken).ConfigureAwait(false);
             await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
             await DisposeSessionAsync().ConfigureAwait(false);
             PublishSnapshot(_currentSnapshot with
@@ -1387,7 +1409,11 @@ public sealed class PlaybackCoordinator :
         _currentBook = next.Value.Book;
         session.SetPosition(next.Value.ChapterIndex, next.Value.SegmentIndex);
         session.SetResumePosition(0);
-        await SaveProgressAsync(session, 0, cancellationToken).ConfigureAwait(false);
+        await _progressController.SaveAsync(
+            session,
+            0,
+            _audioController.CurrentSnapshot,
+            cancellationToken).ConfigureAwait(false);
         await PlayCurrentSegmentAsync(session, 0, forceInvalidate: false, cancellationToken).ConfigureAwait(false);
     }
 
@@ -1499,7 +1525,7 @@ public sealed class PlaybackCoordinator :
         EnqueueEventCommand(new PlaybackEventCommand(
             PlaybackEventCommandKind.Completed,
             GetLocalPlaybackSessionId(),
-            _localAudioPlaybackCoordinator.CurrentSnapshot,
+            _audioController.CurrentSnapshot,
             null,
             _commandProcessor.CurrentEventEpoch));
     }
@@ -1509,7 +1535,7 @@ public sealed class PlaybackCoordinator :
         EnqueueEventCommand(new PlaybackEventCommand(
             PlaybackEventCommandKind.Failed,
             GetLocalPlaybackSessionId(),
-            _localAudioPlaybackCoordinator.CurrentSnapshot,
+            _audioController.CurrentSnapshot,
             error,
             _commandProcessor.CurrentEventEpoch));
     }
@@ -1604,10 +1630,10 @@ public sealed class PlaybackCoordinator :
             cancellationToken).ConfigureAwait(false);
         if (next is null)
         {
-            session.SetPositionForSave(snapshot.DurationMilliseconds);
-            await SaveProgressAsync(
+            await _progressController.SaveAsync(
                 session,
-                session.PositionForSave,
+                snapshot.DurationMilliseconds,
+                _audioController.CurrentSnapshot,
                 cancellationToken).ConfigureAwait(false);
             await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
             await DisposeSessionAsync().ConfigureAwait(false);
@@ -1622,9 +1648,10 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        await SaveProgressAsync(
+        await _progressController.SaveAsync(
             session,
             snapshot.DurationMilliseconds,
+            _audioController.CurrentSnapshot,
             cancellationToken).ConfigureAwait(false);
 
         _currentBook = next.Value.Book;
@@ -1704,7 +1731,7 @@ public sealed class PlaybackCoordinator :
             return false;
         }
 
-        var current = _localAudioPlaybackCoordinator.CurrentSnapshot;
+        var current = _audioController.CurrentSnapshot;
         return Equals(current, snapshot) &&
             (snapshot.PlaybackSessionId is null || snapshot.PlaybackSessionId == _currentSession.SessionId) &&
             string.Equals(snapshot.BookId, _currentBook.BookId, StringComparison.Ordinal) &&
@@ -1714,7 +1741,7 @@ public sealed class PlaybackCoordinator :
 
     private Guid? GetLocalPlaybackSessionId()
     {
-        return _localAudioPlaybackCoordinator.CurrentSnapshot.PlaybackSessionId ?? _currentSession?.SessionId;
+        return _audioController.CurrentSnapshot.PlaybackSessionId ?? _currentSession?.SessionId;
     }
 
     private static bool IsTerminalAudioSnapshotForSession(
@@ -1792,7 +1819,7 @@ public sealed class PlaybackCoordinator :
             false,
             false,
             SegmentCountOverride: 0,
-            Volume: _localAudioPlaybackCoordinator.Volume));
+            Volume: _audioController.Volume));
     }
 
     private PlaybackSnapshot BuildSnapshot(
@@ -1821,7 +1848,7 @@ public sealed class PlaybackCoordinator :
             isUsingCache,
             canRetry,
             _contentRevision,
-            Volume: _localAudioPlaybackCoordinator.Volume));
+            Volume: _audioController.Volume));
     }
 
     private (int ChapterIndex, int SegmentIndex) GetCurrentPosition()
@@ -2050,38 +2077,6 @@ public sealed class PlaybackCoordinator :
         return _currentSession is not null && _currentSession.SessionId == sessionId;
     }
 
-    private long GetCurrentPositionMillisecondsForSave(PlaybackSessionState session)
-    {
-        if (session.HasLoadedAudio)
-        {
-            var localSnapshot = _localAudioPlaybackCoordinator.CurrentSnapshot;
-            if (string.Equals(localSnapshot.BookId, session.BookId, StringComparison.Ordinal) &&
-                localSnapshot.ChapterIndex == session.ChapterIndex &&
-                localSnapshot.SegmentIndex == session.SegmentIndex)
-            {
-                return localSnapshot.PositionMilliseconds;
-            }
-        }
-
-        return session.PositionForSave;
-    }
-
-    private Task SaveProgressAsync(
-        PlaybackSessionState session,
-        long positionMilliseconds,
-        CancellationToken cancellationToken)
-    {
-        if (session.HasLoadedAudio)
-        {
-            session.UpdateAudio(_localAudioPlaybackCoordinator.CurrentSnapshot);
-        }
-
-        session.SetPositionForSave(positionMilliseconds);
-        return _progressService.SaveAsync(
-            session,
-            cancellationToken);
-    }
-
     private async Task DisposeSessionAsync()
     {
         if (_currentSession is null)
@@ -2148,7 +2143,7 @@ public sealed class PlaybackCoordinator :
 
         if (allowSavedProgress && !hasExplicitPosition)
         {
-            var savedProgress = await _progressService.RestoreAsync(bookId, cancellationToken).ConfigureAwait(false);
+            var savedProgress = await _progressController.RestoreAsync(bookId, cancellationToken).ConfigureAwait(false);
             if (savedProgress is not null)
             {
                 var restoredPosition = await ResolveRestoredPositionAsync(book, savedProgress, cancellationToken).ConfigureAwait(false);

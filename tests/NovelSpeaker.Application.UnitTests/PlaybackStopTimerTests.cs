@@ -5,7 +5,7 @@ using Xunit;
 
 namespace NovelSpeaker.Application.UnitTests;
 
-public sealed class PlaybackStopTimerControllerTests
+public sealed class PlaybackStopTimerTests
 {
     [Fact]
     public async Task Duration_uses_time_provider_and_pauses_once()
@@ -13,7 +13,7 @@ public sealed class PlaybackStopTimerControllerTests
         var timeProvider = new ManualTimeProvider();
         var pauseReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var pauseCallCount = 0;
-        await using var controller = new PlaybackStopTimerController(
+        await using var controller = new PlaybackStopTimer(
             timeProvider,
             _ =>
             {
@@ -42,7 +42,7 @@ public sealed class PlaybackStopTimerControllerTests
         var timeProvider = new ManualTimeProvider();
         var pauseReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var pauseCallCount = 0;
-        await using var controller = new PlaybackStopTimerController(
+        await using var controller = new PlaybackStopTimer(
             timeProvider,
             _ =>
             {
@@ -70,7 +70,7 @@ public sealed class PlaybackStopTimerControllerTests
     {
         var timeProvider = new ManualTimeProvider();
         var pauseCallCount = 0;
-        await using var controller = new PlaybackStopTimerController(
+        await using var controller = new PlaybackStopTimer(
             timeProvider,
             _ =>
             {
@@ -93,7 +93,7 @@ public sealed class PlaybackStopTimerControllerTests
     {
         var timeProvider = new ManualTimeProvider();
         var failureReported = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var controller = new PlaybackStopTimerController(
+        await using var controller = new PlaybackStopTimer(
             timeProvider,
             _ => Task.FromException(new InvalidOperationException("sensitive-detail")),
             () => failureReported.TrySetResult());
@@ -113,7 +113,7 @@ public sealed class PlaybackStopTimerControllerTests
         var oldExpiryEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseOldExpiry = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var observedVersions = new ConcurrentQueue<long>();
-        await using var controller = new PlaybackStopTimerController(
+        await using var controller = new PlaybackStopTimer(
             timeProvider,
             _ => Task.CompletedTask,
             () => { });
@@ -149,7 +149,7 @@ public sealed class PlaybackStopTimerControllerTests
     {
         foreach (var minutes in new[] { 0, -1, 1441 })
         {
-            await using var controller = new PlaybackStopTimerController(
+            await using var controller = new PlaybackStopTimer(
                 TimeProvider.System,
                 _ => Task.CompletedTask,
                 () => { });
@@ -162,7 +162,7 @@ public sealed class PlaybackStopTimerControllerTests
     [Fact]
     public async Task Duration_rejects_less_than_one_minute()
     {
-        await using var controller = new PlaybackStopTimerController(
+        await using var controller = new PlaybackStopTimer(
             TimeProvider.System,
             _ => Task.CompletedTask,
             () => { });

@@ -317,7 +317,7 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 完成成果：已将 session 可变状态和命令/事件串行化边界抽取为内部组件，加入 event epoch、取消/失败恢复、事件去重及架构约束测试；PlaybackCoordinator 保持 facade 与唯一 session owner 语义。
 
-## [ ] T009（P0）：拆分 Playback Audio、Progress 与 StopTimer
+## [x] T009（P0）：拆分 Playback Audio、Progress 与 StopTimer
 
 依赖：T008。
 
@@ -332,6 +332,8 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 5. 删除旧 coordinator 内对应重复字段/helper。
 
 测试：资源释放、audio callback、checkpoint、timer replacement/trigger、shutdown。
+
+完成成果：已由 PlaybackAudioController 统一持有本地音频 callback bridge 与释放边界，PlaybackProgressController 收敛位置/字符偏移 checkpoint，PlaybackStopTimer 独立管理 TimeProvider、替换和取消；Coordinator 仅协调这些 session-owned 组件。
 
 ## [ ] T010（P0）：拆分 Playback ContentResolver 与 PrefetchCoordinator
 

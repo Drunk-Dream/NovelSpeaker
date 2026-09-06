@@ -23,16 +23,17 @@ public sealed partial class PlaybackCoordinatorTests
         FakeAppSettingsStore? appSettingsStore = null,
         TimeProvider? timeProvider = null)
     {
+        var audioController = new PlaybackAudioController(localCoordinator);
         return new PlaybackCoordinator(
             bookContentService ?? new FakeBookPlaybackContentService(book ?? CreateBook()),
             selectedRuleProvider ?? new FakeSelectedTtsRuleProvider(CreateRuleSelection(1, "默认规则")),
             new PlaybackSegmentRunner(
                 audioProvider ?? new FakePlaybackAudioProvider(),
-                localCoordinator),
+                audioController),
             new PlaybackRecoveryPolicy(),
             new AudioCacheProtectionRegistry(),
-            localCoordinator,
-            new PlaybackProgressService(readingProgressStore ?? new FakeReadingProgressStore()),
+            audioController,
+            new PlaybackProgressController(readingProgressStore ?? new FakeReadingProgressStore()),
             prefetchScheduler ?? new FakePrefetchScheduler(),
             appSettingsStore ?? new FakeAppSettingsStore(AppSettings.Default),
             timeProvider ?? TimeProvider.System);

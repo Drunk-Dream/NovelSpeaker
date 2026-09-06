@@ -1,15 +1,15 @@
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
-/// Owns progress persistence semantics, including character-offset mapping and save timing.
+/// Owns playback checkpoint mapping and persistence for the current session.
 /// </summary>
-internal sealed class PlaybackProgressService
+internal sealed class PlaybackProgressController
 {
     private readonly IReadingProgressStore _readingProgressStore;
 
-    public PlaybackProgressService(IReadingProgressStore readingProgressStore)
+    public PlaybackProgressController(IReadingProgressStore readingProgressStore)
     {
-        _readingProgressStore = readingProgressStore;
+        _readingProgressStore = readingProgressStore ?? throw new ArgumentNullException(nameof(readingProgressStore));
     }
 
     public Task<ReadingProgressEntry?> RestoreAsync(string bookId, CancellationToken cancellationToken)
@@ -18,13 +18,40 @@ internal sealed class PlaybackProgressService
         return _readingProgressStore.GetAsync(bookId, cancellationToken);
     }
 
+    public long GetCurrentPositionMillisecondsForSave(
+        PlaybackSessionState session,
+        LocalAudioPlaybackSnapshot currentAudio)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(currentAudio);
+
+        if (session.HasLoadedAudio &&
+            string.Equals(currentAudio.BookId, session.BookId, StringComparison.Ordinal) &&
+            currentAudio.ChapterIndex == session.ChapterIndex &&
+            currentAudio.SegmentIndex == session.SegmentIndex)
+        {
+            return currentAudio.PositionMilliseconds;
+        }
+
+        return session.PositionForSave;
+    }
+
     public Task SaveAsync(
         PlaybackSessionState session,
+        long positionMilliseconds,
+        LocalAudioPlaybackSnapshot currentAudio,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(currentAudio);
         cancellationToken.ThrowIfCancellationRequested();
 
+        if (session.HasLoadedAudio)
+        {
+            session.UpdateAudio(currentAudio);
+        }
+
+        session.SetPositionForSave(positionMilliseconds);
         var chapter = session.Book.Chapters.FirstOrDefault(
             candidate => candidate.ChapterIndex == session.ChapterIndex);
         var characterOffset = chapter is not null &&

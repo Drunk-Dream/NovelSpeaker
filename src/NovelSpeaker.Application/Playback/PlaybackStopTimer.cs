@@ -3,7 +3,7 @@ namespace NovelSpeaker.Application.Playback;
 /// <summary>
 /// Owns one replaceable duration-based playback stop request. Duration work is tracked and drained.
 /// </summary>
-internal sealed class PlaybackStopTimerController : IPlaybackStopTimer, IAsyncDisposable
+internal sealed class PlaybackStopTimer : IPlaybackStopTimer, IAsyncDisposable
 {
     private static readonly TimeSpan MaximumDuration = TimeSpan.FromDays(1);
 
@@ -18,7 +18,7 @@ internal sealed class PlaybackStopTimerController : IPlaybackStopTimer, IAsyncDi
     private long _generation;
     private bool _disposed;
 
-    public PlaybackStopTimerController(
+    public PlaybackStopTimer(
         TimeProvider timeProvider,
         Func<CancellationToken, Task> pausePlayback,
         Action reportFailure)
@@ -218,7 +218,7 @@ internal sealed class PlaybackStopTimerController : IPlaybackStopTimer, IAsyncDi
         task.ContinueWith(
             static (completedTask, state) =>
             {
-                var owner = (PlaybackStopTimerController)state!;
+                var owner = (PlaybackStopTimer)state!;
                 _ = completedTask.Exception;
                 lock (owner._syncRoot)
                 {
