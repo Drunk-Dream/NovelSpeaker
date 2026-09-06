@@ -474,6 +474,31 @@ internal static partial class ArchitectureRules
         return violations.ToArray();
     }
 
+    public static IReadOnlyList<string> FindPlaybackSessionStateMutationViolations(
+        IEnumerable<SourceFileDescriptor> files)
+    {
+        var allowedPaths = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "src/NovelSpeaker.Application/Playback/PlaybackCoordinator.cs",
+            "src/NovelSpeaker.Application/Playback/PlaybackCommandProcessor.cs",
+            "src/NovelSpeaker.Application/Playback/PlaybackSessionState.cs"
+        };
+        var mutationPattern =
+            @"\.(?:ReplaceBook|SetRule|SetPosition|SetResumePosition|SetConsecutiveSegmentFailureCount|SetSpeakSpeed|UpdateAudio|SetPositionForSave|ReplaceAudioProtection)\s*\(";
+
+        return files
+            .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.Application" &&
+                           file.RelativePath.Contains("/Playback/", StringComparison.Ordinal) &&
+                           !allowedPaths.Contains(file.RelativePath))
+            .Where(file => Regex.IsMatch(
+                StripCommentsAndLiterals(file.Content),
+                mutationPattern,
+                RegexOptions.CultureInvariant))
+            .Select(file => file.RelativePath)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+    }
+
     public static IReadOnlyList<string> FindUnregisteredFireAndForgetOperations(
         IEnumerable<SourceFileDescriptor> files)
     {

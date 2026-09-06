@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-using System.Threading.Channels;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Settings;
@@ -33,23 +31,12 @@ public sealed class PlaybackCoordinator :
     private readonly IAppSettingsService _appSettingsService;
     private readonly TimeProvider _timeProvider;
     private readonly PlaybackStopTimerController _stopTimer;
-    private readonly SemaphoreSlim _mutex = new(1, 1);
-    private readonly Channel<PlaybackEventCommand> _eventCommands = Channel.CreateUnbounded<PlaybackEventCommand>(
-        new UnboundedChannelOptions
-        {
-            SingleReader = true,
-            AllowSynchronousContinuations = false
-        });
-    private readonly ConcurrentDictionary<PlaybackEventKey, byte> _pendingEventCommands = new();
-    private readonly CancellationTokenSource _lifecycleCancellation = new();
-    private readonly CancellationTokenSource _eventCommandCancellation = new();
-    private readonly Task _eventCommandProcessor;
+    private readonly PlaybackCommandProcessor _commandProcessor;
     private readonly object _disposeGate = new();
     private readonly object _volumePersistenceGate = new();
 
     private PlaybackSnapshot _currentSnapshot = PlaybackSnapshot.Idle;
     private PlaybackSessionState? _currentSession;
-    private long _playbackEventEpoch;
     private TtsErrorKind? _lastFailureKind;
     private string? _lastRecoveredCorruptSegmentKey;
     private long _contentRevision;
@@ -69,7 +56,7 @@ public sealed class PlaybackCoordinator :
         {
             if (value is not null && _currentSession is not null)
             {
-                _currentSession.Book = value;
+                _currentSession.ReplaceBook(value);
             }
         }
     }
@@ -102,6 +89,9 @@ public sealed class PlaybackCoordinator :
         _prefetchController = prefetchController;
         _appSettingsService = appSettingsService;
         _timeProvider = timeProvider;
+        _commandProcessor = new PlaybackCommandProcessor(
+            ProcessEventCommandAsync,
+            PublishEventCommandFailureSafely);
         var startupVolume = PlaybackVolume.Normalize(_appSettingsService.Current.PlaybackVolume);
         _localAudioPlaybackCoordinator.SetVolume(startupVolume);
         _currentSnapshot = PlaybackSnapshot.Idle with { Volume = startupVolume };
@@ -113,7 +103,6 @@ public sealed class PlaybackCoordinator :
         _localAudioPlaybackCoordinator.SnapshotChanged += OnLocalSnapshotChanged;
         _localAudioPlaybackCoordinator.PlaybackCompleted += OnLocalPlaybackCompleted;
         _localAudioPlaybackCoordinator.PlaybackFailed += OnLocalPlaybackFailed;
-        _eventCommandProcessor = ProcessEventCommandsAsync();
     }
 
     public PlaybackSnapshot CurrentSnapshot => _currentSnapshot;
@@ -256,9 +245,7 @@ public sealed class PlaybackCoordinator :
     {
         _disposed = true;
         await _stopTimer.DisposeAsync().ConfigureAwait(false);
-        _lifecycleCancellation.Cancel();
-        _eventCommandCancellation.Cancel();
-        _eventCommands.Writer.TryComplete();
+        _commandProcessor.BeginShutdown();
         _currentSession?.Cancel();
         _localAudioPlaybackCoordinator.SnapshotChanged -= OnLocalSnapshotChanged;
         _localAudioPlaybackCoordinator.PlaybackCompleted -= OnLocalPlaybackCompleted;
@@ -274,11 +261,9 @@ public sealed class PlaybackCoordinator :
             disposeFailure ??= exception;
         }
 
-        var entered = false;
         try
         {
-            await _mutex.WaitAsync().ConfigureAwait(false);
-            entered = true;
+            await _commandProcessor.WaitForIdleAsync().ConfigureAwait(false);
             var session = _currentSession;
             if (session is not null)
             {
@@ -328,17 +313,9 @@ public sealed class PlaybackCoordinator :
         {
             disposeFailure ??= exception;
         }
-        finally
-        {
-            if (entered)
-            {
-                _mutex.Release();
-            }
-        }
-
         try
         {
-            await _eventCommandProcessor.ConfigureAwait(false);
+            await _commandProcessor.DisposeAsync().ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -353,9 +330,6 @@ public sealed class PlaybackCoordinator :
         {
             disposeFailure ??= exception;
         }
-
-        _eventCommandCancellation.Dispose();
-        _lifecycleCancellation.Dispose();
 
         if (disposeFailure is not null)
         {
@@ -1022,7 +996,7 @@ public sealed class PlaybackCoordinator :
         bool checkpointNewPosition = false)
     {
         _stopTimer.Cancel();
-        Interlocked.Increment(ref _playbackEventEpoch);
+        _commandProcessor.AdvanceEventEpoch();
         var previousSession = _currentSession;
         var previousSnapshot = _currentSnapshot;
         var previousPositionForSave = previousSession is null
@@ -1066,8 +1040,8 @@ public sealed class PlaybackCoordinator :
                 selectedRule,
                 speakSpeed);
 
-            session.ResumePositionMilliseconds = resumePositionMilliseconds;
-            session.ConsecutiveSegmentFailureCount = initialConsecutiveFailureCount;
+            session.SetResumePosition(resumePositionMilliseconds);
+            session.SetConsecutiveSegmentFailureCount(initialConsecutiveFailureCount);
 
             if (checkpointNewPosition)
             {
@@ -1086,11 +1060,11 @@ public sealed class PlaybackCoordinator :
                 previousSnapshot,
                 previousPositionForSave,
                 previousAudioStopped);
-            Interlocked.Increment(ref _playbackEventEpoch);
+            _commandProcessor.AdvanceEventEpoch();
             throw;
         }
 
-        Interlocked.Increment(ref _playbackEventEpoch);
+        _commandProcessor.AdvanceEventEpoch();
         await DisposeSessionAsync();
         _currentSession = session;
         _currentBook = book;
@@ -1218,9 +1192,8 @@ public sealed class PlaybackCoordinator :
             }
 
             _currentBook = next.Value.Book;
-            session.ChapterIndex = next.Value.ChapterIndex;
-            session.SegmentIndex = next.Value.SegmentIndex;
-            session.ResumePositionMilliseconds = 0;
+            session.SetPosition(next.Value.ChapterIndex, next.Value.SegmentIndex);
+            session.SetResumePosition(0);
             chapter = GetChapter(_currentBook, session.ChapterIndex);
         }
 
@@ -1320,10 +1293,10 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        session.ConsecutiveSegmentFailureCount = 0;
+        session.SetConsecutiveSegmentFailureCount(0);
         _lastFailureKind = null;
         _lastRecoveredCorruptSegmentKey = null;
-        session.ResumePositionMilliseconds = resumePositionMilliseconds;
+        session.SetResumePosition(resumePositionMilliseconds);
         ReplaceProtectedPlaybackFile(audio.FilePath);
 
         var local = run.LocalSnapshot;
@@ -1365,7 +1338,7 @@ public sealed class PlaybackCoordinator :
             session.ConsecutiveSegmentFailureCount,
             IsCorruptAudio: false,
             CorruptAudioRecoveryAttempted: false));
-        session.ConsecutiveSegmentFailureCount = decision.ConsecutiveSegmentFailureCount;
+        session.SetConsecutiveSegmentFailureCount(decision.ConsecutiveSegmentFailureCount);
         _lastFailureKind = failure.Kind;
         if (decision.ShouldSkipCurrentSegment)
         {
@@ -1412,9 +1385,8 @@ public sealed class PlaybackCoordinator :
         }
 
         _currentBook = next.Value.Book;
-        session.ChapterIndex = next.Value.ChapterIndex;
-        session.SegmentIndex = next.Value.SegmentIndex;
-        session.ResumePositionMilliseconds = 0;
+        session.SetPosition(next.Value.ChapterIndex, next.Value.SegmentIndex);
+        session.SetResumePosition(0);
         await SaveProgressAsync(session, 0, cancellationToken).ConfigureAwait(false);
         await PlayCurrentSegmentAsync(session, 0, forceInvalidate: false, cancellationToken).ConfigureAwait(false);
     }
@@ -1529,7 +1501,7 @@ public sealed class PlaybackCoordinator :
             GetLocalPlaybackSessionId(),
             _localAudioPlaybackCoordinator.CurrentSnapshot,
             null,
-            Volatile.Read(ref _playbackEventEpoch)));
+            _commandProcessor.CurrentEventEpoch));
     }
 
     private void OnLocalPlaybackFailed(object? sender, PlaybackErrorEventArgs error)
@@ -1539,7 +1511,7 @@ public sealed class PlaybackCoordinator :
             GetLocalPlaybackSessionId(),
             _localAudioPlaybackCoordinator.CurrentSnapshot,
             error,
-            Volatile.Read(ref _playbackEventEpoch)));
+            _commandProcessor.CurrentEventEpoch));
     }
 
     private void OnLocalSnapshotChanged(object? sender, LocalAudioPlaybackSnapshot snapshot)
@@ -1549,95 +1521,47 @@ public sealed class PlaybackCoordinator :
             GetLocalPlaybackSessionId(),
             snapshot,
             null,
-            Volatile.Read(ref _playbackEventEpoch)));
+            _commandProcessor.CurrentEventEpoch));
     }
 
-    private void EnqueueEventCommand(PlaybackEventCommand command)
-    {
-        if (_disposed || command.SessionId is null)
-        {
-            return;
-        }
+    private void EnqueueEventCommand(PlaybackEventCommand command) => _commandProcessor.Enqueue(command);
 
-        if (!_pendingEventCommands.TryAdd(command.Key, 0))
-        {
-            return;
-        }
-
-        if (!_eventCommands.Writer.TryWrite(command))
-        {
-            _pendingEventCommands.TryRemove(command.Key, out _);
-        }
-    }
-
-    private async Task ProcessEventCommandsAsync()
-    {
-        try
-        {
-            await foreach (var command in _eventCommands.Reader.ReadAllAsync(_eventCommandCancellation.Token).ConfigureAwait(false))
-            {
-                try
-                {
-                    await ProcessEventCommandAsync(command).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (
-                    _disposed ||
-                    _eventCommandCancellation.IsCancellationRequested ||
-                    !IsSessionCurrent(command.SessionId ?? Guid.Empty))
-                {
-                    // Closing and session replacement are normal event invalidation paths.
-                }
-                catch (Exception)
-                {
-                    PublishEventCommandFailureSafely();
-                }
-                finally
-                {
-                    _pendingEventCommands.TryRemove(command.Key, out _);
-                }
-            }
-        }
-        catch (OperationCanceledException) when (_eventCommandCancellation.IsCancellationRequested)
-        {
-            // Closing cancels the owned command processor.
-        }
-    }
-
-    private async Task ProcessEventCommandAsync(PlaybackEventCommand command)
+    private async Task ProcessEventCommandAsync(
+        PlaybackEventCommand command,
+        CancellationToken cancellationToken)
     {
         if (_disposed ||
             command.SessionId is not Guid sessionId ||
-            command.EventEpoch != Volatile.Read(ref _playbackEventEpoch))
+            command.EventEpoch != _commandProcessor.CurrentEventEpoch)
         {
             return;
         }
 
         using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            _lifecycleCancellation.Token,
+            cancellationToken,
             _currentSession?.CancellationToken ?? CancellationToken.None);
-        await _mutex.WaitAsync(linkedCancellation.Token).ConfigureAwait(false);
+        if (_disposed ||
+            !IsSessionCurrent(sessionId) ||
+            command.EventEpoch != _commandProcessor.CurrentEventEpoch ||
+            command.Snapshot is null)
+        {
+            return;
+        }
+
+        var session = _currentSession!;
+        if (!IsCurrentLocalAudioEvent(command.Snapshot))
+        {
+            return;
+        }
+
+        if (_currentSnapshot.State == PlaybackState.Stopped &&
+            command.Kind is PlaybackEventCommandKind.Completed or PlaybackEventCommandKind.Failed)
+        {
+            return;
+        }
+
         try
         {
-            if (_disposed ||
-                !IsSessionCurrent(sessionId) ||
-                command.EventEpoch != Volatile.Read(ref _playbackEventEpoch) ||
-                command.Snapshot is null)
-            {
-                return;
-            }
-
-            var session = _currentSession!;
-            if (!IsCurrentLocalAudioEvent(command.Snapshot))
-            {
-                return;
-            }
-
-            if (_currentSnapshot.State == PlaybackState.Stopped &&
-                command.Kind is PlaybackEventCommandKind.Completed or PlaybackEventCommandKind.Failed)
-            {
-                return;
-            }
-
             switch (command.Kind)
             {
                 case PlaybackEventCommandKind.Completed:
@@ -1651,9 +1575,13 @@ public sealed class PlaybackCoordinator :
                     break;
             }
         }
-        finally
+        catch (OperationCanceledException) when (
+            _disposed ||
+            cancellationToken.IsCancellationRequested ||
+            !IsSessionCurrent(sessionId) ||
+            _currentSession?.CancellationToken.IsCancellationRequested == true)
         {
-            _mutex.Release();
+            // Closing and session replacement are normal event invalidation paths.
         }
     }
 
@@ -1700,9 +1628,8 @@ public sealed class PlaybackCoordinator :
             cancellationToken).ConfigureAwait(false);
 
         _currentBook = next.Value.Book;
-        session.ChapterIndex = next.Value.ChapterIndex;
-        session.SegmentIndex = next.Value.SegmentIndex;
-        session.ResumePositionMilliseconds = 0;
+        session.SetPosition(next.Value.ChapterIndex, next.Value.SegmentIndex);
+        session.SetResumePosition(0);
         await PlayCurrentSegmentAsync(session, 0, forceInvalidate: false, cancellationToken).ConfigureAwait(false);
     }
 
@@ -1845,45 +1772,6 @@ public sealed class PlaybackCoordinator :
             // Snapshot subscribers are outside the timer task's ownership boundary.
         }
     }
-
-    private enum PlaybackEventCommandKind
-    {
-        Completed,
-        Failed,
-        SnapshotChanged
-    }
-
-    private sealed record PlaybackEventCommand(
-        PlaybackEventCommandKind Kind,
-        Guid? SessionId,
-        LocalAudioPlaybackSnapshot? Snapshot,
-        PlaybackErrorEventArgs? Error,
-        long EventEpoch)
-    {
-        public PlaybackEventKey Key => new(
-            EventEpoch,
-            Kind,
-            SessionId ?? Guid.Empty,
-            Snapshot?.BookId,
-            Snapshot?.ChapterIndex ?? -1,
-            Snapshot?.SegmentIndex ?? -1,
-            Snapshot?.State ?? PlaybackState.Idle,
-            Snapshot?.PositionMilliseconds ?? 0,
-            Snapshot?.DurationMilliseconds ?? 0,
-            Error?.Kind ?? PlaybackErrorKind.Unknown);
-    }
-
-    private readonly record struct PlaybackEventKey(
-        long EventEpoch,
-        PlaybackEventCommandKind Kind,
-        Guid SessionId,
-        string? BookId,
-        int ChapterIndex,
-        int SegmentIndex,
-        PlaybackState State,
-        long PositionMilliseconds,
-        long DurationMilliseconds,
-        PlaybackErrorKind ErrorKind);
 
     private PlaybackSnapshot CreateRuleMissingSnapshot(
         PlaybackBookContent book,
@@ -2415,23 +2303,10 @@ public sealed class PlaybackCoordinator :
         await JumpToCoreAsync(target.Value.ChapterIndex, target.Value.SegmentIndex, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task RunSerializedAsync(Func<CancellationToken, Task> action, CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken,
-            _lifecycleCancellation.Token);
-        await _mutex.WaitAsync(linkedCancellation.Token);
-        try
-        {
-            ThrowIfDisposed();
-            await action(linkedCancellation.Token);
-        }
-        finally
-        {
-            _mutex.Release();
-        }
-    }
+    private Task RunSerializedAsync(
+        Func<CancellationToken, Task> action,
+        CancellationToken cancellationToken) =>
+        _commandProcessor.RunSerializedAsync(action, cancellationToken);
 
     private void ScheduleVolumePersistence(double volume)
     {
@@ -2447,7 +2322,7 @@ public sealed class PlaybackCoordinator :
             _pendingVolume = volume;
             _hasPendingVolumePersistence = true;
             _volumePersistenceCancellation?.Cancel();
-            persistenceCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifecycleCancellation.Token);
+            persistenceCancellation = CancellationTokenSource.CreateLinkedTokenSource(_commandProcessor.LifecycleToken);
             _volumePersistenceCancellation = persistenceCancellation;
             persistenceTask = PersistVolumeAfterDelayAsync(persistenceCancellation);
             _volumePersistenceTask = persistenceTask;

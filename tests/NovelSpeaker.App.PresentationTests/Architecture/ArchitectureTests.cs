@@ -460,6 +460,25 @@ public sealed class ArchitectureTests
         Assert.Equal(
             ["src/NovelSpeaker.Application/Playback/PlaybackRegistration.cs: Singleton"],
             ArchitectureRules.FindPlaybackCoordinatorRegistrations(Repository.ReadProductSourceFiles()));
+        Assert.Empty(ArchitectureRules.FindPlaybackSessionStateMutationViolations(
+            Repository.ReadProductSourceFiles()));
+        Assert.False(typeof(PlaybackSessionState).IsPublic);
+        foreach (var propertyName in new[]
+                 {
+                     nameof(PlaybackSessionState.Book),
+                     nameof(PlaybackSessionState.Rule),
+                     nameof(PlaybackSessionState.ChapterIndex),
+                     nameof(PlaybackSessionState.SegmentIndex),
+                     nameof(PlaybackSessionState.SpeakSpeed),
+                     nameof(PlaybackSessionState.ResumePositionMilliseconds),
+                     nameof(PlaybackSessionState.ConsecutiveSegmentFailureCount),
+                     nameof(PlaybackSessionState.CurrentAudio)
+                 })
+        {
+            Assert.True(
+                typeof(PlaybackSessionState).GetProperty(propertyName)!.SetMethod?.IsPrivate,
+                $"PlaybackSessionState.{propertyName} must have a private setter.");
+        }
         Assert.Equal(typeof(PlaybackSnapshot), typeof(IPlaybackSnapshotSource)
             .GetProperty(nameof(IPlaybackSnapshotSource.CurrentSnapshot))!.PropertyType);
         Assert.Null(typeof(IPlaybackSnapshotSource)

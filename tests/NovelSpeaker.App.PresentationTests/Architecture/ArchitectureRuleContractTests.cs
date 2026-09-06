@@ -76,6 +76,22 @@ public sealed class ArchitectureRuleContractTests
     }
 
     [Fact]
+    public void PlaybackSessionStateRuleRejectsMutation_outside_the_session_owner()
+    {
+        var files = new[]
+        {
+            Source(
+                "src/NovelSpeaker.Application/Playback/UnexpectedPlaybackMutation.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Playback; public sealed class UnexpectedPlaybackMutation { public void Mutate(PlaybackSessionState session) => session.SetPosition(1, 2); }")
+        };
+
+        Assert.Equal(
+            ["src/NovelSpeaker.Application/Playback/UnexpectedPlaybackMutation.cs"],
+            ArchitectureRules.FindPlaybackSessionStateMutationViolations(files));
+    }
+
+    [Fact]
     public void FeatureDependencyRuleRejectsAFeatureCycle()
     {
         var files = new[]

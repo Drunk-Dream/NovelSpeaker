@@ -296,7 +296,7 @@
 
 # Phase C：Playback Core
 
-## [ ] T008（P0）：抽取 PlaybackSessionState 与 CommandProcessor
+## [x] T008（P0）：抽取 PlaybackSessionState 与 CommandProcessor
 
 依赖：T007。
 
@@ -314,6 +314,8 @@
 ArchitectureTests：补强“session mutable state 只能由指定 owner 修改”的可检测约束。
 
 测试：覆盖当前 PlaybackCoordinator 全部核心命令、stale audio event、失败/取消和快速切换。
+
+完成成果：已将 session 可变状态和命令/事件串行化边界抽取为内部组件，加入 event epoch、取消/失败恢复、事件去重及架构约束测试；PlaybackCoordinator 保持 facade 与唯一 session owner 语义。
 
 ## [ ] T009（P0）：拆分 Playback Audio、Progress 与 StopTimer
 

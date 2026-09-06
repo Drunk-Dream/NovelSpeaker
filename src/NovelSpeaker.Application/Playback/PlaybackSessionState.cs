@@ -29,30 +29,36 @@ internal sealed class PlaybackSessionState : IAsyncDisposable
 
     public CancellationToken CancellationToken => _cancellationTokenSource.Token;
 
-    public PlaybackBookContent Book { get; set; }
+    public PlaybackBookContent Book { get; private set; }
 
     public string BookId => Book.BookId;
 
-    public SelectedPlaybackRule? Rule { get; set; }
+    public SelectedPlaybackRule? Rule { get; private set; }
 
     public long RuleId => Rule?.RuleId ?? 0;
 
     public string RuleName => Rule?.RuleName ?? string.Empty;
+
+    public void ReplaceBook(PlaybackBookContent book)
+    {
+        ArgumentNullException.ThrowIfNull(book);
+        Book = book;
+    }
 
     public void SetRule(SelectedPlaybackRule? rule)
     {
         Rule = rule;
     }
 
-    public int ChapterIndex { get; set; }
+    public int ChapterIndex { get; private set; }
 
-    public int SegmentIndex { get; set; }
+    public int SegmentIndex { get; private set; }
 
-    public int SpeakSpeed { get; set; }
+    public int SpeakSpeed { get; private set; }
 
-    public long ResumePositionMilliseconds { get; set; }
+    public long ResumePositionMilliseconds { get; private set; }
 
-    public int ConsecutiveSegmentFailureCount { get; set; }
+    public int ConsecutiveSegmentFailureCount { get; private set; }
 
     public LocalAudioPlaybackSnapshot CurrentAudio { get; private set; } = LocalAudioPlaybackSnapshot.Idle;
 
@@ -78,6 +84,27 @@ internal sealed class PlaybackSessionState : IAsyncDisposable
         {
             CurrentAudio = CurrentAudio with { PositionMilliseconds = positionMilliseconds };
         }
+    }
+
+    public void SetPosition(int chapterIndex, int segmentIndex)
+    {
+        ChapterIndex = chapterIndex;
+        SegmentIndex = segmentIndex;
+    }
+
+    public void SetResumePosition(long positionMilliseconds)
+    {
+        ResumePositionMilliseconds = positionMilliseconds;
+    }
+
+    public void SetConsecutiveSegmentFailureCount(int count)
+    {
+        ConsecutiveSegmentFailureCount = count;
+    }
+
+    public void SetSpeakSpeed(int speakSpeed)
+    {
+        SpeakSpeed = speakSpeed;
     }
 
     public void ReplaceAudioProtection(IDisposable? protection)
