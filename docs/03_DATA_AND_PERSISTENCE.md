@@ -119,12 +119,35 @@ TextProfileFingerprint 用于判断 speech plan 是否需要重建，不直接�
 
 ## 10. CacheStore 与 CacheCatalog
 
-目标区分：
+目标区分物理事实、失效通知和逻辑完整度：
 
-- **CacheStore**：index/file 原子操作、写入、删除、lease/protection、验证。
-- **CacheCatalog**：页面/业务查询所需 read model 和 status query。
+- **CacheStore**：物理 cache/index/file 的唯一事实；负责原子写入、删除、lease/protection、验证和廉价物理聚合。
+- **CacheCatalog**：基于 CacheStore 提供 global/book/chapter 的 immutable 物理缓存 read model，不计算当前配置完整度。
+- **CacheInvalidationCoordinator**：接收 Cache 域内 mutation/config/repair 失效信号，按范围和受影响方面短窗口合并。
+- **CacheCoverageQuery**：组合当前配置、speech plan 与物理 cache，回答指定章节的当前配置完整度。
+- **SpeechPlanRepairCoordinator**：唯一拥有缺失/过期 speech plan 后台补建生命周期。
 
 页面不直接组合 index、文件、speech plan 多个低层接口。
+
+物理缓存常用 read model 至少区分：
+
+```text
+CacheOverview
+CachedBookSummary
+CachedChapterSummary
+CachedChapterCatalog
+```
+
+其中 `CachedChapterSummary` 的 `EntryCount`/`TotalSizeBytes` 等物理统计与 Coverage 字段分开，不要求一个 DTO 同时承担两种查询成本。
+
+### 10.1 Cache invalidation 合同
+
+- mutation 只有在持久化提交完成后才发布失效；
+- 变更源必须尽量保留最窄已知范围，不让 UI 反向推测；
+- 已知多章集合时保留 chapter indices，不无条件降级为 book-wide；
+- invalidation 只表达“哪里/哪类数据需要重读”，不携带作为第二真值的派生统计；
+- 高频 mutation 可在短窗口内合并，目标是用户感知实时而非逐 cache entry 严格实时；
+- 全局统计、书籍统计、章节统计和 Coverage 允许采用不同查询粒度，但 active UI 最终应自动追上 CacheStore 真值。
 
 ## 11. 缓存写入
 
@@ -142,7 +165,30 @@ resolve current plan
 
 ## 12. 缓存完整度
 
-普通完整度查询优先聚合 SQLite 已有 plan/index，不逐文件解码。
+缓存完整度是“当前配置下已有多少目标 segment 可用”的逻辑 read model，不等同于物理缓存大小或条目数。
+
+物理统计：
+
+```text
+EntryCount
+TotalSizeBytes
+CachedChapterCount
+```
+
+由 CacheStore/CacheCatalog 提供。
+
+Coverage：
+
+```text
+CachedSegmentCount
+ExpectedSegmentCount
+Status
+Percentage
+```
+
+由 `CacheCoverageQuery` 针对明确 chapter indices 计算。
+
+普通 Coverage 查询优先聚合 SQLite 已有 plan/index，不逐文件解码，也不在查询内部启动 plan 补建。
 
 严格验证发生在播放、导出和低优先级健康维护等需要真实使用音频的边界。
 
@@ -150,18 +196,22 @@ resolve current plan
 
 - 只显示有有效计划且能形成正常百分比的缓存完整度；
 - 0%/异常状态不显示。
+- 只 enrichment current/viewport/明确受影响章节，不因配置变化全量重算目录。
 
 缓存管理：
 
 - 展示所有有缓存章节；
 - 当前配置下 0% 仍显示为 0%。
+- 物理 summary 与 Coverage decoration 可以分批到达并独立刷新。
 
 ## 13. 计划补建与清理
 
 - 播放、预取、主动缓存、导出在消费前确保当前 plan。
-- 完整度读取发现过期 plan 可登记后台补建。
-- 缓存管理发现有缓存但缺失 plan 时可补建。
+- Coverage 查询返回 `PlanMissing`/`PlanStale` 等状态，不直接产生副作用。
+- 完整度读取发现符合条件的过期 plan，可由显式 orchestration 登记后台补建。
+- 缓存管理发现有缓存但缺失 plan 时，可按既定产品语义向 `SpeechPlanRepairCoordinator` 登记补建。
 - 同章 in-flight 请求合并。
+- 补建提交后发布对应章节 Coverage invalidation，使 active 页面自动重读，而不是要求退出重进。
 - 删除某章最后一条 cache index 时同步删除对应 plan/segment。
 - 启动健康维护集合式清理长期无任何 cache index 的残留 plan。
 

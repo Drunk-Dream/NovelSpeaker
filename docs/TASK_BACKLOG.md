@@ -89,7 +89,7 @@
 验收：
 
 - Architecture tests 可单独运行并稳定通过。
-- 每个临时白名单都能映射到 T002–T018 的明确删除任务。
+- 每个临时白名单都能映射到 T002–T019 的明确删除任务。
 - 无生产行为变化。
 
 完成成果：扩展现有 ArchitectureTests，覆盖层间依赖、Feature 循环、DI 生命周期、Service Locator、ReadingProgress、大列表和 Playback owner 边界；保留精确到文件/类型的 T002、T003、T005 临时债务白名单，并补充 XAML、factory 和控制流合同测试。
@@ -392,51 +392,166 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 # Phase E：Cache
 
-## [ ] T013（P0）：建立 CacheCatalog/CacheStore 边界并拆解 CacheWorkspaceService
+## [ ] T013（P0）：建立 CacheStore/CacheCatalog 与 typed invalidation 边界
 
 依赖：T012。
 
-目标：明确“查询状态”“物理 cache”“主动缓存 batch”“页面 workspace”的所有权，删除过宽 facade。
+目标：先把“物理缓存事实”和“缓存变化通知”收敛成稳定边界，为后续 Coverage 与 UI live projection 提供可靠、可合并、可按范围刷新的基础。
 
 实施方向：
 
-1. 审计 `CacheWorkspaceService`、`AudioCacheFacade`、`SqliteAudioCacheIndex`、speech plan/status query、ActiveCache 调用链。
-2. 把页面/业务查询统一到 CacheCatalog/read model。
-3. CacheStore 只负责 index/file 原子操作、lease/protection/验证。
-4. ActiveCacheCoordinator 继续独立 batch owner。
-5. 页面选择/filter 不再进入 process cache service。
-6. 迁移调用方后删除无价值 workspace API 和重复 Changed event。
-7. 保留现有 cache identity、计划补建和清理语义。
+1. 审计 `CacheWorkspaceService`、`AudioCacheFacade`、`SqliteAudioCacheIndex`、Playback/Prefetch/ActiveCache 写入、单章/多章/整书/全局清理和 maintenance 的全部 mutation 路径。
+2. 明确 `CacheStore` 只拥有物理 cache/index/file：
+   - atomic store/delete；
+   - lease/protection；
+   - validation/maintenance；
+   - global/book/chapter 的廉价物理聚合。
+3. 建立 `CacheCatalog`（或等价命名）的场景化 immutable read model，至少覆盖：
+   - overview；
+   - cached book summaries；
+   - 单 Book summary；
+   - cached chapter catalog；
+   - chapter physical summaries。
+4. 物理 summary 不再携带需要 speech plan/current configuration 才能计算的 Coverage 字段。
+5. 建立 Cache-local typed invalidation，至少能表达：
+   - Global；
+   - Book(bookId)；
+   - Chapters(bookId, indices)；
+   - physical summary / catalog structure / coverage 等受影响方面。
+6. mutation source 在 commit 后报告最窄已知范围：
+   - 单章写入/删除保持 chapter scope；
+   - 已知多章清理保留 indices，不直接退化为 book-wide；
+   - 只有确实无法定位或全局 maintenance 才使用更宽 scope。
+7. 建立 process-scoped `CacheInvalidationCoordinator`（或等价 Cache-local owner），短窗口合并连续 mutation 为 immutable batch：
+   - 相同 Book/Chapter 去重；
+   - 多个 chapter 合并为集合；
+   - global invalidation 可覆盖更窄同类失效；
+   - 不规定固定绝对毫秒值，优先用户感知实时与查询合并效果。
+8. invalidation 只表示“哪里/哪类数据需要重读”，不携带作为第二真值的 TotalSize/Percentage 等统计快照。
+9. ActiveCacheCoordinator、ChapterExportCoordinator 保持独立 background owner；页面 selection/filter 不进入 process cache core。
+10. 为后续 T014/T015 保留最小稳定接口，迁移后删除无价值 `CacheWorkspaceService` 物理查询/重复 Changed facade，不保留兼容 wrapper。
 
-禁止：大一统 CacheManager、通用 BackgroundTaskManager。
+禁止：
 
-测试：cache query/store、active batch、status event/version、删除/清理/lease。
+- 通用 EventBus/Messenger；
+- 大一统 CacheManager；
+- 通用 BackgroundTaskManager；
+- 每个 cache entry mutation 直接触发全局 overview/整书 catalog 重查；
+- 为事件计算并复制一套长期可依赖的统计状态。
 
-## [ ] T014（P0）：迁移 CacheManagement 到 transient + scalable catalog
+测试：
+
+- Store commit 前不发布 invalidation，commit 后范围正确；
+- Store/clear/maintenance 的 Global/Book/Chapter(s) scope；
+- 多章删除保留 chapter indices；
+- burst mutation 合并/去重，不能 N 个 mutation 产生 N 次 downstream batch；
+- CacheCatalog query 语义、排序、空数据和大列表；
+- lease/protection/cleanup 行为不回归；
+- ArchitectureTests 禁止 Cache invalidation 演化为通用 Messenger/EventBus。
+
+## [ ] T014（P0）：拆分 Cache Coverage 与 Speech Plan Repair
 
 依赖：T013。
 
-目标：页面 filter/selection 与 process cache/export state 分离，并消除 full Clear + Add 列表路径。
+目标：把“磁盘上有什么缓存”和“按当前 TTS/文本配置缓存完整度是多少”彻底分开，同时保留既有缺失/过期 plan 自动补建语义，但让 query 无后台副作用。
 
 实施方向：
 
-1. VM transient。
-2. Cached book/chapter 使用场景化 immutable read model。
-3. 初始列表批量提交，不逐项 Add。
-4. selection 使用 id/index state，不依赖 WPF container。
-5. export preparation 只提交 immutable batch 参数给 ChapterExportCoordinator。
-6. active cache/export snapshot 只做 UI projection。
-7. 删除旧 workspace selection/batch coupling。
+1. 审计 `ChapterCacheStatus`、current-configuration status SQL、`ChapterSpeechPlan`、selected TTS rule/settings/Regex/text profile 与现有 `CacheWorkspaceService` plan refresh side effect。
+2. 建立 `CacheCoverageQuery`（或等价边界），只针对明确的 BookId + chapter indices 返回当前配置 Coverage：
+   - CachedSegmentCount；
+   - Expected/TotalSegmentCount；
+   - Available/PlanMissing/PlanStale/ConfigurationUnavailable 等状态；
+   - 必要百分比由稳定 presentation formatter 计算。
+3. Coverage query 只读取，不直接启动 plan 补建、修改缓存或发布伪造完成状态。
+4. 将 Speech Plan 缺失/过期补建迁到唯一 process `SpeechPlanRepairCoordinator`：
+   - 同章 in-flight 合并；
+   - 有限并发；
+   - 明确 shutdown owner；
+   - 完整构建后短事务提交；
+   - 页面取消只取消等待/订阅，不取消已经由 process owner 接管的 repair。
+5. 保留现有产品语义：
+   - 播放/预取/主动缓存/导出消费前确保 current plan；
+   - 完整度读取发现符合条件的 stale/missing plan 时显式登记 repair；
+   - 普通目录不为从未有缓存/计划的普通章节无条件补建；
+   - 删除章节最后一条 cache 时继续清理对应 plan/segment。
+6. repair commit 后向 T013 的 invalidation 边界发布最窄章节级 Coverage invalidation。
+7. 物理 chapter mutation 自动使对应 chapter Coverage dirty；不得重算整本书。
+8. SelectedTtsRuleId、DefaultSpeakSpeed、ReadChapterTitle、text segmentation/Regex 等影响 plan/synthesis identity 的配置变化发布 Coverage-wide invalidation，但只标记旧 projection stale：
+   - 不 eager 重算全部 book/chapter；
+   - consumer 后续只查询 current/viewport/明确需要 chapters。
+9. 迁移调用方后删除 `CacheWorkspaceService` 中 plan/query/background repair 混合实现和重复 helper。
 
-测试：大 cached chapter set、selection/filter、页面离开、后台任务继续、导出提交。
+禁止：
+
+- Query 内 fire-and-forget plan rebuild；
+- 配置变化后遍历全部缓存章节重新计算 Coverage；
+- 用物理 EntryCount 直接推断当前配置完整度；
+- 保存第二套长期 mutable Coverage truth。
+
+测试：
+
+- physical summary 与 Coverage 独立；
+- current config begin/middle/tail coverage；
+- PlanMissing/PlanStale query 无副作用；
+- 明确 repair request、同章合并、并发上限、shutdown；
+- repair completion 只 invalidates 对应 chapter Coverage；
+- TTS/settings/Regex 变化使旧 Coverage 失效但不触发全量 eager query；
+- 删除最后 cache 的 plan cleanup 语义保持。
+
+## [ ] T015（P0）：迁移 Cache 页面到 live projection + scalable catalog
+
+依赖：T014。
+
+目标：让 CacheManagement 与 CacheAndData 在页面 active 时都以“用户感知实时”的方式自动追上 CacheStore，同时保证 selection 独立、大列表有界更新、连续 mutation 不形成刷新风暴。
+
+实施方向：
+
+1. `CacheManagementViewModel`、`CacheAndDataViewModel` 保持 transient，页面 activation 负责订阅/解除 T013 invalidation batch。
+2. 初次进入：
+   - CacheAndData 读取一次 global overview；
+   - CacheManagement 读取 immutable cached-book catalog；
+   - 选中书后读取 immutable chapter catalog；
+   - physical/Coverage 作为 decoration 按需 enrichment。
+3. live refresh 使用最小 query：
+   - global physical dirty → `GetOverview`；
+   - Book dirty → 只刷新对应 Book summary，即使当前正在查看另一 Book；
+   - 当前 Book 的 Chapter dirty → 只刷新对应 physical chapter summary；
+   - Coverage dirty → 只刷新 current/viewport/明确受影响 chapter。
+4. 连续 invalidation 已由 T013 短窗口合并；页面仍要保证同类 query single-flight：
+   - refresh in-flight 再次失效时标记 dirty；
+   - 当前轮结束后补一轮；
+   - 不并发堆积多个 overview/book/chapter/coverage 查询。
+5. selection 独立于 catalog、physical decoration、Coverage decoration 和 WPF container，使用稳定 chapter id/index state。
+6. catalog structure reconciliation：
+   - 播放/Prefetch/ActiveCache 使新章节首次产生缓存时，只插入/重建必要 catalog projection，原有效 selection 保持，新章节默认未选；
+   - 章节最后 cache 消失时，从 catalog 移除该章，并仅从 selection 删除已不存在的 chapter；
+   - 普通 cache mutation 禁止无条件 `resetSelection: true` 或整页 `Clear + Add`。
+7. CacheAndData 的 TotalSize/EntryCount/UsagePercentage 在 active 时自动刷新；不要求逐 entry 严格实时，也不依赖退出重进。
+8. CacheManagement 左侧所有受影响 Book summary 自动刷新；当前 Book 章节统计和完整度允许分批到达，但最终自动追上最新状态。
+9. export preparation 只提交 immutable batch 参数给 ChapterExportCoordinator；active cache/export snapshot 只做 UI projection。
+10. 页面离开取消页面查询/live projection 并解除订阅，不取消 Playback/ActiveCache/Export/Repair 等后台 owner。
+11. 删除旧 workspace selection/batch coupling、整书 cache change reload workaround 和重复页面级 Changed 逻辑。
+
+测试：
+
+- CacheAndData active 时播放新增缓存可自动更新 overview，无需重新进入；
+- CacheManagement 查看 Book B 时，播放向 Book A 写缓存，Book A summary 自动更新且当前 Book/selection 不受影响；
+- 已选择 Chapter 1/3/5 时，播放使 Chapter 10 首次出现缓存，1/3/5 保持选中且 10 默认未选；
+- Chapter 3 最后一条缓存消失后选择变为 1/5，而不是清空；
+- 同章连续大量 cache writes 只产生有界 query/projection 次数；
+- refresh in-flight 再次 mutation 最终得到最新状态，无 stale result 覆盖；
+- 10,000 cached chapter catalog、viewport coverage、filter/selection；
+- 页面离开后不继续 UI refresh，后台播放/主动缓存/导出/repair 继续；
+- WPF selection、virtualization、PageHeader 清理/导出合同不回归。
 
 ---
 
 # Phase F：Rules 与 Settings
 
-## [ ] T015（P1）：建立 Rules Shared 编辑生命周期
+## [ ] T016（P1）：建立 Rules Shared 编辑生命周期
 
-依赖：T014。
+依赖：T015。
 
 目标：提取三类 Rules 真正重复的 editor lifecycle，而不统一业务模型。
 
@@ -450,9 +565,9 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 测试：共享生命周期组件使用纯 Presentation tests；三类规则各保留业务特有测试。
 
-## [ ] T016（P1）：迁移 TTS/Chapter/Regex Rules 并删除重复实现
+## [ ] T017（P1）：迁移 TTS/Chapter/Regex Rules 并删除重复实现
 
-依赖：T015。
+依赖：T016。
 
 目标：三套规则页面完成 transient + shared editor 生命周期迁移。
 
@@ -466,9 +581,9 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 测试：允许显著精简重复 fixture；WPF tests 只留真正控件/拖动/ContextMenu 契约。
 
-## [ ] T017（P1）：迁移 Settings 为 process snapshot + transient 页面 VM
+## [ ] T018（P1）：迁移 Settings 为 process snapshot + transient 页面 VM
 
-依赖：T016。
+依赖：T017。
 
 目标：清除 Settings singleton VM 历史，明确即时设置与 draft 设置。
 
@@ -486,9 +601,9 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 # Phase G：接口、Shared、测试与代码清理
 
-## [ ] T018（P1）：清理 Application ports、Shared helpers 与 compatibility code
+## [ ] T019（P1）：清理 Application ports、Shared helpers 与 compatibility code
 
-依赖：T017。
+依赖：T018。
 
 目标：在主要迁移完成后做一次真正的“无历史包袱”接口/目录清理。
 
@@ -505,9 +620,9 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 ArchitectureTests 必须无临时白名单或只剩有明确长期理由的极少数例外。
 
-## [ ] T019（P1）：重构测试体系并减少重复维护面
+## [ ] T020（P1）：重构测试体系并减少重复维护面
 
-依赖：T018。
+依赖：T019。
 
 目标：让测试与新架构层级一致，允许测试数量明显减少。
 
@@ -525,9 +640,9 @@ ArchitectureTests 必须无临时白名单或只剩有明确长期理由的极�
 - 测试总数可减少，但必须给出“删除了哪些重复/实现细节测试、哪些稳定合同仍覆盖”的摘要。
 - 不能通过合并多个无关 assertion 到单个测试人为压数量。
 
-## [ ] T020（P1）：全项目 dead code / legacy namespace / duplicate state 清理
+## [ ] T021（P1）：全项目 dead code / legacy namespace / duplicate state 清理
 
-依赖：T019。
+依赖：T020。
 
 目标：在性能验收前清除本轮迁移产生或暴露的所有旧代码。
 
@@ -550,9 +665,9 @@ ArchitectureTests 必须无临时白名单或只剩有明确长期理由的极�
 
 # Phase H：真实规模性能验收
 
-## [ ] T021（P0）：执行 180/1000/3000+/10000 章节架构性能验收
+## [ ] T022（P0）：执行 180/1000/3000+/10000 章节架构性能验收
 
-依赖：T020。
+依赖：T021。
 
 目标：对已经解决的 Player → Back → BookDetails 返回卡顿做真实规模回归，并同时验收 Books/Player/Cache 大列表架构在 180/1000/3000+/10000 章节下是否保持稳定的交互与结构特征。
 
@@ -595,9 +710,9 @@ current position：
 - 不建立固定绝对毫秒 CI 门槛；保留结构性回归测试。
 - 所有诊断 harness/trace/script 在任务结束前删除。
 
-## [ ] T022（P1）：最终质量门禁与架构收口
+## [ ] T023（P1）：最终质量门禁与架构收口
 
-依赖：T021。
+依赖：T022。
 
 目标：完成架构优化阶段最终收口。
 

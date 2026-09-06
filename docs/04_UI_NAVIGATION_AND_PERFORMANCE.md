@@ -140,16 +140,33 @@ Dispatcher 上应保持短、小、可中断到下一工作项的 UI 提交。
 
 性能 CI 优先结构性/顺序测试，不建立脆弱的绝对毫秒门槛。
 
-## 12. Cache Management
+## 12. Cache 页面与感知实时刷新
+
+Cache UI 的产品合同是“页面 active 时自动追上真实缓存状态”，不要求每个 cache entry 提交后立即刷新一遍 UI。
+
+实现原则：
+
+- 连续 Cache mutation 通过短窗口合并形成用户感知实时刷新；具体 debounce/coalescing 毫秒数不是固定产品合同；
+- `CacheAndData` 的总大小、条目数、使用率等 global overview 在 active 时自动更新；
+- `CacheManagement` 左侧书籍 summary 只刷新受影响 Book；
+- 当前书章节的物理统计只刷新受影响 Chapter；
+- Coverage 只刷新 current/viewport/明确受影响章节，不随单个 mutation 全量扫描整书；
+- 同一刷新在 in-flight 时再次失效，使用 dirty/retry 语义，不并发堆积相同查询；
+- cache status/read model 不通过逐项目 N+1 查询形成高频刷新路径。
+
+CacheManagement 额外遵守：
 
 - 页面 VM transient；
 - filter/selection 属于页面 state；
 - active cache/export 属于 process owner；
 - 列表支持大数据集批量 projection；
-- cache status 不通过逐项目查询形成 N+1；
+- selection 使用 chapter id/index，与 WPF container 和 cache decoration 解耦；
+- 新章节首次出现缓存时保留现有有效选择，新章节默认未选中；
+- 章节最后一条缓存消失时，只移除该章节及其无效选择，不清空其它选择；
+- catalog reconciliation 不以 `Clear + Add` 或无条件 `resetSelection` 处理普通 cache mutation；
 - PageHeader 提供清理/导出动作和已选数量。
 
-页面离开只取消页面查询/选择流程，不取消已提交后台批次。
+页面离开只取消页面查询/选择/live projection，不取消已提交后台批次。重新进入以当前 read model 为基线，不依赖离开期间逐事件补发。
 
 ## 13. Rules 工作台
 
@@ -217,4 +234,4 @@ Dispatcher 上应保持短、小、可中断到下一工作项的 UI 提交。
 - memory/allocation；
 - SQLite query/materialization。
 
-如果新架构自然消除旧 3000+ 卡顿，不再追加专项 workaround；仍有瓶颈时再做证据驱动 profiling。
+此前 Player → Back → BookDetails 的 3000+ 章节返回卡顿已确认解决，后续仅作为真实规模性能回归场景保留；只有稳定复现退化时才重新进入 profiling，不预设专项 workaround。

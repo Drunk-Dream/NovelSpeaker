@@ -177,19 +177,49 @@ PlayerViewModel 主要负责：
 
 ## 9. Cache 架构
 
-不建立大一统 `CacheManager`。
+不建立大一统 `CacheManager`。物理缓存事实、当前配置完整度、后台任务和页面交互状态必须分开。
 
 目标职责：
 
 ```text
-CacheCatalog              查询/read model
-CacheStore                index/file 原子操作
-ActiveCacheCoordinator    主动缓存 batch owner
-ChapterExportCoordinator  导出 batch owner
-CacheManagement VM        transient filter/selection
+CacheStore                    物理 cache/index/file 唯一事实与原子操作
+CacheCatalog                  物理缓存 overview/book/chapter read model
+CacheInvalidationCoordinator  Cache-local typed invalidation + 短窗口合并
+CacheCoverageQuery            当前配置下的缓存完整度只读查询
+SpeechPlanRepairCoordinator   缺失/过期 plan 的 process 后台补建 owner
+ActiveCacheCoordinator        主动缓存 batch owner
+ChapterExportCoordinator      导出 batch owner
+CacheManagement VM            transient filter/selection/live projection
 ```
 
 `CacheWorkspaceService` 等过宽 abstraction 应在迁移中拆解或删除。页面工作区不与 process 后台任务共用 owner。
+
+Cache invalidation 是“数据已失效”的通知，不是另一份统计真值：
+
+- 物理 cache mutation 由实际提交变更的一层报告最窄已知范围：Global、Book 或明确 Chapter 集合；
+- 多章清理等已知具体章节的操作不得无必要退化为整本书失效；
+- invalidation 区分物理统计/目录结构/当前配置 Coverage 等受影响方面；
+- `CacheInvalidationCoordinator` 只在 Cache 域内使用，不演化为通用 EventBus/Messenger；
+- 高频连续 mutation 在短窗口内合并为 immutable batch；具体毫秒数属于实现/性能调优，不是产品合同；
+- consumer 收到 invalidation 后重新读取最小 read model，事件本身不携带可长期依赖的总大小、百分比等派生统计。
+
+完整度与物理缓存分离：
+
+```text
+Physical cache
+  → CacheStore / CacheCatalog
+
+Current configuration
+  + ChapterSpeechPlan
+  + Physical cache
+  → CacheCoverageQuery
+```
+
+`CacheCoverageQuery` 不负责后台补建。读取发现 `PlanMissing`/`PlanStale` 时，由明确的 use case/controller 向 `SpeechPlanRepairCoordinator` 登记补建；补建提交完成后发布对应 Coverage invalidation。
+
+设置、TTS 规则、正文处理规则等改变时可以使 Coverage 全局失效，但不得因此立即遍历全部书籍/章节重算完整度。active 页面只重新计算 current/viewport/明确需要的 decoration。
+
+页面 selection 属于 Page activation state。cache/catalog/coverage 刷新不得无条件重置 selection；目录结构变化只移除已经不存在的选择项。
 
 ## 10. Rules 与 Settings
 

@@ -61,8 +61,13 @@
 
 ### Cache
 
-- 保留 CacheCatalog、CacheStore、ActiveCache、Export 等明确 owner。
-- 不建立大一统 CacheManager 或通用 BackgroundTaskManager。
+- CacheStore 只拥有物理 cache/index/file 真值；CacheCatalog 只提供物理 read model。
+- current-configuration Coverage 与物理统计分离，由独立只读 query 计算。
+- 缺失/过期 Speech Plan 补建由唯一 process owner 管理，query 本身不启动后台副作用。
+- cache invalidation 只表达最窄已知范围与失效方面，不携带第二套统计真值。
+- 高频 cache mutation 使用 Cache-local 短窗口合并，实现用户感知实时而非逐 entry 严格实时。
+- 页面 selection 与 catalog/physical/Coverage decoration 独立；cache 刷新不得无条件清空选择。
+- 不建立大一统 CacheManager、通用 EventBus/Messenger 或通用 BackgroundTaskManager。
 
 ### Rules
 
@@ -128,7 +133,7 @@ Catalog、collection notification、cache decoration、locator 和 layout 必须
 
 ### Cache 边界
 
-Workspace、Active batch、Store/Index、Catalog/Status 名称相近，迁移时需逐条确定 owner/command/query/event。
+物理 Store/Catalog、Coverage、Speech Plan repair、Active batch、Export 和页面 selection 生命周期不同；迁移时必须保持 owner/query/command/invalidation 清晰。尤其禁止通过全量重载把 cache mutation、Coverage 更新和用户选择重新耦合。
 
 ### Interface 清理
 
@@ -144,6 +149,6 @@ Codex 执行代码任务时不得顺手建立新的架构解释；若实现发�
 
 ## 6. 3000+ 章节卡顿
 
-当前将其视为整体架构压力症状，不在架构迁移前继续做局部 workaround。
+此前 Player → Back → BookDetails 的 3000+ 章节返回卡顿已确认解决，不再作为待修复问题，也不追加专项 workaround。
 
-待 Books/read model、大列表、Playback/Player 等结构完成后，以 180/1000/3000+/10000 真实规模重新验证。如果仍有瓶颈，再基于 Dispatcher/CPU/memory/SQL profiling 处理。
+后续在 180/1000/3000+/10000 真实规模中保留该场景作为性能回归；只有能够稳定复现退化时，再基于 Dispatcher/CPU/memory/SQL profiling 进入新的性能诊断。

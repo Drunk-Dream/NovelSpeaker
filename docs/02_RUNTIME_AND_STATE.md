@@ -151,15 +151,60 @@ Prefetch 属于 Playback session；Active cache 属于 Process background job。
 
 不建设通用 BackgroundTaskManager。
 
-## 11. Cache/Speech Plan 补建
+## 11. Cache live projection 与 Speech Plan 补建
 
-完整度读取发现符合条件的过期/缺失计划时，由 process owner 异步补建：
+### 11.1 Cache invalidation
+
+物理缓存只有在 file/index mutation 已提交后才发布 invalidation。
+
+变更源报告最窄已知范围：
+
+```text
+Global
+Book(bookId)
+Chapters(bookId, indices)
+```
+
+Cache-local process coordinator 将短时间内连续 mutation 合并为一个 immutable invalidation batch，并记录受影响方面，例如：
+
+- physical summary；
+- cached catalog structure；
+- current-configuration coverage。
+
+active 页面只根据 batch 重新读取自己当前可见/需要的最小 read model。连续 mutation 不得形成 N 次全局 overview、整书 catalog 或完整度全量查询。
+
+同一类刷新保持 single-flight：刷新过程中再次发生 mutation 时只标记 dirty，当前刷新结束后再补一轮，不并发堆积多个相同查询。
+
+页面离开：
+
+- 解除页面 invalidation 订阅；
+- 取消尚未提交 UI 的页面刷新；
+- 不停止 CacheStore、Playback、ActiveCache 或其它 process/background owner。
+
+重新进入页面先读取当前 snapshot/read model，再开始 live projection。
+
+### 11.2 Coverage invalidation
+
+物理缓存变化会使对应章节 Coverage 可能变化。
+
+Selected TTS Rule、默认语速、是否朗读章节标题、正文分段/Regex 等影响 speech plan 或 synthesis profile 的配置变化，可以把 Coverage 视为全局失效，但只表示旧 projection 不再可信：
+
+- 不立即重算所有书籍/章节；
+- BookDetails/Player/CacheManagement 只重算 current/viewport/明确受影响章节；
+- 不因 Coverage 失效重建稳定 catalog。
+
+### 11.3 Speech Plan 补建
+
+`CacheCoverageQuery` 只读取并返回当前状态，不直接启动后台副作用。
+
+完整度读取发现符合条件的过期/缺失计划时，由显式 orchestration 向 process `SpeechPlanRepairCoordinator` 登记异步补建：
 
 - 同章请求合并；
 - 有限并发；
 - 页面只取消自己的等待/订阅；
 - 计划在内存完整构建后短事务提交；
 - 普通目录不为从未建立计划的普通章节无条件建立新计划。
+- 补建完成后发布最窄章节级 Coverage invalidation；仍处于 active 状态且正在显示该章节的页面自行重读。
 
 ## 12. Settings
 
