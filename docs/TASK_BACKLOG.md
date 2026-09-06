@@ -4,7 +4,7 @@
 
 当前进入 **整体架构优化阶段**。规划基线：`259541e37e98d0bac87fa41e5017f783b7ee0e31`。
 
-核心功能已经基本完善，本阶段优先减少架构复杂度、状态/生命周期耦合和大列表规模风险，不新增大功能，不围绕旧 3000+ 章节卡顿继续做局部 workaround。
+核心功能已经基本完善，本阶段优先减少架构复杂度、状态/生命周期耦合和大列表规模风险，不新增大功能。此前 Player → Back → BookDetails 返回详情页卡顿已确认解决，后续只作为性能回归场景保留，不再围绕该问题追加局部 workaround。
 
 目标终态由 `docs/01_ARCHITECTURE.md` 定义。Codex 负责代码、测试和必要的目录/API 迁移；编号文档已经在规划阶段完成整理，除任务明确要求外不修改编号文档。
 
@@ -290,7 +290,7 @@
 - matching Snapshot 与 persisted fallback；
 - WPF locator/virtualization focused tests。
 
-完成成果：BookDetails 使用不可变 chapter catalog、sparse current/cache decoration 与 O(1) index lookup；Critical 阶段并行加载 header/catalog/reading position，首帧后的 ContextIdle 边界启动 statistics enrichment、locator 与 viewport cache；cache 仅刷新 current/viewport/明确目标，且 mutation generation 防止旧 statistics 写回；locator 按 catalog position 定位并在 leave 后取消；移除旧 item VM 和 initial cache projection workaround；补充 10,000 项、首帧门控、生命周期、snapshot fallback、bounded cache、mutation race 与 WPF focused contract tests。
+完成成果：BookDetails 使用不可变 chapter catalog、sparse current/cache decoration 与 O(1) index lookup；Critical 阶段并行加载 header/catalog/reading position，首帧后的 ContextIdle 边界启动 statistics enrichment、locator 与 viewport cache；cache 仅刷新 current/viewport/明确目标，且 mutation generation 防止旧 statistics 写回；locator 按 catalog position 定位并在 leave 后取消；移除旧 item VM 和 initial cache projection workaround；补充 10,000 项、首帧门控、生命周期、snapshot fallback、bounded cache、mutation race 与 WPF focused contract tests；当前 dev 基线下此前 Player → Back → BookDetails 返回详情页卡顿已确认不再复现。
 
 ---
 
@@ -554,7 +554,7 @@ ArchitectureTests 必须无临时白名单或只剩有明确长期理由的极�
 
 依赖：T020。
 
-目标：此时才重新验证此前 3000+ 章节 Player→BookDetails 冻结，并判断新架构是否自然消除了旧瓶颈。
+目标：对已经解决的 Player → Back → BookDetails 返回卡顿做真实规模回归，并同时验收 Books/Player/Cache 大列表架构在 180/1000/3000+/10000 章节下是否保持稳定的交互与结构特征。
 
 诊断 fixture：
 
@@ -572,7 +572,7 @@ current position：
 场景：
 
 - Library → BookDetails；
-- BookDetails → Player → Back → BookDetails；
+- BookDetails → Player → Back → BookDetails（已解决问题的重点回归场景）；
 - Player chapter catalog；
 - CacheManagement 大列表；
 - continuous scroll/current locator/cache decoration。
@@ -590,8 +590,8 @@ current position：
 
 规则：
 
-- 先判断是否仍有实际瓶颈；新架构已解决则不新增 workaround。
-- 如果仍有瓶颈，用 A/B 和 profiling 精确定位后在本任务内做最小架构一致修复，或如影响范围过大标 `[!]` 并记录下一规划问题。
+- 将 BookDetails → Player → Back → BookDetails 作为已解决问题的回归项；仅当能够稳定复现退化时才重新进入性能诊断，不为该场景预设新的 workaround。
+- 如果发现新的或回归的实际瓶颈，用 A/B 和 profiling 精确定位后在本任务内做最小架构一致修复，或如影响范围过大标 `[!]` 并记录下一规划问题。
 - 不建立固定绝对毫秒 CI 门槛；保留结构性回归测试。
 - 所有诊断 harness/trace/script 在任务结束前删除。
 
