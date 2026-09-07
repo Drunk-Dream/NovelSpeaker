@@ -27,6 +27,7 @@ internal sealed class PlayerScrollInteractionController
         ListBox segmentListBox,
         Dispatcher dispatcher,
         Func<PlayerViewModel?> getViewModel,
+        Func<int?> getCurrentChapterIndex,
         Func<bool> isViewReady,
         Func<bool> isReducedMotionEnabled,
         Func<TimeSpan> getAnimationDuration,
@@ -42,7 +43,8 @@ internal sealed class PlayerScrollInteractionController
             () => chapterListBox.IsLoaded && chapterListBox.ActualHeight > 0,
             isReducedMotionEnabled,
             getAnimationDuration,
-            setChapterLocatorVisible);
+            setChapterLocatorVisible,
+            getCurrentChapterIndex);
         _autoCenterController = new VirtualizedListItemCenteringController(
             segmentListBox,
             dispatcher,

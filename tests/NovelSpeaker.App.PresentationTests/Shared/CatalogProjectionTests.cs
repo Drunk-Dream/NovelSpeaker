@@ -3,6 +3,7 @@ using System.ComponentModel;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.App.Shared.Presentation.Platform;
+using NovelSpeaker.TestKit.Navigation;
 using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests.Shared;
@@ -185,7 +186,8 @@ public sealed class CatalogProjectionTests
             "book-1",
             "测试书",
             [PlaybackChapterContent.Unloaded(0, "第一章")]);
-        var projection = new PlayerContentController(new StubPlaybackContentService(book), new InlineUiScheduler());
+        var service = new StubPlaybackContentService(book);
+        var projection = new PlayerContentController(new PlaybackBackedBookDetailsQuery(service), service, new InlineUiScheduler());
 
         await projection.EnsureBookLoadedAsync("book-1", 0, 0, CancellationToken.None);
         var currentItem = projection.CurrentChapterItem;
@@ -206,7 +208,8 @@ public sealed class CatalogProjectionTests
                 PlaybackChapterContent.Unloaded(0, "第一章"),
                 PlaybackChapterContent.Unloaded(1, "第二章")
             ]);
-        var projection = new PlayerContentController(new StubPlaybackContentService(book), new InlineUiScheduler());
+        var service = new StubPlaybackContentService(book);
+        var projection = new PlayerContentController(new PlaybackBackedBookDetailsQuery(service), service, new InlineUiScheduler());
 
         await projection.EnsureBookLoadedAsync("book-1", 0, 0, CancellationToken.None);
 
@@ -230,7 +233,8 @@ public sealed class CatalogProjectionTests
             Enumerable.Range(0, 10_000)
                 .Select(static index => PlaybackChapterContent.Unloaded(index, $"第 {index + 1} 章"))
                 .ToArray());
-        var projection = new PlayerContentController(new StubPlaybackContentService(book), new InlineUiScheduler());
+        var service = new StubPlaybackContentService(book);
+        var projection = new PlayerContentController(new PlaybackBackedBookDetailsQuery(service), service, new InlineUiScheduler());
         var changes = new List<NotifyCollectionChangedAction>();
         projection.Chapters.CollectionChanged += (_, args) => changes.Add(args.Action);
 
@@ -244,6 +248,26 @@ public sealed class CatalogProjectionTests
     }
 
     [Fact]
+    public async Task Player_catalog_locates_beginning_middle_and_tail_by_index()
+    {
+        var book = new PlaybackBookContent(
+            "book-1",
+            "测试书",
+            Enumerable.Range(0, 10_000)
+                .Select(static index => PlaybackChapterContent.Unloaded(index, $"第 {index + 1} 章"))
+                .ToArray());
+        var service = new StubPlaybackContentService(book);
+        var projection = new PlayerContentController(new PlaybackBackedBookDetailsQuery(service), service, new InlineUiScheduler());
+
+        await projection.EnsureBookLoadedAsync("book-1", 5_000, 0, CancellationToken.None);
+
+        Assert.Equal(0, projection.GetChapterPosition(0));
+        Assert.Equal(5_000, projection.GetChapterPosition(5_000));
+        Assert.Equal(9_999, projection.GetChapterPosition(9_999));
+        Assert.Null(projection.GetChapterPosition(10_000));
+    }
+
+    [Fact]
     public async Task Player_selection_decoration_for_10000_chapters_emits_one_reset()
     {
         var book = new PlaybackBookContent(
@@ -252,7 +276,8 @@ public sealed class CatalogProjectionTests
             Enumerable.Range(0, 10_000)
                 .Select(static index => PlaybackChapterContent.Unloaded(index, $"第 {index + 1} 章"))
                 .ToArray());
-        var projection = new PlayerContentController(new StubPlaybackContentService(book), new InlineUiScheduler());
+        var service = new StubPlaybackContentService(book);
+        var projection = new PlayerContentController(new PlaybackBackedBookDetailsQuery(service), service, new InlineUiScheduler());
         await projection.EnsureBookLoadedAsync("book-1", 0, 0, CancellationToken.None);
 
         var changes = new List<NotifyCollectionChangedAction>();
@@ -276,7 +301,7 @@ public sealed class CatalogProjectionTests
             "测试书",
             [PlaybackChapterContent.Unloaded(0, "第一章")]);
         var service = new DelayedPlaybackContentService();
-        var projection = new PlayerContentController(service, new InlineUiScheduler());
+        var projection = new PlayerContentController(new PlaybackBackedBookDetailsQuery(service), service, new InlineUiScheduler());
 
         var bookLoad = projection.EnsureBookLoadedAsync("book-1", 0, 0, CancellationToken.None);
         await service.BookRequested.Task;

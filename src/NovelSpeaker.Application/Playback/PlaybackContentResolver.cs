@@ -59,6 +59,28 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
             metadata.Author);
     }
 
+    public async Task<PlaybackBookContent?> GetBookAsync(
+        string bookId,
+        IReadOnlyList<BookChapterSummary> catalog,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        ArgumentNullException.ThrowIfNull(catalog);
+
+        var header = await _metadataQuery
+            .GetBookHeaderAsync(bookId, cancellationToken)
+            .ConfigureAwait(false);
+        return header is null
+            ? null
+            : new PlaybackBookContent(
+                header.BookId,
+                header.Title,
+                catalog
+                    .Select(static chapter => PlaybackChapterContent.Unloaded(chapter.ChapterIndex, chapter.Title))
+                    .ToArray(),
+                header.Author);
+    }
+
     public async Task<PlaybackChapterContent?> GetChapterAsync(
         string bookId,
         int chapterIndex,

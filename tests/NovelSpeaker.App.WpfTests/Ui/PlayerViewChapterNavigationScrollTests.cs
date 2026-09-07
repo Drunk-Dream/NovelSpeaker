@@ -9,6 +9,7 @@ using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.TestKit.Navigation;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -42,17 +43,19 @@ public sealed partial class PlayerViewTests
                 CreateChapter(0, "第一章"),
                 CreateChapter(1, "第二章")
             };
+            var contentService = new ChapterMapPlaybackContentService(
+                new PlaybackBookContent(
+                    "book-1",
+                    "信息全知者",
+                    chapters.Select(chapter => PlaybackChapterContent.Unloaded(chapter.ChapterIndex, chapter.Title)).ToArray(),
+                    "魔性沧月"),
+                chapters);
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new WpfFakePlaybackStopTimer(),
                 new WpfFakeActiveCacheCoordinator(),
-                new ChapterMapPlaybackContentService(
-                    new PlaybackBookContent(
-                        "book-1",
-                        "信息全知者",
-                        chapters.Select(chapter => PlaybackChapterContent.Unloaded(chapter.ChapterIndex, chapter.Title)).ToArray(),
-                        "魔性沧月"),
-                    chapters),
+                new PlaybackBackedBookDetailsQuery(contentService),
+                contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default with { ReadChapterTitle = true }),
                 new FakeAppFeedbackService(),

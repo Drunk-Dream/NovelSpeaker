@@ -380,7 +380,7 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 完成成果：PlayerViewModel 保持单一 XAML DataContext 与 transient 生命周期，播放投影、正文加载、语音控制、缓存 decoration/选择和滚动交互已分别收敛到 Feature-local concrete controller；迁走旧 VM 的 cache/scroll event、version、CTS 与 helper，并由架构测试固定 controller 边界。
 
-## [ ] T012（P0）：迁移 Player 章节目录到 Catalog/Decoration 架构
+## [x] T012（P0）：迁移 Player 章节目录到 Catalog/Decoration 架构
 
 依赖：T011。
 
@@ -395,6 +395,8 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 5. 保留用户主动定位、正文自动居中和虚拟化交互。
 
 测试：10,000 chapter Presentation、begin/middle/tail locator、snapshot rapid changes、manual scroll/locate WPF tests。
+
+完成成果：PlayerContentController 改为消费 Application.Books 的 BookChapterSummary catalog，基于 IndexedCatalog 与 sparse decoration 保留 10,000 章批量 projection、current/cache/selection targeted updates；Player WPF locator 改用 catalog position O(1)，保留正文加载、手动定位、自动居中和 viewport cache refresh。
 
 ---
 

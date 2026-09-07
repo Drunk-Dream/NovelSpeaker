@@ -1,3 +1,5 @@
+using NovelSpeaker.Application.Books;
+
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
@@ -6,6 +8,26 @@ namespace NovelSpeaker.Application.Playback;
 public interface IBookPlaybackContentService
 {
     Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken);
+
+    async Task<PlaybackBookContent?> GetBookAsync(
+        string bookId,
+        IReadOnlyList<BookChapterSummary> catalog,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        ArgumentNullException.ThrowIfNull(catalog);
+
+        var book = await GetBookAsync(bookId, cancellationToken).ConfigureAwait(false);
+        return book is null
+            ? null
+            : new PlaybackBookContent(
+                book.BookId,
+                book.BookTitle,
+                catalog
+                    .Select(static chapter => PlaybackChapterContent.Unloaded(chapter.ChapterIndex, chapter.Title))
+                    .ToArray(),
+                book.BookAuthor);
+    }
 
     Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken);
 

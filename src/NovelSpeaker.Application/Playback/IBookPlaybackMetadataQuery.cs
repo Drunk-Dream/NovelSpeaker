@@ -7,6 +7,16 @@ public interface IBookPlaybackMetadataQuery
 {
     Task<PlaybackBookMetadata?> GetBookAsync(string bookId, CancellationToken cancellationToken);
 
+    async Task<PlaybackBookHeader?> GetBookHeaderAsync(
+        string bookId,
+        CancellationToken cancellationToken)
+    {
+        var book = await GetBookAsync(bookId, cancellationToken).ConfigureAwait(false);
+        return book is null
+            ? null
+            : new PlaybackBookHeader(book.BookId, book.Title, book.Author);
+    }
+
     Task<PlaybackChapterMetadata?> GetChapterAsync(
         string bookId,
         int chapterIndex,

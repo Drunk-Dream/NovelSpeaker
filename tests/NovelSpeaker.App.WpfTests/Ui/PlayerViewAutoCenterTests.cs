@@ -21,6 +21,7 @@ using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.TestKit.Navigation;
 using Wpf.Ui;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
@@ -64,13 +65,15 @@ public sealed partial class PlayerViewTests
                         $"第 {index + 1} 段",
                         string.Join(' ', Enumerable.Repeat($"这是第 {index + 1} 段长度不同的正文", (index % 7) + 1))))
                     .ToArray());
+            var contentService = new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                chapter);
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new WpfFakePlaybackStopTimer(),
                 new WpfFakeActiveCacheCoordinator(),
-                new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
-                    chapter),
+                new PlaybackBackedBookDetailsQuery(contentService),
+                contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
@@ -157,13 +160,15 @@ public sealed partial class PlayerViewTests
                 Enumerable.Range(0, 90)
                     .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证回到当前段不会把列表滚到最底部。"))
                     .ToArray());
+            var contentService = new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                chapter);
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new WpfFakePlaybackStopTimer(),
                 new WpfFakeActiveCacheCoordinator(),
-                new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
-                    chapter),
+                new PlaybackBackedBookDetailsQuery(contentService),
+                contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
@@ -259,13 +264,15 @@ public sealed partial class PlayerViewTests
                 Enumerable.Range(0, 90)
                     .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证播放自动切段不会抢回用户滚动位置。"))
                     .ToArray());
+            var contentService = new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                chapter);
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new WpfFakePlaybackStopTimer(),
                 new WpfFakeActiveCacheCoordinator(),
-                new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
-                    chapter),
+                new PlaybackBackedBookDetailsQuery(contentService),
+                contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
@@ -359,13 +366,15 @@ public sealed partial class PlayerViewTests
                 Enumerable.Range(0, 90)
                     .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证滚动输入会中断动画并显示恢复居中按钮。"))
                     .ToArray());
+            var contentService = new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                chapter);
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new WpfFakePlaybackStopTimer(),
                 new WpfFakeActiveCacheCoordinator(),
-                new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
-                    chapter),
+                new PlaybackBackedBookDetailsQuery(contentService),
+                contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
@@ -462,13 +471,15 @@ public sealed partial class PlayerViewTests
                         $"第 {index + 1} 段",
                         string.Join(' ', Enumerable.Repeat($"这是第 {index + 1} 段长度不同的正文，用来模拟实际章节中长短差异很大的段落。", (index % 17) + 1))))
                     .ToArray());
+            var contentService = new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                chapter);
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new WpfFakePlaybackStopTimer(),
                 new WpfFakeActiveCacheCoordinator(),
-                new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
-                    chapter),
+                new PlaybackBackedBookDetailsQuery(contentService),
+                contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),

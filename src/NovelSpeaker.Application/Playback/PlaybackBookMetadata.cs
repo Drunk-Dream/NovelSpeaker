@@ -10,6 +10,14 @@ public sealed record PlaybackBookMetadata(
     IReadOnlyList<PlaybackChapterSummaryMetadata> Chapters);
 
 /// <summary>
+/// Book identity metadata used when a caller already owns the chapter catalog.
+/// </summary>
+public sealed record PlaybackBookHeader(
+    string BookId,
+    string Title,
+    string? Author);
+
+/// <summary>
 /// Chapter metadata used by book-level playback navigation.
 /// </summary>
 public sealed record PlaybackChapterSummaryMetadata(

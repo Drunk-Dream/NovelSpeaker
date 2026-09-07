@@ -21,6 +21,7 @@ using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.TestKit.Navigation;
 using Wpf.Ui;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
@@ -59,13 +60,15 @@ public sealed partial class PlayerViewTests
                 Enumerable.Range(0, 90)
                     .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证连续跳转会取消旧动画。"))
                     .ToArray());
+            var contentService = new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                chapter);
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new WpfFakePlaybackStopTimer(),
                 new WpfFakeActiveCacheCoordinator(),
-                new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
-                    chapter),
+                new PlaybackBackedBookDetailsQuery(contentService),
+                contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
@@ -162,13 +165,15 @@ public sealed partial class PlayerViewTests
                 Enumerable.Range(0, 90)
                     .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证减少动画时直接定位。"))
                     .ToArray());
+            var contentService = new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                chapter);
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new WpfFakePlaybackStopTimer(),
                 new WpfFakeActiveCacheCoordinator(),
-                new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
-                    chapter),
+                new PlaybackBackedBookDetailsQuery(contentService),
+                contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
@@ -267,13 +272,15 @@ public sealed partial class PlayerViewTests
                             $"这是第 {index + 1} 段长度差异很大的正文，用来验证虚拟化目标延迟生成时不会越过目标再反向回滚。",
                             ((index * 7) % 19) + 1))))
                     .ToArray());
+            var contentService = new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                chapter);
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new WpfFakePlaybackStopTimer(),
                 new WpfFakeActiveCacheCoordinator(),
-                new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
-                    chapter),
+                new PlaybackBackedBookDetailsQuery(contentService),
+                contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
@@ -389,13 +396,15 @@ public sealed partial class PlayerViewTests
                 Enumerable.Range(0, 90)
                     .Select(index => new SpeechSegment(index, index * 10, 10, $"第 {index + 1} 段", $"这是第 {index + 1} 段的正文，用来验证页面离开会取消滚动动画。"))
                     .ToArray());
+            var contentService = new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
+                chapter);
             var viewModel = new PlayerViewModel(
                 coordinator,
                 new WpfFakePlaybackStopTimer(),
                 new WpfFakeActiveCacheCoordinator(),
-                new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-1", "信息全知者", [PlaybackChapterContent.FromLoaded(0, "第三章 来自星空的压力", [])], "魔性沧月"),
-                    chapter),
+                new PlaybackBackedBookDetailsQuery(contentService),
+                contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),

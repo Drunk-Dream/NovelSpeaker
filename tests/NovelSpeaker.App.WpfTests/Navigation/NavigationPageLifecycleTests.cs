@@ -9,6 +9,7 @@ using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.TestKit.Navigation;
 using NovelSpeaker.Domain.Speech;
 using Xunit;
 
@@ -44,6 +45,7 @@ public sealed class NavigationPageLifecycleTests
                     false)),
                 new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakePlaybackStopTimer(),
                 new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeActiveCacheCoordinator(),
+                new PlaybackBackedBookDetailsQuery(contentService),
                 contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsService(AppSettings.Default),
@@ -83,13 +85,15 @@ public sealed class NavigationPageLifecycleTests
                 null,
                 false,
                 false));
+            var contentService = new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")]));
             var viewModel = new PlayerViewModel(
                 playback,
                 new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakePlaybackStopTimer(),
                 new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeActiveCacheCoordinator(),
-                new FakeBookPlaybackContentService(
-                    new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
-                    PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
+                new PlaybackBackedBookDetailsQuery(contentService),
+                contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
                 new FakeAppSettingsService(AppSettings.Default),
                 new FakeAppFeedbackService(),

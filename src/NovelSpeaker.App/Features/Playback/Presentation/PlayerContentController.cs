@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.App.Shared.Presentation;
@@ -14,6 +15,7 @@ namespace NovelSpeaker.App.Features.Playback.Presentation;
 internal sealed class PlayerContentController
 {
     private const int CatalogIndexingTaskThreshold = 512;
+    private readonly IBookDetailsQuery _bookDetailsQuery;
     private readonly IBookPlaybackContentService _contentService;
     private readonly IUiScheduler _uiScheduler;
     private readonly object _syncRoot = new();
@@ -26,7 +28,7 @@ internal sealed class PlayerContentController
     private readonly HashSet<int> _cacheDecorationWindow = [];
 
     private PlaybackBookContent? _loadedBook;
-    private IndexedCatalog<PlaybackChapterSummaryMetadata> _chapterCatalog =
+    private IndexedCatalog<BookChapterSummary> _chapterCatalog =
         new([], static chapter => chapter.ChapterIndex);
     private int _loadedChapterIndex = -1;
     private int _bookLoadVersion;
@@ -39,8 +41,12 @@ internal sealed class PlayerContentController
     private string? _bookLoadTarget;
     private CancellationTokenSource? _bookProjectionCancellation;
 
-    public PlayerContentController(IBookPlaybackContentService contentService, IUiScheduler? uiScheduler = null)
+    public PlayerContentController(
+        IBookDetailsQuery bookDetailsQuery,
+        IBookPlaybackContentService contentService,
+        IUiScheduler? uiScheduler = null)
     {
+        _bookDetailsQuery = bookDetailsQuery ?? throw new ArgumentNullException(nameof(bookDetailsQuery));
         _contentService = contentService ?? throw new ArgumentNullException(nameof(contentService));
         _uiScheduler = uiScheduler ?? new WpfUiScheduler();
     }
@@ -245,7 +251,12 @@ internal sealed class PlayerContentController
         }
 
         var loadVersion = BeginBookLoad(bookId);
-        var book = await _contentService.GetBookAsync(bookId, cancellationToken);
+        var catalog = await _bookDetailsQuery
+            .GetCatalogAsync(bookId, cancellationToken)
+            .ConfigureAwait(true);
+        var book = await _contentService
+            .GetBookAsync(bookId, catalog, cancellationToken)
+            .ConfigureAwait(true);
         if (loadVersion != _bookLoadVersion || book is null)
         {
             if (loadVersion == _bookLoadVersion)
@@ -258,6 +269,7 @@ internal sealed class PlayerContentController
 
         if (!await ApplyLoadedBookAsync(
                 book,
+                catalog,
                 loadVersion,
                 currentChapterIndex,
                 currentSegmentIndex,
@@ -408,6 +420,7 @@ internal sealed class PlayerContentController
 
     private async Task<bool> ApplyLoadedBookAsync(
         PlaybackBookContent book,
+        IReadOnlyList<BookChapterSummary> catalog,
         int loadVersion,
         int currentChapterIndex,
         int currentSegmentIndex,
@@ -433,11 +446,11 @@ internal sealed class PlayerContentController
                 initialPositionRevision = _positionRevision;
             }
 
-            var chapterCatalog = book.Chapters.Count >= CatalogIndexingTaskThreshold
+            var chapterCatalog = catalog.Count >= CatalogIndexingTaskThreshold
                 ? await Task.Run(
-                    () => CreateChapterCatalog(book),
+                    () => CreateChapterCatalog(catalog),
                     projectionCancellation.Token).ConfigureAwait(true)
-                : CreateChapterCatalog(book);
+                : CreateChapterCatalog(catalog);
 
             projectionCancellation.Token.ThrowIfCancellationRequested();
 
@@ -557,12 +570,10 @@ internal sealed class PlayerContentController
         }
     }
 
-    private static IndexedCatalog<PlaybackChapterSummaryMetadata> CreateChapterCatalog(
-        PlaybackBookContent book) =>
+    private static IndexedCatalog<BookChapterSummary> CreateChapterCatalog(
+        IReadOnlyList<BookChapterSummary> catalog) =>
         new(
-            book.Chapters
-                .Select(chapter => new PlaybackChapterSummaryMetadata(chapter.ChapterIndex, chapter.Title))
-                .ToArray(),
+            catalog,
             static chapter => chapter.ChapterIndex);
 
     private void ApplyChapterContent(PlaybackChapterContent chapter)
@@ -685,7 +696,7 @@ internal sealed class PlayerContentController
     }
 
     private PlayerChapterItemViewModel CreateChapterItem(
-        PlaybackChapterSummaryMetadata chapter,
+        BookChapterSummary chapter,
         IReadOnlyDictionary<int, bool>? currentSnapshot = null,
         IReadOnlyDictionary<int, bool>? selectionSnapshot = null,
         IReadOnlyDictionary<int, string>? cacheSnapshot = null)

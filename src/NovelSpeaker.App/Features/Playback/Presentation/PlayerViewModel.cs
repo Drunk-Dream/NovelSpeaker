@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.ActiveCache;
 using NovelSpeaker.Application.Playback.Cache;
@@ -49,6 +50,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         IPlaybackSession playbackCoordinator,
         IPlaybackStopTimer stopTimer,
         IActiveCacheCoordinator activeCacheCoordinator,
+        IBookDetailsQuery bookDetailsQuery,
         IBookPlaybackContentService bookPlaybackContentService,
         ITtsRuleQueries ruleQueries,
         IAppSettingsService settingsService,
@@ -67,7 +69,10 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         _timeProvider = timeProvider ?? TimeProvider.System;
         _navigator = navigator;
         _uiScheduler = uiScheduler ?? new WpfUiScheduler();
-        _contentController = new PlayerContentController(bookPlaybackContentService, _uiScheduler);
+        _contentController = new PlayerContentController(
+            bookDetailsQuery,
+            bookPlaybackContentService,
+            _uiScheduler);
         _playbackProjection = new PlayerPlaybackProjection();
         _speechControlController = new PlayerSpeechControlController(
             playbackCoordinator,
@@ -95,6 +100,8 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     public ObservableCollection<PlayerChapterItemViewModel> Chapters => _contentController.Chapters;
 
     public ObservableCollection<PlayerSegmentItemViewModel> Segments => _contentController.Segments;
+
+    public int? CurrentChapterPosition => _contentController.GetChapterPosition(CurrentChapterIndex);
 
     public bool HasRules => Rules.Count > 0;
 
@@ -1231,6 +1238,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         Volume = PlaybackVolume.Normalize(snapshot.Volume);
 
         CurrentChapterIndex = projected.ChapterIndex;
+        OnPropertyChanged(nameof(CurrentChapterPosition));
         _cacheDecorationController.SetCurrentChapterIndex(projected.ChapterIndex);
         CurrentSegmentIndex = projected.SegmentIndex;
         SynchronizeContentProjection(includeChapterTitle: false);

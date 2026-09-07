@@ -13,6 +13,7 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.TestKit.Common;
+using NovelSpeaker.TestKit.Navigation;
 using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests.ViewModels.Player;
@@ -38,6 +39,7 @@ public sealed partial class PlayerViewModelTests
             coordinator,
             stopTimer ?? new FakePlaybackStopTimer(),
             activeCacheCoordinator ?? new FakeActiveCacheCoordinator(),
+            new PlaybackBackedBookDetailsQuery(contentService),
             contentService,
             ruleService ?? new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
             settingsService ?? new FakeAppSettingsService(AppSettings.Default),

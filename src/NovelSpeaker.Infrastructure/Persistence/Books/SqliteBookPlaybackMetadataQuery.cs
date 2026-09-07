@@ -65,6 +65,32 @@ public sealed class SqliteBookPlaybackMetadataQuery : IBookPlaybackMetadataQuery
         return new PlaybackBookMetadata(bookId, title, author, chapters);
     }
 
+    public async Task<PlaybackBookHeader?> GetBookHeaderAsync(
+        string bookId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT Id, Title, Author
+            FROM Books
+            WHERE Id = $id
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("$id", bookId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
+            ? new PlaybackBookHeader(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.IsDBNull(2) ? null : reader.GetString(2))
+            : null;
+    }
+
     public async Task<PlaybackChapterMetadata?> GetChapterAsync(
         string bookId,
         int chapterIndex,

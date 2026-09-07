@@ -27,6 +27,7 @@ public partial class PlayerView : UserControl
             SegmentListBox,
             Dispatcher,
             () => _viewModel,
+            () => _viewModel?.CurrentChapterPosition,
             () => IsLoaded && ActualHeight > 0 && SegmentListBox.ActualHeight > 0,
             IsReducedMotionEnabled,
             () => SegmentAutoCenterAnimationDuration,
