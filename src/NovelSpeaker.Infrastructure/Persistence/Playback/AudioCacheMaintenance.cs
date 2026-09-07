@@ -96,7 +96,7 @@ internal sealed class AudioCacheMaintenance
 
         var limitChanged = await EnforceLimitAsync(
             cancellationToken,
-            () => cacheChanged?.Invoke(new CacheChangedEventArgs(null, null))).ConfigureAwait(false);
+            change => cacheChanged?.Invoke(change)).ConfigureAwait(false);
         if (cleanupOrphanedPlans && await _speechPlanStore
                 .DeletePlansWithoutCacheEntriesAsync(cancellationToken)
                 .ConfigureAwait(false) > 0)
@@ -110,7 +110,7 @@ internal sealed class AudioCacheMaintenance
 
     public async Task<bool> EnforceLimitAsync(
         CancellationToken cancellationToken,
-        Action? cacheChanged = null)
+        Action<CacheChangedEventArgs>? cacheChanged = null)
     {
         var limitBytes = _limitProvider.GetCurrentLimitBytes();
         var summary = await _index.GetSummaryAsync(cancellationToken).ConfigureAwait(false);
@@ -141,7 +141,7 @@ internal sealed class AudioCacheMaintenance
                 await _index.RemoveAsync(entry.CacheKey, cancellationToken).ConfigureAwait(false);
                 totalSize = Math.Max(0, totalSize - entry.FileSize);
                 changed = true;
-                cacheChanged?.Invoke();
+                cacheChanged?.Invoke(new CacheChangedEventArgs(entry.BookId, entry.ChapterIndex));
             }
         }
 

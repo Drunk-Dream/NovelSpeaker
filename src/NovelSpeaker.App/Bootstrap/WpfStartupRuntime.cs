@@ -273,6 +273,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
             await WaitForBackgroundTasksAsync(
                 _serviceProvider.GetRequiredService<IChapterExportCoordinator>(),
                 _serviceProvider.GetRequiredService<ICacheWorkspaceBackgroundTaskOwner>(),
+                _serviceProvider.GetRequiredService<ICacheInvalidationCoordinator>(),
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -284,6 +285,19 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     internal async Task WaitForBackgroundTasksAsync(
         IChapterExportCoordinator chapterExportCoordinator,
         ICacheWorkspaceBackgroundTaskOwner cacheWorkspaceBackgroundTaskOwner,
+        CancellationToken cancellationToken)
+    {
+        await WaitForBackgroundTasksAsync(
+            chapterExportCoordinator,
+            cacheWorkspaceBackgroundTaskOwner,
+            invalidationCoordinator: null,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    internal async Task WaitForBackgroundTasksAsync(
+        IChapterExportCoordinator chapterExportCoordinator,
+        ICacheWorkspaceBackgroundTaskOwner cacheWorkspaceBackgroundTaskOwner,
+        ICacheInvalidationCoordinator? invalidationCoordinator,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(chapterExportCoordinator);
@@ -317,6 +331,24 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
                 "chapter-speech-plan-shutdown",
                 "等待章节朗读清单后台任务退出超时，将继续关闭。",
                 exception);
+        }
+
+        if (invalidationCoordinator is not null)
+        {
+            try
+            {
+                await invalidationCoordinator
+                    .StopAsync(cancellationToken)
+                    .WaitAsync(_backgroundShutdownTimeout, TimeProvider.System, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (TimeoutException exception)
+            {
+                RecordLifecycleFailure(
+                    "cache-invalidation-shutdown",
+                    "等待缓存失效通知退出超时，将继续关闭。",
+                    exception);
+            }
         }
     }
 

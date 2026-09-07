@@ -632,7 +632,7 @@ Row 内少量 BookCard
 
 # Phase E：Cache
 
-## [ ] T014（P0）：建立 CacheStore/CacheCatalog 与 typed invalidation 边界
+## [x] T014（P0）：建立 CacheStore/CacheCatalog 与 typed invalidation 边界
 
 依赖：T013。
 
@@ -688,6 +688,8 @@ Row 内少量 BookCard
 - CacheCatalog query 语义、排序、空数据和大列表；
 - lease/protection/cleanup 行为不回归；
 - ArchitectureTests 禁止 Cache invalidation 演化为通用 Messenger/EventBus。
+
+完成成果：新增物理事实专用 `ICacheCatalog`/immutable summaries，补齐 Global/Book/Chapters typed invalidation 及 PhysicalSummary/CatalogStructure/Coverage aspects；`AudioCacheFacade`、清理和 LRU maintenance 在 commit 后发布最窄已知范围，`CacheInvalidationCoordinator` 对 burst mutations 合并为 immutable batch；保留旧 `Changed` 作为迁移期投影并接入启动 shutdown owner。新增 coordinator/catalog 单元测试与 SQLite mutation scope 回归测试，相关 Release focused tests 通过。
 
 ## [ ] T015（P0）：拆分 Cache Coverage 与 Speech Plan Repair
 

@@ -15,6 +15,7 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
     private readonly AudioCacheMaintenance _maintenance;
     private readonly IAudioCacheProtectionRegistry _protectionRegistry;
     private readonly AudioProbe _audioProbe;
+    private readonly ICacheInvalidationCoordinator? _invalidationCoordinator;
     private readonly SemaphoreSlim _mutex = new(1, 1);
 
     public AudioCacheFacade(
@@ -22,13 +23,15 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         AudioCacheFileStore fileStore,
         AudioCacheMaintenance maintenance,
         IAudioCacheProtectionRegistry protectionRegistry,
-        AudioProbe audioProbe)
+        AudioProbe audioProbe,
+        ICacheInvalidationCoordinator? invalidationCoordinator = null)
     {
         _index = index;
         _fileStore = fileStore;
         _maintenance = maintenance;
         _protectionRegistry = protectionRegistry;
         _audioProbe = audioProbe;
+        _invalidationCoordinator = invalidationCoordinator;
     }
 
     public event EventHandler<CacheChangedEventArgs>? Changed;
@@ -37,9 +40,9 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
     {
         ArgumentNullException.ThrowIfNull(key);
         var result = await RunExclusiveAsync(ct => TryGetCoreAsync(key, ct), cancellationToken).ConfigureAwait(false);
-        if (result.RemovedStaleEntry)
+        if (result.Invalidation is { } invalidation)
         {
-            OnChanged(null, null);
+            OnCommitted(invalidation, new CacheChangedEventArgs(null, null));
         }
 
         return result.Entry;
@@ -49,17 +52,17 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
     {
         ArgumentNullException.ThrowIfNull(request);
         var changed = false;
-        var maintenanceChanged = false;
+        var maintenanceChanges = new List<CacheInvalidation>();
         try
         {
             var result = await RunExclusiveAsync(
                 ct => StoreCoreAsync(
                     request,
                     () => changed = true,
-                    () =>
+                    change =>
                     {
                         changed = true;
-                        maintenanceChanged = true;
+                        maintenanceChanges.Add(ToInvalidation(change));
                     },
                     ct),
                 cancellationToken).ConfigureAwait(false);
@@ -69,9 +72,14 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         {
             if (changed)
             {
-                OnChanged(
-                    maintenanceChanged ? null : request.BookId,
-                    maintenanceChanged ? null : request.ChapterIndex);
+                OnCommitted(CacheInvalidation.ForChapters(
+                    request.BookId,
+                    [request.ChapterIndex],
+                    AllPhysicalAspects));
+                foreach (var maintenanceChange in maintenanceChanges)
+                {
+                    OnCommitted(maintenanceChange);
+                }
             }
         }
     }
@@ -79,10 +87,10 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
     public async Task InvalidateAsync(AudioCacheKey key, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(key);
-        var changed = await RunExclusiveAsync(ct => InvalidateCoreAsync(key, ct), cancellationToken).ConfigureAwait(false);
-        if (changed)
+        var invalidation = await RunExclusiveAsync(ct => InvalidateCoreAsync(key, ct), cancellationToken).ConfigureAwait(false);
+        if (invalidation is not null)
         {
-            OnChanged(null, null);
+            OnCommitted(invalidation, new CacheChangedEventArgs(null, null));
         }
     }
 
@@ -181,7 +189,10 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         {
             if (changed)
             {
-                OnChanged(bookId, chapterIndex);
+                OnCommitted(CacheInvalidation.ForChapters(
+                    bookId,
+                    [chapterIndex],
+                    AllPhysicalAspects));
             }
         }
     }
@@ -222,7 +233,10 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         {
             if (changed)
             {
-                OnChanged(bookId, null);
+                OnCommitted(CacheInvalidation.ForChapters(
+                    bookId,
+                    normalizedIndices,
+                    AllPhysicalAspects));
             }
         }
     }
@@ -247,7 +261,7 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         {
             if (changed)
             {
-                OnChanged(bookId, null);
+                OnCommitted(CacheInvalidation.ForBook(bookId, AllPhysicalAspects));
             }
         }
     }
@@ -265,7 +279,7 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         {
             if (changed)
             {
-                OnChanged(null, null);
+                OnCommitted(CacheInvalidation.ForGlobal(AllPhysicalAspects));
             }
         }
     }
@@ -309,7 +323,7 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         {
             foreach (var change in changes)
             {
-                OnChanged(change.BookId, change.ChapterIndex);
+                OnCommitted(ToInvalidation(change));
             }
         }
     }
@@ -321,7 +335,7 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         var entry = await _index.FindAsync(key, cancellationToken).ConfigureAwait(false);
         if (entry is null)
         {
-            return new CacheLookupResult(null, false);
+            return new CacheLookupResult(null, null);
         }
 
         var filePath = _fileStore.ResolveIndexedPath(entry.FilePath);
@@ -329,14 +343,14 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         {
             await _index.RemoveAsync(entry.CacheKey, cancellationToken).ConfigureAwait(false);
             _fileStore.TryDeleteFile(filePath);
-            return new CacheLookupResult(null, true);
+            return new CacheLookupResult(null, CreateEntryInvalidation(entry));
         }
 
         await _index.TouchAsync(
             entry.CacheKey,
             _fileStore.GetStorageKey(filePath),
             cancellationToken).ConfigureAwait(false);
-        return new CacheLookupResult(new AudioCacheEntry(key, filePath), false);
+        return new CacheLookupResult(new AudioCacheEntry(key, filePath), null);
     }
 
     private async Task<IReadOnlySet<AudioCacheKey>> GetValidEntriesCoreAsync(
@@ -466,7 +480,7 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
     private async Task<AudioCacheEntry> StoreCoreAsync(
         AudioCacheWriteRequest request,
         Action storeChanged,
-        Action maintenanceChanged,
+        Action<CacheChangedEventArgs> maintenanceChanged,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -509,18 +523,20 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         return new AudioCacheEntry(request.Key, file.FilePath);
     }
 
-    private async Task<bool> InvalidateCoreAsync(AudioCacheKey key, CancellationToken cancellationToken)
+    private async Task<CacheInvalidation?> InvalidateCoreAsync(
+        AudioCacheKey key,
+        CancellationToken cancellationToken)
     {
         var entry = await _index.FindAsync(key, cancellationToken).ConfigureAwait(false);
         if (entry is null)
         {
-            return false;
+            return null;
         }
 
         var filePath = _fileStore.ResolveIndexedPath(entry.FilePath);
         await _index.RemoveAsync(entry.CacheKey, cancellationToken).ConfigureAwait(false);
         _fileStore.TryDeleteFile(filePath);
-        return true;
+        return CreateEntryInvalidation(entry);
     }
 
     private async Task<AudioCacheStoreSummary> GetSummaryCoreAsync(CancellationToken cancellationToken)
@@ -654,15 +670,46 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         }
     }
 
-    private void OnChanged(string? bookId, int? chapterIndex)
+    private void OnCommitted(
+        CacheInvalidation invalidation,
+        CacheChangedEventArgs? legacyChangeOverride = null)
     {
-        Changed?.Invoke(this, new CacheChangedEventArgs(bookId, chapterIndex));
+        _invalidationCoordinator?.Publish(invalidation);
+        var legacyChange = legacyChangeOverride ?? invalidation.Scope switch
+        {
+            CacheInvalidationScope.Global => new CacheChangedEventArgs(null, null),
+            CacheInvalidationScope.Book book => new CacheChangedEventArgs(book.BookId, null),
+            CacheInvalidationScope.Chapters chapters => new CacheChangedEventArgs(
+                chapters.BookId,
+                chapters.ChapterIndices.Count == 1 ? chapters.ChapterIndices[0] : null),
+            _ => throw new InvalidOperationException("未知的缓存失效范围。")
+        };
+        Changed?.Invoke(this, legacyChange);
     }
+
+    private static CacheInvalidation ToInvalidation(CacheChangedEventArgs change) =>
+        change.BookId is null
+            ? CacheInvalidation.ForGlobal(AllPhysicalAspects)
+            : change.ChapterIndex is int chapterIndex
+                ? CacheInvalidation.ForChapters(change.BookId, [chapterIndex], AllPhysicalAspects)
+                : CacheInvalidation.ForBook(change.BookId, AllPhysicalAspects);
+
+    private static CacheInvalidation CreateEntryInvalidation(AudioCacheIndexEntry entry) =>
+        entry.BookId is null
+            ? CacheInvalidation.ForGlobal(AllPhysicalAspects)
+            : entry.ChapterIndex is int chapterIndex
+                ? CacheInvalidation.ForChapters(entry.BookId, [chapterIndex], AllPhysicalAspects)
+                : CacheInvalidation.ForBook(entry.BookId, AllPhysicalAspects);
+
+    private const CacheInvalidationAspect AllPhysicalAspects =
+        CacheInvalidationAspect.PhysicalSummary |
+        CacheInvalidationAspect.CatalogStructure |
+        CacheInvalidationAspect.Coverage;
 }
 
 internal sealed record CacheLookupResult(
     AudioCacheEntry? Entry,
-    bool RemovedStaleEntry);
+    CacheInvalidation? Invalidation);
 
 internal sealed record AudioCacheExportLeaseAcquisition(
     AudioCacheExportLease? Lease,

@@ -370,6 +370,121 @@ public sealed class SqliteAudioCacheTests
     }
 
     [Fact]
+    public async Task Typed_invalidation_is_published_after_commit_with_the_narrowest_known_scope()
+    {
+        var timeProvider = new ManualTimeProvider();
+        await using var invalidationCoordinator = new CacheInvalidationCoordinator(timeProvider);
+        var batches = new List<CacheInvalidationBatch>();
+        invalidationCoordinator.BatchPublished += (_, batch) => batches.Add(batch);
+        var fixture = await CreateFixtureAsync(invalidationCoordinator: invalidationCoordinator);
+
+        await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段"),
+                "book-1",
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        Assert.Empty(batches);
+
+        await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                TestAudioCacheKey.Create("book-1", 1, 0, 1, 10, "第二段"),
+                "book-1",
+                1,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+
+        var firstBatch = Assert.Single(batches);
+        var firstScope = Assert.IsType<CacheInvalidationScope.Chapters>(Assert.Single(firstBatch.Changes).Scope);
+        Assert.Equal([0, 1], firstScope.ChapterIndices);
+
+        batches.Clear();
+        await fixture.Cache.ClearChaptersAsync("book-1", [1, 0], CancellationToken.None);
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+
+        var secondScope = Assert.IsType<CacheInvalidationScope.Chapters>(
+            Assert.Single(Assert.Single(batches).Changes).Scope);
+        Assert.Equal([0, 1], secondScope.ChapterIndices);
+
+        batches.Clear();
+        var key = TestAudioCacheKey.Create("book-1", 2, 0, 1, 10, "第三段");
+        _ = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                key,
+                "book-1",
+                2,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        await fixture.Cache.InvalidateAsync(key, CancellationToken.None);
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+
+        var invalidateScope = Assert.IsType<CacheInvalidationScope.Chapters>(
+            Assert.Single(Assert.Single(batches).Changes).Scope);
+        Assert.Equal([2], invalidateScope.ChapterIndices);
+
+        batches.Clear();
+        var staleKey = TestAudioCacheKey.Create("book-1", 3, 0, 1, 10, "第四段");
+        var staleEntry = await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                staleKey,
+                "book-1",
+                3,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+        batches.Clear();
+        File.Delete(staleEntry.FilePath);
+        Assert.Null(await fixture.Cache.TryGetAsync(staleKey, CancellationToken.None));
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+
+        var staleScope = Assert.IsType<CacheInvalidationScope.Chapters>(
+            Assert.Single(Assert.Single(batches).Changes).Scope);
+        Assert.Equal([3], staleScope.ChapterIndices);
+    }
+
+    [Fact]
+    public async Task Lru_eviction_reports_the_evicted_chapter_scope()
+    {
+        var timeProvider = new ManualTimeProvider();
+        await using var invalidationCoordinator = new CacheInvalidationCoordinator(timeProvider);
+        var batches = new List<CacheInvalidationBatch>();
+        invalidationCoordinator.BatchPublished += (_, batch) => batches.Add(batch);
+        var fixture = await CreateFixtureAsync(
+            invalidationCoordinator: invalidationCoordinator);
+
+        await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段"),
+                "book-1",
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+        batches.Clear();
+
+        fixture.LimitProvider.CurrentLimitBytes = 1;
+        await fixture.Cache.RunMaintenanceAsync(CancellationToken.None);
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+
+        var scope = Assert.IsType<CacheInvalidationScope.Chapters>(
+            Assert.Single(Assert.Single(batches).Changes).Scope);
+        Assert.Equal([0], scope.ChapterIndices);
+        Assert.Equal(0, (await fixture.Cache.GetSummaryAsync(CancellationToken.None)).EntryCount);
+    }
+
+    [Fact]
     public async Task StoreAsync_persists_audio_under_sharded_path_and_try_get_hits()
     {
         var fixture = await CreateFixtureAsync();
@@ -1303,7 +1418,8 @@ public sealed class SqliteAudioCacheTests
         long? cacheLimitBytes = null,
         AudioCacheProtectionRegistry? registry = null,
         TimeProvider? timeProvider = null,
-        IChapterSpeechPlanStore? speechPlanStore = null)
+        IChapterSpeechPlanStore? speechPlanStore = null,
+        ICacheInvalidationCoordinator? invalidationCoordinator = null)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var directories = new AppDataDirectoryProvider(root);
@@ -1352,7 +1468,13 @@ public sealed class SqliteAudioCacheTests
             registry,
             planStore,
             timeProvider);
-        var cache = new AudioCacheFacade(index, fileStore, maintenance, registry, new AudioProbe());
+        var cache = new AudioCacheFacade(
+            index,
+            fileStore,
+            maintenance,
+            registry,
+            new AudioProbe(),
+            invalidationCoordinator);
         return new CacheFixture(directories, factory, cacheConnectionFactory, cache, limitProvider);
     }
 

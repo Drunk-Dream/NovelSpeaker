@@ -17,6 +17,8 @@ public static class PlaybackRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<IBookPlaybackContentService, PlaybackContentResolver>();
+        services.TryAddSingleton<ICacheInvalidationCoordinator, CacheInvalidationCoordinator>();
+        services.TryAddSingleton<ICacheCatalog, CacheCatalog>();
         services.TryAddSingleton<CacheWorkspaceService>();
         services.TryAddSingleton<ICacheWorkspaceService>(
             serviceProvider => serviceProvider.GetRequiredService<CacheWorkspaceService>());

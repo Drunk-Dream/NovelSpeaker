@@ -34,9 +34,10 @@ internal sealed class SqliteAudioCacheIndex
         var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT CacheKey, FilePath, FileSize
-            FROM AudioCacheEntries
-            WHERE CacheKey = $cacheKey AND KeyVersion = $keyVersion AND HealthState = $status
+            SELECT e.CacheKey, e.FilePath, e.FileSize, e.BookId, c.ChapterIndex
+            FROM AudioCacheEntries e
+            LEFT JOIN Chapters c ON c.Id = e.ChapterId
+            WHERE e.CacheKey = $cacheKey AND e.KeyVersion = $keyVersion AND e.HealthState = $status
             LIMIT 1;
             """;
         command.Parameters.AddWithValue("$cacheKey", ToCacheKeyBlob(key.Value));
@@ -759,7 +760,7 @@ internal sealed class SqliteAudioCacheIndex
 
         command.CommandText =
             $"""
-            SELECT e.CacheKey, e.FilePath, e.FileSize
+            SELECT e.CacheKey, e.FilePath, e.FileSize, e.BookId, c.ChapterIndex
             FROM AudioCacheEntries e
             INNER JOIN Chapters c ON c.Id = e.ChapterId
             {(predicates.Count == 0 ? string.Empty : $"WHERE {string.Join(" AND ", predicates)}")}
@@ -782,7 +783,9 @@ internal sealed class SqliteAudioCacheIndex
         return new AudioCacheIndexEntry(
             Encoding.UTF8.GetString(cacheKey),
             reader.GetString(1),
-            reader.GetInt64(2));
+            reader.GetInt64(2),
+            reader.FieldCount > 3 && !reader.IsDBNull(3) ? reader.GetString(3) : null,
+            reader.FieldCount > 4 && !reader.IsDBNull(4) ? reader.GetInt32(4) : null);
     }
 
     private static byte[] ToCacheKeyBlob(string value) => Encoding.UTF8.GetBytes(value);
@@ -881,7 +884,9 @@ internal sealed class SqliteAudioCacheIndex
 internal sealed record AudioCacheIndexEntry(
     string CacheKey,
     string FilePath,
-    long FileSize);
+    long FileSize,
+    string? BookId = null,
+    int? ChapterIndex = null);
 
 internal sealed record AudioCacheMaintenanceEntry(
     string CacheKey,
