@@ -12,7 +12,7 @@ namespace NovelSpeaker.App.Features.Playback.Presentation;
 /// Coordinates the playback page's rule query and global speak-speed persistence.
 /// It does not own playback session state.
 /// </summary>
-internal sealed class PlayerRulesAndSpeedController : IDisposable
+internal sealed class PlayerSpeechControlController : IDisposable
 {
     private static readonly TimeSpan SpeakSpeedStepDebounceDelay = TimeSpan.FromMilliseconds(500);
 
@@ -25,7 +25,7 @@ internal sealed class PlayerRulesAndSpeedController : IDisposable
 
     private CancellationTokenSource? _speakSpeedStepDebounceCts;
 
-    public PlayerRulesAndSpeedController(
+    public PlayerSpeechControlController(
         IPlaybackSession playbackSession,
         ITtsRuleQueries ruleQueries,
         IAppSettingsService settingsService,

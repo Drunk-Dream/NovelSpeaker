@@ -250,6 +250,32 @@ public sealed partial class PlayerViewModelTests
     }
 
     [Fact]
+    public async Task Reactivation_refreshes_cache_window_for_playback_position_advanced_off_page()
+    {
+        var cacheWorkspace = new FakeCacheWorkspaceService();
+        var playback = CreatePlaybackCoordinator();
+        var viewModel = CreateViewModel(
+            playback,
+            CreateContentService(),
+            cacheWorkspaceService: cacheWorkspace);
+
+        await OpenBookAsync(viewModel);
+        var initialStatusCallCount = cacheWorkspace.StatusCallCount;
+
+        viewModel.OnPageNavigatedFrom();
+        playback.Publish(playback.CurrentSnapshot with
+        {
+            ChapterIndex = 2,
+            ChapterTitle = "第三章"
+        });
+
+        viewModel.OnPageNavigatedTo(CancellationToken.None);
+
+        Assert.True(cacheWorkspace.StatusCallCount > initialStatusCallCount);
+        Assert.Contains(2, cacheWorkspace.LastRequestedChapterIndices);
+    }
+
+    [Fact]
     public async Task Moving_current_chapter_refreshes_the_new_cache_window_for_a_10000_chapter_catalog()
     {
         var cacheWorkspace = new FakeCacheWorkspaceService

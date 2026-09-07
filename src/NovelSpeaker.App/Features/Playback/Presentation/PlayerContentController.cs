@@ -11,8 +11,9 @@ namespace NovelSpeaker.App.Features.Playback.Presentation;
 /// Owns the playback page's book/chapter content cache and its chapter/segment item projection.
 /// Playback session state remains owned by <see cref="IPlaybackSession"/>.
 /// </summary>
-internal sealed class PlayerContentProjection
+internal sealed class PlayerContentController
 {
+    private const int CatalogIndexingTaskThreshold = 512;
     private readonly IBookPlaybackContentService _contentService;
     private readonly IUiScheduler _uiScheduler;
     private readonly object _syncRoot = new();
@@ -38,7 +39,7 @@ internal sealed class PlayerContentProjection
     private string? _bookLoadTarget;
     private CancellationTokenSource? _bookProjectionCancellation;
 
-    public PlayerContentProjection(IBookPlaybackContentService contentService, IUiScheduler? uiScheduler = null)
+    public PlayerContentController(IBookPlaybackContentService contentService, IUiScheduler? uiScheduler = null)
     {
         _contentService = contentService ?? throw new ArgumentNullException(nameof(contentService));
         _uiScheduler = uiScheduler ?? new WpfUiScheduler();
@@ -432,13 +433,11 @@ internal sealed class PlayerContentProjection
                 initialPositionRevision = _positionRevision;
             }
 
-            var chapterCatalog = await Task.Run(
-                () => new IndexedCatalog<PlaybackChapterSummaryMetadata>(
-                    book.Chapters
-                        .Select(chapter => new PlaybackChapterSummaryMetadata(chapter.ChapterIndex, chapter.Title))
-                        .ToArray(),
-                    static chapter => chapter.ChapterIndex),
-                projectionCancellation.Token).ConfigureAwait(true);
+            var chapterCatalog = book.Chapters.Count >= CatalogIndexingTaskThreshold
+                ? await Task.Run(
+                    () => CreateChapterCatalog(book),
+                    projectionCancellation.Token).ConfigureAwait(true)
+                : CreateChapterCatalog(book);
 
             projectionCancellation.Token.ThrowIfCancellationRequested();
 
@@ -557,6 +556,14 @@ internal sealed class PlayerContentProjection
             projectionCancellation.Dispose();
         }
     }
+
+    private static IndexedCatalog<PlaybackChapterSummaryMetadata> CreateChapterCatalog(
+        PlaybackBookContent book) =>
+        new(
+            book.Chapters
+                .Select(chapter => new PlaybackChapterSummaryMetadata(chapter.ChapterIndex, chapter.Title))
+                .ToArray(),
+            static chapter => chapter.ChapterIndex);
 
     private void ApplyChapterContent(PlaybackChapterContent chapter)
     {

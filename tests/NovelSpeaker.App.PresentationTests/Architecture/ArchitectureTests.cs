@@ -424,7 +424,7 @@ public sealed class ArchitectureTests
                 "src/NovelSpeaker.App/Shared/Presentation/IndexedCatalog.cs",
                 "src/NovelSpeaker.App/Features/Books/Details/BookDetailsViewModel.cs",
                 "src/NovelSpeaker.App/Features/Cache/CacheManagementViewModel.cs",
-                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerContentProjection.cs",
+                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerContentController.cs",
                 "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerViewModel.cs"
             ]);
 
@@ -448,12 +448,13 @@ public sealed class ArchitectureTests
                 "src/NovelSpeaker.App/Features/Books/Details/BookDetailsViewModel.cs",
                 "src/NovelSpeaker.App/Features/Books/Library/LibraryViewModel.cs",
                 "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerViewModel.cs",
-                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerRulesAndSpeedController.cs",
+                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerInteractionController.cs",
+                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerSpeechControlController.cs",
                 "src/NovelSpeaker.App/Features/PlaybackSettings/PlaybackSettingsViewModel.cs"
             ],
             [
-                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerContentProjection.cs",
-                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerSnapshotProjection.cs",
+                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerContentController.cs",
+                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerPlaybackProjection.cs",
                 "src/NovelSpeaker.App/Features/Books/Details/BookDetailsProjectionController.cs",
                 "src/NovelSpeaker.App/Features/Books/Shared/EffectiveReadingProgress.cs"
             ]));
@@ -499,6 +500,25 @@ public sealed class ArchitectureTests
             .Distinct()
             .OrderBy(type => type.FullName, StringComparer.Ordinal)
             .ToArray());
+    }
+
+    private static void PlayerPresentationControllersAreFeatureLocalConcreteTypes()
+    {
+        var controllerTypes = new[]
+        {
+            typeof(PlayerPlaybackProjection),
+            typeof(PlayerContentController),
+            typeof(PlayerSpeechControlController),
+            typeof(PlayerCacheDecorationController),
+            typeof(PlayerInteractionController)
+        };
+
+        Assert.All(controllerTypes, static type =>
+        {
+            Assert.False(type.IsPublic);
+            Assert.True(type.IsSealed);
+            Assert.False(type.IsInterface);
+        });
     }
 
     private void AppDoesNotDirectlyDiscardAsyncOperations()
@@ -641,6 +661,7 @@ public sealed class ArchitectureTests
         PagesAndViewModelsDoNotWriteReadingProgress();
         LargeListHelpersDoNotClearThenAddOneItemAtATime();
         PlaybackStateHasOneOwnerAndReadOnlyConsumerContracts();
+        PlayerPresentationControllersAreFeatureLocalConcreteTypes();
     }
 
     [Fact]

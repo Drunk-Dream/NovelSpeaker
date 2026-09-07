@@ -22,41 +22,28 @@ namespace NovelSpeaker.App.Features.Playback.Presentation;
 
 public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgressInteractionTarget, ITransientEscapeHandler
 {
-    private const int CacheDecorationWindowSize = 32;
-    private const int SelectionDecorationResetThreshold = 64;
     private readonly IPlaybackSession _playbackCoordinator;
     private readonly IPlaybackStopTimer _stopTimer;
-    private readonly IActiveCacheCoordinator _activeCacheCoordinator;
-    private readonly ICacheWorkspaceService _cacheWorkspaceService;
-    private readonly IAppSettingsService _settingsService;
     private readonly IAppNavigator _navigator;
-    private readonly IPlayerAutoScrollCoordinator _autoScrollCoordinator;
     private readonly IUiScheduler _uiScheduler;
     private readonly ResettableObservableCollection<PlayerRuleItemViewModel> _rules = [];
     private readonly IAppFeedbackService _feedbackService;
     private readonly IMiniPlayerLauncher _miniPlayerLauncher;
     private readonly TimeProvider _timeProvider;
-    private readonly PlayerContentProjection _contentProjection;
-    private readonly PlayerSnapshotProjection _snapshotProjection;
-    private readonly PlayerRulesAndSpeedController _rulesAndSpeedController;
-    private readonly PlayerActiveCacheSelectionController _activeCacheSelection;
-    private readonly ChapterCacheStatusRefreshController _cacheStatusRefresh;
+    private readonly PlayerContentController _contentController;
+    private readonly PlayerPlaybackProjection _playbackProjection;
+    private readonly PlayerSpeechControlController _speechControlController;
+    private readonly PlayerCacheDecorationController _cacheDecorationController;
+    private readonly PlayerInteractionController _interactionController;
     private readonly OwnedTaskRegistry _pageTasks = new();
 
     private string? _requestedBookId;
-    private int _segmentCenterRequestVersion;
-    private bool _animateNextSegmentCenterRequest;
-    private bool _suppressNextStateDrivenAutoCenterRequest;
-    private PlayerAutoScrollState _lastAppliedAutoScrollState;
     private PlaybackSnapshot _lastAppliedSnapshot = PlaybackSnapshot.Idle;
     private long _lastAppliedStopTimerVersion = -1;
     private ITimer? _stopTimerDisplayTimer;
     private CancellationTokenSource _pageEventCancellation = new();
     private bool _isPageEventsRegistered;
     private int _pageEventGeneration;
-    private string? _cacheStatusInitializedBookId;
-    private int _synchronizedChapterCatalogVersion = -1;
-    private readonly HashSet<int> _explicitCacheStatusRequests = [];
 
     public PlayerViewModel(
         IPlaybackSession playbackCoordinator,
@@ -75,42 +62,39 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     {
         _playbackCoordinator = playbackCoordinator;
         _stopTimer = stopTimer ?? throw new ArgumentNullException(nameof(stopTimer));
-        _activeCacheCoordinator = activeCacheCoordinator;
-        _cacheWorkspaceService = cacheWorkspaceService;
-        _settingsService = settingsService;
         _feedbackService = feedbackService;
         _miniPlayerLauncher = miniPlayerLauncher ?? throw new ArgumentNullException(nameof(miniPlayerLauncher));
         _timeProvider = timeProvider ?? TimeProvider.System;
         _navigator = navigator;
-        _autoScrollCoordinator = autoScrollCoordinator;
         _uiScheduler = uiScheduler ?? new WpfUiScheduler();
-        _contentProjection = new PlayerContentProjection(bookPlaybackContentService, _uiScheduler);
-        _snapshotProjection = new PlayerSnapshotProjection();
-        _rulesAndSpeedController = new PlayerRulesAndSpeedController(
+        _contentController = new PlayerContentController(bookPlaybackContentService, _uiScheduler);
+        _playbackProjection = new PlayerPlaybackProjection();
+        _speechControlController = new PlayerSpeechControlController(
             playbackCoordinator,
             ruleQueries,
             settingsService,
             feedbackService,
             _timeProvider);
-        _activeCacheSelection = new PlayerActiveCacheSelectionController(_activeCacheCoordinator);
-        _activeCacheSelection.StateChanged += OnActiveCacheSelectionStateChanged;
-        _cacheStatusRefresh = new ChapterCacheStatusRefreshController(
-            _cacheWorkspaceService,
+        _cacheDecorationController = new PlayerCacheDecorationController(
+            activeCacheCoordinator,
+            cacheWorkspaceService,
+            settingsService,
+            _contentController,
             _uiScheduler,
-            ApplyChapterCacheStatuses,
-            exception => ReportViewOperationFailure("刷新章节缓存进度失败", exception));
-        _lastAppliedAutoScrollState = _autoScrollCoordinator.State;
+            ReportViewOperationFailure);
+        _cacheDecorationController.StateChanged += OnCacheDecorationStateChanged;
+        _interactionController = new PlayerInteractionController(playbackCoordinator, autoScrollCoordinator);
+        _interactionController.StateChanged += OnInteractionStateChanged;
 
-        ApplyAutoScrollState();
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
         ApplyStopTimerSnapshot(_stopTimer.CurrentSnapshot);
     }
 
     public ObservableCollection<PlayerRuleItemViewModel> Rules => _rules;
 
-    public ObservableCollection<PlayerChapterItemViewModel> Chapters => _contentProjection.Chapters;
+    public ObservableCollection<PlayerChapterItemViewModel> Chapters => _contentController.Chapters;
 
-    public ObservableCollection<PlayerSegmentItemViewModel> Segments => _contentProjection.Segments;
+    public ObservableCollection<PlayerSegmentItemViewModel> Segments => _contentController.Segments;
 
     public bool HasRules => Rules.Count > 0;
 
@@ -129,17 +113,17 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     public bool CanIncreaseSpeakSpeed => SpeakSpeed < AppSettings.MaxSpeakSpeed;
 
-    public bool IsActiveCacheSelectionMode => _activeCacheSelection.IsSelectionMode;
+    public bool IsActiveCacheSelectionMode => _cacheDecorationController.IsSelectionMode;
 
-    public int SelectedActiveCacheChapterCount => _activeCacheSelection.SelectedChapterCount;
+    public int SelectedActiveCacheChapterCount => _cacheDecorationController.SelectedChapterCount;
 
-    public string ActiveCacheSelectionSummary => _activeCacheSelection.SelectionSummary;
+    public string ActiveCacheSelectionSummary => _cacheDecorationController.SelectionSummary;
 
-    public string ActiveCacheStatusText => _activeCacheSelection.StatusText;
+    public string ActiveCacheStatusText => _cacheDecorationController.StatusText;
 
-    public bool HasActiveCacheBatch => _activeCacheSelection.HasActiveBatch;
+    public bool HasActiveCacheBatch => _cacheDecorationController.HasActiveBatch;
 
-    public bool CanStartActiveCache => _activeCacheSelection.CanStart;
+    public bool CanStartActiveCache => _cacheDecorationController.CanStart;
 
     public bool CanScheduleStopTimer =>
         !string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId) &&
@@ -167,9 +151,9 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             IsSegmentProgressDragging ? (int)Math.Round(SegmentProgressPreviewValue) : CurrentSegmentIndex,
             CurrentChapterSegmentCount);
 
-    public PlayerAutoScrollState AutoScrollState => _autoScrollCoordinator.State;
+    public PlayerAutoScrollState AutoScrollState => _interactionController.AutoScrollState;
 
-    public bool ShouldAutoCenterCurrentSegment => _autoScrollCoordinator.ShouldAutoCenter;
+    public bool ShouldAutoCenterCurrentSegment => _interactionController.ShouldAutoCenterCurrentSegment;
 
     public bool ShowInlineLoadingState => CurrentPlaybackState is PlaybackState.Preparing or PlaybackState.Buffering or PlaybackState.Recovering;
 
@@ -183,9 +167,9 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     public double SegmentProgressMaximum => Math.Max(CurrentChapterSegmentCount - 1, 0);
 
-    public int SegmentCenterRequestVersion => _segmentCenterRequestVersion;
+    public int SegmentCenterRequestVersion => _interactionController.SegmentCenterRequestVersion;
 
-    public bool AnimateNextSegmentCenterRequest => _animateNextSegmentCenterRequest;
+    public bool AnimateNextSegmentCenterRequest => _interactionController.AnimateNextSegmentCenterRequest;
 
     [ObservableProperty]
     private string currentTitle = "未打开书籍";
@@ -274,8 +258,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     [ObservableProperty]
     private PlayerSegmentItemViewModel? currentSegmentItem;
 
-    [ObservableProperty]
-    private bool showReturnToCurrentSegment;
+    public bool ShowReturnToCurrentSegment => _interactionController.ShowReturnToCurrentSegment;
 
     [ObservableProperty]
     private double segmentProgressValue;
@@ -292,12 +275,12 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        _rulesAndSpeedController.RefreshDefaultSpeakSpeed();
+        _speechControlController.RefreshDefaultSpeakSpeed();
 
         if (string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId) ||
             !AppSettings.IsValidSpeakSpeed(_playbackCoordinator.CurrentSnapshot.SpeakSpeed))
         {
-            SpeakSpeed = _rulesAndSpeedController.DefaultSpeakSpeed;
+            SpeakSpeed = _speechControlController.DefaultSpeakSpeed;
         }
 
         await RefreshRulesAsync(cancellationToken);
@@ -310,9 +293,9 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         ArgumentNullException.ThrowIfNull(request);
 
         _requestedBookId = request.BookId;
-        _activeCacheSelection.ExitSelectionMode();
+        _cacheDecorationController.ExitSelectionMode();
         CloseTransientPanels();
-        ResumeAutoCenterForExplicitNavigation();
+        _interactionController.ResumeAutoCenterForExplicitNavigation();
 
         var book = await EnsureBookLoadedAsync(request.BookId, cancellationToken);
         if (book is null)
@@ -376,7 +359,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
             if (previousChapterIndex != snapshot.ChapterIndex)
             {
-                QueueCacheStatusRefresh(chapterIndex: null);
+                _cacheDecorationController.RequestStatusRefresh(chapterIndex: null);
             }
             return;
         }
@@ -412,13 +395,12 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     {
         Interlocked.Increment(ref _pageEventGeneration);
         _pageEventCancellation.Cancel();
-        _contentProjection.InvalidatePendingLoads();
+        _contentController.InvalidatePendingLoads();
         StopStopTimerDisplayTimer();
-        _cacheStatusRefresh.Deactivate();
-        _rulesAndSpeedController.CancelPendingSpeakSpeedChange();
+        _cacheDecorationController.Deactivate();
+        _speechControlController.CancelPendingSpeakSpeedChange();
         CloseTransientPanels();
-        _autoScrollCoordinator.ResetForPageLeave();
-        _activeCacheSelection.ExitSelectionMode();
+        _interactionController.Deactivate();
         if (!_isPageEventsRegistered)
         {
             return;
@@ -426,10 +408,6 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
         _playbackCoordinator.SnapshotChanged -= OnSnapshotChanged;
         _stopTimer.SnapshotChanged -= OnStopTimerSnapshotChanged;
-        _activeCacheCoordinator.SnapshotChanged -= OnActiveCacheSnapshotChanged;
-        _cacheWorkspaceService.Changed -= OnCacheChanged;
-        _settingsService.Changed -= OnSettingsChanged;
-        _autoScrollCoordinator.StateChanged -= OnAutoScrollStateChanged;
         _isPageEventsRegistered = false;
     }
 
@@ -438,15 +416,15 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         Interlocked.Increment(ref _pageEventGeneration);
         _pageEventCancellation.Dispose();
         _pageEventCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _cacheStatusRefresh.Activate(_pageEventCancellation.Token);
+        _cacheDecorationController.Activate(_pageEventCancellation.Token);
+        _interactionController.Activate();
         RegisterPageEvents();
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
+        _cacheDecorationController.RequestStatusRefresh(chapterIndex: null);
         var stopTimerSnapshot = _stopTimer.CurrentSnapshot;
         ApplyStopTimerSnapshot(stopTimerSnapshot);
         RefreshStopTimerDisplay();
         UpdateStopTimerDisplayTimer(stopTimerSnapshot.IsActive);
-        _activeCacheSelection.ApplySnapshot(_activeCacheCoordinator.CurrentSnapshot);
-        QueueCacheStatusRefresh(chapterIndex: null);
     }
 
     private void RegisterPageEvents()
@@ -458,41 +436,37 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
         _playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
         _stopTimer.SnapshotChanged += OnStopTimerSnapshotChanged;
-        _activeCacheCoordinator.SnapshotChanged += OnActiveCacheSnapshotChanged;
-        _cacheWorkspaceService.Changed += OnCacheChanged;
-        _settingsService.Changed += OnSettingsChanged;
-        _autoScrollCoordinator.StateChanged += OnAutoScrollStateChanged;
         _isPageEventsRegistered = true;
     }
 
     public void NotifyUserScrollInput()
     {
-        _autoScrollCoordinator.NotifyUserScrollInput();
+        _interactionController.NotifyUserScrollInput();
     }
 
     public void NotifyPassiveSegmentScrollChange()
     {
-        _autoScrollCoordinator.NotifyPassiveScrollChange();
+        _interactionController.NotifyPassiveSegmentScrollChange();
     }
 
     public void NotifyScrollbarDragStarted()
     {
-        _autoScrollCoordinator.BeginScrollbarDrag();
+        _interactionController.NotifyScrollbarDragStarted();
     }
 
     public void NotifyScrollbarDragCompleted()
     {
-        _autoScrollCoordinator.EndScrollbarDrag();
+        _interactionController.NotifyScrollbarDragCompleted();
     }
 
     public void NotifyProgrammaticScrollStarted()
     {
-        _autoScrollCoordinator.BeginProgrammaticScroll();
+        _interactionController.NotifyProgrammaticScrollStarted();
     }
 
     public void NotifyProgrammaticScrollCompleted()
     {
-        _autoScrollCoordinator.EndProgrammaticScroll();
+        _interactionController.NotifyProgrammaticScrollCompleted();
     }
 
     public void BeginSegmentProgressInteraction()
@@ -534,12 +508,14 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         if (targetSegmentIndex == CurrentSegmentIndex)
         {
             SegmentProgressValue = targetSegmentIndex;
-            ResumeAutoCenterAndRequest(animate: true);
+            _interactionController.ResumeAutoCenterAndRequest(animate: true);
             return;
         }
 
-        ResumeAutoCenterForExplicitNavigation();
-        await _playbackCoordinator.JumpToSegmentAsync(CurrentChapterIndex, targetSegmentIndex, cancellationToken);
+        await _interactionController.JumpToSegmentAsync(
+            CurrentChapterIndex,
+            targetSegmentIndex,
+            cancellationToken);
     }
 
     public void CancelSegmentProgressInteraction()
@@ -695,7 +671,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         }
 
         var snapshot = _playbackCoordinator.CurrentSnapshot;
-        var bookId = snapshot.BookId ?? _requestedBookId ?? _contentProjection.LoadedBook?.BookId;
+        var bookId = snapshot.BookId ?? _requestedBookId ?? _contentController.LoadedBook?.BookId;
         if (string.IsNullOrWhiteSpace(bookId))
         {
             return;
@@ -714,29 +690,25 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task PreviousSegmentAsync(CancellationToken cancellationToken)
     {
-        ResumeAutoCenterForExplicitNavigation();
-        await _playbackCoordinator.PreviousSegmentAsync(cancellationToken);
+        await _interactionController.PreviousSegmentAsync(cancellationToken);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task NextSegmentAsync(CancellationToken cancellationToken)
     {
-        ResumeAutoCenterForExplicitNavigation();
-        await _playbackCoordinator.NextSegmentAsync(cancellationToken);
+        await _interactionController.NextSegmentAsync(cancellationToken);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task PreviousChapterAsync(CancellationToken cancellationToken)
     {
-        ResumeAutoCenterForExplicitNavigation();
-        await _playbackCoordinator.PreviousChapterAsync(cancellationToken);
+        await _interactionController.PreviousChapterAsync(cancellationToken);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task NextChapterAsync(CancellationToken cancellationToken)
     {
-        ResumeAutoCenterForExplicitNavigation();
-        await _playbackCoordinator.NextChapterAsync(cancellationToken);
+        await _interactionController.NextChapterAsync(cancellationToken);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -747,7 +719,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             return;
         }
 
-        await _rulesAndSpeedController.ChangeRuleAsync(rule.Id, cancellationToken);
+        await _speechControlController.ChangeRuleAsync(rule.Id, cancellationToken);
         await RefreshRulesAsync(cancellationToken);
         IsRuleMenuOpen = false;
     }
@@ -761,8 +733,8 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     internal async Task CommitSpeakSpeedAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        _rulesAndSpeedController.CancelPendingSpeakSpeedChange();
-        if (!_rulesAndSpeedController.TryParseSpeakSpeed(
+        _speechControlController.CancelPendingSpeakSpeedChange();
+        if (!_speechControlController.TryParseSpeakSpeed(
                 SpeedEditorText,
                 out var parsedSpeed,
                 out var errorText))
@@ -778,7 +750,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     [RelayCommand]
     private void IncreaseSpeakSpeed()
     {
-        var currentSpeed = _rulesAndSpeedController.ResolvePendingSpeakSpeed(SpeedEditorText, SpeakSpeed);
+        var currentSpeed = _speechControlController.ResolvePendingSpeakSpeed(SpeedEditorText, SpeakSpeed);
         var nextSpeed = Math.Min(currentSpeed + 1, AppSettings.MaxSpeakSpeed);
         if (nextSpeed == currentSpeed)
         {
@@ -788,13 +760,13 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         SpeedEditorText = nextSpeed.ToString(CultureInfo.InvariantCulture);
         SpeedEditorErrorText = string.Empty;
         SpeakSpeed = nextSpeed;
-        _rulesAndSpeedController.ScheduleSpeakSpeedChange(nextSpeed);
+        _speechControlController.ScheduleSpeakSpeedChange(nextSpeed);
     }
 
     [RelayCommand]
     private void DecreaseSpeakSpeed()
     {
-        var currentSpeed = _rulesAndSpeedController.ResolvePendingSpeakSpeed(SpeedEditorText, SpeakSpeed);
+        var currentSpeed = _speechControlController.ResolvePendingSpeakSpeed(SpeedEditorText, SpeakSpeed);
         var nextSpeed = Math.Max(currentSpeed - 1, AppSettings.MinSpeakSpeed);
         if (nextSpeed == currentSpeed)
         {
@@ -804,7 +776,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         SpeedEditorText = nextSpeed.ToString(CultureInfo.InvariantCulture);
         SpeedEditorErrorText = string.Empty;
         SpeakSpeed = nextSpeed;
-        _rulesAndSpeedController.ScheduleSpeakSpeedChange(nextSpeed);
+        _speechControlController.ScheduleSpeakSpeedChange(nextSpeed);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -823,85 +795,46 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             return;
         }
 
-        if (_activeCacheSelection.HandleChapterClick(chapter.ChapterIndex, modifiers))
+        if (_cacheDecorationController.HandleChapterClick(chapter.ChapterIndex, modifiers))
         {
             return;
         }
 
         if (chapter.ChapterIndex == CurrentChapterIndex)
         {
-            ResumeAutoCenterAndRequest(animate: true);
+            _interactionController.ResumeAutoCenterAndRequest(animate: true);
             return;
         }
 
-        ResumeAutoCenterForExplicitNavigation();
-        await _playbackCoordinator.JumpToChapterAsync(chapter.ChapterIndex, cancellationToken);
+        await _interactionController.JumpToChapterAsync(chapter.ChapterIndex, cancellationToken);
     }
 
-    internal void RequestCacheDecorationWindow(int start, int count)
-    {
-        if (count <= 0)
-        {
-            return;
-        }
-
-        void Request()
-        {
-            if (!_isPageEventsRegistered ||
-                _pageEventCancellation.IsCancellationRequested ||
-                _contentProjection.LoadedBook is not { BookId: { Length: > 0 } bookId } ||
-                _contentProjection.ChapterIndices.Count == 0)
-            {
-                return;
-            }
-
-            var chapterIndices = _contentProjection.GetChapterIndices(
-                Math.Clamp(start, 0, _contentProjection.ChapterIndices.Count - 1),
-                count);
-            if (chapterIndices.Count == 0)
-            {
-                return;
-            }
-
-            _contentProjection.SetCacheDecorationWindow(chapterIndices);
-            _cacheStatusRefresh.Request(bookId, chapterIndices);
-        }
-
-        if (!_uiScheduler.CheckAccess())
-        {
-            _pageTasks.Register(
-                _uiScheduler.InvokeAsync(Request, _pageEventCancellation.Token),
-                exception => ReportViewOperationFailure("刷新章节缓存进度失败", exception));
-            return;
-        }
-
-        Request();
-    }
+    internal void RequestCacheDecorationWindow(int start, int count) =>
+        _cacheDecorationController.RequestDecorationWindow(start, count);
 
     [RelayCommand]
     private void EnterActiveCacheSelection()
     {
         CloseTransientPanels();
-        _activeCacheSelection.ApplySnapshot(_activeCacheCoordinator.CurrentSnapshot);
-        _activeCacheSelection.EnterSelectionMode();
+        _cacheDecorationController.EnterSelectionMode();
     }
 
     [RelayCommand]
     private void CancelActiveCacheSelection()
     {
-        _activeCacheSelection.ExitSelectionMode();
+        _cacheDecorationController.ExitSelectionMode();
     }
 
     [RelayCommand]
     private void SelectAllActiveCacheChapters()
     {
-        _activeCacheSelection.SelectAll();
+        _cacheDecorationController.SelectAll();
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task StartActiveCacheAsync(CancellationToken cancellationToken)
     {
-        var bookId = _contentProjection.LoadedBook?.BookId ??
+        var bookId = _contentController.LoadedBook?.BookId ??
                      _playbackCoordinator.CurrentSnapshot.BookId ??
                      _requestedBookId;
         if (string.IsNullOrWhiteSpace(bookId))
@@ -909,10 +842,10 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             return;
         }
 
-        await _activeCacheSelection.StartAsync(bookId, SpeakSpeed, cancellationToken);
+        await _cacheDecorationController.StartAsync(bookId, SpeakSpeed, cancellationToken);
     }
 
-    public bool HandleActiveCacheEscape() => _activeCacheSelection.ExitSelectionMode();
+    public bool HandleActiveCacheEscape() => _cacheDecorationController.TryExitSelectionMode();
 
     public bool TryHandleEscape()
     {
@@ -943,7 +876,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             return false;
         }
 
-        _activeCacheSelection.SelectAll();
+        _cacheDecorationController.SelectAll();
         return true;
     }
 
@@ -957,18 +890,20 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
         if (segment.ChapterIndex == CurrentChapterIndex && segment.SegmentIndex == CurrentSegmentIndex)
         {
-            ResumeAutoCenterAndRequest(animate: true);
+            _interactionController.ResumeAutoCenterAndRequest(animate: true);
             return;
         }
 
-        ResumeAutoCenterForExplicitNavigation();
-        await _playbackCoordinator.JumpToSegmentAsync(segment.ChapterIndex, segment.SegmentIndex, cancellationToken);
+        await _interactionController.JumpToSegmentAsync(
+            segment.ChapterIndex,
+            segment.SegmentIndex,
+            cancellationToken);
     }
 
     [RelayCommand]
     private void ReturnToCurrentSegment()
     {
-        ResumeAutoCenterAndRequest(animate: false);
+        _interactionController.ResumeAutoCenterAndRequest(animate: false);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -1106,86 +1041,9 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         ApplyStopTimerSnapshot(snapshot);
     }
 
-    private void OnActiveCacheSnapshotChanged(object? sender, ActiveCacheSnapshot snapshot)
+    private void OnCacheDecorationStateChanged(object? sender, EventArgs eventArgs)
     {
-        if (!_isPageEventsRegistered)
-        {
-            return;
-        }
-
-        var pageEventGeneration = Volatile.Read(ref _pageEventGeneration);
-        if (!_uiScheduler.CheckAccess())
-        {
-            _pageTasks.Register(
-                _uiScheduler.InvokeAsync(
-                    () =>
-                    {
-                        if (IsCurrentPageEvent(pageEventGeneration))
-                        {
-                            _activeCacheSelection.ApplySnapshot(snapshot);
-                        }
-                    },
-                    _pageEventCancellation.Token),
-                exception => ReportViewOperationFailure("更新主动缓存状态失败", exception));
-            return;
-        }
-
-        if (IsCurrentPageEvent(pageEventGeneration))
-        {
-            _activeCacheSelection.ApplySnapshot(snapshot);
-        }
-    }
-
-    private void OnCacheChanged(object? sender, CacheChangedEventArgs eventArgs)
-    {
-        var loadedBookId = _contentProjection.LoadedBook?.BookId;
-        if (string.IsNullOrWhiteSpace(loadedBookId) ||
-            (!string.IsNullOrWhiteSpace(eventArgs.BookId) &&
-             !string.Equals(eventArgs.BookId, loadedBookId, StringComparison.Ordinal)))
-        {
-            return;
-        }
-
-        ScheduleCacheStatusRefresh(eventArgs.ChapterIndex);
-    }
-
-    private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs eventArgs)
-    {
-        if (eventArgs.Previous.DefaultSpeakSpeed == eventArgs.Current.DefaultSpeakSpeed &&
-            eventArgs.Previous.SelectedTtsRuleId == eventArgs.Current.SelectedTtsRuleId &&
-            eventArgs.Previous.EnableLongParagraphSplitting == eventArgs.Current.EnableLongParagraphSplitting &&
-            eventArgs.Previous.LongParagraphThreshold == eventArgs.Current.LongParagraphThreshold &&
-            eventArgs.Previous.ReadChapterTitle == eventArgs.Current.ReadChapterTitle)
-        {
-            return;
-        }
-
-        ScheduleCacheStatusRefresh(chapterIndex: null);
-    }
-
-    private void OnActiveCacheSelectionStateChanged(object? sender, EventArgs e)
-    {
-        var replacements = new List<(int ChapterIndex, bool IsSelected)>(
-            _activeCacheSelection.ChangedChapterIndices.Count);
-        foreach (var chapterIndex in _activeCacheSelection.ChangedChapterIndices)
-        {
-            replacements.Add((chapterIndex, _activeCacheSelection.IsSelected(chapterIndex)));
-        }
-
-        if (replacements.Count > SelectionDecorationResetThreshold)
-        {
-            _contentProjection.ApplyChapterSelections(replacements, notify: false);
-            _contentProjection.NotifyChapterReset();
-        }
-        else
-        {
-            foreach (var (chapterIndex, isSelected) in replacements)
-            {
-                _contentProjection.ApplyChapterSelection(chapterIndex, isSelected);
-            }
-        }
-
-        CurrentChapterItem = _contentProjection.CurrentChapterItem;
+        CurrentChapterItem = _contentController.CurrentChapterItem;
 
         OnPropertyChanged(nameof(IsActiveCacheSelectionMode));
         OnPropertyChanged(nameof(SelectedActiveCacheChapterCount));
@@ -1195,7 +1053,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         OnPropertyChanged(nameof(CanStartActiveCache));
     }
 
-    private void OnAutoScrollStateChanged(object? sender, EventArgs e)
+    private void OnInteractionStateChanged(object? sender, PlayerInteractionStateChangedEventArgs eventArgs)
     {
         if (!_isPageEventsRegistered)
         {
@@ -1211,7 +1069,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
                     {
                         if (IsCurrentPageEvent(pageEventGeneration))
                         {
-                            ApplyAutoScrollState();
+                            NotifyInteractionStateChanged(eventArgs);
                         }
                     },
                     _pageEventCancellation.Token),
@@ -1221,7 +1079,23 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
         if (IsCurrentPageEvent(pageEventGeneration))
         {
-            ApplyAutoScrollState();
+            NotifyInteractionStateChanged(eventArgs);
+        }
+    }
+
+    private void NotifyInteractionStateChanged(PlayerInteractionStateChangedEventArgs eventArgs)
+    {
+        if (eventArgs.ScrollStateChanged)
+        {
+            OnPropertyChanged(nameof(AutoScrollState));
+            OnPropertyChanged(nameof(ShouldAutoCenterCurrentSegment));
+            OnPropertyChanged(nameof(ShowReturnToCurrentSegment));
+        }
+
+        if (eventArgs.CenterRequestChanged)
+        {
+            OnPropertyChanged(nameof(AnimateNextSegmentCenterRequest));
+            OnPropertyChanged(nameof(SegmentCenterRequestVersion));
         }
     }
 
@@ -1253,21 +1127,17 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             if (previousSnapshot.ChapterIndex != snapshot.ChapterIndex &&
                 string.Equals(previousSnapshot.BookId, snapshot.BookId, StringComparison.Ordinal))
             {
-                QueueCacheStatusRefresh(chapterIndex: null);
+                _cacheDecorationController.RequestStatusRefresh(chapterIndex: null);
             }
 
             if (previousSnapshot.RuleId != snapshot.RuleId ||
                 previousSnapshot.SpeakSpeed != snapshot.SpeakSpeed ||
                 previousSnapshot.ContentRevision != snapshot.ContentRevision)
             {
-                QueueCacheStatusRefresh(chapterIndex: null);
+                _cacheDecorationController.RequestStatusRefresh(chapterIndex: null);
             }
 
-            if (_autoScrollCoordinator.ShouldAutoCenter &&
-                ShouldAnimateCenteringForSnapshotUpdate(previousSnapshot, snapshot))
-            {
-                RequestCurrentSegmentCentering(animate: true);
-            }
+            _interactionController.ApplySnapshotTransition(previousSnapshot, snapshot);
         }
         catch (OperationCanceledException)
         {
@@ -1276,7 +1146,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     private async Task RefreshRulesAsync(CancellationToken cancellationToken)
     {
-        var rules = await _rulesAndSpeedController.LoadRulesAsync(cancellationToken);
+        var rules = await _speechControlController.LoadRulesAsync(cancellationToken);
         _rules.ReplaceWith(rules, static rule => rule);
         ApplyRuleSelection(_playbackCoordinator.CurrentSnapshot.RuleId);
         OnPropertyChanged(nameof(HasRules));
@@ -1292,7 +1162,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             return;
         }
 
-        await _contentProjection.EnsureContentLoadedAsync(snapshot, cancellationToken);
+        await _contentController.EnsureContentLoadedAsync(snapshot, cancellationToken);
         if (expectedPageEventGeneration is int completedGeneration &&
             !IsCurrentPageEvent(completedGeneration))
         {
@@ -1300,110 +1170,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         }
 
         SynchronizeContentProjection(includeChapterTitle: true);
-        if (_contentProjection.LoadedBook is { BookId: { Length: > 0 } bookId } &&
-            !string.Equals(_cacheStatusInitializedBookId, bookId, StringComparison.Ordinal))
-        {
-            _cacheStatusInitializedBookId = bookId;
-            QueueCacheStatusRefresh(chapterIndex: null);
-        }
-    }
-
-    private void ScheduleCacheStatusRefresh(int? chapterIndex)
-    {
-        if (!_uiScheduler.CheckAccess())
-        {
-            _pageTasks.Register(
-                _uiScheduler.InvokeAsync(() => QueueCacheStatusRefresh(chapterIndex), _pageEventCancellation.Token),
-                exception => ReportViewOperationFailure("刷新章节缓存进度失败", exception));
-            return;
-        }
-
-        QueueCacheStatusRefresh(chapterIndex);
-    }
-
-    private void QueueCacheStatusRefresh(int? chapterIndex)
-    {
-        if (!_isPageEventsRegistered ||
-            _pageEventCancellation.IsCancellationRequested ||
-            _contentProjection.LoadedBook is not { BookId: { Length: > 0 } bookId })
-        {
-            return;
-        }
-
-        var chapterIndices = chapterIndex is null
-            ? GetCacheDecorationWindow()
-            : _contentProjection.GetChapterPosition(chapterIndex.Value) is not null
-                ? new[] { chapterIndex.Value }
-                : Array.Empty<int>();
-
-        if (chapterIndex is null)
-        {
-            _contentProjection.SetCacheDecorationWindow(chapterIndices);
-        }
-        else if (chapterIndices.Count > 0)
-        {
-            _explicitCacheStatusRequests.Add(chapterIndex.Value);
-        }
-
-        _cacheStatusRefresh.Request(bookId, chapterIndices.ToArray());
-    }
-
-    private IReadOnlyList<int> GetCacheDecorationWindow()
-    {
-        if (_contentProjection.ChapterIndices.Count == 0)
-        {
-            return [];
-        }
-
-        var currentPosition = _contentProjection.GetChapterPosition(CurrentChapterIndex);
-        if (currentPosition is null)
-        {
-            return _contentProjection.GetChapterIndices(0, CacheDecorationWindowSize);
-        }
-
-        var start = Math.Max(0, currentPosition.Value - (CacheDecorationWindowSize / 4));
-        return _contentProjection.GetChapterIndices(start, CacheDecorationWindowSize);
-    }
-
-    private void ApplyChapterCacheStatuses(
-        string bookId,
-        IReadOnlyCollection<int> requestedChapterIndices,
-        IReadOnlyCollection<ChapterCacheStatus> statuses)
-    {
-        if (!_isPageEventsRegistered ||
-            !string.Equals(_contentProjection.LoadedBook?.BookId, bookId, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        var statusesByChapter = statuses.ToDictionary(static status => status.ChapterIndex);
-        foreach (var chapterIndex in requestedChapterIndices)
-        {
-            if (!_contentProjection.IsChapterCacheDecorationRequested(chapterIndex) &&
-                !_explicitCacheStatusRequests.Contains(chapterIndex))
-            {
-                continue;
-            }
-
-            if (statusesByChapter.TryGetValue(chapterIndex, out var status))
-            {
-                _contentProjection.ApplyChapterCacheStatus(
-                    chapterIndex,
-                    status.CachedSegmentCount,
-                    status.TotalSegmentCount);
-            }
-            else
-            {
-                _contentProjection.ApplyChapterCacheStatus(
-                    chapterIndex,
-                    0,
-                    totalSegmentCount: null);
-            }
-
-            _explicitCacheStatusRequests.Remove(chapterIndex);
-        }
-
-        CurrentChapterItem = _contentProjection.CurrentChapterItem;
+        _cacheDecorationController.EnsureBookInitialized();
     }
 
     private bool IsCurrentPageEvent(int generation) =>
@@ -1413,7 +1180,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     private async Task<PlaybackBookContent?> EnsureBookLoadedAsync(string bookId, CancellationToken cancellationToken)
     {
-        var book = await _contentProjection.EnsureBookLoadedAsync(
+        var book = await _contentController.EnsureBookLoadedAsync(
             bookId,
             CurrentChapterIndex,
             CurrentSegmentIndex,
@@ -1437,12 +1204,12 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     private void ApplySnapshot(PlaybackSnapshot snapshot)
     {
-        _contentProjection.ApplyPosition(snapshot.ChapterIndex, snapshot.SegmentIndex, snapshot.SegmentCount);
-        var projected = _snapshotProjection.Project(
+        _contentController.ApplyPosition(snapshot.ChapterIndex, snapshot.SegmentIndex, snapshot.SegmentCount);
+        var projected = _playbackProjection.Project(
             snapshot,
-            _contentProjection.LoadedBook,
-            _contentProjection.ResolveChapterTitle(snapshot.ChapterIndex),
-            _rulesAndSpeedController.DefaultSpeakSpeed);
+            _contentController.LoadedBook,
+            _contentController.ResolveChapterTitle(snapshot.ChapterIndex),
+            _speechControlController.DefaultSpeakSpeed);
 
         CurrentPlaybackState = projected.PlaybackState;
         CurrentTitle = projected.Title;
@@ -1464,6 +1231,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         Volume = PlaybackVolume.Normalize(snapshot.Volume);
 
         CurrentChapterIndex = projected.ChapterIndex;
+        _cacheDecorationController.SetCurrentChapterIndex(projected.ChapterIndex);
         CurrentSegmentIndex = projected.SegmentIndex;
         SynchronizeContentProjection(includeChapterTitle: false);
         ApplyRuleSelection(snapshot.RuleId);
@@ -1486,99 +1254,20 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     private void SynchronizeContentProjection(bool includeChapterTitle)
     {
-        if (_synchronizedChapterCatalogVersion != _contentProjection.ChapterCatalogVersion)
+        _cacheDecorationController.SynchronizeCatalog();
+        CurrentChapterItem = _contentController.CurrentChapterItem;
+        CurrentSegmentItem = _contentController.CurrentSegmentItem;
+        CurrentChapterSegmentCount = _contentController.CurrentChapterSegmentCount;
+        IsCurrentChapterContentLoaded = _contentController.IsChapterLoaded(CurrentChapterIndex);
+        if (includeChapterTitle && !string.IsNullOrWhiteSpace(_contentController.CurrentChapterTitle))
         {
-            _activeCacheSelection.SetIndexedItems(
-                _contentProjection.ChapterIndices,
-                _contentProjection.ChapterPositions,
-                resetSelection: true);
-            foreach (var chapterIndex in _activeCacheSelection.SelectedChapterIndices)
-            {
-                if (_contentProjection.TryGetChapterItem(chapterIndex, out _))
-                {
-                    _contentProjection.ApplyChapterSelection(chapterIndex, true);
-                }
-            }
-
-            _synchronizedChapterCatalogVersion = _contentProjection.ChapterCatalogVersion;
+            CurrentChapterTitle = _contentController.CurrentChapterTitle;
         }
 
-        CurrentChapterItem = _contentProjection.CurrentChapterItem;
-        CurrentSegmentItem = _contentProjection.CurrentSegmentItem;
-        CurrentChapterSegmentCount = _contentProjection.CurrentChapterSegmentCount;
-        IsCurrentChapterContentLoaded = _contentProjection.IsChapterLoaded(CurrentChapterIndex);
-        if (includeChapterTitle && !string.IsNullOrWhiteSpace(_contentProjection.CurrentChapterTitle))
-        {
-            CurrentChapterTitle = _contentProjection.CurrentChapterTitle;
-        }
-
-        CanGoToPreviousChapter = _contentProjection.CanGoToPreviousChapter;
-        CanGoToNextChapter = _contentProjection.CanGoToNextChapter;
-        CanGoToPreviousSegment = _contentProjection.CanGoToPreviousSegment;
-        CanGoToNextSegment = _contentProjection.CanGoToNextSegment;
-    }
-
-    private void ApplyAutoScrollState()
-    {
-        var currentState = _autoScrollCoordinator.State;
-        ShowReturnToCurrentSegment = _autoScrollCoordinator.ShowReturnToCurrentSegment;
-        OnPropertyChanged(nameof(AutoScrollState));
-        OnPropertyChanged(nameof(ShouldAutoCenterCurrentSegment));
-
-        if (currentState == PlayerAutoScrollState.AutoCentering &&
-            _lastAppliedAutoScrollState != PlayerAutoScrollState.AutoCentering)
-        {
-            if (_suppressNextStateDrivenAutoCenterRequest)
-            {
-                _suppressNextStateDrivenAutoCenterRequest = false;
-            }
-            else
-            {
-                RequestCurrentSegmentCentering(animate: false);
-            }
-        }
-        else if (currentState != PlayerAutoScrollState.AutoCentering)
-        {
-            _suppressNextStateDrivenAutoCenterRequest = false;
-        }
-
-        _lastAppliedAutoScrollState = currentState;
-    }
-
-    private void ResumeAutoCenterAndRequest(bool animate)
-    {
-        ResumeAutoCenterForExplicitNavigation();
-        RequestCurrentSegmentCentering(animate);
-    }
-
-    private void ResumeAutoCenterForExplicitNavigation()
-    {
-        if (_autoScrollCoordinator.State == PlayerAutoScrollState.AutoCentering)
-        {
-            return;
-        }
-
-        _suppressNextStateDrivenAutoCenterRequest = true;
-        _autoScrollCoordinator.ResumeAutoCenter();
-    }
-
-    private void RequestCurrentSegmentCentering(bool animate)
-    {
-        _animateNextSegmentCenterRequest = animate;
-        _segmentCenterRequestVersion++;
-        OnPropertyChanged(nameof(AnimateNextSegmentCenterRequest));
-        OnPropertyChanged(nameof(SegmentCenterRequestVersion));
-    }
-
-    private static bool ShouldAnimateCenteringForSnapshotUpdate(PlaybackSnapshot previousSnapshot, PlaybackSnapshot snapshot)
-    {
-        if (!string.Equals(previousSnapshot.BookId, snapshot.BookId, StringComparison.Ordinal))
-        {
-            return !string.IsNullOrWhiteSpace(snapshot.BookId);
-        }
-
-        return previousSnapshot.ChapterIndex != snapshot.ChapterIndex ||
-               previousSnapshot.SegmentIndex != snapshot.SegmentIndex;
+        CanGoToPreviousChapter = _contentController.CanGoToPreviousChapter;
+        CanGoToNextChapter = _contentController.CanGoToNextChapter;
+        CanGoToPreviousSegment = _contentController.CanGoToPreviousSegment;
+        CanGoToNextSegment = _contentController.CanGoToNextSegment;
     }
 
     private void CloseTransientPanels()
@@ -1699,13 +1388,13 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     private int ResolveSpeakSpeedForOpen()
     {
         return AppSettings.NormalizeSpeakSpeed(
-            SpeakSpeed > 0 ? SpeakSpeed : _rulesAndSpeedController.DefaultSpeakSpeed);
+            SpeakSpeed > 0 ? SpeakSpeed : _speechControlController.DefaultSpeakSpeed);
     }
 
     private async Task ApplySpeakSpeedChangeAsync(int parsedSpeed, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await _rulesAndSpeedController.ApplySpeakSpeedAsync(parsedSpeed, cancellationToken);
+        await _speechControlController.ApplySpeakSpeedAsync(parsedSpeed, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         SpeakSpeed = parsedSpeed;
         SpeedEditorText = parsedSpeed.ToString(System.Globalization.CultureInfo.InvariantCulture);

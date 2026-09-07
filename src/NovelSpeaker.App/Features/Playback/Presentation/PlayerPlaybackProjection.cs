@@ -3,7 +3,7 @@ using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.App.Features.Playback.Presentation;
 
-internal sealed class PlayerSnapshotProjection
+internal sealed class PlayerPlaybackProjection
 {
     public PlayerSnapshotViewState Project(
         PlaybackSnapshot snapshot,

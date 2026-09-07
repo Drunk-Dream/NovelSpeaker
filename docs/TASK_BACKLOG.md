@@ -357,7 +357,7 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 # Phase D：Player Presentation
 
-## [ ] T011（P0）：将 PlayerViewModel 重构为 transient presentation facade
+## [x] T011（P0）：将 PlayerViewModel 重构为 transient presentation facade
 
 依赖：T010。
 
@@ -377,6 +377,8 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 5. 删除旧 VM 中迁走的 event/version/CTS/helper。
 
 测试：Player Presentation tests 按 controller/VM 合同重新分层；允许删除与旧私有结构绑定的测试。
+
+完成成果：PlayerViewModel 保持单一 XAML DataContext 与 transient 生命周期，播放投影、正文加载、语音控制、缓存 decoration/选择和滚动交互已分别收敛到 Feature-local concrete controller；迁走旧 VM 的 cache/scroll event、version、CTS 与 helper，并由架构测试固定 controller 边界。
 
 ## [ ] T012（P0）：迁移 Player 章节目录到 Catalog/Decoration 架构
 

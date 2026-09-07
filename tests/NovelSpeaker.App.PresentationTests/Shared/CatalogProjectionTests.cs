@@ -185,7 +185,7 @@ public sealed class CatalogProjectionTests
             "book-1",
             "测试书",
             [PlaybackChapterContent.Unloaded(0, "第一章")]);
-        var projection = new PlayerContentProjection(new StubPlaybackContentService(book), new InlineUiScheduler());
+        var projection = new PlayerContentController(new StubPlaybackContentService(book), new InlineUiScheduler());
 
         await projection.EnsureBookLoadedAsync("book-1", 0, 0, CancellationToken.None);
         var currentItem = projection.CurrentChapterItem;
@@ -206,7 +206,7 @@ public sealed class CatalogProjectionTests
                 PlaybackChapterContent.Unloaded(0, "第一章"),
                 PlaybackChapterContent.Unloaded(1, "第二章")
             ]);
-        var projection = new PlayerContentProjection(new StubPlaybackContentService(book), new InlineUiScheduler());
+        var projection = new PlayerContentController(new StubPlaybackContentService(book), new InlineUiScheduler());
 
         await projection.EnsureBookLoadedAsync("book-1", 0, 0, CancellationToken.None);
 
@@ -230,7 +230,7 @@ public sealed class CatalogProjectionTests
             Enumerable.Range(0, 10_000)
                 .Select(static index => PlaybackChapterContent.Unloaded(index, $"第 {index + 1} 章"))
                 .ToArray());
-        var projection = new PlayerContentProjection(new StubPlaybackContentService(book), new InlineUiScheduler());
+        var projection = new PlayerContentController(new StubPlaybackContentService(book), new InlineUiScheduler());
         var changes = new List<NotifyCollectionChangedAction>();
         projection.Chapters.CollectionChanged += (_, args) => changes.Add(args.Action);
 
@@ -252,7 +252,7 @@ public sealed class CatalogProjectionTests
             Enumerable.Range(0, 10_000)
                 .Select(static index => PlaybackChapterContent.Unloaded(index, $"第 {index + 1} 章"))
                 .ToArray());
-        var projection = new PlayerContentProjection(new StubPlaybackContentService(book), new InlineUiScheduler());
+        var projection = new PlayerContentController(new StubPlaybackContentService(book), new InlineUiScheduler());
         await projection.EnsureBookLoadedAsync("book-1", 0, 0, CancellationToken.None);
 
         var changes = new List<NotifyCollectionChangedAction>();
@@ -276,7 +276,7 @@ public sealed class CatalogProjectionTests
             "测试书",
             [PlaybackChapterContent.Unloaded(0, "第一章")]);
         var service = new DelayedPlaybackContentService();
-        var projection = new PlayerContentProjection(service, new InlineUiScheduler());
+        var projection = new PlayerContentController(service, new InlineUiScheduler());
 
         var bookLoad = projection.EnsureBookLoadedAsync("book-1", 0, 0, CancellationToken.None);
         await service.BookRequested.Task;

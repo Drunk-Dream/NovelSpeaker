@@ -31,21 +31,7 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed partial class PlayerViewTests
 {
     [Fact]
-    public void Player_auto_center_navigation_contracts_cover_restore_and_active_navigation()
-    {
-        PlayerPage_first_navigation_centers_restored_current_segment_after_initial_layout();
-        PlayerView_return_to_current_segment_recenters_instead_of_sticking_to_bottom();
-        PlayerView_next_segment_recenters_after_active_navigation();
-    }
-
-    [Fact]
-    public void Player_auto_center_manual_contracts_cover_browsing_and_animation_cancellation()
-    {
-        PlayerView_manual_browsing_does_not_recenter_when_playback_auto_advances();
-        PlayerView_user_scroll_during_animation_cancels_centering_and_shows_return_button();
-    }
-
-    private void PlayerPage_first_navigation_centers_restored_current_segment_after_initial_layout()
+    public void PlayerPage_first_navigation_centers_restored_current_segment_after_initial_layout()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -142,7 +128,8 @@ public sealed partial class PlayerViewTests
         });
     }
 
-    private void PlayerView_return_to_current_segment_recenters_instead_of_sticking_to_bottom()
+    [Fact]
+    public void PlayerView_return_to_current_segment_recenters_instead_of_sticking_to_bottom()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -185,6 +172,7 @@ public sealed partial class PlayerViewTests
                 new FakeCacheWorkspaceService(),
                 new WpfFakeMiniPlayerLauncher());
 
+            viewModel.OnPageNavigatedTo(CancellationToken.None);
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
                 new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
@@ -236,12 +224,14 @@ public sealed partial class PlayerViewTests
             }
             finally
             {
+                viewModel.OnPageNavigatedFrom();
                 window.Close();
             }
         });
     }
 
-    private void PlayerView_manual_browsing_does_not_recenter_when_playback_auto_advances()
+    [Fact]
+    public void PlayerView_manual_browsing_does_not_recenter_when_playback_auto_advances()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -284,6 +274,7 @@ public sealed partial class PlayerViewTests
                 new FakeCacheWorkspaceService(),
                 new WpfFakeMiniPlayerLauncher());
 
+            viewModel.OnPageNavigatedTo(CancellationToken.None);
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
                 new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
@@ -333,12 +324,14 @@ public sealed partial class PlayerViewTests
             }
             finally
             {
+                viewModel.OnPageNavigatedFrom();
                 window.Close();
             }
         });
     }
 
-    private void PlayerView_user_scroll_during_animation_cancels_centering_and_shows_return_button()
+    [Fact]
+    public void PlayerView_user_scroll_during_animation_cancels_centering_and_shows_return_button()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -381,6 +374,7 @@ public sealed partial class PlayerViewTests
                 new FakeCacheWorkspaceService(),
                 new WpfFakeMiniPlayerLauncher());
 
+            viewModel.OnPageNavigatedTo(CancellationToken.None);
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
                 new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
@@ -428,12 +422,14 @@ public sealed partial class PlayerViewTests
             }
             finally
             {
+                viewModel.OnPageNavigatedFrom();
                 window.Close();
             }
         });
     }
 
-    private void PlayerView_next_segment_recenters_after_active_navigation()
+    [Fact]
+    public void PlayerView_next_segment_recenters_after_active_navigation()
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -481,6 +477,7 @@ public sealed partial class PlayerViewTests
                 new FakeCacheWorkspaceService(),
                 new WpfFakeMiniPlayerLauncher());
 
+            viewModel.OnPageNavigatedTo(CancellationToken.None);
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
                 new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
@@ -552,6 +549,7 @@ public sealed partial class PlayerViewTests
             }
             finally
             {
+                viewModel.OnPageNavigatedFrom();
                 window.Close();
             }
         });

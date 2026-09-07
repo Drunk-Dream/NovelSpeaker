@@ -128,6 +128,8 @@ public sealed partial class PlayerViewModelTests
 
         public int StatusCallCount { get; private set; }
 
+        public IReadOnlyList<int> LastRequestedChapterIndices { get; private set; } = [];
+
         public int SubscriberCount => _changed?.GetInvocationList().Length ?? 0;
 
         public event EventHandler<CacheChangedEventArgs>? Changed
@@ -162,6 +164,7 @@ public sealed partial class PlayerViewModelTests
             CancellationToken cancellationToken)
         {
             StatusCallCount++;
+            LastRequestedChapterIndices = chapterIndices.ToArray();
             return StatusHandler?.Invoke(bookId, chapterIndices, cancellationToken) ??
                    Task.FromResult(Statuses);
         }
