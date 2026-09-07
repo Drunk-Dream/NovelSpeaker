@@ -60,6 +60,7 @@ UI 提交应批量、短小，并与 staged loading/activation 生命周期一�
 - 普通 ViewModel transient。
 - UI state 不依赖 container 长期存在。
 - 标准控件视觉遵守 `07_VISUAL_DESIGN_SYSTEM.md`。
+- container generation/recycling、scroll extent/viewport、标准 virtualization lifecycle 优先交给 WPF 自身；Feature 不建立与框架并行的第二套状态机。
 
 ## 8. 数据与文件
 
@@ -102,4 +103,40 @@ UI 提交应批量、短小，并与 staged loading/activation 生命周期一�
 
 只有依赖确实变化时更新 lock file。
 
+本项目文本文件统一使用 LF。修改已有文本文件时不得无关地转换为 CRLF，也不得仅因换行符导致整文件重写。
+
 完整门禁见 `08_TESTING_AND_QUALITY.md`。
+
+## 14. 成熟能力优先 / Build-vs-Reuse
+
+NovelSpeaker 的默认决策不是“自己实现”，而是先确认已有成熟能力是否已经解决问题。
+
+判断顺序：
+
+1. **平台/标准库**：优先 .NET、Windows、WPF 自带能力。
+2. **当前技术栈**：优先 Wpf.Ui、CommunityToolkit.Mvvm、现有 Infrastructure/Application 能力。
+3. **项目已有组件**：先复用职责清晰且语义匹配的已有实现，不复制第二套。
+4. **成熟外部依赖**：只有现有技术栈存在真实能力缺口，且引入成本可控时再评估。
+5. **自定义实现**：仅在前述方案不能满足已证实需求时采用。
+
+自定义基础设施前必须记录：
+
+- 现有能力具体缺少什么；
+- 这是产品/性能/兼容性的真实要求，还是实现偏好；
+- 为什么适配/组合现有能力不足；
+- 自定义实现新增了哪些 mutable state、线程/Dispatcher、生命周期或资源 ownership；
+- 如何测试和长期维护；
+- 未来何时可以删除并回归标准能力。
+
+特别警惕重复实现以下高复杂度基础设施：
+
+- UI virtualization / item container lifecycle；
+- scroll/viewport/extent 状态机；
+- 通用消息总线；
+- 通用后台任务调度器；
+- DI/service locator；
+- 自定义缓存数据库层替代已有 SQLite 能力；
+- 自定义并发/重试框架；
+- 已有库能够稳定完成的解析、序列化或网络基础设施。
+
+“成熟能力优先”不等于盲目增加第三方依赖。对简单、稳定、领域特有的纯计算或少量 glue code，直接实现通常比引入新库更合适。重点是避免重新承担框架级基础设施的长期维护责任。

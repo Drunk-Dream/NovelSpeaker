@@ -31,12 +31,29 @@
 - “有真实边界才有接口”。
 - Feature-local controller/projector 默认 concrete internal type。
 
+### 成熟能力优先
+
+- 不重新实现平台/框架已经稳定提供的基础设施能力。
+- 优先 .NET/Windows/WPF/Wpf.Ui 和项目已有能力；存在已证实缺口时才评估成熟依赖或自定义实现。
+- 自定义实现必须说明标准能力缺口、ownership、生命周期、测试和长期维护成本。
+- 不以“更可控”为理由复制框架内部状态机；应用只拥有业务/presentation 必需状态。
+
 ### 大列表
 
 - 连续目录目标至少 10,000 章。
 - 用户侧不显式分页。
 - 使用 Immutable Catalog + Sparse Mutable Decoration。
 - WPF virtualization 不替代 data/projection 规模控制。
+- WPF UI virtualization 默认由标准虚拟化控件负责，不由 Feature 自己接管 ItemContainerGenerator/IScrollInfo。
+
+### Library
+
+- 保留响应式多列卡片视觉。
+- 使用轻量 responsive row projection 计算列数、card width 和 row grouping。
+- Row 使用 WPF 标准 `VirtualizingStackPanel` 做 recycling virtualization。
+- Row 内少量 Card 不建立第二套 virtualization。
+- scroll state 使用逻辑 `BookId` anchor + row lookup + 标准 ScrollIntoView/BringIntoView。
+- 删除/避免自定义 container generation、realized-range、extent/viewport/offset 状态机。
 
 ### Query
 
@@ -116,6 +133,7 @@
 - 不用应用级隐式样式接管标准控件。
 - Dialog/Flyout/Popup 使用 Single Surface。
 - 主题切换不通过代码重写标准 ControlTemplate。
+- 标准 WPF 控件已经提供的容器、滚动和虚拟化生命周期由框架负责，应用只做必要的布局/数据投影。
 
 ## 5. 主要架构风险
 
@@ -126,6 +144,10 @@
 ### 大列表
 
 Catalog、collection notification、cache decoration、locator 和 layout 必须一起按规模设计；只调 virtualization 参数不足够。
+
+### 重复实现框架基础设施
+
+Feature 自行接管 WPF container generation、recycling、scroll extent/offset 或类似框架级状态机会显著增加时序、生命周期和维护风险。出现这类实现时，优先重新设计数据/presentation 形状以使用标准框架能力，而不是继续修补内部状态。
 
 ### Page activation
 

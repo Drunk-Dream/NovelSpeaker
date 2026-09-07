@@ -6,6 +6,7 @@
 - 页面结构与视觉样式分离：本文件定义交互/布局/性能合同，视觉 Token 和 Surface 见 `07_VISUAL_DESIGN_SYSTEM.md`。
 - WPF code-behind 只处理控件生命周期、focus、drag/drop、scroll、virtualization、animation 和事件桥接。
 - 业务状态与命令由 ViewModel/Application owner 提供。
+- WPF 已稳定提供的控件生命周期、container generation、scroll/virtualization 机制优先直接使用或轻量组合，不在 Feature 内重建并行框架状态机。
 
 ## 2. 主窗口信息架构
 
@@ -51,6 +52,84 @@ PageHeader、Alt+Left、可用 Esc 使用统一 `NavigateBackAsync`。
 - 大书库的排序/过滤先基于 read model 计算，再批量提交 UI projection。
 - 当前活动书籍只根据 matching PlaybackSnapshot 更新对应卡片，不重新查询整个 library。
 - 卡片不承担 Playback session owner 职责。
+- 冷启动首次进入、空书库后异步导入、页面返回都必须使用同一正常 ItemsSource/布局路径，不依赖二次导航、固定延时或强制刷新才能显示。
+
+### 5.1 响应式 Row Projection
+
+Library 的响应式布局只负责轻量 presentation 计算：
+
+```text
+visible books
+    ↓
+available width
+    ↓
+column count + card width
+    ↓
+row grouping
+```
+
+保持现有视觉约束：
+
+- `MinItemWidth` 约 300；
+- `MaxItemWidth` 约 360；
+- 水平/垂直间距约 16；
+- 不完整的最后一行保持与前面行相同左对齐基线。
+
+实现使用类似 `LibraryBookRowProjection` 的轻量 row model。Row 内只包含少量 Card，不为 Row 内再次建立独立虚拟化系统。
+
+### 5.2 标准 WPF 行级虚拟化
+
+目标 UI 结构：
+
+```text
+standard ItemsControl/ListBox
+└─ VirtualizingStackPanel (Recycling)
+   ├─ Row
+   │  ├─ BookCard
+   │  ├─ BookCard
+   │  └─ BookCard
+   ├─ Row
+   └─ ...
+```
+
+要求：
+
+- outer ItemsControl/ListBox 自己拥有标准 ScrollViewer/scroll contract；
+- 使用 WPF `VirtualizingStackPanel` 对 Row 做 recycling virtualization；
+- 不由 Library Feature 直接调用 `ItemContainerGenerator.GenerateNext/Recycle`；
+- 不自行维护 realized start/count、extent、viewport、offset 等 WPF 内部状态；
+- 不实现与标准 panel 并行的 `IScrollInfo` forwarding/state machine；
+- 10,000 本书时 UI container 数量应主要随 viewport row 数增长，而不是随书籍总数增长。
+
+### 5.3 Scroll State
+
+跨页面保留滚动位置时保存逻辑 anchor，而不是保存自定义虚拟画布状态：
+
+```text
+AnchorBookId
+    ↓
+row projection lookup
+    ↓
+RowIndex
+    ↓
+standard ScrollIntoView / BringIntoView
+```
+
+如需更精确恢复相对顶部偏移，可在目标 Row 已由 WPF realization 后做一次有界相对调整。
+
+禁止：
+
+- 固定 Dispatcher Delay；
+- 多轮无界/高次数 retry；
+- 根据自维护 item height/extent 模拟整张虚拟画布；
+- 为滚动恢复重新接管 WPF generator 生命周期。
+
+resize 导致列数变化时：
+
+- 重新计算 row projection；
+- 保持书籍顺序；
+- 尽量保持当前 `AnchorBookId` 可见；
+- 不保留已经失效的旧 row/container identity。
 
 ## 6. 书籍详情
 
@@ -106,6 +185,20 @@ WPF virtualization 只减少可视 container/layout 成本，不能消除：
 - sort/group/hash。
 
 因此大型页面必须同时控制数据和 presentation 工作量。
+
+UI virtualization 的职责优先交给 WPF 标准虚拟化控件。应用负责：
+
+- 提供轻量、稳定的数据 projection；
+- 提供 O(1)/有界 lookup；
+- 控制批量 notification；
+- 控制 dynamic decoration 范围。
+
+应用不负责重新实现框架本身的：
+
+- item container generator；
+- container recycling protocol；
+- scrolling extent/viewport；
+- layout invalidation state machine。
 
 ## 10. Staged Loading
 
@@ -224,6 +317,8 @@ CacheManagement 额外遵守：
 
 验证：
 
+- Library cold start / async initial projection；
+- Library resize / row regroup / scroll restore；
 - Library → BookDetails；
 - Player → BookDetails；
 - first interactive frame；

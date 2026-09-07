@@ -55,6 +55,8 @@
 12. 临时 instrumentation、trace、dump、截图、benchmark、一次性脚本在任务完成前删除。
 13. 每项任务末尾记录：主要实现、删除的旧实现、测试、ArchitectureTests、无法执行的检查。
 14. Codex 默认只修改自身 `TASK_BACKLOG.md` 完成状态，不整理编号文档。
+15. 本项目所有文本文件统一使用 LF 换行；任务修改不得引入 CRLF，也不得为换行符原因无关地批量重写其它文件。
+16. 实现前先检查 .NET/Windows/WPF/Wpf.Ui、当前依赖和项目已有能力；不得无证据重复实现成熟框架基础设施。只有存在已证实能力缺口时才新增自定义基础设施或第三方依赖。
 
 ---
 
@@ -89,7 +91,7 @@
 验收：
 
 - Architecture tests 可单独运行并稳定通过。
-- 每个临时白名单都能映射到 T002–T019 的明确删除任务。
+- 每个临时白名单都能映射到 T002–T020 的明确删除任务。
 - 无生产行为变化。
 
 完成成果：扩展现有 ArchitectureTests，覆盖层间依赖、Feature 循环、DI 生命周期、Service Locator、ReadingProgress、大列表和 Playback owner 边界；保留精确到文件/类型的 T002、T003、T005 临时债务白名单，并补充 XAML、factory 和控制流合同测试。
@@ -400,11 +402,237 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 ---
 
-# Phase E：Cache
 
-## [ ] T013（P0）：建立 CacheStore/CacheCatalog 与 typed invalidation 边界
+# Phase D.5：Library 标准虚拟化架构收敛
+
+## [ ] T013（P0）：用标准 WPF Row Virtualization 替换 Library 自定义虚拟化状态机
 
 依赖：T012。
+
+目标：从架构根源解决 Library 冷启动首次进入时“Header 已显示 `共 x 本`，但书籍卡片区域为空；切换页面再返回后恢复”的问题，同时删除 Library 对 WPF container generation/scroll virtualization 内部状态的重复实现。最终 Library 必须依赖标准 WPF 虚拟化生命周期，而不是继续修补 `LibraryResponsivePanel` 的 realized/generator 状态。
+
+背景与已知现象：
+
+1. 冷启动默认进入 Library。
+2. 已存在导入书籍时，`LibrarySummaryText` 能正确显示书籍总数，说明 query/catalog 已经获得数据。
+3. 首次页面有时不显示任何书籍卡片。
+4. Library → Settings → Library 后可正常显示。
+5. 曾尝试围绕 `LibraryResponsivePanel` / `ItemContainerGenerator.GenerateNext()` 的首次 realization 状态做局部修复，但出现应用启动后卡死，已回退。
+6. 以上现象说明当前自定义 virtualization/container lifecycle 与 WPF 首次 layout/collection reset/navigation 时序存在过强耦合；本任务不再以“修复某个 realized 字段”为目标。
+
+架构判断：
+
+当前 Library 为了实现“响应式多列卡片 + 虚拟滚动”，自行承担了过多 WPF 基础设施职责，包括：
+
+```text
+LibraryViewModel
+    ↓
+ResettableObservableCollection
+    ↓
+LibraryItemsControl
+    ↓
+LibraryResponsivePanel
+    ↓
+ItemContainerGenerator
+    ↓
+custom realized range
+    ↓
+custom IScrollInfo / extent / viewport / offset
+    ↓
+LibraryScrollViewerStateBehavior
+```
+
+这使业务/presentation 状态与 WPF generator/layout/scroll 状态形成多个 mutable owner。按照 `01_ARCHITECTURE.md`、`04_UI_NAVIGATION_AND_PERFORMANCE.md`、`09_ENGINEERING_CONVENTIONS.md` 的最新原则，应优先让 WPF 自身负责 container generation/recycling 和 virtualization lifecycle。
+
+目标架构：
+
+```text
+LibraryBookCatalog
+    ↓
+search / sort
+    ↓
+flat visible book projection
+    ↓
+responsive layout metrics
+    ↓
+LibraryBookRowProjection
+    ↓
+standard WPF ItemsControl/ListBox
+    ↓
+VirtualizingStackPanel (row-level, Recycling)
+    ↓
+Row 内少量 BookCard
+```
+
+其中：
+
+- Catalog/BookCardProjection 继续使用 Phase B 已建立的 Immutable Catalog + Sparse Decoration 思路；
+- responsive layout 只计算 `ColumnCount`、`CardWidth` 和 row grouping；
+- WPF 标准虚拟化控件负责 Row container generation/recycling；
+- Row 内只有少量 Card，不再建立第二套 item-level virtualization；
+- scroll restoration 保存逻辑 `BookId` anchor，不保存/模拟自定义虚拟画布状态。
+
+实施方向：
+
+1. 先用当前 `dev` 建立/确认用户可观察行为基线：
+   - card 响应式列数；
+   - `MinItemWidth ≈ 300`；
+   - `MaxItemWidth ≈ 360`；
+   - horizontal/vertical spacing ≈ 16；
+   - incomplete last row 左对齐；
+   - search/sort；
+   - current playback decoration；
+   - Library scroll restore；
+   - Library → Settings/BookDetails/Player → Back。
+2. 建立纯 presentation 的 responsive layout 计算能力（命名可根据实际结构调整），输入至少包括：
+   - available width；
+   - visible books；
+   - min/max card width；
+   - spacing。
+3. 输出轻量 row projection，例如：
+   - `ColumnCount`；
+   - `CardWidth`；
+   - `IReadOnlyList<LibraryBookRowProjection>`；
+   - BookId → row index/position 的稳定 lookup。
+4. row regroup 必须保持 flat book order，不复制第二份业务状态；BookCard 仍是原有 card projection/decorations 的展示。
+5. Library UI 改用 WPF 标准虚拟化路径：
+   - outer `ItemsControl`/`ListBox` 使用 `VirtualizingStackPanel`；
+   - `VirtualizingPanel.IsVirtualizing=true`；
+   - `VirtualizationMode=Recycling`；
+   - `ScrollViewer.CanContentScroll=true`；
+   - 让标准 control/panel 自己拥有 scroll/container lifecycle。
+6. Row template 内只排列当前 Row 的少量 BookCard，可使用简单 StackPanel/ItemsControl/等价轻量 panel；不得再次实现 row 内 item virtualization。
+7. 重构滚动状态：
+   - 继续以 `AnchorBookId` 为稳定逻辑 identity；
+   - 通过 BookId → RowIndex lookup 定位；
+   - 使用标准 `ScrollIntoView`/`BringIntoView` 或等价 WPF API 请求 realization；
+   - 如确需恢复相对顶部偏移，只允许在目标 Row 已由 WPF realization 后做一次有界调整；
+   - 不再通过自维护 item height/extent 计算整个虚拟画布；
+   - 不建立多轮 Dispatcher retry 状态机。
+8. resize：
+   - available width 变化后重算 row projection；
+   - 保持书籍顺序；
+   - 尽量保持当前 AnchorBookId 可见；
+   - 不依赖旧 Row/container identity；
+   - 不重新查询数据库。
+9. 初次数据加载必须是标准路径：
+   - ItemsSource 初始为空；
+   - `LoadAsync` 异步返回已存在书籍；
+   - projection/rows 正常提交；
+   - WPF 自动生成可见 Row/Card；
+   - 不需要二次 `LoadAsync`、页面切换或显式 layout repair。
+10. 迁移完成后，如果无其它真实调用方，直接删除：
+   - `LibraryItemsControl`；
+   - `LibraryResponsivePanel`；
+   - `LibraryScrollViewerStateBehavior` 中仅为上述自定义 virtualization/IScrollInfo 存在的路径；
+   - realized-range、`GenerateNext/Recycle`、custom extent/viewport/offset 相关测试/helper。
+11. 如果 `LibraryScrollViewerStateBehavior` 仍有保留价值，应缩小为标准 WPF scroll-anchor adapter，不得继续持有与自定义 virtualizing panel 绑定的特殊逻辑。
+12. 更新 ArchitectureTests/结构性测试，防止 Library 后续重新引入 Feature-owned：
+   - `ItemContainerGenerator.GenerateNext/Recycle`；
+   - custom realized range；
+   - `IScrollInfo` virtualization forwarding；
+   - 手工 extent/viewport state machine。
+13. 不修改 Library query/catalog 数据边界来规避 UI 问题，不把 Page/ViewModel 改回 Singleton，不关闭 virtualization。
+
+成熟能力优先要求：
+
+本任务同时作为全项目“避免重复造轮子”原则的首个落地案例。实现过程中：
+
+- 优先使用 .NET/WPF/Wpf.Ui 已有能力；
+- 不因为“方便控制”复制框架内部状态；
+- 不为替换一个自定义 Panel 再引入另一个更通用的自定义 virtualization framework；
+- 不新增第三方 virtualization 库，除非标准 WPF Row virtualization 经真实验证无法满足当前需求，并先记录明确能力缺口；
+- 简单 row grouping/layout 纯计算可由项目自己实现，因为它属于 NovelSpeaker 的 presentation 规则，而不是框架基础设施。
+
+禁止：
+
+- 修补 `_realizedStartIndex/_realizedCount` 后继续保留当前总体 virtualization 架构；
+- 固定 `Task.Delay`/Dispatcher Delay；
+- 定时或循环 `InvalidateMeasure/InvalidateVisual`；
+- generator status 高频自我重试；
+- 二次导航/二次 `LoadAsync`；
+- 禁用 virtualization；
+- 将 LibraryPage/LibraryViewModel 改为 Singleton；
+- 新建通用 VirtualizingGrid/VirtualizingWrapPanel 框架来替代当前自定义 Panel；
+- 用第三方库替代简单、稳定的 responsive row grouping 纯计算。
+
+测试与验收：
+
+### 冷启动 / lifecycle
+
+- 新增真实 WPF regression test：Library ItemsSource 初始为空，随后异步提交已有书籍；不导航离开，必须显示可见 Card。
+- 同时断言：
+  - `LibrarySummaryText` 总数正确；
+  - flat visible book count 正确；
+  - row projection 正确；
+  - WPF 实际存在可见 Row/Card container。
+- 冷启动不得出现 UI hang、持续 Dispatcher busy 或 layout invalidation loop。
+- 首次空书库仍正常。
+- 导入第一本书后无需重进页面即可显示。
+- Library → Settings → Library 正常。
+- Library → BookDetails/Player → Back 正常。
+
+### Responsive layout
+
+至少保留/迁移以下布局合同：
+
+```text
+632 px  → 2 columns，约 308 px/card
+1012 px → 3 columns，约 326.67 px/card
+1172 px → 3 columns，最大约 360 px/card
+1248 px → 4 columns，约 300 px/card
+```
+
+并验证：
+
+- incomplete last row 左对齐；
+- 窄窗口单列无水平溢出；
+- resize 2→3→4 columns 后书籍顺序不变；
+- resize 后 anchor book 仍可恢复/保持可见。
+
+### Virtualization / scale
+
+- 10,000 books projection 可建立；
+- WPF realized Row/Card container 数量只随 viewport/buffer 有界增长，不随 10,000 总量线性增长；
+- 连续滚动和 recycling 正常；
+- search/sort 后 row regroup 不产生 `Clear + N × Add` 高频 notification；
+- current playback sparse decoration 不导致全 row/full catalog 重建。
+
+### Scroll state
+
+- beginning/middle/tail anchor；
+- resize 前后 anchor；
+- 离开/返回页面；
+- filtering 导致 anchor item 消失时有明确、安全 fallback；
+- 不依赖固定 retry count 或自定义 virtual extent。
+
+### 门禁
+
+- 相关 Presentation/WPF tests；
+- `LibraryPageTests`；
+- 响应式 layout tests；
+- ArchitectureTests；
+- Release build；
+- `dotnet format --verify-no-changes --no-restore`；
+- `git diff --check`；
+- `git ls-files --eol` 确认本任务修改文本均为 `i/lf`、`w/lf`。
+
+完成成果必须记录：
+
+- 最终 UI 结构；
+- 删除了哪些旧自定义 virtualization/container/scroll 状态；
+- 冷启动空白为何通过架构替换自然消失；
+- 是否还保留任何 Library 专用 WPF 基础设施，以及保留理由；
+- 10,000 books realized container 规模测试结果；
+- 所有临时诊断/截图/脚本已删除。
+
+---
+
+# Phase E：Cache
+
+## [ ] T014（P0）：建立 CacheStore/CacheCatalog 与 typed invalidation 边界
+
+依赖：T013。
 
 目标：先把“物理缓存事实”和“缓存变化通知”收敛成稳定边界，为后续 Coverage 与 UI live projection 提供可靠、可合并、可按范围刷新的基础。
 
@@ -439,7 +667,7 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
    - 不规定固定绝对毫秒值，优先用户感知实时与查询合并效果。
 8. invalidation 只表示“哪里/哪类数据需要重读”，不携带作为第二真值的 TotalSize/Percentage 等统计快照。
 9. ActiveCacheCoordinator、ChapterExportCoordinator 保持独立 background owner；页面 selection/filter 不进入 process cache core。
-10. 为后续 T014/T015 保留最小稳定接口，迁移后删除无价值 `CacheWorkspaceService` 物理查询/重复 Changed facade，不保留兼容 wrapper。
+10. 为后续 T015/T016 保留最小稳定接口，迁移后删除无价值 `CacheWorkspaceService` 物理查询/重复 Changed facade，不保留兼容 wrapper。
 
 禁止：
 
@@ -459,9 +687,9 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 - lease/protection/cleanup 行为不回归；
 - ArchitectureTests 禁止 Cache invalidation 演化为通用 Messenger/EventBus。
 
-## [ ] T014（P0）：拆分 Cache Coverage 与 Speech Plan Repair
+## [ ] T015（P0）：拆分 Cache Coverage 与 Speech Plan Repair
 
-依赖：T013。
+依赖：T014。
 
 目标：把“磁盘上有什么缓存”和“按当前 TTS/文本配置缓存完整度是多少”彻底分开，同时保留既有缺失/过期 plan 自动补建语义，但让 query 无后台副作用。
 
@@ -485,7 +713,7 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
    - 完整度读取发现符合条件的 stale/missing plan 时显式登记 repair；
    - 普通目录不为从未有缓存/计划的普通章节无条件补建；
    - 删除章节最后一条 cache 时继续清理对应 plan/segment。
-6. repair commit 后向 T013 的 invalidation 边界发布最窄章节级 Coverage invalidation。
+6. repair commit 后向 T014 的 invalidation 边界发布最窄章节级 Coverage invalidation。
 7. 物理 chapter mutation 自动使对应 chapter Coverage dirty；不得重算整本书。
 8. SelectedTtsRuleId、DefaultSpeakSpeed、ReadChapterTitle、text segmentation/Regex 等影响 plan/synthesis identity 的配置变化发布 Coverage-wide invalidation，但只标记旧 projection stale：
    - 不 eager 重算全部 book/chapter；
@@ -509,15 +737,15 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 - TTS/settings/Regex 变化使旧 Coverage 失效但不触发全量 eager query；
 - 删除最后 cache 的 plan cleanup 语义保持。
 
-## [ ] T015（P0）：迁移 Cache 页面到 live projection + scalable catalog
+## [ ] T016（P0）：迁移 Cache 页面到 live projection + scalable catalog
 
-依赖：T014。
+依赖：T015。
 
 目标：让 CacheManagement 与 CacheAndData 在页面 active 时都以“用户感知实时”的方式自动追上 CacheStore，同时保证 selection 独立、大列表有界更新、连续 mutation 不形成刷新风暴。
 
 实施方向：
 
-1. `CacheManagementViewModel`、`CacheAndDataViewModel` 保持 transient，页面 activation 负责订阅/解除 T013 invalidation batch。
+1. `CacheManagementViewModel`、`CacheAndDataViewModel` 保持 transient，页面 activation 负责订阅/解除 T014 invalidation batch。
 2. 初次进入：
    - CacheAndData 读取一次 global overview；
    - CacheManagement 读取 immutable cached-book catalog；
@@ -528,7 +756,7 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
    - Book dirty → 只刷新对应 Book summary，即使当前正在查看另一 Book；
    - 当前 Book 的 Chapter dirty → 只刷新对应 physical chapter summary；
    - Coverage dirty → 只刷新 current/viewport/明确受影响 chapter。
-4. 连续 invalidation 已由 T013 短窗口合并；页面仍要保证同类 query single-flight：
+4. 连续 invalidation 已由 T014 短窗口合并；页面仍要保证同类 query single-flight：
    - refresh in-flight 再次失效时标记 dirty；
    - 当前轮结束后补一轮；
    - 不并发堆积多个 overview/book/chapter/coverage 查询。
@@ -559,9 +787,9 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 # Phase F：Rules 与 Settings
 
-## [ ] T016（P1）：建立 Rules Shared 编辑生命周期
+## [ ] T017（P1）：建立 Rules Shared 编辑生命周期
 
-依赖：T015。
+依赖：T016。
 
 目标：提取三类 Rules 真正重复的 editor lifecycle，而不统一业务模型。
 
@@ -575,9 +803,9 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 测试：共享生命周期组件使用纯 Presentation tests；三类规则各保留业务特有测试。
 
-## [ ] T017（P1）：迁移 TTS/Chapter/Regex Rules 并删除重复实现
+## [ ] T018（P1）：迁移 TTS/Chapter/Regex Rules 并删除重复实现
 
-依赖：T016。
+依赖：T017。
 
 目标：三套规则页面完成 transient + shared editor 生命周期迁移。
 
@@ -591,9 +819,9 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 测试：允许显著精简重复 fixture；WPF tests 只留真正控件/拖动/ContextMenu 契约。
 
-## [ ] T018（P1）：迁移 Settings 为 process snapshot + transient 页面 VM
+## [ ] T019（P1）：迁移 Settings 为 process snapshot + transient 页面 VM
 
-依赖：T017。
+依赖：T018。
 
 目标：清除 Settings singleton VM 历史，明确即时设置与 draft 设置。
 
@@ -611,9 +839,9 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 # Phase G：接口、Shared、测试与代码清理
 
-## [ ] T019（P1）：清理 Application ports、Shared helpers 与 compatibility code
+## [ ] T020（P1）：清理 Application ports、Shared helpers 与 compatibility code
 
-依赖：T018。
+依赖：T019。
 
 目标：在主要迁移完成后做一次真正的“无历史包袱”接口/目录清理。
 
@@ -630,9 +858,9 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 ArchitectureTests 必须无临时白名单或只剩有明确长期理由的极少数例外。
 
-## [ ] T020（P1）：重构测试体系并减少重复维护面
+## [ ] T021（P1）：重构测试体系并减少重复维护面
 
-依赖：T019。
+依赖：T020。
 
 目标：让测试与新架构层级一致，允许测试数量明显减少。
 
@@ -650,9 +878,9 @@ ArchitectureTests 必须无临时白名单或只剩有明确长期理由的极�
 - 测试总数可减少，但必须给出“删除了哪些重复/实现细节测试、哪些稳定合同仍覆盖”的摘要。
 - 不能通过合并多个无关 assertion 到单个测试人为压数量。
 
-## [ ] T021（P1）：全项目 dead code / legacy namespace / duplicate state 清理
+## [ ] T022（P1）：全项目 dead code / legacy namespace / duplicate state 清理
 
-依赖：T020。
+依赖：T021。
 
 目标：在性能验收前清除本轮迁移产生或暴露的所有旧代码。
 
@@ -675,9 +903,9 @@ ArchitectureTests 必须无临时白名单或只剩有明确长期理由的极�
 
 # Phase H：真实规模性能验收
 
-## [ ] T022（P0）：执行 180/1000/3000+/10000 章节架构性能验收
+## [ ] T023（P0）：执行 180/1000/3000+/10000 章节架构性能验收
 
-依赖：T021。
+依赖：T022。
 
 目标：对已经解决的 Player → Back → BookDetails 返回卡顿做真实规模回归，并同时验收 Books/Player/Cache 大列表架构在 180/1000/3000+/10000 章节下是否保持稳定的交互与结构特征。
 
@@ -720,9 +948,9 @@ current position：
 - 不建立固定绝对毫秒 CI 门槛；保留结构性回归测试。
 - 所有诊断 harness/trace/script 在任务结束前删除。
 
-## [ ] T023（P1）：最终质量门禁与架构收口
+## [ ] T024（P1）：最终质量门禁与架构收口
 
-依赖：T022。
+依赖：T023。
 
 目标：完成架构优化阶段最终收口。
 

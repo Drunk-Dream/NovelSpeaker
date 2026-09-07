@@ -97,6 +97,38 @@ internal sealed class
 - 长期兼容 wrapper；
 - 通过 Shared 隐藏 Feature 循环依赖。
 
+### 4.1 成熟能力优先
+
+NovelSpeaker 默认不重新实现平台、框架或成熟库已经稳定提供的基础设施能力。
+
+优先顺序：
+
+```text
+.NET / Windows / WPF / Wpf.Ui 标准能力
+        ↓
+项目中已有且职责清晰的能力
+        ↓
+确有必要时采用成熟、维护良好的依赖
+        ↓
+只有存在已证实能力缺口时才自定义基础设施
+```
+
+自定义实现必须回答：
+
+- 标准能力具体缺少什么；
+- 该缺口是否属于真实产品/性能要求；
+- 为什么组合/适配现有能力不足以解决；
+- 新增 mutable state、生命周期和维护成本由谁负责；
+- 有哪些结构性/行为测试长期保护它。
+
+“成熟能力优先”不要求为简单领域逻辑或少量纯计算引入第三方依赖；目标是避免重新实现框架级状态机、调度器、虚拟化、容器生命周期、通用消息系统等高维护成本基础设施。
+
+尤其在 WPF 层：
+
+- container generation/recycling 由 WPF ItemsControl/VirtualizingPanel 标准机制负责；
+- scroll extent/offset、virtualization lifecycle 不由 Feature 自建并行状态机；
+- 应用只维护业务/presentation 所需的逻辑状态和轻量布局投影。
+
 ## 5. 状态所有权
 
 核心原则：**同一 mutable state 只有一个 owner**。
@@ -273,7 +305,7 @@ GetCachedChapterCatalog
 
 ## 12. 大列表架构
 
-目标规模至少 10,000 章节。
+目标规模至少 10,000 章节；Library 同样按大数据集设计。
 
 核心模式：
 
@@ -300,7 +332,36 @@ full DTO
 - snapshot/current 变化只更新旧/新目标；
 - cache status 默认按 current/viewport/明确受影响 index enrichment；
 - selection 独立于 WPF container；
-- WPF UI virtualization 不作为 data virtualization 的替代。
+- WPF UI virtualization 不作为 data virtualization 的替代；
+- UI virtualization 优先使用 WPF 标准容器/虚拟化能力，不自行维护 `ItemContainerGenerator`、realized range 或 `IScrollInfo` 状态机。
+
+### 12.1 Library 响应式虚拟列表
+
+Library 保留响应式卡片布局，但按“逻辑 Row + WPF 标准行虚拟化”实现：
+
+```text
+Immutable visible book projection
+        ↓
+responsive layout metrics
+        ↓
+LibraryBookRowProjection
+        ↓
+standard WPF ItemsControl/ListBox
+        ↓
+VirtualizingStackPanel (row-level)
+        ↓
+每个 Row 内少量 BookCard
+```
+
+原则：
+
+- responsive layout 只计算列数、卡片宽度和行分组；
+- 外层 Row 由 WPF `VirtualizingStackPanel` 负责 container generation/recycling；
+- Row 内项目数很少，不再实现第二套 item-level virtualization；
+- 不自定义 `ItemContainerGenerator.GenerateNext/Recycle` 生命周期；
+- 不通过 Feature 自实现 `IScrollInfo`、extent/viewport/offset 状态；
+- resize 时重新计算 row projection，保持书籍顺序和逻辑 anchor；
+- scroll restoration 保存逻辑 `BookId` anchor，通过 row lookup + 标准 scroll/bring-into-view 能力恢复，不自行模拟整个虚拟画布的像素位置。
 
 ## 13. Staged Loading
 
@@ -369,6 +430,7 @@ Architecture Fitness Tests 至少长期验证：
 - 页面不直接写 ReadingProgress；
 - Playback mutable session state 只由指定 owner 修改；
 - 大列表 helper 不重新引入首屏 `Clear + N × Add` 模式；
+- Library 不重新引入 Feature-owned `ItemContainerGenerator`/`IScrollInfo` 虚拟化状态机；
 - 兼容 wrapper/Obsolete bridge 不长期存在。
 
 不把代码行数、构造参数数量或绝对毫秒性能作为机械架构门槛。
