@@ -1,11 +1,17 @@
 using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace NovelSpeaker.App.Features.Books.Library;
 
+/// <summary>
+/// Adapts the logical Library scroll anchor to the standard ListBox lifecycle.
+/// WPF owns row realization and scrolling; this adapter only captures visible card
+/// identities and requests standard item bring-into-view behavior during restore.
+/// </summary>
 public static class LibraryScrollViewerStateBehavior
 {
     public static readonly DependencyProperty StateProperty =
@@ -15,10 +21,10 @@ public static class LibraryScrollViewerStateBehavior
             typeof(LibraryScrollViewerStateBehavior),
             new PropertyMetadata(null, OnAttachedPropertyChanged));
 
-    public static readonly DependencyProperty ItemsControlProperty =
+    public static readonly DependencyProperty RowIndexByBookIdProperty =
         DependencyProperty.RegisterAttached(
-            "ItemsControl",
-            typeof(ItemsControl),
+            "RowIndexByBookId",
+            typeof(IReadOnlyDictionary<string, LibraryBookRowPosition>),
             typeof(LibraryScrollViewerStateBehavior),
             new PropertyMetadata(null, OnAttachedPropertyChanged));
 
@@ -29,38 +35,33 @@ public static class LibraryScrollViewerStateBehavior
             typeof(LibraryScrollViewerStateBehavior),
             new PropertyMetadata(null));
 
-    public static void SetState(DependencyObject element, LibraryScrollState? value)
-    {
+    public static void SetState(DependencyObject element, LibraryScrollState? value) =>
         element.SetValue(StateProperty, value);
-    }
 
-    public static LibraryScrollState? GetState(DependencyObject element)
-    {
-        return (LibraryScrollState?)element.GetValue(StateProperty);
-    }
+    public static LibraryScrollState? GetState(DependencyObject element) =>
+        (LibraryScrollState?)element.GetValue(StateProperty);
 
-    public static void SetItemsControl(DependencyObject element, ItemsControl? value)
-    {
-        element.SetValue(ItemsControlProperty, value);
-    }
+    public static void SetRowIndexByBookId(
+        DependencyObject element,
+        IReadOnlyDictionary<string, LibraryBookRowPosition>? value) =>
+        element.SetValue(RowIndexByBookIdProperty, value);
 
-    public static ItemsControl? GetItemsControl(DependencyObject element)
-    {
-        return (ItemsControl?)element.GetValue(ItemsControlProperty);
-    }
+    public static IReadOnlyDictionary<string, LibraryBookRowPosition>? GetRowIndexByBookId(
+        DependencyObject element) =>
+        (IReadOnlyDictionary<string, LibraryBookRowPosition>?)element.GetValue(RowIndexByBookIdProperty);
 
     private static void OnAttachedPropertyChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
     {
-        if (dependencyObject is not ScrollViewer scrollViewer)
+        if (dependencyObject is not ListBox listBox)
         {
             return;
         }
 
-        var controller = (Controller?)scrollViewer.GetValue(ControllerProperty);
+        var controller = (Controller?)listBox.GetValue(ControllerProperty);
         if (controller is null)
         {
-            controller = new Controller(scrollViewer);
-            scrollViewer.SetValue(ControllerProperty, controller);
+            controller = new Controller(listBox);
+            listBox.SetValue(ControllerProperty, controller);
         }
 
         controller.Refresh();
@@ -68,233 +69,491 @@ public static class LibraryScrollViewerStateBehavior
 
     private sealed class Controller
     {
-        private readonly ScrollViewer _scrollViewer;
-        private INotifyCollectionChanged? _itemsSource;
-        private int _restoreAttemptsRemaining;
+        private readonly ListBox _listBox;
+        private INotifyCollectionChanged? _rows;
+        private ScrollViewer? _scrollViewer;
+        private bool _isRestoring;
+        private int _restoreGeneration;
+        private EventHandler? _pendingGeneratorStatusChanged;
+        private EventHandler? _pendingLayoutUpdated;
+        private int? _pendingRealizationGeneration;
+        private ListBoxItem? _pendingRowContainer;
+        private RoutedEventHandler? _pendingRowLoaded;
 
-        public Controller(ScrollViewer scrollViewer)
+        public Controller(ListBox listBox)
         {
-            _scrollViewer = scrollViewer;
-            _scrollViewer.Loaded += OnLoaded;
-            _scrollViewer.Unloaded += OnUnloaded;
-            _scrollViewer.ScrollChanged += OnScrollChanged;
+            _listBox = listBox;
+            _listBox.Loaded += OnLoaded;
+            _listBox.Unloaded += OnUnloaded;
+            _listBox.SizeChanged += OnSizeChanged;
         }
 
         public void Refresh()
         {
-            HookCollectionChanged();
-            ScheduleRestore();
+            HookRows();
+            if (_listBox.IsLoaded)
+            {
+                RestoreAnchor();
+            }
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            HookCollectionChanged();
-            ScheduleRestore();
+            _scrollViewer = FindDescendant<ScrollViewer>(_listBox);
+            if (_scrollViewer is not null)
+            {
+                _scrollViewer.ScrollChanged += OnScrollChanged;
+            }
+
+            HookRows();
+            RestoreAnchor();
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
             CaptureCurrentAnchor();
-            UnhookCollectionChanged();
+            UnhookRows();
+            CancelPendingRestoreReadiness();
+            _isRestoring = false;
+            if (_scrollViewer is not null)
+            {
+                _scrollViewer.ScrollChanged -= OnScrollChanged;
+                _scrollViewer = null;
+            }
+
+            _restoreGeneration++;
         }
 
-        private void OnScrollChanged(object sender, ScrollChangedEventArgs e)
+        private void OnSizeChanged(object sender, SizeChangedEventArgs e)
         {
-            if (Math.Abs(e.VerticalChange) > 0)
+            if (ReferenceEquals(e.OriginalSource, _listBox) && !_isRestoring)
             {
                 CaptureCurrentAnchor();
             }
         }
 
-        private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        private void OnScrollChanged(object sender, ScrollChangedEventArgs e)
         {
-            ScheduleRestore();
+            if (!_isRestoring && Math.Abs(e.VerticalChange) > 0d)
+            {
+                CaptureCurrentAnchor();
+            }
         }
 
-        private void HookCollectionChanged()
+        private void OnRowsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            var itemsControl = GetItemsControl(_scrollViewer);
-            if (itemsControl?.ItemsSource is not INotifyCollectionChanged source ||
-                ReferenceEquals(source, _itemsSource))
+            RestoreAnchor();
+        }
+
+        private void HookRows()
+        {
+            if (_listBox.ItemsSource is not INotifyCollectionChanged rows || ReferenceEquals(rows, _rows))
             {
                 return;
             }
 
-            UnhookCollectionChanged();
-            _itemsSource = source;
-            _itemsSource.CollectionChanged += OnItemsCollectionChanged;
+            UnhookRows();
+            _rows = rows;
+            _rows.CollectionChanged += OnRowsCollectionChanged;
         }
 
-        private void UnhookCollectionChanged()
+        private void UnhookRows()
         {
-            if (_itemsSource is null)
+            if (_rows is null)
             {
                 return;
             }
 
-            _itemsSource.CollectionChanged -= OnItemsCollectionChanged;
-            _itemsSource = null;
+            _rows.CollectionChanged -= OnRowsCollectionChanged;
+            _rows = null;
         }
 
-        private void ScheduleRestore()
+        private void RestoreAnchor()
         {
-            _restoreAttemptsRemaining = 12;
+            if (!_listBox.IsLoaded)
+            {
+                return;
+            }
+
+            var generation = ++_restoreGeneration;
+            CancelPendingRestoreReadiness();
+            _isRestoring = false;
+            if (GetState(_listBox) is not { AnchorBookId: { Length: > 0 } anchorBookId } state ||
+                _listBox.Items.Count == 0)
+            {
+                return;
+            }
+
+            var rowPositions = GetRowIndexByBookId(_listBox);
+            if (rowPositions is null)
+            {
+                return;
+            }
+
+            if (!rowPositions.TryGetValue(anchorBookId, out var position))
+            {
+                _scrollViewer?.ScrollToTop();
+                state.Clear();
+
+                return;
+            }
+
+            var rowIndex = position.RowIndex;
+            if ((uint)rowIndex >= (uint)_listBox.Items.Count ||
+                _listBox.Items[rowIndex] is not LibraryBookRowProjection rowProjection ||
+                !rowProjection.Cards.Any(card =>
+                    string.Equals(card.Book.BookId, anchorBookId, StringComparison.Ordinal)))
+            {
+                // The map can arrive just before the ItemsSource replacement. Keep
+                // the anchor and let the committed row collection trigger restore.
+
+                return;
+            }
+
+            var row = (object)rowProjection;
+            _isRestoring = true;
+            try
+            {
+                _listBox.ScrollIntoView(row);
+            }
+            catch
+            {
+                _isRestoring = false;
+                throw;
+            }
+
+            if (_scrollViewer is not null)
+            {
+                var offset = state.RelativeOffset;
+                QueueRelativeOffsetAfterRealization(generation, row, anchorBookId, offset);
+            }
+            else
+            {
+                _isRestoring = false;
+            }
+        }
+
+        private void QueueRelativeOffsetAfterRealization(
+            int generation,
+            object row,
+            string anchorBookId,
+            double relativeOffset)
+        {
+            if (generation != _restoreGeneration || _scrollViewer is null)
+            {
+                return;
+            }
+
+            if (FindRowContainer(row) is { } rowContainer)
+            {
+                QueueRelativeOffsetAfterContainerLoaded(
+                    generation,
+                    row,
+                    anchorBookId,
+                    relativeOffset,
+                    rowContainer);
+                return;
+            }
+
+            _pendingRealizationGeneration = generation;
+            var generator = _listBox.ItemContainerGenerator;
+            EventHandler statusChanged = null!;
+            statusChanged = (_, _) =>
+            {
+                if (generation != _restoreGeneration)
+                {
+                    DetachPendingGeneratorStatusChanged();
+                    return;
+                }
+
+                if (generator.Status != GeneratorStatus.ContainersGenerated)
+                {
+                    return;
+                }
+
+                DetachPendingGeneratorStatusChanged();
+                _pendingRealizationGeneration = null;
+                QueueRelativeOffsetAfterRealization(
+                    generation,
+                    row,
+                    anchorBookId,
+                    relativeOffset);
+            };
+            _pendingGeneratorStatusChanged = statusChanged;
+            generator.StatusChanged += statusChanged;
+
+            // ScrollIntoView can realize synchronously. The generator event covers
+            // deferred realization; this single callback covers the already-ready
+            // path after WPF has completed the current layout pass.
             _scrollViewer.Dispatcher.BeginInvoke(
                 DispatcherPriority.Loaded,
-                TryRestoreAnchor);
+                () =>
+                {
+                    if (generation != _restoreGeneration ||
+                        _pendingRealizationGeneration != generation)
+                    {
+                        return;
+                    }
+
+                    if (FindRowContainer(row) is not { } realizedRowContainer)
+                    {
+                        _pendingRealizationGeneration = null;
+                        DetachPendingGeneratorStatusChanged();
+                        _isRestoring = false;
+                        QueueRelativeOffsetAfterNextLayout(
+                            generation,
+                            row,
+                            anchorBookId,
+                            relativeOffset);
+                        return;
+                    }
+
+                    _pendingRealizationGeneration = null;
+                    DetachPendingGeneratorStatusChanged();
+                    QueueRelativeOffsetAfterContainerLoaded(
+                        generation,
+                        row,
+                        anchorBookId,
+                        relativeOffset,
+                        realizedRowContainer);
+                });
         }
 
-        private void TryRestoreAnchor()
+        private void QueueRelativeOffsetAfterNextLayout(
+            int generation,
+            object row,
+            string anchorBookId,
+            double relativeOffset)
         {
-            if (_restoreAttemptsRemaining <= 0)
+            if (_pendingLayoutUpdated is not null)
             {
                 return;
             }
 
-            var state = GetState(_scrollViewer);
-            var itemsControl = GetItemsControl(_scrollViewer);
-            if (state is null || itemsControl is null)
+            EventHandler layoutUpdated = null!;
+            layoutUpdated = (_, _) =>
             {
-                return;
-            }
-
-            if (TryGetVirtualizedRestoreOffset(itemsControl, state, out var virtualizedOffset))
-            {
-                _scrollViewer.ScrollToVerticalOffset(virtualizedOffset);
-                _restoreAttemptsRemaining = 0;
-                return;
-            }
-
-            var positions = GetItemPositions(itemsControl);
-            if (positions.Count == 0)
-            {
-                _restoreAttemptsRemaining--;
-                if (_restoreAttemptsRemaining > 0)
+                _listBox.LayoutUpdated -= layoutUpdated;
+                if (ReferenceEquals(_pendingLayoutUpdated, layoutUpdated))
                 {
-                    _scrollViewer.Dispatcher.BeginInvoke(
+                    _pendingLayoutUpdated = null;
+                }
+
+                if (generation != _restoreGeneration)
+                {
+                    return;
+                }
+
+                if (FindRowContainer(row) is { } realizedRowContainer)
+                {
+                    QueueRelativeOffsetAfterContainerLoaded(
+                        generation,
+                        row,
+                        anchorBookId,
+                        relativeOffset,
+                        realizedRowContainer);
+                }
+            };
+
+            _pendingLayoutUpdated = layoutUpdated;
+            _listBox.LayoutUpdated += layoutUpdated;
+        }
+
+        private void QueueRelativeOffsetAfterContainerLoaded(
+            int generation,
+            object row,
+            string anchorBookId,
+            double relativeOffset,
+            ListBoxItem rowContainer)
+        {
+            if (generation != _restoreGeneration || _scrollViewer is null)
+            {
+                return;
+            }
+
+            if (rowContainer.IsLoaded)
+            {
+                _scrollViewer.Dispatcher.BeginInvoke(
+                    DispatcherPriority.Loaded,
+                    () => ApplyRelativeOffset(generation, row, anchorBookId, relativeOffset));
+                return;
+            }
+
+            RoutedEventHandler rowLoaded = null!;
+            rowLoaded = (_, _) =>
+            {
+                rowContainer.Loaded -= rowLoaded;
+                if (ReferenceEquals(_pendingRowLoaded, rowLoaded))
+                {
+                    _pendingRowContainer = null;
+                    _pendingRowLoaded = null;
+                }
+
+                if (generation == _restoreGeneration)
+                {
+                    _scrollViewer?.Dispatcher.BeginInvoke(
                         DispatcherPriority.Loaded,
-                        TryRestoreAnchor);
+                        () => ApplyRelativeOffset(generation, row, anchorBookId, relativeOffset));
+                }
+            };
+            _pendingRowContainer = rowContainer;
+            _pendingRowLoaded = rowLoaded;
+            rowContainer.Loaded += rowLoaded;
+        }
+
+        private void CancelPendingRestoreReadiness()
+        {
+            _pendingRealizationGeneration = null;
+            DetachPendingGeneratorStatusChanged();
+            if (_pendingLayoutUpdated is not null)
+            {
+                _listBox.LayoutUpdated -= _pendingLayoutUpdated;
+            }
+
+            _pendingLayoutUpdated = null;
+            if (_pendingRowContainer is not null && _pendingRowLoaded is not null)
+            {
+                _pendingRowContainer.Loaded -= _pendingRowLoaded;
+            }
+
+            _pendingRowContainer = null;
+            _pendingRowLoaded = null;
+        }
+
+        private void DetachPendingGeneratorStatusChanged()
+        {
+            if (_pendingGeneratorStatusChanged is null)
+            {
+                return;
+            }
+
+            _listBox.ItemContainerGenerator.StatusChanged -= _pendingGeneratorStatusChanged;
+            _pendingGeneratorStatusChanged = null;
+        }
+
+        private void ApplyRelativeOffset(
+            int generation,
+            object row,
+            string anchorBookId,
+            double relativeOffset)
+        {
+            if (generation != _restoreGeneration ||
+                !_listBox.IsLoaded ||
+                GetState(_listBox) is not { AnchorBookId: { } currentAnchor } state ||
+                !string.Equals(currentAnchor, anchorBookId, StringComparison.Ordinal) ||
+                _scrollViewer is null ||
+                FindRowContainer(row) is not { } rowContainer)
+            {
+                if (generation == _restoreGeneration)
+                {
+                    _isRestoring = false;
                 }
 
                 return;
             }
 
-            if (state.TryGetRestoreOffset(positions, out var offset))
+            try
             {
-                _scrollViewer.ScrollToVerticalOffset(offset);
-            }
-            else
-            {
-                _scrollViewer.ScrollToTop();
-            }
+                var rowTop = rowContainer.TransformToAncestor(_scrollViewer).Transform(new Point()).Y;
+                var adjustment = Math.Clamp(
+                    rowTop - relativeOffset,
+                    -Math.Max(1d, _scrollViewer.ViewportHeight),
+                    Math.Max(1d, _scrollViewer.ViewportHeight));
+                if (Math.Abs(adjustment) < 0.5d)
+                {
+                    _isRestoring = false;
+                    return;
+                }
 
-            _restoreAttemptsRemaining = 0;
+                _isRestoring = true;
+                try
+                {
+                    _scrollViewer.ScrollToVerticalOffset(_scrollViewer.VerticalOffset + adjustment);
+                }
+                finally
+                {
+                    _isRestoring = false;
+                }
+            }
+            catch (InvalidOperationException)
+            {
+            }
+            finally
+            {
+                if (generation == _restoreGeneration)
+                {
+                    _isRestoring = false;
+                }
+            }
+        }
+
+        private ListBoxItem? FindRowContainer(object row)
+        {
+            return _listBox.ItemContainerGenerator.ContainerFromItem(row) as ListBoxItem;
         }
 
         private void CaptureCurrentAnchor()
         {
-            var state = GetState(_scrollViewer);
-            var itemsControl = GetItemsControl(_scrollViewer);
-            if (state is null || itemsControl is null)
+            var state = GetState(_listBox);
+            if (state is null || _scrollViewer is null)
             {
                 return;
             }
 
-            var positions = GetItemPositions(itemsControl);
+            var positions = new List<LibraryVisibleBookPosition>();
+            foreach (var card in FindDescendants<BookCardView>(_listBox))
+            {
+                if (card.Item is not { } book || card.ActualHeight <= 0d)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var point = card.TransformToAncestor(_scrollViewer).Transform(new Point());
+                    positions.Add(new LibraryVisibleBookPosition(
+                        book.BookId,
+                        point.Y,
+                        point.Y + card.ActualHeight));
+                }
+                catch (InvalidOperationException)
+                {
+                }
+            }
+
             if (positions.Count > 0)
             {
                 state.Capture(positions);
             }
         }
 
-        private List<LibraryVisibleBookPosition> GetItemPositions(ItemsControl itemsControl)
+        private static T? FindDescendant<T>(DependencyObject root, Func<T, bool>? predicate = null)
+            where T : DependencyObject
         {
-            var positions = new List<LibraryVisibleBookPosition>();
-
-            if (FindDescendant<LibraryResponsivePanel>(itemsControl) is { } panel)
+            foreach (var descendant in FindDescendants(root, predicate))
             {
-                foreach (UIElement child in panel.Children)
-                {
-                    if (itemsControl.ItemContainerGenerator.ItemFromContainer(child) is not LibraryBookCardProjection book ||
-                        child is not FrameworkElement container ||
-                        container.ActualHeight <= 0)
-                    {
-                        continue;
-                    }
-
-                    AddItemPosition(book, container, positions);
-                }
-
-                positions.Sort(static (left, right) => left.Top.CompareTo(right.Top));
-                return positions;
+                return descendant;
             }
 
-            foreach (var item in itemsControl.Items)
-            {
-                if (itemsControl.ItemContainerGenerator.ContainerFromItem(item) is not FrameworkElement container ||
-                    item is not LibraryBookCardProjection book ||
-                    container.ActualHeight <= 0)
-                {
-                    continue;
-                }
-
-                AddItemPosition(book, container, positions);
-            }
-
-            positions.Sort(static (left, right) => left.Top.CompareTo(right.Top));
-            return positions;
+            return null;
         }
 
-        private bool TryGetVirtualizedRestoreOffset(
-            ItemsControl itemsControl,
-            LibraryScrollState state,
-            out double verticalOffset)
-        {
-            verticalOffset = 0d;
-            if (string.IsNullOrWhiteSpace(state.AnchorBookId) ||
-                FindDescendant<LibraryResponsivePanel>(itemsControl) is not { } panel ||
-                itemsControl is not LibraryItemsControl libraryItemsControl ||
-                !libraryItemsControl.TryGetItemIndex(state.AnchorBookId, out var itemIndex))
-            {
-                return false;
-            }
-
-            return panel.TryGetVerticalOffset(itemIndex, state.RelativeOffset, out verticalOffset);
-        }
-
-        private void AddItemPosition(
-            LibraryBookCardProjection book,
-            FrameworkElement container,
-            List<LibraryVisibleBookPosition> positions)
-        {
-            try
-            {
-                var point = container.TransformToAncestor(_scrollViewer).Transform(new Point(0, 0));
-                positions.Add(new LibraryVisibleBookPosition(book.BookId, point.Y, point.Y + container.ActualHeight));
-            }
-            catch (InvalidOperationException)
-            {
-            }
-        }
-
-        private static T? FindDescendant<T>(DependencyObject root)
+        private static IEnumerable<T> FindDescendants<T>(DependencyObject root, Func<T, bool>? predicate = null)
             where T : DependencyObject
         {
             for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
             {
                 var child = VisualTreeHelper.GetChild(root, childIndex);
-                if (child is T match)
+                if (child is T typedChild && (predicate is null || predicate(typedChild)))
                 {
-                    return match;
+                    yield return typedChild;
                 }
 
-                if (FindDescendant<T>(child) is { } descendant)
+                foreach (var descendant in FindDescendants(child, predicate))
                 {
-                    return descendant;
+                    yield return descendant;
                 }
             }
-
-            return null;
         }
     }
 }

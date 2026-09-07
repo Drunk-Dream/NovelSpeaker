@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.App.Features.Books.Library;
@@ -33,7 +34,7 @@ public sealed partial class LibraryPageTests
     }
 
     [Fact]
-    public void Library_page_keeps_the_first_card_on_the_left_baseline_for_single_and_bounded_grids()
+    public void Library_page_uses_standard_virtualized_rows_and_left_aligned_cards()
     {
         foreach (var bookCount in new[] { 1, 6 })
         {
@@ -43,17 +44,21 @@ public sealed partial class LibraryPageTests
                 using var host = new WpfControlHost(view);
                 host.MeasureArrange(new Size(1280, 760));
 
-                var items = Assert.IsType<LibraryItemsControl>(view.FindName("BooksItemsControl"));
-                var panel = Assert.IsType<LibraryResponsivePanel>(
-                    VisualTreeTestHelper.FindDescendant<LibraryResponsivePanel>(items));
+                var items = Assert.IsType<ListBox>(view.FindName("BooksItemsControl"));
+                var panel = Assert.IsType<VirtualizingStackPanel>(
+                    VisualTreeTestHelper.FindDescendant<VirtualizingStackPanel>(items));
 
-                var firstOrigin = panel.Children[0].TranslatePoint(new Point(), panel);
+                Assert.True(VirtualizingPanel.GetIsVirtualizing(items));
+                Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(items));
+
+                var firstCard = Assert.IsType<BookCardView>(
+                    VisualTreeTestHelper.FindDescendant<BookCardView>(items));
+                var firstOrigin = firstCard.TranslatePoint(new Point(), items);
                 Assert.InRange(Math.Abs(firstOrigin.X), 0d, 1d);
 
                 if (bookCount == 6)
                 {
-                    var secondRowFirstOrigin = panel.Children[3].TranslatePoint(new Point(), panel);
-                    Assert.InRange(Math.Abs(secondRowFirstOrigin.X), 0d, 1d);
+                    Assert.Equal(2, items.Items.Count);
                 }
             });
         }
@@ -85,17 +90,68 @@ public sealed partial class LibraryPageTests
                     cover,
                     canDelete: true));
             }
+            context.SetRows(1232d);
 
             var view = new LibraryPage { DataContext = context };
             using var host = new WpfControlHost(view);
             host.MeasureArrange(new Size(1280, 760));
 
-            var items = Assert.IsType<LibraryItemsControl>(view.FindName("BooksItemsControl"));
-            var panel = Assert.IsType<LibraryResponsivePanel>(
-                VisualTreeTestHelper.FindDescendant<LibraryResponsivePanel>(items));
+            var items = Assert.IsType<ListBox>(view.FindName("BooksItemsControl"));
+            var panel = Assert.IsType<VirtualizingStackPanel>(
+                VisualTreeTestHelper.FindDescendant<VirtualizingStackPanel>(items));
 
-            Assert.Equal(10_000, items.Items.Count);
+            Assert.Equal(3334, items.Items.Count);
+            Assert.Equal(10_000, context.Books.Count);
+            Assert.True(VirtualizingPanel.GetIsVirtualizing(items));
+            Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(items));
             Assert.InRange(panel.Children.Count, 1, 100);
+        });
+    }
+
+    [Fact]
+    public async Task Library_page_realizes_cards_when_rows_are_published_after_initial_layout()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var context = new LibraryViewLayoutContext
+            {
+                HasBooks = true,
+                HasVisibleBooks = true,
+                LibrarySummaryText = "共 1 本 · 最近阅读优先"
+            };
+            var view = new LibraryPage { DataContext = context };
+            using var host = new WpfControlHost(view);
+            host.MeasureArrange(new Size(1280, 760));
+
+            var items = Assert.IsType<ListBox>(view.FindName("BooksItemsControl"));
+            Assert.Empty(items.Items);
+
+            await view.Dispatcher.InvokeAsync(
+                new Action(() =>
+                {
+                    context.Books.Add(new LibraryBookCardProjection(
+                        "book-async",
+                        "异步提交的小说",
+                        "示例作者",
+                        "第一章",
+                        "剩余 1 章",
+                        0.1,
+                        true,
+                        "2026-07-01T00:00:00.0000000Z",
+                        new BookCoverGenerator().Generate("异步提交的小说"),
+                        canDelete: true));
+                    context.SetRows(1232d);
+                }),
+                DispatcherPriority.Background);
+            view.UpdateLayout();
+
+            Assert.Single(context.Books);
+            Assert.Single(items.Items);
+            Assert.NotNull(VisualTreeTestHelper.FindDescendant<BookCardView>(items));
+            Assert.NotNull(
+                VisualTreeTestHelper.FindDescendant<TextBlock>(
+                    view,
+                    candidate => candidate.Text == "共 1 本 · 最近阅读优先"));
         });
     }
 
@@ -122,6 +178,7 @@ public sealed partial class LibraryPageTests
                 "2026-06-30T00:00:00.0000000Z",
                 new BookCoverGenerator().Generate("三体"),
                 canDelete: true));
+            context.SetRows(1232d);
 
             var view = new LibraryPage
             {
@@ -132,7 +189,8 @@ public sealed partial class LibraryPageTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var booksScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("BooksScrollViewer"));
+            var booksScrollViewer = Assert.IsAssignableFrom<ScrollViewer>(
+                VisualTreeTestHelper.FindDescendant<ScrollViewer>(view));
             var header = Assert.IsType<AppPageHeader>(view.FindName("PageHeader"));
             var toolbar = Assert.IsType<WrapPanel>(view.FindName("LibraryToolbar"));
             var clearSearchButton = VisualTreeTestHelper.FindDescendant<Button>(
@@ -227,7 +285,7 @@ public sealed partial class LibraryPageTests
         {
             WpfTestHost.RunInSta(() =>
             {
-                var context = CreateContext(6, longTitles: true);
+                var context = CreateContext(6, longTitles: true, availableWidth: width - 48d);
                 var view = new LibraryPage { DataContext = context };
                 using var host = new WpfControlHost(view);
                 var size = new Size(width, 760);
@@ -236,79 +294,35 @@ public sealed partial class LibraryPageTests
                 var toolbar = Assert.IsType<WrapPanel>(view.FindName("LibraryToolbar"));
                 var search = Assert.IsType<TextBox>(view.FindName("SearchTextBox"));
                 var sort = Assert.IsType<ComboBox>(view.FindName("SortComboBox"));
-                var booksScrollViewer = Assert.IsType<ScrollViewer>(view.FindName("BooksScrollViewer"));
-                var items = Assert.IsType<LibraryItemsControl>(view.FindName("BooksItemsControl"));
-                var panel = Assert.IsType<LibraryResponsivePanel>(
-                    VisualTreeTestHelper.FindDescendant<LibraryResponsivePanel>(items));
+                var items = Assert.IsType<ListBox>(view.FindName("BooksItemsControl"));
+                var panel = Assert.IsType<VirtualizingStackPanel>(
+                    VisualTreeTestHelper.FindDescendant<VirtualizingStackPanel>(items));
+                var booksScrollViewer = Assert.IsAssignableFrom<ScrollViewer>(
+                    VisualTreeTestHelper.FindDescendant<ScrollViewer>(items));
                 Assert.True(toolbar.ActualWidth > 0);
                 Assert.True(toolbar.ActualWidth <= width - 48 + 0.5);
                 Assert.True(search.ActualWidth >= 260);
                 Assert.True(sort.ActualWidth >= 160);
-                Assert.Equal(6, items.Items.Count);
-                Assert.InRange(Math.Abs(panel.ActualWidth - booksScrollViewer.ViewportWidth), 0d, 1d);
+                var expectedColumns = width switch
+                {
+                    900d => 2,
+                    960d => 2,
+                    _ => 3
+                };
+                Assert.Equal((int)Math.Ceiling(6d / expectedColumns), items.Items.Count);
+                Assert.True(panel.ActualWidth <= booksScrollViewer.ViewportWidth + 1d);
                 Assert.True(
                     booksScrollViewer.ExtentWidth <= booksScrollViewer.ViewportWidth + 1d,
                     $"Books extent {booksScrollViewer.ExtentWidth:0.##} exceeded viewport {booksScrollViewer.ViewportWidth:0.##}.");
-                AssertLibraryGridGeometry(panel, width == 1280d ? 3 : null);
+                Assert.Equal(
+                    width == 1280d ? 3 : 2,
+                    ((LibraryBookRowProjection)items.Items[0]).ColumnCount);
 
                 var bitmap = host.Render(size, 96 * scale);
                 Assert.Equal((int)Math.Round(width * scale), bitmap.PixelWidth);
                 Assert.Equal((int)Math.Round(760 * scale), bitmap.PixelHeight);
             });
         }
-    }
-
-    private static void AssertLibraryGridGeometry(LibraryResponsivePanel panel, int? expectedColumns)
-    {
-        Assert.True(panel.ActualWidth > 0);
-        Assert.NotEmpty(panel.Children);
-
-        var firstRowY = panel.Children[0].TranslatePoint(new Point(), panel).Y;
-        var firstRow = panel.Children
-            .OfType<FrameworkElement>()
-            .Where(child => Math.Abs(child.TranslatePoint(new Point(), panel).Y - firstRowY) < 1d)
-            .ToArray();
-        var columns = firstRow.Length;
-        var expectedByViewport = Math.Max(
-            1,
-            (int)Math.Floor((panel.ActualWidth + 16d) / (300d + 16d)));
-
-        Assert.Equal(expectedByViewport, columns);
-        if (expectedColumns is not null)
-        {
-            Assert.Equal(expectedColumns.Value, columns);
-        }
-
-        var rawItemWidth = (panel.ActualWidth - ((columns - 1) * 16d)) / columns;
-        var expectedItemWidth = Math.Min(360d, rawItemWidth);
-        Assert.All(
-            firstRow,
-            child => Assert.InRange(Math.Abs(child.ActualWidth - expectedItemWidth), 0d, 1d));
-
-        for (var index = 1; index < firstRow.Length; index++)
-        {
-            var previousOrigin = firstRow[index - 1].TranslatePoint(new Point(), panel);
-            var currentOrigin = firstRow[index].TranslatePoint(new Point(), panel);
-            Assert.InRange(
-                Math.Abs(currentOrigin.X - previousOrigin.X - firstRow[index - 1].ActualWidth - 16d),
-                0d,
-                1d);
-        }
-
-        for (var index = 0; index < panel.Children.Count; index += columns)
-        {
-            var rowFirstOrigin = panel.Children[index].TranslatePoint(new Point(), panel);
-            Assert.InRange(Math.Abs(rowFirstOrigin.X), 0d, 1d);
-        }
-
-        Assert.All(
-            panel.Children.OfType<FrameworkElement>(),
-            child =>
-            {
-                var origin = child.TranslatePoint(new Point(), panel);
-                Assert.True(origin.X >= -1d);
-                Assert.True(origin.X + child.ActualWidth <= panel.ActualWidth + 1d);
-            });
     }
 
     private void Library_visual_review_generates_stable_page_screenshots()
@@ -357,7 +371,10 @@ public sealed partial class LibraryPageTests
         return origin.Y + (element.ActualHeight / 2d);
     }
 
-    private static LibraryViewLayoutContext CreateContext(int bookCount, bool longTitles = false)
+    private static LibraryViewLayoutContext CreateContext(
+        int bookCount,
+        bool longTitles = false,
+        double availableWidth = 1232d)
     {
         var context = new LibraryViewLayoutContext
         {
@@ -383,6 +400,8 @@ public sealed partial class LibraryPageTests
                 canDelete: true));
         }
 
+        context.SetRows(availableWidth);
+
         return context;
     }
 
@@ -406,6 +425,7 @@ public sealed partial class LibraryPageTests
     private sealed partial class LibraryViewLayoutContext : ObservableObject
     {
         public ObservableCollection<LibraryBookCardProjection> Books { get; } = [];
+        public ObservableCollection<LibraryBookRowProjection> Rows { get; private set; } = [];
         public ObservableCollection<LibrarySortOption> AvailableSortOptions { get; } =
         [
             new LibrarySortOption(LibrarySortMode.RecentReading, "最近阅读"),
@@ -417,6 +437,13 @@ public sealed partial class LibraryPageTests
         public RelayCommand OpenBookDetailsCommand { get; } = new(() => { });
         public RelayCommand DeleteBookCommand { get; } = new(() => { });
         public LibraryScrollState ScrollState { get; } = new();
+
+        public void SetRows(double availableWidth)
+        {
+            Rows = new ObservableCollection<LibraryBookRowProjection>(
+                LibraryResponsiveLayout.Create(Books.ToArray(), availableWidth).Rows);
+            OnPropertyChanged(nameof(Rows));
+        }
 
         [ObservableProperty]
         private bool hasBooks;

@@ -405,7 +405,7 @@ ArchitectureTests：补强“session mutable state 只能由指定 owner 修改�
 
 # Phase D.5：Library 标准虚拟化架构收敛
 
-## [ ] T013（P0）：用标准 WPF Row Virtualization 替换 Library 自定义虚拟化状态机
+## [x] T013（P0）：用标准 WPF Row Virtualization 替换 Library 自定义虚拟化状态机
 
 依赖：T012。
 
@@ -625,6 +625,8 @@ Row 内少量 BookCard
 - 是否还保留任何 Library 专用 WPF 基础设施，以及保留理由；
 - 10,000 books realized container 规模测试结果；
 - 所有临时诊断/截图/脚本已删除。
+
+完成成果：Library 现在由标准 ListBox + VirtualizingStackPanel（Recycling）负责 Row container、scroll 和 realization；纯 `LibraryResponsiveLayout` 负责响应式列/卡片宽度、row projection 与 BookId 定位。已删除 `LibraryItemsControl`、`LibraryResponsivePanel` 及其 generator/extent/viewport 状态测试；保留的 `LibraryScrollViewerStateBehavior` 已收敛为通过 `ScrollIntoView` 和一次有界偏移调整恢复逻辑 anchor 的轻量适配器。冷启动异步提交、响应式布局、10,000 本书 row projection 与 WPF 有界 realized container 测试已通过，未新增临时诊断产物。
 
 ---
 

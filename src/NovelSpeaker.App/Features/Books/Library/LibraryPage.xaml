@@ -104,36 +104,74 @@
 
         <Grid Grid.Row="2"
               Margin="0,12,0,0">
-            <ScrollViewer x:Name="BooksScrollViewer"
-                          VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled"
-                          CanContentScroll="True"
-                          Visibility="{Binding HasVisibleBooks, Converter={StaticResource BooleanToVisibilityConverter}}"
-                          library:LibraryScrollViewerStateBehavior.ItemsControl="{Binding ElementName=BooksItemsControl}"
-                          library:LibraryScrollViewerStateBehavior.State="{Binding ScrollState}">
-                <library:LibraryItemsControl x:Name="BooksItemsControl"
-                                              ItemsSource="{Binding Books}"
-                                              ItemIndexByBookId="{Binding VisibleBookPositions}"
-                                              VirtualizingPanel.IsVirtualizing="True"
-                                              VirtualizingPanel.VirtualizationMode="Recycling">
-                    <library:LibraryItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <library:LibraryResponsivePanel MinItemWidth="300"
-                                                            MaxItemWidth="360"
-                                                            HorizontalSpacing="16"
-                                                            VerticalSpacing="16" />
-                        </ItemsPanelTemplate>
-                    </library:LibraryItemsControl.ItemsPanel>
-                    <library:LibraryItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <views:BookCardView Item="{Binding}"
-                                                DeleteBookCommand="{Binding DataContext.DeleteBookCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                OpenBookCommand="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                OpenBookDetailsCommand="{Binding DataContext.OpenBookDetailsCommand, RelativeSource={RelativeSource AncestorType=Page}}" />
-                        </DataTemplate>
-                    </library:LibraryItemsControl.ItemTemplate>
-                </library:LibraryItemsControl>
-            </ScrollViewer>
+            <ListBox x:Name="BooksItemsControl"
+                     ItemsSource="{Binding Rows}"
+                     HorizontalContentAlignment="Left"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Focusable="False"
+                     Visibility="{Binding HasVisibleBooks, Converter={StaticResource BooleanToVisibilityConverter}}"
+                     ScrollViewer.CanContentScroll="True"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.ScrollUnit="Pixel"
+                     VirtualizingPanel.VirtualizationMode="Recycling"
+                     library:LibraryScrollViewerStateBehavior.RowIndexByBookId="{Binding VisibleBookRowPositions}"
+                     library:LibraryScrollViewerStateBehavior.State="{Binding ScrollState}"
+                     Loaded="BooksItemsControl_OnLoaded"
+                     Unloaded="BooksItemsControl_OnUnloaded"
+                     SizeChanged="BooksItemsControl_OnSizeChanged">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem"
+                           BasedOn="{StaticResource App.Selection.ChromeFreeItemContainer}">
+                        <Setter Property="HorizontalContentAlignment" Value="Left" />
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="0,0,0,16" />
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Focusable" Value="False" />
+                        <Setter Property="IsTabStop" Value="False" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <ItemsControl ItemsSource="{Binding Cards}"
+                                      Width="{Binding GroupWidth}"
+                                      HorizontalAlignment="Left">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemContainerStyle>
+                                <Style TargetType="ContentPresenter">
+                                    <Setter Property="Margin" Value="0" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsLast}" Value="False">
+                                            <Setter Property="Margin" Value="0,0,16,0" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ItemsControl.ItemContainerStyle>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <views:BookCardView Width="{Binding DataContext.CardWidth, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                        Item="{Binding Book}"
+                                                        DeleteBookCommand="{Binding DataContext.DeleteBookCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                        OpenBookCommand="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                        OpenBookDetailsCommand="{Binding DataContext.OpenBookDetailsCommand, RelativeSource={RelativeSource AncestorType=Page}}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
 
             <feedbackControls:AppStatusView x:Name="EmptyLibraryStatusView"
                                             MaxWidth="560"

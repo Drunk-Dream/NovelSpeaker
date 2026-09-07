@@ -17,6 +17,8 @@ namespace NovelSpeaker.App.Features.Books.Library;
 /// </summary>
 public sealed partial class LibraryViewModel : ObservableObject
 {
+    private const int BackgroundRowLayoutThreshold = 512;
+
     private static readonly IReadOnlyList<LibrarySortOption> SortOptions =
     [
         new(LibrarySortMode.RecentReading, "最近阅读"),
@@ -36,13 +38,17 @@ public sealed partial class LibraryViewModel : ObservableObject
     private readonly IBookCoverGenerator _bookCoverGenerator;
     private readonly OwnedTaskRegistry _pageTasks = new();
     private readonly ResettableObservableCollection<LibraryBookCardProjection> _books = [];
+    private readonly ResettableObservableCollection<LibraryBookRowProjection> _rows = [];
     private readonly Dictionary<string, EffectiveReadingProgress> _playbackDecorations =
         new(StringComparer.Ordinal);
     private IReadOnlyDictionary<string, int> _visibleBookPositions =
         new Dictionary<string, int>(StringComparer.Ordinal);
+    private IReadOnlyDictionary<string, LibraryBookRowPosition> _visibleBookRowPositions =
+        new Dictionary<string, LibraryBookRowPosition>(StringComparer.Ordinal);
     private IReadOnlyList<LibraryBookCardProjection> _visibleBookProjection = [];
     private CancellationTokenSource? _searchDebounceCancellationTokenSource;
     private CancellationTokenSource? _activeProjectionCancellationTokenSource;
+    private CancellationTokenSource? _activeRowLayoutCancellationTokenSource;
     private CancellationTokenSource? _activeImportCancellationTokenSource;
     private LibraryBookCatalog _catalog;
     private PlaybackSnapshot _lastPlaybackSnapshot;
@@ -52,9 +58,12 @@ public sealed partial class LibraryViewModel : ObservableObject
     private int _importVersion;
     private int _playbackProjectionVersion;
     private int _playbackSnapshotVersion;
+    private int _rowLayoutVersion;
     private bool _isDeletingBook;
     private bool _isPageEventsRegistered;
     private bool _refreshVisibleProjectionOnNextActivation;
+    private bool _refreshRowsOnNextActivation;
+    private double _availableWidth;
 
     public LibraryViewModel(
         IBookLibraryQuery bookLibraryQuery,
@@ -88,11 +97,31 @@ public sealed partial class LibraryViewModel : ObservableObject
 
     public ObservableCollection<LibraryBookCardProjection> Books => _books;
 
+    public ObservableCollection<LibraryBookRowProjection> Rows => _rows;
+
     public IReadOnlyDictionary<string, int> VisibleBookPositions => _visibleBookPositions;
+
+    public IReadOnlyDictionary<string, LibraryBookRowPosition> VisibleBookRowPositions => _visibleBookRowPositions;
 
     public IReadOnlyList<LibrarySortOption> AvailableSortOptions => SortOptions;
 
     public LibraryScrollState ScrollState { get; }
+
+    public int ColumnCount { get; private set; }
+
+    public double CardWidth { get; private set; }
+
+    internal void SetAvailableWidth(double availableWidth)
+    {
+        if (!double.IsFinite(availableWidth) || availableWidth <= 0d ||
+            Math.Abs(availableWidth - _availableWidth) < 0.1d)
+        {
+            return;
+        }
+
+        _availableWidth = availableWidth;
+        ScheduleRowsRebuild();
+    }
 
     [ObservableProperty]
     private string statusMessage = string.Empty;
@@ -238,10 +267,17 @@ public sealed partial class LibraryViewModel : ObservableObject
     {
         RegisterPageEvents();
         RebuildVisibleBookIndex();
-        if (_refreshVisibleProjectionOnNextActivation)
+        var refreshVisibleProjection = _refreshVisibleProjectionOnNextActivation;
+        _refreshVisibleProjectionOnNextActivation = false;
+        if (refreshVisibleProjection)
         {
-            _refreshVisibleProjectionOnNextActivation = false;
+            _refreshRowsOnNextActivation = false;
             ScheduleVisibleProjection();
+        }
+        else if (_refreshRowsOnNextActivation)
+        {
+            _refreshRowsOnNextActivation = false;
+            ScheduleRowsRebuild();
         }
 
         ApplyPlaybackSnapshot(_playbackCoordinator.CurrentSnapshot);
@@ -251,6 +287,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     {
         var projectionWasActive = _activeProjectionCancellationTokenSource is not null;
         var projectionWasPending = _searchDebounceCancellationTokenSource is not null;
+        var rowLayoutWasActive = _activeRowLayoutCancellationTokenSource is not null;
         Interlocked.Increment(ref _loadVersion);
         CancelActiveImport();
         _searchDebounceCancellationTokenSource?.Cancel();
@@ -258,9 +295,16 @@ public sealed partial class LibraryViewModel : ObservableObject
         _searchDebounceCancellationTokenSource = null;
         InvalidateVisibleProjection();
         Interlocked.Increment(ref _searchVersion);
+        if (rowLayoutWasActive)
+        {
+            _refreshRowsOnNextActivation = true;
+        }
+
         if (projectionWasActive || projectionWasPending)
         {
-            RestorePreviousVisibleProjection(Volatile.Read(ref _projectionVersion));
+            RestorePreviousVisibleProjection(
+                Volatile.Read(ref _projectionVersion),
+                rebuildRows: false);
             _refreshVisibleProjectionOnNextActivation = true;
         }
 
@@ -550,6 +594,7 @@ public sealed partial class LibraryViewModel : ObservableObject
             _visibleBookPositions = projectedVisibleBookPositions;
             _visibleBookProjection = projectedVisibleBookList.ToArray();
             OnPropertyChanged(nameof(VisibleBookPositions));
+            await RebuildRowsForCurrentProjectionAsync(projectionCancellation.Token).ConfigureAwait(true);
 
             HasBooks = catalog.Count > 0;
             HasVisibleBooks = _books.Count > 0;
@@ -736,7 +781,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         RebuildVisibleBookPositions();
     }
 
-    private void RestorePreviousVisibleProjection(int projectionVersion)
+    private void RestorePreviousVisibleProjection(int projectionVersion, bool rebuildRows = true)
     {
         if (projectionVersion != Volatile.Read(ref _projectionVersion))
         {
@@ -763,6 +808,11 @@ public sealed partial class LibraryViewModel : ObservableObject
         }
 
         RebuildVisibleBookPositions();
+        if (rebuildRows)
+        {
+            ScheduleRowsRebuild();
+        }
+
         HasVisibleBooks = previousProjection.Count > 0;
     }
 
@@ -810,6 +860,19 @@ public sealed partial class LibraryViewModel : ObservableObject
         {
             projection[position] = updatedBook;
         }
+
+        if (_visibleBookRowPositions.TryGetValue(
+                bookId,
+                out var rowPosition) &&
+            (uint)rowPosition.RowIndex < (uint)_rows.Count &&
+            (uint)rowPosition.ColumnIndex < (uint)_rows[rowPosition.RowIndex].Cards.Count &&
+            string.Equals(
+                _rows[rowPosition.RowIndex].Cards[rowPosition.ColumnIndex].Book.BookId,
+                bookId,
+                StringComparison.Ordinal))
+        {
+            _rows[rowPosition.RowIndex].UpdateBook(rowPosition.ColumnIndex, updatedBook);
+        }
     }
 
     private bool IsCurrentPlaybackBook(string bookId)
@@ -835,6 +898,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     {
         Interlocked.Increment(ref _projectionVersion);
         CancelActiveProjection();
+        CancelActiveRowLayout();
     }
 
     private void RebuildVisibleBookPositions()
@@ -847,6 +911,149 @@ public sealed partial class LibraryViewModel : ObservableObject
 
         _visibleBookPositions = positions;
         OnPropertyChanged(nameof(VisibleBookPositions));
+    }
+
+    private async Task RebuildRowsForCurrentProjectionAsync(CancellationToken cancellationToken)
+    {
+        CancelActiveRowLayout();
+        var projection = _visibleBookProjection.ToArray();
+        var projectionVersion = Volatile.Read(ref _projectionVersion);
+        var playbackSnapshotVersion = Volatile.Read(ref _playbackSnapshotVersion);
+        var availableWidth = _availableWidth;
+        var layout = await CreateRowsAsync(projection, availableWidth, cancellationToken).ConfigureAwait(true);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (projectionVersion != Volatile.Read(ref _projectionVersion) ||
+            playbackSnapshotVersion != Volatile.Read(ref _playbackSnapshotVersion) ||
+            Math.Abs(availableWidth - _availableWidth) >= 0.1d)
+        {
+            ScheduleRowsRebuild();
+            return;
+        }
+
+        ApplyRowsLayout(layout);
+    }
+
+    private void ScheduleRowsRebuild()
+    {
+        var version = Interlocked.Increment(ref _rowLayoutVersion);
+        CancelActiveRowLayout();
+        var projection = _visibleBookProjection.ToArray();
+        var projectionVersion = Volatile.Read(ref _projectionVersion);
+        var playbackSnapshotVersion = Volatile.Read(ref _playbackSnapshotVersion);
+        var availableWidth = _availableWidth;
+        if (projection.Length < BackgroundRowLayoutThreshold)
+        {
+            ApplyRowsLayout(LibraryResponsiveLayout.Create(projection, availableWidth));
+            return;
+        }
+
+        var cancellationTokenSource = new CancellationTokenSource();
+        _activeRowLayoutCancellationTokenSource = cancellationTokenSource;
+        _pageTasks.Register(
+            RebuildRowsInBackgroundAsync(
+                version,
+                projection,
+                projectionVersion,
+                playbackSnapshotVersion,
+                availableWidth,
+                cancellationTokenSource),
+            exception => _feedbackService.ShowProjectedNotification(
+                "更新书库布局失败",
+                _feedbackService.Project(exception)));
+    }
+
+    private async Task RebuildRowsInBackgroundAsync(
+        int version,
+        IReadOnlyList<LibraryBookCardProjection> projection,
+        int projectionVersion,
+        int playbackSnapshotVersion,
+        double availableWidth,
+        CancellationTokenSource cancellationTokenSource)
+    {
+        var reschedule = false;
+        try
+        {
+            var layout = await Task.Run(
+                () => LibraryResponsiveLayout.Create(
+                    projection,
+                    availableWidth,
+                    cancellationToken: cancellationTokenSource.Token),
+                cancellationTokenSource.Token).ConfigureAwait(true);
+            cancellationTokenSource.Token.ThrowIfCancellationRequested();
+            if (version != Volatile.Read(ref _rowLayoutVersion) ||
+                projectionVersion != Volatile.Read(ref _projectionVersion) ||
+                Math.Abs(availableWidth - _availableWidth) >= 0.1d)
+            {
+                return;
+            }
+
+            if (playbackSnapshotVersion != Volatile.Read(ref _playbackSnapshotVersion))
+            {
+                reschedule = true;
+                return;
+            }
+
+            ApplyRowsLayout(layout);
+        }
+        finally
+        {
+            if (ReferenceEquals(_activeRowLayoutCancellationTokenSource, cancellationTokenSource))
+            {
+                _activeRowLayoutCancellationTokenSource = null;
+                if (reschedule)
+                {
+                    ScheduleRowsRebuild();
+                }
+            }
+
+            cancellationTokenSource.Dispose();
+        }
+    }
+
+    private static async Task<LibraryResponsiveLayoutResult> CreateRowsAsync(
+        IReadOnlyList<LibraryBookCardProjection> projection,
+        double availableWidth,
+        CancellationToken cancellationToken)
+    {
+        if (projection.Count < BackgroundRowLayoutThreshold)
+        {
+            return LibraryResponsiveLayout.Create(
+                projection,
+                availableWidth,
+                cancellationToken: cancellationToken);
+        }
+
+        return await Task.Run(
+            () => LibraryResponsiveLayout.Create(
+                projection,
+                availableWidth,
+                cancellationToken: cancellationToken),
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    private void ApplyRowsLayout(LibraryResponsiveLayoutResult layout)
+    {
+        _visibleBookRowPositions = layout.BookPositions;
+        OnPropertyChanged(nameof(VisibleBookRowPositions));
+
+        if (ColumnCount != layout.ColumnCount)
+        {
+            ColumnCount = layout.ColumnCount;
+            OnPropertyChanged(nameof(ColumnCount));
+        }
+
+        if (Math.Abs(CardWidth - layout.CardWidth) >= 0.1d)
+        {
+            CardWidth = layout.CardWidth;
+            OnPropertyChanged(nameof(CardWidth));
+        }
+
+        _rows.ReplaceWith(layout.Rows);
+    }
+
+    private void CancelActiveRowLayout()
+    {
+        _activeRowLayoutCancellationTokenSource?.Cancel();
     }
 
     private void CancelActiveProjection()

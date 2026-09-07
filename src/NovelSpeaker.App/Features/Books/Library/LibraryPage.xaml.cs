@@ -1,4 +1,6 @@
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Input;
 using NovelSpeaker.App.Features.Books.Shared;
@@ -14,6 +16,7 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
     private readonly IPresentationFileDialogService _fileDialogs;
     private readonly PageEventOperationRunner _eventOperations;
     private readonly IKeyboardShortcutTargetRegistry? _shortcutTargets;
+    private ScrollViewer? _booksScrollViewer;
     private bool _hasLoaded;
 
     public LibraryPage(
@@ -112,6 +115,78 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
         await RunEventOperationAsync(
             "导入失败",
             cancellationToken => ViewModel.ImportFilesAsync(files ?? [], cancellationToken));
+    }
+
+    private void BooksItemsControl_OnSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateLibraryAvailableWidth(e.NewSize.Width);
+    }
+
+    private void BooksItemsControl_OnLoaded(object sender, RoutedEventArgs e)
+    {
+        _booksScrollViewer = FindDescendant<ScrollViewer>(BooksItemsControl);
+        if (_booksScrollViewer is not null)
+        {
+            _booksScrollViewer.SizeChanged += BooksScrollViewer_OnSizeChanged;
+            _booksScrollViewer.ScrollChanged += BooksScrollViewer_OnScrollChanged;
+            UpdateLibraryAvailableWidth(_booksScrollViewer.ViewportWidth);
+        }
+    }
+
+    private void BooksItemsControl_OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (_booksScrollViewer is null)
+        {
+            return;
+        }
+
+        _booksScrollViewer.SizeChanged -= BooksScrollViewer_OnSizeChanged;
+        _booksScrollViewer.ScrollChanged -= BooksScrollViewer_OnScrollChanged;
+        _booksScrollViewer = null;
+    }
+
+    private void BooksScrollViewer_OnSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateLibraryAvailableWidth(((ScrollViewer)sender).ViewportWidth);
+    }
+
+    private void BooksScrollViewer_OnScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (Math.Abs(e.ViewportWidthChange) >= 0.1d)
+        {
+            UpdateLibraryAvailableWidth(e.ViewportWidth);
+        }
+    }
+
+    private void UpdateLibraryAvailableWidth(double fallbackWidth)
+    {
+        if (DataContext is not LibraryViewModel viewModel)
+        {
+            return;
+        }
+
+        var viewportWidth = _booksScrollViewer?.ViewportWidth ?? 0d;
+        viewModel.SetAvailableWidth(viewportWidth > 0d ? viewportWidth : fallbackWidth);
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        for (var childIndex = 0; childIndex < VisualTreeHelper.GetChildrenCount(root); childIndex++)
+        {
+            var child = VisualTreeHelper.GetChild(root, childIndex);
+            if (child is T descendant)
+            {
+                return descendant;
+            }
+
+            if (FindDescendant<T>(child) is { } nestedDescendant)
+            {
+                return nestedDescendant;
+            }
+        }
+
+        return null;
     }
 
     private async Task ShowImportFileDialogAsync(CancellationToken cancellationToken)

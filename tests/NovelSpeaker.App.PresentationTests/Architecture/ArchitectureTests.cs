@@ -431,6 +431,45 @@ public sealed class ArchitectureTests
         AssertEqualSet(KnownArchitectureBaseline.LargeListClearThenAddViolations, actual);
     }
 
+    private void LibraryUsesStandardWpfRowVirtualization()
+    {
+        var libraryRoot = Path.Combine(
+            Repository.RootPath,
+            "src",
+            "NovelSpeaker.App",
+            "Features",
+            "Books",
+            "Library");
+        Assert.False(File.Exists(Path.Combine(libraryRoot, "LibraryItemsControl.cs")));
+        Assert.False(File.Exists(Path.Combine(libraryRoot, "LibraryResponsivePanel.cs")));
+
+        var librarySourceFiles = Repository.ReadProductSourceFiles()
+            .Where(file => file.RelativePath.StartsWith(
+                "src/NovelSpeaker.App/Features/Books/Library/",
+                StringComparison.Ordinal));
+        Assert.All(
+            librarySourceFiles,
+            file =>
+            {
+                Assert.DoesNotContain("GenerateNext", file.Content, StringComparison.Ordinal);
+                Assert.DoesNotContain("IRecyclingItemContainerGenerator", file.Content, StringComparison.Ordinal);
+                Assert.DoesNotContain("IScrollInfo", file.Content, StringComparison.Ordinal);
+                Assert.DoesNotContain("realizedStart", file.Content, StringComparison.Ordinal);
+                Assert.DoesNotContain("realizedCount", file.Content, StringComparison.Ordinal);
+                Assert.DoesNotContain("InvalidateMeasure", file.Content, StringComparison.Ordinal);
+            });
+
+        var libraryPage = File.ReadAllText(Path.Combine(libraryRoot, "LibraryPage.xaml"));
+        Assert.Contains("<ListBox", libraryPage, StringComparison.Ordinal);
+        Assert.Contains("<VirtualizingStackPanel", libraryPage, StringComparison.Ordinal);
+        Assert.Contains("VirtualizingPanel.IsVirtualizing=\"True\"", libraryPage, StringComparison.Ordinal);
+        Assert.Contains("VirtualizingPanel.ScrollUnit=\"Pixel\"", libraryPage, StringComparison.Ordinal);
+        Assert.Contains("VirtualizingPanel.VirtualizationMode=\"Recycling\"", libraryPage, StringComparison.Ordinal);
+        Assert.Contains("ScrollViewer.CanContentScroll=\"True\"", libraryPage, StringComparison.Ordinal);
+        Assert.Contains("Background=\"Transparent\"", libraryPage, StringComparison.Ordinal);
+        Assert.Contains("BorderThickness=\"0\"", libraryPage, StringComparison.Ordinal);
+    }
+
     private void PlaybackStateHasOneOwnerAndReadOnlyConsumerContracts()
     {
         var appFiles = Repository.ReadProductSourceFiles()
@@ -660,6 +699,7 @@ public sealed class ArchitectureTests
         GenericGlobalCoordinationAbstractionsAreNotIntroduced();
         PagesAndViewModelsDoNotWriteReadingProgress();
         LargeListHelpersDoNotClearThenAddOneItemAtATime();
+        LibraryUsesStandardWpfRowVirtualization();
         PlaybackStateHasOneOwnerAndReadOnlyConsumerContracts();
         PlayerPresentationControllersAreFeatureLocalConcreteTypes();
     }

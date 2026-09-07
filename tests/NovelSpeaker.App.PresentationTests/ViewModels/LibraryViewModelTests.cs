@@ -352,6 +352,7 @@ public sealed class LibraryViewModelTests
                     DateTimeOffset.UtcNow))
                 .ToArray());
         var viewModel = CreateViewModel(catalogService: catalogService);
+        viewModel.SetAvailableWidth(1248d);
         var changes = new List<NotifyCollectionChangedAction>();
         viewModel.Books.CollectionChanged += (_, eventArgs) => changes.Add(eventArgs.Action);
 
@@ -360,6 +361,39 @@ public sealed class LibraryViewModelTests
         Assert.Equal(10_000, viewModel.Books.Count);
         Assert.Equal([NotifyCollectionChangedAction.Reset], changes);
         Assert.DoesNotContain(NotifyCollectionChangedAction.Add, changes);
+        Assert.Equal(2500, viewModel.Rows.Count);
+        Assert.Equal(4, viewModel.ColumnCount);
+        Assert.Equal(new LibraryBookRowPosition(2499, 3), viewModel.VisibleBookRowPositions["book-9999"]);
+    }
+
+    private async Task Responsive_rows_rebuild_from_the_flat_projection_when_width_changes()
+    {
+        var viewModel = CreateViewModel(
+            catalogService: new FakeBookCatalogService(
+            [
+                new BookSummary("book-1", "Alpha", null, "第一章", DateTimeOffset.UtcNow),
+                new BookSummary("book-2", "Beta", null, "第一章", DateTimeOffset.UtcNow),
+                new BookSummary("book-3", "Gamma", null, "第一章", DateTimeOffset.UtcNow),
+                new BookSummary("book-4", "Delta", null, "第一章", DateTimeOffset.UtcNow),
+                new BookSummary("book-5", "Epsilon", null, "第一章", DateTimeOffset.UtcNow)
+            ]));
+
+        viewModel.SetAvailableWidth(1232d);
+        await viewModel.LoadAsync(CancellationToken.None);
+        var expectedOrder = viewModel.Books.Select(static book => book.BookId).ToArray();
+        Assert.Equal(expectedOrder,
+            viewModel.Rows.SelectMany(static row => row.Cards.Select(card => card.Book.BookId)));
+
+        viewModel.SetAvailableWidth(632d);
+
+        Assert.Equal(2, viewModel.ColumnCount);
+        Assert.Equal(3, viewModel.Rows.Count);
+        var expectedBookIndex = Array.IndexOf(expectedOrder, "book-5");
+        Assert.Equal(
+            new LibraryBookRowPosition(expectedBookIndex / 2, expectedBookIndex % 2),
+            viewModel.VisibleBookRowPositions["book-5"]);
+        Assert.Equal(expectedOrder,
+            viewModel.Rows.SelectMany(static row => row.Cards.Select(card => card.Book.BookId)));
     }
 
     private async Task Repeated_large_library_projection_reuses_unchanged_cards()
@@ -482,6 +516,16 @@ public sealed class LibraryViewModelTests
             ]),
             playbackCoordinator: playbackCoordinator);
         await viewModel.LoadAsync(CancellationToken.None);
+        viewModel.SetAvailableWidth(1232d);
+        var row = Assert.Single(viewModel.Rows);
+        var rowCardChanges = 0;
+        row.Cards.CollectionChanged += (_, args) =>
+        {
+            if (args.Action == NotifyCollectionChangedAction.Replace)
+            {
+                rowCardChanges++;
+            }
+        };
 
         var matching = Assert.Single(viewModel.Books, book => book.BookId == "book-1");
         var matchingIndex = viewModel.Books.IndexOf(matching);
@@ -506,6 +550,9 @@ public sealed class LibraryViewModelTests
 
         Assert.Single(changes);
         Assert.Equal(matchingIndex, changes[0].Index);
+        Assert.Equal(1, rowCardChanges);
+        Assert.Same(row, viewModel.Rows[0]);
+        Assert.Same(viewModel.Books[matchingIndex], viewModel.Rows[0].Cards[matchingIndex].Book);
     }
 
     private async Task ImportFilesAsync_refreshes_books_when_import_coordinator_reports_imported()
@@ -626,6 +673,7 @@ public sealed class LibraryViewModelTests
         await Selecting_title_sort_orders_books_by_normalized_title();
         await LoadAsync_keeps_search_and_sort_state();
         await Loading_a_10000_book_library_uses_batched_collection_projection();
+        await Responsive_rows_rebuild_from_the_flat_projection_when_width_changes();
         await Repeated_large_library_projection_reuses_unchanged_cards();
         await Queued_playback_snapshot_is_used_by_a_new_sort_projection();
         await Live_playback_progress_participates_in_recent_reading_sort();
