@@ -1,11 +1,21 @@
+using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Speech;
 
 namespace NovelSpeaker.Application.Speech.Rules;
 
 internal sealed class TtsRuleEditorUseCase(
     ITtsRuleRepository repository,
-    TimeProvider timeProvider) : ITtsRuleEditorUseCase
+    TimeProvider timeProvider,
+    IAppSettingsService? settingsService = null,
+    ITtsRuleNormalizer? ruleNormalizer = null,
+    ICacheInvalidationCoordinator? invalidationCoordinator = null) : ITtsRuleEditorUseCase
 {
+    private readonly IAppSettingsService? _settingsService = settingsService;
+    private readonly ITtsRuleNormalizer _ruleNormalizer = ruleNormalizer ?? new TtsRuleNormalizer();
+    private readonly ICacheInvalidationCoordinator? _invalidationCoordinator = invalidationCoordinator;
+
     public async Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken)
     {
         var rule = await repository.GetByIdAsync(ruleId, cancellationToken);
@@ -38,8 +48,13 @@ internal sealed class TtsRuleEditorUseCase(
         var rule = TtsRuleModelMapper.BuildRule(model, existing, timeProvider.GetUtcNow());
         rule = TtsRuleModelMapper.EnsureUniqueName(rule, await repository.GetAllAsync(cancellationToken), existing?.Id);
         var id = await repository.SaveAsync(rule, cancellationToken);
-        var saved = await repository.GetByIdAsync(id, cancellationToken) ?? rule with { Id = id };
-        return saved;
+        var persisted = rule with { Id = id };
+        if (existing is not null)
+        {
+            PublishCoverageInvalidationIfSelected(existing, persisted);
+        }
+
+        return await repository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false) ?? persisted;
     }
 
     public async Task SetRuleEnabledAsync(
@@ -49,9 +64,12 @@ internal sealed class TtsRuleEditorUseCase(
     {
         var rule = await repository.GetByIdAsync(ruleId, cancellationToken)
             ?? throw new InvalidOperationException("未找到要更新的规则。");
-        await repository.SaveAsync(
-            rule with { IsEnabled = isEnabled, UpdatedAt = timeProvider.GetUtcNow() },
-            cancellationToken);
+        var updated = rule with { IsEnabled = isEnabled, UpdatedAt = timeProvider.GetUtcNow() };
+        await repository.SaveAsync(updated, cancellationToken);
+        if (rule.IsEnabled != isEnabled && _settingsService?.Current.SelectedTtsRuleId == ruleId)
+        {
+            PublishCoverageInvalidation();
+        }
     }
 
     public async Task<TtsRuleDraftPreparationResult> PrepareDraftAsync(
@@ -86,4 +104,20 @@ internal sealed class TtsRuleEditorUseCase(
             : null;
         return TtsRuleJsonSerializer.Serialize(TtsRuleModelMapper.BuildRule(validation.NormalizedModel, existing, timeProvider.GetUtcNow()));
     }
+
+    private void PublishCoverageInvalidationIfSelected(HttpTtsRule previous, HttpTtsRule next)
+    {
+        if (_settingsService?.Current.SelectedTtsRuleId != next.Id ||
+            TtsRuleFingerprint.Create(_ruleNormalizer.Normalize(previous))
+                .Equals(TtsRuleFingerprint.Create(_ruleNormalizer.Normalize(next))))
+        {
+            return;
+        }
+
+        PublishCoverageInvalidation();
+    }
+
+    private void PublishCoverageInvalidation() =>
+        _invalidationCoordinator?.Publish(
+            CacheInvalidation.ForGlobal(CacheInvalidationAspect.Coverage));
 }

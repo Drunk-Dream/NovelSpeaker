@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.DependencyInjection;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
@@ -126,6 +127,30 @@ public sealed class TtsRuleUseCaseTests
         var saved = await editorUseCase.SaveEditorAsync(changed, CancellationToken.None);
         Assert.Equal("修改后", saved.Name);
         Assert.Equal("https://example.com/changed", saved.Url);
+    }
+
+    [Fact]
+    public async Task Editor_editing_selected_rule_invalidates_coverage_even_when_id_is_unchanged()
+    {
+        var repository = new FakeRepository([Rule(4, "原规则", "https://example.com/original")]);
+        using var provider = CreateProvider(
+            repository,
+            new FakeSourceAdapter(new([], null)),
+            AppSettings.Default with { SelectedTtsRuleId = 4 });
+        var invalidationCoordinator = provider.GetRequiredService<ICacheInvalidationCoordinator>();
+        var batches = new List<CacheInvalidationBatch>();
+        invalidationCoordinator.BatchPublished += (_, batch) => batches.Add(batch);
+        var editorUseCase = provider.GetRequiredService<ITtsRuleEditorUseCase>();
+        var editor = await editorUseCase.GetEditorAsync(4, CancellationToken.None);
+
+        await editorUseCase.SaveEditorAsync(
+            editor! with { Url = "https://example.com/changed" },
+            CancellationToken.None);
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+
+        var change = Assert.Single(Assert.Single(batches).Changes);
+        Assert.IsType<CacheInvalidationScope.Global>(change.Scope);
+        Assert.Equal(CacheInvalidationAspect.Coverage, change.Aspects);
     }
 
     [Fact]

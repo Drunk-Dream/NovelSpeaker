@@ -19,6 +19,8 @@ public static class PlaybackRegistration
         services.TryAddSingleton<IBookPlaybackContentService, PlaybackContentResolver>();
         services.TryAddSingleton<ICacheInvalidationCoordinator, CacheInvalidationCoordinator>();
         services.TryAddSingleton<ICacheCatalog, CacheCatalog>();
+        services.TryAddSingleton<ICacheCoverageQuery, CacheCoverageQuery>();
+        services.TryAddSingleton<ISpeechPlanRepairCoordinator, SpeechPlanRepairCoordinator>();
         services.TryAddSingleton<CacheWorkspaceService>();
         services.TryAddSingleton<ICacheWorkspaceService>(
             serviceProvider => serviceProvider.GetRequiredService<CacheWorkspaceService>());

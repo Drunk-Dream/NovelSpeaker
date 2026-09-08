@@ -3,7 +3,7 @@ namespace NovelSpeaker.Application.Playback.Cache;
 /// <summary>
 /// Coalesces high-frequency Cache mutations without becoming a general message bus.
 /// </summary>
-public sealed class CacheInvalidationCoordinator : ICacheInvalidationCoordinator
+public sealed class CacheInvalidationCoordinator : ICacheInvalidationCoordinator, IDisposable
 {
     private static readonly TimeSpan CoalescingWindow = TimeSpan.FromMilliseconds(50);
     private readonly TimeProvider _timeProvider;
@@ -101,6 +101,8 @@ public sealed class CacheInvalidationCoordinator : ICacheInvalidationCoordinator
             _publishGate.Dispose();
         }
     }
+
+    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 
     private async Task FlushAfterWindowAsync()
     {

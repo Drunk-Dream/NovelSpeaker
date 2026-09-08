@@ -1,12 +1,8 @@
-using System.Collections.Concurrent;
 using System.Text;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
-using NovelSpeaker.Application.Speech.Compilation;
-using NovelSpeaker.Domain.Books;
-using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.Application.Playback.Cache;
 
@@ -21,19 +17,13 @@ public sealed class CacheWorkspaceService :
     private readonly IAudioCacheStore _cacheStore;
     private readonly IBookPlaybackMetadataQuery _bookMetadataQuery;
     private readonly IBookLibraryQuery? _bookLibraryQuery;
-    private readonly ISelectedTtsRuleProvider _selectedRuleProvider;
-    private readonly IAppSettingsService _settingsService;
     private readonly ICacheWorkspaceFailureReporter? _failureReporter;
-    private readonly IBookPlaybackContentService? _bookContentService;
-    private readonly IRegexReplacementRuleRepository? _regexRuleRepository;
-    private readonly IChapterSpeechPlanStore? _speechPlanStore;
-    private readonly ConcurrentDictionary<PlanRefreshKey, Lazy<Task>> _planRefreshes = new();
-    private readonly CancellationTokenSource _disposeCancellation = new();
-    private readonly SemaphoreSlim _planRefreshConcurrency = new(2, 2);
-    private readonly object _planRefreshGate = new();
-    private Task? _backgroundStopTask;
+    private readonly ICacheCoverageQuery _coverageQuery;
+    private readonly ISpeechPlanRepairCoordinator _repairCoordinator;
+    private readonly ICacheInvalidationCoordinator _invalidationCoordinator;
+    private readonly bool _ownsRepairCoordinator;
+    private readonly bool _ownsInvalidationCoordinator;
     private int _disposed;
-    private bool _backgroundStopping;
 
     public CacheWorkspaceService(
         IAudioCacheStore cacheStore,
@@ -44,18 +34,33 @@ public sealed class CacheWorkspaceService :
         IBookPlaybackContentService? bookContentService = null,
         IRegexReplacementRuleRepository? regexRuleRepository = null,
         IChapterSpeechPlanStore? speechPlanStore = null,
-        IBookLibraryQuery? bookLibraryQuery = null)
+        IBookLibraryQuery? bookLibraryQuery = null,
+        ICacheCoverageQuery? coverageQuery = null,
+        ISpeechPlanRepairCoordinator? repairCoordinator = null,
+        ICacheInvalidationCoordinator? invalidationCoordinator = null)
     {
         _cacheStore = cacheStore;
         _bookMetadataQuery = bookMetadataQuery;
         _bookLibraryQuery = bookLibraryQuery;
-        _selectedRuleProvider = selectedRuleProvider;
-        _settingsService = settingsService;
         _failureReporter = failureReporter;
-        _bookContentService = bookContentService;
-        _regexRuleRepository = regexRuleRepository;
-        _speechPlanStore = speechPlanStore;
-        _cacheStore.Changed += OnCacheStoreChanged;
+        _invalidationCoordinator = invalidationCoordinator ?? new CacheInvalidationCoordinator();
+        _ownsInvalidationCoordinator = invalidationCoordinator is null;
+        _coverageQuery = coverageQuery ?? new CacheCoverageQuery(
+            cacheStore,
+            bookMetadataQuery,
+            selectedRuleProvider,
+            settingsService,
+            regexRuleRepository,
+            failureReporter);
+        _repairCoordinator = repairCoordinator ?? new SpeechPlanRepairCoordinator(
+            bookContentService,
+            settingsService,
+            regexRuleRepository,
+            speechPlanStore,
+            _invalidationCoordinator,
+            failureReporter);
+        _ownsRepairCoordinator = repairCoordinator is null;
+        _invalidationCoordinator.BatchPublished += OnInvalidationBatchPublished;
     }
 
     public event EventHandler<CacheChangedEventArgs>? Changed;
@@ -129,41 +134,26 @@ public sealed class CacheWorkspaceService :
             return [];
         }
 
-        var selectedRule = await _selectedRuleProvider
-            .GetSelectedRuleAsync(cancellationToken)
-            .ConfigureAwait(false);
-        var settings = _settingsService.Current;
         var chapterIndices = summaries.Select(summary => summary.ChapterIndex).ToArray();
-        CurrentConfigurationData configurationData;
-        if (selectedRule is null)
-        {
-            configurationData = await GetUnavailableConfigurationDataAsync(
-                bookId,
-                chapterIndices,
-                cancellationToken).ConfigureAwait(false);
-        }
-        else
-        {
-            configurationData = await TryGetCurrentConfigurationDataAsync(
-                bookId,
-                chapterIndices,
-                selectedRule.NormalizedRule,
-                settings,
-                refreshMissingPlans: true,
-                cancellationToken).ConfigureAwait(false);
-        }
+        var coverage = await GetCoverageDataAsync(bookId, chapterIndices, cancellationToken)
+            .ConfigureAwait(false);
+        var chapters = coverage.Chapters;
+        var statusesByIndex = coverage.Statuses;
+        var titlesByIndex = chapters.ToDictionary(
+            static chapter => chapter.ChapterIndex,
+            static chapter => chapter.Title);
+        QueuePlanRepairs(bookId, chapters, statusesByIndex, includeMissing: true);
 
         var items = new List<CachedChapterCacheItem>(summaries.Count);
         foreach (var summary in summaries)
         {
-            var status = configurationData.Statuses[summary.ChapterIndex];
+            var status = statusesByIndex[summary.ChapterIndex];
 
             items.Add(new CachedChapterCacheItem(
                 summary.BookId,
                 summary.ChapterIndex,
-                configurationData.Titles.GetValueOrDefault(
-                    summary.ChapterIndex,
-                    $"第 {summary.ChapterIndex + 1} 章"),
+                titlesByIndex.GetValueOrDefault(summary.ChapterIndex) ??
+                    $"第 {summary.ChapterIndex + 1} 章",
                 status.CachedSegmentCount,
                 summary.EntryCount,
                 summary.TotalSizeBytes,
@@ -215,35 +205,20 @@ public sealed class CacheWorkspaceService :
             return null;
         }
 
-        var selectedRule = await _selectedRuleProvider
-            .GetSelectedRuleAsync(cancellationToken)
+        var coverage = await GetCoverageDataAsync(bookId, [chapterIndex], cancellationToken)
             .ConfigureAwait(false);
-        CurrentConfigurationData configurationData;
-        if (selectedRule is null)
-        {
-            configurationData = await GetUnavailableConfigurationDataAsync(
-                bookId,
-                [chapterIndex],
-                cancellationToken).ConfigureAwait(false);
-        }
-        else
-        {
-            configurationData = await TryGetCurrentConfigurationDataAsync(
-                bookId,
-                [chapterIndex],
-                selectedRule.NormalizedRule,
-                _settingsService.Current,
-                refreshMissingPlans: true,
-                cancellationToken).ConfigureAwait(false);
-        }
-
-        var status = configurationData.Statuses[chapterIndex];
+        var chapters = coverage.Chapters;
+        var status = coverage.Statuses[chapterIndex];
+        var title = chapters.FirstOrDefault()?.Title;
+        QueuePlanRepairs(
+            bookId,
+            chapters,
+            new Dictionary<int, ChapterCacheStatus> { [chapterIndex] = status },
+            includeMissing: true);
         return new CachedChapterCacheItem(
             summary.BookId,
             summary.ChapterIndex,
-            configurationData.Titles.GetValueOrDefault(
-                summary.ChapterIndex,
-                $"第 {summary.ChapterIndex + 1} 章"),
+            title ?? $"第 {summary.ChapterIndex + 1} 章",
             status.CachedSegmentCount,
             summary.EntryCount,
             summary.TotalSizeBytes,
@@ -307,31 +282,25 @@ public sealed class CacheWorkspaceService :
             return [];
         }
 
-        var selectedRule = await _selectedRuleProvider
-            .GetSelectedRuleAsync(cancellationToken)
-            .ConfigureAwait(false);
-        var settings = _settingsService.Current;
         var indices = summaries.Select(static summary => summary.ChapterIndex).ToArray();
-        var configurationData = selectedRule is null
-            ? await GetUnavailableConfigurationDataAsync(bookId, indices, cancellationToken).ConfigureAwait(false)
-            : await TryGetCurrentConfigurationDataAsync(
-                bookId,
-                indices,
-                selectedRule.NormalizedRule,
-                settings,
-                refreshMissingPlans: true,
-                cancellationToken).ConfigureAwait(false);
+        var coverage = await GetCoverageDataAsync(bookId, indices, cancellationToken)
+            .ConfigureAwait(false);
+        var chapters = coverage.Chapters;
+        var statusesByIndex = coverage.Statuses;
+        var titlesByIndex = chapters.ToDictionary(
+            static chapter => chapter.ChapterIndex,
+            static chapter => chapter.Title);
+        QueuePlanRepairs(bookId, chapters, statusesByIndex, includeMissing: true);
 
         return summaries
             .Select(summary =>
             {
-                var status = configurationData.Statuses[summary.ChapterIndex];
+                var status = statusesByIndex[summary.ChapterIndex];
                 return new CachedChapterCacheItem(
                     summary.BookId,
                     summary.ChapterIndex,
-                    configurationData.Titles.GetValueOrDefault(
-                        summary.ChapterIndex,
-                        $"第 {summary.ChapterIndex + 1} 章"),
+                    titlesByIndex.GetValueOrDefault(summary.ChapterIndex) ??
+                        $"第 {summary.ChapterIndex + 1} 章",
                     status.CachedSegmentCount,
                     summary.EntryCount,
                     summary.TotalSizeBytes,
@@ -357,24 +326,16 @@ public sealed class CacheWorkspaceService :
             return [];
         }
 
-        var selectedRule = await _selectedRuleProvider
-            .GetSelectedRuleAsync(cancellationToken)
+        var coverage = await GetCoverageDataAsync(bookId, normalizedIndices, cancellationToken)
             .ConfigureAwait(false);
-        if (selectedRule is null)
-        {
-            return normalizedIndices
-                .Select(ChapterCacheStatusConfigurationUnavailable)
-                .ToArray();
-        }
-
-        var data = await TryGetCurrentConfigurationDataAsync(
+        var statuses = normalizedIndices.Select(index => coverage.Statuses[index]).ToArray();
+        var chapters = coverage.Chapters;
+        QueuePlanRepairs(
             bookId,
-            normalizedIndices,
-            selectedRule.NormalizedRule,
-            _settingsService.Current,
-            refreshMissingPlans: false,
-            cancellationToken).ConfigureAwait(false);
-        return normalizedIndices.Select(index => data.Statuses[index]).ToArray();
+            chapters,
+            statuses.ToDictionary(status => status.ChapterIndex),
+            includeMissing: false);
+        return statuses;
     }
 
     public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken)
@@ -437,100 +398,6 @@ public sealed class CacheWorkspaceService :
         return MapCleanupResult(result);
     }
 
-    private async Task<CurrentConfigurationData> TryGetCurrentConfigurationDataAsync(
-        string bookId,
-        IReadOnlyCollection<int> chapterIndices,
-        NormalizedHttpTtsRule normalizedRule,
-        AppSettings settings,
-        bool refreshMissingPlans,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var textProfile = await GetCurrentTextProfileAsync(
-                settings,
-                cancellationToken).ConfigureAwait(false);
-            var chapters = await _bookMetadataQuery
-                .GetChaptersAsync(bookId, chapterIndices, cancellationToken)
-                .ConfigureAwait(false);
-            var synthesisProfile = SynthesisProfileFingerprint.Create(
-                TtsRuleFingerprint.Create(normalizedRule),
-                settings.DefaultSpeakSpeed);
-            var coverageQueries = chapters
-                .Where(chapter => !string.IsNullOrWhiteSpace(chapter.ChapterId))
-                .Select(chapter => new CurrentCacheChapterQuery(
-                    chapter.ChapterId!,
-                    chapter.ChapterIndex,
-                    settings.ReadChapterTitle,
-                    settings.ReadChapterTitle && NarratableText.HasContent(chapter.Title)
-                        ? Fingerprint.Sha256(chapter.Title)
-                        : null,
-                    textProfile))
-                .ToArray();
-            var queriedStatuses = coverageQueries.Length == 0
-                ? []
-                : await _cacheStore
-                    .GetCurrentConfigurationStatusesAsync(
-                        coverageQueries,
-                        synthesisProfile,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-            var statusesByIndex = queriedStatuses.ToDictionary(status => status.ChapterIndex);
-            var statuses = new Dictionary<int, ChapterCacheStatus>(chapterIndices.Count);
-            foreach (var chapterIndex in chapterIndices)
-            {
-                statuses.Add(
-                    chapterIndex,
-                    statusesByIndex.GetValueOrDefault(
-                        chapterIndex,
-                        ChapterCacheStatusConfigurationUnavailable(chapterIndex)));
-            }
-
-            QueuePlanRefreshes(
-                bookId,
-                chapters,
-                statusesByIndex,
-                refreshMissingPlans);
-
-            return new CurrentConfigurationData(
-                statuses,
-                chapters.ToDictionary(chapter => chapter.ChapterIndex, chapter => chapter.Title));
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception) when (IsExpectedCompletenessFailure(exception))
-        {
-            ReportCompletenessFailure(exception);
-            return CurrentConfigurationData.Unavailable(chapterIndices);
-        }
-    }
-
-    private async Task<CurrentConfigurationData> GetUnavailableConfigurationDataAsync(
-        string bookId,
-        IReadOnlyCollection<int> chapterIndices,
-        CancellationToken cancellationToken)
-    {
-        var chapters = await _bookMetadataQuery
-            .GetChaptersAsync(bookId, chapterIndices, cancellationToken)
-            .ConfigureAwait(false);
-        return new CurrentConfigurationData(
-            chapterIndices.ToDictionary(index => index, ChapterCacheStatusConfigurationUnavailable),
-            chapters.ToDictionary(chapter => chapter.ChapterIndex, chapter => chapter.Title));
-    }
-
-    private static bool IsExpectedCompletenessFailure(Exception exception)
-    {
-        return exception is FileNotFoundException or
-            DirectoryNotFoundException or
-            UnauthorizedAccessException or
-            ArgumentOutOfRangeException or
-            IOException or
-            DecoderFallbackException or
-            InvalidDataException;
-    }
-
     private static int[] NormalizeChapterIndices(IReadOnlyCollection<int> chapterIndices)
     {
         var normalizedIndices = chapterIndices.Distinct().Order().ToArray();
@@ -542,174 +409,49 @@ public sealed class CacheWorkspaceService :
         return normalizedIndices;
     }
 
-    private static ChapterCacheStatus ChapterCacheStatusConfigurationUnavailable(int chapterIndex) =>
-        new(chapterIndex, 0, null)
-        {
-            Kind = ChapterCacheStatusKind.ConfigurationUnavailable
-        };
-
-    private void OnCacheStoreChanged(object? sender, CacheChangedEventArgs eventArgs)
-    {
-        Changed?.Invoke(this, eventArgs);
-    }
-
-    private void QueuePlanRefreshes(
+    private async Task<CoverageData> GetCoverageDataAsync(
         string bookId,
-        IReadOnlyCollection<PlaybackChapterMetadata> chapters,
-        IReadOnlyDictionary<int, ChapterCacheStatus> statusesByIndex,
-        bool refreshMissingPlans)
-    {
-        if (_bookContentService is null || Volatile.Read(ref _disposed) != 0)
-        {
-            return;
-        }
-
-        lock (_planRefreshGate)
-        {
-            if (_backgroundStopping)
-            {
-                return;
-            }
-
-            foreach (var chapter in chapters)
-            {
-                if (!statusesByIndex.TryGetValue(chapter.ChapterIndex, out var status) ||
-                    (status.Kind != ChapterCacheStatusKind.PlanStale &&
-                     !(refreshMissingPlans && status.Kind == ChapterCacheStatusKind.PlanMissing)))
-                {
-                    continue;
-                }
-
-                var key = new PlanRefreshKey(bookId, chapter.ChapterIndex, chapter.ChapterId!);
-                var refresh = _planRefreshes.GetOrAdd(
-                    key,
-                    static (refreshKey, owner) => new Lazy<Task>(
-                        () => owner.RefreshPlanAsync(refreshKey),
-                        LazyThreadSafetyMode.ExecutionAndPublication),
-                    this);
-                _ = refresh.Value;
-            }
-        }
-    }
-
-    private async Task RefreshPlanAsync(PlanRefreshKey key)
-    {
-        var entered = false;
-        try
-        {
-            await _planRefreshConcurrency
-                .WaitAsync(_disposeCancellation.Token)
-                .ConfigureAwait(false);
-            entered = true;
-            while (true)
-            {
-                var profileBefore = await GetCurrentTextProfileAsync(
-                    _settingsService.Current,
-                    _disposeCancellation.Token).ConfigureAwait(false);
-                var chapter = await _bookContentService!
-                    .GetChapterAsync(key.BookId, key.ChapterIndex, _disposeCancellation.Token)
-                    .ConfigureAwait(false);
-                if (chapter is null)
-                {
-                    return;
-                }
-
-                var profileAfter = await GetCurrentTextProfileAsync(
-                    _settingsService.Current,
-                    _disposeCancellation.Token).ConfigureAwait(false);
-                if (!profileBefore.Equals(profileAfter) ||
-                    !await IsPersistedPlanCurrentAsync(key, profileAfter).ConfigureAwait(false))
-                {
-                    // The content service may have committed the first snapshot while a
-                    // rule/settings edit was in flight. Rebuild until the completion
-                    // observes one stable current text configuration and has committed it.
-                    continue;
-                }
-
-                TryPublishPlanRefresh(key);
-                return;
-            }
-        }
-        catch (OperationCanceledException) when (_disposeCancellation.IsCancellationRequested)
-        {
-        }
-        catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
-        {
-        }
-        catch (Exception exception)
-        {
-            ReportCompletenessFailure(exception);
-        }
-        finally
-        {
-            if (entered)
-            {
-                try
-                {
-                    _planRefreshConcurrency.Release();
-                }
-                catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
-                {
-                }
-            }
-
-            _planRefreshes.TryRemove(key, out _);
-        }
-    }
-
-    private async Task<TextProfileFingerprint> GetCurrentTextProfileAsync(
-        AppSettings settings,
+        IReadOnlyCollection<int> chapterIndices,
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<RegexReplacementRule> rules = _regexRuleRepository is null
-            ? Array.Empty<RegexReplacementRule>()
-            : await _regexRuleRepository.GetAllAsync(cancellationToken).ConfigureAwait(false);
-        return TextProfileFingerprint.Create(settings.ToTextSegmentationOptions(), rules);
-    }
-
-    private async Task<bool> IsPersistedPlanCurrentAsync(
-        PlanRefreshKey key,
-        TextProfileFingerprint currentProfile)
-    {
-        ChapterSpeechPlan? plan = null;
-        if (_speechPlanStore is not null)
+        try
         {
-            plan = await _speechPlanStore
-                .GetAsync(key.ChapterId, _disposeCancellation.Token)
+            var chapters = await _bookMetadataQuery
+                .GetChaptersAsync(bookId, chapterIndices, cancellationToken)
                 .ConfigureAwait(false);
+            var statuses = await _coverageQuery
+                .GetAsync(bookId, chapterIndices, chapters, cancellationToken)
+                .ConfigureAwait(false);
+            return new CoverageData(
+                chapters,
+                statuses.ToDictionary(status => status.ChapterIndex));
         }
-
-        // The content service may have persisted while the settings or rule read was
-        // in flight. Require a third, post-persistence profile read to prove that the
-        // plan and the currently stable text configuration are still the same.
-        var stableProfile = await GetCurrentTextProfileAsync(
-            _settingsService.Current,
-            _disposeCancellation.Token).ConfigureAwait(false);
-        if (!currentProfile.Equals(stableProfile))
+        catch (OperationCanceledException)
         {
-            return false;
+            throw;
         }
-
-        return _speechPlanStore is null ||
-            (plan is not null &&
-             plan.State == ChapterSpeechPlanState.Ready &&
-             plan.TextProfileFingerprint.Equals(stableProfile));
+        catch (Exception exception) when (IsExpectedCompletenessFailure(exception))
+        {
+            ReportCompletenessFailure(exception);
+            return new CoverageData(
+                [],
+                chapterIndices.ToDictionary(
+                    index => index,
+                    static index => new ChapterCacheStatus(index, 0, null)
+                    {
+                        Kind = ChapterCacheStatusKind.ConfigurationUnavailable
+                    }));
+        }
     }
 
-    private void TryPublishPlanRefresh(PlanRefreshKey key)
-    {
-        lock (_planRefreshGate)
-        {
-            if (_backgroundStopping ||
-                Volatile.Read(ref _disposed) != 0 ||
-                _disposeCancellation.IsCancellationRequested)
-            {
-                return;
-            }
-
-            Changed?.Invoke(this, new CacheChangedEventArgs(key.BookId, key.ChapterIndex));
-        }
-    }
+    private static bool IsExpectedCompletenessFailure(Exception exception) =>
+        exception is FileNotFoundException or
+            DirectoryNotFoundException or
+            UnauthorizedAccessException or
+            ArgumentOutOfRangeException or
+            IOException or
+            DecoderFallbackException or
+            InvalidDataException;
 
     private void ReportCompletenessFailure(Exception exception)
     {
@@ -719,44 +461,71 @@ public sealed class CacheWorkspaceService :
         }
         catch
         {
-            // Failure diagnostics are best effort and must not fault or strand the owned task.
+            // Diagnostics are best effort and must not replace a read-only result.
         }
     }
 
-    public async Task StopBackgroundOperationsAsync(CancellationToken cancellationToken)
+    private void QueuePlanRepairs(
+        string bookId,
+        IReadOnlyCollection<PlaybackChapterMetadata> chapters,
+        IReadOnlyDictionary<int, ChapterCacheStatus> statusesByIndex,
+        bool includeMissing)
     {
-        Task stopTask;
-        lock (_planRefreshGate)
+        if (Volatile.Read(ref _disposed) != 0)
         {
-            if (Volatile.Read(ref _disposed) != 0)
+            return;
+        }
+
+        foreach (var chapter in chapters)
+        {
+            if (string.IsNullOrWhiteSpace(chapter.ChapterId) ||
+                !statusesByIndex.TryGetValue(chapter.ChapterIndex, out var status) ||
+                (status.Kind != ChapterCacheStatusKind.PlanStale &&
+                 !(includeMissing && status.Kind == ChapterCacheStatusKind.PlanMissing)))
             {
-                return;
+                continue;
             }
 
-            _backgroundStopping = true;
-            _disposeCancellation.Cancel();
-            _backgroundStopTask ??= Task.WhenAll(
-                _planRefreshes.Values
-                    .Where(static refresh => refresh.IsValueCreated)
-                    .Select(static refresh => refresh.Value)
-                    .ToArray());
-            ObserveTaskFaults(_backgroundStopTask);
-            stopTask = _backgroundStopTask;
+            ObserveRepair(
+                _repairCoordinator.RequestAsync(
+                    new SpeechPlanRepairRequest(bookId, chapter.ChapterIndex, chapter.ChapterId!),
+                    CancellationToken.None));
         }
-
-        await stopTask
-            .WaitAsync(cancellationToken)
-            .ConfigureAwait(false);
     }
 
-    private static void ObserveTaskFaults(Task task)
+    private void OnInvalidationBatchPublished(object? sender, CacheInvalidationBatch batch)
     {
-        _ = task.ContinueWith(
-            static completedTask => _ = completedTask.Exception,
+        foreach (var change in batch.Changes)
+        {
+            switch (change.Scope)
+            {
+                case CacheInvalidationScope.Global:
+                    Changed?.Invoke(this, new CacheChangedEventArgs(null, null));
+                    break;
+                case CacheInvalidationScope.Book book:
+                    Changed?.Invoke(this, new CacheChangedEventArgs(book.BookId, null));
+                    break;
+                case CacheInvalidationScope.Chapters chapters:
+                    foreach (var chapterIndex in chapters.ChapterIndices)
+                    {
+                        Changed?.Invoke(this, new CacheChangedEventArgs(chapters.BookId, chapterIndex));
+                    }
+                    break;
+            }
+        }
+    }
+
+    private static void ObserveRepair(Task repair)
+    {
+        _ = repair.ContinueWith(
+            static completed => _ = completed.Exception,
             CancellationToken.None,
             TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
     }
+
+    public Task StopBackgroundOperationsAsync(CancellationToken cancellationToken) =>
+        _repairCoordinator.StopAsync(cancellationToken);
 
     public void Dispose()
     {
@@ -765,24 +534,16 @@ public sealed class CacheWorkspaceService :
             return;
         }
 
-        _cacheStore.Changed -= OnCacheStoreChanged;
-        lock (_planRefreshGate)
+        _invalidationCoordinator.BatchPublished -= OnInvalidationBatchPublished;
+        if (_ownsRepairCoordinator)
         {
-            _backgroundStopping = true;
-            _disposeCancellation.Cancel();
+            _repairCoordinator.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
-        _planRefreshConcurrency.Dispose();
-        _disposeCancellation.Dispose();
-    }
 
-    private sealed record CurrentConfigurationData(
-        IReadOnlyDictionary<int, ChapterCacheStatus> Statuses,
-        IReadOnlyDictionary<int, string> Titles)
-    {
-        public static CurrentConfigurationData Unavailable(IReadOnlyCollection<int> chapterIndices) =>
-            new(
-                chapterIndices.ToDictionary(index => index, ChapterCacheStatusConfigurationUnavailable),
-                new Dictionary<int, string>());
+        if (_ownsInvalidationCoordinator)
+        {
+            _invalidationCoordinator.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
     }
 
     private static CacheCleanupResult MapCleanupResult(AudioCacheStoreCleanupResult result)
@@ -794,5 +555,7 @@ public sealed class CacheWorkspaceService :
             result.FailedEntryCount);
     }
 
-    private sealed record PlanRefreshKey(string BookId, int ChapterIndex, string ChapterId);
+    private sealed record CoverageData(
+        IReadOnlyList<PlaybackChapterMetadata> Chapters,
+        IReadOnlyDictionary<int, ChapterCacheStatus> Statuses);
 }

@@ -1,6 +1,8 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.TextProcessing;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.TestKit.Common;
 using Xunit;
 
 namespace NovelSpeaker.Application.UnitTests.Books;
@@ -30,6 +32,29 @@ public sealed class RegexReplacementRuleWorkspaceServiceTests
         var repository = new FakeRepository([Rule(a, 100), Rule(b, 200)]);
         await CreateService(repository).SaveOrderAsync([b, a], CancellationToken.None);
         Assert.Equal([(b, 10), (a, 20)], repository.Rules.OrderBy(rule => rule.SortOrder).Select(rule => (rule.Id, rule.SortOrder)).ToArray());
+    }
+
+    [Fact]
+    public async Task SaveEditorAsync_publishes_coverage_invalidation_after_rule_commit()
+    {
+        var repository = new FakeRepository([]);
+        await using var invalidationCoordinator = new CacheInvalidationCoordinator(new ManualTimeProvider());
+        var batches = new List<CacheInvalidationBatch>();
+        invalidationCoordinator.BatchPublished += (_, batch) => batches.Add(batch);
+        var service = new RegexReplacementRuleWorkspaceService(
+            repository,
+            new RegexReplacementRuleErrorStore(),
+            TimeProvider.System,
+            invalidationCoordinator);
+
+        await service.SaveEditorAsync(
+            new RegexReplacementRuleEditorModel(null, "规则", "正文", "替换", RegexReplacementScope.Speech),
+            CancellationToken.None);
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+
+        var change = Assert.Single(Assert.Single(batches).Changes);
+        Assert.IsType<CacheInvalidationScope.Global>(change.Scope);
+        Assert.Equal(CacheInvalidationAspect.Coverage, change.Aspects);
     }
 
     [Fact]

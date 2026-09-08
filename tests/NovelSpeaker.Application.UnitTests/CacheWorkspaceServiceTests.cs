@@ -7,6 +7,7 @@ using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using Xunit;
+using NovelSpeaker.TestKit.Common;
 
 namespace NovelSpeaker.Application.UnitTests;
 
@@ -237,6 +238,138 @@ public sealed class CacheWorkspaceServiceTests
         Assert.True(query.ReadChapterTitle);
         Assert.Equal(Fingerprint.Sha256("第一章"), query.ChapterTitleSpeechTextHash);
         Assert.NotNull(query.TextProfileFingerprint);
+    }
+
+    [Fact]
+    public async Task CacheCoverageQuery_reports_plan_state_without_starting_repair_side_effects()
+    {
+        var store = new FakeAudioCacheStore
+        {
+            CoverageResult =
+            [
+                new ChapterCacheStatus(0, 0, null)
+                {
+                    Kind = ChapterCacheStatusKind.PlanMissing
+                }
+            ]
+        };
+        var metadata = new FakeBookPlaybackMetadataQuery();
+        metadata.Chapters[("book-1", 0)] = new PlaybackChapterMetadata(
+            0,
+            "第一章",
+            "content.txt",
+            0,
+            1,
+            "chapter-1");
+        var query = new CacheCoverageQuery(
+            store,
+            metadata,
+            new FakeSelectedTtsRuleProvider(7),
+            new FakeAppSettingsService(10, false));
+
+        var statuses = await query.GetAsync("book-1", [0], CancellationToken.None);
+
+        Assert.Equal(ChapterCacheStatusKind.PlanMissing, Assert.Single(statuses).Kind);
+        Assert.Equal(1, store.CoverageQueryCount);
+        Assert.False(store.MaintenanceRequested);
+    }
+
+    [Fact]
+    public async Task SpeechPlanRepairCoordinator_coalesces_same_chapter_and_publishes_coverage_after_commit()
+    {
+        var settings = new MutableAppSettingsService();
+        var rules = new MutableRegexReplacementRuleRepository();
+        var planStore = new RecordingChapterSpeechPlanStore();
+        var content = new ConfigurationAwareBookPlaybackContentService(
+            () => settings.Current.LongParagraphThreshold,
+            blockFirstRequest: true,
+            currentProfile: () => TextProfileFingerprint.Create(
+                settings.Current.ToTextSegmentationOptions(),
+                rules.Rules),
+            speechPlanStore: planStore,
+            chapterId: "chapter-1-0");
+        var timeProvider = new ManualTimeProvider();
+        await using var invalidationCoordinator = new CacheInvalidationCoordinator(timeProvider);
+        var batches = new List<CacheInvalidationBatch>();
+        invalidationCoordinator.BatchPublished += (_, batch) => batches.Add(batch);
+        await using var coordinator = new SpeechPlanRepairCoordinator(
+            content,
+            settings,
+            rules,
+            planStore,
+            invalidationCoordinator);
+
+        var first = coordinator.RequestAsync(
+            new SpeechPlanRepairRequest("book-1", 0, "chapter-1-0"),
+            CancellationToken.None);
+        await content.FirstRequestStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        var second = coordinator.RequestAsync(
+            new SpeechPlanRepairRequest("book-1", 0, "chapter-1-0"),
+            CancellationToken.None);
+
+        Assert.Equal(1, content.RequestCount);
+        content.ReleaseFirstRequest.TrySetResult();
+        await Task.WhenAll(first, second);
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+
+        var change = Assert.Single(Assert.Single(batches).Changes);
+        var scope = Assert.IsType<CacheInvalidationScope.Chapters>(change.Scope);
+        Assert.Equal("book-1", scope.BookId);
+        Assert.Equal([0], scope.ChapterIndices);
+        Assert.Equal(CacheInvalidationAspect.Coverage, change.Aspects);
+        Assert.Single(planStore.SavedPlans);
+    }
+
+    [Fact]
+    public async Task Workspace_projects_typed_physical_changes_once()
+    {
+        await using var invalidationCoordinator = new CacheInvalidationCoordinator(new ManualTimeProvider());
+        using var service = CreateService(
+            new FakeAudioCacheStore(),
+            new FakeBookPlaybackMetadataQuery(),
+            invalidationCoordinator: invalidationCoordinator);
+        var changed = 0;
+        service.Changed += (_, _) => changed++;
+
+        invalidationCoordinator.Publish(
+            CacheInvalidation.ForChapters(
+                "book-1",
+                [0],
+                CacheInvalidationAspect.PhysicalSummary |
+                CacheInvalidationAspect.CatalogStructure |
+                CacheInvalidationAspect.Coverage));
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+        Assert.Equal(1, changed);
+    }
+
+    [Fact]
+    public async Task Workspace_preserves_coverage_for_a_different_chapter_in_a_merged_batch()
+    {
+        var store = new FakeAudioCacheStore();
+        await using var invalidationCoordinator = new CacheInvalidationCoordinator(new ManualTimeProvider());
+        using var service = CreateService(
+            store,
+            new FakeBookPlaybackMetadataQuery(),
+            invalidationCoordinator: invalidationCoordinator);
+        var changes = new List<CacheChangedEventArgs>();
+        service.Changed += (_, change) => changes.Add(change);
+
+        invalidationCoordinator.Publish(
+            CacheInvalidation.ForChapters(
+                "book-1",
+                [2],
+                CacheInvalidationAspect.PhysicalSummary |
+                CacheInvalidationAspect.CatalogStructure |
+                CacheInvalidationAspect.Coverage));
+        invalidationCoordinator.Publish(
+            CacheInvalidation.ForChapters(
+                "book-1",
+                [1],
+                CacheInvalidationAspect.Coverage));
+
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+
+        Assert.Equal([new CacheChangedEventArgs("book-1", 1), new CacheChangedEventArgs("book-1", 2)], changes);
     }
 
     [Fact]
@@ -707,10 +840,13 @@ public sealed class CacheWorkspaceServiceTests
     }
 
     [Fact]
-    public void Changed_forwards_store_change_with_workspace_as_sender()
+    public async Task Changed_projects_typed_change_with_workspace_as_sender()
     {
-        var store = new FakeAudioCacheStore();
-        var service = CreateService(store, new FakeBookPlaybackMetadataQuery());
+        await using var invalidationCoordinator = new CacheInvalidationCoordinator(new ManualTimeProvider());
+        var service = CreateService(
+            new FakeAudioCacheStore(),
+            new FakeBookPlaybackMetadataQuery(),
+            invalidationCoordinator: invalidationCoordinator);
         object? sender = null;
         CacheChangedEventArgs? received = null;
         service.Changed += (eventSender, eventArgs) =>
@@ -719,7 +855,12 @@ public sealed class CacheWorkspaceServiceTests
             received = eventArgs;
         };
 
-        store.RaiseChanged("book-1", 3);
+        invalidationCoordinator.Publish(
+            CacheInvalidation.ForChapters(
+                "book-1",
+                [3],
+                CacheInvalidationAspect.PhysicalSummary));
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
 
         Assert.Same(service, sender);
         Assert.Equal(new CacheChangedEventArgs("book-1", 3), received);
@@ -848,7 +989,8 @@ public sealed class CacheWorkspaceServiceTests
         IRegexReplacementRuleRepository? regexRuleRepository = null,
         ICacheWorkspaceFailureReporter? failureReporter = null,
         IChapterSpeechPlanStore? speechPlanStore = null,
-        IBookLibraryQuery? bookLibraryQuery = null)
+        IBookLibraryQuery? bookLibraryQuery = null,
+        ICacheInvalidationCoordinator? invalidationCoordinator = null)
     {
         return new CacheWorkspaceService(
             store,
@@ -859,7 +1001,8 @@ public sealed class CacheWorkspaceServiceTests
             bookContentService: bookContentService,
             regexRuleRepository: regexRuleRepository,
             speechPlanStore: speechPlanStore,
-            bookLibraryQuery: bookLibraryQuery);
+            bookLibraryQuery: bookLibraryQuery,
+            invalidationCoordinator: invalidationCoordinator);
     }
 
     private sealed class FakeBookLibraryQuery : IBookLibraryQuery

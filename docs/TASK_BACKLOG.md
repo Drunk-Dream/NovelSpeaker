@@ -691,7 +691,7 @@ Row 内少量 BookCard
 
 完成成果：新增物理事实专用 `ICacheCatalog`/immutable summaries，补齐 Global/Book/Chapters typed invalidation 及 PhysicalSummary/CatalogStructure/Coverage aspects；`AudioCacheFacade`、清理和 LRU maintenance 在 commit 后发布最窄已知范围，`CacheInvalidationCoordinator` 对 burst mutations 合并为 immutable batch；保留旧 `Changed` 作为迁移期投影并接入启动 shutdown owner。新增 coordinator/catalog 单元测试与 SQLite mutation scope 回归测试，相关 Release focused tests 通过。
 
-## [ ] T015（P0）：拆分 Cache Coverage 与 Speech Plan Repair
+## [x] T015（P0）：拆分 Cache Coverage 与 Speech Plan Repair
 
 依赖：T014。
 
@@ -740,6 +740,8 @@ Row 内少量 BookCard
 - repair completion 只 invalidates 对应 chapter Coverage；
 - TTS/settings/Regex 变化使旧 Coverage 失效但不触发全量 eager query；
 - 删除最后 cache 的 plan cleanup 语义保持。
+
+完成成果：新增 `ICacheCoverageQuery/CacheCoverageQuery`，当前配置 Coverage 只读返回 PlanMissing/PlanStale 等状态，不再在查询内部补建；新增 process-scoped `SpeechPlanRepairCoordinator`，按章节合并请求、限制并发、稳定配置后提交并发布章节级 Coverage invalidation，页面等待取消不影响已接管的 repair。Workspace 迁移期 façade 显式登记 repair，Settings 与 Regex 成功变更在提交后发布 Coverage-wide invalidation；启动 shutdown 改由独立 repair owner 负责。新增 query 无副作用、同章去重/提交失效及配置变更回归测试，CacheWorkspace、Settings、Regex focused tests 共 49 项通过。
 
 ## [ ] T016（P0）：迁移 Cache 页面到 live projection + scalable catalog
 

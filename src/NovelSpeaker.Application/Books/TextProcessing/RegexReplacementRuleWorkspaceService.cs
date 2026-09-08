@@ -1,5 +1,6 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Application.Books.RuleEditing;
 
@@ -13,15 +14,18 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
     private readonly IRegexReplacementRuleRepository _repository;
     private readonly IRegexReplacementRuleErrorStore _errorStore;
     private readonly TimeProvider _timeProvider;
+    private readonly ICacheInvalidationCoordinator? _invalidationCoordinator;
 
     public RegexReplacementRuleWorkspaceService(
         IRegexReplacementRuleRepository repository,
         IRegexReplacementRuleErrorStore errorStore,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ICacheInvalidationCoordinator? invalidationCoordinator = null)
     {
         _repository = repository;
         _errorStore = errorStore;
         _timeProvider = timeProvider;
+        _invalidationCoordinator = invalidationCoordinator;
     }
 
     public async Task<IReadOnlyList<RegexReplacementRuleListItem>> GetRulesAsync(
@@ -79,12 +83,14 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
             existing?.CreatedAt ?? now,
             now);
         await _repository.SaveAsync(saved, cancellationToken);
+        PublishCoverageInvalidation();
         return MapEditor(saved);
     }
 
-    public Task SetRuleEnabledAsync(Guid ruleId, bool isEnabled, CancellationToken cancellationToken)
+    public async Task SetRuleEnabledAsync(Guid ruleId, bool isEnabled, CancellationToken cancellationToken)
     {
-        return _repository.UpdateEnabledAsync(ruleId, isEnabled, cancellationToken);
+        await _repository.UpdateEnabledAsync(ruleId, isEnabled, cancellationToken);
+        PublishCoverageInvalidation();
     }
 
     public async Task<string?> ExportRuleJsonAsync(Guid ruleId, CancellationToken cancellationToken)
@@ -124,6 +130,7 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
                 now);
             await _repository.SaveAsync(rule, cancellationToken);
             existing.Add(rule);
+            PublishCoverageInvalidation();
             imported++;
         }
 
@@ -147,12 +154,18 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
             .Select((id, index) => (RuleId: id, SortOrder: (index + 1) * SortOrderStep))
             .ToArray();
         await _repository.SaveOrderAsync(order, cancellationToken);
+        PublishCoverageInvalidation();
     }
 
-    public Task DeleteRuleAsync(Guid ruleId, CancellationToken cancellationToken)
+    public async Task DeleteRuleAsync(Guid ruleId, CancellationToken cancellationToken)
     {
-        return _repository.DeleteAsync(ruleId, cancellationToken);
+        await _repository.DeleteAsync(ruleId, cancellationToken);
+        PublishCoverageInvalidation();
     }
+
+    private void PublishCoverageInvalidation() =>
+        _invalidationCoordinator?.Publish(
+            CacheInvalidation.ForGlobal(CacheInvalidationAspect.Coverage));
 
     private string? GetError(RegexReplacementRule rule)
     {

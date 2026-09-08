@@ -16,13 +16,18 @@ public sealed class AppSettingsService :
     IDisposable
 {
     private readonly IAppSettingsStore _store;
+    private readonly ICacheInvalidationCoordinator? _invalidationCoordinator;
     private readonly SemaphoreSlim _mutex = new(1, 1);
     private AppSettings _current;
 
-    public AppSettingsService(IAppSettingsStore store, AppSettings startupSnapshot)
+    public AppSettingsService(
+        IAppSettingsStore store,
+        AppSettings startupSnapshot,
+        ICacheInvalidationCoordinator? invalidationCoordinator = null)
     {
         _store = store;
         _current = (startupSnapshot ?? throw new ArgumentNullException(nameof(startupSnapshot))).Normalize();
+        _invalidationCoordinator = invalidationCoordinator;
     }
 
     public AppSettings Current => Volatile.Read(ref _current);
@@ -51,6 +56,12 @@ public sealed class AppSettingsService :
             await _store.SaveAsync(next, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _current, next);
             Changed?.Invoke(this, new AppSettingsChangedEventArgs(previous, next));
+            if (AffectsCacheCoverage(previous, next))
+            {
+                _invalidationCoordinator?.Publish(
+                    CacheInvalidation.ForGlobal(CacheInvalidationAspect.Coverage));
+            }
+
             return next;
         }
         finally
@@ -60,6 +71,13 @@ public sealed class AppSettingsService :
     }
 
     public void Dispose() => _mutex.Dispose();
+
+    private static bool AffectsCacheCoverage(AppSettings previous, AppSettings next) =>
+        previous.SelectedTtsRuleId != next.SelectedTtsRuleId ||
+        previous.DefaultSpeakSpeed != next.DefaultSpeakSpeed ||
+        previous.ReadChapterTitle != next.ReadChapterTitle ||
+        previous.EnableLongParagraphSplitting != next.EnableLongParagraphSplitting ||
+        previous.LongParagraphThreshold != next.LongParagraphThreshold;
 
     private static AppSettings ApplyUpdate(AppSettings current, AppSettingsUpdate update)
     {
