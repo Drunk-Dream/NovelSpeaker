@@ -3,7 +3,7 @@ using NovelSpeaker.Domain.Settings;
 namespace NovelSpeaker.Application.Settings;
 
 /// <summary>
-/// Provides serialized reads and partial updates for user settings.
+/// Owns the process-wide normalized settings snapshot and serialized persisted updates.
 /// </summary>
 public interface IAppSettingsService
 {

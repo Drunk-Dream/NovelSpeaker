@@ -7,7 +7,7 @@ using NovelSpeaker.Domain.Settings;
 namespace NovelSpeaker.Application.Settings;
 
 /// <summary>
-/// Defines the composition boundary for settings application use cases.
+/// Defines the composition boundary for the process-owned settings snapshot.
 /// </summary>
 public static class SettingsRegistration
 {
@@ -17,8 +17,12 @@ public static class SettingsRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddSingleton((startupSnapshot ?? AppSettings.Default).Normalize());
-        services.TryAddSingleton<AppSettingsService>();
+        var normalizedStartupSnapshot = (startupSnapshot ?? AppSettings.Default).Normalize();
+        services.TryAddSingleton<AppSettingsService>(provider =>
+            new AppSettingsService(
+                provider.GetRequiredService<IAppSettingsStore>(),
+                normalizedStartupSnapshot,
+                provider.GetService<ICacheInvalidationCoordinator>()));
         services.TryAddSingleton<IAppSettingsService>(provider => provider.GetRequiredService<AppSettingsService>());
         services.TryAddSingleton<IAudioCacheLimitProvider>(provider => provider.GetRequiredService<AppSettingsService>());
         services.TryAddSingleton<IBookFileNameTemplateProvider>(provider => provider.GetRequiredService<AppSettingsService>());

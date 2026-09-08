@@ -7,6 +7,9 @@ using NovelSpeaker.App.Shell.Navigation;
 
 namespace NovelSpeaker.App.Features.Settings;
 
+/// <summary>
+/// Provides activation-scoped behavior for transient settings pages without owning settings state.
+/// </summary>
 public abstract partial class SettingsSubpageViewModelBase : ObservableObject
 {
     private readonly IAppNavigator _navigator;

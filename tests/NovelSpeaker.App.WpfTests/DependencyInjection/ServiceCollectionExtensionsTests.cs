@@ -194,9 +194,9 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.Same(
                     provider.GetRequiredService<IPlaybackSession>(),
                     provider.GetRequiredService<IPlaybackRegexReplacementRefresher>());
-                Assert.Same(
-                    provider.GetRequiredService<IAppSettingsService>(),
-                    provider.GetRequiredService<IAppSettingsService>());
+                var processSettings = provider.GetRequiredService<IAppSettingsService>();
+                Assert.Same(processSettings, provider.GetRequiredService<IAppSettingsService>());
+                Assert.Same(processSettings, provider.GetRequiredService<AppSettingsService>());
                 Assert.Same(
                     provider.GetRequiredService<IAppSettingsService>(),
                     provider.GetRequiredService<IAudioCacheLimitProvider>());
@@ -259,6 +259,24 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<SettingsViewModel>(),
                     provider.GetRequiredService<SettingsViewModel>());
                 Assert.NotSame(
+                    provider.GetRequiredService<AppearanceSettingsViewModel>(),
+                    provider.GetRequiredService<AppearanceSettingsViewModel>());
+                Assert.NotSame(
+                    provider.GetRequiredService<GeneralSettingsViewModel>(),
+                    provider.GetRequiredService<GeneralSettingsViewModel>());
+                Assert.NotSame(
+                    provider.GetRequiredService<PlaybackSettingsViewModel>(),
+                    provider.GetRequiredService<PlaybackSettingsViewModel>());
+                Assert.NotSame(
+                    provider.GetRequiredService<ImportTextSettingsViewModel>(),
+                    provider.GetRequiredService<ImportTextSettingsViewModel>());
+                Assert.NotSame(
+                    provider.GetRequiredService<CacheAndDataViewModel>(),
+                    provider.GetRequiredService<CacheAndDataViewModel>());
+                Assert.NotSame(
+                    provider.GetRequiredService<DiagnosticsAboutViewModel>(),
+                    provider.GetRequiredService<DiagnosticsAboutViewModel>());
+                Assert.NotSame(
                     provider.GetRequiredService<TtsRulesViewModel>(),
                     provider.GetRequiredService<TtsRulesViewModel>());
                 Assert.NotSame(
@@ -276,6 +294,24 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.NotSame(
                     provider.GetRequiredService<SettingsPage>(),
                     provider.GetRequiredService<SettingsPage>());
+                Assert.NotSame(
+                    provider.GetRequiredService<AppearanceSettingsPage>(),
+                    provider.GetRequiredService<AppearanceSettingsPage>());
+                Assert.NotSame(
+                    provider.GetRequiredService<GeneralSettingsPage>(),
+                    provider.GetRequiredService<GeneralSettingsPage>());
+                Assert.NotSame(
+                    provider.GetRequiredService<PlaybackSettingsPage>(),
+                    provider.GetRequiredService<PlaybackSettingsPage>());
+                Assert.NotSame(
+                    provider.GetRequiredService<ImportTextSettingsPage>(),
+                    provider.GetRequiredService<ImportTextSettingsPage>());
+                Assert.NotSame(
+                    provider.GetRequiredService<CacheAndDataPage>(),
+                    provider.GetRequiredService<CacheAndDataPage>());
+                Assert.NotSame(
+                    provider.GetRequiredService<DiagnosticsAboutPage>(),
+                    provider.GetRequiredService<DiagnosticsAboutPage>());
                 Assert.NotSame(
                     provider.GetRequiredService<TtsRulesPage>(),
                     provider.GetRequiredService<TtsRulesPage>());

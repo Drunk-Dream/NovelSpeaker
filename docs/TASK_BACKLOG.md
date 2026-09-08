@@ -831,7 +831,7 @@ Row 内少量 BookCard
 
 完成成果：TTS/Chapter/Regex VM 复用 Rules Shared 的选择、排序和导入生命周期，删除重复的导入互斥、Busy、排序计算与页面初始化标志；保留各 Feature 的校验、预览、播放刷新及持久化语义。
 
-## [ ] T019（P1）：迁移 Settings 为 process snapshot + transient 页面 VM
+## [x] T019（P1）：迁移 Settings 为 process snapshot + transient 页面 VM
 
 依赖：T018。
 
@@ -846,6 +846,8 @@ Row 内少量 BookCard
 5. 删除页面缓存/初始化标志/重复 Changed subscription。
 
 测试：页面重建、即时设置持久化、draft cancel/save、主题 projection。
+
+完成成果：启动设置快照收敛到唯一的 singleton `AppSettingsService`，Settings 页面/VM 通过 transient DI 重建并从 process snapshot 重新投影；补充所有 Settings 页面/VM 生命周期及 provider 身份一致性断言。
 
 ---
 
