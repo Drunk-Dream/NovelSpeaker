@@ -795,7 +795,7 @@ Row 内少量 BookCard
 
 # Phase F：Rules 与 Settings
 
-## [ ] T017（P1）：建立 Rules Shared 编辑生命周期
+## [x] T017（P1）：建立 Rules Shared 编辑生命周期
 
 依赖：T016。
 
@@ -810,6 +810,8 @@ Row 内少量 BookCard
 5. 不建立继承层次深的 generic base VM。
 
 测试：共享生命周期组件使用纯 Presentation tests；三类规则各保留业务特有测试。
+
+完成成果：Rules Shared 建立 EditorSession、selection、排序计算和导入生命周期组件，统一 dirty/fallback、无变化排序、取消与 Busy/互斥释放语义；新增纯 Presentation 生命周期边界测试。
 
 ## [ ] T018（P1）：迁移 TTS/Chapter/Regex Rules 并删除重复实现
 

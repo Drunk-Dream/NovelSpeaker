@@ -25,6 +25,11 @@ internal sealed class EditorSession<TId, TEditor>
 
     public TEditor? Baseline { get; private set; }
 
+    public bool IsEditing(TId editorId) =>
+        HasEditor &&
+        !IsNew &&
+        EqualityComparer<TId>.Default.Equals(EditorId, editorId);
+
     public void Open(TId editorId, TEditor editor, bool isNew, TId fallbackId)
     {
         EditorId = editorId;
@@ -47,6 +52,7 @@ internal sealed class EditorSession<TId, TEditor>
 
     public bool UpdateDirty(TEditor editor)
     {
+        ArgumentNullException.ThrowIfNull(editor);
         IsDirty = HasEditor &&
                   Baseline is not null &&
                   !_editorsEqual(Baseline, editor);
