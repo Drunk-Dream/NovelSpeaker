@@ -7,6 +7,8 @@ using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Settings;
 using NovelSpeaker.App.Shared.Dialogs;
+using NovelSpeaker.App.Shared.Presentation;
+using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.Domain.Settings;
 
@@ -21,13 +23,23 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
     private readonly IAppSettingsService _settingsService;
     private readonly ICacheWorkspaceService _cacheWorkspaceService;
+    private readonly ICacheCatalog _cacheCatalog;
+    private readonly ICacheInvalidationCoordinator _invalidationCoordinator;
     private readonly IAppDiagnosticsService _diagnosticsService;
     private readonly IAppNavigator _navigator;
     private readonly IAppDialogService _dialogService;
     private readonly IAppFeedbackService _feedbackService;
+    private readonly IUiScheduler _uiScheduler;
     private readonly TimeProvider _timeProvider;
+    private readonly OwnedTaskRegistry _liveRefreshTasks = new();
+    private readonly object _overviewRefreshSync = new();
     private CancellationTokenSource? _cacheLimitDebounceCts;
     private CacheOverviewModel? _overview;
+    private TaskCompletionSource? _overviewRefreshCompletion;
+    private bool _overviewRefreshRequested;
+    private int _overviewRefreshVersion;
+    private int _overviewAppliedVersion;
+    private bool _isInvalidationRegistered;
     private bool _isLoading;
     private int _cacheLimitVersion;
     private long _savedCacheLimitBytes = AppSettings.DefaultCacheLimitBytes;
@@ -35,19 +47,25 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     public CacheAndDataViewModel(
         IAppSettingsService settingsService,
         ICacheWorkspaceService cacheWorkspaceService,
+        ICacheCatalog cacheCatalog,
+        ICacheInvalidationCoordinator invalidationCoordinator,
         IAppDiagnosticsService diagnosticsService,
         IAppNavigator navigator,
         IAppDialogService dialogService,
         IAppFeedbackService feedbackService,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IUiScheduler? uiScheduler = null)
         : base(navigator, feedbackService)
     {
         _settingsService = settingsService;
         _cacheWorkspaceService = cacheWorkspaceService;
+        _cacheCatalog = cacheCatalog;
+        _invalidationCoordinator = invalidationCoordinator;
         _diagnosticsService = diagnosticsService;
         _navigator = navigator;
         _dialogService = dialogService;
         _feedbackService = feedbackService;
+        _uiScheduler = uiScheduler ?? new WpfUiScheduler();
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -95,6 +113,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     public override async Task LoadAsync(CancellationToken cancellationToken)
     {
         Activate(cancellationToken);
+        RegisterInvalidationSubscription();
         _isLoading = true;
         NotifyClearAllCommandState();
         HasLoadError = false;
@@ -106,17 +125,23 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
             var settings = _settingsService.Current;
             _savedCacheLimitBytes = settings.CacheLimitBytes;
             ApplyCacheLimit(_savedCacheLimitBytes);
-            await RefreshOverviewAsync(cancellationToken);
-            IsOverviewLoaded = true;
+            await RequestOverviewRefreshAsync(cancellationToken);
+            if (IsCurrentActivation(cancellationToken))
+            {
+                IsOverviewLoaded = true;
+            }
         }
         catch (OperationCanceledException)
         {
         }
         catch (Exception)
         {
-            HasLoadError = true;
-            LoadErrorMessage = "加载缓存总览失败，请重试。";
-            IsOverviewLoaded = false;
+            if (IsCurrentActivation(cancellationToken))
+            {
+                HasLoadError = true;
+                LoadErrorMessage = "加载缓存总览失败，请重试。";
+                IsOverviewLoaded = false;
+            }
         }
         finally
         {
@@ -131,6 +156,17 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     public override void Deactivate()
     {
         CancelPendingSave();
+        UnregisterInvalidationSubscription();
+        TaskCompletionSource? retiredRefresh;
+        lock (_overviewRefreshSync)
+        {
+            _overviewRefreshVersion++;
+            _overviewRefreshRequested = false;
+            retiredRefresh = _overviewRefreshCompletion;
+            _overviewRefreshCompletion = null;
+        }
+
+        retiredRefresh?.TrySetCanceled();
         base.Deactivate();
     }
 
@@ -168,9 +204,10 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         IsClearingAll = true;
         try
         {
+            var overviewVersion = GetOverviewRefreshVersion();
             var result = await _cacheWorkspaceService.ClearAllAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            await RefreshOverviewAsync(cancellationToken);
+            await RefreshOverviewAfterCacheMutationAsync(overviewVersion, cancellationToken);
             ShowCleanupFeedback(result);
         }
         catch (OperationCanceledException)
@@ -243,7 +280,10 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
             return;
         }
 
-        var requiresTrim = _overview is not null && cacheLimitBytes < _overview.TotalSizeBytes;
+        var overviewForDecision = await GetCurrentOverviewForCacheLimitAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var requiresTrim = overviewForDecision is not null &&
+                           cacheLimitBytes < overviewForDecision.TotalSizeBytes;
         if (requiresTrim)
         {
             var decision = await _dialogService.ShowConfirmationAsync(
@@ -286,12 +326,17 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
             if (requiresTrim)
             {
+                var overviewVersion = GetOverviewRefreshVersion();
                 await _cacheWorkspaceService.TrimToConfiguredLimitAsync(cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
+                await RefreshOverviewAfterCacheMutationAsync(overviewVersion, cancellationToken);
             }
 
-            await RefreshOverviewAsync(cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
+            if (!requiresTrim)
+            {
+                await RequestOverviewRefreshAsync(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
             if (requiresTrim && _overview?.IsOverLimit == true)
             {
                 _feedbackService.ShowWarning("缓存仍高于上限", "仍有受保护的正在使用缓存，停止播放后可继续清理。");
@@ -320,17 +365,241 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         ScheduleDebouncedCommit();
     }
 
-    private async Task RefreshOverviewAsync(CancellationToken cancellationToken)
+    private Task RequestOverviewRefreshAsync(CancellationToken cancellationToken)
     {
-        _overview = await _cacheWorkspaceService.GetOverviewAsync(cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        TotalCacheSizeText = CacheCleanupFeedbackFormatter.FormatBytes(_overview.TotalSizeBytes);
-        CacheEntryCountText = $"{_overview.EntryCount} 项缓存";
-        UsageText = $"已用 {CacheCleanupFeedbackFormatter.FormatBytes(_overview.TotalSizeBytes)} / 上限 {CacheCleanupFeedbackFormatter.FormatBytes(_overview.LimitBytes)}";
-        UsagePercentage = _overview.LimitBytes <= 0
+        var refreshCancellationToken = ActivationToken.IsCancellationRequested
+            ? cancellationToken
+            : ActivationToken;
+        TaskCompletionSource completion;
+        var startRefresh = false;
+        lock (_overviewRefreshSync)
+        {
+            _overviewRefreshRequested = true;
+            if (_overviewRefreshCompletion is null)
+            {
+                completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                _overviewRefreshCompletion = completion;
+                startRefresh = true;
+            }
+            else
+            {
+                completion = _overviewRefreshCompletion;
+            }
+        }
+
+        if (startRefresh)
+        {
+            _liveRefreshTasks.Register(
+                RefreshOverviewLoopAsync(completion, refreshCancellationToken),
+                exception => ReportOverviewRefreshFailure(exception, refreshCancellationToken));
+        }
+
+        return completion.Task;
+    }
+
+    private async Task RefreshOverviewLoopAsync(
+        TaskCompletionSource completion,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (true)
+            {
+                int requestVersion;
+                lock (_overviewRefreshSync)
+                {
+                    if (!_overviewRefreshRequested)
+                    {
+                        completion.TrySetResult();
+                        return;
+                    }
+
+                    _overviewRefreshRequested = false;
+                    requestVersion = _overviewRefreshVersion;
+                }
+
+                var overview = await _cacheCatalog
+                    .GetOverviewAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                await _uiScheduler.InvokeAsync(
+                    () =>
+                    {
+                        lock (_overviewRefreshSync)
+                        {
+                            if (requestVersion != _overviewRefreshVersion ||
+                                !IsCurrentActivation(cancellationToken))
+                            {
+                                return;
+                            }
+
+                            _overviewAppliedVersion = requestVersion;
+                            ApplyOverview(overview);
+                        }
+                    },
+                    cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (Exception exception)
+        {
+            completion.TrySetException(exception);
+            throw;
+        }
+        finally
+        {
+            var restart = false;
+            lock (_overviewRefreshSync)
+            {
+                if (ReferenceEquals(_overviewRefreshCompletion, completion))
+                {
+                    _overviewRefreshCompletion = null;
+                    restart = _overviewRefreshRequested &&
+                              _isInvalidationRegistered &&
+                              IsCurrentActivation(cancellationToken);
+                }
+            }
+
+            if (restart)
+            {
+                StartBackgroundOverviewRefresh(cancellationToken);
+            }
+        }
+    }
+
+    private void ApplyOverview(CacheOverviewModel overview)
+    {
+        _overview = overview;
+        TotalCacheSizeText = CacheCleanupFeedbackFormatter.FormatBytes(overview.TotalSizeBytes);
+        CacheEntryCountText = $"{overview.EntryCount} 项缓存";
+        UsageText = $"已用 {CacheCleanupFeedbackFormatter.FormatBytes(overview.TotalSizeBytes)} / 上限 {CacheCleanupFeedbackFormatter.FormatBytes(overview.LimitBytes)}";
+        UsagePercentage = overview.LimitBytes <= 0
             ? 0
-            : Math.Clamp(_overview.TotalSizeBytes * 100d / _overview.LimitBytes, 0, 100);
+            : Math.Clamp(overview.TotalSizeBytes * 100d / overview.LimitBytes, 0, 100);
         NotifyClearAllCommandState();
+    }
+
+    private int GetOverviewRefreshVersion()
+    {
+        lock (_overviewRefreshSync)
+        {
+            return _overviewRefreshVersion;
+        }
+    }
+
+    private Task EnsureOverviewCurrentAsync(CancellationToken cancellationToken)
+    {
+        lock (_overviewRefreshSync)
+        {
+            if (_overview is not null &&
+                !_overviewRefreshRequested &&
+                _overviewRefreshCompletion is null &&
+                _overviewAppliedVersion >= _overviewRefreshVersion)
+            {
+                return Task.CompletedTask;
+            }
+        }
+
+        return RequestOverviewRefreshAsync(cancellationToken);
+    }
+
+    private async Task<CacheOverviewModel?> GetCurrentOverviewForCacheLimitAsync(
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            await EnsureOverviewCurrentAsync(cancellationToken).ConfigureAwait(false);
+            lock (_overviewRefreshSync)
+            {
+                if (_overview is not null &&
+                    !_overviewRefreshRequested &&
+                    _overviewRefreshCompletion is null &&
+                    _overviewAppliedVersion >= _overviewRefreshVersion)
+                {
+                    return _overview;
+                }
+            }
+        }
+    }
+
+    private async Task RefreshOverviewAfterCacheMutationAsync(
+        int previousOverviewVersion,
+        CancellationToken cancellationToken)
+    {
+        await _invalidationCoordinator
+            .FlushPendingAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var refreshRequired = false;
+        lock (_overviewRefreshSync)
+        {
+            refreshRequired = _overviewRefreshVersion == previousOverviewVersion ||
+                              _overviewAppliedVersion < _overviewRefreshVersion;
+        }
+
+        if (refreshRequired)
+        {
+            await RequestOverviewRefreshAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private void RegisterInvalidationSubscription()
+    {
+        if (_isInvalidationRegistered)
+        {
+            return;
+        }
+
+        _invalidationCoordinator.BatchPublished += OnInvalidationBatchPublished;
+        _isInvalidationRegistered = true;
+    }
+
+    private void UnregisterInvalidationSubscription()
+    {
+        if (!_isInvalidationRegistered)
+        {
+            return;
+        }
+
+        _invalidationCoordinator.BatchPublished -= OnInvalidationBatchPublished;
+        _isInvalidationRegistered = false;
+    }
+
+    private void OnInvalidationBatchPublished(object? sender, CacheInvalidationBatch batch)
+    {
+        if (!batch.Changes.Any(static change =>
+                change.Aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary)))
+        {
+            return;
+        }
+
+        lock (_overviewRefreshSync)
+        {
+            if (!_isInvalidationRegistered || !IsCurrentActivation(ActivationToken))
+            {
+                return;
+            }
+
+            _overviewRefreshVersion++;
+        }
+
+        StartBackgroundOverviewRefresh(ActivationToken);
+    }
+
+    private void StartBackgroundOverviewRefresh(CancellationToken cancellationToken)
+    {
+        _liveRefreshTasks.Register(
+            RequestOverviewRefreshAsync(cancellationToken));
+    }
+
+    private void ReportOverviewRefreshFailure(Exception exception, CancellationToken refreshCancellationToken)
+    {
+        if (_isInvalidationRegistered && IsCurrentActivation(refreshCancellationToken))
+        {
+            _feedbackService.ShowProjectedNotification(
+                "刷新缓存总览失败",
+                _feedbackService.Project(exception));
+        }
     }
 
     private void ApplyCacheLimit(long cacheLimitBytes)

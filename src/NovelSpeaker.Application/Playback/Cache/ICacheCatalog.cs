@@ -9,6 +9,10 @@ public interface ICacheCatalog
 
     Task<IReadOnlyList<CachedBookSummary>> GetCachedBooksAsync(CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<CachedBookSummary>> GetCachedBooksAsync(
+        IReadOnlyCollection<string> bookIds,
+        CancellationToken cancellationToken);
+
     Task<CachedBookSummary?> GetCachedBookAsync(
         string bookId,
         CancellationToken cancellationToken);

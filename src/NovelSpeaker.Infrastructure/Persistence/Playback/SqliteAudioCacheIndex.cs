@@ -326,6 +326,69 @@ internal sealed class SqliteAudioCacheIndex
         return items;
     }
 
+    public async Task<IReadOnlyList<CachedBookStoreSummary>> GetBooksAsync(
+        IReadOnlyCollection<string> bookIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(bookIds);
+        var requestedBookIds = bookIds
+            .Where(static bookId => !string.IsNullOrWhiteSpace(bookId))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (requestedBookIds.Length == 0)
+        {
+            return [];
+        }
+
+        await using var connection = await _connectionFactory
+            .OpenConnectionAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var items = new List<CachedBookStoreSummary>(requestedBookIds.Length);
+        const int batchSize = 400;
+        for (var offset = 0; offset < requestedBookIds.Length; offset += batchSize)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var batch = requestedBookIds
+                .Skip(offset)
+                .Take(batchSize)
+                .ToArray();
+            var parameters = batch
+                .Select((_, index) => $"$bookId{index}")
+                .ToArray();
+            await using var command = connection.CreateCommand();
+            command.CommandText =
+                $"""
+                SELECT BookId, COUNT(DISTINCT ChapterId), COUNT(*), COALESCE(SUM(FileSize), 0)
+                FROM AudioCacheEntries
+                WHERE KeyVersion = 2 AND HealthState = $status
+                  AND BookId IN ({string.Join(", ", parameters)})
+                GROUP BY BookId;
+                """;
+            command.Parameters.AddWithValue("$status", ReadyHealthState);
+            for (var index = 0; index < batch.Length; index++)
+            {
+                command.Parameters.AddWithValue(parameters[index], batch[index]);
+            }
+
+            await using var reader = await command
+                .ExecuteReaderAsync(cancellationToken)
+                .ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                items.Add(new CachedBookStoreSummary(
+                    reader.GetString(0),
+                    reader.GetInt32(1),
+                    reader.GetInt32(2),
+                    reader.GetInt64(3)));
+            }
+        }
+
+        return items
+            .OrderByDescending(static item => item.TotalSizeBytes)
+            .ThenBy(static item => item.BookId, StringComparer.Ordinal)
+            .ToArray();
+    }
+
     public async Task<IReadOnlyList<CachedChapterStoreSummary>> GetChaptersAsync(
         string bookId,
         CancellationToken cancellationToken)

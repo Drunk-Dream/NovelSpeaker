@@ -403,6 +403,26 @@ public sealed class SqliteAudioCacheTests
         var firstBatch = Assert.Single(batches);
         var firstScope = Assert.IsType<CacheInvalidationScope.Chapters>(Assert.Single(firstBatch.Changes).Scope);
         Assert.Equal([0, 1], firstScope.ChapterIndices);
+        Assert.Equal(
+            CacheInvalidationAspect.PhysicalSummary |
+            CacheInvalidationAspect.CatalogStructure |
+            CacheInvalidationAspect.Coverage,
+            Assert.Single(firstBatch.Changes).Aspects);
+
+        batches.Clear();
+        await fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(
+                TestAudioCacheKey.Create("book-1", 0, 1, 1, 10, "第一段续写"),
+                "book-1",
+                0,
+                1,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
+                "audio/mpeg"),
+            CancellationToken.None);
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+
+        var existingChapterChange = Assert.Single(Assert.Single(batches).Changes);
+        Assert.Equal(CacheInvalidationAspect.PhysicalSummary | CacheInvalidationAspect.Coverage, existingChapterChange.Aspects);
 
         batches.Clear();
         await fixture.Cache.ClearChaptersAsync("book-1", [1, 0], CancellationToken.None);

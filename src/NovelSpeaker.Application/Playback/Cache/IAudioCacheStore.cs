@@ -11,6 +11,25 @@ public interface IAudioCacheStore
 
     Task<IReadOnlyList<CachedBookStoreSummary>> GetBooksAsync(CancellationToken cancellationToken);
 
+    async Task<IReadOnlyList<CachedBookStoreSummary>> GetBooksAsync(
+        IReadOnlyCollection<string> bookIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(bookIds);
+        var requested = bookIds
+            .Where(static bookId => !string.IsNullOrWhiteSpace(bookId))
+            .ToHashSet(StringComparer.Ordinal);
+        if (requested.Count == 0)
+        {
+            return [];
+        }
+
+        var books = await GetBooksAsync(cancellationToken).ConfigureAwait(false);
+        return books
+            .Where(book => requested.Contains(book.BookId))
+            .ToArray();
+    }
+
     Task<CachedBookStoreSummary?> GetBookAsync(
         string bookId,
         CancellationToken cancellationToken);

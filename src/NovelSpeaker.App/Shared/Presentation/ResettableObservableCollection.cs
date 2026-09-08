@@ -79,7 +79,9 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
         CancellationToken cancellationToken,
         int batchSize = 256,
         bool notifyEachBatch = true,
-        bool preservePreviousItemsOnCancel = false)
+        bool preservePreviousItemsOnCancel = false,
+        Func<bool>? isCurrent = null,
+        Action? beforeComplete = null)
     {
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(projector);
@@ -102,7 +104,9 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
                 cancellationToken,
                 batchSize,
                 notifyEachBatch,
-                preservePreviousItemsOnCancel).ConfigureAwait(true);
+                preservePreviousItemsOnCancel,
+                isCurrent,
+                beforeComplete).ConfigureAwait(true);
         }
         finally
         {
@@ -117,7 +121,9 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
         CancellationToken cancellationToken,
         int batchSize,
         bool notifyEachBatch,
-        bool preservePreviousItemsOnCancel)
+        bool preservePreviousItemsOnCancel,
+        Func<bool>? isCurrent,
+        Action? beforeComplete)
     {
 
         // Small lists do not justify crossing an asynchronous boundary. This also keeps
@@ -132,8 +138,15 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
                 projectedSmallItems[index] = projector(items[index]);
             }
 
-            cancellationToken.ThrowIfCancellationRequested();
-            ReplaceWith(projectedSmallItems);
+            await uiScheduler.InvokeAsync(
+                () =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    ThrowIfProjectionIsStale(isCurrent, cancellationToken);
+                    ReplaceWith(projectedSmallItems);
+                    beforeComplete?.Invoke();
+                },
+                cancellationToken).ConfigureAwait(true);
             return;
         }
 
@@ -150,6 +163,7 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
                     for (var index = 0; index < items.Count; index++)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
+                        ThrowIfProjectionIsStale(isCurrent, cancellationToken);
                         result[index] = projector(items[index]);
                     }
 
@@ -160,19 +174,30 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
             try
             {
                 await uiScheduler.InvokeLaterAsync(
-                    () => BeginReplace(replacementVersion),
+                    () => BeginReplace(replacementVersion, isCurrent, cancellationToken),
                     cancellationToken).ConfigureAwait(true);
                 for (var offset = 0; offset < projectedItems.Length; offset += batchSize)
                 {
                     var batchOffset = offset;
                     var batchCount = Math.Min(batchSize, projectedItems.Length - offset);
                     await uiScheduler.InvokeLaterAsync(
-                        () => AppendBatch(projectedItems, batchOffset, batchCount, replacementVersion, notifyEachBatch),
+                        () => AppendBatch(
+                            projectedItems,
+                            batchOffset,
+                            batchCount,
+                            replacementVersion,
+                            notifyEachBatch,
+                            isCurrent,
+                            cancellationToken),
                         cancellationToken).ConfigureAwait(true);
                 }
 
                 await uiScheduler.InvokeLaterAsync(
-                    () => CompleteReplace(replacementVersion),
+                    () => CompleteReplace(
+                        replacementVersion,
+                        isCurrent,
+                        cancellationToken,
+                        beforeComplete),
                     cancellationToken).ConfigureAwait(true);
             }
             catch
@@ -209,8 +234,12 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
         base.OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
     }
 
-    private void BeginReplace(int replacementVersion)
+    private void BeginReplace(
+        int replacementVersion,
+        Func<bool>? isCurrent,
+        CancellationToken cancellationToken)
     {
+        ThrowIfProjectionIsStale(isCurrent, cancellationToken);
         if (replacementVersion != Volatile.Read(ref _replacementVersion))
         {
             return;
@@ -230,8 +259,11 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
         int offset,
         int count,
         int replacementVersion,
-        bool notifyEachBatch)
+        bool notifyEachBatch,
+        Func<bool>? isCurrent,
+        CancellationToken cancellationToken)
     {
+        ThrowIfProjectionIsStale(isCurrent, cancellationToken);
         if (replacementVersion != Volatile.Read(ref _replacementVersion))
         {
             return;
@@ -261,12 +293,20 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
         }
     }
 
-    private void CompleteReplace(int replacementVersion)
+    private void CompleteReplace(
+        int replacementVersion,
+        Func<bool>? isCurrent,
+        CancellationToken cancellationToken,
+        Action? beforeComplete)
     {
+        ThrowIfProjectionIsStale(isCurrent, cancellationToken);
         if (replacementVersion != Volatile.Read(ref _replacementVersion))
         {
             return;
         }
+
+        beforeComplete?.Invoke();
+        ThrowIfProjectionIsStale(isCurrent, cancellationToken);
 
         if (!_suppressNotifications)
         {
@@ -279,6 +319,16 @@ internal sealed class ResettableObservableCollection<T> : ObservableCollection<T
         OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
         OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
         NotifyReset();
+    }
+
+    private static void ThrowIfProjectionIsStale(
+        Func<bool>? isCurrent,
+        CancellationToken cancellationToken)
+    {
+        if (isCurrent is not null && !isCurrent())
+        {
+            throw new OperationCanceledException(cancellationToken);
+        }
     }
 
     private void AbortReplace(int replacementVersion, IReadOnlyList<T>? previousItems)

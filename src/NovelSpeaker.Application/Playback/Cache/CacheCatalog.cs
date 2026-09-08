@@ -36,6 +36,24 @@ public sealed class CacheCatalog : ICacheCatalog
         CancellationToken cancellationToken)
     {
         var summaries = await _cacheStore.GetBooksAsync(cancellationToken).ConfigureAwait(false);
+        return await ComposeBookSummariesAsync(summaries, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<CachedBookSummary>> GetCachedBooksAsync(
+        IReadOnlyCollection<string> bookIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(bookIds);
+        var summaries = await _cacheStore
+            .GetBooksAsync(bookIds, cancellationToken)
+            .ConfigureAwait(false);
+        return await ComposeBookSummariesAsync(summaries, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<IReadOnlyList<CachedBookSummary>> ComposeBookSummariesAsync(
+        IReadOnlyList<CachedBookStoreSummary> summaries,
+        CancellationToken cancellationToken)
+    {
         if (summaries.Count == 0)
         {
             return [];

@@ -22,6 +22,8 @@ public static class PlaybackRegistration
         services.TryAddSingleton<ICacheCoverageQuery, CacheCoverageQuery>();
         services.TryAddSingleton<ISpeechPlanRepairCoordinator, SpeechPlanRepairCoordinator>();
         services.TryAddSingleton<CacheWorkspaceService>();
+        services.TryAddSingleton<ICachePlanRepairRequestor>(
+            serviceProvider => serviceProvider.GetRequiredService<CacheWorkspaceService>());
         services.TryAddSingleton<ICacheWorkspaceService>(
             serviceProvider => serviceProvider.GetRequiredService<CacheWorkspaceService>());
         services.TryAddSingleton<ICacheWorkspaceBackgroundTaskOwner>(

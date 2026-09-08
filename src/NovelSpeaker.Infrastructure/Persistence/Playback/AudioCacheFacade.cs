@@ -52,13 +52,18 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
     {
         ArgumentNullException.ThrowIfNull(request);
         var changed = false;
+        var storeAspects = CacheInvalidationAspect.None;
         var maintenanceChanges = new List<CacheInvalidation>();
         try
         {
             var result = await RunExclusiveAsync(
                 ct => StoreCoreAsync(
                     request,
-                    () => changed = true,
+                    aspects =>
+                    {
+                        changed = true;
+                        storeAspects |= aspects;
+                    },
                     change =>
                     {
                         changed = true;
@@ -75,7 +80,7 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
                 OnCommitted(CacheInvalidation.ForChapters(
                     request.BookId,
                     [request.ChapterIndex],
-                    AllPhysicalAspects));
+                    storeAspects));
                 foreach (var maintenanceChange in maintenanceChanges)
                 {
                     OnCommitted(maintenanceChange);
@@ -102,6 +107,16 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
     public Task<IReadOnlyList<CachedBookStoreSummary>> GetBooksAsync(CancellationToken cancellationToken)
     {
         return RunExclusiveAsync(_index.GetBooksAsync, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<CachedBookStoreSummary>> GetBooksAsync(
+        IReadOnlyCollection<string> bookIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(bookIds);
+        return RunExclusiveAsync(
+            ct => _index.GetBooksAsync(bookIds, ct),
+            cancellationToken);
     }
 
     public Task<CachedBookStoreSummary?> GetBookAsync(
@@ -479,11 +494,14 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
 
     private async Task<AudioCacheEntry> StoreCoreAsync(
         AudioCacheWriteRequest request,
-        Action storeChanged,
+        Action<CacheInvalidationAspect> storeChanged,
         Action<CacheChangedEventArgs> maintenanceChanged,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var chapterWasAlreadyCached = await _index
+            .GetChapterAsync(request.BookId, request.ChapterIndex, cancellationToken)
+            .ConfigureAwait(false) is not null;
         if (!_audioProbe.CanDecode(request.SourceFilePath))
         {
             throw new InvalidDataException("源音频无法通过可播放性校验。");
@@ -505,7 +523,9 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
                 file.StorageKey,
                 file.FileSize,
                 cancellationToken).ConfigureAwait(false);
-            storeChanged();
+            storeChanged(chapterWasAlreadyCached
+                ? PhysicalAndCoverageAspects
+                : AllPhysicalAspects);
         }
         catch
         {
@@ -704,6 +724,10 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
     private const CacheInvalidationAspect AllPhysicalAspects =
         CacheInvalidationAspect.PhysicalSummary |
         CacheInvalidationAspect.CatalogStructure |
+        CacheInvalidationAspect.Coverage;
+
+    private const CacheInvalidationAspect PhysicalAndCoverageAspects =
+        CacheInvalidationAspect.PhysicalSummary |
         CacheInvalidationAspect.Coverage;
 }
 

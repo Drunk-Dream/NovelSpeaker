@@ -743,7 +743,7 @@ Row 内少量 BookCard
 
 完成成果：新增 `ICacheCoverageQuery/CacheCoverageQuery`，当前配置 Coverage 只读返回 PlanMissing/PlanStale 等状态，不再在查询内部补建；新增 process-scoped `SpeechPlanRepairCoordinator`，按章节合并请求、限制并发、稳定配置后提交并发布章节级 Coverage invalidation，页面等待取消不影响已接管的 repair。Workspace 迁移期 façade 显式登记 repair，Settings 与 Regex 成功变更在提交后发布 Coverage-wide invalidation；启动 shutdown 改由独立 repair owner 负责。新增 query 无副作用、同章去重/提交失效及配置变更回归测试，CacheWorkspace、Settings、Regex focused tests 共 49 项通过。
 
-## [ ] T016（P0）：迁移 Cache 页面到 live projection + scalable catalog
+## [x] T016（P0）：迁移 Cache 页面到 live projection + scalable catalog
 
 依赖：T015。
 
@@ -776,6 +776,8 @@ Row 内少量 BookCard
 9. export preparation 只提交 immutable batch 参数给 ChapterExportCoordinator；active cache/export snapshot 只做 UI projection。
 10. 页面离开取消页面查询/live projection 并解除订阅，不取消 Playback/ActiveCache/Export/Repair 等后台 owner。
 11. 删除旧 workspace selection/batch coupling、整书 cache change reload workaround 和重复页面级 Changed 逻辑。
+
+完成成果：Cache 页面改为订阅 process-scoped invalidation batch，overview、book summary 与 chapter projection 使用 dirty single-flight live refresh；CacheManagement 采用 immutable catalog、稀疏 decoration 和增量 reconciliation，保持跨书/章节 selection 稳定并避免结构更新时整页 reset；页面离开解除订阅并取消自身刷新。新增 active/live、跨书更新、selection 与 catalog reconciliation 回归测试。
 
 测试：
 

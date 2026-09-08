@@ -137,6 +137,53 @@ public sealed class DesktopSelectionController<TKey>
         PublishChange();
     }
 
+    public void UpdateIndexedItems(
+        IReadOnlyList<TKey> items,
+        IReadOnlyDictionary<TKey, int> positions)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(positions);
+
+        _items = items;
+        _itemPositions = positions;
+
+        foreach (var item in _selected
+                     .Where(item => !_itemPositions.ContainsKey(item))
+                     .ToArray())
+        {
+            MarkChanged(item);
+            _selected.Remove(item);
+        }
+
+        _selectedItems.Clear();
+        foreach (var item in _items)
+        {
+            if (_selected.Contains(item))
+            {
+                _selectedItems.Add(item);
+            }
+        }
+
+        if (_selected.Count == 0)
+        {
+            ResetMetadata();
+        }
+        else
+        {
+            if (!HasPrimary || !_selected.Contains(_primaryItem!))
+            {
+                SetPrimary(FirstSelectedItem());
+            }
+
+            if (!HasAnchor || !_itemPositions.ContainsKey(_anchorItem!))
+            {
+                SetAnchor(_primaryItem!);
+            }
+        }
+
+        PublishChange();
+    }
+
     public void Click(TKey item, DesktopSelectionModifiers modifiers = DesktopSelectionModifiers.None)
     {
         var itemIndex = FindIndex(item);

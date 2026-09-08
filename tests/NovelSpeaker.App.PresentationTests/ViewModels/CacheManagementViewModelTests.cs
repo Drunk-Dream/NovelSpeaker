@@ -82,15 +82,17 @@ public sealed class CacheManagementViewModelTests
         };
         workspaceService.ChaptersResult["book-1"] =
         [
-            new CachedChapterCacheItem("book-1", 0, "第一章", 1, 1, 1024, 1),
+            new CachedChapterCacheItem("book-1", 0, "第一章", 3, 1, 1024, 2),
             new CachedChapterCacheItem("book-1", 1, "第二章", 1, 1, 1024, 1),
             new CachedChapterCacheItem("book-1", 2, "第三章", 1, 1, 1024, 1),
             new CachedChapterCacheItem("book-1", 3, "第四章", 1, 1, 1024, 1)
         ];
+        workspaceService.CoverageCachedSegmentCounts[("book-1", 0)] = 1;
         var viewModel = CreateViewModel(workspaceService);
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
-        Assert.Equal("完整度：1/1 段 · 100%", viewModel.Chapters[0].CompletenessText);
+        Assert.True(workspaceService.CoverageQueryCallCount > 0);
+        Assert.Equal("完整度：1/2 段 · 50%", viewModel.Chapters[0].CompletenessText);
 
         viewModel.HandleChapterClick(viewModel.Chapters[1], DesktopSelectionModifiers.None);
         viewModel.HandleChapterClick(viewModel.Chapters[3], DesktopSelectionModifiers.Shift);
@@ -107,6 +109,33 @@ public sealed class CacheManagementViewModelTests
         Assert.Empty(viewModel.SelectedChapterIndices);
         Assert.False(viewModel.CanClearSelectedChapters);
         Assert.False(viewModel.ClearSelectedChaptersCommand.CanExecute(null));
+    }
+
+    private async Task Coverage_only_invalidation_refreshes_current_configuration_status()
+    {
+        var workspaceService = new FakeCacheWorkspaceService
+        {
+            BooksResult = [new CachedBookCacheItem("book-1", "第一本", null, 1, 1, 1024)]
+        };
+        workspaceService.ChaptersResult["book-1"] =
+        [
+            new CachedChapterCacheItem("book-1", 0, "第一章", 0, 0, 0, 2)
+        ];
+        workspaceService.CoverageCachedSegmentCounts[("book-1", 0)] = 0;
+        var viewModel = CreateViewModel(workspaceService);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
+        var coverageQueryCount = workspaceService.CoverageQueryCallCount;
+
+        workspaceService.CoverageCachedSegmentCounts[("book-1", 0)] = 2;
+        workspaceService.Publish(CacheInvalidation.ForChapters(
+            "book-1",
+            [0],
+            CacheInvalidationAspect.Coverage));
+
+        Assert.True(workspaceService.CoverageQueryCallCount > coverageQueryCount);
+        Assert.Equal("完整度：2/2 段 · 100%", viewModel.Chapters[0].CompletenessText);
     }
 
     private async Task Loading_a_10000_chapter_cache_catalog_avoids_item_by_item_add_notifications()
@@ -216,13 +245,15 @@ public sealed class CacheManagementViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
-        Assert.Equal(1, workspaceService.ChangedSubscriberCount);
+        Assert.Equal(1, workspaceService.InvalidationSubscriberCount);
         var unchangedChapter = viewModel.Chapters[1];
+        await workspaceService.WhenChapterLoadCountReached(2);
 
         var firstRefresh = new TaskCompletionSource<IReadOnlyList<CachedChapterCacheItem>>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         workspaceService.PendingChapterSequences.Enqueue(firstRefresh);
-        var completed = workspaceService.WhenChapterRefreshCountReached(2);
+        var previousChapterBatchCalls = workspaceService.GetCachedChaptersCallCount;
+        var completed = workspaceService.WhenChapterLoadCountReached(previousChapterBatchCalls + 4);
 
         workspaceService.Publish(new CacheChangedEventArgs("book-2", 0));
         workspaceService.Publish(new CacheChangedEventArgs("book-1", 0));
@@ -241,13 +272,13 @@ public sealed class CacheManagementViewModelTests
         firstRefresh.SetResult(refreshedChapters);
         await completed.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal(2, workspaceService.GetCachedChapterCallCount);
+        Assert.Equal(previousChapterBatchCalls + 4, workspaceService.GetCachedChaptersCallCount);
         Assert.Equal(3, viewModel.Chapters.Count);
         Assert.Equal("刷新后的第一章", viewModel.Chapters[0].Title);
         Assert.Same(unchangedChapter, viewModel.Chapters[1]);
 
         viewModel.HandleNavigatedFrom();
-        Assert.Equal(0, workspaceService.ChangedSubscriberCount);
+        Assert.Equal(0, workspaceService.InvalidationSubscriberCount);
         var callsAfterLeave = workspaceService.GetCachedChapterCallCount;
         workspaceService.Publish(new CacheChangedEventArgs("book-1", 0));
         Assert.Equal(callsAfterLeave, workspaceService.GetCachedChapterCallCount);
@@ -268,7 +299,8 @@ public sealed class CacheManagementViewModelTests
             new CachedBookCacheItem("book-1", "更新后的第一本", "作者甲", 4, 4, 512),
             new CachedBookCacheItem("book-2", "第二本", "作者乙", 1, 1, 1024)
         ];
-        var refreshCompleted = workspaceService.WhenChapterRefreshCountReached(1);
+        var previousBookSummaryCalls = workspaceService.GetCachedBooksCallCount;
+        var refreshCompleted = workspaceService.WhenBookLoadCountReached(previousBookSummaryCalls + 1);
         workspaceService.Publish(new CacheChangedEventArgs("book-1", 0));
 
         await refreshCompleted.WaitAsync(TimeSpan.FromSeconds(5));
@@ -294,13 +326,101 @@ public sealed class CacheManagementViewModelTests
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
 
-        Assert.Equal(1, workspaceService.ChangedSubscriberCount);
-        var callsBeforeChange = workspaceService.GetCachedChapterCallCount;
-        var refreshCompleted = workspaceService.WhenChapterRefreshCountReached(callsBeforeChange + 1);
+        Assert.Equal(1, workspaceService.InvalidationSubscriberCount);
+        var callsBeforeChange = workspaceService.GetCachedChaptersCallCount;
+        var refreshCompleted = workspaceService.WhenChapterLoadCountReached(callsBeforeChange + 2);
         workspaceService.Publish(new CacheChangedEventArgs("book-1", 0));
 
         await refreshCompleted.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(callsBeforeChange + 1, workspaceService.GetCachedChapterCallCount);
+        Assert.Equal(callsBeforeChange + 2, workspaceService.GetCachedChaptersCallCount);
+    }
+
+    private async Task Invalidation_refreshes_another_book_without_disturbing_current_selection()
+    {
+        var workspaceService = CreateTwoBookWorkspace();
+        var viewModel = CreateViewModel(workspaceService);
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[1]);
+        viewModel.HandleChapterClick(viewModel.Chapters[0], DesktopSelectionModifiers.None);
+
+        workspaceService.BooksResult =
+        [
+            new CachedBookCacheItem("book-1", "第一本（更新）", "作者甲", 2, 4, 4096),
+            new CachedBookCacheItem("book-2", "第二本", "作者乙", 1, 1, 1024)
+        ];
+        var previousBookSummaryCalls = workspaceService.GetCachedBooksCallCount;
+        workspaceService.Publish(CacheInvalidation.ForBook(
+            "book-1",
+            CacheInvalidationAspect.PhysicalSummary));
+
+        Assert.Equal(previousBookSummaryCalls + 1, workspaceService.GetCachedBooksCallCount);
+        Assert.Contains(viewModel.Books, book => book.Title == "第一本（更新）");
+        Assert.Equal("第二本", viewModel.SelectedBookTitle);
+        Assert.Equal([0], viewModel.SelectedChapterIndices);
+        Assert.True(viewModel.Books.Single(book => book.BookId == "book-2").IsSelected);
+    }
+
+    private async Task Catalog_reconciliation_preserves_selection_and_only_removes_missing_chapters()
+    {
+        var workspaceService = new FakeCacheWorkspaceService
+        {
+            BooksResult = [new CachedBookCacheItem("book-1", "第一本", null, 5, 5, 5120)]
+        };
+        workspaceService.ChaptersResult["book-1"] = Enumerable.Range(0, 6)
+            .Select(index => new CachedChapterCacheItem(
+                "book-1",
+                index,
+                $"第 {index + 1} 章",
+                1,
+                1,
+                1024,
+                1))
+            .ToArray();
+        var viewModel = CreateViewModel(workspaceService);
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
+        foreach (var chapterIndex in new[] { 1, 3, 5 })
+        {
+            viewModel.HandleChapterClick(
+                viewModel.Chapters.Single(chapter => chapter.ChapterIndex == chapterIndex),
+                viewModel.SelectedChapterIndices.Count == 0
+                    ? DesktopSelectionModifiers.None
+                    : DesktopSelectionModifiers.Control);
+        }
+
+        var collectionChanges = new List<NotifyCollectionChangedAction>();
+        viewModel.Chapters.CollectionChanged += (_, args) => collectionChanges.Add(args.Action);
+        workspaceService.ChaptersResult["book-1"] =
+        [
+            .. workspaceService.ChaptersResult["book-1"],
+            new CachedChapterCacheItem("book-1", 10, "第 11 章", 1, 1, 1024, 1)
+        ];
+        workspaceService.Publish(CacheInvalidation.ForChapters(
+            "book-1",
+            [10],
+            CacheInvalidationAspect.PhysicalSummary |
+            CacheInvalidationAspect.CatalogStructure |
+            CacheInvalidationAspect.Coverage));
+
+        Assert.Equal([1, 3, 5], viewModel.SelectedChapterIndices);
+        var addedChapter = viewModel.Chapters.Single(chapter => chapter.ChapterIndex == 10);
+        Assert.False(addedChapter.IsSelected);
+        Assert.Equal("1 条缓存", addedChapter.EntryCountText);
+        Assert.DoesNotContain("配置不可用", addedChapter.CompletenessText, StringComparison.Ordinal);
+        Assert.DoesNotContain(NotifyCollectionChangedAction.Reset, collectionChanges);
+
+        workspaceService.ChaptersResult["book-1"] = workspaceService.ChaptersResult["book-1"]
+            .Where(chapter => chapter.ChapterIndex != 3)
+            .ToArray();
+        workspaceService.Publish(CacheInvalidation.ForChapters(
+            "book-1",
+            [3],
+            CacheInvalidationAspect.PhysicalSummary |
+            CacheInvalidationAspect.CatalogStructure |
+            CacheInvalidationAspect.Coverage));
+
+        Assert.Equal([1, 5], viewModel.SelectedChapterIndices);
+        Assert.DoesNotContain(viewModel.Chapters, chapter => chapter.ChapterIndex == 3);
     }
 
     private async Task Page_leave_cancels_pending_cache_refresh_and_discards_late_results()
@@ -586,12 +706,15 @@ public sealed class CacheManagementViewModelTests
         await Superseded_book_load_does_not_report_a_stale_error();
         await SelectBookAsync_ignores_late_results_from_previous_selection();
         await Chapter_selection_uses_desktop_modifiers_select_all_and_clear();
+        await Coverage_only_invalidation_refreshes_current_configuration_status();
         await Loading_a_10000_chapter_cache_catalog_avoids_item_by_item_add_notifications();
         await Chapter_card_marks_current_configuration_completeness_as_unavailable();
         await Chapter_cards_project_current_configuration_statuses_without_turning_zero_zero_into_full();
         await Matching_cache_changes_are_coalesced_and_refresh_only_during_page_activation();
         await Matching_cache_changes_refresh_only_the_targeted_book_summary();
         await Reentering_cache_management_does_not_duplicate_cache_change_subscription();
+        await Invalidation_refreshes_another_book_without_disturbing_current_selection();
+        await Catalog_reconciliation_preserves_selection_and_only_removes_missing_chapters();
         await Page_leave_cancels_pending_cache_refresh_and_discards_late_results();
         await Switching_books_clears_chapter_selection_without_cross_book_carryover();
         await Clear_selected_chapters_uses_one_application_batch_request();
@@ -739,12 +862,141 @@ public sealed class CacheManagementViewModelTests
     {
         return new CacheManagementViewModel(
             workspaceService,
+            new FakeCacheCatalog(workspaceService),
+            new FakeCacheCoverageQuery(workspaceService),
+            workspaceService.InvalidationCoordinator,
             feedbackService ?? new FakeFeedbackService(),
             dialogService ?? new FakeAppDialogService(),
             new FakeNavigationService(),
             coordinator ?? new FakeChapterExportCoordinator(),
             fileDialogs ?? new FakePresentationFileDialogService(),
             new InlineUiScheduler());
+    }
+
+    private sealed class FakeCacheCatalog(FakeCacheWorkspaceService workspace) : ICacheCatalog
+    {
+        public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public async Task<IReadOnlyList<CachedBookSummary>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
+            (await workspace.GetCachedBooksAsync(cancellationToken))
+                .Select(book => new CachedBookSummary(
+                    book.BookId,
+                    book.Title,
+                    book.Author,
+                    book.ChapterCount,
+                    book.EntryCount,
+                    book.TotalSizeBytes))
+                .ToArray();
+
+        public async Task<IReadOnlyList<CachedBookSummary>> GetCachedBooksAsync(
+            IReadOnlyCollection<string> bookIds,
+            CancellationToken cancellationToken) =>
+            (await GetCachedBooksAsync(cancellationToken))
+                .Where(book => bookIds.Contains(book.BookId, StringComparer.Ordinal))
+                .ToArray();
+
+        public async Task<CachedBookSummary?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) =>
+            (await workspace.GetCachedBookAsync(bookId, cancellationToken)) is { } book
+                ? new CachedBookSummary(book.BookId, book.Title, book.Author, book.ChapterCount, book.EntryCount, book.TotalSizeBytes)
+                : null;
+
+        public async Task<IReadOnlyList<CachedChapterCatalogEntry>> GetCachedChapterCatalogAsync(
+            string bookId,
+            CancellationToken cancellationToken) =>
+            (await workspace.GetCachedChaptersAsync(bookId, cancellationToken))
+                .Select(chapter => new CachedChapterCatalogEntry(chapter.BookId, chapter.ChapterIndex, chapter.Title))
+                .ToArray();
+
+        public async Task<IReadOnlyList<CachedChapterSummary>> GetCachedChaptersAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken) =>
+            (await workspace.GetCachedChaptersAsync(bookId, cancellationToken))
+                .Where(chapter => chapterIndices.Contains(chapter.ChapterIndex))
+                .Select(chapter => new CachedChapterSummary(
+                    chapter.BookId,
+                    chapter.ChapterIndex,
+                    chapter.Title,
+                    chapter.CachedSegmentCount,
+                    chapter.EntryCount,
+                    chapter.TotalSizeBytes))
+                .ToArray();
+
+        public async Task<CachedChapterSummary?> GetCachedChapterAsync(
+            string bookId,
+            int chapterIndex,
+            CancellationToken cancellationToken) =>
+            (await workspace.GetCachedChapterAsync(bookId, chapterIndex, cancellationToken)) is { } chapter
+                ? new CachedChapterSummary(
+                    chapter.BookId,
+                    chapter.ChapterIndex,
+                    chapter.Title,
+                    chapter.CachedSegmentCount,
+                    chapter.EntryCount,
+                    chapter.TotalSizeBytes)
+                : null;
+    }
+
+    private sealed class FakeCacheCoverageQuery(FakeCacheWorkspaceService workspace) : ICacheCoverageQuery
+    {
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            CancellationToken cancellationToken)
+        {
+            workspace.CoverageQueryCallCount++;
+            return Task.FromResult<IReadOnlyList<ChapterCacheStatus>>(
+                (workspace.ChaptersResult.TryGetValue(bookId, out var chapters) ? chapters : [])
+                .Where(chapter => chapterIndices.Contains(chapter.ChapterIndex))
+                .Select(chapter => new ChapterCacheStatus(
+                    chapter.ChapterIndex,
+                    workspace.CoverageCachedSegmentCounts.GetValueOrDefault(
+                        (bookId, chapter.ChapterIndex),
+                        chapter.CachedSegmentCount),
+                    chapter.CurrentConfigurationSegmentCount)
+                {
+                    Kind = chapter.CurrentConfigurationStatus
+                })
+                .ToArray());
+        }
+
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
+            string bookId,
+            IReadOnlyCollection<int> chapterIndices,
+            IReadOnlyCollection<NovelSpeaker.Application.Playback.PlaybackChapterMetadata> chapters,
+            CancellationToken cancellationToken) =>
+            GetAsync(bookId, chapterIndices, cancellationToken);
+    }
+
+    private sealed class FakeCacheInvalidationCoordinator : ICacheInvalidationCoordinator
+    {
+        private EventHandler<CacheInvalidationBatch>? _batchPublished;
+
+        public event EventHandler<CacheInvalidationBatch>? BatchPublished
+        {
+            add
+            {
+                _batchPublished += value;
+                SubscriberCount++;
+            }
+            remove
+            {
+                _batchPublished -= value;
+                SubscriberCount--;
+            }
+        }
+
+        public int SubscriberCount { get; private set; }
+
+        public void Publish(CacheInvalidation invalidation) =>
+            _batchPublished?.Invoke(this, new CacheInvalidationBatch([invalidation]));
+
+        public Task FlushPendingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
@@ -767,6 +1019,10 @@ public sealed class CacheManagementViewModelTests
                 ChangedSubscriberCount--;
             }
         }
+
+        public FakeCacheInvalidationCoordinator InvalidationCoordinator { get; } = new();
+
+        public int InvalidationSubscriberCount => InvalidationCoordinator.SubscriberCount;
 
         public IReadOnlyList<CachedBookCacheItem> BooksResult { get; set; } = [];
 
@@ -794,6 +1050,8 @@ public sealed class CacheManagementViewModelTests
 
         public Dictionary<string, CachedChapterCacheItem[]> ChaptersResult { get; } = [];
 
+        public Dictionary<(string BookId, int ChapterIndex), int> CoverageCachedSegmentCounts { get; } = [];
+
         public Dictionary<string, TaskCompletionSource<IReadOnlyList<CachedChapterCacheItem>>> PendingChapterTasks { get; } = [];
 
         public Queue<TaskCompletionSource<IReadOnlyList<CachedChapterCacheItem>>> PendingChapterSequences { get; } = [];
@@ -810,10 +1068,18 @@ public sealed class CacheManagementViewModelTests
 
         public int GetCachedChapterCallCount { get; private set; }
 
+        public int CoverageQueryCallCount { get; set; }
+
+        public int GetCachedBookCallCount { get; private set; }
+
+        public int GetCachedBooksCallCount { get; private set; }
+
         public bool LoadChaptersOnBackgroundThread { get; set; }
 
         private TaskCompletionSource? _chapterRefreshCompleted;
         private int _chapterRefreshCompletionTarget;
+        private TaskCompletionSource? _bookLoadCompleted;
+        private int _bookLoadCompletionTarget;
 
         public CacheCleanupResult ClearBookResult { get; set; } = new(0, 0, 0, 0);
 
@@ -829,10 +1095,13 @@ public sealed class CacheManagementViewModelTests
 
         public async Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken)
         {
+            GetCachedBooksCallCount++;
             if (PendingBooksTask is not null)
             {
                 BooksLoadStarted.TrySetResult();
-                return await PendingBooksTask.Task;
+                var pendingBooks = await PendingBooksTask.Task;
+                SignalBookLoadCompleted();
+                return pendingBooks;
             }
 
             if (_booksQueue.Count > 0)
@@ -840,6 +1109,7 @@ public sealed class CacheManagementViewModelTests
                 BooksResult = _booksQueue.Dequeue();
             }
 
+            SignalBookLoadCompleted();
             return BooksResult;
         }
 
@@ -847,6 +1117,7 @@ public sealed class CacheManagementViewModelTests
             string bookId,
             CancellationToken cancellationToken)
         {
+            GetCachedBookCallCount++;
             if (_booksQueue.Count > 0)
             {
                 BooksResult = _booksQueue.Dequeue();
@@ -968,7 +1239,38 @@ public sealed class CacheManagementViewModelTests
             return _chapterRefreshCompleted.Task;
         }
 
-        public void Publish(CacheChangedEventArgs eventArgs) => _changed?.Invoke(this, eventArgs);
+        public Task WhenBookLoadCountReached(int count)
+        {
+            if (GetCachedBooksCallCount >= count)
+            {
+                return Task.CompletedTask;
+            }
+
+            _bookLoadCompleted = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            _bookLoadCompletionTarget = count;
+            return _bookLoadCompleted.Task;
+        }
+
+        public void Publish(CacheChangedEventArgs eventArgs)
+        {
+            _changed?.Invoke(this, eventArgs);
+            var invalidation = eventArgs.BookId is null
+                ? CacheInvalidation.ForGlobal(CacheInvalidationAspect.PhysicalSummary | CacheInvalidationAspect.CatalogStructure)
+                : eventArgs.ChapterIndex is int chapterIndex
+                    ? CacheInvalidation.ForChapters(
+                        eventArgs.BookId,
+                        [chapterIndex],
+                        CacheInvalidationAspect.PhysicalSummary |
+                        CacheInvalidationAspect.Coverage)
+                    : CacheInvalidation.ForBook(
+                        eventArgs.BookId,
+                        CacheInvalidationAspect.PhysicalSummary |
+                        CacheInvalidationAspect.CatalogStructure);
+            InvalidationCoordinator.Publish(invalidation);
+        }
+
+        public void Publish(CacheInvalidation invalidation) => InvalidationCoordinator.Publish(invalidation);
 
         private void SignalChapterLoadCompleted()
         {
@@ -983,6 +1285,14 @@ public sealed class CacheManagementViewModelTests
             if (GetCachedChapterCallCount >= _chapterRefreshCompletionTarget)
             {
                 _chapterRefreshCompleted?.TrySetResult();
+            }
+        }
+
+        private void SignalBookLoadCompleted()
+        {
+            if (GetCachedBooksCallCount >= _bookLoadCompletionTarget)
+            {
+                _bookLoadCompleted?.TrySetResult();
             }
         }
 
@@ -1007,6 +1317,20 @@ public sealed class CacheManagementViewModelTests
         {
             ClearChaptersCallCount++;
             LastClearChaptersRequest = (bookId, chapterIndices.ToArray());
+            if (ChaptersResult.TryGetValue(bookId, out var chapters))
+            {
+                ChaptersResult[bookId] = chapters
+                    .Where(chapter => !chapterIndices.Contains(chapter.ChapterIndex))
+                    .ToArray();
+            }
+
+            InvalidationCoordinator.Publish(
+                CacheInvalidation.ForChapters(
+                    bookId,
+                    chapterIndices,
+                    CacheInvalidationAspect.PhysicalSummary |
+                    CacheInvalidationAspect.CatalogStructure |
+                    CacheInvalidationAspect.Coverage));
             return Task.FromResult(ClearChaptersResult);
         }
 

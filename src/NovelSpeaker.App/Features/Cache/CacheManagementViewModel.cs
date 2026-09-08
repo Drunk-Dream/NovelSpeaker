@@ -20,6 +20,10 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     private const int SelectionDecorationResetThreshold = 64;
 
     private readonly ICacheWorkspaceService _cacheWorkspaceService;
+    private readonly ICacheCatalog _cacheCatalog;
+    private readonly ICacheCoverageQuery _cacheCoverageQuery;
+    private readonly ICachePlanRepairRequestor? _cachePlanRepairRequestor;
+    private readonly ICacheInvalidationCoordinator _invalidationCoordinator;
     private readonly IAppFeedbackService _feedbackService;
     private readonly IAppDialogService _dialogService;
     private readonly IAppNavigator _navigator;
@@ -35,37 +39,56 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     private readonly SparseCatalogDecoration<bool> _chapterSelectionDecorations = new();
     private readonly SparseCatalogDecoration<CachedChapterDecoration> _chapterRefreshOverrides = new();
     private readonly HashSet<int> _chapterDecorationWindow = [];
+    private readonly HashSet<int> _pendingChapterRowRefreshes = [];
+    private readonly SemaphoreSlim _chapterDecorationQueryGate = new(1, 1);
     private readonly OwnedTaskRegistry _pageTasks = new();
     private readonly object _cacheRefreshSync = new();
     private readonly HashSet<int> _pendingCacheRefreshChapterIndices = [];
+    private readonly HashSet<int> _pendingCacheRefreshCoverageIndices = [];
+    private readonly HashSet<string> _pendingCacheRefreshBookIds = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _cacheRefreshBookEpochs = new(StringComparer.Ordinal);
     private CancellationTokenSource? _chapterLoadCts;
+    private CancellationTokenSource? _chapterDecorationCts;
     private CancellationTokenSource? _bookProjectionCts;
     private CancellationTokenSource? _exportPreparationCts;
     private CancellationTokenSource? _pageCancellation;
     private int _bookLoadVersion;
     private int _chapterLoadVersion;
+    private int _chapterCatalogVersion;
     private int _cacheRefreshGeneration;
+    private int _cacheRefreshVersion;
     private int _chapterDecorationRequestVersion;
     private bool _isPageActive;
-    private bool _isCacheEventsRegistered;
+    private bool _isInvalidationRegistered;
     private bool _isExportEventsRegistered;
     private bool _isCacheRefreshRunning;
     private bool _cacheRefreshPending;
     private bool _cacheRefreshWholeBook;
+    private bool _cacheRefreshReloadBooks;
+    private bool _chapterCatalogProjectionPending;
+    private Task? _chapterProjectionTask;
     private string? _cacheRefreshBookId;
     private string? _selectedBookId;
     private string? _selectedBookDecoration;
 
     public CacheManagementViewModel(
         ICacheWorkspaceService cacheWorkspaceService,
+        ICacheCatalog cacheCatalog,
+        ICacheCoverageQuery cacheCoverageQuery,
+        ICacheInvalidationCoordinator invalidationCoordinator,
         IAppFeedbackService feedbackService,
         IAppDialogService dialogService,
         IAppNavigator navigator,
         IChapterExportCoordinator chapterExportCoordinator,
         IPresentationFileDialogService fileDialogs,
-        IUiScheduler? uiScheduler = null)
+        IUiScheduler? uiScheduler = null,
+        ICachePlanRepairRequestor? cachePlanRepairRequestor = null)
     {
         _cacheWorkspaceService = cacheWorkspaceService;
+        _cacheCatalog = cacheCatalog;
+        _cacheCoverageQuery = cacheCoverageQuery;
+        _cachePlanRepairRequestor = cachePlanRepairRequestor;
+        _invalidationCoordinator = invalidationCoordinator;
         _feedbackService = feedbackService;
         _dialogService = dialogService;
         _navigator = navigator;
@@ -138,35 +161,63 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                 .Slice(Math.Clamp(start, 0, _chapterCatalog.Count - 1), count)
                 .Select(static chapter => chapter.ChapterIndex)
                 .ToArray();
-            if (chapterIndices.Length == 0)
-            {
-                return;
-            }
-
-            var bookId = _selectedBookId!;
-            if (_chapterDecorationWindow.SetEquals(chapterIndices))
-            {
-                return;
-            }
-
-            _chapterDecorationWindow.Clear();
-            _chapterDecorationWindow.UnionWith(chapterIndices);
-            ClearStaleChapterDecorations(chapterIndices);
-            var requestVersion = Interlocked.Increment(ref _chapterDecorationRequestVersion);
-            _pageTasks.Register(
-                RefreshChapterDecorationsAsync(bookId, chapterIndices, requestVersion, cancellationToken),
-                ReportChapterDecorationRefreshFailure);
+            RequestChapterDecorationIndicesOnUi(chapterIndices, cancellationToken);
         }
 
         if (!_uiScheduler.CheckAccess())
         {
             _pageTasks.Register(
                 _uiScheduler.InvokeAsync(Request, cancellationToken),
-                ReportChapterDecorationRefreshFailure);
+                exception => ReportChapterDecorationRefreshFailure(exception, cancellationToken));
             return;
         }
 
         Request();
+    }
+
+    private void RequestChapterDecorationIndicesOnUi(
+        IEnumerable<int> requestedChapterIndices,
+        CancellationToken cancellationToken,
+        bool forceRefresh = false)
+    {
+        if (!_isPageActive ||
+            _pageCancellation is not { IsCancellationRequested: false } ||
+            string.IsNullOrWhiteSpace(_selectedBookId) ||
+            _chapterCatalog.Count == 0)
+        {
+            return;
+        }
+
+        var chapterIndices = requestedChapterIndices
+            .Where(chapterIndex => _chapterCatalog.TryGetPosition(chapterIndex, out _))
+            .Distinct()
+            .ToArray();
+        if (chapterIndices.Length == 0 ||
+            (!forceRefresh && _chapterDecorationWindow.SetEquals(chapterIndices)))
+        {
+            return;
+        }
+
+        var bookId = _selectedBookId;
+        _chapterDecorationWindow.Clear();
+        _chapterDecorationWindow.UnionWith(chapterIndices);
+        ClearStaleChapterDecorations(chapterIndices);
+        var requestVersion = Interlocked.Increment(ref _chapterDecorationRequestVersion);
+        var refreshGeneration = _cacheRefreshGeneration;
+        var refreshVersion = Volatile.Read(ref _cacheRefreshVersion);
+        var decorationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var previousDecorationCts = _chapterDecorationCts;
+        _chapterDecorationCts = decorationCts;
+        previousDecorationCts?.Cancel();
+        _pageTasks.Register(
+            RefreshChapterDecorationsOwnedAsync(
+                bookId,
+                chapterIndices,
+                refreshGeneration,
+                refreshVersion,
+                requestVersion,
+                decorationCts),
+            exception => ReportChapterDecorationRefreshFailure(exception, cancellationToken));
     }
 
     public string ChapterSelectionSummary => $"已选择 {_chapterSelection.Count} 章";
@@ -179,6 +230,8 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
 
     public bool CanExportSelectedChapters =>
         !IsBusy &&
+        !_chapterCatalogProjectionPending &&
+        !_chapters.IsProjectionPending &&
         !IsChapterExportActive() &&
         HasSelection &&
         !string.IsNullOrWhiteSpace(_selectedBookId) &&
@@ -191,6 +244,11 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             if (IsChapterExportActive())
             {
                 return "已有章节导出任务正在运行";
+            }
+
+            if (_chapterCatalogProjectionPending || _chapters.IsProjectionPending)
+            {
+                return "正在更新章节列表";
             }
 
             if (_chapterSelection.Count == 0)
@@ -241,6 +299,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         }
 
         _chapterSelection.Clear();
+        ResetSelectedBookRefreshState(item.BookId);
         _selectedBookId = item.BookId;
         SelectedBookTitle = item.Title;
         SelectedBookAuthor = item.Author;
@@ -252,6 +311,24 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         NotifyVisibilityStateChanged();
 
         await LoadChaptersAsync(item.BookId, cancellationToken);
+    }
+
+    private void ResetSelectedBookRefreshState(string bookId)
+    {
+        lock (_cacheRefreshSync)
+        {
+            if (string.Equals(_cacheRefreshBookId, bookId, StringComparison.Ordinal) &&
+                string.Equals(_selectedBookId, bookId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _cacheRefreshVersion++;
+            _cacheRefreshBookId = bookId;
+            _cacheRefreshWholeBook = false;
+            _pendingCacheRefreshChapterIndices.Clear();
+            _pendingCacheRefreshCoverageIndices.Clear();
+        }
     }
 
     public void HandleChapterClick(
@@ -315,7 +392,6 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
 
         await ExecuteCleanupAsync(
             ct => _cacheWorkspaceService.ClearChaptersAsync(selectedBookId, selectedIndices, ct),
-            reloadSelectedBook: true,
             cancellationToken);
     }
 
@@ -431,7 +507,6 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
 
     private async Task ExecuteCleanupAsync(
         Func<CancellationToken, Task<CacheCleanupResult>> cleanupAsync,
-        bool reloadSelectedBook,
         CancellationToken cancellationToken)
     {
         IsBusy = true;
@@ -440,31 +515,6 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         try
         {
             var result = await cleanupAsync(cancellationToken);
-            await LoadBooksAsync(cancellationToken);
-
-            if (reloadSelectedBook && !string.IsNullOrWhiteSpace(_selectedBookId))
-            {
-                var selectedBook = Books.FirstOrDefault(book => string.Equals(book.BookId, _selectedBookId, StringComparison.Ordinal));
-                if (selectedBook is not null)
-                {
-                    SelectedBookTitle = selectedBook.Title;
-                    SelectedBookAuthor = selectedBook.Author;
-                    SelectedBookCacheSizeText = selectedBook.CacheSizeText;
-                    SelectedBookChapterCountText = selectedBook.ChapterCountText;
-                    SelectedBookHasCache = true;
-                    UpdateBookSelection(selectedBook.BookId);
-                    await LoadChaptersAsync(selectedBook.BookId, cancellationToken);
-                }
-                else
-                {
-                    ClearSelection();
-                }
-            }
-            else if (Books.Count == 0)
-            {
-                ClearSelection();
-            }
-
             ShowCleanupFeedback(result);
         }
         catch (OperationCanceledException)
@@ -481,7 +531,10 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         }
     }
 
-    private async Task LoadBooksAsync(CancellationToken cancellationToken)
+    private async Task LoadBooksAsync(
+        CancellationToken cancellationToken,
+        int? expectedGeneration = null,
+        int? expectedRefreshVersion = null)
     {
         var version = Interlocked.Increment(ref _bookLoadVersion);
         var projectionCts = CancellationTokenSource.CreateLinkedTokenSource(
@@ -493,14 +546,22 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         IsLoadingBooks = true;
         try
         {
-            var books = await _cacheWorkspaceService.GetCachedBooksAsync(projectionCts.Token);
+            var books = await _cacheCatalog.GetCachedBooksAsync(projectionCts.Token);
             projectionCts.Token.ThrowIfCancellationRequested();
-            if (version != Volatile.Read(ref _bookLoadVersion))
+            if (version != Volatile.Read(ref _bookLoadVersion) ||
+                (expectedGeneration is int loadGeneration &&
+                 expectedRefreshVersion is int loadRefreshVersion &&
+                 !IsCurrentCacheRefreshVersion(loadGeneration, loadRefreshVersion)))
             {
                 return;
             }
 
             var selectedBookId = _selectedBookId;
+            Func<bool> projectionIsCurrent = () =>
+                version == Volatile.Read(ref _bookLoadVersion) &&
+                (expectedGeneration is not int projectionGeneration ||
+                 expectedRefreshVersion is not int projectionRefreshVersion ||
+                 IsCurrentCacheRefreshVersion(projectionGeneration, projectionRefreshVersion));
             var bookPositions = books.Count < 512
                 ? books
                     .Select((book, index) => (book.BookId, index))
@@ -513,25 +574,33 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
 
             await _books.ReplaceWithInBatchesAsync(
                 books,
-                book => new CachedBookListItemViewModel(
-                    book.BookId,
-                    book.Title,
-                    book.Author,
-                    CacheCleanupFeedbackFormatter.FormatBytes(book.TotalSizeBytes),
-                    $"已缓存 {book.ChapterCount} 章",
-                    string.Equals(book.BookId, selectedBookId, StringComparison.Ordinal),
-                    book.TotalSizeBytes),
+                book => CreateBookItem(
+                    book,
+                string.Equals(book.BookId, selectedBookId, StringComparison.Ordinal)),
                 _uiScheduler,
-                projectionCts.Token);
+                projectionCts.Token,
+                preservePreviousItemsOnCancel: true,
+                isCurrent: projectionIsCurrent,
+                beforeComplete: () =>
+                {
+                    if (!projectionIsCurrent())
+                    {
+                        throw new OperationCanceledException(projectionCts.Token);
+                    }
 
-            if (version != Volatile.Read(ref _bookLoadVersion))
-            {
-                return;
-            }
+                    _bookPositions = bookPositions;
+                    if (!string.IsNullOrWhiteSpace(selectedBookId) &&
+                        !_bookPositions.ContainsKey(selectedBookId))
+                    {
+                        ClearSelection();
+                    }
+                    else
+                    {
+                        _selectedBookDecoration = selectedBookId;
+                        UpdateBookSelection(_selectedBookId);
+                    }
+                });
 
-            _bookPositions = bookPositions;
-            _selectedBookDecoration = selectedBookId;
-            UpdateBookSelection(_selectedBookId);
             NotifyVisibilityStateChanged();
             NotifyCommandStateChanged();
         }
@@ -563,14 +632,22 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
 
     private async Task LoadChaptersAsync(string bookId, CancellationToken cancellationToken)
     {
+        var catalogVersion = Interlocked.Increment(ref _chapterCatalogVersion);
+        int refreshGeneration;
+        lock (_cacheRefreshSync)
+        {
+            refreshGeneration = _cacheRefreshGeneration;
+        }
+
         CancelChapterLoad();
         _chapterLoadCts = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
             _pageCancellation?.Token ?? CancellationToken.None);
         var localCts = _chapterLoadCts;
         var version = Interlocked.Increment(ref _chapterLoadVersion);
-        Interlocked.Increment(ref _chapterDecorationRequestVersion);
-        _chapterDecorationWindow.Clear();
+        InvalidateChapterDecorationRequests();
+        Func<bool> projectionIsCurrent = () =>
+            IsCurrentChapterCatalog(refreshGeneration, catalogVersion, bookId, version);
 
         IsLoadingChapters = true;
         _chapterCatalog = new IndexedCatalog<CachedChapterCatalogItem>(
@@ -578,15 +655,17 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             static chapter => chapter.ChapterIndex);
         _chapterSelectionDecorations.Clear();
         _chapterRefreshOverrides.Clear();
+        _pendingChapterRowRefreshes.Clear();
+        _chapterCatalogProjectionPending = false;
         Chapters.Clear();
         _chapterSelection.SetItems([]);
         NotifyVisibilityStateChanged();
 
         try
         {
-            var chapters = await _cacheWorkspaceService.GetCachedChapterCatalogAsync(bookId, localCts.Token);
+            var chapters = await _cacheCatalog.GetCachedChapterCatalogAsync(bookId, localCts.Token);
             if (version != Volatile.Read(ref _chapterLoadVersion) ||
-                !string.Equals(bookId, _selectedBookId, StringComparison.Ordinal))
+                !projectionIsCurrent())
             {
                 return;
             }
@@ -598,36 +677,68 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                     localCts.Token);
             localCts.Token.ThrowIfCancellationRequested();
             if (version != Volatile.Read(ref _chapterLoadVersion) ||
-                !string.Equals(bookId, _selectedBookId, StringComparison.Ordinal))
+                !projectionIsCurrent())
             {
                 return;
             }
 
             var catalog = projection;
-            _chapterCatalog = catalog;
             _chapterSelectionDecorations.Clear();
             _chapterRefreshOverrides.Clear();
             var selectionItems = catalog.Keys;
             var selectionPositions = catalog.Positions;
             var selectionSnapshot = _chapterSelectionDecorations.Snapshot();
-            await _chapters.ReplaceWithInBatchesAsync(
+            var decorationSnapshot = _chapterRefreshOverrides.Snapshot();
+            _chapterCatalogProjectionPending = true;
+            NotifyCommandStateChanged();
+            var projectionTask = _chapters.ReplaceWithInBatchesAsync(
                 catalog.Items,
                 chapter => CreateChapterItem(
                     chapter,
-                    selectionSnapshot),
+                    selectionSnapshot,
+                    decorationSnapshot),
                 _uiScheduler,
-                localCts.Token);
+                localCts.Token,
+                preservePreviousItemsOnCancel: true,
+                isCurrent: projectionIsCurrent,
+                beforeComplete: () =>
+                {
+                    if (!projectionIsCurrent())
+                    {
+                        throw new OperationCanceledException(localCts.Token);
+                    }
+
+                    _chapterCatalog = catalog;
+                    _chapterSelection.SetIndexedItems(
+                        selectionItems,
+                        selectionPositions,
+                        resetSelection: true);
+                    _chapterCatalogProjectionPending = false;
+                    ReplayPendingChapterRows(_chapters.IsProjectionPending);
+                    NotifyCommandStateChanged();
+                });
+            _chapterProjectionTask = projectionTask;
+            try
+            {
+                await projectionTask;
+            }
+            finally
+            {
+                if (ReferenceEquals(_chapterProjectionTask, projectionTask))
+                {
+                    _chapterProjectionTask = null;
+                }
+
+                _chapterCatalogProjectionPending = false;
+                NotifyCommandStateChanged();
+            }
 
             if (version != Volatile.Read(ref _chapterLoadVersion) ||
-                !string.Equals(bookId, _selectedBookId, StringComparison.Ordinal))
+                !projectionIsCurrent())
             {
                 return;
             }
 
-            _chapterSelectionDecorations.Clear();
-            _chapterRefreshOverrides.Clear();
-
-            _chapterSelection.SetIndexedItems(selectionItems, selectionPositions, resetSelection: true);
             SelectedBookHasCache = Chapters.Count > 0;
             NotifyVisibilityStateChanged();
             RequestChapterDecorationWindow(0, ChapterDecorationWindowSize);
@@ -663,6 +774,8 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     private async Task RefreshChapterDecorationsAsync(
         string bookId,
         IReadOnlyCollection<int> chapterIndices,
+        int refreshGeneration,
+        int refreshVersion,
         int requestVersion,
         CancellationToken cancellationToken)
     {
@@ -671,31 +784,130 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             return;
         }
 
-        var version = Volatile.Read(ref _chapterLoadVersion);
-        var chapters = await _cacheWorkspaceService.GetCachedChapterDecorationsAsync(
-            bookId,
-            chapterIndices,
-            cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (version != Volatile.Read(ref _chapterLoadVersion) ||
-            requestVersion != Volatile.Read(ref _chapterDecorationRequestVersion) ||
-            !string.Equals(bookId, _selectedBookId, StringComparison.Ordinal))
+        await _chapterDecorationQueryGate.WaitAsync(cancellationToken);
+        try
+        {
+            var chapterLoadVersion = Volatile.Read(ref _chapterLoadVersion);
+            var physicalChaptersTask = _cacheCatalog.GetCachedChaptersAsync(
+                bookId,
+                chapterIndices,
+                cancellationToken);
+            var coverageStatusesTask = _cacheCoverageQuery.GetAsync(
+                bookId,
+                chapterIndices,
+                cancellationToken);
+            await Task.WhenAll(physicalChaptersTask, coverageStatusesTask);
+            cancellationToken.ThrowIfCancellationRequested();
+            var coverageStatuses = coverageStatusesTask.Result;
+            if (_cachePlanRepairRequestor is not null &&
+                coverageStatuses.Any(static status => status.Kind is
+                    ChapterCacheStatusKind.PlanMissing or ChapterCacheStatusKind.PlanStale))
+            {
+                await _cachePlanRepairRequestor.RequestAsync(
+                    bookId,
+                    chapterIndices,
+                    coverageStatuses,
+                    cancellationToken);
+            }
+
+            if (!IsCurrentCacheRefresh(
+                    refreshGeneration,
+                    refreshVersion,
+                    bookId,
+                    chapterLoadVersion) ||
+                requestVersion != Volatile.Read(ref _chapterDecorationRequestVersion) ||
+                !string.Equals(bookId, _selectedBookId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var physicalByIndex = physicalChaptersTask.Result.ToDictionary(static chapter => chapter.ChapterIndex);
+            var statusByIndex = coverageStatuses.ToDictionary(static status => status.ChapterIndex);
+            foreach (var chapterIndex in chapterIndices)
+            {
+                if (!_chapterCatalog.TryGetPosition(chapterIndex, out var position))
+                {
+                    continue;
+                }
+
+                var decoration = _chapterRefreshOverrides.TryGet(chapterIndex, out var currentDecoration)
+                    ? currentDecoration
+                    : CachedChapterDecoration.Placeholder(_chapterCatalog[position].Title);
+                if (physicalByIndex.TryGetValue(chapterIndex, out var physicalChapter))
+                {
+                    decoration = decoration with
+                    {
+                        Title = physicalChapter.Title,
+                        EntryCount = physicalChapter.EntryCount,
+                        TotalSizeBytes = physicalChapter.TotalSizeBytes
+                    };
+                }
+
+                if (statusByIndex.TryGetValue(chapterIndex, out var status))
+                {
+                    decoration = decoration with
+                    {
+                        CachedSegmentCount = status.CachedSegmentCount,
+                        CurrentConfigurationSegmentCount = status.TotalSegmentCount,
+                        CurrentConfigurationStatus = status.Kind
+                    };
+                }
+
+                _chapterRefreshOverrides.Set(chapterIndex, decoration);
+                RefreshChapterRow(chapterIndex);
+            }
+        }
+        finally
+        {
+            _chapterDecorationQueryGate.Release();
+        }
+    }
+
+    private async Task RefreshChapterDecorationsOwnedAsync(
+        string bookId,
+        IReadOnlyCollection<int> chapterIndices,
+        int refreshGeneration,
+        int refreshVersion,
+        int requestVersion,
+        CancellationTokenSource decorationCts)
+    {
+        try
+        {
+            await RefreshChapterDecorationsAsync(
+                bookId,
+                chapterIndices,
+                refreshGeneration,
+                refreshVersion,
+                requestVersion,
+                decorationCts.Token);
+        }
+        finally
+        {
+            if (ReferenceEquals(_chapterDecorationCts, decorationCts))
+            {
+                _chapterDecorationCts = null;
+            }
+
+            decorationCts.Dispose();
+        }
+    }
+
+    private void RefreshChapterRow(int chapterIndex)
+    {
+        if (!_chapterCatalog.TryGetPosition(chapterIndex, out var position))
         {
             return;
         }
 
-        foreach (var chapter in chapters)
+        if (_chapterCatalogProjectionPending || _chapters.IsProjectionPending)
         {
-            if (!_chapterCatalog.TryGetPosition(chapter.ChapterIndex, out var position))
-            {
-                continue;
-            }
+            _pendingChapterRowRefreshes.Add(chapterIndex);
+            return;
+        }
 
-            _chapterRefreshOverrides.Set(chapter.ChapterIndex, CachedChapterDecoration.From(chapter));
-            if (position < _chapters.Count)
-            {
-                _chapters.ReplaceAt(position, CreateChapterItem(_chapterCatalog[position]));
-            }
+        if (position < _chapters.Count)
+        {
+            _chapters.ReplaceAt(position, CreateChapterItem(_chapterCatalog[position]));
         }
     }
 
@@ -710,17 +922,15 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             }
 
             _chapterRefreshOverrides.Remove(chapterIndex);
-            if (_chapterCatalog.TryGetPosition(chapterIndex, out var position) &&
-                position < _chapters.Count)
-            {
-                _chapters.ReplaceAt(position, CreateChapterItem(_chapterCatalog[position]));
-            }
+            RefreshChapterRow(chapterIndex);
         }
     }
 
-    private void ReportChapterDecorationRefreshFailure(Exception exception)
+    private void ReportChapterDecorationRefreshFailure(
+        Exception exception,
+        CancellationToken activationToken)
     {
-        if (_isPageActive)
+        if (IsCurrentPageActivation(activationToken))
         {
             _feedbackService.ShowProjectedNotification(
                 "刷新章节缓存状态失败",
@@ -741,10 +951,12 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         _chapterCatalog = new IndexedCatalog<CachedChapterCatalogItem>(
             [],
             static chapter => chapter.ChapterIndex);
-        Interlocked.Increment(ref _chapterDecorationRequestVersion);
-        _chapterDecorationWindow.Clear();
+        Interlocked.Increment(ref _chapterCatalogVersion);
+        InvalidateChapterDecorationRequests();
         _chapterSelectionDecorations.Clear();
         _chapterRefreshOverrides.Clear();
+        _pendingChapterRowRefreshes.Clear();
+        _chapterCatalogProjectionPending = false;
         Chapters.Clear();
         _chapterSelection.SetItems([]);
         UpdateBookSelection(null);
@@ -793,29 +1005,35 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     {
         DeactivatePage();
         _pageCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Interlocked.Increment(ref _chapterCatalogVersion);
         lock (_cacheRefreshSync)
         {
             _isPageActive = true;
             _cacheRefreshGeneration++;
+            _cacheRefreshVersion++;
             _cacheRefreshPending = false;
             _cacheRefreshWholeBook = false;
+            _cacheRefreshReloadBooks = false;
             _pendingCacheRefreshChapterIndices.Clear();
+            _pendingCacheRefreshCoverageIndices.Clear();
+            _pendingCacheRefreshBookIds.Clear();
+            _cacheRefreshBookEpochs.Clear();
             _cacheRefreshBookId = null;
             _isCacheRefreshRunning = false;
         }
 
-        _cacheWorkspaceService.Changed += OnCacheChanged;
-        _isCacheEventsRegistered = true;
+        _invalidationCoordinator.BatchPublished += OnInvalidationBatchPublished;
+        _isInvalidationRegistered = true;
         _chapterExportCoordinator.SnapshotChanged += OnChapterExportSnapshotChanged;
         _isExportEventsRegistered = true;
     }
 
     private void DeactivatePage()
     {
-        if (_isCacheEventsRegistered)
+        if (_isInvalidationRegistered)
         {
-            _cacheWorkspaceService.Changed -= OnCacheChanged;
-            _isCacheEventsRegistered = false;
+            _invalidationCoordinator.BatchPublished -= OnInvalidationBatchPublished;
+            _isInvalidationRegistered = false;
         }
 
         if (_isExportEventsRegistered)
@@ -831,86 +1049,77 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             _pageCancellation = null;
             _isPageActive = false;
             _cacheRefreshGeneration++;
+            _cacheRefreshVersion++;
             _cacheRefreshPending = false;
             _cacheRefreshWholeBook = false;
+            _cacheRefreshReloadBooks = false;
             _pendingCacheRefreshChapterIndices.Clear();
+            _pendingCacheRefreshCoverageIndices.Clear();
+            _pendingCacheRefreshBookIds.Clear();
+            _cacheRefreshBookEpochs.Clear();
             _cacheRefreshBookId = null;
             _isCacheRefreshRunning = false;
         }
 
-        Interlocked.Increment(ref _chapterDecorationRequestVersion);
-        _chapterDecorationWindow.Clear();
+        Interlocked.Increment(ref _chapterCatalogVersion);
+        InvalidateChapterDecorationRequests();
+        _pendingChapterRowRefreshes.Clear();
+        _chapterCatalogProjectionPending = false;
         pageCancellation?.Cancel();
         pageCancellation?.Dispose();
     }
 
-    private void OnCacheChanged(object? sender, CacheChangedEventArgs eventArgs)
+    private void OnInvalidationBatchPublished(object? sender, CacheInvalidationBatch batch)
     {
-        var selectedBookId = _selectedBookId;
-        if (!_isCacheEventsRegistered ||
-            string.IsNullOrWhiteSpace(selectedBookId) ||
-            (!string.IsNullOrWhiteSpace(eventArgs.BookId) &&
-             !string.Equals(eventArgs.BookId, selectedBookId, StringComparison.Ordinal)))
-        {
-            return;
-        }
-
-        if (!TryGetActivePageCancellationToken(out var cancellationToken))
+        if (!_isInvalidationRegistered || !TryGetActivePageCancellationToken(out var cancellationToken))
         {
             return;
         }
 
         if (!_uiScheduler.CheckAccess())
         {
-            try
-            {
-                _pageTasks.Register(
-                    _uiScheduler.InvokeAsync(
-                        () => QueueCacheRefresh(selectedBookId, eventArgs.ChapterIndex),
-                        cancellationToken),
-                    ReportCacheRefreshFailure);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-            }
-            catch (Exception exception)
-            {
-                ReportCacheRefreshFailure(exception);
-            }
-
+            _pageTasks.Register(
+                _uiScheduler.InvokeAsync(
+                    () => QueueCacheRefresh(batch),
+                    cancellationToken),
+                exception => ReportCacheRefreshFailure(exception, cancellationToken));
             return;
         }
 
-        QueueCacheRefresh(selectedBookId, eventArgs.ChapterIndex);
+        QueueCacheRefresh(batch);
     }
 
-    private void QueueCacheRefresh(string bookId, int? chapterIndex)
+    private void QueueCacheRefresh(CacheInvalidationBatch batch)
     {
         int generation;
         CancellationToken cancellationToken;
         lock (_cacheRefreshSync)
         {
             if (!_isPageActive ||
-                _pageCancellation is not { IsCancellationRequested: false } pageCancellation ||
-                !string.Equals(bookId, _selectedBookId, StringComparison.Ordinal))
+                _pageCancellation is not { IsCancellationRequested: false } pageCancellation)
             {
                 return;
             }
 
+            var queued = false;
+            var selectedProjectionDirty = false;
+            foreach (var change in batch.Changes)
+            {
+                var result = QueueCacheRefresh(change);
+                queued |= result.Queued;
+                selectedProjectionDirty |= result.SelectedProjectionDirty;
+            }
+
+            if (!queued)
+            {
+                return;
+            }
+
+            if (selectedProjectionDirty)
+            {
+                _cacheRefreshVersion++;
+            }
             _cacheRefreshPending = true;
-            _cacheRefreshBookId = bookId;
-            if (chapterIndex is int changedChapterIndex)
-            {
-                if (!_cacheRefreshWholeBook)
-                {
-                    _pendingCacheRefreshChapterIndices.Add(changedChapterIndex);
-                }
-            }
-            else
-            {
-                _cacheRefreshWholeBook = true;
-                _pendingCacheRefreshChapterIndices.Clear();
-            }
             if (_isCacheRefreshRunning)
             {
                 return;
@@ -923,7 +1132,173 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
 
         _pageTasks.Register(
             RefreshChangedChaptersAsync(generation, cancellationToken),
-            ReportCacheRefreshFailure);
+            exception => ReportCacheRefreshFailure(exception, cancellationToken));
+    }
+
+    private (bool Queued, bool SelectedProjectionDirty) QueueCacheRefresh(
+        CacheInvalidation change)
+    {
+        var aspects = change.Aspects;
+        var queued = false;
+        var selectedProjectionDirty = false;
+        switch (change.Scope)
+        {
+            case CacheInvalidationScope.Global:
+                if (aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary) ||
+                    aspects.HasFlag(CacheInvalidationAspect.CatalogStructure))
+                {
+                    _cacheRefreshReloadBooks = true;
+                    queued = true;
+                }
+
+                selectedProjectionDirty = !string.IsNullOrWhiteSpace(_selectedBookId) &&
+                    (aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary) ||
+                     aspects.HasFlag(CacheInvalidationAspect.CatalogStructure) ||
+                     aspects.HasFlag(CacheInvalidationAspect.Coverage));
+
+                if (aspects.HasFlag(CacheInvalidationAspect.CatalogStructure))
+                {
+                    _cacheRefreshWholeBook = true;
+                    InvalidateChapterCatalogProjection();
+                }
+
+                if (aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary) ||
+                    aspects.HasFlag(CacheInvalidationAspect.Coverage))
+                {
+                    if (aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary))
+                    {
+                        queued |= QueueSelectedChapterWindow(_pendingCacheRefreshChapterIndices);
+                    }
+
+                    if (aspects.HasFlag(CacheInvalidationAspect.Coverage))
+                    {
+                        queued |= QueueSelectedChapterWindow(
+                            _pendingCacheRefreshCoverageIndices,
+                            forceDirty: true);
+                    }
+                }
+
+                break;
+            case CacheInvalidationScope.Book book:
+                if (aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary) ||
+                    aspects.HasFlag(CacheInvalidationAspect.CatalogStructure))
+                {
+                    TouchBookRefreshEpoch(book.BookId);
+                    _pendingCacheRefreshBookIds.Add(book.BookId);
+                    queued = true;
+                }
+
+                if (string.Equals(book.BookId, _selectedBookId, StringComparison.Ordinal))
+                {
+                    selectedProjectionDirty = aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary) ||
+                                               aspects.HasFlag(CacheInvalidationAspect.CatalogStructure) ||
+                                               aspects.HasFlag(CacheInvalidationAspect.Coverage);
+                    if (aspects.HasFlag(CacheInvalidationAspect.CatalogStructure))
+                    {
+                        _cacheRefreshWholeBook = true;
+                        InvalidateChapterCatalogProjection();
+                    }
+
+                    if (aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary))
+                    {
+                        queued |= QueueSelectedChapterWindow(_pendingCacheRefreshChapterIndices);
+                    }
+
+                    if (aspects.HasFlag(CacheInvalidationAspect.Coverage))
+                    {
+                        queued |= QueueSelectedChapterWindow(
+                            _pendingCacheRefreshCoverageIndices,
+                            forceDirty: true);
+                    }
+                }
+
+                break;
+            case CacheInvalidationScope.Chapters chapters:
+                if (aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary) ||
+                    aspects.HasFlag(CacheInvalidationAspect.CatalogStructure))
+                {
+                    TouchBookRefreshEpoch(chapters.BookId);
+                    _pendingCacheRefreshBookIds.Add(chapters.BookId);
+                    queued = true;
+
+                    if (string.Equals(chapters.BookId, _selectedBookId, StringComparison.Ordinal))
+                    {
+                        var pendingCount = _pendingCacheRefreshChapterIndices.Count;
+                        _pendingCacheRefreshChapterIndices.UnionWith(chapters.ChapterIndices);
+                        queued |= _pendingCacheRefreshChapterIndices.Count > pendingCount;
+                    }
+                }
+
+                if (string.Equals(chapters.BookId, _selectedBookId, StringComparison.Ordinal))
+                {
+                    selectedProjectionDirty = aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary) ||
+                                               aspects.HasFlag(CacheInvalidationAspect.CatalogStructure) ||
+                                               aspects.HasFlag(CacheInvalidationAspect.Coverage);
+                    if (aspects.HasFlag(CacheInvalidationAspect.CatalogStructure))
+                    {
+                        _cacheRefreshWholeBook = true;
+                        InvalidateChapterCatalogProjection();
+                    }
+                    if (aspects.HasFlag(CacheInvalidationAspect.Coverage))
+                    {
+                        var coverageChapterIndices = chapters.ChapterIndices
+                            .Where(chapterIndex => _chapterCatalog.TryGetPosition(chapterIndex, out _))
+                            .ToArray();
+                        if (coverageChapterIndices.Length > 0)
+                        {
+                            _pendingCacheRefreshCoverageIndices.UnionWith(coverageChapterIndices);
+                            queued = true;
+                        }
+                    }
+                }
+
+                break;
+        }
+
+        if (queued)
+        {
+            _cacheRefreshBookId = _selectedBookId;
+        }
+
+        return (queued, selectedProjectionDirty);
+    }
+
+    private void TouchBookRefreshEpoch(string bookId)
+    {
+        _cacheRefreshBookEpochs[bookId] =
+            _cacheRefreshBookEpochs.GetValueOrDefault(bookId) + 1;
+    }
+
+    private bool QueueSelectedChapterWindow(
+        HashSet<int> pendingChapterIndices,
+        bool forceDirty = false)
+    {
+        if (string.IsNullOrWhiteSpace(_selectedBookId) || _chapterCatalog.Count == 0)
+        {
+            return false;
+        }
+
+        var window = _chapterDecorationWindow.Count > 0
+            ? _chapterDecorationWindow
+                : _chapterCatalog
+                .Slice(0, Math.Min(ChapterDecorationWindowSize, _chapterCatalog.Count))
+                .Select(static chapter => chapter.ChapterIndex);
+        var pendingCount = pendingChapterIndices.Count;
+        pendingChapterIndices.UnionWith(window);
+        return forceDirty || pendingChapterIndices.Count > pendingCount;
+    }
+
+    private void InvalidateChapterDecorationRequests()
+    {
+        Interlocked.Increment(ref _chapterDecorationRequestVersion);
+        _chapterDecorationWindow.Clear();
+        _chapterDecorationCts?.Cancel();
+    }
+
+    private void InvalidateChapterCatalogProjection()
+    {
+        Interlocked.Increment(ref _chapterCatalogVersion);
+        InvalidateChapterDecorationRequests();
     }
 
     private async Task RefreshChangedChaptersAsync(int generation, CancellationToken cancellationToken)
@@ -932,9 +1307,14 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         {
             while (true)
             {
-                string bookId;
+                string[] bookIds;
+                string? selectedBookId;
+                bool reloadBooks;
                 bool refreshWholeBook;
-                int[] chapterIndices;
+                int[] physicalChapterIndices;
+                int[] coverageChapterIndices;
+                int refreshVersion;
+                Dictionary<string, int> bookEpochs;
                 lock (_cacheRefreshSync)
                 {
                     if (generation != _cacheRefreshGeneration || !_isPageActive)
@@ -942,46 +1322,104 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                         return;
                     }
 
-                    if (!_cacheRefreshPending || string.IsNullOrWhiteSpace(_cacheRefreshBookId))
+                    if (!_cacheRefreshPending)
                     {
                         _isCacheRefreshRunning = false;
                         return;
                     }
 
                     _cacheRefreshPending = false;
-                    bookId = _cacheRefreshBookId;
+                    refreshVersion = _cacheRefreshVersion;
+                    selectedBookId = _cacheRefreshBookId;
+                    reloadBooks = _cacheRefreshReloadBooks;
                     refreshWholeBook = _cacheRefreshWholeBook;
-                    chapterIndices = _pendingCacheRefreshChapterIndices.ToArray();
+                    physicalChapterIndices = _pendingCacheRefreshChapterIndices.ToArray();
+                    coverageChapterIndices = _pendingCacheRefreshCoverageIndices.ToArray();
+                    bookIds = _pendingCacheRefreshBookIds.ToArray();
+                    bookEpochs = bookIds.ToDictionary(
+                        bookId => bookId,
+                        bookId => _cacheRefreshBookEpochs.GetValueOrDefault(bookId),
+                        StringComparer.Ordinal);
+                    _cacheRefreshReloadBooks = false;
                     _cacheRefreshWholeBook = false;
                     _pendingCacheRefreshChapterIndices.Clear();
+                    _pendingCacheRefreshCoverageIndices.Clear();
+                    _pendingCacheRefreshBookIds.Clear();
                 }
 
-                if (refreshWholeBook || chapterIndices.Length == 0)
+                if (reloadBooks)
                 {
-                    await LoadChaptersAsync(bookId, cancellationToken);
-                    await RefreshBookSummaryAsync(bookId, generation, cancellationToken);
+                    await LoadBooksAsync(cancellationToken, generation, refreshVersion);
                 }
-                else
+
+                if (bookIds.Length > 0)
                 {
-                    var requiresStructuralReload = false;
-                    foreach (var chapterIndex in chapterIndices)
+                    await RefreshBookSummariesAsync(
+                        bookIds,
+                        bookEpochs,
+                        generation,
+                        refreshVersion,
+                        cancellationToken);
+                }
+
+                if (refreshWholeBook &&
+                    !string.IsNullOrWhiteSpace(selectedBookId) &&
+                    string.Equals(selectedBookId, _selectedBookId, StringComparison.Ordinal))
+                {
+                    await RefreshChapterCatalogAsync(
+                        selectedBookId,
+                        generation,
+                        refreshVersion,
+                        coverageChapterIndices,
+                        cancellationToken);
+                }
+
+                var selectedBookIsCurrent = !string.IsNullOrWhiteSpace(selectedBookId) &&
+                                            string.Equals(selectedBookId, _selectedBookId, StringComparison.Ordinal);
+                if (selectedBookIsCurrent && !refreshWholeBook)
+                {
+                    if (physicalChapterIndices.Length > 0)
                     {
-                        if (await RefreshChapterAsync(bookId, chapterIndex, generation, cancellationToken))
+                        await RefreshChaptersAsync(
+                            selectedBookId!,
+                            physicalChapterIndices,
+                            generation,
+                            refreshVersion,
+                            cancellationToken);
+                    }
+
+                    if (coverageChapterIndices.Length > 0)
+                    {
+                        await RefreshChapterDecorationsAsync(
+                            selectedBookId!,
+                            coverageChapterIndices,
+                            generation,
+                            refreshVersion,
+                            Volatile.Read(ref _chapterDecorationRequestVersion),
+                            cancellationToken);
+                    }
+                }
+
+                var selectedRefreshIsStale = !IsCurrentCacheRefreshVersion(generation, refreshVersion);
+                var bookRefreshIsStale = !AreCurrentBookRefreshEpochs(bookEpochs);
+                if (selectedRefreshIsStale || bookRefreshIsStale)
+                {
+                    lock (_cacheRefreshSync)
+                    {
+                        if (generation == _cacheRefreshGeneration && _isPageActive)
                         {
-                            requiresStructuralReload = true;
-                            break;
+                            _cacheRefreshReloadBooks |= reloadBooks;
+                            if (selectedRefreshIsStale && selectedBookIsCurrent)
+                            {
+                                _cacheRefreshWholeBook |= refreshWholeBook;
+                                _pendingCacheRefreshChapterIndices.UnionWith(physicalChapterIndices);
+                                _pendingCacheRefreshCoverageIndices.UnionWith(coverageChapterIndices);
+                            }
+                            _pendingCacheRefreshBookIds.UnionWith(bookIds);
+                            _cacheRefreshBookId = _selectedBookId;
+                            _cacheRefreshPending = true;
                         }
                     }
-
-                    if (requiresStructuralReload)
-                    {
-                        // A chapter appearing or disappearing changes the catalog shape. Let the
-                        // staged loader publish one coherent replacement instead of rebuilding
-                        // the immutable index and selection source inside a targeted update.
-                        await LoadChaptersAsync(bookId, cancellationToken);
-                    }
-
-                    await RefreshBookSummaryAsync(bookId, generation, cancellationToken);
                 }
 
                 cancellationToken.ThrowIfCancellationRequested();
@@ -1012,116 +1450,434 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             {
                 _pageTasks.Register(
                     RefreshChangedChaptersAsync(generation, cancellationToken),
-                    ReportCacheRefreshFailure);
+                    exception => ReportCacheRefreshFailure(exception, cancellationToken));
             }
         }
     }
 
-    private async Task<bool> RefreshChapterAsync(
+    private async Task RefreshChaptersAsync(
         string bookId,
-        int chapterIndex,
+        IReadOnlyCollection<int> chapterIndices,
         int generation,
+        int refreshVersion,
         CancellationToken cancellationToken)
     {
-        var chapterLoadVersion = Volatile.Read(ref _chapterLoadVersion);
-        var chapter = await _cacheWorkspaceService
-            .GetCachedChapterAsync(bookId, chapterIndex, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (!IsCurrentCacheRefresh(generation, bookId, chapterLoadVersion))
+        if (chapterIndices.Count == 0)
         {
-            return false;
+            return;
         }
 
-        if (_chapterCatalog.TryGetPosition(chapterIndex, out var position))
+        await _chapterDecorationQueryGate.WaitAsync(cancellationToken);
+        try
         {
-            if (chapter is null)
+            var chapterLoadVersion = Volatile.Read(ref _chapterLoadVersion);
+            var chapters = await _cacheCatalog.GetCachedChaptersAsync(
+                bookId,
+                chapterIndices,
+                cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsCurrentCacheRefresh(generation, refreshVersion, bookId, chapterLoadVersion))
             {
-                return true;
+                return;
             }
 
-            _chapterRefreshOverrides.Set(chapterIndex, CachedChapterDecoration.From(chapter));
-            var item = CreateChapterItem(_chapterCatalog[position]);
-            if (position < _chapters.Count || _chapters.IsProjectionPending || _chapters.IsReplacing)
+            foreach (var chapter in chapters)
             {
-                _chapters.ReplaceAt(position, item);
-            }
-        }
-        else if (chapter is not null)
-        {
-            return true;
-        }
+                if (!_chapterCatalog.TryGetPosition(chapter.ChapterIndex, out _))
+                {
+                    continue;
+                }
 
-        SelectedBookHasCache = _chapterCatalog.Count > 0;
-        NotifyVisibilityStateChanged();
-        NotifyCommandStateChanged();
-        return false;
+                var decoration = _chapterRefreshOverrides.TryGet(chapter.ChapterIndex, out var currentDecoration)
+                    ? currentDecoration
+                    : CachedChapterDecoration.Placeholder(chapter.Title);
+                _chapterRefreshOverrides.Set(
+                    chapter.ChapterIndex,
+                    decoration with
+                    {
+                        Title = chapter.Title,
+                        EntryCount = chapter.EntryCount,
+                        TotalSizeBytes = chapter.TotalSizeBytes
+                    });
+                RefreshChapterRow(chapter.ChapterIndex);
+            }
+
+            SelectedBookHasCache = _chapterCatalog.Count > 0;
+            NotifyVisibilityStateChanged();
+            NotifyCommandStateChanged();
+        }
+        finally
+        {
+            _chapterDecorationQueryGate.Release();
+        }
     }
 
-    private bool IsCurrentCacheRefresh(int generation, string bookId, int chapterLoadVersion)
+    private async Task RefreshChapterCatalogAsync(
+        string bookId,
+        int generation,
+        int refreshVersion,
+        IReadOnlyCollection<int> targetedDecorationIndices,
+        CancellationToken cancellationToken)
+    {
+        var existingProjectionTask = _chapterProjectionTask;
+        if (existingProjectionTask is not null)
+        {
+            try
+            {
+                await existingProjectionTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+            }
+        }
+
+        var chapterLoadVersion = Volatile.Read(ref _chapterLoadVersion);
+        var catalogVersion = Volatile.Read(ref _chapterCatalogVersion);
+        var chapters = await _cacheCatalog
+            .GetCachedChapterCatalogAsync(bookId, cancellationToken)
+            .ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!IsCurrentChapterCatalog(generation, catalogVersion, bookId, chapterLoadVersion))
+        {
+            return;
+        }
+
+        var catalog = chapters.Count < 512
+            ? CreateChapterProjection(chapters)
+            : await Task.Run(
+                () => CreateChapterProjection(chapters),
+                cancellationToken).ConfigureAwait(false);
+
+        IndexedCatalog<CachedChapterCatalogItem>? previousCatalog = null;
+        await _uiScheduler.InvokeAsync(
+            () => previousCatalog = _chapterCatalog,
+            cancellationToken).ConfigureAwait(false);
+        if (previousCatalog is null ||
+            !IsCurrentChapterCatalog(generation, catalogVersion, bookId, chapterLoadVersion))
+        {
+            return;
+        }
+
+        var delta = previousCatalog.Count + catalog.Count < 512
+            ? CreateChapterCatalogDelta(previousCatalog, catalog)
+            : await Task.Run(
+                () => CreateChapterCatalogDelta(previousCatalog, catalog),
+                cancellationToken).ConfigureAwait(false);
+
+        await _uiScheduler.InvokeAsync(
+            async () =>
+            {
+                if (!IsCurrentChapterCatalog(generation, catalogVersion, bookId, chapterLoadVersion))
+                {
+                    return;
+                }
+
+                await ApplyChapterCatalogDeltaAsync(
+                    delta,
+                    generation,
+                    catalogVersion,
+                    bookId,
+                    chapterLoadVersion,
+                    cancellationToken);
+                if (!IsCurrentChapterCatalog(generation, catalogVersion, bookId, chapterLoadVersion))
+                {
+                    return;
+                }
+
+                SelectedBookHasCache = catalog.Count > 0;
+                NotifyVisibilityStateChanged();
+                NotifyCommandStateChanged();
+                var visibleChapterIndices = _chapterDecorationWindow.Count > 0
+                    ? _chapterDecorationWindow
+                    : _chapterCatalog
+                        .Slice(0, Math.Min(ChapterDecorationWindowSize, _chapterCatalog.Count))
+                        .Select(static chapter => chapter.ChapterIndex);
+                RequestChapterDecorationIndicesOnUi(
+                    visibleChapterIndices.Concat(targetedDecorationIndices),
+                    cancellationToken,
+                    forceRefresh: targetedDecorationIndices.Count > 0);
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static ChapterCatalogDelta CreateChapterCatalogDelta(
+        IndexedCatalog<CachedChapterCatalogItem> previousCatalog,
+        IndexedCatalog<CachedChapterCatalogItem> catalog)
+    {
+        var removedKeys = previousCatalog.Keys
+            .Where(chapterIndex => !catalog.TryGetPosition(chapterIndex, out _))
+            .ToArray();
+        var removedPositions = removedKeys
+            .Select(chapterIndex => previousCatalog.Positions[chapterIndex])
+            .OrderByDescending(static position => position)
+            .ToArray();
+        var added = new List<ChapterCatalogInsertion>();
+        var replacements = new List<ChapterCatalogReplacement>();
+        for (var position = 0; position < catalog.Count; position++)
+        {
+            var chapter = catalog[position];
+            if (!previousCatalog.TryGetPosition(chapter.ChapterIndex, out _))
+            {
+                added.Add(new ChapterCatalogInsertion(position, chapter));
+                continue;
+            }
+
+            if (!previousCatalog.TryGet(chapter.ChapterIndex, out var previous) ||
+                !string.Equals(previous.Title, chapter.Title, StringComparison.Ordinal))
+            {
+                replacements.Add(new ChapterCatalogReplacement(position, chapter));
+            }
+        }
+
+        return new ChapterCatalogDelta(
+            catalog,
+            removedKeys,
+            removedPositions,
+            added,
+            replacements);
+    }
+
+    private async Task ApplyChapterCatalogDeltaAsync(
+        ChapterCatalogDelta delta,
+        int generation,
+        int catalogVersion,
+        string bookId,
+        int chapterLoadVersion,
+        CancellationToken cancellationToken)
+    {
+        if (delta.ChangeCount > 512)
+        {
+            var selectionSnapshot = _chapterSelectionDecorations.Snapshot();
+            var decorationSnapshot = _chapterRefreshOverrides.Snapshot();
+            _pendingChapterRowRefreshes.Clear();
+            _chapterCatalogProjectionPending = true;
+            NotifyCommandStateChanged();
+            try
+            {
+                await _chapters.ReplaceWithInBatchesAsync(
+                    delta.Catalog.Items,
+                    chapter => CreateChapterItem(
+                        chapter,
+                        selectionSnapshot,
+                        decorationSnapshot),
+                    _uiScheduler,
+                    cancellationToken,
+                    notifyEachBatch: false,
+                    preservePreviousItemsOnCancel: true,
+                    isCurrent: () => IsCurrentChapterCatalog(
+                        generation,
+                        catalogVersion,
+                        bookId,
+                        chapterLoadVersion),
+                    beforeComplete: () =>
+                    {
+                        if (!IsCurrentChapterCatalog(
+                                generation,
+                                catalogVersion,
+                                bookId,
+                                chapterLoadVersion))
+                        {
+                            throw new OperationCanceledException(cancellationToken);
+                        }
+
+                        _chapterCatalog = delta.Catalog;
+                        RemoveChapterDecorations(delta.RemovedKeys);
+                        _chapterSelection.UpdateIndexedItems(
+                            delta.Catalog.Keys,
+                            delta.Catalog.Positions);
+                        _chapterCatalogProjectionPending = false;
+                        ReplayPendingChapterRows(_chapters.IsProjectionPending);
+                        NotifyCommandStateChanged();
+                    });
+            }
+            catch
+            {
+                _pendingChapterRowRefreshes.Clear();
+                throw;
+            }
+            finally
+            {
+                if (_chapterCatalogProjectionPending)
+                {
+                    _chapterCatalogProjectionPending = false;
+                    NotifyCommandStateChanged();
+                }
+            }
+
+            return;
+        }
+
+        foreach (var position in delta.RemovedPositions)
+        {
+            if ((uint)position < (uint)_chapters.Count)
+            {
+                _chapters.RemoveAt(position);
+            }
+        }
+
+        foreach (var insertion in delta.Added)
+        {
+            var position = Math.Min(insertion.Position, _chapters.Count);
+            _chapters.Insert(position, CreateChapterItem(insertion.Item));
+        }
+
+        foreach (var replacement in delta.Replacements)
+        {
+            if ((uint)replacement.Position < (uint)_chapters.Count)
+            {
+                _chapters.ReplaceAt(replacement.Position, CreateChapterItem(replacement.Item));
+            }
+        }
+
+        _chapterCatalog = delta.Catalog;
+        RemoveChapterDecorations(delta.RemovedKeys);
+        _chapterSelection.UpdateIndexedItems(
+            delta.Catalog.Keys,
+            delta.Catalog.Positions);
+    }
+
+    private void RemoveChapterDecorations(IReadOnlyCollection<int> chapterIndices)
+    {
+        foreach (var chapterIndex in chapterIndices)
+        {
+            _chapterSelectionDecorations.Remove(chapterIndex);
+            _chapterRefreshOverrides.Remove(chapterIndex);
+        }
+    }
+
+    private void ReplayPendingChapterRows(bool collectionIsReplacing)
+    {
+        var chapterIndices = _pendingChapterRowRefreshes.ToArray();
+        _pendingChapterRowRefreshes.Clear();
+        foreach (var chapterIndex in chapterIndices)
+        {
+            if (!_chapterCatalog.TryGetPosition(chapterIndex, out var position) ||
+                position >= _chapters.Count)
+            {
+                continue;
+            }
+
+            _chapters.ReplaceAt(
+                position,
+                CreateChapterItem(_chapterCatalog[position]),
+                notify: !collectionIsReplacing);
+        }
+    }
+
+    private sealed record ChapterCatalogDelta(
+        IndexedCatalog<CachedChapterCatalogItem> Catalog,
+        IReadOnlyList<int> RemovedKeys,
+        IReadOnlyList<int> RemovedPositions,
+        IReadOnlyList<ChapterCatalogInsertion> Added,
+        IReadOnlyList<ChapterCatalogReplacement> Replacements)
+    {
+        public int ChangeCount => RemovedKeys.Count + Added.Count + Replacements.Count;
+    }
+
+    private sealed record ChapterCatalogInsertion(
+        int Position,
+        CachedChapterCatalogItem Item);
+
+    private sealed record ChapterCatalogReplacement(
+        int Position,
+        CachedChapterCatalogItem Item);
+
+    private bool IsCurrentCacheRefresh(
+        int generation,
+        int refreshVersion,
+        string bookId,
+        int chapterLoadVersion)
     {
         lock (_cacheRefreshSync)
         {
             return generation == _cacheRefreshGeneration &&
+                   refreshVersion == _cacheRefreshVersion &&
                    _isPageActive &&
                    string.Equals(bookId, _selectedBookId, StringComparison.Ordinal) &&
                    chapterLoadVersion == Volatile.Read(ref _chapterLoadVersion);
         }
     }
 
-    private async Task RefreshBookSummaryAsync(
-        string bookId,
+    private bool IsCurrentChapterCatalog(
         int generation,
+        int catalogVersion,
+        string bookId,
+        int chapterLoadVersion)
+    {
+        lock (_cacheRefreshSync)
+        {
+            return generation == _cacheRefreshGeneration &&
+                   catalogVersion == Volatile.Read(ref _chapterCatalogVersion) &&
+                   _isPageActive &&
+                   string.Equals(bookId, _selectedBookId, StringComparison.Ordinal) &&
+                   chapterLoadVersion == Volatile.Read(ref _chapterLoadVersion);
+        }
+    }
+
+    private bool IsCurrentCacheRefreshVersion(int generation, int refreshVersion)
+    {
+        lock (_cacheRefreshSync)
+        {
+            return generation == _cacheRefreshGeneration &&
+                   refreshVersion == _cacheRefreshVersion &&
+                   _isPageActive &&
+                   _pageCancellation is { IsCancellationRequested: false };
+        }
+    }
+
+    private async Task RefreshBookSummariesAsync(
+        IReadOnlyCollection<string> bookIds,
+        IReadOnlyDictionary<string, int> bookEpochs,
+        int generation,
+        int refreshVersion,
         CancellationToken cancellationToken)
     {
-        var chapterLoadVersion = Volatile.Read(ref _chapterLoadVersion);
-        var book = await _cacheWorkspaceService.GetCachedBookAsync(bookId, cancellationToken);
+        var books = await _cacheCatalog.GetCachedBooksAsync(bookIds, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        if (!IsCurrentCacheRefresh(generation, bookId, chapterLoadVersion))
+        if (!IsCurrentCacheRefreshVersion(generation, refreshVersion) ||
+            !AreCurrentBookRefreshEpochs(bookEpochs))
         {
             return;
         }
 
-        if (book is null)
+        var booksById = books.ToDictionary(static book => book.BookId, StringComparer.Ordinal);
+        var requiresFullReload = false;
+        foreach (var bookId in bookIds)
         {
-            if (_bookPositions.TryGetValue(bookId, out var removedPosition))
+            if (!booksById.TryGetValue(bookId, out var book))
             {
-                _books.RemoveAt(removedPosition);
-                RebuildBookPositions();
+                if (_bookPositions.TryGetValue(bookId, out var removedPosition))
+                {
+                    _books.RemoveAt(removedPosition);
+                    RebuildBookPositions();
+                }
+
+                if (string.Equals(_selectedBookId, bookId, StringComparison.Ordinal))
+                {
+                    ClearSelection();
+                }
+
+                continue;
             }
 
-            ClearSelection();
-            return;
-        }
-
-        if (!_bookPositions.ContainsKey(book.BookId))
-        {
-            await LoadBooksAsync(cancellationToken);
-            if (!IsCurrentCacheRefresh(generation, bookId, chapterLoadVersion))
+            if (!_bookPositions.TryGetValue(book.BookId, out var bookPosition))
             {
-                return;
+                requiresFullReload = true;
+                continue;
             }
 
-            if (!_bookPositions.ContainsKey(book.BookId))
+            var isSelectedBook = string.Equals(_selectedBookId, book.BookId, StringComparison.Ordinal);
+            if (isSelectedBook)
             {
-                ClearSelection();
-                return;
+                SelectedBookTitle = book.Title;
+                SelectedBookAuthor = book.Author ?? "未知作者";
+                SelectedBookCacheSizeText = CacheCleanupFeedbackFormatter.FormatBytes(book.TotalSizeBytes);
+                SelectedBookChapterCountText = $"已缓存 {book.ChapterCount} 章";
             }
-        }
 
-        SelectedBookTitle = book.Title;
-        SelectedBookAuthor = book.Author ?? "未知作者";
-        SelectedBookCacheSizeText = CacheCleanupFeedbackFormatter.FormatBytes(book.TotalSizeBytes);
-        SelectedBookChapterCountText = $"已缓存 {book.ChapterCount} 章";
-        if (_bookPositions.TryGetValue(book.BookId, out var bookPosition))
-        {
-            var updatedBook = new CachedBookListItemViewModel(
-                book.BookId,
-                book.Title,
-                book.Author,
-                CacheCleanupFeedbackFormatter.FormatBytes(book.TotalSizeBytes),
-                $"已缓存 {book.ChapterCount} 章",
-                isSelected: string.Equals(book.BookId, _selectedBookDecoration, StringComparison.Ordinal),
-                book.TotalSizeBytes);
+            var updatedBook = CreateBookItem(
+                book,
+                isSelected: string.Equals(book.BookId, _selectedBookDecoration, StringComparison.Ordinal));
             var targetPosition = FindBookInsertionPosition(updatedBook, bookPosition);
             _books.ReplaceAt(bookPosition, updatedBook);
             if (targetPosition != bookPosition)
@@ -1130,18 +1886,41 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                 RebuildBookPositions();
             }
         }
+
+        if (requiresFullReload)
+        {
+            await LoadBooksAsync(cancellationToken, generation, refreshVersion);
+            if (!IsCurrentCacheRefreshVersion(generation, refreshVersion))
+            {
+                return;
+            }
+        }
+
         SelectedBookHasCache = _chapterCatalog.Count > 0;
         NotifyVisibilityStateChanged();
         NotifyCommandStateChanged();
     }
 
+    private bool AreCurrentBookRefreshEpochs(IReadOnlyDictionary<string, int> bookEpochs)
+    {
+        lock (_cacheRefreshSync)
+        {
+            return bookEpochs.All(pair =>
+                _cacheRefreshBookEpochs.GetValueOrDefault(pair.Key) == pair.Value);
+        }
+    }
+
     private CachedChapterListItemViewModel CreateChapterItem(
         CachedChapterCatalogItem chapter,
-        IReadOnlyDictionary<int, bool>? selectionSnapshot = null)
+        IReadOnlyDictionary<int, bool>? selectionSnapshot = null,
+        IReadOnlyDictionary<int, CachedChapterDecoration>? decorationSnapshot = null)
     {
-        var decoration = _chapterRefreshOverrides.TryGet(chapter.ChapterIndex, out var refreshOverride)
-            ? refreshOverride
-            : CachedChapterDecoration.Placeholder(chapter.Title);
+        var decoration = decorationSnapshot is not null
+            ? decorationSnapshot.GetValueOrDefault(chapter.ChapterIndex) ??
+              CachedChapterDecoration.Placeholder(chapter.Title)
+            : _chapterRefreshOverrides.TryGet(chapter.ChapterIndex, out var refreshOverride)
+                ? refreshOverride
+                : CachedChapterDecoration.Placeholder(chapter.Title);
         var cachedChapter = new CachedChapterCacheItem(
             chapter.BookId,
             chapter.ChapterIndex,
@@ -1169,6 +1948,18 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                 ? selectionSnapshot.TryGetValue(chapter.ChapterIndex, out var selectedSnapshot) && selectedSnapshot
                 : _chapterSelectionDecorations.TryGet(chapter.ChapterIndex, out var selected) && selected));
     }
+
+    private static CachedBookListItemViewModel CreateBookItem(
+        CachedBookSummary book,
+        bool isSelected = false) =>
+        new(
+            book.BookId,
+            book.Title,
+            book.Author,
+            CacheCleanupFeedbackFormatter.FormatBytes(book.TotalSizeBytes),
+            $"已缓存 {book.ChapterCount} 章",
+            isSelected,
+            book.TotalSizeBytes);
 
     private int FindBookInsertionPosition(
         CachedBookListItemViewModel updatedBook,
@@ -1204,19 +1995,16 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             : StringComparer.Ordinal.Compare(left.BookId, right.BookId);
     }
 
-    private void ReportCacheRefreshFailure(Exception exception)
+    private void ReportCacheRefreshFailure(
+        Exception exception,
+        CancellationToken activationToken)
     {
-        lock (_cacheRefreshSync)
+        if (IsCurrentPageActivation(activationToken))
         {
-            if (!_isPageActive)
-            {
-                return;
-            }
+            _feedbackService.ShowProjectedNotification(
+                "刷新缓存管理列表失败",
+                _feedbackService.Project(exception));
         }
-
-        _feedbackService.ShowProjectedNotification(
-            "刷新缓存管理列表失败",
-            _feedbackService.Project(exception));
     }
 
     private void NotifyVisibilityStateChanged()
@@ -1257,6 +2045,12 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                 else
                 {
                     _chapterSelectionDecorations.Remove(chapterIndex);
+                }
+
+                if (_chapterCatalogProjectionPending || _chapters.IsProjectionPending)
+                {
+                    _pendingChapterRowRefreshes.Add(chapterIndex);
+                    continue;
                 }
 
                 if (position < _chapters.Count)
@@ -1334,14 +2128,14 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             {
                 _pageTasks.Register(
                     _uiScheduler.InvokeAsync(NotifyCommandStateChanged, cancellationToken),
-                    ReportExportProjectionFailure);
+                    exception => ReportExportProjectionFailure(exception, cancellationToken));
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
             }
             catch (Exception exception)
             {
-                ReportExportProjectionFailure(exception);
+                ReportExportProjectionFailure(exception, cancellationToken);
             }
 
             return;
@@ -1350,19 +2144,16 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         NotifyCommandStateChanged();
     }
 
-    private void ReportExportProjectionFailure(Exception exception)
+    private void ReportExportProjectionFailure(
+        Exception exception,
+        CancellationToken activationToken)
     {
-        lock (_cacheRefreshSync)
+        if (IsCurrentPageActivation(activationToken))
         {
-            if (!_isPageActive)
-            {
-                return;
-            }
+            _feedbackService.ShowProjectedNotification(
+                "更新导出状态失败",
+                _feedbackService.Project(exception));
         }
-
-        _feedbackService.ShowProjectedNotification(
-            "更新导出状态失败",
-            _feedbackService.Project(exception));
     }
 
     private bool TryGetActivePageCancellationToken(out CancellationToken cancellationToken)
@@ -1378,6 +2169,16 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
 
             cancellationToken = pageCancellation.Token;
             return true;
+        }
+    }
+
+    private bool IsCurrentPageActivation(CancellationToken activationToken)
+    {
+        lock (_cacheRefreshSync)
+        {
+            return _isPageActive &&
+                   _pageCancellation is { IsCancellationRequested: false } pageCancellation &&
+                   pageCancellation.Token == activationToken;
         }
     }
 

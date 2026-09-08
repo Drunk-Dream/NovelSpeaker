@@ -11,6 +11,7 @@ namespace NovelSpeaker.Application.Playback.Cache;
 /// </summary>
 public sealed class CacheWorkspaceService :
     ICacheWorkspaceService,
+    ICachePlanRepairRequestor,
     ICacheWorkspaceBackgroundTaskOwner,
     IDisposable
 {
@@ -336,6 +337,46 @@ public sealed class CacheWorkspaceService :
             statuses.ToDictionary(status => status.ChapterIndex),
             includeMissing: false);
         return statuses;
+    }
+
+    public async Task RequestAsync(
+        string bookId,
+        IReadOnlyCollection<int> chapterIndices,
+        IReadOnlyCollection<ChapterCacheStatus> statuses,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        ArgumentNullException.ThrowIfNull(chapterIndices);
+        ArgumentNullException.ThrowIfNull(statuses);
+
+        var repairStatuses = statuses
+            .Where(static status => status.Kind is
+                ChapterCacheStatusKind.PlanMissing or ChapterCacheStatusKind.PlanStale)
+            .ToArray();
+        if (repairStatuses.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var chapters = await _bookMetadataQuery
+                .GetChaptersAsync(bookId, chapterIndices, cancellationToken)
+                .ConfigureAwait(false);
+            QueuePlanRepairs(
+                bookId,
+                chapters,
+                repairStatuses.ToDictionary(static status => status.ChapterIndex),
+                includeMissing: true);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (IsExpectedCompletenessFailure(exception))
+        {
+            ReportCompletenessFailure(exception);
+        }
     }
 
     public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken)
