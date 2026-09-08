@@ -25,7 +25,8 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     private readonly IAppNavigator _navigator;
     private readonly IRuleDocumentInteraction _ruleDocuments;
     private readonly EditorSession<Guid?, RegexReplacementRuleEditorModel> _editorSession = new(EditorsEqual);
-    private int _importOperationActive;
+    private readonly RuleSelectionController<Guid> _selection = new();
+    private readonly RuleImportSession _importSession = new();
     private bool _loading;
 
     public RegexReplacementRulesViewModel(
@@ -120,11 +121,11 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     }
 
     public Task ImportRuleFileAsync(CancellationToken cancellationToken) =>
-        ImportDocumentAsync(() => _ruleDocuments.PickImportAsync(cancellationToken), "正则替换规则导入失败", cancellationToken);
+        ImportDocumentAsync(token => _ruleDocuments.PickImportAsync(token), "正则替换规则导入失败", cancellationToken);
 
     public Task ImportRulesFromClipboardAsync(CancellationToken cancellationToken) =>
         ImportDocumentAsync(
-            () => _ruleDocuments.ReadClipboardAsync(cancellationToken),
+            token => _ruleDocuments.ReadClipboardAsync(token),
             "从剪贴板导入正则替换规则失败",
             cancellationToken,
             warnWhenMissing: true);
@@ -255,18 +256,16 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
             return;
         }
 
-        var ids = Rules.Select(rule => rule.Id).ToList();
-        var sourceIndex = ids.IndexOf(source.Id);
-        var targetIndex = ids.IndexOf(target.Id);
-        if (sourceIndex < 0 || targetIndex < 0)
+        if (!RuleReorderController.TryMove(
+                Rules.Select(rule => rule.Id).ToArray(),
+                source.Id,
+                target.Id,
+                placement,
+                out var ids))
         {
             ClearDragTarget();
             return;
         }
-        ids.RemoveAt(sourceIndex);
-        targetIndex = ids.IndexOf(target.Id);
-        var insertionIndex = placement == RuleDropPlacement.After ? targetIndex + 1 : targetIndex;
-        ids.Insert(insertionIndex, source.Id);
         await SaveOrderAsync(ids, cancellationToken);
     }
 
@@ -368,11 +367,15 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     private async Task MoveAsync(RegexReplacementRuleListItemViewModel? rule, int delta, CancellationToken cancellationToken)
     {
         if (rule is null || IsBusy) return;
-        var ids = Rules.Select(item => item.Id).ToList();
-        var index = ids.IndexOf(rule.Id);
-        var target = index + delta;
-        if (target < 0 || target >= ids.Count) return;
-        (ids[index], ids[target]) = (ids[target], ids[index]);
+        if (!RuleReorderController.TryMoveByOffset(
+                Rules.Select(item => item.Id).ToArray(),
+                rule.Id,
+                delta,
+                out var ids))
+        {
+            return;
+        }
+
         await SaveOrderAsync(ids, cancellationToken);
     }
 
@@ -421,69 +424,45 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     }
 
     private async Task ImportDocumentAsync(
-        Func<Task<RuleImportDocument?>> readDocument,
+        Func<CancellationToken, Task<RuleImportDocument?>> readDocument,
         string failureTitle,
         CancellationToken cancellationToken,
         bool warnWhenMissing = false)
     {
-        if (Interlocked.CompareExchange(ref _importOperationActive, 1, 0) != 0)
-        {
-            return;
-        }
-
-        var ownsBusy = false;
         try
         {
-            var document = await readDocument();
-            if (document is null)
-            {
-                if (warnWhenMissing)
-                {
-                    _feedback.ShowWarning("无法导入", "剪贴板中没有可导入的文本内容。");
-                }
-
-                return;
-            }
-
-            if (IsBusy)
-            {
-                return;
-            }
-
-            if (!await ConfirmLeaveAsync(cancellationToken))
+            var execution = await _importSession.RunAsync(
+                readDocument,
+                ImportJsonAsyncCore,
+                ConfirmLeaveAsync,
+                () => IsBusy,
+                SetBusy,
+                cancellationToken,
+                reportMissingDocument: warnWhenMissing
+                    ? () => _feedback.ShowWarning("无法导入", "剪贴板中没有可导入的文本内容。")
+                    : null);
+            if (execution is null)
             {
                 return;
             }
-
-            if (IsBusy)
-            {
-                return;
-            }
-
-            IsBusy = true;
-            ownsBusy = true;
-            NotifyCommandState();
-            var result = await _workspace.ImportJsonAsync(document.Json, cancellationToken);
-            await RefreshAsync(SelectedRuleId, false, cancellationToken);
-            await _playback.RefreshRegexReplacementAsync(cancellationToken);
             _feedback.ShowSuccess(
                 "正则替换规则导入完成",
-                $"{document.SourceDescription}：新增 {result.ImportedCount} 条，跳过重复 {result.SkippedCount} 条。");
+                $"{execution.Document.SourceDescription}：新增 {execution.Result.ImportedCount} 条，跳过重复 {execution.Result.SkippedCount} 条。");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             _feedback.ShowProjectedNotification(failureTitle, _feedback.Project(exception));
         }
-        finally
-        {
-            if (ownsBusy)
-            {
-                IsBusy = false;
-                NotifyCommandState();
-            }
+    }
 
-            Volatile.Write(ref _importOperationActive, 0);
-        }
+    private async Task<RuleImportResult> ImportJsonAsyncCore(
+        RuleImportDocument document,
+        CancellationToken cancellationToken)
+    {
+        var result = await _workspace.ImportJsonAsync(document.Json, cancellationToken);
+        await RefreshAsync(SelectedRuleId, false, cancellationToken);
+        await _playback.RefreshRegexReplacementAsync(cancellationToken);
+        return new RuleImportResult(result.ImportedCount, result.SkippedCount, result.TotalCount);
     }
 
     public async Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken)
@@ -559,6 +538,15 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     {
         _loading = true;
         _editorSession.Open(editor.Id, editor, isNew, fallback);
+        if (isNew)
+        {
+            _selection.Clear();
+        }
+        else if (editor.Id is Guid ruleId)
+        {
+            _selection.Select(ruleId);
+        }
+
         SelectedRuleId = editor.Id;
         DraftName = editor.Name;
         DraftPattern = editor.Pattern;
@@ -566,7 +554,6 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         DraftScope = editor.Scope;
         _loading = false;
         Validate();
-        foreach (var rule in Rules) rule.IsSelected = rule.Id == editor.Id;
         UpdateRuleItemStates();
         NotifyCommandState();
     }
@@ -575,6 +562,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     {
         _loading = true;
         _editorSession.Close();
+        _selection.Clear();
         SelectedRuleId = null;
         DraftName = string.Empty;
         DraftPattern = string.Empty;
@@ -582,7 +570,6 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         DraftScope = RegexReplacementScope.Both;
         ValidationMessage = string.Empty;
         _loading = false;
-        foreach (var rule in Rules) rule.IsSelected = false;
         UpdateRuleItemStates();
         NotifyCommandState();
     }
@@ -594,7 +581,14 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         Rules.Clear();
         foreach (var item in items)
         {
-            Rules.Add(new RegexReplacementRuleListItemViewModel(item.Id, item.Name, item.PatternSummary, item.IsEnabled, item.Scope, item.Id == SelectedRuleId, item.ErrorMessage));
+            Rules.Add(new RegexReplacementRuleListItemViewModel(
+                item.Id,
+                item.Name,
+                item.PatternSummary,
+                item.IsEnabled,
+                item.Scope,
+                !IsEditingNewRule && _selection.IsSelected(item.Id),
+                item.ErrorMessage));
         }
 
         if (selectFirst && !IsEditingNewRule)
@@ -641,9 +635,16 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         for (var index = 0; index < Rules.Count; index++)
         {
             var rule = Rules[index];
+            rule.IsSelected = !IsEditingNewRule && _selection.IsSelected(rule.Id);
             rule.CanQuickActions = !IsBusy;
             rule.CanMoveUp = !IsBusy && index > 0;
             rule.CanMoveDown = !IsBusy && index < Rules.Count - 1;
         }
+    }
+
+    private void SetBusy(bool value)
+    {
+        IsBusy = value;
+        NotifyCommandState();
     }
 }

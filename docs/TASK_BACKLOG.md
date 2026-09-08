@@ -813,7 +813,7 @@ Row 内少量 BookCard
 
 完成成果：Rules Shared 建立 EditorSession、selection、排序计算和导入生命周期组件，统一 dirty/fallback、无变化排序、取消与 Busy/互斥释放语义；新增纯 Presentation 生命周期边界测试。
 
-## [ ] T018（P1）：迁移 TTS/Chapter/Regex Rules 并删除重复实现
+## [x] T018（P1）：迁移 TTS/Chapter/Regex Rules 并删除重复实现
 
 依赖：T017。
 
@@ -828,6 +828,8 @@ Row 内少量 BookCard
 - 不为旧测试保留兼容 API。
 
 测试：允许显著精简重复 fixture；WPF tests 只留真正控件/拖动/ContextMenu 契约。
+
+完成成果：TTS/Chapter/Regex VM 复用 Rules Shared 的选择、排序和导入生命周期，删除重复的导入互斥、Busy、排序计算与页面初始化标志；保留各 Feature 的校验、预览、播放刷新及持久化语义。
 
 ## [ ] T019（P1）：迁移 Settings 为 process snapshot + transient 页面 VM
 

@@ -32,9 +32,10 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
     private readonly IAppSettingsService _settingsService;
     private readonly IAppNavigator _navigator;
     private readonly IRuleDocumentInteraction _ruleDocuments;
-    private int _importOperationActive;
     private CancellationTokenSource? _testOperationCts;
     private readonly EditorSession<long?, TtsRuleEditorModel> _editorSession = new(EditorsEqual);
+    private readonly RuleSelectionController<long> _selection = new();
+    private readonly RuleImportSession _importSession = new();
     private readonly ResettableObservableCollection<TtsRuleListItemViewModel> _rules = [];
     private int _defaultSpeakSpeed = 10;
 
@@ -143,13 +144,13 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
 
     public Task ImportRuleFileAsync(CancellationToken cancellationToken) =>
         ImportDocumentAsync(
-            () => _ruleDocuments.PickImportAsync(cancellationToken),
+            token => _ruleDocuments.PickImportAsync(token),
             "规则导入失败",
             cancellationToken);
 
     public Task ImportRulesFromClipboardAsync(CancellationToken cancellationToken) =>
         ImportDocumentAsync(
-            () => _ruleDocuments.ReadClipboardAsync(cancellationToken),
+            token => _ruleDocuments.ReadClipboardAsync(token),
             "从剪贴板导入失败",
             cancellationToken,
             warnWhenMissing: true);
@@ -488,105 +489,76 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
     partial void OnDraftConcurrentRateChanged(string value) => NotifyDraftChanged();
 
     private async Task ImportDocumentAsync(
-        Func<Task<RuleImportDocument?>> readDocument,
+        Func<CancellationToken, Task<RuleImportDocument?>> readDocument,
         string failureTitle,
         CancellationToken cancellationToken,
         bool warnWhenMissing = false)
     {
-        if (Interlocked.CompareExchange(ref _importOperationActive, 1, 0) != 0)
-        {
-            return;
-        }
-
-        var ownsBusy = false;
         try
         {
-            var document = await readDocument();
-            if (document is null)
-            {
-                if (warnWhenMissing)
-                {
-                    _feedbackService.ShowWarning("无法导入", "剪贴板中没有可导入的文本内容。");
-                }
-
-                return;
-            }
-
-            if (IsBusy)
-            {
-                return;
-            }
-
-            if (!await ConfirmLeaveAsync(cancellationToken))
+            var execution = await _importSession.RunAsync(
+                readDocument,
+                (document, token) => ImportJsonTextAsyncCore(document.Json, document.SourceDescription, token),
+                ConfirmLeaveAsync,
+                () => IsBusy,
+                SetBusy,
+                cancellationToken,
+                reportMissingDocument: warnWhenMissing
+                    ? () => _feedbackService.ShowWarning("无法导入", "剪贴板中没有可导入的文本内容。")
+                    : null);
+            if (execution is null || execution.Result is null)
             {
                 return;
             }
 
-            if (IsBusy)
-            {
-                return;
-            }
-
-            IsBusy = true;
-            ownsBusy = true;
-            NotifyUiStateChanged();
-            await ImportJsonTextAsyncCore(document.Json, document.SourceDescription, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleProjectedError(failureTitle, exception);
         }
-        finally
-        {
-            if (ownsBusy)
-            {
-                IsBusy = false;
-                NotifyUiStateChanged();
-            }
-
-            Volatile.Write(ref _importOperationActive, 0);
-        }
     }
 
-    private async Task ImportJsonTextAsyncCore(string jsonText, string sourceDescription, CancellationToken cancellationToken)
+    private async Task<RuleImportResult?> ImportJsonTextAsyncCore(
+        string jsonText,
+        string sourceDescription,
+        CancellationToken cancellationToken)
     {
-        try
+        var preview = await _ruleImport.CreateImportPreviewAsync(
+            jsonText,
+            sourceDescription,
+            cancellationToken);
+        if (preview.ErrorMessage is not null)
         {
-            var preview = await _ruleImport.CreateImportPreviewAsync(
-                jsonText,
-                sourceDescription,
-                cancellationToken);
-            if (preview.ErrorMessage is not null)
-            {
-                _feedbackService.ShowWarning("无法导入", preview.ErrorMessage);
-                return;
-            }
+            _feedbackService.ShowWarning("无法导入", preview.ErrorMessage);
+            return null;
+        }
 
-            var hasCookieLoginInfoDependency = preview.Items.Any(item =>
-                !item.CanImport &&
-                item.StatusMessage.Contains("Cookie/LoginInfo", StringComparison.OrdinalIgnoreCase));
-            var result = await _ruleImport.ImportAsync(preview, cancellationToken);
-            await RefreshRulesAsync(null, openEditorIfNeeded: false, cancellationToken);
-            var statusMessage = BuildImportStatusMessage(result);
-            if (hasCookieLoginInfoDependency)
-            {
-                _feedbackService.ShowWarning(
-                    "部分规则不兼容",
-                    $"当前版本不支持 Cookie/LoginInfo。{statusMessage}");
-            }
-            else if (result.FailedCount > 0)
-            {
-                _feedbackService.ShowWarning("部分规则导入失败", statusMessage);
-            }
-            else
-            {
-                _feedbackService.ShowSuccess("规则导入完成", statusMessage);
-            }
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        var hasCookieLoginInfoDependency = preview.Items.Any(item =>
+            !item.CanImport &&
+            item.StatusMessage.Contains("Cookie/LoginInfo", StringComparison.OrdinalIgnoreCase));
+        var result = await _ruleImport.ImportAsync(preview, cancellationToken);
+        await RefreshRulesAsync(null, openEditorIfNeeded: false, cancellationToken);
+        var statusMessage = BuildImportStatusMessage(result);
+        if (hasCookieLoginInfoDependency)
         {
-            HandleProjectedError("规则导入失败", exception);
+            _feedbackService.ShowWarning(
+                "部分规则不兼容",
+                $"当前版本不支持 Cookie/LoginInfo。{statusMessage}");
         }
+        else if (result.FailedCount > 0)
+        {
+            _feedbackService.ShowWarning("部分规则导入失败", statusMessage);
+        }
+        else
+        {
+            _feedbackService.ShowSuccess("规则导入完成", statusMessage);
+        }
+
+        return new RuleImportResult(
+            result.ImportedCount,
+            result.SkippedCount,
+            result.TotalCount,
+            result.FailedCount);
     }
 
     private async Task RefreshRulesAsync(long? preferredRuleId, bool openEditorIfNeeded, CancellationToken cancellationToken)
@@ -601,7 +573,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
                 rule.RequestSummary,
                 rule.IsEnabled,
                 rule.IsSelected,
-                HighlightedRuleId == rule.Id && !IsEditingNewRule));
+                _selection.IsSelected(rule.Id) && !IsEditingNewRule));
 
         OnPropertyChanged(nameof(CurrentRuleId));
 
@@ -643,6 +615,15 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
     private void OpenEditor(TtsRuleEditorModel editor, bool isNew, long? fallbackRuleId)
     {
         _editorSession.Open(isNew ? null : editor.Id, editor, isNew, fallbackRuleId);
+        if (isNew)
+        {
+            _selection.Clear();
+        }
+        else if (editor.Id is long ruleId)
+        {
+            _selection.Select(ruleId);
+        }
+
         HighlightedRuleId = isNew ? null : editor.Id;
         UpdateRuleSelectionStates();
 
@@ -654,6 +635,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
     private void CloseEditor()
     {
         _editorSession.Close();
+        _selection.Clear();
         HighlightedRuleId = null;
         UpdateRuleSelectionStates();
         DraftName = string.Empty;
@@ -757,8 +739,14 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
     {
         foreach (var rule in Rules)
         {
-            rule.IsSelected = !IsEditingNewRule && HighlightedRuleId == rule.Id;
+            rule.IsSelected = !IsEditingNewRule && _selection.IsSelected(rule.Id);
         }
+    }
+
+    private void SetBusy(bool value)
+    {
+        IsBusy = value;
+        NotifyUiStateChanged();
     }
 
     public async Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken)

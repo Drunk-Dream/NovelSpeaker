@@ -10,7 +10,6 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
     private readonly PageActivationController _activation = new();
     private readonly INavigationGuardService _navigationGuardService;
     private readonly PageEventOperationRunner _eventOperations;
-    private bool _hasLoaded;
 
     public TtsRulesPage(
         TtsRulesViewModel viewModel,
@@ -40,15 +39,9 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
         activation.Register(ViewModel.HandleNavigatedFrom);
         activation.Register(_navigationGuardService.Register(ViewModel.ConfirmLeaveAsync));
 
-        if (_hasLoaded)
-        {
-            return;
-        }
-
         try
         {
             await ViewModel.LoadAsync(activation.CancellationToken);
-            activation.TryCommit(() => _hasLoaded = true);
         }
         catch (OperationCanceledException) when (!activation.IsCurrent)
         {

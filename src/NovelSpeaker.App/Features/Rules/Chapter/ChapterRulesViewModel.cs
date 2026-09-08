@@ -24,8 +24,9 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
     private readonly IAppNavigator _navigator;
     private readonly IRuleDocumentInteraction _ruleDocuments;
     private readonly EditorSession<string?, ChapterRuleEditorModel> _editorSession = new(EditorsEqual);
+    private readonly RuleSelectionController<string> _selection = new();
+    private readonly RuleImportSession _importSession = new();
     private readonly ResettableObservableCollection<ChapterRuleListItemViewModel> _rules = [];
-    private int _importOperationActive;
     private bool _suppressDraftStateUpdates;
 
     public ChapterRulesViewModel(
@@ -167,19 +168,18 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
             return;
         }
 
-        var orderedIds = Rules.Select(rule => rule.Id).ToList();
-        var sourceIndex = orderedIds.FindIndex(id => string.Equals(id, sourceRule.Id, StringComparison.Ordinal));
-        var targetIndex = orderedIds.FindIndex(id => string.Equals(id, targetRule.Id, StringComparison.Ordinal));
-        if (sourceIndex < 0 || targetIndex < 0 || sourceIndex == targetIndex)
+        if (!RuleReorderController.TryMove(
+                Rules.Select(rule => rule.Id).ToArray(),
+                sourceRule.Id,
+                targetRule.Id,
+                placement,
+                out var orderedIds,
+                StringComparer.Ordinal))
         {
             ClearDragTarget();
             return;
         }
 
-        orderedIds.RemoveAt(sourceIndex);
-        targetIndex = orderedIds.FindIndex(id => string.Equals(id, targetRule.Id, StringComparison.Ordinal));
-        var insertionIndex = placement == RuleDropPlacement.After ? targetIndex + 1 : targetIndex;
-        orderedIds.Insert(insertionIndex, sourceRule.Id);
         await SaveRuleOrderAsync(orderedIds, cancellationToken);
     }
 
@@ -207,13 +207,13 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
 
     public Task ImportRuleFileAsync(CancellationToken cancellationToken) =>
         ImportDocumentAsync(
-            () => _ruleDocuments.PickImportAsync(cancellationToken),
+            token => _ruleDocuments.PickImportAsync(token),
             "章节规则导入失败",
             cancellationToken);
 
     public Task ImportRulesFromClipboardAsync(CancellationToken cancellationToken) =>
         ImportDocumentAsync(
-            () => _ruleDocuments.ReadClipboardAsync(cancellationToken),
+            token => _ruleDocuments.ReadClipboardAsync(token),
             "从剪贴板导入章节规则失败",
             cancellationToken,
             warnWhenMissing: true);
@@ -466,14 +466,16 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
             return;
         }
 
-        var orderedIds = Rules.Select(item => item.Id).ToList();
-        var index = orderedIds.FindIndex(id => string.Equals(id, rule.Id, StringComparison.Ordinal));
-        if (index <= 0)
+        if (!RuleReorderController.TryMoveByOffset(
+                Rules.Select(item => item.Id).ToArray(),
+                rule.Id,
+                -1,
+                out var orderedIds,
+                StringComparer.Ordinal))
         {
             return;
         }
 
-        (orderedIds[index - 1], orderedIds[index]) = (orderedIds[index], orderedIds[index - 1]);
         await SaveRuleOrderAsync(orderedIds, cancellationToken);
     }
 
@@ -496,14 +498,16 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
             return;
         }
 
-        var orderedIds = Rules.Select(item => item.Id).ToList();
-        var index = orderedIds.FindIndex(id => string.Equals(id, rule.Id, StringComparison.Ordinal));
-        if (index < 0 || index >= orderedIds.Count - 1)
+        if (!RuleReorderController.TryMoveByOffset(
+                Rules.Select(item => item.Id).ToArray(),
+                rule.Id,
+                1,
+                out var orderedIds,
+                StringComparer.Ordinal))
         {
             return;
         }
 
-        (orderedIds[index], orderedIds[index + 1]) = (orderedIds[index + 1], orderedIds[index]);
         await SaveRuleOrderAsync(orderedIds, cancellationToken);
     }
 
@@ -572,66 +576,44 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
     }
 
     private async Task ImportDocumentAsync(
-        Func<Task<RuleImportDocument?>> readDocument,
+        Func<CancellationToken, Task<RuleImportDocument?>> readDocument,
         string failureTitle,
         CancellationToken cancellationToken,
         bool warnWhenMissing = false)
     {
-        if (Interlocked.CompareExchange(ref _importOperationActive, 1, 0) != 0)
-        {
-            return;
-        }
-
-        var ownsBusy = false;
         try
         {
-            var document = await readDocument();
-            if (document is null)
-            {
-                if (warnWhenMissing)
-                {
-                    _feedbackService.ShowWarning("无法导入", "剪贴板中没有可导入的文本内容。");
-                }
-
-                return;
-            }
-
-            if (IsBusy)
-            {
-                return;
-            }
-
-            if (!await ConfirmLeaveAsync(cancellationToken))
+            var execution = await _importSession.RunAsync(
+                readDocument,
+                ImportJsonAsyncCore,
+                ConfirmLeaveAsync,
+                () => IsBusy,
+                SetBusy,
+                cancellationToken,
+                reportMissingDocument: warnWhenMissing
+                    ? () => _feedbackService.ShowWarning("无法导入", "剪贴板中没有可导入的文本内容。")
+                    : null);
+            if (execution is null)
             {
                 return;
             }
-
-            if (IsBusy)
-            {
-                return;
-            }
-
-            SetBusy(true);
-            ownsBusy = true;
-            var result = await _workspaceService.ImportJsonAsync(document.Json, cancellationToken);
-            await RefreshRulesAsync(HighlightedRuleId, openEditorIfNeeded: false, cancellationToken);
             _feedbackService.ShowSuccess(
                 "章节规则导入完成",
-                $"{document.SourceDescription}：新增 {result.ImportedCount} 条，跳过重复 {result.SkippedCount} 条。");
+                $"{execution.Document.SourceDescription}：新增 {execution.Result.ImportedCount} 条，跳过重复 {execution.Result.SkippedCount} 条。");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleProjectedError(failureTitle, exception);
         }
-        finally
-        {
-            if (ownsBusy)
-            {
-                SetBusy(false);
-            }
+    }
 
-            Volatile.Write(ref _importOperationActive, 0);
-        }
+    private async Task<RuleImportResult> ImportJsonAsyncCore(
+        RuleImportDocument document,
+        CancellationToken cancellationToken)
+    {
+        var result = await _workspaceService.ImportJsonAsync(document.Json, cancellationToken);
+        await RefreshRulesAsync(HighlightedRuleId, openEditorIfNeeded: false, cancellationToken);
+        return new RuleImportResult(result.ImportedCount, result.SkippedCount, result.TotalCount);
     }
 
     private async Task RefreshRulesAsync(string? preferredRuleId, bool openEditorIfNeeded, CancellationToken cancellationToken)
@@ -647,7 +629,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
                 rule.IsEnabled,
                 rule.IsBuiltIn,
                 rule.CanDelete,
-                !IsEditingNewRule && string.Equals(HighlightedRuleId, rule.Id, StringComparison.Ordinal)));
+                !IsEditingNewRule && _selection.IsSelected(rule.Id)));
 
         if (openEditorIfNeeded && !IsEditingNewRule)
         {
@@ -690,6 +672,15 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
     private void OpenEditor(ChapterRuleEditorModel editor, bool isNew, string? fallbackRuleId)
     {
         _editorSession.Open(isNew ? null : editor.Id, editor, isNew, fallbackRuleId);
+        if (isNew)
+        {
+            _selection.Clear();
+        }
+        else if (editor.Id is not null)
+        {
+            _selection.Select(editor.Id);
+        }
+
         HighlightedRuleId = isNew ? null : editor.Id;
 
         _suppressDraftStateUpdates = true;
@@ -707,6 +698,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
     private void CloseEditor()
     {
         _editorSession.Close();
+        _selection.Clear();
         HighlightedRuleId = null;
 
         _suppressDraftStateUpdates = true;
@@ -916,9 +908,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
         for (var index = 0; index < Rules.Count; index++)
         {
             var rule = Rules[index];
-            rule.IsSelected = !IsEditingNewRule &&
-                              HighlightedRuleId is not null &&
-                              string.Equals(rule.Id, HighlightedRuleId, StringComparison.Ordinal);
+            rule.IsSelected = !IsEditingNewRule && _selection.IsSelected(rule.Id);
 
             var canQuickActions = !IsBusy;
             rule.CanQuickActions = canQuickActions;

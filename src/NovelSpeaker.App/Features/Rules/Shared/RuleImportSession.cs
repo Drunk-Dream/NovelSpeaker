@@ -15,7 +15,8 @@ internal sealed class RuleImportSession
         Func<CancellationToken, Task<bool>> confirmLeave,
         Func<bool> isBusy,
         Action<bool> setBusy,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action? reportMissingDocument = null)
     {
         ArgumentNullException.ThrowIfNull(readDocument);
         ArgumentNullException.ThrowIfNull(import);
@@ -34,7 +35,13 @@ internal sealed class RuleImportSession
             cancellationToken.ThrowIfCancellationRequested();
             var document = await readDocument(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            if (document is null || isBusy())
+            if (document is null)
+            {
+                reportMissingDocument?.Invoke();
+                return null;
+            }
+
+            if (isBusy())
             {
                 return null;
             }
