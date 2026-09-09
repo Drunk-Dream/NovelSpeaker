@@ -135,7 +135,7 @@ dotnet test -c Release --no-build
 
 ## Git
 
-- 未经用户明确授权，不提交、推送、创建 PR/Release/tag。
+- 未经用户明确授权，不推送、创建 PR/Release/tag。
 - 不使用会丢弃用户改动的 reset/checkout。
 - 用户要求提交时按逻辑目的拆原子 commit，使用 English Conventional Commits。
 - 纯 move/rename 与行为变化尽量分开提交。
